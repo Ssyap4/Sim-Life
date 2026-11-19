@@ -1,4 +1,4 @@
-import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind } from '../shared/protocol';
+import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
 import type { IngredientId, RecipeId } from '../shared/food';
 import type { PetId, PetAction } from '../shared/pets';
 
@@ -9,6 +9,8 @@ export interface ConnectionCallbacks {
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
+  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand): void;
+  onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
   onStatus(status: string): void;
@@ -47,6 +49,10 @@ export class LiveConnection {
   food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId): boolean {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
+  }
+
+  cancelTask(taskId: number): boolean {
+    return this.sendAuthenticated({ type: 'cancel_task', taskId });
   }
 
   petAction(pet: PetId, action: PetAction): boolean {
@@ -111,6 +117,10 @@ export class LiveConnection {
         this.callbacks.onFoodEvent(packet.role, packet.action, packet.message);
       } else if (packet.type === 'pet_event' && this.authorized) {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
+      } else if (packet.type === 'task_started' && this.authorized) {
+        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command);
+      } else if (packet.type === 'task_ended' && this.authorized) {
+        this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message);
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {

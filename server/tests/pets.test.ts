@@ -93,7 +93,7 @@ async function connect(port: number, role: CharacterId, code: string): Promise<W
 }
 test('Care actions from Vlad and Alina synchronize as a single shared pet family', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-pet-network-'));
-  const server = await startServer({ port: 0, dataDir: dir });
+  const server = await startServer({ port: 0, dataDir: dir, taskTimeScale: 0.035 });
   const sockets: WebSocket[] = [];
   try {
     const codes = JSON.parse(readFileSync(join(dir, 'access.json'), 'utf8')) as Record<CharacterId, string>;

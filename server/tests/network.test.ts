@@ -42,7 +42,7 @@ async function login(socket: WebSocket, role: CharacterId, code: string): Promis
 
 test('Two phones get shared state, role ownership, persisted economy and private codes', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-network-'));
-  const running = await startServer({ port: 0, host: '127.0.0.1', dataDir: dir });
+  const running = await startServer({ port: 0, host: '127.0.0.1', dataDir: dir, taskTimeScale: 0.025 });
   let first: WebSocket | undefined;
   let second: WebSocket | undefined;
   let duplicate: WebSocket | undefined;

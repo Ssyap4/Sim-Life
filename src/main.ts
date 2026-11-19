@@ -14,6 +14,13 @@ let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let selectedRole: CharacterId = 'vlad';
 let toastTimer: number | undefined;
+interface TaskView {
+  taskId: number;
+  label: string;
+  since: number;
+  durationMs: number;
+}
+const tasks = new Map<CharacterId, TaskView>();
 let world: World;
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -27,7 +34,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · СЕМЬЯ И ПИТОМЦЫ</div>
+      <div class="version">0.3 · ЖИВОЙ РИТМ</div>
     </div>
     <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="characters" id="characters">
@@ -45,6 +52,7 @@ app.innerHTML = `
   <div id="message" class="message" aria-live="polite"></div>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
+    <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
     <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
     <div class="home-buttons">
       <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
@@ -78,6 +86,7 @@ app.innerHTML = `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
+const taskPanelEl = document.querySelector<HTMLDivElement>('#task-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
@@ -92,6 +101,53 @@ function notify(message: string): void {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => messageEl.classList.remove('show'), 3600);
 }
+
+function drawTaskPanel(): void {
+  taskPanelEl.replaceChildren();
+  taskPanelEl.hidden = tasks.size === 0;
+  for (const [role, task] of tasks) {
+    const box = document.createElement('div');
+    box.className = 'running-task';
+    box.dataset.role = role;
+    const top = document.createElement('div');
+    top.className = 'running-task-top';
+    const title = document.createElement('strong');
+    title.textContent = names[role] + ': ' + task.label;
+    const secs = document.createElement('span');
+    secs.className = 'task-seconds';
+    top.append(title, secs);
+    const track = document.createElement('div');
+    track.className = 'running-task-track';
+    const fill = document.createElement('i');
+    track.appendChild(fill);
+    box.append(top, track);
+    if (role === active) {
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'task-cancel';
+      cancel.textContent = '✕ Прервать';
+      cancel.addEventListener('click', () => {
+        if (net.cancelTask(task.taskId)) cancel.disabled = true;
+      });
+      box.append(cancel);
+    }
+    taskPanelEl.append(box);
+  }
+  updateTaskProgress();
+}
+
+function updateTaskProgress(): void {
+  for (const [role, task] of tasks) {
+    const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
+    if (!card) continue;
+    const elapsed = Math.min(performance.now() - task.since, task.durationMs);
+    card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
+      Math.min(100, elapsed / task.durationMs * 100) + '%';
+    card.querySelector<HTMLElement>('.task-seconds')!.textContent =
+      Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
+  }
+}
+window.setInterval(() => { if (tasks.size) updateTaskProgress(); }, 150);
 
 function render(): void {
   if (!state) return;
@@ -128,6 +184,8 @@ const net = new LiveConnection({
     active = role;
     state = household;
     online = players;
+    tasks.clear();
+    drawTaskPanel();
     authEl.hidden = true;
     marketBtn.disabled = false;
     petsBtn.disabled = false;
@@ -150,22 +208,35 @@ const net = new LiveConnection({
     online = players;
     render();
   },
-  onAction(role, actionId, message) {
-    const def = ACTIONS[actionId];
-    if (!def) return;
-    const animated = world.perform(role, def.item, def.pose, () => {});
-    statusEl.textContent = message;
-    notify(animated ? message : message + ' · путь к предмету пока не найден');
-  },
-  onFoodEvent(role, action, message) {
-    if (action !== 'buy') world.performFood(role, action);
+  onAction(_role, _actionId, message) {
     statusEl.textContent = message;
     notify(message);
   },
-  onPetEvent(role, pet, action, message) {
-    if (action !== 'buyFood') world.performPet(role, pet, action);
+  onFoodEvent(_role, _action, message) {
     statusEl.textContent = message;
     notify(message);
+  },
+  onPetEvent(_role, _pet, _action, message) {
+    statusEl.textContent = message;
+    notify(message);
+  },
+  onTaskStarted(role, taskId, label, durationMs, command) {
+    tasks.set(role, { taskId, label, durationMs, since: performance.now() });
+    drawTaskPanel();
+    const animated = world.startTimedAction(role, command);
+    statusEl.textContent = names[role] + ': ' + label;
+    if (!animated) notify('Действие началось на сервере, путь анимации пока недоступен');
+  },
+  onTaskEnded(role, taskId, outcome, message) {
+    if (tasks.get(role)?.taskId === taskId) {
+      tasks.delete(role);
+      drawTaskPanel();
+    }
+    if (outcome !== 'completed') {
+      world.cancelTimedAction(role);
+      statusEl.textContent = message;
+      notify(message);
+    }
   },
   onSocialStart(kind, message) {
     actionsEl.hidden = true;
@@ -184,6 +255,11 @@ const net = new LiveConnection({
     } else notify(reason);
   },
   onStatus(text) {
+    if (text.includes('Связь потеряна')) {
+      for (const role of tasks.keys()) world.cancelTimedAction(role);
+      tasks.clear();
+      drawTaskPanel();
+    }
     if (!authEl.hidden) authStatusEl.textContent = text;
     statusEl.textContent = text;
   },

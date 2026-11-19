@@ -4,19 +4,21 @@ import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
-  ACTIONS, names, SOCIAL_LABELS, type ActionId, type CharacterId, type GameState, type ServerPacket,
+  names, SOCIAL_LABELS, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
-import { applyAction } from './logic';
 import { applyFoodAction } from './food';
 import { applyPetAction } from './pets';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
+import { planTask, evaluateTask, type TaskPlan } from './tasks';
 
 export interface ServerOptions {
   port?: number;
   host?: string;
   dataDir?: string;
   distDir?: string;
+  /** For fast deterministic integration tests; production defaults to real time. */
+  taskTimeScale?: number;
 }
 export interface RunningServer {
   httpServer: HttpServer;
@@ -46,9 +48,67 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const active = new Map<CharacterId, WebSocket>();
   const lastAction = new Map<CharacterId, number>();
   const lastSocial = new Map<CharacterId, number>();
+  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout> }
+  const running = new Map<CharacterId, RunningTask>();
+  let nextTaskId = 0;
+  const scale = options.taskTimeScale ?? 1;
+  if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
+  };
+  const stopTask = (role: CharacterId, reason: string): void => {
+    const task = running.get(role);
+    if (!task) return;
+    clearTimeout(task.timer);
+    running.delete(role);
+    all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
+  };
+  const beginTask = (role: CharacterId, socket: WebSocket, plan: TaskPlan): void => {
+    if (running.has(role)) {
+      packet(socket, { type: 'error', reason: 'Персонаж занят. Сначала заверши или отмени текущее действие' });
+      return;
+    }
+    if (plan.resource && [...running.values()].some((task) => task.plan.resource === plan.resource)) {
+      packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
+      return;
+    }
+    const validation = evaluateTask(state, role, plan.command);
+    if (!validation.ok) { packet(socket, { type: 'error', reason: validation.reason }); return; }
+    const durationMs = Math.max(15, Math.round(plan.durationMs * scale));
+    const id = ++nextTaskId;
+    const timer = setTimeout(() => {
+      const current = running.get(role);
+      if (!current || current.id !== id || active.get(role) !== socket) return;
+      running.delete(role);
+      // Revalidate against the freshest household snapshot, so two simultaneous
+      // players cannot create food, rewards or inventory from stale resources.
+      const result = evaluateTask(state, role, plan.command);
+      if (!result.ok) {
+        all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: result.reason });
+        return;
+      }
+      try { files.save(result.state); }
+      catch (error) {
+        console.error('Could not persist completed task:', error);
+        all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: 'Не удалось сохранить результат' });
+        return;
+      }
+      state = result.state;
+      lastAction.set(role, Date.now());
+      all({ type: 'task_ended', role, taskId: id, outcome: 'completed', message: result.message });
+      if (plan.command.type === 'act') {
+        all({ type: 'action', role, actionId: plan.command.actionId, message: result.message });
+      } else if (plan.command.type === 'pet_action') {
+        all({ type: 'pet_event', role, pet: plan.command.pet, action: plan.command.action, message: result.message });
+      } else {
+        all({ type: 'food_event', role, action: plan.command.type, message: result.message });
+      }
+      all({ type: 'snapshot', state });
+    }, durationMs);
+    running.set(role, { id, role, plan, timer });
+    all({ type: 'task_started', role, taskId: id, label: plan.label,
+      durationMs, command: plan.command });
   };
   const httpServer = createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -143,6 +203,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if (message.type === 'cancel_task') {
+        const current = running.get(role);
+        if (!current || message.taskId !== current.id) {
+          packet(socket, { type: 'error', reason: 'Это действие уже завершено или не существует' });
+        } else {
+          stopTask(role, names[role] + ': действие прервано');
+        }
+        return;
+      }
+      if (running.has(role)) {
+        packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
+        return;
+      }
+
       if (message.type === 'social_offer') {
         if (message.kind !== 'hug' && message.kind !== 'highFive') {
           packet(socket, { type: 'error', reason: 'Неизвестное совместное действие' });
@@ -151,6 +225,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const partner = otherRole(role);
         if (!active.has(partner)) {
           packet(socket, { type: 'error', reason: names[partner] + ' пока не в игре' });
+          return;
+        }
+        if (running.has(partner)) {
+          packet(socket, { type: 'error', reason: names[partner] + ' занят(а) другим действием' });
           return;
         }
         const now = Date.now();
@@ -174,85 +252,50 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'pet_action') {
+      if (message.type === 'act' || message.type === 'cook' || message.type === 'eat' ||
+          (message.type === 'pet_action' && message.action !== 'buyFood')) {
+        const plan = planTask(message);
+        if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
+        beginTask(role, socket, plan);
+        return;
+      }
+
+      if (message.type === 'buy' || (message.type === 'pet_action' && message.action === 'buyFood')) {
         const now = Date.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
-          packet(socket, { type: 'error', reason: 'Немного подожди перед следующим действием' });
+          packet(socket, { type: 'error', reason: 'Немного подожди перед следующей покупкой' });
           return;
         }
-        const result = applyPetAction(state, role,
-          typeof message.pet === 'string' ? message.pet : '',
-          typeof message.action === 'string' ? message.action : '');
+        const result = message.type === 'buy'
+          ? applyFoodAction(state, role, { type: 'buy',
+              item: typeof message.item === 'string' ? message.item : '' })
+          : applyPetAction(state, role,
+              typeof message.pet === 'string' ? message.pet : '',
+              typeof message.action === 'string' ? message.action : '');
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch (error) {
-          console.error('Failed to persist pet action:', error);
-          packet(socket, { type: 'error', reason: 'Не удалось сохранить уход за питомцем' });
+          console.error('Could not persist purchase:', error);
+          packet(socket, { type: 'error', reason: 'Не удалось сохранить покупку' });
           return;
         }
         state = result.state;
         lastAction.set(role, now);
-        // Only validated pet/action identifiers are broadcast to the other client.
-        all({ type: 'pet_event', role,
-          pet: message.pet as import('../src/shared/pets').PetId,
-          action: message.action as import('../src/shared/pets').PetAction,
-          message: result.message });
+        if (message.type === 'buy') {
+          all({ type: 'food_event', role, action: 'buy', message: result.message });
+        } else {
+          all({ type: 'pet_event', role,
+            pet: message.pet as import('../src/shared/pets').PetId,
+            action: 'buyFood', message: result.message });
+        }
         all({ type: 'snapshot', state });
         return;
       }
-
-      if (message.type === 'buy' || message.type === 'cook' || message.type === 'eat') {
-        const now = Date.now();
-        if (now - (lastAction.get(role) ?? 0) < 1500) {
-          packet(socket, { type: 'error', reason: 'Немного подожди перед следующим действием' });
-          return;
-        }
-        const command = message.type === 'buy'
-          ? { type: 'buy' as const, item: typeof message.item === 'string' ? message.item : '' }
-          : { type: message.type as 'cook' | 'eat', recipe: typeof message.recipe === 'string' ? message.recipe : '' };
-        const result = applyFoodAction(state, role, command);
-        if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
-        try { files.save(result.state); }
-        catch (error) {
-          console.error('Failed to persist food action:', error);
-          packet(socket, { type: 'error', reason: 'Не удалось сохранить продукты' });
-          return;
-        }
-        state = result.state;
-        lastAction.set(role, now);
-        all({ type: 'food_event', role, action: message.type, message: result.message });
-        all({ type: 'snapshot', state });
-        return;
-      }
-
-      if (message.type !== 'act' || typeof message.actionId !== 'string' ||
-          !Object.prototype.hasOwnProperty.call(ACTIONS, message.actionId)) {
-        packet(socket, { type: 'error', reason: 'Неизвестная команда' });
-        return;
-      }
-      const now = Date.now();
-      if (now - (lastAction.get(role) ?? 0) < 1500) {
-        packet(socket, { type: 'error', reason: 'Действие ещё выполняется — немного подожди' });
-        return;
-      }
-      const result = applyAction(state, role, message.actionId);
-      if (!result.ok) {
-        packet(socket, { type: 'error', reason: result.reason });
-        return;
-      }
-      try { files.save(result.state); }
-      catch (error) {
-        console.error('Failed to persist game state:', error);
-        packet(socket, { type: 'error', reason: 'Не удалось сохранить действие. Попробуй ещё раз' });
-        return;
-      }
-      state = result.state;
-      lastAction.set(role, now);
-      all({ type: 'action', role, actionId: message.actionId as ActionId, message: result.message });
-      all({ type: 'snapshot', state });
+      packet(socket, { type: 'error', reason: 'Неизвестная команда' });
     });
     socket.on('close', () => {
       if (role && active.get(role) === socket) {
+        stopTask(role, names[role] + ': действие отменено из-за отключения');
         active.delete(role);
         all({ type: 'online', online: online() });
       }
@@ -272,6 +315,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   return {
     httpServer, port: actualPort,
     async close(): Promise<void> {
+      for (const task of running.values()) clearTimeout(task.timer);
+      running.clear();
       clearInterval(heartbeat);
       for (const socket of wss.clients) socket.terminate();
       await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));

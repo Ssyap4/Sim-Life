@@ -259,6 +259,32 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .stock-line { font-size: 10px; padding: 5px 9px; }
 }
 
+/* Server-authoritative activities: visible progress for both players, local cancel only. */
+.task-panel {
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 24vh; overflow-y: auto;
+}
+.running-task {
+  display: grid; grid-template-columns: minmax(0,1fr) auto;
+  align-items: center; gap: 6px 9px;
+  padding: 9px 11px;
+  background: #fffdf4f0; border: 1px solid #fff;
+  border-radius: 13px; box-shadow: 0 4px 20px #44543c25;
+  color: #49624d;
+}
+.running-task-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; grid-column: 1 / -1; }
+.running-task-top strong { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.running-task-top span { flex-shrink: 0; font-size: 10px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.running-task-track { height: 6px; border-radius: 9px; background: #e4e5d7; overflow: hidden; }
+.running-task-track i { height: 100%; width: 0; display: block; border-radius: 9px; background: #88af93; transition: width .14s linear; }
+.task-cancel { padding: 6px 9px; border: 0; border-radius: 9px; background: #eedad2; color: #95685e; font-size: 10px; font-weight: 900; }
+.task-cancel:disabled { opacity: 0.55; }
+@media (max-height: 690px) and (orientation: portrait) {
+  .running-task { padding: 7px 9px; }
+  .task-panel { max-height: 21vh; }
+}
+
 /* Compact companion care panel for two real family pets. */
 .home-buttons { display: flex; gap: 8px; }
 .home-buttons .market-btn { flex: 1; min-width: 0; }

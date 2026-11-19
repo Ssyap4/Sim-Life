@@ -4,7 +4,7 @@ import { Actor } from './Actor';
 import { PetActor } from './PetActor';
 import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import { SOCIAL_SPOTS, points, type CharacterId, type SocialKind } from '../shared/protocol';
+import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
@@ -202,6 +202,20 @@ export class World {
   performFood(id: CharacterId, action: 'cook' | 'eat'): boolean {
     return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
       action === 'cook' ? 'idle' : 'sit', () => this.actors[id].playActivity(action));
+  }
+
+  startTimedAction(role: CharacterId, command: TimedCommand): boolean {
+    if (command.type === 'act') {
+      const def = ACTIONS[command.actionId];
+      return this.perform(role, def.item, def.pose, () => {});
+    }
+    if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action);
+    return this.performFood(role, command.type);
+  }
+
+  cancelTimedAction(role: CharacterId): void {
+    ++this.socialSequence;
+    this.actors[role].setPose('idle');
   }
 
   performPet(role: CharacterId, petId: PetId, action: PetAction): boolean {

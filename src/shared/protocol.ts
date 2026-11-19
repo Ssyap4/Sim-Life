@@ -70,6 +70,11 @@ export const ACTIONS = {
  } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
+export type TimedCommand =
+  | { type: 'act'; actionId: ActionId }
+  | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
+  | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
+
 export type ClientPacket =
   | { type: 'auth'; role: CharacterId; code: string }
   | { type: 'act'; actionId: ActionId }
@@ -77,7 +82,8 @@ export type ClientPacket =
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
   | { type: 'social_offer'; kind: SocialKind }
-  | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction };
+  | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
+  | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
@@ -87,6 +93,8 @@ export type ServerPacket =
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
+  | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand }
+  | { type: 'task_ended'; role: CharacterId; taskId: number; outcome: 'completed' | 'cancelled' | 'failed'; message: string }
   | { type: 'error'; reason: string };
 
 export function initialState(): GameState {
