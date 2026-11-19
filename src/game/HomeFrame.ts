@@ -23,7 +23,10 @@ export const playOutline = [
   [-0.32, -0.54, 5.51], [1.72, -0.54, 5.51],
 ] as const;
 
-export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand) {
+type Vertex = readonly [number, number, number];
+
+export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
+  horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline) {
   // The front-facing angle makes better use of a narrow width and gives the
   // characters a larger face-on silhouette while keeping both walls visible.
   const axis = new THREE.Vector3(0.24, 0.98, 1.10).normalize();
@@ -39,8 +42,8 @@ export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand) {
     point.set(x, y, z);
     return { x: point.dot(right), y: point.dot(up), depth: point.dot(axis) };
   };
-  const widthOutline = playOutline.map(project);
-  const heightOutline = houseOutline.map(project);
+  const widthOutline = horizontal.map(project);
+  const heightOutline = vertical.map(project);
 
   // At a fixed distance each vertex constrains where the camera may aim.
   // Intersect the intervals to frame the actual asymmetric silhouette.

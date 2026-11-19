@@ -1,11 +1,16 @@
+import { ingredientList, type RecipeId } from '../shared/food';
+import { carryingBag, createLocation, homeExtensions } from './LocationScene';
+import { WORLD_FLOOR, approachFor, clockMinutes, meeting, placeObstacles, stationById, type PlaceId, type Station } from '../shared/locations';
+import { GROCERY_DETAILS } from '../shared/storageSpace';
+import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PETS, type PetId, type PetAction } from '../shared/pets';
-import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import { ACTIONS, SOCIAL_SPOTS, points, type ActionId, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
+import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from './navigation';
+import { ACTIONS, points, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorObstacles, decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
@@ -21,7 +26,6 @@ type Point = { x: number; z: number };
 // targets only: the server and route planner still use the approach tiles.
 const deskKeys = [new THREE.Vector3(3.37, 1.116, 1.896), new THREE.Vector3(3.03, 1.116, 1.896)] as const;
 const cookingPan = new THREE.Vector3(2.58, 1.169, -3.76);
-const highFiveTarget = new THREE.Vector3(0, 1.64, SOCIAL_SPOTS.vlad.z - 0.16);
 // Reuse the existing light articulated rig instead of loading extra animations.
 const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
   sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
@@ -48,7 +52,28 @@ export const objectNames: Record<ItemId, string> = {
 };
 
 export class World {
-  readonly scene = new THREE.Scene();
+  scene = new THREE.Scene();
+  private readonly homeScene = this.scene;
+  private readonly extensions = homeExtensions();
+  private readonly subjectMeshes: THREE.Object3D[] = [];
+  private readonly stationMeshes: THREE.Object3D[] = [];
+  private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
+  private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
+  private served: THREE.Group | null = null;
+  private readonly meals = new Map<CharacterId, THREE.Group>();
+  private readonly vector = new THREE.Vector3();
+  private remote: ReturnType<typeof createLocation> | null = null;
+  private externalObstacles: FloorRect[] = [];
+  private remoteMeshes: THREE.Object3D[] = [];
+  private closedDoor: string | null = null;
+  private household: GameState | null = null;
+  private localRole: CharacterId = 'vlad';
+  private cart: THREE.Group | null = null;
+  private cartSize = 0;
+  private dogTravel = 0;
+  private dogTrail: Point[] = [];
+  private lastDogPoint: Point | null = null;
+  place: PlaceId = 'home';
   readonly renderer: THREE.WebGLRenderer;
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
@@ -80,7 +105,8 @@ export class World {
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
-    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void) {
+    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
+    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void }) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
@@ -117,13 +143,32 @@ export class World {
       visual.traverse((part) => {
         if (!(part instanceof THREE.Mesh)) return;
         part.userData.interactable = subject.id;
-        this.interactiveMeshes.push(part);
+        this.subjectMeshes.push(part);
       });
       const pet = subject instanceof PetActor;
       const shade = walkingContact(pet);
       this.contacts.push({ visual, shade, pet });
       this.scene.add(shade);
     }
+    for (const id of ['vlad', 'alina'] as const) {
+      this.bags[id].visible = false;
+      this.scene.add(this.bags[id]);
+      const plate = new THREE.Group();
+      const dish = new THREE.Mesh(drum, finish(0xf2dfc3, 'ceramic'));
+      dish.scale.set(.19,.032,.19);
+      const food = new THREE.Mesh(softCube, finish(0xc88850, 'ceramic'));
+      food.scale.set(.22,.072,.20);
+      food.position.y = .042;
+      plate.add(dish, food);
+      plate.visible = false;
+      this.scene.add(plate);
+      this.meals.set(id, plate);
+    }
+    const serving = this.meals.get('vlad')!.clone();
+    serving.position.set(-1.96, .586, -.23);
+    serving.visible = false;
+    this.homeScene.add(serving);
+    this.served = serving;
     this.setActive('vlad');
 
     canvas.addEventListener('pointerdown', (ev) => {
@@ -185,8 +230,18 @@ export class World {
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
-    const safe = nearestClearPoint({ x, z }, this.obstacles);
+    const safe = nearestClearPoint({ x, z }, this.currentObstacles(), WORLD_FLOOR);
     if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
+    if (this.place !== 'home') {
+      const seat = [...(this.remote?.stations.keys() ?? [])].map(key => stationById(this.place, key)!)
+        .find(s => {
+          const point = approachFor(s, id);
+          return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
+        });
+      if (pose === 'sit' && seat) this.sitAt(id, seat);
+      else this.actors[id].setPose('idle');
+      return;
+    }
     const item = (['bed', 'sofa', 'desk', 'table'] as const).find((candidate) => {
       const location = points[candidate];
       return Math.hypot(location.x - x, location.z - z) < 0.5;
@@ -245,11 +300,33 @@ export class World {
         if (action === 'cook') {
           actor.setFurniturePose('idle', new THREE.Vector3(2.88, id === 'vlad' ? 0 : 0.025, -3.03), Math.PI);
         }
+        if (action === 'eat') this.showMeal(id, -1.46, .585, .04);
         actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
       });
   }
 
   startTimedAction(role: CharacterId, command: TimedCommand): boolean {
+    if (this.household && this.household.world.places[role] !== this.place) return true;
+    if (command.type === 'local_activity') {
+      const station = stationById(this.place, command.station);
+      if (!station) return false;
+      const actor = this.actors[role];
+      const start = () => {
+        if (command.action === 'rest' || command.action === 'dine') this.sitAt(role, station);
+        if (command.action === 'exercise') actor.playDomesticActivity('stretch');
+        if (command.action === 'unpack') actor.playDomesticActivity('tidy');
+        if (command.action === 'dog') {
+          actor.faceTowards(this.pets.verdell.root.position);
+          actor.playPetActivity('play');
+          this.pets.verdell.react('play');
+        }
+        if (command.action === 'dine' && this.household?.world.cafe[role]?.pickedUp) {
+          this.showMeal(role, station.center.x + (role === 'vlad' ? -.25 : .25), 1.022, station.center.z - .10);
+          actor.playActivity('eat');
+        }
+      };
+      return this.walkTo(role, approachFor(station, role), start);
+    }
     const sequence = ++this.taskSequence[role];
     const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
@@ -262,15 +339,53 @@ export class World {
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
     if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
+    if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
     return this.performFood(role, command.type, current);
   }
 
+  private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
+    const cold = ingredientList(recipe).some(([id]) => GROCERY_DETAILS[id].area === 'fridge');
+    const station = stationById('home', cold ? 'fridge' : 'cupboard')!;
+    const actor = this.actors[role];
+    const approach = approachFor(station, role);
+    const start = nearestClearPoint(actor.root.position, this.obstacles, WORLD_FLOOR);
+    const towardStorage = start && findRoute(start, approach, this.obstacles, WORLD_FLOOR);
+    const towardStove = findRoute(approach, points.kitchen, this.obstacles, WORLD_FLOOR);
+    const length = (origin: Point, route: Point[]) => route.reduce((acc, next, index) => {
+      const previous = route[index - 1] ?? origin;
+      return acc + Math.hypot(next.x - previous.x, next.z - previous.z);
+    }, 0);
+    if (!start || !towardStorage || !towardStove ||
+      length(start, towardStorage) + length(approach, towardStove) > 12) {
+      return this.performFood(role, 'cook', current);
+    }
+    return this.walkTo(role, approach, () => {
+      if (!current()) return;
+      actor.faceTowards(this.vector.set(station.center.x, 0, station.center.z));
+      this.openStorage(station.id);
+      actor.playDomesticActivity('tidy');
+      this.preparations.set(role, { remaining: .9, next: () => {
+        if (!current()) return;
+        this.closeStorage();
+        this.performFood(role, 'cook', current);
+      } });
+    });
+  }
+
   finishTimedAction(role: CharacterId): void {
+    this.preparations.delete(role);
+    if (this.household && this.household.world.places[role] !== this.place) return;
+    this.meals.get(role)!.visible = false;
+    this.closeStorage();
     ++this.taskSequence[role];
     this.actors[role].finishActivity();
   }
 
   cancelTimedAction(role: CharacterId): void {
+    this.preparations.delete(role);
+    if (this.household && this.household.world.places[role] !== this.place) return;
+    this.meals.get(role)!.visible = false;
+    this.closeStorage();
     ++this.taskSequence[role];
     ++this.socialSequence;
     this.actors[role].setPose('idle');
@@ -299,9 +414,9 @@ export class World {
   playSocial(kind: SocialKind): boolean {
     const paths = (['vlad', 'alina'] as const).map((role) => {
       const actor = this.actors[role];
-      const spot = SOCIAL_SPOTS[role];
+      const spot = meeting(this.place, role);
       return findRoute(
-        { x: actor.root.position.x, z: actor.root.position.z }, spot, this.obstacles,
+        { x: actor.root.position.x, z: actor.root.position.z }, spot, this.currentObstacles(), WORLD_FLOOR,
       );
     });
     if (!paths[0] || !paths[1]) return false;
@@ -317,7 +432,7 @@ export class World {
           if (arrived === 2) {
             this.actors.vlad.faceTowards(this.actors.alina.root.position);
             this.actors.alina.faceTowards(this.actors.vlad.root.position);
-            const target = kind === 'highFive' ? highFiveTarget : undefined;
+            const target = kind === 'highFive' ? new THREE.Vector3(0, 1.64, meeting(this.place, 'vlad').z - 0.16) : undefined;
             this.actors.vlad.playGesture(kind, target);
             this.actors.alina.playGesture(kind, target);
           }
@@ -331,6 +446,7 @@ export class World {
     const phase = dayPhase({ day: 1, minute });
     if (phase === this.lastDayPhase) return;
     this.lastDayPhase = phase;
+    this.remote?.setNight(phase === 'night' || phase === 'evening');
     // Reuse existing lights: no new meshes, draw calls or shadow maps.
     const settings = {
       morning: { sun: 1.95, ambient: 1.76, sky: 0xc6c3ad, warmth: 0xffd8b9 },
@@ -391,7 +507,169 @@ export class World {
       batchRigidParts(furniture);
       this.register(id, furniture, point);
     });
-    this.obstacles.push(...decorObstacles);
+    this.obstacles.push(...decorObstacles, ...placeObstacles('home'));
+    this.scene.add(this.extensions.group);
+    for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
+  }
+
+  private trackStation(target: THREE.Object3D[], id: string, object: THREE.Group): void {
+    object.traverse(part => {
+      if (part instanceof THREE.Mesh) {
+        part.userData.station = id;
+        target.push(part);
+      }
+    });
+  }
+
+  private currentObstacles() {
+    return this.place === 'home' ? this.obstacles : this.externalObstacles;
+  }
+
+  private sitAt(role: CharacterId, station: Station): void {
+    const actor = this.actors[role];
+    const cafe = station.action.kind === 'dine';
+    actor.setFurniturePose('sit', new THREE.Vector3(approachFor(station, role).x,
+      role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);
+  }
+
+  private showMeal(role: CharacterId, x: number, y: number, z: number): void {
+    const meal = this.meals.get(role)!;
+    meal.position.set(x, y, z);
+    meal.visible = true;
+  }
+
+  walkTo(role: CharacterId, target: { x: number; z: number }, onArrive = () => {}): boolean {
+    const actor = this.actors[role];
+    const obstacles = this.currentObstacles();
+    const from = nearestClearPoint(actor.root.position, obstacles, WORLD_FLOOR);
+    const to = nearestClearPoint(target, obstacles, WORLD_FLOOR);
+    const path = from && to ? findRoute(from, to, obstacles, WORLD_FLOOR) : null;
+    if (!path) return false;
+    actor.walkPath(path.map(p => new THREE.Vector3(p.x, 0, p.z)), onArrive);
+    return true;
+  }
+
+  runLocationPath(role: CharacterId, path: { x: number; z: number }[], station?: string, onArrive = () => {}): void {
+    const target = path.at(-1);
+    if (!target) { onArrive(); return; }
+    this.closeStorage();
+    this.preparations.delete(role);
+    const arrival = () => {
+      const site = stationById(this.place, station);
+      if (site) this.actors[role].faceTowards(this.vector.set(site.center.x, 0, site.center.z));
+      onArrive();
+    };
+    // Replan from the visible position if a walk interrupted a previous one.
+    if (!this.walkTo(role, target, arrival)) {
+      this.actors[role].walkPath(path.map(p => new THREE.Vector3(p.x, 0, p.z)), arrival);
+    }
+  }
+
+  openStorage(id: string): void { this.closedDoor = id; }
+  closeStorage(): void { this.closedDoor = null; }
+
+  setCart(count: number): void {
+    if (!this.cart) {
+      this.cart = carryingBag();
+      const basket = this.cart.children[0] as THREE.Group;
+      for (let i = 0; i < 4; i++) {
+        const item = new THREE.Mesh(cube, finish([0xe4c58e, 0x829e87, 0xc88368, 0x9ba6b5][i]));
+        item.position.set((i % 2 - .5) * .14, .34 + i * .017, i > 1 ? -.051 : .063);
+        item.scale.set(.115, .17, .11);
+        basket.add(item);
+      }
+      this.scene.add(this.cart);
+    }
+    if (count > this.cartSize && this.place === 'market') {
+      const actor = this.actors[this.localRole];
+      actor.playDomesticActivity('tidy');
+      this.preparations.set(this.localRole, { remaining: .85, next: () => actor.finishActivity() });
+    }
+    this.cartSize = count;
+    this.cart.visible = count > 0 && this.place === 'market';
+    const products = this.cart.children[0].children.slice(-4);
+    products.forEach((object, i) => { object.visible = i < count; });
+  }
+
+  private switchPlace(place: PlaceId): void {
+    this.closeStorage();
+    this.cameraMove = null;
+    this.followSubject = null;
+    this.inspected = null;
+    this.defaultFrame = null;
+    this.viewport = null;
+    this.lastDayPhase = null;
+    this.preparations.clear();
+    this.dogTrail = [];
+    this.lastDogPoint = null;
+    this.remote?.root.removeFromParent();
+    this.remote?.dispose();
+    this.remoteMeshes = [];
+    this.externalObstacles = placeObstacles(place);
+    this.remote = place === 'home' ? null : createLocation(place);
+    this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
+    this.scene.background = new THREE.Color(0xc0c7ad);
+    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
+    if (this.remote) {
+      this.scene.add(this.remote.root);
+      for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
+    }
+    this.scene.add(this.ambient, this.sun,
+      ...Object.values(this.actors).map(actor => actor.root), ...Object.values(this.pets).map(pet => pet.root),
+      ...this.contacts.map(contact => contact.shade), ...Object.values(this.bags), ...this.meals.values());
+    for (const meal of this.meals.values()) meal.visible = false;
+    if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
+    this.place = place;
+    this.controls.maxDistance = 51;
+    this.controls.minDistance = 10;
+    this.controls.maxPolarAngle = 1.25;
+    this.refreshViewport();
+    this.renderer.renderLists.dispose();
+  }
+
+  syncHousehold(state: GameState, role: CharacterId, reset = false): void {
+    const previous = this.household;
+    const place = state.world.places[role];
+    const changed = place !== this.place;
+    this.localRole = role;
+    this.household = state;
+    if (changed) this.switchPlace(place);
+    this.setTimeOfDay(state.clock.minute);
+    for (const id of ['vlad', 'alina'] as const) {
+      const away = !!state.activeShifts[id] || state.world.places[id] !== place;
+      const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
+      this.setAway(id, away);
+      if (!away && (reset || changed || appeared)) {
+        const resident = state.characters[id];
+        this.restoreCharacter(id, resident.x, resident.z, resident.pose);
+      }
+      this.bags[id].visible = !away && state.world.bags[id] > 0;
+    }
+    const dog = this.pets.verdell.root;
+    const walker = state.world.dogWalker;
+    dog.visible = walker ? place === 'park' && state.world.places[walker] === 'park' && !state.activeShifts[walker] : place === 'home';
+    this.pets.simba.root.visible = place === 'home';
+    if (!walker) dog.position.set(PETS.verdell.home.x, 0, PETS.verdell.home.z);
+    else if (place === 'park' && (changed || previous?.world.dogWalker !== walker)) {
+      dog.position.copy(this.actors[walker].root.position);
+      dog.position.x -= .46;
+      this.dogTrail = [];
+      this.lastDogPoint = null;
+    }
+    for (const c of this.contacts) {
+      if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
+    }
+    if (place === 'home') {
+      if (this.served) this.served.visible = Object.values(state.meals).some(quantity => quantity > 0);
+      this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
+      const counts = { fridge: 0, cupboard: 0 };
+      for (const [name, amount] of Object.entries(state.pantry)) {
+        if (amount > 0) counts[GROCERY_DETAILS[name as keyof typeof GROCERY_DETAILS].area]++;
+      }
+      for (const [key, models] of this.extensions.stock) {
+        models.forEach((model, index) => { model.visible = index < counts[key as keyof typeof counts]; });
+      }
+    }
   }
 
   private pick(clientX: number, clientY: number): void {
@@ -399,21 +677,26 @@ export class World {
     const x = ((clientX - bounds.left) / bounds.width) * 2 - 1;
     const y = -((clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false).find(entry => {
+    const sceneMeshes = this.place === 'home' ? [...this.interactiveMeshes, ...this.stationMeshes] : this.remoteMeshes;
+    const hit = this.raycaster.intersectObjects([...sceneMeshes, ...this.subjectMeshes], false).find(entry => {
       for (let part: THREE.Object3D | null = entry.object; part; part = part.parent) {
         if (!part.visible) return false;
       }
       return true;
     });
+    const station: unknown = hit?.object.userData.station;
+    if (typeof station === 'string') { this.navigation?.station(station); return; }
     const id: unknown = hit?.object.userData.interactable;
-    if (typeof id !== 'string') return;
-    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
-      this.onPick(id);
-    } else if (id in objectNames) this.onPick(id as ItemId);
+    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') this.onPick(id);
+    else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
+    else if (this.place !== 'home') {
+      const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);
+      if (point) this.navigation?.ground(point.x, point.z);
+    }
   }
 
   private homeFrame(compact: boolean, band: ViewBand): Frame {
-    if (compact) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band);
+    if (compact) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band, this.remote?.horizontal, this.remote?.vertical);
     // Keep the existing desktop composition.
     const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
     return { position: homePosition.clone().multiplyScalar(1 + fit * 0.35).add(homeTarget), target: homeTarget.clone() };
@@ -463,6 +746,12 @@ export class World {
     }
   }
 
+  private followBag(bag: THREE.Group, actor: Actor): void {
+    const { position, rotation } = actor.root;
+    bag.position.set(position.x + Math.cos(rotation.y) * .37, .20, position.z - Math.sin(rotation.y) * .37);
+    bag.rotation.y = rotation.y;
+  }
+
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     const now = performance.now();
@@ -470,13 +759,51 @@ export class World {
     // jump when returning from a suspended tab.
     const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
     this.lastFrame = now;
-    this.actors.vlad.update(dt);
-    this.actors.alina.update(dt);
-    this.pets.verdell.update(dt);
-    this.pets.simba.update(dt);
+    for (const id of ['vlad', 'alina'] as const) {
+      const actor = this.actors[id];
+      if (!actor.root.visible) continue;
+      actor.update(dt);
+      if (this.bags[id].visible) this.followBag(this.bags[id], actor);
+    }
+    for (const [role, prep] of this.preparations) {
+      prep.remaining -= dt;
+      if (prep.remaining <= 0) { this.preparations.delete(role); prep.next(); }
+    }
+    if (this.cart?.visible) this.followBag(this.cart, this.actors[this.localRole]);
+    const walker = this.household?.world.dogWalker;
+    const dog = this.pets.verdell;
+    let pace = 0;
+    if (walker && dog.root.visible && this.place === 'park') {
+      const actor = this.actors[walker].root;
+      const { x, z } = actor.position;
+      const previous = this.lastDogPoint;
+      if (!previous || Math.hypot(x - previous.x, z - previous.z) >= .28) {
+        this.lastDogPoint = { x, z };
+        this.dogTrail.push(this.lastDogPoint);
+        if (this.dogTrail.length > 32) this.dogTrail.shift();
+      }
+      if (this.dogTrail.length > 2 && this.dogTrail[0] &&
+        Math.hypot(dog.root.position.x - this.dogTrail[0].x, dog.root.position.z - this.dogTrail[0].z) < .11) this.dogTrail.shift();
+      const target = this.dogTrail[0] ?? actor.position;
+      const dx = target.x - dog.root.position.x, dz = target.z - dog.root.position.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > .07) {
+        const step = Math.min(1, dt * (this.dogTrail.length > 3 ? 10 : 5));
+        dog.root.rotation.y = Math.atan2(dx, dz);
+        const next = {x: dog.root.position.x + dx * step, z: dog.root.position.z + dz * step};
+        if (pointIsClear(next, this.currentObstacles(), WORLD_FLOOR)) dog.root.position.set(next.x, 0, next.z);
+        this.dogTravel += distance * step;
+        pace = Math.min(1, distance * 2.3);
+      }
+    }
+    if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
+    if (this.pets.simba.root.visible) this.pets.simba.update(dt);
+    if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
+      door.rotation.y = THREE.MathUtils.damp(door.rotation.y, this.closedDoor === id ? -1.53 : 0, 11, dt);
+    }
     for (const { visual, shade, pet } of this.contacts) {
       visual.getWorldPosition(this.contactPoint);
-      shade.position.set(this.contactPoint.x, pet ? 0.098 : 0.029, this.contactPoint.z);
+      shade.position.set(this.contactPoint.x, pet && this.place === 'home' ? 0.098 : 0.029, this.contactPoint.z);
       shade.material.opacity = pet ? 0.53 : 0.49 * (1 - THREE.MathUtils.smoothstep(this.contactPoint.y, 0.07, 0.52));
     }
     if (this.followSubject) {

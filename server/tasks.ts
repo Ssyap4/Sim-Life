@@ -1,3 +1,5 @@
+import { localActivity, localLabels } from './locations';
+import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
@@ -27,6 +29,12 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if (command.type === 'local_activity') {
+    if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
+    const action = command.action as LocalActivity;
+    return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
+      durationMs: action === 'dine' ? 7200 : 5800, resource: null };
+  }
   if (command.type === 'act') {
     const id = command.actionId;
     if (typeof id !== 'string' || !own(ACTIONS, id)) return null;
@@ -72,6 +80,10 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand): EvaluatedTask {
+  if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);
+  if (state.world.places[role] !== 'home') return { ok: false, reason: 'Это действие доступно дома' };
+  if (command.type === 'pet_action' && command.pet === 'verdell' && state.world.dogWalker)
+    return { ok: false, reason: 'Верделл сейчас в парке' };
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);

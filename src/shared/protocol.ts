@@ -1,3 +1,4 @@
+import { initialWorld, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
@@ -38,6 +39,7 @@ export interface GameState {
   version: 2;
   revision: number;
   clock: GameClock;
+  world: WorldState;
   money: number;
   pantry: Pantry;
   meals: CookedMeals;
@@ -96,13 +98,16 @@ export const ACTIONS = {
 export type ActionId = keyof typeof ACTIONS;
 
 export type TimedCommand =
+  | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'act'; actionId: ActionId }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket =
-  | { type: 'auth'; role: CharacterId; code: string }
+export type ClientPacket = WorldCommand
+  | { type: 'resume'; role: CharacterId; token: string }
+  | { type: 'forget_device' }
+  | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
   | { type: 'act'; actionId: ActionId }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
@@ -117,6 +122,10 @@ export type ClientPacket =
   | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
+  | { type: 'device_token'; role: CharacterId; token: string }
+  | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
+  | { type: 'world_event'; role: CharacterId; message: string }
+  | { type: 'delivery_arrived' }
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
   | { type: 'snapshot'; state: GameState }
   | { type: 'online'; online: CharacterId[] }
@@ -132,7 +141,7 @@ export type ServerPacket =
 
 export function initialState(): GameState {
   return {
-    version: 2, revision: 0, clock: { ...INITIAL_CLOCK }, money: 2500,
+    version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 2500,
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },

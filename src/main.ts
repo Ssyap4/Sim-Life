@@ -1,3 +1,6 @@
+import { PLACES, stationById } from './shared/locations';
+import { createLocationUI } from './locationUI';
+import { trustedDevice } from './core/trusted';
 import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
@@ -38,10 +41,10 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · ЖИВАЯ ЭКОНОМИКА</div>
+      <div class="version">0.4 · ЖИВОЙ РАЙОН</div>
     </div>
     <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
-    <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button></div>
+    <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button><button id="map-btn" type="button" disabled>🗺️ Дом</button></div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
         <span class="avatar avatar-vlad">В</span>
@@ -69,16 +72,19 @@ app.innerHTML = `
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
   </section>
+  <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
+  <div id="world-transition" aria-hidden="true"></div>
   <div id="message" class="message" aria-live="polite"></div>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
+    <div id="location-panel" class="actions location-panel" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
     <div class="bottom-bar">
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
-        <button id="market-btn" class="market-btn" type="button" disabled>🛒 Магазин</button>
+        <button id="market-btn" class="market-btn" type="button" disabled>🛍️ Доставка</button>
         <button id="jobs-btn" class="market-btn jobs-btn" type="button" disabled>🧰 Подработки</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
@@ -101,6 +107,7 @@ app.innerHTML = `
       </div>
       <label for="access-code">Личный код персонажа</label>
       <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Код из server-data/access.json" autocomplete="off" required />
+      <label class="remember-device"><input type="checkbox" id="remember-device"> Запомнить вход на этом устройстве</label>
       <button class="enter-button" type="submit" disabled>Войти в общий дом</button>
       <p class="auth-status" id="auth-status">Коды созданы на компьютере в D:\\Sim-Life\\server-data\\access.json</p>
       <small>Доступен по домашней Wi-Fi сети. Пока не публикуй адрес сервера в интернете.</small>
@@ -118,6 +125,11 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
+const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
+const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
+const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
+const transition = document.querySelector<HTMLElement>('#world-transition')!;
+const rememberDevice = document.querySelector<HTMLInputElement>('#remember-device')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
 const jobsBtn = document.querySelector<HTMLButtonElement>('#jobs-btn')!;
 const jobsOverlay=document.querySelector<HTMLElement>('#jobs-overlay')!;
@@ -264,8 +276,31 @@ function renderNeeds(): void {
   }
 }
 
-function render(): void {
+function render(reset = false): void {
   if (!state) return;
+  if (active && world) {
+    const place = state.world.places[active];
+    if (world.place !== place) {
+      actionsEl.hidden = true;
+      marketUI.close();
+      jobsUI.close();
+      focusModel(null);
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
+      }
+      statusEl.textContent = PLACES[place].name;
+    }
+    world.syncHousehold(state, active, reset);
+    locationUI.refresh(state, active);
+    mapBtn.textContent = '🗺️ Карта';
+    mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
+    petsBtn.disabled = place !== 'home';
+    document.querySelector<HTMLElement>('#app')!.dataset.place = place;
+    if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
+      deliverySequence = null;
+      marketUI.acknowledge();
+    }
+  }
   clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
     state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
   world?.setTimeOfDay(state.clock.minute);
@@ -281,7 +316,6 @@ function render(): void {
     ' · 🍽️ '+(Object.values(state.meals).reduce((a,b)=>a+b,0)+
       Object.values(state.takeout).reduce((a,b)=>a+b,0))+' порц.';
   for (const id of ['vlad', 'alina'] as const) {
-    world?.setAway(id,Boolean(state.activeShifts[id]));
     const stats = state.characters[id];
     const hunger = document.querySelector<HTMLElement>('#' + id + '-hunger')!;
     const energy = document.querySelector<HTMLElement>('#' + id + '-energy')!;
@@ -301,7 +335,34 @@ function showStatus(text: string): void {
   statusEl.textContent = text;
   authStatusEl.textContent = text;
 }
-const marketUI = createMarketUI(marketOverlay,(lines)=>net.checkout(lines));
+let deliverySequence: number | null = null;
+const marketUI = createMarketUI(marketOverlay, (lines) => {
+  if (!state || !active || deliverySequence !== null) return false;
+  const sequence = state.world.sequence[active];
+  if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
+  deliverySequence = sequence;
+  return true;
+});
+const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
+  recipe => { net.food('cook', recipe); }, signOut);
+
+function signOut(): void {
+  net.forgetDevice();
+  deliverySequence = null;
+  active = null;
+  state = null;
+  tasks.clear();
+  drawTaskPanel();
+  accessInput.value = '';
+  rememberDevice.checked = false;
+  authEl.hidden = false;
+  marketBtn.disabled = jobsBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  actionsEl.hidden = true;
+  marketUI.close();
+  jobsUI.close();
+  locationUI.reset();
+  showStatus('Выбери персонажа и введи личный код');
+}
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly());
 const net = new LiveConnection({
   onReady(role, household, players) {
@@ -314,16 +375,13 @@ const net = new LiveConnection({
     marketUI.close();
     jobsUI.close();
     authEl.hidden = true;
+    mapBtn.disabled = false;
     marketBtn.disabled = false;
     jobsBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
-    for (const id of ['vlad', 'alina'] as const) {
-      const snapshot = household.characters[id];
-      world.restoreCharacter(id, snapshot.x, snapshot.z, snapshot.pose);
-    }
     world.setActive(role);
-    render();
+    render(true);
     notify('Добро пожаловать, ' + names[role] + '! Это настоящий общий дом ♥');
   },
   onSnapshot(household) {
@@ -337,6 +395,19 @@ const net = new LiveConnection({
   onOnline(players) {
     online = players;
     render();
+  },
+  onWorldPath(role, place, path, station) {
+    if (!active || world.place !== place) return;
+    const target = stationById(place, station);
+    world.runLocationPath(role, path, station, () => {
+      if (role === active && target && world.place === place) locationUI.visit(target);
+    });
+  },
+  onWorldEvent(role, message) {
+    if (role === active) notify(message);
+  },
+  onDeliveryArrived() {
+    notify('Доставка у двери дома');
   },
   onAction(_role, _actionId, message) {
     statusEl.textContent = message;
@@ -385,9 +456,12 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    deliverySequence = null;
+    locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
       authEl.hidden = false;
       active = null;
+      mapBtn.disabled = true;
       marketBtn.disabled = true;
       jobsBtn.disabled = true;
       petsBtn.disabled = true;
@@ -403,6 +477,10 @@ const net = new LiveConnection({
       for (const role of tasks.keys()) world.cancelTimedAction(role);
       tasks.clear();
       drawTaskPanel();
+      deliverySequence = null;
+      locationUI.reject();
+      locationUI.close();
+      locationUI.closeMap();
     }
     if (!authEl.hidden) authStatusEl.textContent = text;
     statusEl.textContent = text;
@@ -412,6 +490,11 @@ const net = new LiveConnection({
 function openSocialActions(target: CharacterId): void {
   if (!active || !net.isReady()) { notify('Сначала войди в дом'); return; }
   if (target === active) return;
+  locationUI.close();
+  if (state && state.world.places[active] !== state.world.places[target]) {
+    notify(names[target] + ' · ' + PLACES[state.world.places[target]].name);
+    return;
+  }
   actionsEl.replaceChildren();
   actionsEl.hidden = false;
   const heading = document.createElement('div');
@@ -448,6 +531,11 @@ function openSocialActions(target: CharacterId): void {
 }
 
 function openPetActions(pet: PetId | null = null): void {
+  locationUI.close();
+  if (active && world.place === 'park' && pet === 'verdell') {
+    net.world({ type: 'approach', place: 'park', station: 'park-dog' });
+    return;
+  }
   if (!active || !net.isReady() || !state) {
     notify('Сначала войди в общий дом');
     return;
@@ -478,6 +566,7 @@ function openPetActions(pet: PetId | null = null): void {
 }
 
 function openActions(item: ItemId): void {
+  locationUI.close();
   if (!active || !net.isReady()) {
     notify('Сначала войди в дом');
     return;
@@ -564,7 +653,18 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
         bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
       };
-    }, characters, diagnostics?.onFrame);
+    }, characters, diagnostics?.onFrame, {
+      station(id) {
+        if (!active) return;
+        actionsEl.hidden = true;
+        locationUI.close(); locationUI.closeMap();
+        net.world({ type: 'approach', place: world.place, station: id });
+      },
+      ground(x, z) {
+        if (!active) return;
+        if (net.world({ type: 'walk', place: world.place, x, z })) locationUI.close();
+      },
+    });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
       useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {
@@ -582,8 +682,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       });
     });
-    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;jobsUI.close();marketUI.open(state);} });
-    jobsBtn.addEventListener('click',()=>{if(state && active){actionsEl.hidden=true;marketUI.close();jobsUI.open(state,active);}});
+    mapBtn.addEventListener('click', () => { actionsEl.hidden = true; marketUI.close(); jobsUI.close(); locationUI.openMap(); });
+    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;locationUI.close();locationUI.closeMap();jobsUI.close();marketUI.open(state);} });
+    jobsBtn.addEventListener('click',()=>{if(state && active){actionsEl.hidden=true;locationUI.close();locationUI.closeMap();marketUI.close();jobsUI.open(state,active);}});
     petsBtn.addEventListener('click', () => openPetActions());
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -596,6 +697,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
     showStatus('Выбери персонажа и введи личный код');
+    const remembered = trustedDevice();
+    if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {
     console.error(error);
     showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
@@ -607,6 +710,6 @@ document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit'
   if (!world) return;
   const code = accessInput.value.trim();
   if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
-  net.login(selectedRole, code);
+  net.login(selectedRole, code, rememberDevice.checked);
 });
 void initializeWorld(app);

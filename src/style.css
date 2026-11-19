@@ -716,3 +716,56 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .home-buttons{gap:4px}
   .home-buttons .market-btn{min-height:44px;padding:6px 4px;font-size:10px}
 }
+
+#map-btn {
+  pointer-events: auto;
+  border: 1px solid #fff6dc;
+  color: #365747;
+  background: #fff8e9;
+  border-radius: 12px;
+  padding: 4px 9px;
+  min-height: 44px;
+  font-size: 11px;
+  font-weight: 900;
+}
+.world-map {
+  position: absolute;
+  z-index: 7;
+  inset: auto max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  max-height: min(70dvh, 540px);
+  max-width: 490px;
+  margin-inline: auto;
+  display: grid;
+  gap: 9px;
+  overflow: auto;
+  padding: 14px;
+  background: #fff9ec;
+  border: 1px solid #fff;
+  border-radius: 17px;
+  box-shadow: 0 14px 45px #2435295c;
+}
+.world-map-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.world-map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.world-map-grid .action-button { display: grid; gap: 4px; }
+.world-map-grid small { font-size: .86em; font-weight: 650; }
+.world-map .action-button { min-height: 44px; }
+.world-map .action-button:disabled, .location-panel .action-button:disabled { opacity: .55; cursor: default; }
+.world-station-options { display: grid; gap: 7px; }
+.world-product {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 6px; min-width: 0; font-size: 12px;
+}
+.world-stepper { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.world-stepper button { min-width: 40px; min-height: 44px; padding: 4px; text-align: center; }
+.world-order { display: grid; gap: 5px; padding: 8px; background: #f6eddb; border-radius: 9px; }
+.world-cart-total { color: #456a56; }
+#world-transition { position: absolute; inset: 0; z-index: 9; background: #25392f; opacity: 0; pointer-events: none; }
+.auth-card .remember-device { display: flex; align-items: center; gap: 9px; min-height: 34px; margin-top: 0; }
+.auth-card .remember-device input { width: 17px; height: 17px; padding: 0; accent-color: #5d836a; }
+@media (max-width: 640px) and (orientation: portrait) {
+  #needs-toggle, #map-btn { font-size: 10px; }
+  .life-strip { grid-area: 4 / 1 / 5 / -1; gap: 5px; padding: 0 3px 0 8px; }
+  .life-strip button { min-height: 44px; white-space: nowrap; }
+  .life-strip button:first-of-type { margin-left: auto; }
+  .life-strip > span { white-space: nowrap; }
+}

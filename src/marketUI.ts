@@ -1,3 +1,4 @@
+import { DELIVERY_FEE } from './shared/locations';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, recipePortionCost, type TakeoutId } from './shared/food';
 import { MARKET_PRODUCTS, MARKET_CATEGORIES, marketProduct, basketPrice, type BasketLine, type MarketCategory, type MarketProduct } from './shared/market';
 import { formatRub } from './shared/economy';
@@ -62,7 +63,7 @@ export function createMarketUI(
     panel.setAttribute('aria-label','Магазин и семейные запасы');
     const header = el('div','market-header');
     const title = el('div','market-title');
-    title.append(el('strong','', '🛒 Магазин и холодильник'),
+    title.append(el('strong','', '🛍️ Доставка и семейные запасы'),
       el('small','', 'Семейный бюджет: '+formatRub(state.money)));
     header.append(title,button('✕',close,'market-close'));
     panel.append(header);
@@ -118,7 +119,7 @@ export function createMarketUI(
       }
       scroll.append(grid);
       const selected=[...cart.entries()].map(([id,quantity])=>({id,quantity}));
-      const total=basketPrice(selected);
+      const total=basketPrice(selected)+(selected.length ? DELIVERY_FEE : 0);
       const storageOkay=cartFit();
       const after={pantry:{...state.pantry},meals:{...state.meals},takeout:{...state.takeout}};
       for(const line of selected){
@@ -133,7 +134,7 @@ export function createMarketUI(
         el('small','', !storageOkay ? 'Недостаточно мест для заказа' :
           total>state.money ? 'Не хватает '+formatRub(total-state.money) : 'После покупки: '+formatRub(state.money-total)),
         el('small','', '🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY));
-      const sendBtn=button('Заказать продукты',()=>{
+      const sendBtn=button('Оформить доставку',()=>{
         if (sendCheckout(selected)) {
           // Keep the basket until the server acknowledges an atomic purchase.
           sendBtn.disabled=true;

@@ -1,3 +1,5 @@
+import { validWorld } from './locations';
+import { initialWorld } from '../src/shared/locations';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,6 +23,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if (state.world !== undefined && !validWorld(state.world)) return false;
   // A clock was added to existing version-2 households; never reset old saves.
   if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
       !Number.isSafeInteger(state.clock.minute) || state.clock.minute < 0 ||
@@ -127,6 +130,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
       return {
         ...data,
+        world: data.world ?? initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
           vlad: { ...INITIAL_DAILY_NEEDS, ...data.characters.vlad },

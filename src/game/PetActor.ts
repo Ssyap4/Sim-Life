@@ -31,7 +31,7 @@ export class PetActor {
     this.reactionTime = 0;
   }
 
-  update(dt: number): void {
+  update(dt: number, travel = 0, pace = 0): void {
     this.clock += dt;
     this.reactionTime += dt;
     const dog = this.id === 'verdell';
@@ -85,7 +85,7 @@ export class PetActor {
       const paw = this.paws[i];
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
-      paw.rotation.x = pawLift * playful;
+      paw.rotation.x = pawLift * playful + Math.sin(travel * 16 + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33;
       paw.position.y = (dog ? 0.225 : front ? 0.245 : 0.27) + (dog ? 0 : 0.018 * playful * (front ? 1 : 0));
     }
   }

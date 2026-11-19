@@ -1,3 +1,6 @@
+import { applyWorld, worldMessages } from './locations';
+import { openDevices } from './devices';
+import { clockMinutes, stationById, approachFor } from '../src/shared/locations';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
@@ -37,8 +40,8 @@ const types: Record<string, string> = {
   '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
 };
 const sameCode = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const supplied = Buffer.from(a), expected = Buffer.from(b);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 };
 const packet = (socket: WebSocket, value: ServerPacket): void => {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
@@ -48,6 +51,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const port = options.port ?? 3101;
   const host = options.host ?? '127.0.0.1';
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
+  const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
   let state: GameState = files.load();
   const active = new Map<CharacterId, WebSocket>();
@@ -79,13 +83,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
+      d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
+    if (arrived) all({ type: 'delivery_arrived' });
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     // Gentle emergency autonomy, only when the resident is connected, idle
     // and almost exhausted. No autonomous purchases, work or food spending.
     for (const [role, socket] of active) {
-      if (state.characters[role].energy >= 8 || running.has(role) || state.activeShifts[role] ||
+      if (state.world.places[role] !== 'home' || state.characters[role].energy >= 8 || running.has(role) || state.activeShifts[role] ||
           now - (lastAutoRest.get(role) ?? 0) < 120_000 ||
           now - (lastAction.get(role) ?? 0) < 30_000) continue;
       const plan = planTask({ type: 'act', actionId: 'bedNap' });
@@ -116,7 +123,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!validation.ok) { packet(socket, { type: 'error', reason: validation.reason }); return; }
     // A long walk through the room must not consume the entire activity timer.
     // This estimates travel conservatively without calculating a second path.
-    const destination = plan.command.type === 'act' ? points[ACTIONS[plan.command.actionId].item]
+    const destination = plan.command.type === 'local_activity'
+      ? approachFor(stationById(state.world.places[role], plan.command.station)!, role)
+      : plan.command.type === 'act' ? points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'pet_action' ? {
           x: PETS[plan.command.pet].home.x, z: PETS[plan.command.pet].home.z + 0.78,
         } : plan.command.type === 'cook' ? points.kitchen : points.table;
@@ -145,7 +154,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       state = result.state;
       lastAction.set(role, Date.now());
       all({ type: 'task_ended', role, taskId: id, outcome: 'completed', message: result.message });
-      if (plan.command.type === 'act') {
+      if (plan.command.type === 'local_activity') {
+        all({ type: 'world_event', role, message: result.message });
+      } else if (plan.command.type === 'act') {
         all({ type: 'action', role, actionId: plan.command.actionId, message: result.message });
       } else if (plan.command.type === 'pet_action') {
         all({ type: 'pet_event', role, pet: plan.command.pet, action: plan.command.action, message: result.message });
@@ -219,6 +230,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     socket.on('pong', () => { tracked.isAlive = true; });
     let role: CharacterId | null = null;
     let invalidLogins = 0;
+    let deviceToken: string | null = null;
     socket.on('message', (raw: RawData, isBinary: boolean) => {
       if (isBinary) { socket.close(1003, 'JSON only'); return; }
       let input: unknown;
@@ -228,30 +240,46 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const message = input as Record<string, unknown>;
 
       if (!role) {
-        if (message.type !== 'auth' ||
-            (message.role !== 'vlad' && message.role !== 'alina') ||
-            typeof message.code !== 'string') {
+        if ((message.type !== 'auth' && message.type !== 'resume') ||
+            (message.role !== 'vlad' && message.role !== 'alina')) {
           packet(socket, { type: 'error', reason: 'Нужна авторизация персонажа' }); return;
         }
         const requested = message.role;
-        if (!sameCode(message.code, files.access[requested])) {
+        const valid = message.type === 'resume'
+          ? devices.verify(requested, message.token)
+          : typeof message.code === 'string' && sameCode(message.code, files.access[requested]);
+        if (!valid) {
           invalidLogins++;
-          packet(socket, { type: 'error', reason: 'Неверный код доступа' });
-          if (invalidLogins >= 5) socket.close(1008, 'Too many invalid codes');
+          packet(socket, { type: 'error', reason: message.type === 'resume'
+            ? 'Доверие устройства истекло. Введи код доступа' : 'Неверный код доступа' });
+          if (invalidLogins >= 5) socket.close(1008, 'Too many invalid logins');
           return;
         }
         if (active.has(requested)) {
           packet(socket, { type: 'error', reason: 'Этот персонаж уже занят на другом устройстве' });
           return;
         }
+        if (message.type === 'resume') deviceToken = message.token as string;
+        if (message.type === 'auth' && message.remember === true) {
+          try { deviceToken = devices.issue(requested); }
+          catch { packet(socket, { type: 'error', reason: 'Не удалось запомнить устройство. Войди без этой опции' }); return; }
+        }
         role = requested;
         if (active.size === 0) { lastLifeTick = Date.now(); minuteCarry = 0; }
         active.set(role, socket);
         packet(socket, { type: 'ready', role, state, online: online() });
+        if (deviceToken && message.type === 'auth') packet(socket, { type: 'device_token', role, token: deviceToken });
         all({ type: 'online', online: online() });
         return;
       }
 
+      if (message.type === 'forget_device') {
+        try { if (deviceToken) devices.revoke(deviceToken); }
+        catch { packet(socket, { type: 'error', reason: 'Не удалось забыть устройство' }); return; }
+        deviceToken = null;
+        socket.close(1000, 'Signed out');
+        return;
+      }
       if (message.type === 'cancel_task') {
         const current = running.get(role);
         if (!current || message.taskId !== current.id) {
@@ -275,9 +303,22 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
+      if (typeof message.type === 'string' && worldMessages.has(message.type)) {
+        const result = applyWorld(state, role, message);
+        if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
+        try { files.save(result.state); }
+        catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
+        state = result.state;
+        all({ type: 'snapshot', state });
+        if (result.path) {
+          all({ type: 'world_path', place: state.world.places[role], role, path: result.path, station: result.station });
+        } else all({ type: 'world_event', role, message: result.message });
+        return;
+      }
       if (message.type === 'job_start') {
         const result=beginShift(state,role,message.job);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if (result.state.world.dogWalker === role) result.state.world.dogWalker = null;
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить начало смены'});return;}
         state=result.state;
         all({type:'job_event',role,outcome:'started',message:result.message});
@@ -297,6 +338,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const partner = otherRole(role);
         if (!active.has(partner)) {
           packet(socket, { type: 'error', reason: names[partner] + ' пока не в игре' });
+          return;
+        }
+        if (state.world.places[partner] !== state.world.places[role]) {
+          packet(socket, { type: 'error', reason: 'Сначала встретьтесь в одной локации' });
           return;
         }
         if (running.has(partner) || state.activeShifts[partner]) {
@@ -324,7 +369,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' ||
+      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
@@ -373,6 +418,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (role && active.get(role) === socket) {
         stopTask(role, names[role] + ': действие отменено из-за отключения');
         active.delete(role);
+        if (state.world.dogWalker === role) {
+          const home = structuredClone(state);
+          home.world.dogWalker = null;
+          home.revision++;
+          try { files.save(home); state = home; all({ type: 'snapshot', state }); }
+          catch { console.error('Could not save return of Verdell'); }
+        }
         all({ type: 'online', online: online() });
       }
     });
