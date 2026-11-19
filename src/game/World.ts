@@ -366,7 +366,9 @@ export class World {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     const now = performance.now();
-    const dt = Math.min((now - this.lastFrame) / 1000, 0.05);
+    // Keep paths in real time in a slow frame. A short cap still prevents a
+    // jump when returning from a suspended tab.
+    const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
     this.lastFrame = now;
     this.actors.vlad.update(dt);
     this.actors.alina.update(dt);
@@ -389,7 +391,7 @@ export class World {
       }
     }
     if (this.cameraMove) {
-      const fraction = Math.min(1, dt * 5.5);
+      const fraction = 1 - Math.exp(-dt * 5.5);
       this.controls.target.lerp(this.cameraMove.target, fraction);
       this.camera.position.lerp(this.cameraMove.position, fraction);
       if (this.camera.position.distanceTo(this.cameraMove.position) < 0.025 &&

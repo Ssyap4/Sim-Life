@@ -142,29 +142,35 @@ export class Actor {
   }
 
   private advance(dt: number): number {
-    const target = this.waypoints[0];
-    if (!target) return 0;
-    const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
-    const distance = Math.hypot(dx, dz);
-    const travel = Math.min(distance, dt * 1.8);
-    if (distance > 0.001) {
-      const angle = Math.atan2(dx, dz);
-      const turn = THREE.MathUtils.euclideanModulo(angle - this.root.rotation.y + Math.PI, 2 * Math.PI) - Math.PI;
-      this.root.rotation.y += THREE.MathUtils.clamp(turn, -dt * 8, dt * 8);
-    }
-    if (distance <= travel + 0.016) {
+    let budget = dt * 1.8;
+    let traveled = 0;
+    let heading = this.root.rotation.y;
+    while (budget > 0 && this.waypoints.length) {
+      const target = this.waypoints[0];
+      const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
+      const distance = Math.hypot(dx, dz);
+      const travel = Math.min(distance, budget);
+      if (distance > 0.001) heading = Math.atan2(dx, dz);
+      budget -= travel;
+      traveled += travel;
+      if (travel < distance) {
+        this.root.position.x += dx / distance * travel;
+        this.root.position.z += dz / distance * travel;
+        break;
+      }
       this.root.position.copy(target);
       this.waypoints.shift();
-      if (!this.waypoints.length) {
-        const arrive = this.callback;
-        this.callback = null;
-        arrive?.();
-      }
-      return distance;
     }
-    this.root.position.x += dx / distance * travel;
-    this.root.position.z += dz / distance * travel;
-    return travel;
+    if (traveled > 0) {
+      const turn = THREE.MathUtils.euclideanModulo(heading - this.root.rotation.y + Math.PI, 2 * Math.PI) - Math.PI;
+      this.root.rotation.y += THREE.MathUtils.clamp(turn, -dt * 8, dt * 8);
+    }
+    if (!this.waypoints.length && this.callback) {
+      const arrive = this.callback;
+      this.callback = null;
+      arrive();
+    }
+    return traveled;
   }
 
   private bend(upper: THREE.Object3D, lower: THREE.Object3D, l1: number, l2: number,

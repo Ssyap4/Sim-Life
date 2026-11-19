@@ -58,3 +58,20 @@ test('Eating keeps the furniture anchor while the articulated arm moves', () => 
   settle(actor);
   assert.ok(figurePosition(actor).distanceTo(anchor) < 0.001);
 });
+
+test('A long frame walks through route corners and arrives exactly once', () => {
+  const actor = new Actor('vlad', [0, 0]);
+  let arrivals = 0;
+  actor.walkPath([
+    new THREE.Vector3(0.09, 0, 0),
+    new THREE.Vector3(0.09, 0, 0.18),
+    new THREE.Vector3(0.40, 0, 0.18),
+  ], () => { arrivals++; });
+  actor.update(0.2);
+  assert.ok(actor.root.position.distanceTo(new THREE.Vector3(0.18, 0, 0.18)) < 0.001);
+  assert.equal(arrivals, 0);
+  actor.update(0.2);
+  actor.update(0.2);
+  assert.deepEqual(actor.root.position.toArray(), [0.4, 0, 0.18]);
+  assert.equal(arrivals, 1);
+});
