@@ -2,6 +2,7 @@ import {
   PETS, PET_IDS, type PetId, type PetAction,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
+import { addLedger } from '../src/shared/economy';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -34,6 +35,7 @@ export function applyPetAction(
         return { ok: false, reason: 'Корма уже достаточно, сначала используйте запасы' };
       next.money -= spec.foodPrice;
       next.petFood[id] += spec.foodAmount;
+      addLedger(next,role,'expense','pets',spec.foodPrice,spec.foodName);
       message = names[role] + ': куплен ' + spec.foodName + ' (+' + spec.foodAmount + ')';
       break;
     case 'feed':

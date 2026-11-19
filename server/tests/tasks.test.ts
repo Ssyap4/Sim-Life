@@ -103,11 +103,12 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
     await completed;
     const done = await snap;
     if (done.type === 'snapshot') {
-      assert.equal(done.state.money, 2620);
-      assert.equal(done.state.characters.vlad.skill, 6);
+      assert.equal(done.state.money, 5500);
+      assert.equal(done.state.characters.vlad.skill, 0);
+      assert.equal(done.state.ledger[0].amount, 3000);
     }
     const saved = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-    assert.deepEqual([saved.money, saved.revision], [2620, 1]);
+    assert.deepEqual([saved.money, saved.revision], [5500, 1]);
     ctx.vlad.terminate();
     ctx.alina.terminate();
     await ctx.server.close();
@@ -116,7 +117,7 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
       const after = await enter(restored.port, 'vlad', ctx.keys.vlad);
       after.close();
       const persisted = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-      assert.deepEqual([persisted.money, persisted.revision], [2620, 1]);
+      assert.deepEqual([persisted.money, persisted.revision], [5500, 1]);
     } finally { await restored.close(); }
   } finally {
     if (ctx.server.httpServer.listening) await clean(ctx);
@@ -146,7 +147,7 @@ test('Kitchen tasks lock the stove while the other player can care for a pet', a
     const [v, a] = await Promise.all([finalV, finalA]);
     assert.deepEqual(v, a);
     if (v.type === 'snapshot') {
-      assert.equal(v.state.money, 2455);
+      assert.equal(v.state.money, 2405);
       assert.equal(v.state.pantry.eggs, 2);
       assert.equal(v.state.pantry.milk, 0);
       assert.equal(v.state.meals.omelette, 2);

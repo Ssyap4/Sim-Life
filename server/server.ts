@@ -7,6 +7,7 @@ import {
   ACTIONS, points, names, SOCIAL_LABELS, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
+import { checkout } from './market';
 import { applyPetAction } from './pets';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
@@ -147,7 +148,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       } else if (plan.command.type === 'pet_action') {
         all({ type: 'pet_event', role, pet: plan.command.pet, action: plan.command.action, message: result.message });
       } else {
-        all({ type: 'food_event', role, action: plan.command.type, message: result.message });
+        all({ type: 'food_event', role, action: plan.command.type === 'eat_takeout' ? 'eat' : plan.command.type, message: result.message });
       }
       all({ type: 'snapshot', state });
     }, durationMs);
@@ -187,7 +188,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     });
     if (req.method === 'HEAD') res.end(); else res.end(content);
   });
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {
       const tracked = socket as WebSocket & { isAlive?: boolean };
@@ -298,7 +299,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'act' || message.type === 'cook' || message.type === 'eat' ||
+      if (message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
@@ -306,18 +307,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'buy' || (message.type === 'pet_action' && message.action === 'buyFood')) {
+      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && message.action === 'buyFood')) {
         const now = Date.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
           packet(socket, { type: 'error', reason: 'Немного подожди перед следующей покупкой' });
           return;
         }
-        const result = message.type === 'buy'
-          ? applyFoodAction(state, role, { type: 'buy',
-              item: typeof message.item === 'string' ? message.item : '' })
-          : applyPetAction(state, role,
-              typeof message.pet === 'string' ? message.pet : '',
-              typeof message.action === 'string' ? message.action : '');
+        const result = message.type === 'checkout'
+          ? checkout(state, role, message.lines)
+          : message.type === 'buy'
+            ? applyFoodAction(state, role, { type: 'buy',
+                item: typeof message.item === 'string' ? message.item : '' })
+            : applyPetAction(state, role,
+                typeof message.pet === 'string' ? message.pet : '',
+                typeof message.action === 'string' ? message.action : '');
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch (error) {
@@ -327,7 +330,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         state = result.state;
         lastAction.set(role, now);
-        if (message.type === 'buy') {
+        if (message.type === 'checkout') {
+          all({ type: 'store_event', role, message: result.message });
+        } else if (message.type === 'buy') {
           all({ type: 'food_event', role, action: 'buy', message: result.message });
         } else {
           all({ type: 'pet_event', role,

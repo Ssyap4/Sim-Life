@@ -250,6 +250,7 @@ export class World {
       });
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
+    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
     return this.performFood(role, command.type, current);
   }
 

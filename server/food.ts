@@ -1,4 +1,5 @@
-import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from '../src/shared/food';
+import { GROCERIES, RECIPES, TAKEOUT, ingredientList, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { addLedger } from '../src/shared/economy';
 import { names, points, type CharacterId, type GameState } from '../src/shared/protocol';
 
 export type FoodCommand =
@@ -22,6 +23,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (state.pantry[id] + product.quantity > 99) return { ok: false, reason: 'Запас этого продукта заполнен' };
     state.money -= product.price;
     state.pantry[id] += product.quantity;
+    addLedger(state, role, 'expense', 'groceries', product.price, product.name);
     message = names[role] + ': доставлено ' + product.name + ' за ' + product.price + ' ₽';
   } else if (command.type === 'cook') {
     if (!owns(RECIPES, command.recipe)) return { ok: false, reason: 'Неизвестный рецепт' };
@@ -55,4 +57,21 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
   }
   state.revision += 1;
   return { ok: true, state, message };
+}
+
+/** Ready-made food stays in the shared fridge until someone eats it at the table. */
+export function applyTakeoutMeal(source: GameState, role: CharacterId, item: string): FoodResult {
+  if (!Object.prototype.hasOwnProperty.call(TAKEOUT, item)) return {ok:false,reason:'Неизвестное готовое блюдо'};
+  const id=item as TakeoutId;
+  if (!source.takeout[id]) return {ok:false,reason:'Готовой еды нет в запасе'};
+  const state=structuredClone(source);
+  const meal=TAKEOUT[id];
+  state.takeout[id]-=1;
+  const actor=state.characters[role];
+  actor.hunger=Math.min(100,actor.hunger+meal.hunger);
+  actor.mood=Math.min(100,actor.mood+meal.mood);
+  actor.comfort=Math.min(100,actor.comfort+4);
+  Object.assign(actor,{...points.table,pose:'sit' as const});
+  state.revision++;
+  return {ok:true,state,message:names[role]+': поел(а) '+meal.name};
 }

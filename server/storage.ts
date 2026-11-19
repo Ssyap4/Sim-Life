@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
-import { EMPTY_MEALS, EMPTY_PANTRY } from '../src/shared/food';
+import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
+import { LEDGER_LIMIT } from '../src/shared/economy';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 
@@ -34,6 +35,24 @@ const isValidState = (value: unknown): value is GameState => {
   if (meals !== undefined && (!meals || !Object.keys(EMPTY_MEALS).every((key) =>
     meals[key] === undefined || Number.isSafeInteger(meals[key]) &&
       Number(meals[key]) >= 0 && Number(meals[key]) <= 30))) return false;
+  const takeout = state.takeout as Record<string, unknown> | undefined;
+  if (takeout !== undefined && (!takeout || !Object.keys(EMPTY_TAKEOUT).every(key =>
+    takeout[key] === undefined || Number.isSafeInteger(takeout[key]) &&
+      Number(takeout[key]) >= 0 && Number(takeout[key]) <= 40))) return false;
+  const shifts = state.shiftDays as Record<string, number> | undefined;
+  if (shifts !== undefined && (!shifts ||
+      !(['vlad','alina'] as const).every(role =>
+        Number.isSafeInteger(shifts[role]) && shifts[role] >= 0))) return false;
+  if (state.ledger !== undefined && (!Array.isArray(state.ledger) ||
+      state.ledger.length > LEDGER_LIMIT ||
+      !state.ledger.every(row => row && Number.isSafeInteger(row.id) && row.id > 0 &&
+        Number.isSafeInteger(row.day) && row.day >= 1 &&
+        Number.isSafeInteger(row.minute) && row.minute >= 0 && row.minute < 1440 &&
+        Number.isSafeInteger(row.amount) && row.amount >= 0 &&
+        (row.actor === 'vlad' || row.actor === 'alina') &&
+        (row.kind === 'income' || row.kind === 'expense') &&
+        ['groceries','takeout','pets','work'].includes(row.category) &&
+        typeof row.label === 'string' && row.label.length <= 140))) return false;
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
@@ -95,6 +114,9 @@ export function openServerFiles(dataDir: string): ServerFiles {
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
+        takeout: { ...EMPTY_TAKEOUT, ...data.takeout },
+        ledger: [...(data.ledger ?? [])],
+        shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         pets: { ...structuredClone(INITIAL_PETS), ...data.pets },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };
