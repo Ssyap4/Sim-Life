@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export type XYZ = [number, number, number];
 export const colors = {
@@ -17,18 +17,18 @@ export const orb = new THREE.SphereGeometry(1, 14, 10);
 export const drum = new THREE.CylinderGeometry(1, 1, 1, 20);
 export const torus = new THREE.TorusGeometry(1, 0.10, 6, 18);
 export const plane = new THREE.PlaneGeometry();
-type Surface = 'fabric' | 'wood' | 'metal' | 'screen' | 'ceramic' | 'skin';
+type Surface = 'fabric' | 'wood' | 'metal' | 'screen' | 'ceramic' | 'skin' | 'hair' | 'fur';
 const roughness: Record<Surface, number> = {
-  fabric: 0.94, wood: 0.72, metal: 0.42, screen: 0.33, ceramic: 0.54, skin: 0.76,
+  fabric: 0.94, wood: 0.72, metal: 0.42, screen: 0.33, ceramic: 0.54, skin: 0.76, hair: 0.63, fur: 0.96,
 };
 const finishes = new Map<string, THREE.MeshStandardMaterial>();
 
-export function finish(color: number, surface: Surface = 'fabric'): THREE.MeshStandardMaterial {
-  const key = `${color}/${surface}`;
+export function finish(color: number, surface: Surface = 'fabric', vertexColors = false): THREE.MeshStandardMaterial {
+  const key = `${color}/${surface}/${vertexColors}`;
   let material = finishes.get(key);
   if (!material) {
     material = new THREE.MeshStandardMaterial({
-      color, roughness: roughness[surface], metalness: surface === 'metal' ? 0.28 : 0,
+      color, vertexColors, roughness: roughness[surface], metalness: surface === 'metal' ? 0.28 : 0,
     });
     finishes.set(key, material);
   }
@@ -86,7 +86,10 @@ export function batchRigidParts(parent: THREE.Object3D): void {
     if (batch.length < 2) continue;
     const sources = batch.map((mesh) => {
       mesh.updateMatrix();
-      const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+      // Keep indexed surfaces indexed so batching doesn't repeat the vertex
+      // attributes at every triangle. Coincident vertices with split normals or
+      // UV seams keep their separate attributes.
+      const geometry = mesh.geometry.index ? mesh.geometry.clone() : mergeVertices(mesh.geometry, 1e-6);
       return geometry.applyMatrix4(mesh.matrix);
     });
     const geometry = mergeGeometries(sources);
@@ -103,7 +106,7 @@ export function batchRigidParts(parent: THREE.Object3D): void {
 
 /** A soft tapered lock, fur tuft, or tail swept along a curved centerline. */
 export function sculptedCurve(parent: THREE.Object3D, points: XYZ[], start: number,
-  end: number, color: number, flatten = 0.65, shadow = false, rings?: number): THREE.Mesh {
+  end: number, color: number, flatten = 0.65, shadow = false, rings?: number, materialType: Surface = 'skin'): THREE.Mesh {
   const path = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
   const steps = 12;
   const sides = 8;
@@ -140,13 +143,8 @@ export function sculptedCurve(parent: THREE.Object3D, points: XYZ[], start: numb
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  const material = finish(color, 'skin');
-  const surface = rings === undefined ? material : material.clone();
-  if (rings !== undefined) {
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(tint, 3));
-    surface.vertexColors = true;
-  }
-  const mesh = new THREE.Mesh(geometry, surface);
+  if (rings !== undefined) geometry.setAttribute('color', new THREE.Float32BufferAttribute(tint, 3));
+  const mesh = new THREE.Mesh(geometry, finish(color, materialType, rings !== undefined));
   mesh.castShadow = shadow;
   parent.add(mesh);
   return mesh;

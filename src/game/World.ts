@@ -10,7 +10,7 @@ import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
-import { buildFurniture, buildSoftRugs } from './InteriorArt';
+import { buildFurniture, buildSoftRugs, furnitureFootprints } from './InteriorArt';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
@@ -56,7 +56,7 @@ export class World {
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
-  private readonly sun = new THREE.DirectionalLight(0xffe4c6, 2.58);
+  private readonly sun = new THREE.DirectionalLight(0xffecd8, 2.38);
 
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
@@ -67,7 +67,7 @@ export class World {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.03;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -147,7 +147,9 @@ export class World {
     this.followSubject = subjectRoot.children[0];
     this.followSubject.getWorldPosition(this.followPoint);
     const bounds = new THREE.Box3().setFromObject(this.followSubject, true);
-    const angle = new THREE.Vector3(subject === 'simba' ? 0.69 : 0.29, person ? 0.11 : 0.22, 1);
+    // Simba's right-hand approach to the inspection view had the desk in front.
+    const angle = subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
+      : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
     this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
   }
 
@@ -287,10 +289,10 @@ export class World {
   }
 
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfcf0e1, 0xa9bebc, 1.68));
+    this.scene.add(new THREE.HemisphereLight(0xfaf3e9, 0xb9c6be, 1.82));
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
-    sun.position.set(1.8, 9, 5.5);
+    sun.position.set(-2.6, 9, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -8.5;
@@ -300,7 +302,7 @@ export class World {
     sun.shadow.camera.near = 0.5;
     sun.shadow.camera.far = 22;
     sun.shadow.radius = 2.65;
-    sun.shadow.intensity = 0.83;
+    sun.shadow.intensity = 0.77;
     sun.shadow.bias = -0.00025;
     sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
@@ -309,12 +311,11 @@ export class World {
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
-    group.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(group);
+    const bounds = furnitureFootprints[id];
     const clearance = 0.27;
     this.obstacles.push({
-      minX: bounds.min.x - clearance, maxX: bounds.max.x + clearance,
-      minZ: bounds.min.z - clearance, maxZ: bounds.max.z + clearance,
+      minX: bounds.minX - clearance, maxX: bounds.maxX + clearance,
+      minZ: bounds.minZ - clearance, maxZ: bounds.maxZ + clearance,
     });
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {

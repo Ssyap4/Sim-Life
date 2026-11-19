@@ -208,15 +208,24 @@ export class Actor {
     let leftZ = -0.18 * Math.cos(stridePhase) * motion;
     let rightZ = -leftZ;
     let armSpread = -0.077;
+    if (asleep) {
+      leftY = -0.51;
+      rightY = -0.44;
+      leftZ = 0.19;
+      rightZ = 0.26;
+      armSpread = -0.15;
+    }
     if (seated) {
       leftY = rightY = -0.44;
       leftZ = rightZ = 0.29;
     }
     if (this.pose === 'work') {
-      leftY = 0.105 + Math.sin(t * 9.0) * 0.012;
-      rightY = 0.105 + Math.sin(t * 11.4) * 0.013;
-      leftZ = 0.50;
-      rightZ = 0.52;
+      const leftTap = Math.max(0, Math.sin(t * 9.0)) ** 2;
+      const rightTap = Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
+      leftY = 0.097 - leftTap * 0.022;
+      rightY = 0.100 - rightTap * 0.022;
+      leftZ = 0.48 + leftTap * 0.025;
+      rightZ = 0.51 + rightTap * 0.027;
     }
 
     let crouch = 0;
@@ -224,10 +233,10 @@ export class Actor {
     if (this.activity) {
       switch (this.activity) {
         case 'cook':
-          leftY = -0.27;
-          rightY = -0.152 + Math.sin(a * 5) * 0.040;
-          leftZ = 0.40;
-          rightZ = 0.49 + Math.cos(a * 5) * 0.055;
+          leftY = -0.24;
+          rightY = -0.218 + Math.sin(a * 5) * 0.032;
+          leftZ = 0.36;
+          rightZ = 0.43 + Math.cos(a * 5) * 0.053;
           break;
         case 'eat': {
           const bite = (0.5 - 0.5 * Math.cos(a * 3.2)) ** 2;
@@ -246,20 +255,25 @@ export class Actor {
         default:
           crouch = this.activity === 'feed' ? 0.28 : 0.21;
           leftY = -0.49;
-          rightY = -0.42 + Math.sin(a * 4) * 0.045;
+          rightY = -0.455 + Math.sin(a * 4) * 0.034;
           leftZ = 0.20;
           rightZ = 0.40 + Math.sin(a * 4 + 1) * 0.07;
           break;
       }
     }
+    let embrace = 0;
     const g = this.gestureTime;
     if (this.gesture) {
-      const reach = Math.sin(Math.PI * Math.min(1, g / (this.gesture === 'hug' ? 2.45 : 1.4)));
+      const duration = this.gesture === 'hug' ? 2.45 : 1.4;
+      const progress = g / duration;
+      const reach = THREE.MathUtils.smoothstep(progress, 0, 0.31) *
+        (1 - THREE.MathUtils.smoothstep(progress, this.gesture === 'hug' ? 0.63 : 0.44, 1));
       if (this.gesture === 'hug') {
         armSpread = -0.28 * (1 - reach) + 0.25 * reach;
         leftY = rightY = THREE.MathUtils.lerp(-0.56, -0.06, reach);
-        leftZ = rightZ = reach * 0.53;
-        lean = 0.13 * reach;
+        leftZ = rightZ = reach * 0.44;
+        embrace = reach * 0.14;
+        lean = 0.20 * reach;
         this.heart.scale.setScalar(0.69 + reach * 0.26);
       } else {
         // Both face each other. Their raised hands meet on the same side of
@@ -272,7 +286,8 @@ export class Actor {
     }
 
     this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
-    this.spoon.rotation.y = this.activity === 'cook' ? 0.25 * Math.sin(a * 5) : 0.02;
+    this.spoon.rotation.y = this.activity === 'cook' ? 0.31 * Math.sin(a * 5) : 0.02;
+    this.spoon.rotation.x = this.activity === 'cook' ? 0.56 + 0.10 * Math.cos(a * 5) : 0.31;
     this.crouchBlend = THREE.MathUtils.lerp(this.crouchBlend, crouch, alpha);
     const armZ = this.activity === 'cook' ? -0.11 + Math.sin(a * 5) * 0.15 : armSpread;
     this.bend(armA, data.elbows[0], data.upperArm, data.lowerArm, leftY, leftZ, -1, alpha);
@@ -283,8 +298,9 @@ export class Actor {
     for (let i = 0; i < 2; i++) {
       const upper = i === 0 ? this.leftLeg : this.rightLeg;
       const knee = data.knees[i];
+      let toePitch = 0;
       if (seated) {
-        const thigh = this.pose === 'work' ? -1.18 : -1.37;
+        const thigh = this.pose === 'work' ? -1.34 : -1.37;
         upper.rotation.x = THREE.MathUtils.lerp(upper.rotation.x, thigh + i * 0.06, alpha);
         knee.rotation.x = THREE.MathUtils.lerp(knee.rotation.x, 0.16 - thigh - i * 0.065, alpha);
       } else {
@@ -293,10 +309,16 @@ export class Actor {
         const travel = swing ? (phase - 0.60) / 0.40 : phase / 0.60;
         const lift = swing ? Math.sin(travel * Math.PI) * 0.123 : 0;
         const step = swing ? THREE.MathUtils.smoothstep(travel, 0, 1) * 2 - 1 : 1 - 2 * travel;
-        const y = -data.thighLength - data.shinLength + motion * (0.038 + lift) + this.crouchBlend;
+        // The stance ankle compensates for the body bob. Only the swing
+        // phase lifts the sole off the floor and pitches it into the step.
+        const y = -data.thighLength - data.shinLength + motion * (0.037 - speedBob + lift) + this.crouchBlend;
+        toePitch = motion * (swing ? -0.22 * Math.sin(travel * Math.PI * 2) : 0.14 * travel ** 4);
         const z = step * motion * 0.24 + 0.08 * this.crouchBlend;
         this.bend(upper, knee, data.thighLength, data.shinLength, y, z, 1, alpha);
       }
+      const ankle = data.ankles[i];
+      ankle.rotation.x = THREE.MathUtils.lerp(ankle.rotation.x,
+        asleep ? -0.10 : toePitch - upper.rotation.x - knee.rotation.x, alpha);
     }
 
     const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
@@ -315,6 +337,8 @@ export class Actor {
 
     this.figureBase.lerp(this.poseOffset, 1 - Math.exp(-dt * 8));
     this.figure.position.copy(this.figureBase);
+    // Close the visual gap during a hug while the path endpoints stay fixed.
+    this.figure.position.z += embrace;
     this.figure.position.y += motion * (speedBob - 0.037) - this.crouchBlend;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     this.selectionRing.position.x = this.figureBase.x;

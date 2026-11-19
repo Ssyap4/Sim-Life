@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
+import { cushionGeometry } from './FurnitureGeometry';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 import type { FloorRect } from './navigation';
 
@@ -36,14 +37,16 @@ function rearWall(home: THREE.Group): void {
     shape(home, cube, [x2 - x1, y2 - y1, 0.25], [(x1 + x2) / 2, (y1 + y2) / 2, -5],
       C.limestone);
   }
-  panel(home, [-1.65, 2.03, -5.17], [3.48, 1.64], gardenView(), C.sky, 0.33);
-  for (const x of [left, right, -2.22, -1.08]) {
-    shape(home, softCube, [0.088, 1.66, 0.17], [x, 2.03, -4.93], C.paper, 'wood');
+  panel(home, [-1.65, 2.03, -5.17], [3.48, 1.64], gardenView(), C.sky, 0.20);
+  // The sash sits in shadow behind the casing. The sill projects into the room.
+  for (const x of [left, right]) {
+    shape(home, softCube, [0.13, 1.70, 0.23], [x, 2.03, -4.89], C.paper, 'wood');
+    shape(home, cube, [0.051, 1.57, 0.068], [x, 2.03, -5.05], C.walnut, 'wood');
   }
-  for (const [y, width] of [[bottom, 3.58], [2.20, 3.43], [top, 3.54]]) {
-    shape(home, softCube, [width, 0.09, y === bottom ? 0.43 : 0.17],
-      [-1.65, y, -4.87], C.paper, 'wood');
-  }
+  shape(home, softCube, [0.093, 1.57, 0.092], [-1.65, 2.03, -5.055], C.paper, 'wood');
+  shape(home, softCube, [3.42, 0.074, 0.084], [-1.65, 2.19, -5.064], C.paper, 'wood');
+  shape(home, softCube, [3.61, 0.105, 0.40], [-1.65, bottom, -4.89], C.oat, 'wood');
+  shape(home, softCube, [3.54, 0.092, 0.23], [-1.65, top, -4.89], C.paper, 'wood');
   const rod = shape(home, drum, [0.036, 3.84, 0.036], [-1.65, 2.97, wallFront + 0.15], C.brass, 'metal');
   rod.rotation.z = Math.PI / 2;
 
@@ -77,22 +80,31 @@ function rearWall(home: THREE.Group): void {
 }
 
 function leftWall(home: THREE.Group): void {
-  shape(home, cube, [0.24, 3.29, 10.12], [-6, 1.645, 0], 0xc5c1a1);
+  shape(home, cube, [0.24, 3.29, 10.12], [-6, 1.645, 0], 0xd7c9ae);
   shape(home, cube, [0.07, 0.91, 9.94], [-5.85, 0.455, 0], C.sage);
   shape(home, softCube, [0.11, 0.072, 9.94], [-5.81, 0.92, 0], C.pine, 'wood');
-  for (const z of [-4.55, -3.65, -2.75, -1.85, 0.01, 0.91, 1.81, 2.71, 3.61, 4.51]) {
-    shape(home, cube, [0.024, 0.74, 0.036], [-5.805, 0.49, z], 0xb0b39a);
+  for (const [first, last] of [[-4.91, -1.84], [0.0, 4.88]]) {
+    for (let z = first + 0.49; z < last - 0.40; z += 0.79) {
+      shape(home, cube, [0.017, 0.71, 0.045], [-5.808, 0.50, z], 0x829278, 'wood');
+    }
   }
   const door = new THREE.Group();
   door.rotation.y = Math.PI / 2;
   door.position.set(-5.83, 0, -0.92);
-  shape(door, softCube, [1.65, 2.65, 0.16], [0, 1.325, 0], C.walnut, 'wood');
-  shape(door, softCube, [1.46, 2.51, 0.12], [0, 1.285, 0.08], C.pine, 'wood');
-  for (const [y, height] of [[0.60, 0.86], [1.75, 1.13]]) {
-    shape(door, softCube, [1.10, height, 0.045], [0, y, 0.15], C.leaf, 'wood');
-    shape(door, softCube, [0.93, height - 0.15, 0.026], [0, y, 0.177], C.pine, 'wood');
+  shape(door, cube, [1.51, 2.51, 0.141], [0, 1.255, 0.025], C.walnut, 'wood');
+  shape(door, softCube, [1.38, 2.45, 0.092], [0, 1.246, 0.069], C.pine, 'wood');
+  for (const x of [-0.76, 0.76]) {
+    shape(door, softCube, [0.14, 2.60, 0.16], [x, 1.3, 0.058], C.paper, 'wood');
+    shape(door, cube, [0.058, 2.49, 0.06], [x * 0.93, 1.25, 0.122], C.oat, 'wood');
   }
-  shape(door, orb, [0.06, 0.057, 0.05], [0.51, 1.17, 0.19], C.brass, 'metal');
+  shape(door, softCube, [1.66, 0.155, 0.17], [0, 2.54, 0.058], C.paper, 'wood');
+  shape(door, softCube, [1.50, 0.055, 0.24], [0, 0.034, 0.07], C.oat, 'wood');
+  for (const [y, height] of [[0.56, 0.74], [1.70, 1.12]]) {
+    shape(door, softCube, [1.06, height, 0.039], [0, y, 0.105], C.walnut, 'wood');
+    shape(door, softCube, [0.99, height - 0.07, 0.038], [0, y, 0.127], C.leaf, 'wood');
+  }
+  shape(door, softCube, [0.075, 0.13, 0.036], [0.51, 1.13, 0.129], C.brass, 'metal');
+  shape(door, softCube, [0.14, 0.038, 0.063], [0.47, 1.16, 0.158], C.brass, 'metal');
   batchRigidParts(door);
   home.add(door);
 }
@@ -171,9 +183,9 @@ export function decorateHome(scene: THREE.Scene): void {
   platformShadow(scene);
   // World-unit bevels keep the square floor deck supported right to its corners.
   for (const [width, height, depth, y, color, surface] of [
-    [12.52, 0.42, 10.48, -0.42, C.rust, 'ceramic'],
-    [12.36, 0.20, 10.32, -0.17, C.walnut, 'wood'],
-    [12.19, 0.09, 10.16, -0.048, C.oak, 'wood'],
+    [12.52, 0.40, 10.48, -0.42, 0xa5725a, 'ceramic'],
+    [12.36, 0.20, 10.32, -0.17, 0x815841, 'wood'],
+    [12.19, 0.09, 10.16, -0.048, C.oat, 'wood'],
   ] as const) {
     const edge = new RoundedBoxGeometry(width, height, depth, 1, height * 0.42);
     shape(home, edge, [1, 1, 1], [0, y, 0], color, surface, y < -0.1);
@@ -198,9 +210,10 @@ export function decorateHome(scene: THREE.Scene): void {
     shape(home, softCube, [0.17, height, 0.12], [-5.67, 1.66 + height / 2, 1.40 + i * 0.14],
       [C.clay, C.sage, C.oat, C.ink][i % 4]);
   }
-  shape(home, softCube, [0.67, 0.09, 0.62], [-0.84, 0.48, 0.05], C.sage);
+  shape(home, cushionGeometry, [0.67, 0.12, 0.62], [-0.84, 0.48, 0.05], C.sage);
   for (const dx of [-0.24, 0.24]) for (const dz of [-0.22, 0.22]) {
-    shape(home, softCube, [0.071, 0.43, 0.071], [-0.84 + dx, 0.235, 0.05 + dz], C.walnut, 'wood');
+    const leg = shape(home, cube, [0.068, 0.44, 0.068], [-0.84 + dx, 0.228, 0.05 + dz], C.walnut, 'wood');
+    leg.rotation.set(Math.sign(dz) * 0.13, 0, -Math.sign(dx) * 0.13);
   }
   leafPlant(home);
   practicalLights(home);

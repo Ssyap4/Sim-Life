@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 import { batchRigidParts } from '../../src/game/ArtKit';
 import { decorObstacles } from '../../src/game/HomeStyling';
-import { buildFurniture } from '../../src/game/InteriorArt';
+import { buildFurniture, furnitureFootprints } from '../../src/game/InteriorArt';
 import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from '../../src/game/navigation';
 import { PETS, PET_IDS } from '../../src/shared/pets';
 import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
@@ -22,11 +22,12 @@ test('both players can reach every interaction around the assembled interior', (
     });
     batchRigidParts(root);
     root.updateMatrixWorld(true);
+    const { minX, maxX, minZ, maxZ } = furnitureFootprints[id];
+    const obstacle = { minX: minX - 0.27, maxX: maxX + 0.27, minZ: minZ - 0.27, maxZ: maxZ + 0.27 };
+    obstacles.push(obstacle);
     const box = new THREE.Box3().setFromObject(root);
-    obstacles.push({
-      minX: box.min.x - 0.27, maxX: box.max.x + 0.27,
-      minZ: box.min.z - 0.27, maxZ: box.max.z + 0.27,
-    });
+    assert.ok(box.min.x >= obstacle.minX && box.max.x <= obstacle.maxX &&
+      box.min.z >= obstacle.minZ && box.max.z <= obstacle.maxZ, id + ' must fit its collider');
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       counts.meshes++;
@@ -56,6 +57,6 @@ test('both players can reach every interaction around the assembled interior', (
   }
   assert.ok(counts.meshes <= 135, 'too many furniture meshes: ' + counts.meshes);
   assert.ok(counts.shadows < 45, 'too many furniture shadow casters: ' + counts.shadows);
-  assert.ok(sharedGeometries.size <= 6, 'furniture parts should reuse the shared geometry kit');
+  assert.ok(sharedGeometries.size <= 9, 'furniture parts should reuse the shared geometry kit');
   console.log('INTERIOR_BUDGET ' + JSON.stringify({ ...counts, sharedGeometries: sharedGeometries.size }));
 });

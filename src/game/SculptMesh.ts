@@ -65,9 +65,7 @@ export function loft(sections: readonly Section[], sides = 20, steps = 24,
 
 export function sculpt(parent: THREE.Object3D, geometry: THREE.BufferGeometry,
   color: number, surface: Parameters<typeof finish>[1], shadow = true): THREE.Mesh {
-  const material = finish(color, surface);
-  const mesh = new THREE.Mesh(geometry, geometry.hasAttribute('color') ? material.clone() : material);
-  if (geometry.hasAttribute('color')) mesh.material.vertexColors = true;
+  const mesh = new THREE.Mesh(geometry, finish(color, surface, geometry.hasAttribute('color')));
   mesh.castShadow = shadow;
   mesh.receiveShadow = true;
   parent.add(mesh);

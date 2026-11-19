@@ -1,29 +1,57 @@
 import { paintedMap } from './ArtKit';
 
-const oakTones = ['#bf8c60', '#c89569', '#ca966b', '#b98257', '#cf9f72', '#bf8a5e'];
+const oakTones = ['#ba9779', '#c1a087', '#c6a487', '#ad896d', '#c3a184', '#b99678'];
 
 export function oakFloor() {
-  return paintedMap('oak-floor', 1024, 1024, (ctx) => {
-    const span = 1024;
-    ctx.fillStyle = '#805139';
-    ctx.fillRect(0, 0, span, span);
-    for (let row = 0; row < 17; row++) {
-      const y = row * 60.25;
+  return paintedMap('oak-floor', 768, 768, (ctx) => {
+    ctx.fillStyle = '#8d7058';
+    ctx.fillRect(0, 0, 768, 768);
+    for (let row = 0; row < 21; row++) {
+      const y = row * 36.58;
+      const length = 194;
       for (let col = -1; col < 5; col++) {
-        const x = col * 260 + (row * 105) % 260;
+        const x = col * length + (row * 81) % length;
         const tone = ((row * 17 + col * 7) % oakTones.length + oakTones.length) % oakTones.length;
         ctx.fillStyle = oakTones[tone];
-        ctx.fillRect(x + 1, y + 1, 258, 58.5);
-        ctx.fillStyle = '#fff1cb33';
-        ctx.fillRect(x + 2, y + 1, 255, 2);
-        for (let grain = 0; grain < 6; grain++) {
-          const gy = y + 7 + (row * 7 + grain * 11) % 45;
+        ctx.fillRect(x + 0.7, y + 0.6, length - 1, 35.9);
+        ctx.fillStyle = '#fff2cf29';
+        ctx.fillRect(x + 1, y + 0.9, length - 1.5, 1.2);
+        for (let grain = 0; grain < 13; grain++) {
+          const gy = y + 3 + (row * 7 + grain * 13) % 30;
+          const wave = Math.sin(col * 17 + grain * 5 + row * 29);
           ctx.beginPath();
-          ctx.moveTo(x + 4, gy);
-          ctx.bezierCurveTo(x + 78, gy + 8, x + 158, gy - 8, x + 252, gy + 2);
-          ctx.strokeStyle = grain % 2 ? '#ffddab30' : '#6e422523';
+          ctx.moveTo(x + 3, gy);
+          ctx.bezierCurveTo(x + 32, gy + wave * 2, x + 70, gy - wave * 4, x + 191, gy + wave * 1.5);
+          ctx.strokeStyle = grain % 2 ? '#f3e0bf36' : '#69493123';
+          ctx.lineWidth = 0.7;
           ctx.stroke();
         }
+        if ((row * 5 + col * 3) % 4 === 0) {
+          const knot = x + 60 + row % 5 * 16;
+          for (const radius of [3, 6, 10]) {
+            ctx.beginPath();
+            ctx.ellipse(knot, y + 18, radius, radius * 0.26, 0.03, 0, Math.PI * 2);
+            ctx.strokeStyle = '#6748333d';
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  });
+}
+
+export function upholsteryWeave() {
+  return paintedMap('upholstery-weave', 128, 128, (ctx) => {
+    ctx.fillStyle = '#f5f2ea';
+    ctx.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 4) {
+      ctx.fillStyle = '#4e484219';
+      ctx.fillRect(0, y, 128, 1);
+      for (let x = y % 8 ? 2 : 0; x < 128; x += 4) {
+        ctx.fillStyle = '#625e5023';
+        ctx.fillRect(x, y + 1, 1, 2);
+        ctx.fillStyle = '#fffdf5';
+        ctx.fillRect(x + 1, y + 2, 2, 1);
       }
     }
   });
@@ -100,9 +128,9 @@ export function botanicalPrint() {
 export function wovenRug(style: 'living' | 'work' | 'sleep') {
   return paintedMap('rug-' + style, 256, 256, (ctx) => {
     const palette = {
-      living: ['#af6350', '#e7b587', '#f6d8a7'],
-      work: ['#638477', '#9ab09a', '#e0d3a8'],
-      sleep: ['#c89868', '#e1bb8d', '#f4dbb2'],
+      living: ['#a36963', '#bd8e79', '#e8bea0'],
+      work: ['#638077', '#819b89', '#c5bd9f'],
+      sleep: ['#bfaa91', '#d1b99e', '#e4d2b4'],
     }[style];
     ctx.fillStyle = palette[0];
     ctx.fillRect(0, 0, 256, 256);
@@ -161,5 +189,28 @@ export function tvStill() {
     for (const [x, y] of [[32, 29], [51, 53], [111, 23], [222, 46], [232, 20]]) {
       ctx.fillRect(x, y, 2, 2);
     }
+  });
+}
+
+export function deskDisplay() {
+  return paintedMap('desk-display', 256, 160, (ctx) => {
+    ctx.fillStyle = '#213c42';
+    ctx.fillRect(0, 0, 256, 160);
+    ctx.fillStyle = '#354f52';
+    ctx.fillRect(0, 0, 256, 17);
+    ctx.fillRect(0, 17, 49, 143);
+    ctx.fillStyle = '#203339';
+    ctx.fillRect(49, 127, 207, 33);
+    for (let i = 0; i < 11; i++) {
+      const x = 62 + [0, 10, 20, 20, 10][i % 5];
+      const y = 28 + i * 8;
+      ctx.fillStyle = ['#d6a17c', '#8dbba4', '#e1ce9a'][i % 3];
+      ctx.fillRect(x, y, 23 - i % 4 * 3, 2);
+      ctx.fillStyle = '#73969a';
+      ctx.fillRect(x + 30, y, 56 + i % 5 * 12, 2);
+    }
+    ctx.fillStyle = '#a8c4a4';
+    ctx.fillRect(60, 138, 48, 2);
+    ctx.fillRect(65, 146, 76, 2);
   });
 }

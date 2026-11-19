@@ -10,6 +10,7 @@ export class PetActor {
   private readonly paws: THREE.Group[] = [];
   private readonly rig: ReturnType<typeof buildPetArt>;
   private clock = 0;
+  private tailPhase = 0;
   private reaction: PetAction | null = null;
   private reactionTime = 0;
 
@@ -54,9 +55,11 @@ export class PetActor {
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
       (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14), smooth);
     this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12));
+    this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful : 1.7 + 2.2 * playful)) % (2 * Math.PI);
+    const flick = Math.sin(this.tailPhase);
     this.tail.rotation.y = dog
-      ? (0.09 + 0.55 * weight) * Math.sin(t * (playful ? 13 : 5.2))
-      : (0.14 + 0.27 * playful) * Math.sin(t * 1.7) + 0.065 * Math.sin(t * 3.5);
+      ? (0.09 + 0.47 * weight) * flick
+      : (0.14 + 0.27 * playful) * flick + 0.065 * Math.sin(t * 3.5);
     this.tail.rotation.x = dog ? 0.025 * pulse : 0.09 * pulse - attention * 0.10;
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;

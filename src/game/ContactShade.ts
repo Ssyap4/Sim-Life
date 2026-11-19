@@ -16,11 +16,12 @@ function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number
 export function furnitureContact(): THREE.Mesh {
   const map = paintedMap('furniture-contact', 256, 256, (ctx) => {
     for (const [x, z, rx, rz] of [
-      [-3.1, 1.7, 1.7, 0.81], [-3.85, -2.62, 1.74, 1.65],
+      [-3.1, 1.7, 1.56, 0.76], [-3.85, -2.62, 1.74, 1.65],
       [3.45, -3.91, 2.65, 0.69], [3.2, 1.46, 1.43, 0.77],
-      [-0.6, -3.63, 1.22, 0.55], [-1.88, 0.03, 0.73, 0.73],
+      [-0.6, -3.63, 1.22, 0.55], [-1.88, 0.03, 0.80, 0.76],
+      [3.20, 2.53, 0.55, 0.53], [-0.84, 0.05, 0.49, 0.47],
     ]) ellipse(ctx, (x + 6) / 12 * 256, (z + 5) / 10 * 256,
-      rx / 12 * 256, rz / 10 * 256, 0.25);
+      rx / 12 * 256, rz / 10 * 256, 0.31);
   });
   const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
     map, transparent: true, opacity: map ? 1 : 0, depthWrite: false, toneMapped: false,
