@@ -75,6 +75,7 @@ export class World {
   private lastFrame = performance.now();
   private downPoint: Point | null = null;
   private socialSequence = 0;
+  private cameraMove: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId | PetId) => void) {
     this.scene.background = new THREE.Color(0xe9e9d9);
@@ -146,6 +147,38 @@ export class World {
 
   setActive(id: CharacterId): void {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
+  }
+
+  /** Optional close-up for judging the actual 3D models on a phone.
+   * No special render pass, textures or server state.
+   */
+  showcase(subject: CharacterId | PetId | null): void {
+    const home = subject === null;
+    this.controls.minDistance = home ? 10 : 1.5;
+    this.controls.maxDistance = home ? 43 : 12;
+    this.controls.maxPolarAngle = home ? 1.25 : 1.54;
+    if (home) {
+      this.cameraMove = {
+        position: new THREE.Vector3(15, 19, 22),
+        target: new THREE.Vector3(0, 0, 0),
+      };
+      return;
+    }
+    const isPerson = subject === 'vlad' || subject === 'alina';
+    const subjectPosition = isPerson
+      ? this.actors[subject].root.position
+      : this.pets[subject].root.position;
+    const target = subjectPosition.clone().add(
+      new THREE.Vector3(0, isPerson ? 0.99 : 0.54, 0));
+    // Portrait phones reserve room for the header and bottom toolbar.
+    // Full-body / full-pet framing is the default; pinch to inspect details.
+    this.cameraMove = {
+      position: target.clone().add(new THREE.Vector3(
+        isPerson ? 2.12 : 1.62, isPerson ? 1.72 : 1.25,
+        isPerson ? 4.85 : 3.58,
+      )),
+      target,
+    };
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
@@ -467,6 +500,15 @@ export class World {
     this.actors.alina.update(dt);
     this.pets.verdell.update(dt);
     this.pets.simba.update(dt);
+    if (this.cameraMove) {
+      const fraction = Math.min(1, dt * 5.5);
+      this.controls.target.lerp(this.cameraMove.target, fraction);
+      this.camera.position.lerp(this.cameraMove.position, fraction);
+      if (this.camera.position.distanceTo(this.cameraMove.position) < 0.025 &&
+          this.controls.target.distanceTo(this.cameraMove.target) < 0.025) {
+        this.cameraMove = null;
+      }
+    }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };

@@ -259,6 +259,41 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .stock-line { font-size: 10px; padding: 5px 9px; }
 }
 
+/* A low-cost optional close-up camera to inspect actual characters and pets. */
+.showcase-ui {
+  position: absolute; z-index: 4;
+  top: clamp(210px, 28vh, 275px);
+  right: max(12px, env(safe-area-inset-right));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+  pointer-events: auto;
+}
+.showcase-toggle {
+  color: #506c58; background: #fffdf1ed;
+  border: 1px solid #fffffff5; box-shadow: 0 4px 18px #3d504322;
+  font-size: 11px; font-weight: 900; padding: 9px 13px;
+  border-radius: 14px; min-height: 35px;
+}
+.showcase-choices {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+  padding: 7px; border-radius: 14px;
+  background: #faf8edee; border: 1px solid #fff;
+  box-shadow: 0 6px 20px #3d50432f;
+  max-width: 210px;
+}
+.showcase-choices button {
+  min-width: 0; padding: 8px 6px; border-radius: 9px;
+  border: 1px solid #e6e1d1; background: #fffef9;
+  color: #647364; font-weight: 800; font-size: 10px;
+}
+.showcase-choices button.selected {
+  background: #dfe9dc; border-color: #b7cab6; color: #42654f;
+}
+.showcase-choices button:last-child { grid-column: 1 / -1; }
+@media (max-height: 660px) {
+  .showcase-ui { top: 200px; }
+  .showcase-toggle { font-size: 10px; padding: 7px 10px; }
+}
+
 /* Server-authoritative activities: visible progress for both players, local cancel only. */
 .task-panel {
   pointer-events: auto;

@@ -50,6 +50,16 @@ app.innerHTML = `
     <div class="status-line" id="status">Подключение к общему дому…</div>
   </header>
   <div id="message" class="message" aria-live="polite"></div>
+  <div class="showcase-ui">
+    <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
+    <div id="showcase-choices" class="showcase-choices" hidden>
+      <button type="button" data-showcase="vlad">👨 Влад</button>
+      <button type="button" data-showcase="alina">👩 Алина</button>
+      <button type="button" data-showcase="verdell">🐕 Верделл</button>
+      <button type="button" data-showcase="simba">🐈 Симба</button>
+      <button type="button" data-showcase="home">🏡 Весь дом</button>
+    </div>
+  </div>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
@@ -60,7 +70,7 @@ app.innerHTML = `
     </div>
     <div class="tip">
       <span class="tip-icon">✦</span>
-      <span>Нажимай на предметы, Влада, Алину и питомцев для действий. Питомцев можно открыть кнопкой 🐾. Камера вращается пальцем.</span>
+      <span>Нажимай на предметы и питомцев для действий. 🔎 Посмотреть модели — близкий просмотр Влада, Алины, Верделла и Симбы. Камера вращается пальцем.</span>
     </div>
     <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>
@@ -94,6 +104,32 @@ const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
+const showcaseToggle = document.querySelector<HTMLButtonElement>('#showcase-toggle')!;
+const showcaseChoices = document.querySelector<HTMLDivElement>('#showcase-choices')!;
+
+showcaseToggle.addEventListener('click', () => {
+  showcaseChoices.hidden = !showcaseChoices.hidden;
+  showcaseToggle.setAttribute('aria-expanded', String(!showcaseChoices.hidden));
+});
+showcaseChoices.querySelectorAll<HTMLButtonElement>('[data-showcase]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const id = button.dataset.showcase;
+    if (id === 'home') world.showcase(null);
+    else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
+      world.showcase(id);
+    }
+    showcaseChoices.querySelectorAll('button').forEach((item) => {
+      item.classList.toggle('selected', item === button);
+    });
+    showcaseChoices.hidden = true;
+    showcaseToggle.setAttribute('aria-expanded', 'false');
+    showcaseToggle.textContent = id === 'home'
+      ? '🔎 Посмотреть модели'
+      : '🔎 ' + ({ vlad: 'Влад', alina: 'Алина',
+        verdell: 'Верделл', simba: 'Симба' } as Record<string, string>)[id!] + ' · сменить';
+    // Keep the model unobstructed; tap again to choose another close-up.
+  });
+});
 
 function notify(message: string): void {
   messageEl.textContent = message;
