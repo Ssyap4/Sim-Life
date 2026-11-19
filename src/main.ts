@@ -2,14 +2,15 @@ import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import {
-  ACTIONS, itemNames, names,
-  type ActionId, type CharacterId, type GameState, type ItemId,
+  ACTIONS, itemNames, names, SOCIAL_LABELS,
+  type ActionId, type CharacterId, type GameState, type ItemId, type SocialKind,
 } from './shared/protocol';
 
 let state: GameState | null = null;
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let selectedRole: CharacterId = 'vlad';
+let socialOffer: { id: number; from: CharacterId; to: CharacterId; kind: SocialKind } | null = null;
 let toastTimer: number | undefined;
 let world: World;
 
@@ -24,7 +25,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">ОНЛАЙН 0.2</div>
+      <div class="version">0.3 · УЮТНЫЕ ВСТРЕЧИ</div>
     </div>
     <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="characters" id="characters">
@@ -41,11 +42,12 @@ app.innerHTML = `
   </header>
   <div id="message" class="message" aria-live="polite"></div>
   <footer class="bottom-ui">
+    <div id="social-panel" class="social-panel" hidden aria-live="polite"></div>
     <div id="actions" class="actions" hidden></div>
     <button id="market-btn" class="market-btn" type="button" disabled>🛒 Пробная доставка продуктов</button>
     <div class="tip">
       <span class="tip-icon">✦</span>
-      <span>Выбирай мебель нажатием. Перетаскивай сцену для вращения камеры, двумя пальцами меняй масштаб.</span>
+      <span>Нажимай на мебель для действий, а на Влада или Алину — для совместных моментов. Камеру можно вращать пальцем.</span>
     </div>
     <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>
@@ -71,6 +73,7 @@ app.innerHTML = `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
+const socialEl = document.querySelector<HTMLDivElement>('#social-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
@@ -107,6 +110,34 @@ function render(): void {
   }
 }
 
+function renderSocialOffer(): void {
+  socialEl.replaceChildren();
+  if (!socialOffer || !active) { socialEl.hidden = true; return; }
+  socialEl.hidden = false;
+  const incoming = socialOffer.to === active;
+  const title = document.createElement('strong');
+  title.textContent = incoming
+    ? '💌 ' + names[socialOffer.from] + ' предлагает: ' + SOCIAL_LABELS[socialOffer.kind].toLowerCase()
+    : '💌 Приглашение для ' + names[socialOffer.to] + ' отправлено';
+  socialEl.appendChild(title);
+  const buttons = document.createElement('div');
+  buttons.className = 'social-buttons';
+  function action(label: string, fn: () => void, positive = false): void {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (positive) button.className = 'social-accept';
+    button.addEventListener('click', fn);
+    buttons.appendChild(button);
+  }
+  const id = socialOffer.id;
+  if (incoming) {
+    action('❤️ Принять', () => net.replySocial(id, true), true);
+    action('Не сейчас', () => net.replySocial(id, false));
+  } else action('Отменить', () => net.cancelSocial(id));
+  socialEl.appendChild(buttons);
+}
+
 function showStatus(text: string): void {
   statusEl.textContent = text;
   authStatusEl.textContent = text;
@@ -119,6 +150,8 @@ const net = new LiveConnection({
     authEl.hidden = true;
     marketBtn.disabled = false;
     actionsEl.hidden = true;
+    socialOffer = null;
+    renderSocialOffer();
     for (const id of ['vlad', 'alina'] as const) {
       const snapshot = household.characters[id];
       world.restoreCharacter(id, snapshot.x, snapshot.z, snapshot.pose);
@@ -144,6 +177,27 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(animated ? message : message + ' · путь к предмету пока не найден');
   },
+  onSocialOffer(id, from, to, kind) {
+    socialOffer = { id, from, to, kind };
+    actionsEl.hidden = true;
+    renderSocialOffer();
+    if (to === active) notify('💌 ' + names[from] + ' приглашает: ' + SOCIAL_LABELS[kind]);
+  },
+  onSocialClear(id, message) {
+    if (socialOffer?.id === id) {
+      socialOffer = null;
+      renderSocialOffer();
+      notify(message);
+    }
+  },
+  onSocialStart(kind, message) {
+    socialOffer = null;
+    renderSocialOffer();
+    actionsEl.hidden = true;
+    const animated = world.playSocial(kind);
+    statusEl.textContent = message;
+    notify(animated ? message : message + ' · анимация временно недоступна');
+  },
   onError(reason) {
     if (!authEl.hidden || reason.includes('занят') || reason.includes('Неверный код')) {
       authEl.hidden = false;
@@ -158,6 +212,44 @@ const net = new LiveConnection({
     statusEl.textContent = text;
   },
 });
+
+function openSocialActions(target: CharacterId): void {
+  if (!active || !net.isReady()) { notify('Сначала войди в дом'); return; }
+  if (target === active) return;
+  actionsEl.replaceChildren();
+  actionsEl.hidden = false;
+  const heading = document.createElement('div');
+  heading.className = 'actions-heading';
+  heading.textContent = '❤️ Вместе с ' + names[target];
+  actionsEl.appendChild(heading);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'close-actions';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Закрыть меню');
+  close.addEventListener('click', () => { actionsEl.hidden = true; });
+  actionsEl.appendChild(close);
+  if (!online.includes(target)) {
+    const note = document.createElement('p');
+    note.className = 'social-hint';
+    note.textContent = names[target] + ' пока не в сети. Можно предложить действие, когда вы оба в доме.';
+    actionsEl.appendChild(note);
+    return;
+  }
+  for (const kind of ['hug', 'highFive'] as const) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-button';
+    button.textContent = (kind === 'hug' ? '🤗 ' : '🙌 ') + SOCIAL_LABELS[kind];
+    button.addEventListener('click', () => {
+      if (net.offerSocial(kind)) {
+        actionsEl.hidden = true;
+        statusEl.textContent = 'Отправляем приглашение…';
+      }
+    });
+    actionsEl.appendChild(button);
+  }
+}
 
 function openActions(item: ItemId): void {
   if (!active || !net.isReady()) {
@@ -195,11 +287,14 @@ function openActions(item: ItemId): void {
 }
 
 try {
-  world = new World(canvas, openActions);
+  world = new World(canvas, (id) => {
+    if (id === 'vlad' || id === 'alina') openSocialActions(id);
+    else openActions(id);
+  });
   document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
     button.addEventListener('click', () => {
       if (active && button.dataset.id !== active) {
-        notify('Это персонаж второго игрока. Твой герой — ' + names[active]);
+        openSocialActions(button.dataset.id === 'alina' ? 'alina' : 'vlad');
       } else if (active && state) {
         const s = state.characters[active];
         notify('Навык: ' + Math.round(s.skill) + '% · настроение: ' + Math.round(s.mood) + '%');

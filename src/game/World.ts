@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor } from './Actor';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import type { CharacterId } from '../core/state';
+import { SOCIAL_SPOTS, type CharacterId, type SocialKind } from '../shared/protocol';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
@@ -36,7 +36,7 @@ function block(parent: THREE.Object3D, size: [number, number, number], pos: [num
 function ball(parent: THREE.Object3D, radius: number, pos: [number, number, number], color: number): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), material(color));
   mesh.position.set(...pos);
-  mesh.castShadow = true;
+  mesh.castShadow = radius > 0.18;
   parent.add(mesh);
   return mesh;
 }
@@ -70,8 +70,9 @@ export class World {
   private readonly obstacles: FloorRect[] = [];
   private lastFrame = performance.now();
   private downPoint: Point | null = null;
+  private socialSequence = 0;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId) => void) {
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId) => void) {
     this.scene.background = new THREE.Color(0xe9e9d9);
     this.scene.fog = new THREE.Fog(0xe9e9d9, 26, 58);
 
@@ -103,6 +104,14 @@ export class World {
       alina: new Actor('alina', [1.65, 3.2]),
     };
     this.scene.add(this.actors.vlad.root, this.actors.alina.root);
+    for (const actor of Object.values(this.actors)) {
+      actor.root.traverse((part) => {
+        if (part instanceof THREE.Mesh && part !== actor.root.children[1]) {
+          part.userData.interactable = actor.id;
+          this.interactiveMeshes.push(part);
+        }
+      });
+    }
     this.setActive('vlad');
 
     canvas.addEventListener('pointerdown', (ev) => {
@@ -145,6 +154,36 @@ export class World {
     actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
       actor.setPose(pose);
       onArrive();
+    });
+    return true;
+  }
+
+  playSocial(kind: SocialKind): boolean {
+    const paths = (['vlad', 'alina'] as const).map((role) => {
+      const actor = this.actors[role];
+      const spot = SOCIAL_SPOTS[role];
+      return findRoute(
+        { x: actor.root.position.x, z: actor.root.position.z }, spot, this.obstacles,
+      );
+    });
+    if (!paths[0] || !paths[1]) return false;
+    const sequence = ++this.socialSequence;
+    let arrived = 0;
+    (['vlad', 'alina'] as const).forEach((role, index) => {
+      const route = paths[index]!;
+      this.actors[role].walkPath(
+        route.map((point) => new THREE.Vector3(point.x, 0, point.z)),
+        () => {
+          if (sequence !== this.socialSequence) return;
+          arrived++;
+          if (arrived === 2) {
+            this.actors.vlad.faceTowards(this.actors.alina.root.position);
+            this.actors.alina.faceTowards(this.actors.vlad.root.position);
+            this.actors.vlad.playGesture(kind);
+            this.actors.alina.playGesture(kind);
+          }
+        },
+      );
     });
     return true;
   }
@@ -202,6 +241,12 @@ export class World {
     block(this.scene, [0.38, 1.84, 0.1], [-3.18, 1.95, -4.70], 0xcdbb9e);
     block(this.scene, [0.38, 1.84, 0.1], [-0.12, 1.95, -4.70], 0xcdbb9e);
 
+    // Warm framed artwork above the kitchen, all inexpensive simple shapes.
+    block(this.scene, [1.65, 1.18, 0.09], [2.85, 2.12, -4.76], 0x947863, { shadow: false });
+    block(this.scene, [1.47, 1.02, 0.11], [2.85, 2.12, -4.67], 0xf0e8d9, { shadow: false });
+    ball(this.scene, 0.31, [2.55, 2.29, -4.57], 0xa5b39b);
+    ball(this.scene, 0.25, [3.01, 2.03, -4.55], 0xd3a38e);
+    ball(this.scene, 0.16, [2.77, 1.86, -4.50], 0xe9c7a6);
     // Rugs.
     block(this.scene, [4.1, 0.045, 3.2], [-2.6, 0.04, 1.35], 0xe3d8c3, { shadow: false });
     block(this.scene, [2.4, 0.045, 2.8], [2.8, 0.04, 1.3], 0xe3dccd, { shadow: false });
@@ -278,6 +323,9 @@ export class World {
     cylinder(table, 0.12, 0.41, [0, 0.23, 0], PALETTE.woodDark);
     cylinder(table, 0.40, 0.07, [0, 0.055, 0], PALETTE.woodDark);
     ball(table, 0.10, [0.27, 0.61, -0.04], 0xdcb99c);
+    cylinder(table, 0.09, 0.20, [-0.24, 0.63, -0.12], 0xe8c8af);
+    cylinder(table, 0.025, 0.25, [-0.23, 0.82, -0.13], 0x718e71);
+    ball(table, 0.11, [-0.23, 0.96, -0.13], 0xc68f87);
     this.register('table', table, { x: -0.80, z: 0.04 });
 
     // Decorative plant.
@@ -285,7 +333,16 @@ export class World {
     for (const [x, z] of [[5.08, 3.4], [4.85, 3.40], [5.32, 3.30], [5.05, 3.15]] as const) {
       ball(this.scene, 0.39, [x, 0.90, z], 0x769780);
     }
-    // The potted plant also occupies space, but rugs remain walkable.
+    // Soft standing lamp beside the living-room walkway.
+    cylinder(this.scene, 0.24, 0.10, [5.02, 0.09, 0.06], 0x9b806c);
+    cylinder(this.scene, 0.06, 1.50, [5.02, 0.84, 0.06], 0xae977f);
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.40, 0.47, 14), material(0xffefd1));
+    shade.position.set(5.02, 1.67, 0.06);
+    shade.castShadow = false;
+    this.scene.add(shade);
+    ball(this.scene, 0.15, [5.02, 1.40, 0.06], 0xffeac1);
+    // Non-interactive decorations have their own small footprints.
+    this.obstacles.push({ minX: 4.70, maxX: 5.35, minZ: -0.26, maxZ: 0.38 });
     this.obstacles.push({ minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 });
     // Front doorstep.
     block(this.scene, [2.0, 0.035, 0.76], [0.7, 0.035, 4.65], 0xc7b59f, { shadow: false });
@@ -298,7 +355,9 @@ export class World {
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
     const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false)[0];
     const id: unknown = hit?.object.userData.interactable;
-    if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
+    if (typeof id !== 'string') return;
+    if (id === 'vlad' || id === 'alina') this.onPick(id);
+    else if (id in objectNames) this.onPick(id as ItemId);
   }
 
   private resize(): void {

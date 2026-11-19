@@ -1,6 +1,15 @@
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
 export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | 'delivery';
+export type SocialKind = 'hug' | 'highFive';
+export const SOCIAL_LABELS: Record<SocialKind, string> = {
+  hug: 'Обняться', highFive: 'Дать пять',
+};
+// Open shared space in the living room; both clients animate towards the same spots.
+export const SOCIAL_SPOTS: Record<CharacterId, { x: number; z: number }> = {
+  vlad: { x: -0.42, z: 2.38 },
+  alina: { x: 0.42, z: 2.38 },
+};
 
 export interface Needs {
   hunger: number;
@@ -59,13 +68,19 @@ export type ActionId = keyof typeof ACTIONS;
 
 export type ClientPacket =
   | { type: 'auth'; role: CharacterId; code: string }
-  | { type: 'act'; actionId: ActionId };
+  | { type: 'act'; actionId: ActionId }
+  | { type: 'social_offer'; kind: SocialKind }
+  | { type: 'social_reply'; id: number; accept: boolean }
+  | { type: 'social_cancel'; id: number };
 
 export type ServerPacket =
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
   | { type: 'snapshot'; state: GameState }
   | { type: 'online'; online: CharacterId[] }
   | { type: 'action'; role: CharacterId; actionId: ActionId; message: string }
+  | { type: 'social_offer'; id: number; from: CharacterId; to: CharacterId; kind: SocialKind }
+  | { type: 'social_clear'; id: number; message: string }
+  | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'error'; reason: string };
 
 export function initialState(): GameState {

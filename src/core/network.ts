@@ -1,10 +1,13 @@
-import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket } from '../shared/protocol';
+import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind } from '../shared/protocol';
 
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
   onOnline(online: CharacterId[]): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
+  onSocialOffer(id: number, from: CharacterId, to: CharacterId, kind: SocialKind): void;
+  onSocialClear(id: number, message: string): void;
+  onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
   onStatus(status: string): void;
 }
@@ -39,7 +42,22 @@ export class LiveConnection {
     return true;
   }
 
+  offerSocial(kind: SocialKind): boolean { return this.sendAuthenticated({ type: 'social_offer', kind }); }
+  replySocial(id: number, accept: boolean): boolean {
+    return this.sendAuthenticated({ type: 'social_reply', id, accept });
+  }
+  cancelSocial(id: number): boolean { return this.sendAuthenticated({ type: 'social_cancel', id }); }
+
   isReady(): boolean { return this.authorized; }
+
+  private sendAuthenticated(message: ClientPacket): boolean {
+    if (!this.authorized || this.socket?.readyState !== WebSocket.OPEN) {
+      this.callbacks.onError('Нет соединения с сервером');
+      return false;
+    }
+    this.send(message);
+    return true;
+  }
 
   stop(): void {
     this.stopped = true;
@@ -83,6 +101,12 @@ export class LiveConnection {
         this.callbacks.onOnline(packet.online);
       } else if (packet.type === 'action' && this.authorized) {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
+      } else if (packet.type === 'social_offer' && this.authorized) {
+        this.callbacks.onSocialOffer(packet.id, packet.from, packet.to, packet.kind);
+      } else if (packet.type === 'social_clear' && this.authorized) {
+        this.callbacks.onSocialClear(packet.id, packet.message);
+      } else if (packet.type === 'social_start' && this.authorized) {
+        this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {
         this.callbacks.onError(packet.reason);
         if (!this.authorized && (packet.reason.includes('код') || packet.reason.includes('занят'))) {

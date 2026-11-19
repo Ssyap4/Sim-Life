@@ -4,9 +4,10 @@ import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
-  ACTIONS, type ActionId, type CharacterId, type GameState, type ServerPacket,
+  ACTIONS, names, SOCIAL_LABELS, type ActionId, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
 import { applyAction } from './logic';
+import { applySocial, otherRole, SOCIAL_COOLDOWN_MS, SOCIAL_TTL_MS, type SocialOffer } from './social';
 import { openServerFiles } from './storage';
 
 export interface ServerOptions {
@@ -42,9 +43,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let state: GameState = files.load();
   const active = new Map<CharacterId, WebSocket>();
   const lastAction = new Map<CharacterId, number>();
+  const lastSocial = new Map<CharacterId, number>();
+  let pending: SocialOffer | null = null;
+  let nextOfferId = 0;
+  let socialTimer: ReturnType<typeof setTimeout> | undefined;
   const online = (): CharacterId[] => Array.from(active.keys());
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
+  };
+  const dismissOffer = (message: string): void => {
+    if (!pending) return;
+    const id = pending.id;
+    pending = null;
+    clearTimeout(socialTimer);
+    socialTimer = undefined;
+    all({ type: 'social_clear', id, message });
   };
   const httpServer = createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -139,6 +152,83 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if (message.type === 'social_offer') {
+        if (message.kind !== 'hug' && message.kind !== 'highFive') {
+          packet(socket, { type: 'error', reason: 'Неизвестное совместное действие' });
+          return;
+        }
+        const now = Date.now();
+        const partner = otherRole(role);
+        if (!active.has(partner)) {
+          packet(socket, { type: 'error', reason: names[partner] + ' пока не в игре' });
+          return;
+        }
+        if (pending && pending.expiresAt <= now) dismissOffer('Приглашение устарело');
+        if (pending) {
+          packet(socket, { type: 'error', reason: 'Сначала ответьте на предыдущее приглашение' });
+          return;
+        }
+        if (now - (lastSocial.get(role) ?? 0) < SOCIAL_COOLDOWN_MS) {
+          packet(socket, { type: 'error', reason: 'Немного подожди перед новым приглашением' });
+          return;
+        }
+        lastSocial.set(role, now);
+        const offer: SocialOffer = {
+          id: ++nextOfferId, from: role, to: partner, kind: message.kind,
+          expiresAt: now + SOCIAL_TTL_MS,
+        };
+        pending = offer;
+        all({ type: 'social_offer', id: offer.id, from: offer.from, to: offer.to, kind: offer.kind });
+        socialTimer = setTimeout(() => dismissOffer('Время ожидания ответа истекло'), SOCIAL_TTL_MS);
+        socialTimer.unref();
+        return;
+      }
+      if (message.type === 'social_cancel' || message.type === 'social_reply') {
+        if (!pending || message.id !== pending.id) {
+          packet(socket, { type: 'error', reason: 'Это приглашение уже недействительно' });
+          return;
+        }
+        if (pending.expiresAt <= Date.now()) {
+          dismissOffer('Время ожидания ответа истекло');
+          return;
+        }
+        if (message.type === 'social_cancel') {
+          if (role !== pending.from) {
+            packet(socket, { type: 'error', reason: 'Отозвать приглашение может только отправитель' });
+            return;
+          }
+          dismissOffer(names[role] + ' отменил(а) приглашение');
+          return;
+        }
+        if (role !== pending.to || typeof message.accept !== 'boolean') {
+          packet(socket, { type: 'error', reason: 'Ответить может только приглашённый игрок' });
+          return;
+        }
+        if (!message.accept) {
+          dismissOffer(names[role] + ' отклонил(а) приглашение');
+          return;
+        }
+        if (!active.has(pending.from)) {
+          dismissOffer('Второй игрок вышел из игры');
+          return;
+        }
+        const kind = pending.kind;
+        const next = applySocial(state, kind);
+        try { files.save(next); }
+        catch (error) {
+          console.error('Failed to persist social action:', error);
+          packet(socket, { type: 'error', reason: 'Не удалось сохранить совместное действие' });
+          return;
+        }
+        state = next;
+        pending = null;
+        clearTimeout(socialTimer);
+        socialTimer = undefined;
+        lastSocial.set(role, Date.now());
+        all({ type: 'social_start', kind, message: 'Влад и Алина: ' + SOCIAL_LABELS[kind].toLowerCase() + ' ❤️' });
+        all({ type: 'snapshot', state });
+        return;
+      }
       if (message.type !== 'act' || typeof message.actionId !== 'string' ||
           !Object.prototype.hasOwnProperty.call(ACTIONS, message.actionId)) {
         packet(socket, { type: 'error', reason: 'Неизвестная команда' });
@@ -161,6 +251,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       state = result.state;
+      if (pending) dismissOffer('Приглашение отменено: начато другое действие');
       lastAction.set(role, now);
       all({ type: 'action', role, actionId: message.actionId as ActionId, message: result.message });
       all({ type: 'snapshot', state });
@@ -168,6 +259,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     socket.on('close', () => {
       if (role && active.get(role) === socket) {
         active.delete(role);
+        if (pending) dismissOffer('Второй игрок вышел из игры');
         all({ type: 'online', online: online() });
       }
     });
@@ -186,6 +278,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   return {
     httpServer, port: actualPort,
     async close(): Promise<void> {
+      clearTimeout(socialTimer);
       clearInterval(heartbeat);
       for (const socket of wss.clients) socket.terminate();
       await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));

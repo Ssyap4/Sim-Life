@@ -234,6 +234,37 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .role-option { padding: 7px; }
 }
 
+/* Two-player, explicitly accepted interactions. Small and easy to tap on phones. */
+.social-panel {
+  pointer-events: auto;
+  background: #fff9f3f5;
+  color: #725858;
+  border: 1px solid #f4dcd7;
+  box-shadow: 0 12px 34px #4f43472a;
+  border-radius: 19px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.social-panel strong { font-size: 12px; }
+.social-buttons { display: flex; gap: 8px; }
+.social-buttons button {
+  flex: 1; border: 1px solid #e5d5cc; border-radius: 12px;
+  background: #faf0e9; color: #81665e;
+  padding: 10px 12px; font-weight: 900; min-height: 42px;
+}
+.social-buttons button.social-accept {
+  border-color: #d6a59b; background: #c99087; color: #fff;
+}
+.social-hint { padding: 0 4px; margin: 0; color: #869384; font-size: 12px; }
+@media (max-height: 700px) and (orientation: portrait) {
+  .tip { padding: 8px 10px; font-size: 10px; }
+  .bottom-ui { gap: 6px; }
+  .social-panel { padding: 9px 12px; }
+}
 /* Keep login card inside narrow portrait phones and small browser windows. */
 .auth-screen { grid-template-columns: minmax(0, 1fr); }
 .auth-card { min-width: 0; width: min(100%, 435px); max-width: 100%; justify-self: center; }
