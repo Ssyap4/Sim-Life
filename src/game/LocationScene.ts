@@ -281,6 +281,8 @@ export function homeExtensions() {
       packageBox(parcel, .34, -.07, C.coral).scale.setScalar(.71);
       root.add(parcel);
       parcel.visible = false;
+    } else if (station.action.kind === 'unpack') {
+      // The visible shopping bags are rendered by World only while purchases await unpacking.
     } else {
       const fridge = station.action.kind === 'fridge';
       const shelves = new THREE.Group();

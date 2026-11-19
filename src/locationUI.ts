@@ -159,7 +159,10 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         row.append(button('Забрать заказ', () => send({ type: 'delivery_claim', id: order.id }), order.readyAt > now));
         options.append(row);
       }
-      if (place.world.bags[role]) options.append(local('Разобрать покупки', 'unpack'));
+    } else if (kind === 'unpack') {
+      const count = place.world.tableBags;
+      options.append(element('small', '', count ? 'На столе пакетов: ' + count + '. Продукты уже учтены в семейных запасах.' : 'На столе нет покупок.'));
+      if (count) options.append(local('Разложить покупки', 'unpack'));
     } else if (kind === 'terminal' || kind === 'pickup') {
       const order = place.world.cafe[role];
       if (order) {

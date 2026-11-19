@@ -97,12 +97,64 @@ test('A paid store basket changes the shared pantry once and unpacking never gra
   assert.equal(state.pantry.milk, GROCERIES.milk.quantity);
   assert.equal(applyWorld(state, 'vlad', cart).ok, false);
   assert.equal(applyWorld(state, 'vlad', { ...cart, sequence: 1, lines: [{ id: 'grocery:beef', quantity: 10 }] }).ok, false);
-  state = at(travel(state, 'vlad', 'home'), 'vlad', 'parcel');
-  const unpacked = localActivity(state, 'vlad', 'unpack', 'parcel');
-  assert.ok(unpacked.ok);
-  assert.equal(unpacked.state.world.bags.vlad, 0);
+  state = travel(state, 'vlad', 'home');
+  assert.equal(state.world.bags.vlad, 0, 'carried bag is put down on entering home');
+  assert.equal(state.world.tableBags, 1);
+  assert.equal(localActivity(state, 'vlad', 'unpack', 'parcel').ok, false, 'unpacking is at the table, not the door');
+  state = at(state, 'alina', 'shopping-table');
+  const unpacked = localActivity(state, 'alina', 'unpack', 'shopping-table');
+  assert.ok(unpacked.ok, 'either resident can unpack shared shopping');
+  assert.equal(unpacked.state.world.tableBags, 0);
   assert.deepEqual(unpacked.state.pantry, state.pantry);
-  assert.equal(localActivity(unpacked.state, 'vlad', 'unpack', 'parcel').ok, false);
+  assert.equal(localActivity(unpacked.state, 'alina', 'unpack', 'shopping-table').ok, false);
+});
+
+test('Several trips leave shared shopping on the table until either resident unpacks', () => {
+  let state = initialState();
+  for (let n = 0; n < 2; n++) {
+    state = at(travel(state, 'vlad', 'market'), 'vlad', 'checkout');
+    state = send(state, 'vlad', { type: 'store_pay', sequence: n,
+      lines: [{ id: 'grocery:bread', quantity: 1 }] });
+    assert.equal(state.world.bags.vlad, 1);
+    state = travel(state, 'vlad', 'street');
+    assert.equal(state.world.bags.vlad, 1, 'bag remains carried outside home');
+    state = travel(state, 'vlad', 'home');
+    assert.equal(state.world.bags.vlad, 0);
+    assert.equal(state.world.tableBags, n + 1);
+  }
+  const bread = state.pantry.bread;
+  const money = state.money;
+  state = at(state, 'alina', 'shopping-table');
+  const unpacked = localActivity(state, 'alina', 'unpack', 'shopping-table');
+  assert.ok(unpacked.ok);
+  assert.equal(unpacked.state.world.tableBags, 0);
+  assert.equal(unpacked.state.money, money);
+  assert.equal(unpacked.state.pantry.bread, bread);
+});
+
+test('Earlier saves move stuck home bags to the table once, without losing stock', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-bag-migration-'));
+  try {
+    const files = openServerFiles(dir);
+    const legacy = initialState();
+    legacy.world.bags = { vlad: 2, alina: 1 };
+    legacy.world.places.alina = 'market';
+    legacy.pantry.milk = 5;
+    delete (legacy.world as Partial<typeof legacy.world>).tableBags;
+    writeFileSync(join(dir, 'household.json'), JSON.stringify(legacy));
+    const migrated = files.load();
+    assert.equal(migrated.world.bags.vlad, 0);
+    assert.equal(migrated.world.bags.alina, 1);
+    assert.equal(migrated.world.tableBags, 2);
+    assert.equal(migrated.pantry.milk, 5);
+    files.save(migrated);
+    const reloaded = files.load();
+    assert.equal(reloaded.world.tableBags, 2, 'migration is idempotent');
+    const back = travel(reloaded, 'alina', 'home');
+    assert.equal(back.world.tableBags, 3);
+    assert.equal(back.world.bags.alina, 0);
+    assert.equal(back.pantry.milk, 5);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('A paid delivery survives restart and a full fridge, then can be collected once', () => {

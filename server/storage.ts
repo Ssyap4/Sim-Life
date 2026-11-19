@@ -156,7 +156,18 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
       return {
         ...data,
-        world: data.world ?? initialWorld(),
+        world: data.world ? {
+          ...data.world,
+          // Older saves could leave a shopping bag in the hands of a resident at home.
+          // Convert those bags to shared packages on the table without changing stock.
+          tableBags: (data.world.tableBags ?? 0) +
+            (data.world.places.vlad === 'home' ? data.world.bags.vlad : 0) +
+            (data.world.places.alina === 'home' ? data.world.bags.alina : 0),
+          bags: {
+            vlad: data.world.places.vlad === 'home' ? 0 : data.world.bags.vlad,
+            alina: data.world.places.alina === 'home' ? 0 : data.world.bags.alina,
+          },
+        } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
           vlad: { ...INITIAL_DAILY_NEEDS, ...data.characters.vlad },

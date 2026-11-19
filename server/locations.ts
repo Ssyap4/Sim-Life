@@ -24,6 +24,8 @@ export function validWorld(value: unknown): value is WorldState {
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
   return !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
     isPlace(w.places![role]) && count(w.sequence![role]) && count(w.bags![role])) &&
+    // tableBags was added after existing 0.4 saves were created.
+    (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
@@ -67,6 +69,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
+    if (command.place === 'home' && next.world.bags[role] > 0) {
+      next.world.tableBags += next.world.bags[role];
+      next.world.bags[role] = 0;
+    }
     if (command.dog === true) {
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
@@ -74,7 +80,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     Object.assign(next.characters[role], spawn(command.place, role), { pose: 'idle' });
     if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
-    return done(next, PLACES[command.place].name);
+    return done(next, command.place === 'home' && source.world.bags[role] > 0
+      ? 'Дом · Покупки оставлены на обеденном столе' : PLACES[command.place].name);
   }
 
   if (command.type === 'walk' || command.type === 'approach') {
@@ -145,8 +152,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const grant = grantCart(source, order.lines);
     if (!grant.ok) return fail(grant.reason + '. Оплаченный заказ подождёт у двери');
     grant.state.world.deliveries = grant.state.world.deliveries.filter(d => d.id !== order.id);
-    grant.state.world.bags[role]++;
-    return done(grant.state, 'Заказ получен. Товары уже в общих запасах');
+    grant.state.world.tableBags++;
+    return done(grant.state, 'Заказ получен. Пакет на обеденном столе, товары уже в общих запасах');
   }
 
   if (command.type === 'cafe_pickup') {
@@ -179,10 +186,9 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
-  const expected = action === 'unpack' ? 'parcel' : action;
-  if (station?.action.kind !== expected || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
+  if (station?.action.kind !== action || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (action === 'dog' && !source.world.dogWalker) return fail('Сначала возьми Верделла на прогулку');
-  if (action === 'unpack' && !source.world.bags[role]) return fail('Нет покупок для распаковки');
+  if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
   const next = structuredClone(source);
   const resident = next.characters[role];
   const bump = (key: 'mood' | 'comfort' | 'fun' | 'hunger' | 'energy', count: number) => {
@@ -206,7 +212,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     dog.bond = Math.min(100, dog.bond + 4);
     bump('mood', 4);
   } else {
-    next.world.bags[role] = 0;
+    next.world.tableBags = 0;
     bump('comfort', 3);
   }
   return done(next, localLabels[action] + ' · готово');

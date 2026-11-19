@@ -1,6 +1,6 @@
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
-import { HOME_DECOR, HOME_FLOOR, HOME_FURNITURE, HOME_YARD, HOME_YARD_OBSTACLES } from './home';
+import { HOME_DECOR, HOME_FLOOR, HOME_FURNITURE, HOME_PLACEMENTS, HOME_YARD, HOME_YARD_OBSTACLES } from './home';
 
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный двор' },
@@ -27,7 +27,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 type SiteAction =
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
-  | { kind: 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' };
+  | { kind: 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'unpack' };
 
 export interface Station {
   id: string;
@@ -55,6 +55,9 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('fridge', 'Холодильник', 5.24, -4.25, 0.94, 0.88, { kind: 'fridge' }, { approach: { x: 5.24, z: -3.32 } }),
     site('cupboard', 'Кухонные полки', 0.71, -4.47, 0.70, 0.46, { kind: 'cupboard' }, { blocks: false, approach: { x: 0.71, z: -3.08 } }),
     site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
+    site('shopping-table', 'Покупки на столе', HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z,
+      0.20, 0.20, { kind: 'unpack' }, { blocks: false,
+        approach: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.30 } }),
     door('home-exit', 'На улицу', 'street', HOME_YARD.gate.x, HOME_YARD.gate.z, true),
   ],
   street: [
@@ -128,13 +131,14 @@ export interface WorldState {
   places: Record<CharacterId, PlaceId>;
   sequence: Record<CharacterId, number>;
   bags: Record<CharacterId, number>;
+  tableBags: number;
   deliveries: Delivery[];
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
 }
 export function initialWorld(): WorldState {
   return { places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
-    bags: { vlad: 0, alina: 0 }, deliveries: [], cafe: {}, dogWalker: null };
+    bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
 export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';
 export type WorldCommand =

@@ -64,6 +64,7 @@ export class World {
   private readonly subjectMeshes: THREE.Object3D[] = [];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
+  private readonly shoppingBags = [carryingBag(), carryingBag(), carryingBag()];
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
   private readonly meals = new Map<CharacterId, THREE.Group>();
@@ -141,6 +142,16 @@ export class World {
 
     this.createLights();
     this.createHome();
+    // Reuse the existing low-poly bags on the dining table, not in the hands at home.
+    for (const [index, bag] of this.shoppingBags.entries()) {
+      const offsets = [[-.39, .15], [.39, .15], [0, -.20]];
+      const [x, z] = offsets[index];
+      bag.position.set(HOME_PLACEMENTS.table.x + x, DINING_TOP + .015, HOME_PLACEMENTS.table.z + z);
+      bag.scale.setScalar(.92);
+      bag.visible = false;
+      this.homeScene.add(bag);
+      this.trackStation(this.stationMeshes, 'shopping-table', bag);
+    }
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
@@ -744,6 +755,7 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
+      this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
       this.updateHomePets(state);
       if (this.served) this.served.visible = Object.values(state.meals).some(quantity => quantity > 0);
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));

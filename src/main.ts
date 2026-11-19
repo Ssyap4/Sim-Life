@@ -620,6 +620,15 @@ function openActions(item: ItemId): void {
       if(sent) actionsEl.hidden=true;
       return sent;
     });
+    if (state.world.tableBags > 0) {
+      const unpack = document.createElement('button');
+      unpack.className = 'action-button';
+      unpack.textContent = 'Разложить покупки · ' + state.world.tableBags + ' пак.';
+      unpack.addEventListener('click', () => {
+        if (net.world({ type: 'approach', place: 'home', station: 'shopping-table' })) actionsEl.hidden = true;
+      });
+      actionsEl.append(unpack);
+    }
   }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
