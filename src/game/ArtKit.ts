@@ -17,9 +17,9 @@ export const orb = new THREE.SphereGeometry(1, 14, 10);
 export const drum = new THREE.CylinderGeometry(1, 1, 1, 20);
 export const torus = new THREE.TorusGeometry(1, 0.10, 6, 18);
 export const plane = new THREE.PlaneGeometry();
-type Surface = 'fabric' | 'wood' | 'metal' | 'screen' | 'ceramic' | 'skin' | 'hair' | 'fur';
+type Surface = 'fabric' | 'wood' | 'metal' | 'screen' | 'ceramic' | 'skin' | 'hair' | 'fur' | 'leather';
 const roughness: Record<Surface, number> = {
-  fabric: 0.94, wood: 0.72, metal: 0.42, screen: 0.33, ceramic: 0.54, skin: 0.76, hair: 0.63, fur: 0.96,
+  fabric: 0.94, wood: 0.66, metal: 0.38, screen: 0.33, ceramic: 0.48, skin: 0.72, hair: 0.57, fur: 0.91, leather: 0.59,
 };
 const finishes = new Map<string, THREE.MeshStandardMaterial>();
 

@@ -1,6 +1,6 @@
 import { paintedMap } from './ArtKit';
 
-const oakTones = ['#ba9779', '#c1a087', '#c6a487', '#ad896d', '#c3a184', '#b99678'];
+const oakTones = ['#b19175', '#b99b80', '#c0a086', '#aa886d', '#bd9d7f', '#b59477'];
 
 export function oakFloor() {
   return paintedMap('oak-floor', 768, 768, (ctx) => {
@@ -37,6 +37,19 @@ export function oakFloor() {
         }
       }
     }
+    // A broad bounce under the window and darker edges are baked into the floor.
+    const bounce = ctx.createRadialGradient(285, 115, 38, 285, 115, 315);
+    bounce.addColorStop(0, '#ffe4b04c');
+    bounce.addColorStop(1, '#ffe4b000');
+    ctx.fillStyle = bounce;
+    ctx.fillRect(0, 0, 768, 768);
+    for (const [x0, y0, x1, y1] of [[0, 0, 100, 0], [0, 0, 0, 110]]) {
+      const edge = ctx.createLinearGradient(x0, y0, x1, y1);
+      edge.addColorStop(0, '#62452b3d');
+      edge.addColorStop(1, '#62452b00');
+      ctx.fillStyle = edge;
+      ctx.fillRect(0, 0, 768, 768);
+    }
   });
 }
 
@@ -60,29 +73,51 @@ export function upholsteryWeave() {
 export function gardenView() {
   return paintedMap('garden', 512, 256, (ctx) => {
     const sky = ctx.createLinearGradient(0, 0, 0, 220);
-    sky.addColorStop(0, '#83b3bd');
-    sky.addColorStop(1, '#f6e7b9');
+    sky.addColorStop(0, '#6d9ead');
+    sky.addColorStop(0.44, '#a8c6c1');
+    sky.addColorStop(1, '#eee1bd');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, 512, 256);
-    ctx.fillStyle = '#fff2bf';
+    const haze = ctx.createRadialGradient(355, 69, 7, 355, 69, 131);
+    haze.addColorStop(0, '#ffe6acbb');
+    haze.addColorStop(1, '#ffe6ac00');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.fillStyle = '#fff1c8';
     ctx.beginPath();
-    ctx.arc(351, 63, 32, 0, Math.PI * 2);
+    ctx.arc(355, 69, 22, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#f5f1d8b0';
-    for (const [x, y, rx, ry] of [[54, 74, 52, 9], [110, 68, 42, 12], [436, 90, 68, 8]]) {
+    for (const [x, y, rx] of [[55, 67, 64], [188, 80, 47], [438, 105, 50]]) {
+      const cloud = ctx.createLinearGradient(0, y - 10, 0, y + 9);
+      cloud.addColorStop(0, '#fff1d563');
+      cloud.addColorStop(1, '#e3ded50b');
+      ctx.fillStyle = cloud;
       ctx.beginPath();
-      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y, rx, 11, -0.026, 0, Math.PI * 2);
       ctx.fill();
     }
-    for (const [color, crest, dip] of [
-      ['#9eafa0', 15, 219], ['#759980', 61, 231], ['#527962', 105, 254], ['#729a67', 154, 299],
+    for (const [top, bottom, ridge, valley] of [
+      ['#aeb7a3', '#bbc4b0', 47, 172], ['#729684', '#a2b294', 83, 210],
+      ['#567e6d', '#8ba48a', 117, 238], ['#6c915f', '#a3ab71', 161, 278],
     ] as const) {
-      ctx.fillStyle = color;
+      const slope = ctx.createLinearGradient(0, ridge, 0, 256);
+      slope.addColorStop(0, top);
+      slope.addColorStop(1, bottom);
+      ctx.fillStyle = slope;
       ctx.beginPath();
-      ctx.moveTo(0, crest + 87);
-      ctx.bezierCurveTo(147, crest, 264, dip, 512, crest + 95);
+      ctx.moveTo(0, ridge + 63);
+      ctx.bezierCurveTo(104, ridge - 12, 229, valley + 13, 318, (ridge + valley) / 2 + 31);
+      ctx.bezierCurveTo(386, ridge + 26, 432, ridge + 38, 512, ridge + 71);
       ctx.lineTo(512, 256);
       ctx.lineTo(0, 256);
+      ctx.fill();
+    }
+    for (let i = 0; i < 32; i++) {
+      const x = (i * 97) % 512;
+      const y = 226 + (i * 13) % 26;
+      ctx.fillStyle = i % 2 ? '#69866350' : '#cfcb9160';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 9 + i % 10, 2 + i % 4, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     for (const [x, y, size] of [[68, 231, 82], [119, 248, 51], [426, 262, 72], [491, 249, 118]]) {

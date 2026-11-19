@@ -7,7 +7,7 @@ type Profile = (x: number, y: number, z: number, angle: number) => [number, numb
 type Tint = (color: THREE.Color, angle: number, elevation: number) => void;
 
 export function loft(sections: readonly Section[], sides = 20, steps = 24,
-  profile?: Profile, tint?: Tint): THREE.BufferGeometry {
+  profile?: Profile, tint?: Tint, remapAngle?: (angle: number, y: number) => number): THREE.BufferGeometry {
   const vertices: number[] = [];
   const uv: number[] = [];
   const indices: number[] = [];
@@ -35,7 +35,8 @@ export function loft(sections: readonly Section[], sides = 20, steps = 24,
     const depth = Math.max(0.001, curve(2));
     const center = curve(3);
     for (let side = 0; side < sides; side++) {
-      const angle = side / sides * Math.PI * 2;
+      const ringAngle = side / sides * Math.PI * 2;
+      const angle = remapAngle ? remapAngle(ringAngle, y) : ringAngle;
       const x = Math.sin(angle) * width;
       const z = center + Math.cos(angle) * depth;
       vertices.push(...(profile ? profile(x, y, z, angle) : [x, y, z]));
@@ -89,7 +90,7 @@ export function hingedLimb(parent: THREE.Group, geometry: THREE.BufferGeometry,
   }
   geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(joints, 4));
   geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
-  const mesh = new THREE.SkinnedMesh(geometry, finish(color, surface));
+  const mesh = new THREE.SkinnedMesh(geometry, finish(color, surface, geometry.hasAttribute('color')));
   mesh.add(root);
   mesh.updateMatrixWorld(true);
   mesh.bind(new THREE.Skeleton([root, lower]));

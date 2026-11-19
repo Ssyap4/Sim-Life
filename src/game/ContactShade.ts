@@ -20,8 +20,11 @@ export function furnitureContact(): THREE.Mesh {
       [3.45, -3.91, 2.65, 0.69], [3.2, 1.46, 1.43, 0.77],
       [-0.6, -3.63, 1.22, 0.55], [-1.88, 0.03, 0.80, 0.76],
       [3.20, 2.53, 0.55, 0.53], [-0.84, 0.05, 0.49, 0.47],
-    ]) ellipse(ctx, (x + 6) / 12 * 256, (z + 5) / 10 * 256,
-      rx / 12 * 256, rz / 10 * 256, 0.31);
+    ]) {
+      const cx = (x + 6) / 12 * 256, cy = (z + 5) / 10 * 256;
+      ellipse(ctx, cx, cy, rx / 12 * 256, rz / 10 * 256, 0.26);
+      ellipse(ctx, cx, cy, rx * 0.72 / 12 * 256, rz * 0.67 / 10 * 256, 0.29);
+    }
   });
   const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
     map, transparent: true, opacity: map ? 1 : 0, depthWrite: false, toneMapped: false,

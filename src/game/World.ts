@@ -15,6 +15,12 @@ import { buildFurniture, buildSoftRugs, furnitureFootprints } from './InteriorAr
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
 
+// Coordinates of the visible keys and pan in InteriorArt. These are pose
+// targets only: the server and route planner still use the approach tiles.
+const deskKeys = [new THREE.Vector3(3.37, 1.116, 1.896), new THREE.Vector3(3.03, 1.116, 1.896)] as const;
+const cookingPan = new THREE.Vector3(2.58, 1.169, -3.76);
+const highFiveTarget = new THREE.Vector3(0, 1.64, SOCIAL_SPOTS.vlad.z - 0.16);
+
 const homePosition = new THREE.Vector3(15, 19, 22);
 const homeTarget = new THREE.Vector3(0, 1.45, 0);
 const portraitAspect = 390 / 844;
@@ -56,7 +62,7 @@ export class World {
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
-  private readonly sun = new THREE.DirectionalLight(0xffecd8, 2.38);
+  private readonly sun = new THREE.DirectionalLight(0xffe5ce, 2.48);
 
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
@@ -174,7 +180,7 @@ export class World {
     const actor = this.actors[id];
     const anchors = {
       sofa: { x: -3.1, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
-      bed: { x: -3.85, y: 1.035, z: -1.53, yaw: 0 },
+      bed: { x: -3.85, y: 1.055, z: -1.61, yaw: 0 },
       desk: { x: 3.2, y: id === 'vlad' ? -0.24 : -0.19, z: 2.47, yaw: Math.PI },
       table: { x: -0.84, y: id === 'vlad' ? -0.27 : -0.22, z: 0.05, yaw: -Math.PI / 2 },
     } as const;
@@ -183,7 +189,8 @@ export class World {
       actor.setPose(pose);
       return;
     }
-    actor.setFurniturePose(pose, new THREE.Vector3(anchor.x, anchor.y, anchor.z), anchor.yaw);
+    actor.setFurniturePose(pose, new THREE.Vector3(anchor.x, anchor.y, anchor.z), anchor.yaw,
+      itemId === 'desk' ? deskKeys : undefined);
   }
 
   perform(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work', onArrive: () => void): boolean {
@@ -212,7 +219,7 @@ export class World {
         if (action === 'cook') {
           actor.setFurniturePose('idle', new THREE.Vector3(2.88, id === 'vlad' ? 0 : 0.025, -3.03), Math.PI);
         }
-        actor.playActivity(action);
+        actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
       });
   }
 
@@ -279,8 +286,9 @@ export class World {
           if (arrived === 2) {
             this.actors.vlad.faceTowards(this.actors.alina.root.position);
             this.actors.alina.faceTowards(this.actors.vlad.root.position);
-            this.actors.vlad.playGesture(kind);
-            this.actors.alina.playGesture(kind);
+            const target = kind === 'highFive' ? highFiveTarget : undefined;
+            this.actors.vlad.playGesture(kind, target);
+            this.actors.alina.playGesture(kind, target);
           }
         },
       );
@@ -289,7 +297,7 @@ export class World {
   }
 
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfaf3e9, 0xb9c6be, 1.82));
+    this.scene.add(new THREE.HemisphereLight(0xeef2fb, 0xc6b39e, 1.87));
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);
@@ -302,7 +310,7 @@ export class World {
     sun.shadow.camera.near = 0.5;
     sun.shadow.camera.far = 22;
     sun.shadow.radius = 2.65;
-    sun.shadow.intensity = 0.77;
+    sun.shadow.intensity = 0.72;
     sun.shadow.bias = -0.00025;
     sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
