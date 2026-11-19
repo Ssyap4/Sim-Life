@@ -1,8 +1,8 @@
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { VITAL_NEEDS, type VitalNeed } from '../src/shared/life';
 import { points, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import type { HomeLeisure } from '../src/shared/home';
-import { meeting, placeObstacles, WORLD_FLOOR } from '../src/shared/locations';
+import { HOME_FLOOR, type HomeLeisure } from '../src/shared/home';
+import { meeting, placeObstacles } from '../src/shared/locations';
 import { planWalk } from '../src/game/navigation';
 import { petCarePoint } from './pets';
 import { evaluateTask } from './tasks';
@@ -16,7 +16,7 @@ export function planLeisure(state: GameState, role: CharacterId, activity: HomeL
   const target = activity === 'chat' ? meeting('home', role)
     : activity === 'tv' ? points.sofa : activity === 'computer' ? points.desk
       : petCarePoint(state, activity);
-  return target && planWalk(state.characters[role], target, homeObstacles, WORLD_FLOOR);
+  return target && planWalk(state.characters[role], target, homeObstacles, HOME_FLOOR);
 }
 
 export function urgentHomeAction(state: GameState, role: CharacterId): TimedCommand | undefined {

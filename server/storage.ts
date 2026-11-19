@@ -1,5 +1,7 @@
 import { validWorld } from './locations';
-import { initialWorld } from '../src/shared/locations';
+import { initialWorld, placeObstacles } from '../src/shared/locations';
+import { HOME_FLOOR } from '../src/shared/home';
+import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,7 +9,7 @@ import { initialState, type CharacterId, type GameState } from '../src/shared/pr
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
-import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetState } from '../src/shared/pets';
+import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 
 export interface ServerFiles {
@@ -79,20 +81,20 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined) => p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
-    Math.abs(p.x) <= 6 && Math.abs(p.z) <= 5;
+  const point = (p: { x: number; z: number } | undefined, maxZ = HOME_FLOOR.maxZ) =>
+    p && Number.isFinite(p.x) && Number.isFinite(p.z) && Math.abs(p.x) <= 6 && p.z >= -5 && p.z <= maxZ;
   if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition)) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 5)) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
         routine.route && point(routine.route.from) && Array.isArray(routine.route.path) && routine.route.path.length <= 60 &&
-        routine.route.path.every(point));
+        routine.route.path.every(p => point(p)));
   }))) return false;
   if (petFood !== undefined && (!petFood || !PET_IDS.every((id) =>
     Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= 24))) return false;
@@ -104,11 +106,25 @@ const isValidState = (value: unknown): value is GameState => {
     ) && (['hygiene', 'social', 'fun', 'comfort'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && Number.isFinite(p.x) && Number.isFinite(p.z) &&
-      Math.abs(p.x) <= 6 && Math.abs(p.z) <= 5 &&
+    ) && point(p, state.world?.places[role] === 'home' ? HOME_FLOOR.maxZ : 5) &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
+
+const homeObstacles = placeObstacles('home');
+
+function restorePet(id: PetId, saved: PetState | undefined): PetState {
+  const pet = { ...INITIAL_PETS[id], ...saved };
+  pet.position = nearestClearPoint(pet.position, homeObstacles, HOME_FLOOR) ?? INITIAL_PETS[id].position;
+  const route = pet.routine?.route;
+  // A route saved by an earlier layout may now cross a wall or furniture.
+  if (route && (!pointIsClear(route.from, homeObstacles, HOME_FLOOR) ||
+    !route.path.every((point, index) =>
+      segmentIsClear(route.path[index - 1] ?? route.from, point, homeObstacles, HOME_FLOOR)))) {
+    delete pet.routine;
+  }
+  return pet;
+}
 
 export function openServerFiles(dataDir: string): ServerFiles {
   mkdirSync(dataDir, { recursive: true });
@@ -153,8 +169,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
         pets: {
-          verdell: { ...INITIAL_PETS.verdell, ...data.pets?.verdell },
-          simba: { ...INITIAL_PETS.simba, ...data.pets?.simba },
+          verdell: restorePet('verdell', data.pets?.verdell),
+          simba: restorePet('simba', data.pets?.simba),
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };

@@ -10,9 +10,9 @@ test('portrait framing fits the play area across the screen and the cutaway betw
     root.updateMatrixWorld(true);
     furniture.set(id, new THREE.Box3().setFromObject(root));
   });
-  const sizes = [[390, 844], [393, 852], [375, 812], [360, 800], [412, 915], [360, 690], [320, 700]];
+  const sizes = [[390, 844], [393, 852], [375, 812], [360, 800], [412, 915], [430, 932], [360, 690], [320, 700]];
   for (const [width, height] of sizes) {
-    for (const [header, footer] of [[140, 104], [187, 138]]) {
+    for (const [header, footer] of [[112, 68], [140, 110]]) {
       const band = { top: header / height, bottom: 1 - footer / height };
       const aspect = width / height;
       const fov = 46;

@@ -1,9 +1,10 @@
+import { HOME_FLOOR } from '../src/shared/home';
 import {
   PETS, PET_IDS, PET_ROAM, PET_SPEED, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
-import { placeObstacles, WORLD_FLOOR } from '../src/shared/locations';
+import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { planWalk, pointIsClear, sampleWalk } from '../src/game/navigation';
 
@@ -18,7 +19,7 @@ export function petCarePoint(state: GameState, id: PetId) {
   const { x, z } = state.pets[id].position;
   return [[0, .74], [-.74, 0], [.74, 0], [0, -.74]]
     .map(([dx, dz]) => ({ x: x + dx, z: z + dz }))
-    .find(spot => pointIsClear(spot, homeObstacles, WORLD_FLOOR));
+    .find(spot => pointIsClear(spot, homeObstacles, HOME_FLOOR));
 }
 
 export function pausePetRoutine(state: GameState, id: PetId, now: number): void {
@@ -60,7 +61,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     let target = Math.floor(random() * PET_ROAM.length);
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
     const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
-    const route = planWalk(pet.position, petDestination(id, { kind, target }), homeObstacles, WORLD_FLOOR);
+    const route = planWalk(pet.position, petDestination(id, { kind, target }), homeObstacles, HOME_FLOOR);
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;
   }
 }

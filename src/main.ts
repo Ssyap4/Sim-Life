@@ -16,6 +16,8 @@ import {
   type ActionId, type CharacterId, type GameState, type ItemId,
 } from './shared/protocol';
 
+const shortPlaces = { home: 'Дом', street: 'Квартал', market: 'Магазин', cafe: 'Кафе', park: 'Парк' } as const;
+
 let state: GameState | null = null;
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
@@ -44,8 +46,12 @@ app.innerHTML = `
       </div>
       <div class="version">0.4 · ЖИВОЙ РАЙОН</div>
     </div>
-    <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
-    <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button><button id="map-btn" type="button" disabled>🗺️ Дом</button></div>
+    <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
+    <div class="life-strip">
+      <span id="life-clock">☀️ День 1 · 08:00</span>
+      <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
+      <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span><span class="map-current"> Дом</span></button>
+    </div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
         <span class="avatar avatar-vlad">В</span>
@@ -59,7 +65,7 @@ app.innerHTML = `
     <div class="status-line" id="status" role="status">Подключение к общему дому…</div>
     <div class="showcase-ui">
       <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
-      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false">🔎 Посмотреть модели</button>
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false" aria-label="Посмотреть модели"><span aria-hidden="true">🔎</span><span class="hud-label" id="showcase-label"> Посмотреть модели</span></button>
       <div id="showcase-choices" class="showcase-choices" hidden>
         <button type="button" data-showcase="vlad">👨 Влад</button>
         <button type="button" data-showcase="alina">👩 Алина</button>
@@ -127,6 +133,7 @@ const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
+const mapCurrent = document.querySelector<HTMLElement>('.map-current')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
 const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
 const transition = document.querySelector<HTMLElement>('#world-transition')!;
@@ -161,8 +168,9 @@ function focusModel(id: CharacterId | PetId | null): void {
   showcaseChoices.querySelectorAll<HTMLButtonElement>('button').forEach((item) => {
     item.classList.toggle('selected', item.dataset.showcase === (id ?? 'home'));
   });
-  showcaseToggle.textContent = id === null ? '🔎 Посмотреть модели'
-    : '🔎 ' + (id === 'vlad' || id === 'alina' ? names[id] : PETS[id].name);
+  const label = document.querySelector<HTMLElement>('#showcase-label')!;
+  label.textContent = id === null ? ' Посмотреть модели'
+    : ' ' + (id === 'vlad' || id === 'alina' ? names[id] : PETS[id].name);
   world.showcase(id);
 }
 
@@ -173,7 +181,14 @@ showcaseToggle.addEventListener('click', () => {
 showcaseReturn.addEventListener('click', () => focusModel(null));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
-  if (event.key === 'Escape') {toggleNeeds(false); marketUI.close(); jobsUI.close();}
+  if (event.key === 'Escape') {
+    actionsEl.hidden = true;
+    toggleNeeds(false);
+    marketUI.close();
+    jobsUI.close();
+    locationUI.closeMap();
+    if (world) locationUI.close();
+  }
 });
 showcaseChoices.addEventListener('click', (event) => {
   const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
@@ -293,7 +308,7 @@ function render(reset = false): void {
     }
     world.syncHousehold(state, active, reset, online);
     locationUI.refresh(state, active);
-    mapBtn.textContent = '🗺️ Карта';
+    mapCurrent.textContent = ' ' + shortPlaces[place];
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
@@ -498,6 +513,24 @@ const net = new LiveConnection({
   },
 });
 
+function showActionMenu(title: string): void {
+  locationUI.closeMap();
+  const header = document.createElement('div');
+  header.className = 'actions-head';
+  const heading = document.createElement('strong');
+  heading.textContent = title;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'close-actions';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Закрыть меню');
+  close.addEventListener('click', () => { actionsEl.hidden = true; });
+  header.append(heading, close);
+  actionsEl.replaceChildren(header);
+  actionsEl.hidden = false;
+  actionsEl.scrollTop = 0;
+}
+
 function openSocialActions(target: CharacterId): void {
   if (!active || !net.isReady()) { notify('Сначала войди в дом'); return; }
   if (target === active) return;
@@ -506,19 +539,7 @@ function openSocialActions(target: CharacterId): void {
     notify(names[target] + ' · ' + PLACES[state.world.places[target]].name);
     return;
   }
-  actionsEl.replaceChildren();
-  actionsEl.hidden = false;
-  const heading = document.createElement('div');
-  heading.className = 'actions-heading';
-  heading.textContent = '❤️ Вместе с ' + names[target];
-  actionsEl.appendChild(heading);
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'close-actions';
-  close.textContent = '×';
-  close.setAttribute('aria-label', 'Закрыть меню');
-  close.addEventListener('click', () => { actionsEl.hidden = true; });
-  actionsEl.appendChild(close);
+  showActionMenu('❤️ Вместе с ' + names[target]);
   if (!online.includes(target)) {
     const note = document.createElement('p');
     note.className = 'social-hint';
@@ -551,19 +572,7 @@ function openPetActions(pet: PetId | null = null): void {
     notify('Сначала войди в общий дом');
     return;
   }
-  actionsEl.replaceChildren();
-  actionsEl.hidden = false;
-  const heading = document.createElement('div');
-  heading.className = 'actions-heading';
-  heading.textContent = pet ? PETS[pet].emoji + ' ' + PETS[pet].name : '🐾 Наши питомцы';
-  actionsEl.appendChild(heading);
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'close-actions';
-  close.textContent = '×';
-  close.setAttribute('aria-label', 'Закрыть меню');
-  close.addEventListener('click', () => { actionsEl.hidden = true; });
-  actionsEl.appendChild(close);
+  showActionMenu(pet ? PETS[pet].emoji + ' ' + PETS[pet].name : '🐾 Наши питомцы');
   renderPetChoices(actionsEl, state, pet,
     (id) => openPetActions(id),
     (id, action) => {
@@ -587,20 +596,8 @@ function openActions(item: ItemId): void {
     marketUI.open(state);
     return;
   }
-  actionsEl.innerHTML = '';
-  actionsEl.hidden = false;
-  const heading = document.createElement('div');
-  heading.className = 'actions-heading';
-  heading.textContent = (item === 'delivery' ? itemNames.delivery : objectNames[item]) +
-    (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : '');
-  actionsEl.appendChild(heading);
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'close-actions';
-  close.textContent = '×';
-  close.setAttribute('aria-label', 'Закрыть меню');
-  close.addEventListener('click', () => { actionsEl.hidden = true; });
-  actionsEl.appendChild(close);
+  showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
+    (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];
@@ -660,9 +657,12 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       else openActions(id);
     }, (inspection) => {
       const viewport = canvas.getBoundingClientRect();
+      const top = topHud.getBoundingClientRect();
+      const bottom = (inspection ? bottomHud : bottomBar).getBoundingClientRect();
+      const center = viewport.left + viewport.width / 2;
       return {
-        top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
-        bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
+        top: top.right > center ? (top.bottom - viewport.top) / viewport.height : .08,
+        bottom: bottom.left < center ? (bottom.top - viewport.top) / viewport.height : .92,
       };
     }, characters, diagnostics?.onFrame, {
       station(id) {
@@ -673,7 +673,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       },
       ground(x, z) {
         if (!active) return;
-        if (net.world({ type: 'walk', place: world.place, x, z })) locationUI.close();
+        if (net.world({ type: 'walk', place: world.place, x, z })) {
+          actionsEl.hidden = true;
+          locationUI.close();
+          locationUI.closeMap();
+        }
       },
     });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,

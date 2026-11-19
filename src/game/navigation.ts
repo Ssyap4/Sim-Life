@@ -86,13 +86,19 @@ export function findRoute(
   const done = new Uint8Array(total);
   const distance = (a: FloorPoint, b: FloorPoint): number => Math.hypot(a.x - b.x, a.z - b.z);
 
-  // Several visible seed cells avoid a blocked nearest grid cell at a furniture edge.
-  for (let i = 0; i < total; i++) {
-    const p = position(i);
-    const cost = distance(start, p);
-    if (cost <= CELL * 2.2 && segmentIsClear(start, p, obstacles, room)) {
-      g[i] = cost;
-      open.add(i);
+  // Seed only nearby cells, including alternatives around furniture edges.
+  const radius = CELL * 2.2;
+  const firstCol = Math.max(0, Math.ceil((start.x - radius - room.minX) / CELL));
+  const lastCol = Math.min(cols - 1, Math.floor((start.x + radius - room.minX) / CELL));
+  const firstRow = Math.max(0, Math.ceil((start.z - radius - room.minZ) / CELL));
+  const lastRow = Math.min(rows - 1, Math.floor((start.z + radius - room.minZ) / CELL));
+  for (let row = firstRow; row <= lastRow; row++) for (let col = firstCol; col <= lastCol; col++) {
+    const index = row * cols + col;
+    const point = position(index);
+    const cost = distance(start, point);
+    if (cost <= radius && segmentIsClear(start, point, obstacles, room)) {
+      g[index] = cost;
+      open.add(index);
     }
   }
   if (!open.size) return null;

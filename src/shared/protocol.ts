@@ -4,7 +4,7 @@ import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
-import { KITCHEN_WORK, type HomeLeisure } from './home';
+import { HOME_PLACEMENTS, KITCHEN_WORK, type HomeLeisure } from './home';
 import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
@@ -57,13 +57,16 @@ export interface GameState {
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };
 export const itemNames: Record<ItemId, string> = {
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
-  kitchen: 'Кухня', tv: 'Телевизор', table: 'Журнальный столик',
+  kitchen: 'Кухня', tv: 'Телевизор', table: 'Обеденный стол',
   delivery: 'Магазин и доставка',
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
-  sofa: { x: -3.0, z: 0.6 }, bed: { x: -3.85, z: -0.76 },
-  desk: { x: 2.68, z: 3.85 }, kitchen: KITCHEN_WORK.stove.position,
-  tv: { x: -0.55, z: -2.58 }, table: { x: -0.80, z: 0.04 },
+  sofa: { x: HOME_PLACEMENTS.sofa.x, z: HOME_PLACEMENTS.sofa.z - 1.10 },
+  bed: { x: HOME_PLACEMENTS.bed.x, z: HOME_PLACEMENTS.bed.z + 1.95 },
+  desk: { x: HOME_PLACEMENTS.desk.x, z: HOME_PLACEMENTS.desk.z + 2.04 },
+  kitchen: KITCHEN_WORK.stove.position,
+  tv: { x: HOME_PLACEMENTS.tv.x + 1.53, z: HOME_PLACEMENTS.tv.z + .63 },
+  table: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.14 },
 };
 
 export interface ActionDefinition {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
-import { cushionGeometry } from './FurnitureGeometry';
+import { HOUSE_ENTRY, HOME_PLACEMENTS } from '../shared/home';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
@@ -103,23 +103,8 @@ function leftWall(home: THREE.Group): void {
   home.add(door);
 }
 
-function leafPlant(home: THREE.Group): void {
-  shape(home, drum, [0.32, 0.49, 0.32], [5.1, 0.26, 3.4], C.clay, 'ceramic', true);
-  shape(home, drum, [0.35, 0.10, 0.35], [5.1, 0.52, 3.4], C.coral, 'ceramic');
-  shape(home, drum, [0.30, 0.023, 0.30], [5.1, 0.58, 3.4], C.darkWood);
-  for (let i = 0; i < 9; i++) {
-    const angle = i * 2.4;
-    const radius = i % 2 ? 0.24 : 0.16;
-    const leaf = shape(home, orb, [0.12, 0.34, 0.056],
-      [5.1 + Math.cos(angle) * radius, 0.81 + i % 3 * 0.12, 3.4 + Math.sin(angle) * radius],
-      i % 2 ? C.leaf : C.pine, 'ceramic', i === 2);
-    leaf.rotation.set(0, -angle, 0.67);
-  }
-}
-
 function practicalLights(home: THREE.Group): void {
-  const x = 5.02;
-  const z = 0.06;
+  const { x, z } = HOME_PLACEMENTS.lamp;
   shape(home, drum, [0.25, 0.075, 0.25], [x, 0.045, z], C.walnut, 'wood');
   shape(home, drum, [0.031, 1.58, 0.031], [x, 0.82, z], C.brass, 'metal');
   const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.31, 0.35, 20, 1, true),
@@ -136,6 +121,12 @@ function practicalLights(home: THREE.Group): void {
 }
 
 function petNooks(home: THREE.Group): void {
+  const bowls = PET_IDS.map(id => PETS[id].bowl);
+  shape(home, softCube, [1.34, .026, .55], [(bowls[0].x + bowls[1].x) / 2, .016, bowls[0].z], C.sage);
+  const toilets = PET_IDS.map(id => PETS[id].toilet);
+  const x = (toilets[0].x + toilets[1].x) / 2;
+  shape(home, softCube, [2.09, .025, .93], [x, .015, toilets[0].z], C.oat);
+  shape(home, softCube, [2.09, .35, .105], [x, .19, toilets[0].z + .45], C.walnut, 'wood');
   for (const id of PET_IDS) {
     const { home: { x, z }, bowl, toilet } = PETS[id];
     const dog = id === 'verdell';
@@ -169,8 +160,8 @@ function platformShadow(scene: THREE.Scene): void {
   const shadow = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
     map, transparent: true, depthWrite: false, toneMapped: false,
   }));
-  shadow.position.set(-0.14, -0.634, -0.32);
-  shadow.scale.set(18.5, 15, 1);
+  shadow.position.set(-0.14, -0.634, 3.03);
+  shadow.scale.set(18.5, 23, 1);
   shadow.rotation.x = -Math.PI / 2;
   scene.add(shadow);
 }
@@ -191,9 +182,12 @@ export function decorateHome(scene: THREE.Scene): void {
   }
   const floor = panel(home, [0, 0, .20], [12, 10.40], oakFloor(), C.oak);
   floor.rotation.x = -Math.PI / 2;
-  shape(home, softCube, [2.04, 0.16, 0.42], [0.7, -0.46, 5.70], C.clay, 'ceramic', true);
-  shape(home, softCube, [1.92, 0.10, 0.33], [0.7, -0.30, 5.67], C.oat, 'wood', true);
-  shape(home, softCube, [1.60, 0.025, 0.62], [0.7, 0.015, 4.58], C.leaf);
+  const { x, z, width } = HOUSE_ENTRY;
+  for (const [start, end] of [[-6, x - width / 2], [x + width / 2, 6]]) {
+    shape(home, softCube, [end - start, .20, .24], [(start + end) / 2, .102, z], C.walnut, 'wood');
+  }
+  shape(home, softCube, [width, .026, .30], [x, .016, z], C.oat, 'wood');
+  shape(home, softCube, [1.54, .023, .54], [x, .015, z - .51], C.leaf);
   rearWall(home);
   leftWall(home);
   shape(home, softCube, [12.30, 0.13, 0.34], [0, 3.33, -5], C.paper, 'wood');
@@ -209,12 +203,6 @@ export function decorateHome(scene: THREE.Scene): void {
     shape(home, softCube, [0.17, height, 0.12], [-5.67, 1.66 + height / 2, 1.40 + i * 0.14],
       [C.clay, C.sage, C.oat, C.ink][i % 4]);
   }
-  shape(home, cushionGeometry, [0.67, 0.12, 0.62], [-0.84, 0.48, 0.05], C.sage);
-  for (const dx of [-0.24, 0.24]) for (const dz of [-0.22, 0.22]) {
-    const leg = shape(home, cube, [0.068, 0.44, 0.068], [-0.84 + dx, 0.228, 0.05 + dz], C.walnut, 'wood');
-    leg.rotation.set(Math.sign(dz) * 0.13, 0, -Math.sign(dx) * 0.13);
-  }
-  leafPlant(home);
   practicalLights(home);
   petNooks(home);
   batchRigidParts(home);

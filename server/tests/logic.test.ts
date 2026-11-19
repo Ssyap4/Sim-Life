@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction } from '../logic';
 import { applyFoodAction } from '../food';
-import { initialState } from '../../src/shared/protocol';
+import { initialState, points } from '../../src/shared/protocol';
 
 test('Vlad practice advances skill without printing instant money', () => {
   const original = initialState();
@@ -82,6 +82,6 @@ test('New items share an authoritative revision and actor location', () => {
   assert.equal(result.state.revision, 1);
   assert.deepEqual(
     [result.state.characters.alina.x, result.state.characters.alina.z, result.state.characters.alina.pose],
-    [-0.8, 0.04, 'sit'],
+    [points.table.x, points.table.z, 'sit'],
   );
 });

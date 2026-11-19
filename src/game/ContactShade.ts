@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HOME_PLACEMENTS, HOME_FURNITURE } from '../shared/home';
 import { paintedMap, plane } from './ArtKit';
 
 function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, alpha: number) {
@@ -15,12 +16,11 @@ function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number
 
 export function furnitureContact(): THREE.Mesh {
   const map = paintedMap('furniture-contact', 256, 256, (ctx) => {
-    for (const [x, z, rx, rz] of [
-      [-3.1, 1.7, 1.56, 0.76], [-3.85, -2.62, 1.74, 1.65],
-      [2.43, -3.91, 2.50, 0.69], [2.68, 1.73, 1.43, 0.77], [5.24, -4.25, .74, .62],
-      [-0.6, -3.63, 1.22, 0.55], [-1.88, 0.03, 0.80, 0.76],
-      [2.68, 2.80, 0.55, 0.53], [-0.84, 0.05, 0.49, 0.47],
-    ]) {
+    const shapes = Object.values(HOME_FURNITURE).map(({ minX, maxX, minZ, maxZ }) =>
+      [(minX + maxX) / 2, (minZ + maxZ) / 2, (maxX - minX) * .62, (maxZ - minZ) * .69]);
+    const { wardrobe, vanity } = HOME_PLACEMENTS;
+    shapes.push([5.24, -4.25, .74, .62], [wardrobe.x, wardrobe.z, .61, .81], [vanity.x, vanity.z, .86, .55]);
+    for (const [x, z, rx, rz] of shapes) {
       const cx = (x + 6) / 12 * 256, cy = (z + 5) / 10 * 256;
       ellipse(ctx, cx, cy, rx * 1.04 / 12 * 256, rz * 1.04 / 10 * 256, 0.19);
       ellipse(ctx, cx, cy, rx * 0.68 / 12 * 256, rz * 0.64 / 10 * 256, 0.30);

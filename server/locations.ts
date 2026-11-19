@@ -1,5 +1,5 @@
 import {
-  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR,
+  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
   approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById,
   type LocalActivity, type Point, type Station, type WorldState,
 } from '../src/shared/locations';
@@ -86,9 +86,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const target = station ? approachFor(station, role)
       : { x: Math.round(Number(command.x) * 100) / 100, z: Math.round(Number(command.z) * 100) / 100 };
     const obstacles = placeObstacles(place);
-    const origin = nearestClearPoint(source.characters[role], obstacles, WORLD_FLOOR);
-    const path = origin && pointIsClear(target, obstacles, WORLD_FLOOR)
-      ? findRoute(origin, target, obstacles, WORLD_FLOOR) : null;
+    const floor = floorFor(place);
+    const origin = nearestClearPoint(source.characters[role], obstacles, floor);
+    const path = origin && pointIsClear(target, obstacles, floor)
+      ? findRoute(origin, target, obstacles, floor) : null;
     if (!path) return fail('Сюда нельзя пройти');
     const next = structuredClone(source);
     Object.assign(next.characters[role], target, { pose: 'idle' });

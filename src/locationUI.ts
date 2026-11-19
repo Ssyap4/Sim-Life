@@ -96,13 +96,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (!state || !current || panel.hidden) return;
     const station = current;
     const place = state;
-    const title = element('div', 'actions-heading', station.name);
+    const header = element('div', 'actions-head');
+    const title = element('strong', '', station.name);
     const closeButton = element('button', 'close-actions', '×');
     closeButton.type = 'button';
     closeButton.setAttribute('aria-label', 'Закрыть');
     closeButton.addEventListener('click', close);
     const y = panel.scrollTop;
-    panel.replaceChildren(title, closeButton);
+    header.append(title, closeButton);
+    panel.replaceChildren(header);
     const options = element('div', 'world-station-options');
     const now = clockMinutes(place.clock);
     const kind = station.action.kind;

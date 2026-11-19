@@ -9,10 +9,10 @@ import { openServerFiles } from '../storage';
 import { beginShift } from '../jobs';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { createLocation } from '../../src/game/LocationScene';
-import { findRoute } from '../../src/game/navigation';
+import { findRoute, segmentIsClear } from '../../src/game/navigation';
 import { Box3 } from 'three';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
-import { CAFE_MENU, DELIVERY_FEE, STATIONS, WORLD_FLOOR, approachFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
+import { CAFE_MENU, DELIVERY_FEE, STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
 import { GROCERIES } from '../../src/shared/food';
 
 const send = (state: GameState, role: CharacterId, command: Record<string, unknown>) => {
@@ -48,8 +48,38 @@ test('Both spawns and every physical station are reachable in all five scenes', 
     for (const role of ['vlad', 'alina'] as const) {
       const ends = [...stations.map(station => approachFor(station, role)), meeting(place, role)];
       for (const start of [spawn(place, role), ...ends]) for (const end of ends)
-        assert.ok(findRoute(start, end, obstacles, WORLD_FLOOR), JSON.stringify({ place, start, end }));
+        assert.ok(findRoute(start, end, obstacles, floorFor(place)), JSON.stringify({ place, start, end }));
     }
+  }
+});
+
+test('Both residents can save in the yard and walk back through the house threshold', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-yard-'));
+  try {
+    const files = openServerFiles(dir);
+    const floor = floorFor('home');
+    const obstacles = placeObstacles('home');
+    let state = initialState();
+    for (const [role, point] of [['vlad', { x: -3, z: 9.3 }], ['alina', { x: 3.9, z: 8.6 }]] as const) {
+      const inside = state.characters[role];
+      assert.equal(segmentIsClear({ x: point.x, z: 4.4 }, point, obstacles, floor), false);
+      const result = applyWorld(state, role, { type: 'walk', place: 'home', ...point });
+      assert.ok(result.ok && result.path);
+      assert.deepEqual(result.path.at(-1), point);
+      assert.ok(result.path.every((end, index, path) => segmentIsClear(path[index - 1] ?? inside, end, obstacles, floor)));
+      state = result.state;
+    }
+    files.save(state);
+    state = files.load();
+    assert.equal(state.characters.vlad.z, 9.3);
+    assert.equal(state.characters.alina.z, 8.6);
+    assert.deepEqual(state.world.places, { vlad: 'home', alina: 'home' });
+    for (const role of ['vlad', 'alina'] as const) {
+      assert.ok(applyWorld(state, role, { type: 'approach', place: 'home', station: 'fridge' }).ok);
+      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: 13 }).ok, false);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

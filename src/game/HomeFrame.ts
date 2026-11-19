@@ -1,35 +1,28 @@
 import * as THREE from 'three';
 import type { ViewBand } from './InspectionFrame';
 
-/** The cutaway's outline: floor deck, front step, and two standing walls.
- * Keep this in step with the architecture in HomeStyling.ts.
- */
+/** The two standing walls and the full platform, including the front garden. */
 export const houseOutline = [
-  [-6.26, -0.63, -5.24], [6.26, -0.63, -5.24], [-6.26, -0.63, 5.64], [6.26, -0.63, 5.64],
-  [-6.26, 0, -5.24], [6.26, 0, -5.24], [-6.26, 0, 5.64], [6.26, 0, 5.64],
-  [-0.32, -0.54, 5.91], [1.72, -0.54, 5.91],
+  [-6.26, -.63, -5.24], [6.26, -.63, -5.24], [-6.26, -.63, 12.24], [6.26, -.63, 12.24],
+  [-6.26, 0, -5.24], [6.26, 0, -5.24], [-6.26, 0, 12.24], [6.26, 0, 12.24],
   [-6.17, 3.40, -5.17], [6.15, 3.40, -5.17], [-6.17, 3.40, 5.08],
 ] as const;
 
-/** Horizontal composition anchors. Empty side edges of the cutaway may bleed
- * past the screen; the furniture, pet stations and front step stay in frame.
- */
+/** Keep the furniture, path and front fence visible on narrow screens. */
 export const playOutline = [
-  [-5.22, 1.41, -3.99], [-5.22, 0, -1.27],
-  [-4.47, 1.24, 2.30], [-4.47, 0, 2.30],
-  [5.72, 2.18, -4.25], [5.72, 0, -4.42], [5.70, 0, -3.40],
-  [4.34, 1.93, 1.96], [4.34, 0, 3.12],
-  [5.63, 1.22, 3.88], [-1.90, 1.25, 3.48], [1.98, 1.24, 1.23],
-  [-5.60, .15, 4.85], [-0.32, -0.54, 5.91], [1.72, -0.54, 5.91],
+  [-5.69, 1.41, -4.74], [-5.69, 0, -2.00], [-5.80, 1.96, -1.00],
+  [5.72, 2.18, -4.25], [5.72, 0, -3.40], [5.74, 1.93, 1.96],
+  [5.63, .13, 4.88], [-5.68, .15, 4.88],
+  [-5.98, .22, 8.60], [5.98, .22, 8.60], [-6.04, .55, 12.14], [6.04, .55, 12.14],
 ] as const;
 
 type Vertex = readonly [number, number, number];
 
 export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
-  horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline) {
-  // The front-facing angle makes better use of a narrow width and gives the
-  // characters a larger face-on silhouette while keeping both walls visible.
-  const axis = new THREE.Vector3(0.24, 0.98, 1.10).normalize();
+  horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline,
+  direction: Vertex = [0.20, 1.26, 1.02]) {
+  // An elevated, front-facing view keeps the house threshold and yard readable.
+  const axis = new THREE.Vector3(...direction).normalize();
   const right = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, axis).normalize();
   const up = new THREE.Vector3().crossVectors(axis, right);
   const tanY = Math.tan(THREE.MathUtils.degToRad(fov / 2));

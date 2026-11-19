@@ -23,13 +23,7 @@ export function renderPetChoices(
     tabs.appendChild(button);
   }
   container.appendChild(tabs);
-  if (!selected) {
-    const note = document.createElement('p');
-    note.className = 'pet-note';
-    note.textContent = 'Верделл и Симба уже живут с вами. Выбери питомца, чтобы покормить, поиграть или погладить.';
-    container.appendChild(note);
-    return;
-  }
+  if (!selected) return;
   const pet = PETS[selected];
   const stats = state.pets[selected];
   const description = document.createElement('p');

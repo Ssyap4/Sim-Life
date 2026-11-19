@@ -47,8 +47,3 @@ cushionGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positi
 cushionGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
 cushionGeometry.setIndex(indices);
 cushionGeometry.computeVertexNormals();
-
-export const tabletopGeometry = new THREE.LatheGeometry([
-  [0, -0.045], [0.54, -0.045], [0.641, -0.040], [0.68, -0.016],
-  [0.68, 0.035], [0.659, 0.059], [0.633, 0.079], [0, 0.079],
-].map(([radius, y]) => new THREE.Vector2(radius, y)), 24);

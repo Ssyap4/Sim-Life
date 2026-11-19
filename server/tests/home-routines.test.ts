@@ -7,10 +7,11 @@ import { planLeisure, urgentHomeAction } from '../home';
 import { applyWorld } from '../locations';
 import { runPetRoutines } from '../pets';
 import { openServerFiles } from '../storage';
-import { placeObstacles } from '../../src/shared/locations';
+import { HOUSE_ENTRY } from '../../src/shared/home';
+import { floorFor, placeObstacles } from '../../src/shared/locations';
 import { PETS, PET_IDS, PET_ROAM, petDestination } from '../../src/shared/pets';
 import { initialState } from '../../src/shared/protocol';
-import { planWalk, sampleWalk } from '../../src/game/navigation';
+import { findRoute, pointIsClear, sampleWalk } from '../../src/game/navigation';
 
 test('The server plans leisure routes in shared coordinates without rewarding cosmetic activities', () => {
   const state = initialState();
@@ -37,10 +38,52 @@ test('The server plans leisure routes in shared coordinates without rewarding co
 test('Both pets can reach their own bed, bowl and toilet from every roaming point', () => {
   const home = placeObstacles('home');
   for (const id of PET_IDS) for (const start of [PETS[id].home, ...PET_ROAM]) {
-    for (const kind of ['eat', 'sleep', 'toilet'] as const) {
-      const target = petDestination(id, { kind, target: 0 });
-      assert.ok(planWalk(start, target, home), JSON.stringify({ id, start, target }));
+    const care = (['eat', 'sleep', 'toilet'] as const).map(kind => petDestination(id, { kind, target: 0 }));
+    for (const target of [...care, ...PET_ROAM]) {
+      assert.ok(findRoute(start, target, home, floorFor('home')), JSON.stringify({ id, start, target }));
     }
+  }
+});
+
+test('Both pets walk out to the lawn on shared persistent routes', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-yard-pets-'));
+  try {
+    const state = initialState();
+    runPetRoutines(state, 1, 480, new Set(), () => .99);
+    const files = openServerFiles(dir);
+    files.save(state);
+    const restored = files.load();
+    for (const id of PET_IDS) {
+      const routine = restored.pets[id].routine;
+      assert.equal(routine?.kind, 'wander');
+      assert.ok(routine && routine.route.from.z < HOUSE_ENTRY.z);
+      const lawn = sampleWalk(routine.route, 100).from;
+      assert.ok(lawn.z > HOUSE_ENTRY.z);
+      assert.deepEqual(lawn, PET_ROAM.at(-1));
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('An old pet route through moved furniture is discarded while pet progress is kept', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-old-pet-route-'));
+  try {
+    const state = initialState();
+    const pet = state.pets.simba;
+    pet.bond = 69;
+    pet.position = { x: 3.1, z: -1.9 };
+    pet.routine = { kind: 'wander', target: 1, startedAt: 480, until: 490,
+      route: { from: pet.position, path: [{ x: 1.5, z: -1.9 }] } };
+    const files = openServerFiles(dir);
+    files.save(state);
+    const restored = files.load();
+    assert.equal(restored.pets.simba.routine, undefined);
+    assert.equal(restored.pets.simba.bond, 69);
+    assert.equal(restored.petFood.simba, state.petFood.simba);
+    assert.ok(pointIsClear(restored.pets.simba.position, placeObstacles('home'), floorFor('home')));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

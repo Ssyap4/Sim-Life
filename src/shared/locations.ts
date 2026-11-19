@@ -1,9 +1,9 @@
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
-import { HOME_DECOR, HOME_FURNITURE } from './home';
+import { HOME_DECOR, HOME_FLOOR, HOME_FURNITURE, HOME_YARD, HOME_YARD_OBSTACLES } from './home';
 
 export const PLACES = {
-  home: { name: 'Дом', icon: '⌂', detail: 'Кухня, запасы и семейный отдых' },
+  home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный двор' },
   street: { name: 'Тихий квартал', icon: '▥', detail: 'Тротуар, скамья и входы в соседние места' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса самообслуживания' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
@@ -12,6 +12,7 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -53,8 +54,8 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: [
     site('fridge', 'Холодильник', 5.24, -4.25, 0.94, 0.88, { kind: 'fridge' }, { approach: { x: 5.24, z: -3.32 } }),
     site('cupboard', 'Кухонные полки', 0.71, -4.47, 0.70, 0.46, { kind: 'cupboard' }, { blocks: false, approach: { x: 0.71, z: -3.08 } }),
-    site('parcel', 'Заказы у двери', -0.36, 4.55, 0.51, 0.38, { kind: 'parcel' }, { blocks: false, approach: { x: -0.36, z: 3.92 } }),
-    door('home-exit', 'На улицу', 'street', 2.03, 4.66, true),
+    site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
+    door('home-exit', 'На улицу', 'street', HOME_YARD.gate.x, HOME_YARD.gate.z, true),
   ],
   street: [
     door('street-home', 'Домой', 'home', -3.88, -3.95),
@@ -99,7 +100,7 @@ export function placeObstacles(place: PlaceId) {
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
   }] : []);
-  if (place === 'home') obstacles.push(...HOME_DECOR, ...Object.values(HOME_FURNITURE).map(bounds => ({
+  if (place === 'home') obstacles.push(...HOME_DECOR, ...HOME_YARD_OBSTACLES, ...Object.values(HOME_FURNITURE).map(bounds => ({
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });

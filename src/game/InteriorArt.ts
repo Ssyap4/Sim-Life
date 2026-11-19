@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
+import { batchRigidParts, colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
 import { deskDisplay, kitchenTiles, tvStill, upholsteryWeave, wovenRug } from './ArtTextures';
-import { cushionGeometry, tabletopGeometry } from './FurnitureGeometry';
-import { COUNTER } from '../shared/home';
+import { cushionGeometry } from './FurnitureGeometry';
+import { COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
 import { points } from '../shared/protocol';
 
 type FurnitureId = 'sofa' | 'bed' | 'kitchen' | 'desk' | 'tv' | 'table';
@@ -80,7 +80,7 @@ function pillow(parent: THREE.Group, position: XYZ, color: number, angle: number
 }
 
 function makeSofa(): THREE.Group {
-  const sofa = group(-3.1, 1.7);
+  const sofa = group(HOME_PLACEMENTS.sofa.x, HOME_PLACEMENTS.sofa.z);
   // A recessed timber plinth makes the upholstery read as one suspended frame.
   part(sofa, [2.36, 0.23, 0.87], [0, 0.155, 0.02], C.woodDark, 'soft', true, 'wood');
   part(sofa, [2.64, 0.35, 1.08], [0, 0.42, 0.024], C.mossDark, cushionGeometry, true);
@@ -100,7 +100,7 @@ function makeSofa(): THREE.Group {
 }
 
 function makeBed(): THREE.Group {
-  const bed = group(-3.85, -2.62);
+  const bed = group(HOME_PLACEMENTS.bed.x, HOME_PLACEMENTS.bed.z);
   part(bed, [2.48, 0.32, 2.49], [0, 0.19, 0.015], C.woodDark, 'soft', true, 'wood');
   part(bed, [2.68, 0.22, 2.68], [0, 0.365, 0.01], C.woodLight, 'soft', true, 'wood');
   part(bed, [2.67, 1.14, 0.16], [0, 0.815, -1.30], C.woodDark, 'soft', true, 'wood');
@@ -186,7 +186,7 @@ function makeKitchen(): THREE.Group {
 }
 
 function makeDesk(): THREE.Group {
-  const desk = group(2.68, 1.73);
+  const desk = group(HOME_PLACEMENTS.desk.x, HOME_PLACEMENTS.desk.z);
   part(desk, [2.25, 0.126, 0.98], [0, 0.99, 0], C.woodLight, 'soft', true, 'wood');
   part(desk, [0.47, 0.42, 0.79], [-0.82, 0.72, -0.019], C.woodDark, 'soft', true, 'wood');
   for (const y of [0.64, 0.83]) {
@@ -231,7 +231,7 @@ function makeDesk(): THREE.Group {
 }
 
 function makeTv(): THREE.Group {
-  const tv = group(-0.6, -3.63);
+  const tv = group(HOME_PLACEMENTS.tv.x, HOME_PLACEMENTS.tv.z);
   part(tv, [1.92, 0.36, 0.50], [0, 0.37, 0], C.woodLight, 'soft', true, 'wood');
   part(tv, [1.79, 0.12, 0.39], [0, 0.147, -0.01], C.woodDark, 'soft', true, 'wood');
   for (const x of [-0.60, 0, 0.60]) {
@@ -248,38 +248,72 @@ function makeTv(): THREE.Group {
   return tv;
 }
 
-function makeCoffeeTable(): THREE.Group {
-  const table = group(-1.88, 0.03);
-  part(table, [1, 1, 1], [0, 0.49, 0], C.woodLight, tabletopGeometry, true, 'wood');
-  for (let i = 0; i < 3; i++) {
-    const angle = i * Math.PI * 2 / 3;
-    const leg = part(table, [0.103, 0.46, 0.105], [Math.cos(angle) * 0.285, 0.24, Math.sin(angle) * 0.285],
-      C.woodDark, 'soft', true, 'wood');
-    leg.rotation.order = 'YXZ';
-    leg.rotation.set(0, -angle, 0.29);
+function makeDiningTable(): THREE.Group {
+  const table = group(HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z);
+  part(table, [1.40, .10, 1.14], [0, DINING_TOP - .05, 0], C.woodLight, 'soft', true, 'wood');
+  part(table, [1.21, .11, .94], [0, .74, 0], C.woodDark, 'soft', false, 'wood');
+  for (const x of [-.55, .55]) for (const z of [-.41, .41]) {
+    part(table, [.10, .70, .10], [x, .36, z], C.woodDark, 'soft', true, 'wood');
   }
-  round(table, 0.25, 0.038, [0.13, 0.59, -0.12], C.oat);
-  round(table, 0.114, 0.12, [-0.22, 0.638, 0.02], C.moss);
-  round(table, 0.087, 0.015, [-0.22, 0.699, 0.02], C.woodDark);
-  ring(table, 0.07, [-0.075, 0.65, 0.02], C.moss);
-  part(table, [0.32, 0.038, 0.22], [0.15, 0.59, 0.24], C.terracotta).rotation.y = 0.27;
+  for (const side of [-1, 1]) {
+    const x = side * .99;
+    const back = x + side * .28;
+    part(table, [.60, .10, .63], [x, .45, 0], C.wood, 'soft', true, 'wood');
+    part(table, [.53, .075, .55], [x - side * .015, .52, 0], C.paleSage, cushionGeometry);
+    for (const z of [-.235, .235]) {
+      part(table, [.066, .43, .066], [x - side * .23, .22, z], C.woodDark, 'soft', false, 'wood');
+      part(table, [.07, .91, .07], [back, .46, z], C.woodDark, 'soft', false, 'wood');
+    }
+    part(table, [.08, .23, .57], [back, .83, 0], C.wood, 'soft', true, 'wood');
+  }
+  part(table, [.31, .012, 1.04], [0, DINING_TOP + .006, 0], C.moss);
   return table;
 }
 
 export function buildFurniture(register: Register): void {
-  register('sofa', makeSofa(), { x: -3.0, z: 0.6 });
-  register('bed', makeBed(), { x: -3.85, z: -0.76 });
+  register('sofa', makeSofa(), points.sofa);
+  register('bed', makeBed(), points.bed);
   register('kitchen', makeKitchen(), points.kitchen);
   register('desk', makeDesk(), points.desk);
-  register('tv', makeTv(), { x: -0.55, z: -2.58 });
-  register('table', makeCoffeeTable(), { x: -0.80, z: 0.04 });
+  register('tv', makeTv(), points.tv);
+  register('table', makeDiningTable(), points.table);
+}
+
+export function buildPersonalFurniture(scene: THREE.Scene): void {
+  const wardrobe = group(HOME_PLACEMENTS.wardrobe.x, HOME_PLACEMENTS.wardrobe.z);
+  part(wardrobe, [.80, 1.89, 1.31], [-.05, 1.04, 0], C.woodDark, 'soft', true, 'wood');
+  part(wardrobe, [.88, .09, 1.35], [-.05, 2.00, 0], C.woodLight, 'soft', false, 'wood');
+  for (const z of [-.327, .327]) {
+    part(wardrobe, [.08, 1.62, .635], [.38, 1.10, z], C.woodLight, 'soft', false, 'wood');
+    part(wardrobe, [.024, 1.41, .48], [.426, 1.10, z], C.wood, 'soft', false, 'wood');
+    part(wardrobe, [.07, .15, .032], [.469, 1.06, z * .24], C.brass, 'soft', false, 'metal');
+  }
+  const vanity = group(HOME_PLACEMENTS.vanity.x, HOME_PLACEMENTS.vanity.z);
+  part(vanity, [1.33, .11, .63], [0, .86, 0], C.woodLight, 'soft', true, 'wood');
+  part(vanity, [1.19, .18, .54], [0, .72, 0], C.wood, 'soft', false, 'wood');
+  part(vanity, [.20, .025, .031], [0, .72, .28], C.brass, 'soft', false, 'metal');
+  for (const x of [-.54, .54]) for (const z of [-.21, .21]) {
+    part(vanity, [.069, .64, .07], [x, .33, z], C.woodDark, 'soft', false, 'wood');
+  }
+  part(vanity, [.09, .45, .075], [0, 1.03, -.19], C.woodDark, 'soft', false, 'wood');
+  oval(vanity, [.40, .46, .053], [0, 1.48, -.19], C.woodDark);
+  oval(vanity, [.352, .407, .046], [0, 1.48, -.15], 0xa9c5bc);
+  oval(vanity, [.216, .285, .014], [-.09, 1.55, -.11], 0xcdd9c9);
+  round(vanity, .078, .142, [-.44, .986, .015], C.terracotta, 'ceramic');
+  round(vanity, .052, .08, [-.44, 1.08, .015], C.brass, 'metal');
+  part(vanity, [.50, .40, .44], [0, .20, .67], C.wood, 'soft', false, 'wood');
+  part(vanity, [.55, .13, .49], [0, .46, .67], C.blush, cushionGeometry);
+  for (const furniture of [wardrobe, vanity]) {
+    batchRigidParts(furniture);
+    scene.add(furniture);
+  }
 }
 
 export function buildSoftRugs(scene: THREE.Scene): void {
   const rugs = [
-    { style: 'living', x: -2.78, z: 1.22, width: 4.36, depth: 3.36, edge: C.terracotta },
-    { style: 'work', x: 2.68, z: 2.10, width: 2.60, depth: 2.82, edge: C.moss },
-    { style: 'sleep', x: -3.91, z: -2.56, width: 3.30, depth: 3.52, edge: C.oat },
+    { style: 'living', x: -3.47, z: .71, width: 3.41, depth: 3.06, edge: C.terracotta },
+    { style: 'work', x: HOME_PLACEMENTS.desk.x, z: 1.88, width: 2.50, depth: 2.64, edge: C.moss },
+    { style: 'sleep', x: -4.26, z: -3.20, width: 3.12, depth: 3.22, edge: C.oat },
   ] as const;
   for (const {style, x, z, width, depth, edge} of rugs) {
     part(scene, [width, 0.022, depth], [x, 0.011, z], edge);
