@@ -8,6 +8,7 @@ import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type 
 import { decorObstacles, decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
+import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildSoftRugs } from './InteriorArt';
 
@@ -17,6 +18,9 @@ type Point = { x: number; z: number };
 const homePosition = new THREE.Vector3(15, 19, 22);
 const homeTarget = new THREE.Vector3(0, 1.45, 0);
 const portraitAspect = 390 / 844;
+const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
+
+type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
 export const objectNames: Record<ItemId, string> = {
   sofa: 'Уютный диван',
@@ -48,11 +52,15 @@ export class World {
   private readonly followPoint = new THREE.Vector3();
   private readonly followDelta = new THREE.Vector3();
   private readonly contactPoint = new THREE.Vector3();
-  private cameraMove: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  private cameraMove: Frame | null = null;
+  private defaultFrame: Frame | null = null;
+  private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
+  private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
+  private readonly sun = new THREE.DirectionalLight(0xffe4c6, 2.58);
 
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
-    private readonly viewBand: () => ViewBand = () => ({ top: 0.16, bottom: 0.86 })) {
+    private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 })) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
@@ -60,7 +68,6 @@ export class World {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.03;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -111,10 +118,9 @@ export class World {
       this.downPoint = null;
     });
     canvas.addEventListener('pointercancel', () => { this.downPoint = null; });
-    window.addEventListener('resize', () => this.resize());
-    this.resize();
-    this.camera.position.copy(this.homeViewPosition());
-    this.controls.update();
+    window.addEventListener('resize', () => this.refreshViewport());
+    this.compactPortrait.addEventListener('change', () => this.refreshViewport());
+    this.refreshViewport();
     this.animate();
   }
 
@@ -130,7 +136,9 @@ export class World {
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
-      this.cameraMove = { position: this.homeViewPosition(), target: homeTarget.clone() };
+      const band = this.viewBand(false);
+      this.defaultFrame = this.homeFrame(this.compactPortrait.matches, band);
+      this.cameraMove = this.defaultFrame;
       return;
     }
     const person = subject === 'vlad' || subject === 'alina';
@@ -140,7 +148,7 @@ export class World {
     this.followSubject.getWorldPosition(this.followPoint);
     const bounds = new THREE.Box3().setFromObject(this.followSubject, true);
     const angle = new THREE.Vector3(subject === 'simba' ? 0.69 : 0.29, person ? 0.11 : 0.22, 1);
-    this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand());
+    this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
@@ -281,7 +289,7 @@ export class World {
   private createLights(): void {
     this.scene.add(new THREE.HemisphereLight(0xfcf0e1, 0xa9bebc, 1.68));
     // Broad daylight illuminates faces from the open side facing the home camera.
-    const sun = new THREE.DirectionalLight(0xffe4c6, 2.58);
+    const sun = this.sun;
     sun.position.set(1.8, 9, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -345,22 +353,55 @@ export class World {
     } else if (id in objectNames) this.onPick(id as ItemId);
   }
 
-  private homeViewPosition(): THREE.Vector3 {
-    const portraitFit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
-    return homePosition.clone().multiplyScalar(1 + portraitFit * 0.35).add(homeTarget);
+  private homeFrame(compact: boolean, band: ViewBand): Frame {
+    if (compact) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band);
+    // Keep the existing desktop composition.
+    const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
+    return { position: homePosition.clone().multiplyScalar(1 + fit * 0.35).add(homeTarget), target: homeTarget.clone() };
   }
 
-  private resize(): void {
+  refreshViewport(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
-    this.camera.aspect = width / height;
-    // Fit the same horizontal framing on screens narrower than 390×844.
-    this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
-      Math.tan(THREE.MathUtils.degToRad(23)) * Math.max(1, portraitAspect / this.camera.aspect),
-    ));
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
-    if (this.inspected) this.showcase(this.inspected);
+    const compact = this.compactPortrait.matches;
+    const { pixelRatio, shadowSize } = renderProfile(compact, window.devicePixelRatio);
+    const band = this.viewBand(this.inspected !== null);
+    const previous = this.viewport;
+    const sizeChanged = !previous || previous.width !== width || previous.height !== height;
+    const scaleChanged = !previous || previous.pixelRatio !== pixelRatio;
+    if (!sizeChanged && !scaleChanged && previous.compact === compact &&
+        previous.band.top === band.top && previous.band.bottom === band.bottom) return;
+    this.viewport = { width, height, pixelRatio, compact, band };
+
+    if (sizeChanged) {
+      this.camera.aspect = width / height;
+      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
+        Math.tan(THREE.MathUtils.degToRad(23)) * Math.max(1, portraitAspect / this.camera.aspect),
+      ));
+      this.camera.updateProjectionMatrix();
+    }
+    if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
+    if (sizeChanged) this.renderer.setSize(width, height, false);
+    if (this.sun.shadow.mapSize.x !== shadowSize) {
+      this.sun.shadow.mapSize.setScalar(shadowSize);
+      this.sun.shadow.map?.setSize(shadowSize, shadowSize);
+      this.sun.shadow.radius = 2.65 * shadowSize / 1024;
+    }
+
+    if (this.inspected) {
+      this.showcase(this.inspected);
+      return;
+    }
+    const current = this.defaultFrame;
+    this.defaultFrame = this.homeFrame(compact, band);
+    if (this.cameraMove) {
+      this.cameraMove = this.defaultFrame;
+    } else if (!current || (this.camera.position.distanceTo(current.position) < 0.07 &&
+        this.controls.target.distanceTo(current.target) < 0.07)) {
+      this.camera.position.copy(this.defaultFrame.position);
+      this.controls.target.copy(this.defaultFrame.target);
+      this.controls.update();
+    }
   }
 
   private animate = (): void => {

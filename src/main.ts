@@ -36,7 +36,7 @@ app.innerHTML = `
       </div>
       <div class="version">0.3 · ЖИВОЙ РИТМ</div>
     </div>
-    <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
+    <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
         <span class="avatar avatar-vlad">В</span>
@@ -47,10 +47,10 @@ app.innerHTML = `
         <span class="person-info"><strong>Алина <small id="online-alina">○</small></strong><span>Реконструкция волос</span><span class="meters"><i class="hunger" id="alina-hunger"></i><i class="energy" id="alina-energy"></i></span></span>
       </button>
     </div>
-    <div class="status-line" id="status">Подключение к общему дому…</div>
+    <div class="status-line" id="status" role="status">Подключение к общему дому…</div>
     <div class="showcase-ui">
       <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
-      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false">🔎 Посмотреть модели</button>
       <div id="showcase-choices" class="showcase-choices" hidden>
         <button type="button" data-showcase="vlad">👨 Влад</button>
         <button type="button" data-showcase="alina">👩 Алина</button>
@@ -64,16 +64,18 @@ app.innerHTML = `
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
-    <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
-    <div class="home-buttons">
-      <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
-      <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
+    <div class="bottom-bar">
+      <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
+      <div class="home-buttons">
+        <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
+        <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
+      </div>
+      <div class="tip">
+        <span class="tip-icon">✦</span>
+        <span>Тап по предмету · Щипок для масштаба</span>
+      </div>
+      <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
     </div>
-    <div class="tip">
-      <span class="tip-icon">✦</span>
-      <span>Нажми на предмет или питомца. Вращай камеру пальцем, сближай двумя.</span>
-    </div>
-    <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>
   <section id="auth" class="auth-screen" aria-labelledby="auth-title">
     <form id="auth-form" class="auth-card">
@@ -110,6 +112,7 @@ const showcaseChoices = document.querySelector<HTMLDivElement>('#showcase-choice
 const showcaseReturn = document.querySelector<HTMLButtonElement>('#showcase-return')!;
 const topHud = document.querySelector<HTMLElement>('.top-ui')!;
 const bottomHud = document.querySelector<HTMLElement>('.bottom-ui')!;
+const bottomBar = document.querySelector<HTMLElement>('.bottom-bar')!;
 
 function focusModel(id: CharacterId | PetId | null): void {
   document.querySelector('#app')?.classList.toggle('inspecting', Boolean(id));
@@ -428,13 +431,18 @@ try {
     if (id === 'vlad' || id === 'alina') openSocialActions(id);
     else if (id === 'verdell' || id === 'simba') openPetActions(id);
     else openActions(id);
-  }, () => {
+  }, (inspection) => {
     const viewport = canvas.getBoundingClientRect();
     return {
       top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
-      bottom: (bottomHud.getBoundingClientRect().top - viewport.top) / viewport.height,
+      bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
     };
   });
+  const layoutObserver = new ResizeObserver(() => {
+    app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
+    world.refreshViewport();
+  });
+  for (const area of [canvas, topHud, bottomHud, bottomBar]) layoutObserver.observe(area);
   document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
     button.addEventListener('click', () => {
       if (active && button.dataset.id !== active) {
