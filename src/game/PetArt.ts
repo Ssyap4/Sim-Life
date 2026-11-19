@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { batchRigidParts, colors as C, sculptedCurve } from './ArtKit';
 import type { PetId } from '../shared/pets';
 
 /**
@@ -55,12 +56,12 @@ function paw(
 ): void {
   const limb = new THREE.Group();
   limb.position.set(x, 0.32, z);
-  const coat = dog ? 0x343c3a : 0xdb934f;
+  const coat = dog ? 0x3b3a41 : 0xdb934f;
   ellipsoid(limb, [0, -0.13, 0], [dog ? 0.13 : 0.098, 0.18, 0.125], coat);
   ellipsoid(limb, [0, -0.258, 0.073], [0.148, 0.081, 0.173], coat);
   for (const toe of [-0.062, 0, 0.062]) {
     ellipsoid(limb, [toe, -0.277, 0.2], [0.052, 0.042, 0.068],
-      dog ? 0x4c5651 : 0xedaf6c);
+      dog ? 0x4f4950 : 0xedaf6c);
   }
   body.add(limb);
   joints.push(limb);
@@ -68,57 +69,55 @@ function paw(
 function features(
   head: THREE.Group, dog: boolean,
 ): void {
-  const eyeColor = dog ? 0x4a3027 : 0x5b814e;
+  const eyeColor = dog ? 0x6e4c36 : 0x70925b;
   const dark = 0x262824;
   // Big clear eyes with eyelids and multiple catchlights.
   for (const side of [-1, 1]) {
     const x = side * (dog ? 0.164 : 0.153);
     const z = dog ? 0.323 : 0.307;
     ellipsoid(head, [x, 0.042, z], [0.098, 0.116, 0.026],
-      dog ? 0x4b5149 : 0xe9a85d);
-    ellipsoid(head, [x, 0.029, z + 0.021], [0.075, 0.092, 0.025], 0xfff7e6);
+      dog ? 0x4c4749 : 0xe9a85d);
+    ellipsoid(head, [x, 0.029, z + 0.021], [0.075, 0.092, 0.025], dog ? 0x6b5b4c : 0xf2d4a3);
     ellipsoid(head, [x + side * 0.008, 0.019, z + 0.044],
-      [0.056, 0.075, 0.017], eyeColor);
+      [dog ? 0.068 : 0.058, 0.077, 0.017], eyeColor);
     ellipsoid(head, [x + side * 0.012, 0.019, z + 0.059],
-      [0.029, 0.067, 0.011], dark);
+      [dog ? 0.043 : 0.025, 0.067, 0.011], dark);
     ellipsoid(head, [x - 0.022, 0.058, z + 0.071],
       [0.021, 0.023, 0.006], 0xffffff);
     const brow = ellipsoid(head, [x, 0.167, z - 0.008],
-      [0.107, 0.025, 0.035], dog ? 0x515a53 : 0xba713f);
+      [0.107, 0.025, 0.035], dog ? 0x635853 : 0xba713f);
     brow.rotation.z = side * 0.10;
   }
 }
 function spitz(
   body: THREE.Group, head: THREE.Group, tail: THREE.Group, paws: THREE.Group[],
 ): void {
-  const black = 0x313b39;
-  const dark = 0x242d2c;
-  const lights = 0x48544d;
-  const chest = 0x626d62;
-  ellipsoid(body, [0, 0.47, -0.08], [0.40, 0.36, 0.52], dark, true);
-  ellipsoid(body, [0, 0.52, 0.13], [0.39, 0.40, 0.39], black, true);
-  ellipsoid(body, [0, 0.37, 0.33], [0.25, 0.28, 0.17], chest, true);
-  // Separate curved fur tufts build a recognizable thick pomeranian ruff.
-  for (let i = 0; i < 18; i++) {
-    const angle = (i / 18) * Math.PI * 2;
-    const x = Math.cos(angle) * 0.35;
-    const y = 0.53 + Math.sin(angle) * 0.30;
-    const color = i % 4 === 0 ? lights : i % 5 === 0 ? chest : black;
-    const tuft = ellipsoid(body, [x, y, 0.24 + (i % 3) * 0.016],
-      [0.134, 0.17, 0.15], color, true);
-    tuft.rotation.z = angle + Math.PI / 2;
+  const black = 0x303339;
+  const dark = 0x24242b;
+  const lights = 0x494a51;
+  const chest = 0x535058;
+  ellipsoid(body, [0, 0.47, -0.08], [0.39, 0.36, 0.53], dark);
+  ellipsoid(body, [0, 0.51, 0.13], [0.38, 0.39, 0.39], black);
+  ellipsoid(body, [0, 0.42, 0.29], [0.32, 0.33, 0.23], lights);
+  // Broad overlapping sweeps form a layered mane without a ring of beads.
+  for (const side of [-1, 1]) for (let i = 0; i < 5; i++) {
+    const x = side * (0.12 + i * 0.052);
+    sculptedCurve(body, [[x * 0.73, 0.73 - i * 0.042, 0.33],
+      [x, 0.51 - i * 0.044, 0.45 - i * 0.03],
+      [x + side * 0.08, 0.32 - i * 0.028, 0.38 - i * 0.052]],
+    0.084, 0.012, i % 2 ? lights : chest, 0.83);
   }
   for (const x of [-0.245, 0.245]) for (const z of [-0.325, 0.315]) paw(body, paws, x, z, true);
 
   // Face is spherical with prominent plush cheeks and short cream snout.
-  ellipsoid(head, [0, 0.045, 0], [0.365, 0.35, 0.315], black, true);
+  ellipsoid(head, [0, 0.045, 0], [0.365, 0.35, 0.315], black);
   for (const side of [-1, 1]) {
     ellipsoid(head, [side * 0.249, -0.123, 0.195],
-      [0.19, 0.23, 0.165], lights, true);
-    pointed(head, [side * 0.261, 0.348, -0.036],
-      0.17, 0.41, black, -side * 0.18);
-    pointed(head, [side * 0.262, 0.35, 0.027],
-      0.083, 0.235, 0x947979, -side * 0.18);
+      [0.177, 0.20, 0.163], lights);
+    pointed(head, [side * 0.253, 0.321, -0.036],
+      0.157, 0.34, black, -side * 0.18);
+    pointed(head, [side * 0.253, 0.326, 0.027],
+      0.073, 0.185, 0x947979, -side * 0.18);
   }
   ellipsoid(head, [0, -0.17, 0.284], [0.188, 0.128, 0.159], chest);
   ellipsoid(head, [0, -0.105, 0.422], [0.085, 0.068, 0.048], dark);
@@ -135,11 +134,11 @@ function spitz(
   ellipsoid(body, [0, 0.33, 0.4], [0.065, 0.064, 0.021], 0xe1c09a);
   ellipsoid(body, [0, 0.344, 0.419], [0.024, 0.022, 0.01], 0xf3dec6);
 
-  // Three-tier high curled tail, a classic spitz silhouette.
-  ellipsoid(tail, [0, 0.12, -0.20], [0.19, 0.23, 0.24], black, true);
-  ellipsoid(tail, [0.065, 0.33, -0.37], [0.27, 0.27, 0.25], lights, true);
-  ellipsoid(tail, [0.08, 0.48, -0.27], [0.235, 0.205, 0.23], black, true);
-  ellipsoid(tail, [0.067, 0.47, -0.08], [0.144, 0.17, 0.14], lights, true);
+  sculptedCurve(tail, [[0, 0.025, -0.06], [0.05, 0.26, -0.36], [0.09, 0.49, -0.28],
+    [0.09, 0.54, -0.03], [0.06, 0.40, 0.13]], 0.16, 0.016, black, 0.91, true);
+  sculptedCurve(tail, [[0.05, 0.25, -0.42], [0.10, 0.49, -0.40],
+    [0.11, 0.59, -0.14], [0.085, 0.45, 0.15]], 0.10, 0.008, lights, 0.87);
+
 }
 function cat(
   body: THREE.Group, head: THREE.Group, tail: THREE.Group, paws: THREE.Group[],
@@ -197,21 +196,12 @@ function cat(
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(whiskers, 3));
   head.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0xffe3bd })));
 
-  // Long curved orange striped tail with tapered segments, not a club.
-  for (let index = 0; index < 8; index++) {
-    const t = index / 7;
-    const x = 0.11 + Math.sin(t * 1.6) * 0.20;
-    const y = 0.06 + t * 0.78;
-    const z = -0.11 - t * 0.25;
-    const section = ellipsoid(tail, [x, y, z],
-      [0.103 - t * 0.044, 0.145, 0.097 - t * 0.045],
-      index % 2 ? darkStripe : ginger);
-    section.rotation.z = -0.28 * (1 - t);
-  }
-  ellipsoid(tail, [0.31, 0.88, -0.38], [0.059, 0.086, 0.065], darkStripe);
+  sculptedCurve(tail, [[0, 0.02, -0.08], [0.16, 0.23, -0.27],
+    [0.29, 0.47, -0.36], [0.30, 0.73, -0.38], [0.19, 0.90, -0.35]],
+  0.101, 0.012, ginger, 0.94, true, 0xcea787);
 
   // Collar detail: soft sage green clasp behind the chin.
-  ellipsoid(body, [0, 0.346, 0.422], [0.05, 0.053, 0.027], 0x779782);
+  ellipsoid(body, [0, 0.346, 0.422], [0.05, 0.053, 0.027], C.pine);
   ellipsoid(body, [0, 0.358, 0.443], [0.019, 0.022, 0.013], 0xf8e5be);
 }
 
@@ -221,4 +211,5 @@ export function buildPetArt(
 ): void {
   if (id === 'verdell') spitz(body, head, tail, paws);
   else cat(body, head, tail, paws);
+  for (const pivot of [body, head, tail, ...paws]) batchRigidParts(pivot);
 }

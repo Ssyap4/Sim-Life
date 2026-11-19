@@ -48,18 +48,18 @@ app.innerHTML = `
       </button>
     </div>
     <div class="status-line" id="status">Подключение к общему дому…</div>
+    <div class="showcase-ui">
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
+      <div id="showcase-choices" class="showcase-choices" hidden>
+        <button type="button" data-showcase="vlad">👨 Влад</button>
+        <button type="button" data-showcase="alina">👩 Алина</button>
+        <button type="button" data-showcase="verdell">🐕 Верделл</button>
+        <button type="button" data-showcase="simba">🐈 Симба</button>
+        <button type="button" data-showcase="home">🏡 Весь дом</button>
+      </div>
+    </div>
   </header>
   <div id="message" class="message" aria-live="polite"></div>
-  <div class="showcase-ui">
-    <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
-    <div id="showcase-choices" class="showcase-choices" hidden>
-      <button type="button" data-showcase="vlad">👨 Влад</button>
-      <button type="button" data-showcase="alina">👩 Алина</button>
-      <button type="button" data-showcase="verdell">🐕 Верделл</button>
-      <button type="button" data-showcase="simba">🐈 Симба</button>
-      <button type="button" data-showcase="home">🏡 Весь дом</button>
-    </div>
-  </div>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
@@ -70,7 +70,7 @@ app.innerHTML = `
     </div>
     <div class="tip">
       <span class="tip-icon">✦</span>
-      <span>Нажимай на предметы и питомцев для действий. 🔎 Посмотреть модели — близкий просмотр Влада, Алины, Верделла и Симбы. Камера вращается пальцем.</span>
+      <span>Нажми на предмет или питомца. Вращай камеру пальцем, сближай двумя.</span>
     </div>
     <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>

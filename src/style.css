@@ -3,7 +3,7 @@
 :root {
   font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: #35443a;
-  background: #e9e7db;
+  background: #c0c7ad;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -23,7 +23,7 @@ button:focus-visible { outline: 3px solid #5e896d; outline-offset: 2px; }
 .vignette {
   pointer-events: none;
   position: absolute; inset: 0;
-  background: linear-gradient(to bottom, rgba(250,246,235,0.90), transparent 33%, transparent 58%, rgba(40,54,41,0.26));
+  background: linear-gradient(to bottom, rgba(250,246,235,0.55), transparent 30%, transparent 71%, rgba(40,54,41,0.19));
 }
 .top-ui {
   pointer-events: none; position: absolute;
@@ -261,9 +261,8 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 
 /* A low-cost optional close-up camera to inspect actual characters and pets. */
 .showcase-ui {
-  position: absolute; z-index: 4;
-  top: clamp(210px, 28vh, 275px);
-  right: max(12px, env(safe-area-inset-right));
+  position: relative; z-index: 4;
+  align-self: flex-end;
   display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
   pointer-events: auto;
 }
@@ -274,6 +273,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   border-radius: 14px; min-height: 35px;
 }
 .showcase-choices {
+  position: absolute; top: calc(100% + 7px); right: 0; width: 210px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
   padding: 7px; border-radius: 14px;
   background: #faf8edee; border: 1px solid #fff;
@@ -290,7 +290,6 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 }
 .showcase-choices button:last-child { grid-column: 1 / -1; }
 @media (max-height: 660px) {
-  .showcase-ui { top: 200px; }
   .showcase-toggle { font-size: 10px; padding: 7px 10px; }
 }
 

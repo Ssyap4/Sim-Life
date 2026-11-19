@@ -1,47 +1,61 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
+import { batchRigidParts } from '../../src/game/ArtKit';
+import { decorObstacles } from '../../src/game/HomeStyling';
 import { buildFurniture } from '../../src/game/InteriorArt';
-import { findRoute, pointIsClear, type FloorRect } from '../../src/game/navigation';
+import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from '../../src/game/navigation';
+import { PETS, PET_IDS } from '../../src/shared/pets';
+import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
 
-test('all six furnished interaction points remain reachable with their actual new bounds', () => {
-  const obstacles: FloorRect[] = [];
-  const anchors = new Map<string, {x: number;z: number}>();
+test('both players can reach every interaction around the assembled interior', () => {
+  const obstacles: FloorRect[] = [...decorObstacles];
+  const furnished = new Map<string, { x: number; z: number }>();
   const counts = { meshes: 0, shadows: 0 };
-  const geometries = new Set<THREE.BufferGeometry>();
-  const furniture: string[] = [];
+  const sharedGeometries = new Set<THREE.BufferGeometry>();
 
   buildFurniture((id, root, point) => {
-    furniture.push(id);
-    anchors.set(id, point);
+    assert.deepEqual(point, points[id], id + ' approach must match server coordinates');
+    furnished.set(id, point);
+    root.traverse((object) => {
+      if (object instanceof THREE.Mesh) sharedGeometries.add(object.geometry);
+    });
+    batchRigidParts(root);
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root);
     obstacles.push({
       minX: box.min.x - 0.27, maxX: box.max.x + 0.27,
       minZ: box.min.z - 0.27, maxZ: box.max.z + 0.27,
     });
-    root.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        counts.meshes++;
-        if (obj.castShadow) counts.shadows++;
-        geometries.add(obj.geometry);
-      }
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      counts.meshes++;
+      if (object.castShadow) counts.shadows++;
     });
   });
-  assert.deepEqual(furniture, ['sofa','bed','kitchen','desk','tv','table']);
-  obstacles.push(
-    {minX:4.70,maxX:5.35,minZ:-0.26,maxZ:0.38},
-    {minX:4.47,maxX:5.62,minZ:2.77,maxZ:4.05},
-  );
-  const starts = [{x:0.5,z:3.5},{x:1.65,z:3.2}];
-  for(const [id, point] of anchors) {
-    assert.ok(pointIsClear(point,obstacles), id + ' interaction anchor blocked');
-    for(const start of starts) {
-      assert.ok(findRoute(start,point,obstacles), id + ' unreachable from ' + JSON.stringify(start));
+  assert.deepEqual([...furnished.keys()].sort(), Object.keys(points).sort());
+
+  const destinations = new Map(furnished);
+  for (const id of PET_IDS) {
+    const { x, z } = PETS[id].home;
+    const approach = nearestClearPoint({ x, z: z + 0.78 }, obstacles);
+    assert.ok(approach, id + ' must have a reachable approach');
+    destinations.set(id, approach);
+  }
+  for (const [id, point] of Object.entries(SOCIAL_SPOTS)) destinations.set(id + ' social', point);
+  const starts = new Map([
+    ['Vlad spawn', { x: 0.5, z: 3.5 }],
+    ['Alina spawn', { x: 1.65, z: 3.2 }],
+    ...destinations,
+  ]);
+  for (const [id, point] of destinations) {
+    assert.ok(pointIsClear(point, obstacles), id + ' interaction anchor blocked');
+    for (const [from, start] of starts) {
+      assert.ok(findRoute(start, point, obstacles), from + ' cannot reach ' + id);
     }
   }
-  assert.ok(counts.meshes < 270, 'too many meshes: '+counts.meshes);
-  assert.ok(counts.shadows < 45, 'too many shadow casters: '+counts.shadows);
-  assert.ok(geometries.size <= 6, 'geometries should be shared: '+geometries.size);
-  console.log('INTERIOR_BUDGET '+JSON.stringify({...counts, sharedGeometries:geometries.size}));
+  assert.ok(counts.meshes <= 135, 'too many furniture meshes: ' + counts.meshes);
+  assert.ok(counts.shadows < 45, 'too many furniture shadow casters: ' + counts.shadows);
+  assert.ok(sharedGeometries.size <= 6, 'furniture parts should reuse the shared geometry kit');
+  console.log('INTERIOR_BUDGET ' + JSON.stringify({ ...counts, sharedGeometries: sharedGeometries.size }));
 });

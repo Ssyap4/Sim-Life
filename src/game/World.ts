@@ -5,53 +5,16 @@ import { PetActor } from './PetActor';
 import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
 import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
-import { decorateHome } from './HomeStyling';
+import { decorObstacles, decorateHome } from './HomeStyling';
+import { batchRigidParts } from './ArtKit';
 import { buildFurniture, buildSoftRugs } from './InteriorArt';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
 
-const PALETTE = {
-  cream: 0xf2e9d9,
-  wall: 0xf6eee0,
-  floor: 0xbfa181,
-  wood: 0xb48a63,
-  woodDark: 0x755940,
-  olive: 0x91a08a,
-  sage: 0xb6c1a6,
-  rose: 0xd5aba0,
-  ivory: 0xfff8ed,
-  charcoal: 0x454c4a,
-};
-
-function material(color: number, roughness = 0.83): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-}
-
-function block(parent: THREE.Object3D, size: [number, number, number], pos: [number, number, number], color: number, options?: { shadow?: boolean }): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = options?.shadow !== false;
-  mesh.receiveShadow = true;
-  parent.add(mesh);
-  return mesh;
-}
-
-function ball(parent: THREE.Object3D, radius: number, pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = radius > 0.18;
-  parent.add(mesh);
-  return mesh;
-}
-
-function cylinder(parent: THREE.Object3D, radius: number, height: number, pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 12), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = true;
-  parent.add(mesh);
-  return mesh;
-}
+const homePosition = new THREE.Vector3(15, 19, 22);
+const homeTarget = new THREE.Vector3(0, 1.45, 0);
+const portraitAspect = 390 / 844;
 
 export const objectNames: Record<ItemId, string> = {
   sofa: 'Уютный диван',
@@ -79,26 +42,26 @@ export class World {
   private cameraMove: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId | PetId) => void) {
-    this.scene.background = new THREE.Color(0xe9e9d9);
-    this.scene.fog = new THREE.Fog(0xe9e9d9, 26, 58);
+    this.scene.background = new THREE.Color(0xc0c7ad);
+    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.17;
+    this.renderer.toneMappingExposure = 1.05;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 90);
-    this.camera.position.set(15, 19, 22);
+    this.camera.position.copy(homePosition);
     this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.target.set(0, 0, 0);
+    this.controls.target.copy(homeTarget);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
     this.controls.enablePan = false;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = 43;
+    this.controls.maxDistance = 51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.controls.update();
@@ -143,6 +106,8 @@ export class World {
     canvas.addEventListener('pointercancel', () => { this.downPoint = null; });
     window.addEventListener('resize', () => this.resize());
     this.resize();
+    this.camera.position.copy(this.homeViewPosition());
+    this.controls.update();
     this.animate();
   }
 
@@ -156,12 +121,12 @@ export class World {
   showcase(subject: CharacterId | PetId | null): void {
     const home = subject === null;
     this.controls.minDistance = home ? 10 : 1.5;
-    this.controls.maxDistance = home ? 43 : 12;
+    this.controls.maxDistance = home ? 51 : 12;
     this.controls.maxPolarAngle = home ? 1.25 : 1.54;
     if (home) {
       this.cameraMove = {
-        position: new THREE.Vector3(15, 19, 22),
-        target: new THREE.Vector3(0, 0, 0),
+        position: this.homeViewPosition(),
+        target: homeTarget.clone(),
       };
       return;
     }
@@ -302,16 +267,21 @@ export class World {
   }
 
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfff4dd, 0xb7b9a7, 1.75));
-    const sun = new THREE.DirectionalLight(0xffefdf, 2.35);
-    sun.position.set(-2, 12, 8);
+    this.scene.add(new THREE.HemisphereLight(0xfff1da, 0xa2b6af, 1.55));
+    // Broad daylight illuminates faces from the open side facing the home camera.
+    const sun = new THREE.DirectionalLight(0xffe3bd, 2.75);
+    sun.position.set(1.8, 9, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -13;
-    sun.shadow.camera.right = 13;
-    sun.shadow.camera.top = 13;
-    sun.shadow.camera.bottom = -13;
-    sun.shadow.bias = -0.001;
+    sun.shadow.camera.left = -8.5;
+    sun.shadow.camera.right = 8.5;
+    sun.shadow.camera.top = 8.5;
+    sun.shadow.camera.bottom = -8.5;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 22;
+    sun.shadow.radius = 2.25;
+    sun.shadow.bias = -0.00025;
+    sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
   }
 
@@ -334,56 +304,13 @@ export class World {
   }
 
   private createHome(): void {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 10), material(PALETTE.floor));
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-
-    block(this.scene, [12.3, 3.15, 0.19], [0, 1.55, -5.0], PALETTE.wall, { shadow: false });
-    block(this.scene, [0.19, 3.15, 10.2], [-6.0, 1.55, 0], PALETTE.wall, { shadow: false });
-    block(this.scene, [12.3, 0.13, 0.16], [0, 0.09, -4.89], 0xd8c7ab);
-    block(this.scene, [0.16, 0.13, 10.2], [-5.9, 0.09, 0], 0xd8c7ab);
-
-    // Decorative window and curtains.
-    block(this.scene, [2.6, 1.6, 0.07], [-1.65, 2.04, -4.85], 0xadc7ba, { shadow: false });
-    block(this.scene, [2.65, 0.1, 0.12], [-1.65, 2.84, -4.77], 0xfaf4e9);
-    block(this.scene, [0.1, 1.65, 0.13], [-2.97, 2.03, -4.76], 0xfaf4e9);
-    block(this.scene, [0.1, 1.65, 0.13], [-0.33, 2.03, -4.76], 0xfaf4e9);
-    block(this.scene, [0.07, 1.55, 0.13], [-1.65, 2.05, -4.75], 0xfaf4e9);
-    block(this.scene, [2.55, 0.07, 0.13], [-1.65, 2.04, -4.75], 0xfaf4e9);
-    block(this.scene, [0.38, 1.84, 0.1], [-3.18, 1.95, -4.70], 0xcdbb9e);
-    block(this.scene, [0.38, 1.84, 0.1], [-0.12, 1.95, -4.70], 0xcdbb9e);
-
-    // Warm framed artwork above the kitchen, all inexpensive simple shapes.
-    block(this.scene, [1.65, 1.18, 0.09], [2.85, 2.12, -4.76], 0x947863, { shadow: false });
-    block(this.scene, [1.47, 1.02, 0.11], [2.85, 2.12, -4.67], 0xf0e8d9, { shadow: false });
-    ball(this.scene, 0.31, [2.55, 2.29, -4.57], 0xa5b39b);
-    ball(this.scene, 0.25, [3.01, 2.03, -4.55], 0xd3a38e);
-    ball(this.scene, 0.16, [2.77, 1.86, -4.50], 0xe9c7a6);
-    buildSoftRugs(this.scene);
-
-    // Reusable soft-edge furniture, with unchanged interaction positions.
-    buildFurniture((id, furniture, point) => this.register(id, furniture, point));
-
-    // Decorative plant.
-    cylinder(this.scene, 0.35, 0.55, [5.1, 0.3, 3.4], 0xcba68c);
-    for (const [x, z] of [[5.08, 3.4], [4.85, 3.40], [5.32, 3.30], [5.05, 3.15]] as const) {
-      ball(this.scene, 0.39, [x, 0.90, z], 0x769780);
-    }
-    // Soft standing lamp beside the living-room walkway.
-    cylinder(this.scene, 0.24, 0.10, [5.02, 0.09, 0.06], 0x9b806c);
-    cylinder(this.scene, 0.06, 1.50, [5.02, 0.84, 0.06], 0xae977f);
-    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.40, 0.47, 14), material(0xffefd1));
-    shade.position.set(5.02, 1.67, 0.06);
-    shade.castShadow = false;
-    this.scene.add(shade);
-    ball(this.scene, 0.15, [5.02, 1.40, 0.06], 0xffeac1);
-    // Non-interactive decorations have their own small footprints.
-    this.obstacles.push({ minX: 4.70, maxX: 5.35, minZ: -0.26, maxZ: 0.38 });
-    this.obstacles.push({ minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 });
-    // Front doorstep and an intentional layer of reusable visual detail.
-    block(this.scene, [2.0, 0.035, 0.76], [0.7, 0.035, 4.65], 0xc7b59f, { shadow: false });
     decorateHome(this.scene);
+    buildSoftRugs(this.scene);
+    buildFurniture((id, furniture, point) => {
+      batchRigidParts(furniture);
+      this.register(id, furniture, point);
+    });
+    this.obstacles.push(...decorObstacles);
   }
 
   private pick(clientX: number, clientY: number): void {
@@ -399,10 +326,19 @@ export class World {
     } else if (id in objectNames) this.onPick(id as ItemId);
   }
 
+  private homeViewPosition(): THREE.Vector3 {
+    const portraitFit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
+    return homePosition.clone().multiplyScalar(1 + portraitFit * 0.35).add(homeTarget);
+  }
+
   private resize(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     this.camera.aspect = width / height;
+    // Fit the same horizontal framing on screens narrower than 390×844.
+    this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
+      Math.tan(THREE.MathUtils.degToRad(23)) * Math.max(1, portraitAspect / this.camera.aspect),
+    ));
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   }
