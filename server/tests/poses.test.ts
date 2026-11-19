@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import * as THREE from 'three';
+import { Actor } from '../../src/game/Actor';
+
+function settle(actor: Actor, seconds = 1.1): void {
+  for (let i = 0; i < seconds * 30; i++) actor.update(1 / 30);
+}
+function figurePosition(actor: Actor): THREE.Vector3 {
+  const figure = actor.root.children[0];
+  return figure.getWorldPosition(new THREE.Vector3());
+}
+
+test('Seated furniture pose places the model on sofa without moving its safe navigation root', () => {
+  const actor = new Actor('alina', [-3.0, 0.6]);
+  const anchor = new THREE.Vector3(-3.1, -0.25, 1.69);
+  actor.setFurniturePose('sit', anchor, Math.PI);
+  settle(actor);
+  assert.ok(figurePosition(actor).distanceTo(anchor) < 0.04);
+  assert.deepEqual(actor.root.position.toArray(), [-3, 0, 0.6]);
+  assert.ok(Math.abs(actor.root.rotation.y - Math.PI) < 0.001);
+});
+
+test('Lying in bed rotates the body horizontally and walking restores upright pose', () => {
+  const actor = new Actor('vlad', [-3.85, -0.76]);
+  const bed = new THREE.Vector3(-3.85, 0.91, -1.76);
+  actor.setFurniturePose('sleep', bed, 0);
+  settle(actor);
+  assert.ok(figurePosition(actor).distanceTo(bed) < 0.04);
+  assert.ok(Math.abs(actor.root.children[0].rotation.x + Math.PI / 2) < 0.04);
+  let finished = false;
+  actor.walkPath([new THREE.Vector3(-3.3, 0, -0.3)], () => {
+    actor.setPose('idle');
+    finished = true;
+  });
+  settle(actor, 1.2);
+  assert.ok(finished);
+  assert.ok(Math.abs(actor.root.children[0].rotation.x) < 0.04);
+  assert.ok(figurePosition(actor).distanceTo(actor.root.position) < 0.04);
+});

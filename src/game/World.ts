@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor } from './Actor';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import { SOCIAL_SPOTS, type CharacterId, type SocialKind } from '../shared/protocol';
+import { SOCIAL_SPOTS, points, type CharacterId, type SocialKind } from '../shared/protocol';
+import { decorateHome } from './HomeStyling';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
@@ -79,7 +80,7 @@ export class World {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.32;
+    this.renderer.toneMappingExposure = 1.17;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -135,10 +136,36 @@ export class World {
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
-    // Previous saves may place a character inside the old desk/chair collision area.
     const safe = nearestClearPoint({ x, z }, this.obstacles);
     if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
-    this.actors[id].setPose(pose);
+    const item = (['bed', 'sofa', 'desk', 'table'] as const).find((candidate) => {
+      const location = points[candidate];
+      return Math.hypot(location.x - x, location.z - z) < 0.5;
+    });
+    if (item && ((pose === 'sleep' && item === 'bed') ||
+        (pose === 'work' && item === 'desk') ||
+        (pose === 'sit' && (item === 'sofa' || item === 'table')))) {
+      this.applyFurniturePose(id, item, pose);
+    } else {
+      // Avoid sinking below the floor when an older save has no matching chair/bed.
+      this.actors[id].setPose('idle');
+    }
+  }
+
+  private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
+    const actor = this.actors[id];
+    const anchors = {
+      sofa: { x: -3.1, y: -0.25, z: 1.69, yaw: Math.PI },
+      bed: { x: -3.85, y: 0.91, z: -1.76, yaw: 0 },
+      desk: { x: 3.2, y: -0.23, z: 2.53, yaw: Math.PI },
+      table: { x: -0.84, y: -0.27, z: 0.05, yaw: -Math.PI / 2 },
+    } as const;
+    const anchor = anchors[itemId as keyof typeof anchors];
+    if (!anchor || pose === 'idle') {
+      actor.setPose(pose);
+      return;
+    }
+    actor.setFurniturePose(pose, new THREE.Vector3(anchor.x, anchor.y, anchor.z), anchor.yaw);
   }
 
   perform(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work', onArrive: () => void): boolean {
@@ -151,8 +178,9 @@ export class World {
       this.obstacles,
     );
     if (!route) return false;
+    ++this.socialSequence;
     actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
-      actor.setPose(pose);
+      this.applyFurniturePose(id, itemId, pose);
       onArrive();
     });
     return true;
@@ -194,8 +222,8 @@ export class World {
   }
 
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfff4dd, 0xb7b9a7, 2.35));
-    const sun = new THREE.DirectionalLight(0xfff0d9, 2.2);
+    this.scene.add(new THREE.HemisphereLight(0xfff4dd, 0xb7b9a7, 1.75));
+    const sun = new THREE.DirectionalLight(0xffefdf, 2.35);
     sun.position.set(-2, 12, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -358,8 +386,9 @@ export class World {
     // Non-interactive decorations have their own small footprints.
     this.obstacles.push({ minX: 4.70, maxX: 5.35, minZ: -0.26, maxZ: 0.38 });
     this.obstacles.push({ minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 });
-    // Front doorstep.
+    // Front doorstep and an intentional layer of reusable visual detail.
     block(this.scene, [2.0, 0.035, 0.76], [0.7, 0.035, 4.65], 0xc7b59f, { shadow: false });
+    decorateHome(this.scene);
   }
 
   private pick(clientX: number, clientY: number): void {

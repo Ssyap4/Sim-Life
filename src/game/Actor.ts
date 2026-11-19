@@ -59,6 +59,7 @@ export class Actor {
   private gestureTime = 0;
   private activity: 'cook' | 'eat' | null = null;
   private activityTime = 0;
+  private readonly poseOffset = new THREE.Vector3();
   private clock = 0;
 
   constructor(readonly id: CharacterId, start: [number, number]) {
@@ -149,12 +150,9 @@ export class Actor {
   select(value: boolean): void { this.selectionRing.visible = value; }
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
+    this.setPose('idle');
     this.waypoints = points.map((point) => point.clone());
     this.callback = onArrive;
-    this.pose = 'idle';
-    this.gesture = null;
-    this.activity = null;
-    this.heart.visible = false;
   }
 
   setPose(pose: Pose): void {
@@ -163,7 +161,18 @@ export class Actor {
     this.pose = pose;
     this.gesture = null;
     this.activity = null;
+    this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
+  }
+
+  /** Pose the visible character on the furniture while the navigation root
+   * stays in its safe, server-saved approach location. */
+  setFurniturePose(pose: Pose, worldAnchor: THREE.Vector3, yaw: number): void {
+    this.setPose(pose);
+    this.root.rotation.y = yaw;
+    const local = worldAnchor.clone().sub(this.root.position);
+    local.applyAxisAngle(THREE.Object3D.DEFAULT_UP, -yaw);
+    this.poseOffset.copy(local);
   }
 
   playActivity(kind: 'cook' | 'eat'): void {
@@ -214,12 +223,18 @@ export class Actor {
     }
 
     const stride = walking ? Math.sin(this.clock * 11) * 0.39 : 0;
-    this.leftLeg.rotation.x = stride;
-    this.rightLeg.rotation.x = -stride;
-    this.leftArm.rotation.x = -stride * 0.80;
-    this.rightArm.rotation.x = stride * 0.80;
-    this.leftArm.rotation.z = -0.11;
-    this.rightArm.rotation.z = 0.11;
+    const seated = !walking && (this.pose === 'sit' || this.pose === 'work');
+    const asleep = !walking && this.pose === 'sleep';
+    this.leftLeg.rotation.x = seated ? 1.28 : stride;
+    this.rightLeg.rotation.x = seated ? 1.28 : -stride;
+    this.leftArm.rotation.x = asleep ? 0.15 : seated ? -0.26 : -stride * 0.80;
+    this.rightArm.rotation.x = asleep ? 0.15 : seated ? -0.26 : stride * 0.80;
+    this.leftArm.rotation.z = asleep ? -0.30 : -0.11;
+    this.rightArm.rotation.z = asleep ? 0.30 : 0.11;
+    if (this.pose === 'work' && !walking) {
+      this.leftArm.rotation.x = -0.88 + Math.sin(this.clock * 6.1) * 0.17;
+      this.rightArm.rotation.x = -0.88 + Math.cos(this.clock * 5.6) * 0.15;
+    }
     if (this.activity) {
       this.activityTime += dt;
       if (this.activity === 'cook') {
@@ -249,11 +264,16 @@ export class Actor {
       this.heart.scale.setScalar(0.84 + Math.sin(this.gestureTime * 4) * 0.06);
       if (this.gestureTime >= 3.1) this.setPose('idle');
     }
-    this.figure.position.y = walking ? 0.04 + Math.abs(Math.sin(this.clock * 11)) * 0.03
-      : this.pose === 'sit' || this.pose === 'work' ? -0.26
-      : this.pose === 'sleep' ? -0.37
+    const bob = walking ? 0.04 + Math.abs(Math.sin(this.clock * 11)) * 0.03
       : this.gesture ? Math.sin(this.clock * 4) * 0.023
+      : seated || asleep ? 0
       : Math.sin(this.clock * 1.7) * 0.009;
-    if (this.activity !== 'cook') this.figure.rotation.z = this.pose === 'sleep' ? -0.13 : 0;
+    const alpha = Math.min(1, dt * 7.5);
+    this.figure.position.lerp(this.poseOffset, alpha);
+    this.figure.position.y += bob;
+    this.figure.rotation.x += ((asleep ? -Math.PI / 2 : 0) - this.figure.rotation.x) * alpha;
+    if (this.activity !== 'cook') this.figure.rotation.z *= (1 - alpha);
+    this.selectionRing.position.x += (this.poseOffset.x - this.selectionRing.position.x) * alpha;
+    this.selectionRing.position.z += (this.poseOffset.z - this.selectionRing.position.z) * alpha;
   }
 }
