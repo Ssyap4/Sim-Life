@@ -1,6 +1,12 @@
+import type { PlaceId, Point, WorldCommand } from '../shared/locations';
+import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
-import type { IngredientId, RecipeId } from '../shared/food';
+import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
+import type { BasketLine } from '../shared/market';
+import type { JobId } from '../shared/jobs';
 import type { PetId, PetAction } from '../shared/pets';
+import type { HomeLeisure } from '../shared/home';
+import type { WalkRoute } from '../game/navigation';
 
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
@@ -8,18 +14,25 @@ export interface ConnectionCallbacks {
   onOnline(online: CharacterId[]): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
+  onStoreEvent(role: CharacterId, message: string): void;
+  onJobEvent(role: CharacterId, outcome:'started'|'finished'|'left_early', message:string):void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
-  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand): void;
+  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean): void;
+  onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
+  onStorageEvent(role: CharacterId, station?: string): void;
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
   onStatus(status: string): void;
+  onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
+  onWorldEvent(role: CharacterId, message: string): void;
+  onDeliveryArrived(): void;
 }
 
 export class LiveConnection {
   private socket: WebSocket | null = null;
   private role: CharacterId | null = null;
-  private code = '';
+  private credential: { code: string; remember: boolean } | { token: string } | null = null;
   private retryCount = 0;
   private retryTimer: number | undefined;
   private stopped = false;
@@ -27,12 +40,18 @@ export class LiveConnection {
 
   constructor(private readonly callbacks: ConnectionCallbacks) {}
 
-  login(role: CharacterId, code: string): void {
-    if (!code) return;
+  login(role: CharacterId, code: string, remember = false): void {
+    if (!code.trim()) return;
+    this.connect(role, { code: code.trim(), remember });
+  }
+
+  resume(role: CharacterId, token: string): void { this.connect(role, { token }); }
+
+  private connect(role: CharacterId, credential: NonNullable<LiveConnection['credential']>): void {
     this.stop();
     this.stopped = false;
     this.role = role;
-    this.code = code.trim();
+    this.credential = credential;
     this.retryCount = 0;
     this.open();
   }
@@ -51,12 +70,31 @@ export class LiveConnection {
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
   }
 
+  startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
+  leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
+
+  checkout(lines: BasketLine[]): boolean {
+    return this.sendAuthenticated({type:'checkout',lines});
+  }
+
+  eatTakeout(item: TakeoutId): boolean {
+    return this.sendAuthenticated({type:'eat_takeout',item});
+  }
+
   cancelTask(taskId: number): boolean {
     return this.sendAuthenticated({ type: 'cancel_task', taskId });
   }
 
   petAction(pet: PetId, action: PetAction): boolean {
     return this.sendAuthenticated({ type: 'pet_action', pet, action });
+  }
+
+  world(command: WorldCommand): boolean { return this.sendAuthenticated(command); }
+
+  forgetDevice(): void {
+    storeTrust(null);
+    if (this.authorized) this.send({ type: 'forget_device' });
+    this.stop();
   }
 
   offerSocial(kind: SocialKind): boolean { return this.sendAuthenticated({ type: 'social_offer', kind }); }
@@ -73,10 +111,14 @@ export class LiveConnection {
 
   stop(): void {
     this.stopped = true;
+    this.credential = null;
+    this.role = null;
     window.clearTimeout(this.retryTimer);
     this.authorized = false;
     if (this.socket) {
       this.socket.onclose = null;
+      this.socket.onmessage = null;
+      this.socket.onopen = null;
       this.socket.close();
     }
     this.socket = null;
@@ -96,7 +138,10 @@ export class LiveConnection {
     catch { this.scheduleRetry(); return; }
     this.socket = socket;
     socket.onopen = () => {
-      if (this.role) this.send({ type: 'auth', role: this.role, code: this.code });
+      if (!this.role || !this.credential || this.socket !== socket) return;
+      if ('token' in this.credential) this.send({ type: 'resume', role: this.role, token: this.credential.token });
+      else this.send({ type: 'auth', role: this.role, ...this.credential });
+
     };
     socket.onmessage = (event: MessageEvent<string>) => {
       let packet: ServerPacket;
@@ -106,7 +151,16 @@ export class LiveConnection {
         this.authorized = true;
         this.retryCount = 0;
         this.callbacks.onReady(packet.role, packet.state, packet.online);
-        this.callbacks.onStatus('Мы дома — синхронизация активна');
+        this.callbacks.onStatus('Синхронизация активна');
+      } else if (packet.type === 'device_token' && this.authorized && packet.role === this.role) {
+        this.credential = { token: packet.token };
+        storeTrust({ role: packet.role, token: packet.token });
+      } else if (packet.type === 'world_path' && this.authorized) {
+        this.callbacks.onWorldPath(packet.role, packet.place, packet.path, packet.station);
+      } else if (packet.type === 'world_event' && this.authorized) {
+        this.callbacks.onWorldEvent(packet.role, packet.message);
+      } else if (packet.type === 'delivery_arrived' && this.authorized) {
+        this.callbacks.onDeliveryArrived();
       } else if (packet.type === 'snapshot' && this.authorized) {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {
@@ -115,10 +169,18 @@ export class LiveConnection {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
         this.callbacks.onFoodEvent(packet.role, packet.action, packet.message);
+      } else if (packet.type === 'store_event' && this.authorized) {
+        this.callbacks.onStoreEvent(packet.role, packet.message);
+      } else if (packet.type === 'job_event' && this.authorized) {
+        this.callbacks.onJobEvent(packet.role,packet.outcome,packet.message);
       } else if (packet.type === 'pet_event' && this.authorized) {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'task_started' && this.authorized) {
-        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command);
+        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command, packet.automatic);
+      } else if (packet.type === 'home_leisure' && this.authorized) {
+        this.callbacks.onHomeLeisure(packet.roles, packet.activity, packet.routes);
+      } else if (packet.type === 'storage_event' && this.authorized) {
+        this.callbacks.onStorageEvent(packet.role, packet.station);
       } else if (packet.type === 'task_ended' && this.authorized) {
         this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message);
       } else if (packet.type === 'social_start' && this.authorized) {
@@ -126,6 +188,7 @@ export class LiveConnection {
       } else if (packet.type === 'error') {
         this.callbacks.onError(packet.reason);
         if (!this.authorized && (packet.reason.includes('код') || packet.reason.includes('занят'))) {
+          if (packet.reason.includes('Доверие устройства истекло')) storeTrust(null);
           this.callbacks.onStatus('Не удалось войти: ' + packet.reason);
           this.stop();
         }

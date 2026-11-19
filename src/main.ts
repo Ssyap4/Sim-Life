@@ -1,9 +1,16 @@
+import { PLACES, stationById } from './shared/locations';
+import { createLocationUI } from './locationUI';
+import { trustedDevice } from './core/trusted';
 import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
+import { createMarketUI, showTakeoutChoices } from './marketUI';
+import { makeJobBoard } from './jobsUI';
+import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
+import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
   type ActionId, type CharacterId, type GameState, type ItemId,
@@ -19,6 +26,7 @@ interface TaskView {
   label: string;
   since: number;
   durationMs: number;
+  automatic?: boolean;
 }
 const tasks = new Map<CharacterId, TaskView>();
 let world: World;
@@ -34,9 +42,10 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · ЖИВОЙ РИТМ</div>
+      <div class="version">0.4 · ЖИВОЙ РАЙОН</div>
     </div>
-    <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
+    <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
+    <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button><button id="map-btn" type="button" disabled>🗺️ Дом</button></div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
         <span class="avatar avatar-vlad">В</span>
@@ -47,32 +56,45 @@ app.innerHTML = `
         <span class="person-info"><strong>Алина <small id="online-alina">○</small></strong><span>Реконструкция волос</span><span class="meters"><i class="hunger" id="alina-hunger"></i><i class="energy" id="alina-energy"></i></span></span>
       </button>
     </div>
-    <div class="status-line" id="status">Подключение к общему дому…</div>
-  </header>
-  <div id="message" class="message" aria-live="polite"></div>
-  <div class="showcase-ui">
-    <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
-    <div id="showcase-choices" class="showcase-choices" hidden>
-      <button type="button" data-showcase="vlad">👨 Влад</button>
-      <button type="button" data-showcase="alina">👩 Алина</button>
-      <button type="button" data-showcase="verdell">🐕 Верделл</button>
-      <button type="button" data-showcase="simba">🐈 Симба</button>
-      <button type="button" data-showcase="home">🏡 Весь дом</button>
+    <div class="status-line" id="status" role="status">Подключение к общему дому…</div>
+    <div class="showcase-ui">
+      <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false">🔎 Посмотреть модели</button>
+      <div id="showcase-choices" class="showcase-choices" hidden>
+        <button type="button" data-showcase="vlad">👨 Влад</button>
+        <button type="button" data-showcase="alina">👩 Алина</button>
+        <button type="button" data-showcase="verdell">🐕 Верделл</button>
+        <button type="button" data-showcase="simba">🐈 Симба</button>
+        <button type="button" data-showcase="home">🏡 Весь дом</button>
+      </div>
     </div>
-  </div>
+  </header>
+  <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
+    <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
+    <div id="needs-content"></div>
+  </section>
+  <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
+  <div id="world-transition" aria-hidden="true"></div>
+  <div id="message" class="message" aria-live="polite"></div>
+  <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
+  <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
+    <div id="location-panel" class="actions location-panel" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
-    <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
-    <div class="home-buttons">
-      <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
-      <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
+    <div class="bottom-bar">
+      <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
+      <div class="home-buttons">
+        <button id="market-btn" class="market-btn" type="button" disabled>🛍️ Доставка</button>
+        <button id="jobs-btn" class="market-btn jobs-btn" type="button" disabled>🧰 Подработки</button>
+        <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
+      </div>
+      <div class="tip">
+        <span class="tip-icon">✦</span>
+        <span>Тап по предмету · Щипок для масштаба</span>
+      </div>
+      <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
     </div>
-    <div class="tip">
-      <span class="tip-icon">✦</span>
-      <span>Нажимай на предметы и питомцев для действий. 🔎 Посмотреть модели — близкий просмотр Влада, Алины, Верделла и Симбы. Камера вращается пальцем.</span>
-    </div>
-    <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>
   <section id="auth" class="auth-screen" aria-labelledby="auth-title">
     <form id="auth-form" class="auth-card">
@@ -86,7 +108,8 @@ app.innerHTML = `
       </div>
       <label for="access-code">Личный код персонажа</label>
       <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Код из server-data/access.json" autocomplete="off" required />
-      <button class="enter-button" type="submit">Войти в общий дом</button>
+      <label class="remember-device"><input type="checkbox" id="remember-device"> Запомнить вход на этом устройстве</label>
+      <button class="enter-button" type="submit" disabled>Войти в общий дом</button>
       <p class="auth-status" id="auth-status">Коды созданы на компьютере в D:\\Sim-Life\\server-data\\access.json</p>
       <small>Доступен по домашней Wi-Fi сети. Пока не публикуй адрес сервера в интернете.</small>
     </form>
@@ -103,32 +126,59 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
+const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
+const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
+const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
+const transition = document.querySelector<HTMLElement>('#world-transition')!;
+const rememberDevice = document.querySelector<HTMLInputElement>('#remember-device')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
+const jobsBtn = document.querySelector<HTMLButtonElement>('#jobs-btn')!;
+const jobsOverlay=document.querySelector<HTMLElement>('#jobs-overlay')!;
+const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
+const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
+const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
+const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
+const marketOverlay = document.querySelector<HTMLElement>('#market-overlay')!;
+function toggleNeeds(open: boolean): void {
+  needsPanelEl.hidden = !open;
+  needsToggleEl.setAttribute('aria-expanded', String(open));
+  if (open) renderNeeds();
+}
+needsToggleEl.addEventListener('click', () => toggleNeeds(Boolean(needsPanelEl.hidden)));
+document.querySelector<HTMLButtonElement>('#needs-close')!.addEventListener('click', () => toggleNeeds(false));
 const showcaseToggle = document.querySelector<HTMLButtonElement>('#showcase-toggle')!;
 const showcaseChoices = document.querySelector<HTMLDivElement>('#showcase-choices')!;
+const showcaseReturn = document.querySelector<HTMLButtonElement>('#showcase-return')!;
+const topHud = document.querySelector<HTMLElement>('.top-ui')!;
+const bottomHud = document.querySelector<HTMLElement>('.bottom-ui')!;
+const bottomBar = document.querySelector<HTMLElement>('.bottom-bar')!;
+
+function focusModel(id: CharacterId | PetId | null): void {
+  document.querySelector('#app')?.classList.toggle('inspecting', Boolean(id));
+  showcaseReturn.hidden = id === null;
+  showcaseChoices.hidden = true;
+  showcaseToggle.setAttribute('aria-expanded', 'false');
+  showcaseChoices.querySelectorAll<HTMLButtonElement>('button').forEach((item) => {
+    item.classList.toggle('selected', item.dataset.showcase === (id ?? 'home'));
+  });
+  showcaseToggle.textContent = id === null ? '🔎 Посмотреть модели'
+    : '🔎 ' + (id === 'vlad' || id === 'alina' ? names[id] : PETS[id].name);
+  world.showcase(id);
+}
 
 showcaseToggle.addEventListener('click', () => {
   showcaseChoices.hidden = !showcaseChoices.hidden;
   showcaseToggle.setAttribute('aria-expanded', String(!showcaseChoices.hidden));
 });
-showcaseChoices.querySelectorAll<HTMLButtonElement>('[data-showcase]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const id = button.dataset.showcase;
-    if (id === 'home') world.showcase(null);
-    else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
-      world.showcase(id);
-    }
-    showcaseChoices.querySelectorAll('button').forEach((item) => {
-      item.classList.toggle('selected', item === button);
-    });
-    showcaseChoices.hidden = true;
-    showcaseToggle.setAttribute('aria-expanded', 'false');
-    showcaseToggle.textContent = id === 'home'
-      ? '🔎 Посмотреть модели'
-      : '🔎 ' + ({ vlad: 'Влад', alina: 'Алина',
-        verdell: 'Верделл', simba: 'Симба' } as Record<string, string>)[id!] + ' · сменить';
-    // Keep the model unobstructed; tap again to choose another close-up.
-  });
+showcaseReturn.addEventListener('click', () => focusModel(null));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
+  if (event.key === 'Escape') {toggleNeeds(false); marketUI.close(); jobsUI.close();}
+});
+showcaseChoices.addEventListener('click', (event) => {
+  const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
+  if (id === 'home') focusModel(null);
+  else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') focusModel(id);
 });
 
 function notify(message: string): void {
@@ -148,7 +198,7 @@ function drawTaskPanel(): void {
     const top = document.createElement('div');
     top.className = 'running-task-top';
     const title = document.createElement('strong');
-    title.textContent = names[role] + ': ' + task.label;
+    title.textContent = names[role] + ': ' + (task.automatic ? 'Самостоятельно · ' : '') + task.label;
     const secs = document.createElement('span');
     secs.className = 'task-seconds';
     top.append(title, secs);
@@ -185,16 +235,87 @@ function updateTaskProgress(): void {
 }
 window.setInterval(() => { if (tasks.size) updateTaskProgress(); }, 150);
 
-function render(): void {
+function renderNeeds(): void {
+  if (!state || needsPanelEl.hidden) return;
+  needsContentEl.replaceChildren();
+  for (const role of ['vlad', 'alina'] as const) {
+    const char = state.characters[role];
+    const group = document.createElement('div');
+    group.className = 'needs-group';
+    const heading = document.createElement('strong');
+    heading.textContent = names[role] + ' · настроение ' + Math.round(char.mood) + '%';
+    group.append(heading);
+    for (const need of VITAL_NEEDS) {
+      const info = NEED_INFO[need];
+      const value = Math.round(char[need]);
+      const row = document.createElement('div');
+      row.className = 'need-row';
+      row.title = info.hint;
+      const label = document.createElement('span');
+      label.textContent = info.emoji + ' ' + info.label;
+      const track = document.createElement('div');
+      track.className = 'need-track';
+      const fill = document.createElement('i');
+      fill.style.width = value + '%';
+      if (value < 30) fill.classList.add('need-low');
+      else if (value < 55) fill.classList.add('need-mid');
+      track.append(fill);
+      const percent = document.createElement('span');
+      percent.className = 'need-value';
+      percent.textContent = value + '%';
+      row.append(label, track, percent);
+      group.append(row);
+    }
+    const urgent = VITAL_NEEDS.find(need => char[need] < 35);
+    if (urgent) {
+      const hint = document.createElement('small');
+      hint.className = 'need-hint';
+      hint.textContent = '✦ ' + NEED_INFO[urgent].hint;
+      group.append(hint);
+    }
+    needsContentEl.append(group);
+  }
+}
+
+function render(reset = false): void {
   if (!state) return;
+  if (active && world) {
+    const place = state.world.places[active];
+    if (world.place !== place) {
+      actionsEl.hidden = true;
+      marketUI.close();
+      jobsUI.close();
+      focusModel(null);
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
+      }
+      statusEl.textContent = PLACES[place].name;
+    }
+    world.syncHousehold(state, active, reset, online);
+    locationUI.refresh(state, active);
+    mapBtn.textContent = '🗺️ Карта';
+    mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
+    petsBtn.disabled = place !== 'home';
+    document.querySelector<HTMLElement>('#app')!.dataset.place = place;
+    if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
+      deliverySequence = null;
+      marketUI.acknowledge();
+    }
+  }
+  clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
+    state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
+  world?.setTimeOfDay(state.clock.minute);
+  renderNeeds();
   document.querySelector<HTMLElement>('#money')!.textContent =
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
     online.length + ' из 2 игроков онлайн';
+  const used=storageUsage(state);
   document.querySelector<HTMLElement>('#stock-line')!.textContent =
-    '🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread +
-    ' · 🥛 ' + state.pantry.milk + ' · 🍽️ Готово: ' +
-    Object.values(state.meals).reduce((a, b) => a + b, 0) + ' порций';
+    '🧊 Холодильник: '+used.fridge+'/'+FRIDGE_CAPACITY+
+    ' · 🗄️ Полки: '+used.cupboard+'/'+CUPBOARD_CAPACITY+
+    ' · 🍽️ '+(Object.values(state.meals).reduce((a,b)=>a+b,0)+
+      Object.values(state.takeout).reduce((a,b)=>a+b,0))+' порц.';
   for (const id of ['vlad', 'alina'] as const) {
     const stats = state.characters[id];
     const hunger = document.querySelector<HTMLElement>('#' + id + '-hunger')!;
@@ -204,7 +325,7 @@ function render(): void {
     const button = document.querySelector<HTMLButtonElement>('[data-id="' + id + '"]')!;
     button.classList.toggle('active', id === active);
     button.setAttribute('aria-pressed', String(id === active));
-    button.title = 'Голод ' + Math.round(stats.hunger) + '%, энергия ' + Math.round(stats.energy) + '%, навык ' + Math.round(stats.skill) + '%';
+    button.title = (state.activeShifts[id]?'На подработке · ':'')+'Голод ' + Math.round(stats.hunger) + '%, энергия ' + Math.round(stats.energy) + '%, навык ' + Math.round(stats.skill) + '%';
     const indicator = document.querySelector<HTMLElement>('#online-' + id)!;
     indicator.textContent = online.includes(id) ? '●' : '○';
     indicator.style.color = online.includes(id) ? '#65a876' : '#b9b9b9';
@@ -215,6 +336,35 @@ function showStatus(text: string): void {
   statusEl.textContent = text;
   authStatusEl.textContent = text;
 }
+let deliverySequence: number | null = null;
+const marketUI = createMarketUI(marketOverlay, (lines) => {
+  if (!state || !active || deliverySequence !== null) return false;
+  const sequence = state.world.sequence[active];
+  if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
+  deliverySequence = sequence;
+  return true;
+});
+const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
+  recipe => { net.food('cook', recipe); }, signOut);
+
+function signOut(): void {
+  net.forgetDevice();
+  deliverySequence = null;
+  active = null;
+  state = null;
+  tasks.clear();
+  drawTaskPanel();
+  accessInput.value = '';
+  rememberDevice.checked = false;
+  authEl.hidden = false;
+  marketBtn.disabled = jobsBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  actionsEl.hidden = true;
+  marketUI.close();
+  jobsUI.close();
+  locationUI.reset();
+  showStatus('Выбери персонажа и введи личный код');
+}
+const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly());
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
@@ -222,27 +372,43 @@ const net = new LiveConnection({
     online = players;
     tasks.clear();
     drawTaskPanel();
+    toggleNeeds(false);
+    marketUI.close();
+    jobsUI.close();
     authEl.hidden = true;
+    mapBtn.disabled = false;
     marketBtn.disabled = false;
+    jobsBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
-    for (const id of ['vlad', 'alina'] as const) {
-      const snapshot = household.characters[id];
-      world.restoreCharacter(id, snapshot.x, snapshot.z, snapshot.pose);
-    }
     world.setActive(role);
-    render();
+    render(true);
     notify('Добро пожаловать, ' + names[role] + '! Это настоящий общий дом ♥');
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
       state = household;
       render();
+      marketUI.refresh(household);
+      jobsUI.refresh(household);
     }
   },
   onOnline(players) {
     online = players;
     render();
+  },
+  onWorldPath(role, place, path, station) {
+    if (!active || world.place !== place) return;
+    const target = stationById(place, station);
+    world.runLocationPath(role, path, station, () => {
+      if (role === active && target && world.place === place) locationUI.visit(target);
+    });
+  },
+  onWorldEvent(role, message) {
+    if (role === active) notify(message);
+  },
+  onDeliveryArrived() {
+    notify('Доставка у двери дома');
   },
   onAction(_role, _actionId, message) {
     statusEl.textContent = message;
@@ -252,24 +418,44 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(message);
   },
+  onStoreEvent(role,message) {
+    if(role===active) marketUI.acknowledge();
+    statusEl.textContent=message;
+    notify(message);
+  },
+  onJobEvent(_role,_outcome,message) {
+    statusEl.textContent=message;
+    notify(message);
+  },
   onPetEvent(_role, _pet, _action, message) {
     statusEl.textContent = message;
     notify(message);
   },
-  onTaskStarted(role, taskId, label, durationMs, command) {
-    tasks.set(role, { taskId, label, durationMs, since: performance.now() });
+  onHomeLeisure(roles, activity, routes) {
+    world.setHomeLeisure(roles, activity, routes);
+  },
+  onStorageEvent(role, station) {
+    if (world.place !== 'home') return;
+    if (station) world.openStorage(station, role);
+    else world.closeStorage(role);
+  },
+  onTaskStarted(role, taskId, label, durationMs, command, automatic) {
+    tasks.set(role, { taskId, label, durationMs, automatic, since: performance.now() });
     drawTaskPanel();
     const animated = world.startTimedAction(role, command);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated) notify('Действие началось на сервере, путь анимации пока недоступен');
   },
   onTaskEnded(role, taskId, outcome, message) {
-    if (tasks.get(role)?.taskId === taskId) {
+    const previous = tasks.get(role);
+    if (previous?.taskId === taskId) {
+      if (outcome === 'completed') world.finishTimedAction(role);
       tasks.delete(role);
       drawTaskPanel();
     }
     if (outcome !== 'completed') {
       world.cancelTimedAction(role);
+      if (previous?.automatic) return;
       statusEl.textContent = message;
       notify(message);
     }
@@ -281,20 +467,31 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
-    if (!authEl.hidden || reason.includes('занят') || reason.includes('Неверный код')) {
+    deliverySequence = null;
+    locationUI.reject();
+    if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
       authEl.hidden = false;
       active = null;
+      mapBtn.disabled = true;
       marketBtn.disabled = true;
+      jobsBtn.disabled = true;
       petsBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
-    } else notify(reason);
+    } else {
+      notify(reason);
+      if (state) {marketUI.refresh(state); jobsUI.refresh(state);} // failed action: re-enable controls
+    }
   },
   onStatus(text) {
     if (text.includes('Связь потеряна')) {
       for (const role of tasks.keys()) world.cancelTimedAction(role);
       tasks.clear();
       drawTaskPanel();
+      deliverySequence = null;
+      locationUI.reject();
+      locationUI.close();
+      locationUI.closeMap();
     }
     if (!authEl.hidden) authStatusEl.textContent = text;
     statusEl.textContent = text;
@@ -304,6 +501,11 @@ const net = new LiveConnection({
 function openSocialActions(target: CharacterId): void {
   if (!active || !net.isReady()) { notify('Сначала войди в дом'); return; }
   if (target === active) return;
+  locationUI.close();
+  if (state && state.world.places[active] !== state.world.places[target]) {
+    notify(names[target] + ' · ' + PLACES[state.world.places[target]].name);
+    return;
+  }
   actionsEl.replaceChildren();
   actionsEl.hidden = false;
   const heading = document.createElement('div');
@@ -340,6 +542,11 @@ function openSocialActions(target: CharacterId): void {
 }
 
 function openPetActions(pet: PetId | null = null): void {
+  locationUI.close();
+  if (active && world.place === 'park' && pet === 'verdell') {
+    net.world({ type: 'approach', place: 'park', station: 'park-dog' });
+    return;
+  }
   if (!active || !net.isReady() || !state) {
     notify('Сначала войди в общий дом');
     return;
@@ -370,8 +577,14 @@ function openPetActions(pet: PetId | null = null): void {
 }
 
 function openActions(item: ItemId): void {
+  locationUI.close();
   if (!active || !net.isReady()) {
     notify('Сначала войди в дом');
+    return;
+  }
+  if(item==='delivery' && state) {
+    actionsEl.hidden=true;
+    marketUI.open(state);
     return;
   }
   actionsEl.innerHTML = '';
@@ -388,6 +601,10 @@ function openActions(item: ItemId): void {
   close.setAttribute('aria-label', 'Закрыть меню');
   close.addEventListener('click', () => { actionsEl.hidden = true; });
   actionsEl.appendChild(close);
+  const about=document.createElement('p');
+  about.className='food-empty';
+  about.textContent=HOME_OBJECT_DETAILS[item];
+  actionsEl.appendChild(about);
 
   if (state && (item === 'delivery' || item === 'kitchen' || item === 'table')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
@@ -400,6 +617,13 @@ function openActions(item: ItemId): void {
     });
   }
 
+  if (item === 'table' && state) {
+    showTakeoutChoices(actionsEl,state,(id)=>{
+      const sent=net.eatTakeout(id);
+      if(sent) actionsEl.hidden=true;
+      return sent;
+    });
+  }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
     if ('role' in definition && definition.role !== active) continue;
@@ -415,42 +639,88 @@ function openActions(item: ItemId): void {
   }
 }
 
-try {
-  world = new World(canvas, (id) => {
-    if (id === 'vlad' || id === 'alina') openSocialActions(id);
-    else if (id === 'verdell' || id === 'simba') openPetActions(id);
-    else openActions(id);
-  });
-  document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (active && button.dataset.id !== active) {
-        openSocialActions(button.dataset.id === 'alina' ? 'alina' : 'vlad');
-      } else if (active && state) {
-        const s = state.characters[active];
-        notify('Навык: ' + Math.round(s.skill) + '% · настроение: ' + Math.round(s.mood) + '%');
-      }
+async function initializeWorld(app: HTMLDivElement): Promise<void> {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const diagnostics = params.get('perf') === '1'
+      ? await import('./game/PerformanceProbe').then(({ createPerformanceProbe }) => createPerformanceProbe(app))
+      : null;
+    const modelsStartedMs = performance.now();
+    const useBlender = params.get('characters') !== 'procedural';
+    const characters = useBlender ? await import('./game/BlenderCharacter')
+      .then(({ loadResidents }) => loadResidents())
+      .catch((err: unknown) => {
+        console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
+        return {};
+      }) : {};
+    const modelsReadyMs = performance.now();
+    world = new World(canvas, (id) => {
+      if (id === 'vlad' || id === 'alina') openSocialActions(id);
+      else if (id === 'verdell' || id === 'simba') openPetActions(id);
+      else openActions(id);
+    }, (inspection) => {
+      const viewport = canvas.getBoundingClientRect();
+      return {
+        top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
+        bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
+      };
+    }, characters, diagnostics?.onFrame, {
+      station(id) {
+        if (!active) return;
+        actionsEl.hidden = true;
+        locationUI.close(); locationUI.closeMap();
+        net.world({ type: 'approach', place: world.place, station: id });
+      },
+      ground(x, z) {
+        if (!active) return;
+        if (net.world({ type: 'walk', place: world.place, x, z })) locationUI.close();
+      },
     });
-  });
-  marketBtn.addEventListener('click', () => openActions('delivery'));
-  petsBtn.addEventListener('click', () => openPetActions());
-  const form = document.querySelector<HTMLFormElement>('#auth-form')!;
-  document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
-    button.addEventListener('click', () => {
-      selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
-      document.querySelectorAll('.role-option').forEach((item) =>
-        item.classList.toggle('selected', item === button),
-      );
+    diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
+      useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
+    const layoutObserver = new ResizeObserver(() => {
+      app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
+      world.refreshViewport();
     });
-  });
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const code = accessInput.value.trim();
-    if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
-    net.login(selectedRole, code);
-  });
-  window.addEventListener('pagehide', () => net.stop());
-  showStatus('Выбери персонажа и введи личный код');
-} catch (error) {
-  console.error(error);
-  showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
+    for (const area of [canvas, topHud, bottomHud, bottomBar]) layoutObserver.observe(area);
+    document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (active && button.dataset.id !== active) {
+          openSocialActions(button.dataset.id === 'alina' ? 'alina' : 'vlad');
+        } else if (active && state) {
+          const s = state.characters[active];
+          notify('Навык: ' + Math.round(s.skill) + '% · настроение: ' + Math.round(s.mood) + '%');
+        }
+      });
+    });
+    mapBtn.addEventListener('click', () => { actionsEl.hidden = true; marketUI.close(); jobsUI.close(); locationUI.openMap(); });
+    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;locationUI.close();locationUI.closeMap();jobsUI.close();marketUI.open(state);} });
+    jobsBtn.addEventListener('click',()=>{if(state && active){actionsEl.hidden=true;locationUI.close();locationUI.closeMap();marketUI.close();jobsUI.open(state,active);}});
+    petsBtn.addEventListener('click', () => openPetActions());
+    document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
+      button.addEventListener('click', () => {
+        selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
+        document.querySelectorAll('.role-option').forEach((item) =>
+          item.classList.toggle('selected', item === button),
+        );
+      });
+    });
+    window.addEventListener('pagehide', () => net.stop());
+    document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
+    showStatus('Выбери персонажа и введи личный код');
+    const remembered = trustedDevice();
+    if (remembered) net.resume(remembered.role, remembered.token);
+  } catch (error) {
+    console.error(error);
+    showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
+  }
 }
+
+document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!world) return;
+  const code = accessInput.value.trim();
+  if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
+  net.login(selectedRole, code, rememberDevice.checked);
+});
+void initializeWorld(app);

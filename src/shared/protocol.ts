@@ -1,5 +1,11 @@
-import { EMPTY_MEALS, EMPTY_PANTRY, type CookedMeals, type Pantry } from './food';
+import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
+import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
+import type { LedgerEntry } from './economy';
+import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
+import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
+import { KITCHEN_WORK, type HomeLeisure } from './home';
+import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
 
@@ -21,6 +27,10 @@ export interface Needs {
   energy: number;
   mood: number;
   skill: number;
+  hygiene: number;
+  social: number;
+  fun: number;
+  comfort: number;
 }
 export interface CharacterState extends Needs {
   x: number;
@@ -30,9 +40,15 @@ export interface CharacterState extends Needs {
 export interface GameState {
   version: 2;
   revision: number;
+  clock: GameClock;
+  world: WorldState;
   money: number;
   pantry: Pantry;
   meals: CookedMeals;
+  takeout: TakeoutStock;
+  ledger: LedgerEntry[];
+  shiftDays: Record<CharacterId, number>;
+  activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
   petFood: PetFoodStock;
   characters: Record<CharacterId, CharacterState>;
@@ -42,11 +58,11 @@ export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'А
 export const itemNames: Record<ItemId, string> = {
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
   kitchen: 'Кухня', tv: 'Телевизор', table: 'Журнальный столик',
-  delivery: 'Продуктовая доставка',
+  delivery: 'Магазин и доставка',
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
   sofa: { x: -3.0, z: 0.6 }, bed: { x: -3.85, z: -0.76 },
-  desk: { x: 3.17, z: 3.65 }, kitchen: { x: 3.10, z: -2.66 },
+  desk: { x: 2.68, z: 3.85 }, kitchen: KITCHEN_WORK.stove.position,
   tv: { x: -0.55, z: -2.58 }, table: { x: -0.80, z: 0.04 },
 };
 
@@ -59,26 +75,48 @@ export interface ActionDefinition {
 export const ACTIONS = {
   sofaRest: { label: '🛋️ Отдохнуть', item: 'sofa', pose: 'sit' },
   sofaMovie: { label: '🎬 Посмотреть фильм (диван + ТВ)', item: 'sofa', pose: 'sit' },
+  sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },
+  sofaMusic: { label: '🎵 Послушать музыку', item: 'sofa', pose: 'sit' },
+  sofaCall: { label: '📱 Позвонить близким', item: 'sofa', pose: 'sit' },
   bedSleep: { label: '🌙 Поспать', item: 'bed', pose: 'sleep' },
   bedNap: { label: '😴 Вздремнуть', item: 'bed', pose: 'sleep' },
-  vladOrder: { label: '💻 Простой фриланс-заказ (+120 ₽)', item: 'desk', pose: 'work', role: 'vlad' },
+  bedMake: { label: '🛏️ Заправить кровать', item: 'bed', pose: 'idle' },
+  bedStretch: { label: '🌅 Утренняя зарядка', item: 'bed', pose: 'idle' },
+  vladOrder: { label: '💻 Учебная практика без оплаты', item: 'desk', pose: 'work', role: 'vlad' },
   vladStudy: { label: '📚 Учиться разработке', item: 'desk', pose: 'work', role: 'vlad' },
+  deskGames: { label: '🎮 Поиграть на компьютере', item: 'desk', pose: 'work' },
+  deskJournal: { label: '📝 Записать мысли', item: 'desk', pose: 'work' },
   alinaStudy: { label: '📖 Изучить реконструкцию волос', item: 'desk', pose: 'work', role: 'alina' },
-  alinaConsult: { label: '📋 Консультация клиентки (+80 ₽; навык 15)', item: 'desk', pose: 'work', role: 'alina' },
-   watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'idle' },
+  alinaConsult: { label: '📋 Тренировка общения с клиентами', item: 'desk', pose: 'work', role: 'alina' },
+  kitchenWash: { label: '🫧 Умыться у раковины', item: 'kitchen', pose: 'idle' },
+  kitchenTidy: { label: '🧽 Убрать кухню', item: 'kitchen', pose: 'idle' },
+  kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
+  watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'idle' },
+  tvMusic: { label: '🎶 Послушать концерт', item: 'tv', pose: 'idle' },
   tableRest: { label: '☕ Посидеть за столом', item: 'table', pose: 'sit' },
+  tableTalk: { label: '💬 Пообщаться в переписке', item: 'table', pose: 'sit' },
+  tablePlan: { label: '📒 Спланировать день', item: 'table', pose: 'sit' },
  } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
 export type TimedCommand =
+  | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'act'; actionId: ActionId }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
+  | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket =
-  | { type: 'auth'; role: CharacterId; code: string }
+export type ClientPacket = WorldCommand
+  | { type: 'resume'; role: CharacterId; token: string }
+  | { type: 'forget_device' }
+  | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
   | { type: 'act'; actionId: ActionId }
   | { type: 'buy'; item: import('./food').IngredientId }
+  | { type: 'checkout'; lines: import('./market').BasketLine[] }
+  | { type: 'job_start'; job: import('./jobs').JobId }
+  | { type: 'job_cancel' } // compatibility with the first job-board prototype
+  | { type: 'job_leave_early' }
+  | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
   | { type: 'social_offer'; kind: SocialKind }
@@ -86,25 +124,34 @@ export type ClientPacket =
   | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
+  | { type: 'storage_event'; role: CharacterId; station?: string }
+  | { type: 'home_leisure'; roles: CharacterId[]; activity: HomeLeisure | null; routes: Partial<Record<CharacterId, WalkRoute>> }
+  | { type: 'device_token'; role: CharacterId; token: string }
+  | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
+  | { type: 'world_event'; role: CharacterId; message: string }
+  | { type: 'delivery_arrived' }
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
   | { type: 'snapshot'; state: GameState }
   | { type: 'online'; online: CharacterId[] }
   | { type: 'action'; role: CharacterId; actionId: ActionId; message: string }
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
+  | { type: 'store_event'; role: CharacterId; message: string }
+  | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'left_early'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
-  | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand }
+  | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand; automatic?: boolean }
   | { type: 'task_ended'; role: CharacterId; taskId: number; outcome: 'completed' | 'cancelled' | 'failed'; message: string }
   | { type: 'error'; reason: string };
 
 export function initialState(): GameState {
   return {
-    version: 2, revision: 0, money: 2500,
+    version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 2500,
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
+    takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
-      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, x: 0.5, z: 3.5, pose: 'idle' },
-      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, x: 1.65, z: 3.2, pose: 'idle' },
+      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },
+      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'alina'), pose: 'idle' },
     },
   };
 }

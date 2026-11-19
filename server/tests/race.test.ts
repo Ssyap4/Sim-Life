@@ -1,3 +1,4 @@
+import { GROCERIES } from '../../src/shared/food';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -45,8 +46,8 @@ test('Two simultaneous purchases update shared money exactly twice and reject fa
     assert.equal(vMessage.type, 'snapshot');
     assert.equal(aMessage.type, 'snapshot');
     if (vMessage.type === 'snapshot' && aMessage.type === 'snapshot') {
-      assert.equal(vMessage.state.money, 2440);
-      assert.equal(vMessage.state.pantry.eggs, 8);
+      assert.equal(vMessage.state.money, 2500 - GROCERIES.eggs.price * 2);
+      assert.equal(vMessage.state.pantry.eggs, 4 + GROCERIES.eggs.quantity * 2);
       assert.deepEqual(vMessage.state, aMessage.state);
     }
 

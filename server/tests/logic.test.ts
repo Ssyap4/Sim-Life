@@ -4,14 +4,14 @@ import { applyAction } from '../logic';
 import { applyFoodAction } from '../food';
 import { initialState } from '../../src/shared/protocol';
 
-test('Vlad receives a small order payment, while original snapshot stays unchanged', () => {
+test('Vlad practice advances skill without printing instant money', () => {
   const original = initialState();
   const result = applyAction(original, 'vlad', 'vladOrder');
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.state.money, 2620);
-  assert.equal(result.state.characters.vlad.skill, 6);
-  assert.equal(result.state.characters.vlad.energy, 71);
+  assert.equal(result.state.money, 2500);
+  assert.equal(result.state.characters.vlad.skill, 5);
+  assert.equal(result.state.characters.vlad.energy, 76);
   assert.equal(result.state.revision, 1);
   assert.equal(original.money, 2500);
 });
@@ -21,20 +21,14 @@ test('One character cannot execute the other character career action', () => {
   assert.equal(result.ok, false);
 });
 
-test('Alina learns reconstruction before client consultation is unlocked', () => {
-  const start = initialState();
-  assert.equal(applyAction(start, 'alina', 'alinaConsult').ok, false);
-  const one = applyAction(start, 'alina', 'alinaStudy');
-  assert.equal(one.ok, true);
-  if (!one.ok) return;
-  const two = applyAction(one.state, 'alina', 'alinaStudy');
-  assert.equal(two.ok, true);
-  if (!two.ok) return;
-  const consult = applyAction(two.state, 'alina', 'alinaConsult');
-  assert.equal(consult.ok, true);
-  if (!consult.ok) return;
-  assert.equal(consult.state.money, 2580);
-  assert.equal(consult.state.characters.alina.skill, 27);
+test('Alina practices communication without an imaginary salary',()=>{
+ const start=initialState();
+ const practiced=applyAction(start,'alina','alinaConsult');
+ assert.equal(practiced.ok,true);
+ if(!practiced.ok)return;
+ assert.equal(practiced.state.money,2500);
+ assert.equal(practiced.state.characters.alina.skill,4);
+ assert.equal(practiced.state.ledger.length,0);
 });
 
 test('Cooking creates two shareable portions from real ingredients', () => {
@@ -58,15 +52,15 @@ test('Cooking creates two shareable portions from real ingredients', () => {
 
 test('Shared funds cannot be overspent by a store purchase', () => {
   const start = initialState();
-  start.money = 20;
+  start.money = 45;
   const failed = applyFoodAction(start, 'vlad', { type: 'buy', item: 'eggs' });
   assert.equal(failed.ok, false);
-  assert.equal(start.money, 20);
+  assert.equal(start.money, 45);
   const ok = applyFoodAction(start, 'alina', { type: 'buy', item: 'bread' });
   assert.equal(ok.ok, true);
   if (!ok.ok) return;
   assert.equal(ok.state.money, 0);
-  assert.equal(ok.state.pantry.bread, 4);
+  assert.equal(ok.state.pantry.bread, 11);
 });
 
 test('Stats are capped and unknown commands rejected', () => {

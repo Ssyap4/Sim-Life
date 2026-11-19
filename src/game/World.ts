@@ -1,57 +1,47 @@
+import { ingredientList, type RecipeId } from '../shared/food';
+import { carryingBag, createLocation, homeExtensions } from './LocationScene';
+import { WORLD_FLOOR, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
+import { GROCERY_DETAILS } from '../shared/storageSpace';
+import { KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../shared/home';
+import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Actor } from './Actor';
+import { Actor, type DomesticMotion } from './Actor';
+import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
-import { PETS, type PetId, type PetAction } from '../shared/pets';
-import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
+import { PET_IDS, PET_SPEED, type PetId, type PetAction } from '../shared/pets';
+import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
+import { ACTIONS, points, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
+import { batchRigidParts } from './ArtKit';
+import { inspectionFrame, type ViewBand } from './InspectionFrame';
+import { portraitHomeFrame, renderProfile } from './HomeFrame';
+import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildSoftRugs } from './InteriorArt';
+import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
 
-const PALETTE = {
-  cream: 0xf2e9d9,
-  wall: 0xf6eee0,
-  floor: 0xbfa181,
-  wood: 0xb48a63,
-  woodDark: 0x755940,
-  olive: 0x91a08a,
-  sage: 0xb6c1a6,
-  rose: 0xd5aba0,
-  ivory: 0xfff8ed,
-  charcoal: 0x454c4a,
+// Coordinates of the visible keys and pan in InteriorArt. These are pose
+// targets only: the server and route planner still use the approach tiles.
+const deskKeys = [new THREE.Vector3(2.85, 1.116, 2.166), new THREE.Vector3(2.51, 1.116, 2.166)] as const;
+const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
+// Reuse the existing light articulated rig instead of loading extra animations.
+const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
+  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
+  bedMake: 'tidy', bedStretch: 'stretch',
+  deskGames: 'games', deskJournal: 'journal',
+  kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
+  tvMusic: 'music', tableTalk: 'phone', tablePlan: 'journal',
 };
 
-function material(color: number, roughness = 0.83): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
-}
+const homePosition = new THREE.Vector3(15, 19, 22);
+const homeTarget = new THREE.Vector3(0, 1.45, 0);
+const portraitAspect = 390 / 844;
+const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
 
-function block(parent: THREE.Object3D, size: [number, number, number], pos: [number, number, number], color: number, options?: { shadow?: boolean }): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = options?.shadow !== false;
-  mesh.receiveShadow = true;
-  parent.add(mesh);
-  return mesh;
-}
-
-function ball(parent: THREE.Object3D, radius: number, pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = radius > 0.18;
-  parent.add(mesh);
-  return mesh;
-}
-
-function cylinder(parent: THREE.Object3D, radius: number, height: number, pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 12), material(color));
-  mesh.position.set(...pos);
-  mesh.castShadow = true;
-  parent.add(mesh);
-  return mesh;
-}
+type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
 export const objectNames: Record<ItemId, string> = {
   sofa: 'Уютный диван',
@@ -63,7 +53,31 @@ export const objectNames: Record<ItemId, string> = {
 };
 
 export class World {
-  readonly scene = new THREE.Scene();
+  scene = new THREE.Scene();
+  private readonly homeScene = this.scene;
+  private readonly extensions = homeExtensions();
+  private readonly subjectMeshes: THREE.Object3D[] = [];
+  private readonly stationMeshes: THREE.Object3D[] = [];
+  private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
+  private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
+  private served: THREE.Group | null = null;
+  private readonly meals = new Map<CharacterId, THREE.Group>();
+  private readonly vector = new THREE.Vector3();
+  private remote: ReturnType<typeof createLocation> | null = null;
+  private externalObstacles: FloorRect[] = [];
+  private remoteMeshes: THREE.Object3D[] = [];
+  private readonly openDoors = new Map<CharacterId, string>();
+  private household: GameState | null = null;
+  private readonly sleepingOffline = new Set<CharacterId>();
+  private readonly homeLeisure = new Set<CharacterId>();
+  private readonly petRoutines = new Map<PetId, number>();
+  private localRole: CharacterId = 'vlad';
+  private cart: THREE.Group | null = null;
+  private cartSize = 0;
+  private dogTravel = 0;
+  private dogTrail: Point[] = [];
+  private lastDogPoint: Point | null = null;
+  place: PlaceId = 'home';
   readonly renderer: THREE.WebGLRenderer;
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
@@ -72,77 +86,108 @@ export class World {
   private readonly raycaster = new THREE.Raycaster();
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
-  private readonly obstacles: FloorRect[] = [];
+  private readonly obstacles = placeObstacles('home');
   private lastFrame = performance.now();
-  private downPoint: Point | null = null;
+  private downPoint: (Point & { id: number }) | null = null;
   private socialSequence = 0;
-  private cameraMove: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  private readonly taskSequence = { vlad: 0, alina: 0 };
+  private inspected: CharacterId | PetId | null = null;
+  private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
+  private followSubject: THREE.Object3D | null = null;
+  private readonly followPoint = new THREE.Vector3();
+  private readonly followDelta = new THREE.Vector3();
+  private readonly contactPoint = new THREE.Vector3();
+  private cameraMove: Frame | null = null;
+  private defaultFrame: Frame | null = null;
+  private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
+  private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
+  private readonly sun = new THREE.DirectionalLight(0xffe5ce, 2.48);
+  private readonly ambient = new THREE.HemisphereLight(0xeef2fb, 0xc6b39e, 1.87);
+  private lastDayPhase: ReturnType<typeof dayPhase> | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId | PetId) => void) {
-    this.scene.background = new THREE.Color(0xe9e9d9);
-    this.scene.fog = new THREE.Fog(0xe9e9d9, 26, 58);
+  constructor(private readonly canvas: HTMLCanvasElement,
+    private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
+    private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
+    characters: Partial<Record<CharacterId, CharacterModel>> = {},
+    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
+    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void }) {
+    this.scene.background = new THREE.Color(0xc0c7ad);
+    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.17;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 90);
-    this.camera.position.set(15, 19, 22);
+    this.camera.position.copy(homePosition);
     this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.target.set(0, 0, 0);
+    this.controls.target.copy(homeTarget);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
     this.controls.enablePan = false;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = 43;
+    this.controls.maxDistance = 51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.controls.update();
 
     this.createLights();
     this.createHome();
-    this.actors = {
-      vlad: new Actor('vlad', [0.5, 3.5]),
-      alina: new Actor('alina', [1.65, 3.2]),
-    };
-    this.scene.add(this.actors.vlad.root, this.actors.alina.root);
+    const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
+    this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
-    for (const pet of Object.values(this.pets)) {
-      this.scene.add(pet.root);
-      pet.root.traverse((part) => {
-        if (part instanceof THREE.Mesh) {
-          part.userData.interactable = pet.id;
-          this.interactiveMeshes.push(part);
-        }
+    for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
+      const visual = subject.root.children[0];
+      this.scene.add(subject.root);
+      visual.traverse((part) => {
+        if (!(part instanceof THREE.Mesh)) return;
+        part.userData.interactable = subject.id;
+        this.subjectMeshes.push(part);
       });
+      const pet = subject instanceof PetActor;
+      const shade = walkingContact(pet);
+      this.contacts.push({ visual, shade, pet });
+      this.scene.add(shade);
     }
-    for (const actor of Object.values(this.actors)) {
-      actor.root.traverse((part) => {
-        if (part instanceof THREE.Mesh && part !== actor.root.children[1]) {
-          part.userData.interactable = actor.id;
-          this.interactiveMeshes.push(part);
-        }
-      });
+    for (const id of ['vlad', 'alina'] as const) {
+      this.bags[id].visible = false;
+      this.scene.add(this.bags[id]);
+      const plate = new THREE.Group();
+      const dish = new THREE.Mesh(drum, finish(0xf2dfc3, 'ceramic'));
+      dish.scale.set(.19,.032,.19);
+      const food = new THREE.Mesh(softCube, finish(0xc88850, 'ceramic'));
+      food.scale.set(.22,.072,.20);
+      food.position.y = .042;
+      plate.add(dish, food);
+      plate.visible = false;
+      this.scene.add(plate);
+      this.meals.set(id, plate);
     }
+    const serving = this.meals.get('vlad')!.clone();
+    serving.position.set(-1.96, .586, -.23);
+    serving.visible = false;
+    this.homeScene.add(serving);
+    this.served = serving;
     this.setActive('vlad');
 
     canvas.addEventListener('pointerdown', (ev) => {
-      this.downPoint = { x: ev.clientX, z: ev.clientY };
+      this.downPoint = ev.isPrimary && ev.button === 0 && !this.downPoint
+        ? { x: ev.clientX, z: ev.clientY, id: ev.pointerId } : null;
     });
     canvas.addEventListener('pointerup', (ev) => {
-      if (ev.button !== 0 || !this.downPoint) return;
-      if (Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
+      if (this.downPoint?.id === ev.pointerId &&
+          Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
         this.pick(ev.clientX, ev.clientY);
       }
       this.downPoint = null;
     });
     canvas.addEventListener('pointercancel', () => { this.downPoint = null; });
-    window.addEventListener('resize', () => this.resize());
-    this.resize();
+    window.addEventListener('resize', () => this.refreshViewport());
+    this.compactPortrait.addEventListener('change', () => this.refreshViewport());
+    this.refreshViewport();
     this.animate();
   }
 
@@ -150,41 +195,55 @@ export class World {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
 
-  /** Optional close-up for judging the actual 3D models on a phone.
-   * No special render pass, textures or server state.
-   */
+  setAway(id:CharacterId,away:boolean):void {
+    const resident=this.actors[id];
+    if(resident.root.visible===!away)return;
+    resident.root.visible=!away;
+    const body=resident.root.children[0];
+    for(const item of this.contacts) {
+      if(item.visual===body)item.shade.visible=!away;
+    }
+    if(away && this.inspected===id)this.showcase(null);
+  }
+
   showcase(subject: CharacterId | PetId | null): void {
-    const home = subject === null;
-    this.controls.minDistance = home ? 10 : 1.5;
-    this.controls.maxDistance = home ? 43 : 12;
-    this.controls.maxPolarAngle = home ? 1.25 : 1.54;
-    if (home) {
-      this.cameraMove = {
-        position: new THREE.Vector3(15, 19, 22),
-        target: new THREE.Vector3(0, 0, 0),
-      };
+    this.inspected = subject;
+    this.controls.minDistance = subject ? 1.10 : 10;
+    // Keep the full transition in range before applying the inspection limit.
+    this.controls.maxDistance = 51;
+    this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
+    if (!subject) {
+      this.followSubject = null;
+      const band = this.viewBand(false);
+      this.defaultFrame = this.homeFrame(this.compactPortrait.matches, band);
+      this.cameraMove = this.defaultFrame;
       return;
     }
-    const isPerson = subject === 'vlad' || subject === 'alina';
-    const subjectPosition = isPerson
-      ? this.actors[subject].root.position
-      : this.pets[subject].root.position;
-    const target = subjectPosition.clone().add(
-      new THREE.Vector3(0, isPerson ? 0.99 : 0.54, 0));
-    // Portrait phones reserve room for the header and bottom toolbar.
-    // Full-body / full-pet framing is the default; pinch to inspect details.
-    this.cameraMove = {
-      position: target.clone().add(new THREE.Vector3(
-        isPerson ? 2.12 : 1.62, isPerson ? 1.72 : 1.25,
-        isPerson ? 4.85 : 3.58,
-      )),
-      target,
-    };
+    const person = subject === 'vlad' || subject === 'alina';
+    const subjectRoot = person ? this.actors[subject].root : this.pets[subject].root;
+    subjectRoot.updateWorldMatrix(true, true);
+    this.followSubject = subjectRoot.children[0];
+    this.followSubject.getWorldPosition(this.followPoint);
+    const bounds = new THREE.Box3().setFromObject(this.followSubject, true);
+    // Simba's right-hand approach to the inspection view had the desk in front.
+    const angle = subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
+      : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
+    this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
-    const safe = nearestClearPoint({ x, z }, this.obstacles);
+    const safe = nearestClearPoint({ x, z }, this.currentObstacles(), WORLD_FLOOR);
     if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
+    if (this.place !== 'home') {
+      const seat = [...(this.remote?.stations.keys() ?? [])].map(key => stationById(this.place, key)!)
+        .find(s => {
+          const point = approachFor(s, id);
+          return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
+        });
+      if (pose === 'sit' && seat) this.sitAt(id, seat);
+      else this.actors[id].setPose('idle');
+      return;
+    }
     const item = (['bed', 'sofa', 'desk', 'table'] as const).find((candidate) => {
       const location = points[candidate];
       return Math.hypot(location.x - x, location.z - z) < 0.5;
@@ -202,17 +261,19 @@ export class World {
   private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
     const actor = this.actors[id];
     const anchors = {
-      sofa: { x: -3.1, y: -0.25, z: 1.69, yaw: Math.PI },
-      bed: { x: -3.85, y: 0.91, z: -1.76, yaw: 0 },
-      desk: { x: 3.2, y: -0.23, z: 2.53, yaw: Math.PI },
-      table: { x: -0.84, y: -0.27, z: 0.05, yaw: -Math.PI / 2 },
+      // A sofa and double bed have two visual positions, not two overlapping residents.
+      sofa: { x: id === 'vlad' ? -3.60 : -2.60, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
+      bed: { x: id === 'vlad' ? -4.40 : -3.30, y: 1.055, z: -1.61, yaw: 0 },
+      desk: { x: 2.68, y: id === 'vlad' ? -0.24 : -0.19, z: 2.74, yaw: Math.PI },
+      table: { x: -0.84, y: id === 'vlad' ? -0.27 : -0.22, z: 0.05, yaw: -Math.PI / 2 },
     } as const;
     const anchor = anchors[itemId as keyof typeof anchors];
     if (!anchor || pose === 'idle') {
       actor.setPose(pose);
       return;
     }
-    actor.setFurniturePose(pose, new THREE.Vector3(anchor.x, anchor.y, anchor.z), anchor.yaw);
+    actor.setFurniturePose(pose, new THREE.Vector3(anchor.x, anchor.y, anchor.z), anchor.yaw,
+      itemId === 'desk' ? deskKeys : undefined);
   }
 
   perform(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work', onArrive: () => void): boolean {
@@ -233,37 +294,131 @@ export class World {
     return true;
   }
 
-  performFood(id: CharacterId, action: 'cook' | 'eat'): boolean {
+  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
     return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
-      action === 'cook' ? 'idle' : 'sit', () => this.actors[id].playActivity(action));
+      action === 'cook' ? 'idle' : 'sit', () => {
+        if (!current()) return;
+        const actor = this.actors[id];
+        if (action === 'cook') {
+          actor.faceTowards(cookingPan);
+        }
+        if (action === 'eat') this.showMeal(id, -1.46, .585, .04);
+        actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
+      });
   }
 
   startTimedAction(role: CharacterId, command: TimedCommand): boolean {
+    if (this.household && this.household.world.places[role] !== this.place) return true;
+    this.closeStorage(role);
+    if (command.type === 'local_activity') {
+      const station = stationById(this.place, command.station);
+      if (!station) return false;
+      const actor = this.actors[role];
+      const start = () => {
+        if (command.action === 'rest' || command.action === 'dine') this.sitAt(role, station);
+        if (command.action === 'exercise') actor.playDomesticActivity('stretch');
+        if (command.action === 'unpack') actor.playDomesticActivity('tidy');
+        if (command.action === 'dog') {
+          actor.faceTowards(this.pets.verdell.root.position);
+          actor.playPetActivity('play');
+          this.pets.verdell.react('play');
+        }
+        if (command.action === 'dine' && this.household?.world.cafe[role]?.pickedUp) {
+          this.showMeal(role, station.center.x + (role === 'vlad' ? -.25 : .25), 1.022, station.center.z - .10);
+          actor.playActivity('eat');
+        }
+      };
+      return this.walkTo(role, approachFor(station, role), start);
+    }
+    const sequence = ++this.taskSequence[role];
+    const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
-      return this.perform(role, def.item, def.pose, () => {});
+      if (command.actionId in KITCHEN_ACTIONS) {
+        const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
+        const work = KITCHEN_WORK[motion];
+        return this.walkTo(role, work.position, () => {
+          if (!current()) return;
+          const target = new THREE.Vector3().copy(work.target);
+          this.actors[role].faceTowards(target);
+          this.actors[role].playDomesticActivity(motion, target);
+        });
+      }
+      return this.perform(role, def.item, def.pose, () => {
+        if (!current()) return;
+        const motion = DOMESTIC_MOTIONS[command.actionId];
+        if (motion) this.actors[role].playDomesticActivity(motion);
+      });
     }
-    if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action);
-    return this.performFood(role, command.type);
+    if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
+    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
+    if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
+    return this.performFood(role, command.type, current);
+  }
+
+  private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
+    const cold = ingredientList(recipe).some(([id]) => GROCERY_DETAILS[id].area === 'fridge');
+    const station = stationById('home', cold ? 'fridge' : 'cupboard')!;
+    const actor = this.actors[role];
+    const approach = approachFor(station, role);
+    const start = nearestClearPoint(actor.root.position, this.obstacles, WORLD_FLOOR);
+    const towardStorage = start && findRoute(start, approach, this.obstacles, WORLD_FLOOR);
+    const towardStove = findRoute(approach, points.kitchen, this.obstacles, WORLD_FLOOR);
+    const length = (origin: Point, route: Point[]) => route.reduce((acc, next, index) => {
+      const previous = route[index - 1] ?? origin;
+      return acc + Math.hypot(next.x - previous.x, next.z - previous.z);
+    }, 0);
+    if (!start || !towardStorage || !towardStove ||
+      length(start, towardStorage) + length(approach, towardStove) > 22) {
+      return this.performFood(role, 'cook', current);
+    }
+    return this.walkTo(role, approach, () => {
+      if (!current()) return;
+      actor.faceTowards(this.vector.set(station.center.x, 0, station.center.z));
+      this.openStorage(station.id, role);
+      actor.playDomesticActivity('reach');
+      this.preparations.set(role, { remaining: 1.25, next: () => {
+        if (!current()) return;
+        this.closeStorage(role);
+        this.performFood(role, 'cook', current);
+      } });
+    });
+  }
+
+  finishTimedAction(role: CharacterId): void {
+    this.preparations.delete(role);
+    if (this.household && this.household.world.places[role] !== this.place) return;
+    this.meals.get(role)!.visible = false;
+    this.closeStorage(role);
+    ++this.taskSequence[role];
+    this.actors[role].finishActivity();
   }
 
   cancelTimedAction(role: CharacterId): void {
+    this.preparations.delete(role);
+    if (this.household && this.household.world.places[role] !== this.place) return;
+    this.meals.get(role)!.visible = false;
+    this.closeStorage(role);
+    ++this.taskSequence[role];
     ++this.socialSequence;
     this.actors[role].setPose('idle');
   }
 
-  performPet(role: CharacterId, petId: PetId, action: PetAction): boolean {
+  performPet(role: CharacterId, petId: PetId, action: PetAction, current = () => true): boolean {
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
-    const position = PETS[petId].home;
-    const target = nearestClearPoint({ x: position.x, z: position.z + 0.78 }, this.obstacles);
+    const position = pet.root.position;
+    pet.stop();
+    const spots = [[0, .74], [-.74, 0], [.74, 0], [0, -.74]].map(([x, z]) => ({ x: position.x + x, z: position.z + z }));
+    const target = spots.find(spot => pointIsClear(spot, this.obstacles, WORLD_FLOOR));
     const start = nearestClearPoint(
       { x: actor.root.position.x, z: actor.root.position.z }, this.obstacles);
     const route = start && target ? findRoute(start, target, this.obstacles) : null;
     if (!route) { pet.react(action); return false; }
     ++this.socialSequence;
     actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
+      if (!current()) return;
       actor.faceTowards(pet.root.position);
       actor.playPetActivity(action);
       pet.react(action);
@@ -271,12 +426,60 @@ export class World {
     return true;
   }
 
+  setHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes?: Partial<Record<CharacterId, WalkRoute>>): void {
+    if (this.place !== 'home') return;
+    if (!activity) {
+      for (const role of roles) if (this.homeLeisure.delete(role)) {
+        ++this.taskSequence[role];
+        const actor = this.actors[role];
+        const point = routes?.[role]?.from;
+        if (point) actor.root.position.set(point.x, 0, point.z);
+        actor.setPose('idle');
+      }
+      return;
+    }
+    if (roles.some(role => !this.actors[role].root.visible || this.sleepingOffline.has(role))) return;
+    const follow = (role: CharacterId, arrive: () => void) => {
+      const route = routes?.[role];
+      if (!route) return;
+      const actor = this.actors[role];
+      actor.root.position.set(route.from.x, 0, route.from.z);
+      actor.walkPath(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), arrive);
+    };
+    for (const role of roles) this.homeLeisure.add(role);
+    if (activity === 'chat') {
+      let arrived = 0;
+      for (const role of roles) follow(role, () => {
+        if (++arrived !== roles.length || roles.some(id => !this.homeLeisure.has(id))) return;
+        const vlad = this.actors.vlad, alina = this.actors.alina;
+        vlad.faceTowards(alina.root.position);
+        alina.faceTowards(vlad.root.position);
+        vlad.playDomesticActivity('chat');
+        alina.playDomesticActivity('chat');
+      });
+      return;
+    }
+    for (const role of roles) {
+      follow(role, () => {
+        if (activity === 'tv' || activity === 'computer') {
+          this.applyFurniturePose(role, activity === 'tv' ? 'sofa' : 'desk', activity === 'tv' ? 'sit' : 'work');
+          if (activity === 'computer') this.actors[role].playDomesticActivity('games');
+        } else {
+          const pet = this.pets[activity];
+          this.actors[role].faceTowards(pet.root.position);
+          this.actors[role].playPetActivity('play');
+          pet.react('play');
+        }
+      });
+    }
+  }
+
   playSocial(kind: SocialKind): boolean {
     const paths = (['vlad', 'alina'] as const).map((role) => {
       const actor = this.actors[role];
-      const spot = SOCIAL_SPOTS[role];
+      const spot = meeting(this.place, role);
       return findRoute(
-        { x: actor.root.position.x, z: actor.root.position.z }, spot, this.obstacles,
+        { x: actor.root.position.x, z: actor.root.position.z }, spot, this.currentObstacles(), WORLD_FLOOR,
       );
     });
     if (!paths[0] || !paths[1]) return false;
@@ -292,8 +495,9 @@ export class World {
           if (arrived === 2) {
             this.actors.vlad.faceTowards(this.actors.alina.root.position);
             this.actors.alina.faceTowards(this.actors.vlad.root.position);
-            this.actors.vlad.playGesture(kind);
-            this.actors.alina.playGesture(kind);
+            const target = kind === 'highFive' ? new THREE.Vector3(0, 1.64, meeting(this.place, 'vlad').z - 0.16) : undefined;
+            this.actors.vlad.playGesture(kind, target);
+            this.actors.alina.playGesture(kind, target);
           }
         },
       );
@@ -301,30 +505,49 @@ export class World {
     return true;
   }
 
+  setTimeOfDay(minute: number): void {
+    const phase = dayPhase({ day: 1, minute });
+    if (phase === this.lastDayPhase) return;
+    this.lastDayPhase = phase;
+    this.remote?.setNight(phase === 'night' || phase === 'evening');
+    // Reuse existing lights: no new meshes, draw calls or shadow maps.
+    const settings = {
+      morning: { sun: 1.95, ambient: 1.76, sky: 0xc6c3ad, warmth: 0xffd8b9 },
+      day: { sun: 2.48, ambient: 1.87, sky: 0xc0c7ad, warmth: 0xffe5ce },
+      evening: { sun: 1.55, ambient: 1.60, sky: 0xb8adae, warmth: 0xffc8a9 },
+      night: { sun: 0.75, ambient: 1.32, sky: 0x85929c, warmth: 0xc5d1e8 },
+    }[phase];
+    this.sun.intensity = settings.sun;
+    this.sun.color.setHex(settings.warmth);
+    this.ambient.intensity = settings.ambient;
+    this.ambient.color.setHex(phase === 'night' ? 0xc7d7ee : 0xeef2fb);
+    (this.scene.background as THREE.Color).setHex(settings.sky);
+    if (this.scene.fog) this.scene.fog.color.setHex(settings.sky);
+  }
+
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfff4dd, 0xb7b9a7, 1.75));
-    const sun = new THREE.DirectionalLight(0xffefdf, 2.35);
-    sun.position.set(-2, 12, 8);
+    this.scene.add(this.ambient);
+    // Broad daylight illuminates faces from the open side facing the home camera.
+    const sun = this.sun;
+    sun.position.set(-2.6, 9, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -13;
-    sun.shadow.camera.right = 13;
-    sun.shadow.camera.top = 13;
-    sun.shadow.camera.bottom = -13;
-    sun.shadow.bias = -0.001;
+    sun.shadow.camera.left = -8.5;
+    sun.shadow.camera.right = 8.5;
+    sun.shadow.camera.top = 8.5;
+    sun.shadow.camera.bottom = -8.5;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 22;
+    sun.shadow.radius = 2.65;
+    sun.shadow.intensity = 0.72;
+    sun.shadow.bias = -0.00025;
+    sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
   }
 
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
-    group.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(group);
-    const clearance = 0.27;
-    this.obstacles.push({
-      minX: bounds.min.x - clearance, maxX: bounds.max.x + clearance,
-      minZ: bounds.min.z - clearance, maxZ: bounds.max.z + clearance,
-    });
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {
         part.userData.interactable = id;
@@ -334,56 +557,219 @@ export class World {
   }
 
   private createHome(): void {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 10), material(PALETTE.floor));
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-
-    block(this.scene, [12.3, 3.15, 0.19], [0, 1.55, -5.0], PALETTE.wall, { shadow: false });
-    block(this.scene, [0.19, 3.15, 10.2], [-6.0, 1.55, 0], PALETTE.wall, { shadow: false });
-    block(this.scene, [12.3, 0.13, 0.16], [0, 0.09, -4.89], 0xd8c7ab);
-    block(this.scene, [0.16, 0.13, 10.2], [-5.9, 0.09, 0], 0xd8c7ab);
-
-    // Decorative window and curtains.
-    block(this.scene, [2.6, 1.6, 0.07], [-1.65, 2.04, -4.85], 0xadc7ba, { shadow: false });
-    block(this.scene, [2.65, 0.1, 0.12], [-1.65, 2.84, -4.77], 0xfaf4e9);
-    block(this.scene, [0.1, 1.65, 0.13], [-2.97, 2.03, -4.76], 0xfaf4e9);
-    block(this.scene, [0.1, 1.65, 0.13], [-0.33, 2.03, -4.76], 0xfaf4e9);
-    block(this.scene, [0.07, 1.55, 0.13], [-1.65, 2.05, -4.75], 0xfaf4e9);
-    block(this.scene, [2.55, 0.07, 0.13], [-1.65, 2.04, -4.75], 0xfaf4e9);
-    block(this.scene, [0.38, 1.84, 0.1], [-3.18, 1.95, -4.70], 0xcdbb9e);
-    block(this.scene, [0.38, 1.84, 0.1], [-0.12, 1.95, -4.70], 0xcdbb9e);
-
-    // Warm framed artwork above the kitchen, all inexpensive simple shapes.
-    block(this.scene, [1.65, 1.18, 0.09], [2.85, 2.12, -4.76], 0x947863, { shadow: false });
-    block(this.scene, [1.47, 1.02, 0.11], [2.85, 2.12, -4.67], 0xf0e8d9, { shadow: false });
-    ball(this.scene, 0.31, [2.55, 2.29, -4.57], 0xa5b39b);
-    ball(this.scene, 0.25, [3.01, 2.03, -4.55], 0xd3a38e);
-    ball(this.scene, 0.16, [2.77, 1.86, -4.50], 0xe9c7a6);
-    buildSoftRugs(this.scene);
-
-    // Reusable soft-edge furniture, with unchanged interaction positions.
-    buildFurniture((id, furniture, point) => this.register(id, furniture, point));
-
-    // Decorative plant.
-    cylinder(this.scene, 0.35, 0.55, [5.1, 0.3, 3.4], 0xcba68c);
-    for (const [x, z] of [[5.08, 3.4], [4.85, 3.40], [5.32, 3.30], [5.05, 3.15]] as const) {
-      ball(this.scene, 0.39, [x, 0.90, z], 0x769780);
-    }
-    // Soft standing lamp beside the living-room walkway.
-    cylinder(this.scene, 0.24, 0.10, [5.02, 0.09, 0.06], 0x9b806c);
-    cylinder(this.scene, 0.06, 1.50, [5.02, 0.84, 0.06], 0xae977f);
-    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.40, 0.47, 14), material(0xffefd1));
-    shade.position.set(5.02, 1.67, 0.06);
-    shade.castShadow = false;
-    this.scene.add(shade);
-    ball(this.scene, 0.15, [5.02, 1.40, 0.06], 0xffeac1);
-    // Non-interactive decorations have their own small footprints.
-    this.obstacles.push({ minX: 4.70, maxX: 5.35, minZ: -0.26, maxZ: 0.38 });
-    this.obstacles.push({ minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 });
-    // Front doorstep and an intentional layer of reusable visual detail.
-    block(this.scene, [2.0, 0.035, 0.76], [0.7, 0.035, 4.65], 0xc7b59f, { shadow: false });
     decorateHome(this.scene);
+    buildSoftRugs(this.scene);
+    this.scene.add(furnitureContact());
+    buildFurniture((id, furniture, point) => {
+      batchRigidParts(furniture);
+      this.register(id, furniture, point);
+    });
+    this.scene.add(this.extensions.group);
+    for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
+  }
+
+  private trackStation(target: THREE.Object3D[], id: string, object: THREE.Group): void {
+    object.traverse(part => {
+      if (part instanceof THREE.Mesh) {
+        part.userData.station = id;
+        target.push(part);
+      }
+    });
+  }
+
+  private currentObstacles() {
+    return this.place === 'home' ? this.obstacles : this.externalObstacles;
+  }
+
+  private sitAt(role: CharacterId, station: Station): void {
+    const actor = this.actors[role];
+    const cafe = station.action.kind === 'dine';
+    actor.setFurniturePose('sit', new THREE.Vector3(approachFor(station, role).x,
+      role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);
+  }
+
+  private showMeal(role: CharacterId, x: number, y: number, z: number): void {
+    const meal = this.meals.get(role)!;
+    meal.position.set(x, y, z);
+    meal.visible = true;
+  }
+
+  walkTo(role: CharacterId, target: { x: number; z: number }, onArrive = () => {}): boolean {
+    const actor = this.actors[role];
+    const obstacles = this.currentObstacles();
+    const from = nearestClearPoint(actor.root.position, obstacles, WORLD_FLOOR);
+    const to = nearestClearPoint(target, obstacles, WORLD_FLOOR);
+    const path = from && to ? findRoute(from, to, obstacles, WORLD_FLOOR) : null;
+    if (!path) return false;
+    actor.walkPath(path.map(p => new THREE.Vector3(p.x, 0, p.z)), onArrive);
+    return true;
+  }
+
+  runLocationPath(role: CharacterId, path: { x: number; z: number }[], station?: string, onArrive = () => {}): void {
+    const target = path.at(-1);
+    if (!target) { onArrive(); return; }
+    this.closeStorage(role);
+    this.preparations.delete(role);
+    const arrival = () => {
+      const site = stationById(this.place, station);
+      if (site) {
+        const actor = this.actors[role];
+        actor.faceTowards(this.vector.set(site.center.x, 0, site.center.z));
+        if (site.action.kind === 'fridge' || site.action.kind === 'cupboard') {
+          this.openStorage(site.id, role);
+          actor.playDomesticActivity('reach');
+          this.preparations.set(role, { remaining: 1.5, next: () => actor.finishActivity() });
+        }
+      }
+      onArrive();
+    };
+    // Replan from the visible position if a walk interrupted a previous one.
+    if (!this.walkTo(role, target, arrival)) {
+      this.actors[role].walkPath(path.map(p => new THREE.Vector3(p.x, 0, p.z)), arrival);
+    }
+  }
+
+  openStorage(id: string, role = this.localRole): void { this.openDoors.set(role, id); }
+  closeStorage(role = this.localRole): void { this.openDoors.delete(role); }
+
+  setCart(count: number): void {
+    if (!this.cart) {
+      this.cart = carryingBag();
+      const basket = this.cart.children[0] as THREE.Group;
+      for (let i = 0; i < 4; i++) {
+        const item = new THREE.Mesh(cube, finish([0xe4c58e, 0x829e87, 0xc88368, 0x9ba6b5][i]));
+        item.position.set((i % 2 - .5) * .14, .34 + i * .017, i > 1 ? -.051 : .063);
+        item.scale.set(.115, .17, .11);
+        basket.add(item);
+      }
+      this.scene.add(this.cart);
+    }
+    if (count > this.cartSize && this.place === 'market') {
+      const actor = this.actors[this.localRole];
+      actor.playDomesticActivity('tidy');
+      this.preparations.set(this.localRole, { remaining: .85, next: () => actor.finishActivity() });
+    }
+    this.cartSize = count;
+    this.cart.visible = count > 0 && this.place === 'market';
+    const products = this.cart.children[0].children.slice(-4);
+    products.forEach((object, i) => { object.visible = i < count; });
+  }
+
+  private switchPlace(place: PlaceId): void {
+    this.openDoors.clear();
+    this.cameraMove = null;
+    this.followSubject = null;
+    this.inspected = null;
+    this.defaultFrame = null;
+    this.viewport = null;
+    this.lastDayPhase = null;
+    this.preparations.clear();
+    this.petRoutines.clear();
+    this.homeLeisure.clear();
+    this.sleepingOffline.clear();
+    for (const pet of Object.values(this.pets)) pet.stop();
+    this.dogTrail = [];
+    this.lastDogPoint = null;
+    this.remote?.root.removeFromParent();
+    this.remote?.dispose();
+    this.remoteMeshes = [];
+    this.externalObstacles = placeObstacles(place);
+    this.remote = place === 'home' ? null : createLocation(place);
+    this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
+    this.scene.background = new THREE.Color(0xc0c7ad);
+    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
+    if (this.remote) {
+      this.scene.add(this.remote.root);
+      for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
+    }
+    this.scene.add(this.ambient, this.sun,
+      ...Object.values(this.actors).map(actor => actor.root), ...Object.values(this.pets).map(pet => pet.root),
+      ...this.contacts.map(contact => contact.shade), ...Object.values(this.bags), ...this.meals.values());
+    for (const meal of this.meals.values()) meal.visible = false;
+    if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
+    this.place = place;
+    this.controls.maxDistance = 51;
+    this.controls.minDistance = 10;
+    this.controls.maxPolarAngle = 1.25;
+    this.refreshViewport();
+    this.renderer.renderLists.dispose();
+  }
+
+  syncHousehold(state: GameState, role: CharacterId, reset = false, online: CharacterId[] = [role]): void {
+    const previous = this.household;
+    const place = state.world.places[role];
+    const changed = place !== this.place;
+    this.localRole = role;
+    this.household = state;
+    if (changed) this.switchPlace(place);
+    this.setTimeOfDay(state.clock.minute);
+    for (const id of ['vlad', 'alina'] as const) {
+      const offline = id !== role && !online.includes(id);
+      const wasSleeping = this.sleepingOffline.has(id);
+      const sleep = offline && place === 'home' && !state.activeShifts[id];
+      const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
+      const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
+      this.setAway(id, away);
+      if (away || sleep) this.closeStorage(id);
+      if (sleep && (!wasSleeping || reset || changed)) {
+        this.sleepingOffline.add(id);
+        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
+      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
+        const resident = state.characters[id];
+        this.restoreCharacter(id, resident.x, resident.z, resident.pose);
+      }
+      if (!sleep) this.sleepingOffline.delete(id);
+      this.bags[id].visible = !away && state.world.bags[id] > 0;
+    }
+    const dog = this.pets.verdell.root;
+    const walker = state.world.dogWalker;
+    dog.visible = walker ? place === 'park' && state.world.places[walker] === 'park' && !state.activeShifts[walker] : place === 'home';
+    this.pets.simba.root.visible = place === 'home';
+    if (!walker && previous?.world.dogWalker) this.petRoutines.delete('verdell');
+    if (place === 'park' && walker && (changed || previous?.world.dogWalker !== walker)) {
+      const point = state.pets.verdell.parkPosition ?? this.actors[walker].root.position;
+      dog.position.set(point.x, 0, point.z);
+      this.dogTrail = [];
+      this.lastDogPoint = null;
+    }
+    for (const c of this.contacts) {
+      if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
+    }
+    if (place === 'home') {
+      this.updateHomePets(state);
+      if (this.served) this.served.visible = Object.values(state.meals).some(quantity => quantity > 0);
+      this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
+      const counts = { fridge: 0, cupboard: 0 };
+      for (const [name, amount] of Object.entries(state.pantry)) {
+        if (amount > 0) counts[GROCERY_DETAILS[name as keyof typeof GROCERY_DETAILS].area]++;
+      }
+      for (const [key, models] of this.extensions.stock) {
+        models.forEach((model, index) => { model.visible = index < counts[key as keyof typeof counts]; });
+      }
+    }
+  }
+
+  private updateHomePets(state: GameState): void {
+    for (const id of PET_IDS) {
+      const pet = this.pets[id];
+      const routine = state.pets[id].routine;
+      if (!pet.root.visible || !routine) {
+        this.petRoutines.delete(id);
+        if (pet.root.visible) {
+          pet.stop();
+          const position = state.pets[id].position;
+          pet.root.position.set(position.x, 0, position.z);
+        }
+        continue;
+      }
+      if (this.petRoutines.get(id) === routine.until) continue;
+      this.petRoutines.set(id, routine.until);
+      const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
+      const route = sampleWalk(routine.route, distance);
+      pet.root.position.set(route.from.x, 0, route.from.z);
+      pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
+        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined);
+    }
   }
 
   private pick(clientX: number, clientY: number): void {
@@ -391,41 +777,162 @@ export class World {
     const x = ((clientX - bounds.left) / bounds.width) * 2 - 1;
     const y = -((clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false)[0];
+    const sceneMeshes = this.place === 'home' ? [...this.interactiveMeshes, ...this.stationMeshes] : this.remoteMeshes;
+    const hit = this.raycaster.intersectObjects([...sceneMeshes, ...this.subjectMeshes], false).find(entry => {
+      for (let part: THREE.Object3D | null = entry.object; part; part = part.parent) {
+        if (!part.visible) return false;
+      }
+      return true;
+    });
+    const station: unknown = hit?.object.userData.station;
+    if (typeof station === 'string') { this.navigation?.station(station); return; }
     const id: unknown = hit?.object.userData.interactable;
-    if (typeof id !== 'string') return;
-    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
-      this.onPick(id);
-    } else if (id in objectNames) this.onPick(id as ItemId);
+    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') this.onPick(id);
+    else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
+    else {
+      const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);
+      if (point && pointIsClear(point, this.currentObstacles(), WORLD_FLOOR)) this.navigation?.ground(point.x, point.z);
+    }
   }
 
-  private resize(): void {
+  private homeFrame(compact: boolean, band: ViewBand): Frame {
+    if (compact) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band, this.remote?.horizontal, this.remote?.vertical);
+    // Keep the existing desktop composition.
+    const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
+    return { position: homePosition.clone().multiplyScalar(1 + fit * 0.35).add(homeTarget), target: homeTarget.clone() };
+  }
+
+  refreshViewport(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
+    const compact = this.compactPortrait.matches;
+    const { pixelRatio, shadowSize } = renderProfile(compact, window.devicePixelRatio);
+    const band = this.viewBand(this.inspected !== null);
+    const previous = this.viewport;
+    const sizeChanged = !previous || previous.width !== width || previous.height !== height;
+    const scaleChanged = !previous || previous.pixelRatio !== pixelRatio;
+    if (!sizeChanged && !scaleChanged && previous.compact === compact &&
+        previous.band.top === band.top && previous.band.bottom === band.bottom) return;
+    this.viewport = { width, height, pixelRatio, compact, band };
+
+    if (sizeChanged) {
+      this.camera.aspect = width / height;
+      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
+        Math.tan(THREE.MathUtils.degToRad(23)) * Math.max(1, portraitAspect / this.camera.aspect),
+      ));
+      this.camera.updateProjectionMatrix();
+    }
+    if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
+    if (sizeChanged) this.renderer.setSize(width, height, false);
+    if (this.sun.shadow.mapSize.x !== shadowSize) {
+      this.sun.shadow.mapSize.setScalar(shadowSize);
+      this.sun.shadow.map?.setSize(shadowSize, shadowSize);
+      this.sun.shadow.radius = 2.65 * shadowSize / 1024;
+    }
+
+    if (this.inspected) {
+      this.showcase(this.inspected);
+      return;
+    }
+    const current = this.defaultFrame;
+    this.defaultFrame = this.homeFrame(compact, band);
+    if (this.cameraMove) {
+      this.cameraMove = this.defaultFrame;
+    } else if (!current || (this.camera.position.distanceTo(current.position) < 0.07 &&
+        this.controls.target.distanceTo(current.target) < 0.07)) {
+      this.camera.position.copy(this.defaultFrame.position);
+      this.controls.target.copy(this.defaultFrame.target);
+      this.controls.update();
+    }
+  }
+
+  private followBag(bag: THREE.Group, actor: Actor): void {
+    const { position, rotation } = actor.root;
+    bag.position.set(position.x + Math.cos(rotation.y) * .37, .20, position.z - Math.sin(rotation.y) * .37);
+    bag.rotation.y = rotation.y;
   }
 
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     const now = performance.now();
-    const dt = Math.min((now - this.lastFrame) / 1000, 0.05);
+    // Keep paths in real time in a slow frame. A short cap still prevents a
+    // jump when returning from a suspended tab.
+    const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
     this.lastFrame = now;
-    this.actors.vlad.update(dt);
-    this.actors.alina.update(dt);
-    this.pets.verdell.update(dt);
-    this.pets.simba.update(dt);
+    for (const id of ['vlad', 'alina'] as const) {
+      const actor = this.actors[id];
+      if (!actor.root.visible) continue;
+      actor.update(dt);
+      if (this.bags[id].visible) this.followBag(this.bags[id], actor);
+    }
+    for (const [role, prep] of this.preparations) {
+      prep.remaining -= dt;
+      if (prep.remaining <= 0) { this.preparations.delete(role); prep.next(); }
+    }
+    if (this.cart?.visible) this.followBag(this.cart, this.actors[this.localRole]);
+    const walker = this.household?.world.dogWalker;
+    const dog = this.pets.verdell;
+    let pace = 0;
+    if (walker && dog.root.visible && this.place === 'park') {
+      const actor = this.actors[walker].root;
+      const { x, z } = actor.position;
+      const previous = this.lastDogPoint;
+      if (!previous || Math.hypot(x - previous.x, z - previous.z) >= .28) {
+        this.lastDogPoint = { x, z };
+        this.dogTrail.push(this.lastDogPoint);
+        if (this.dogTrail.length > 32) this.dogTrail.shift();
+      }
+      if (this.dogTrail.length > 2 && this.dogTrail[0] &&
+        Math.hypot(dog.root.position.x - this.dogTrail[0].x, dog.root.position.z - this.dogTrail[0].z) < .11) this.dogTrail.shift();
+      const endpoint = this.household?.pets.verdell.parkPosition;
+      const atEnd = endpoint && Math.hypot(x - this.household!.characters[walker].x,
+        z - this.household!.characters[walker].z) < .08;
+      const target = atEnd && this.dogTrail.length <= 2 ? endpoint : (this.dogTrail[0] ?? actor.position);
+      const dx = target.x - dog.root.position.x, dz = target.z - dog.root.position.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > .07) {
+        const step = Math.min(1, dt * (this.dogTrail.length > 3 ? 10 : 5));
+        dog.root.rotation.y = Math.atan2(dx, dz);
+        const next = {x: dog.root.position.x + dx * step, z: dog.root.position.z + dz * step};
+        if (pointIsClear(next, this.currentObstacles(), WORLD_FLOOR)) dog.root.position.set(next.x, 0, next.z);
+        this.dogTravel += distance * step;
+        pace = Math.min(1, distance * 2.3);
+      }
+    }
+    if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
+    if (this.pets.simba.root.visible) this.pets.simba.update(dt);
+    if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
+      const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
+      door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);
+    }
+    for (const { visual, shade, pet } of this.contacts) {
+      visual.getWorldPosition(this.contactPoint);
+      shade.position.set(this.contactPoint.x, pet && this.place === 'home' ? 0.098 : 0.029, this.contactPoint.z);
+      shade.material.opacity = pet ? 0.53 : 0.49 * (1 - THREE.MathUtils.smoothstep(this.contactPoint.y, 0.07, 0.52));
+    }
+    if (this.followSubject) {
+      this.followSubject.getWorldPosition(this.followDelta);
+      this.followDelta.sub(this.followPoint).multiplyScalar(1 - Math.exp(-dt * 10));
+      this.followPoint.add(this.followDelta);
+      this.controls.target.add(this.followDelta);
+      this.camera.position.add(this.followDelta);
+      if (this.cameraMove) {
+        this.cameraMove.target.add(this.followDelta);
+        this.cameraMove.position.add(this.followDelta);
+      }
+    }
     if (this.cameraMove) {
-      const fraction = Math.min(1, dt * 5.5);
+      const fraction = 1 - Math.exp(-dt * 5.5);
       this.controls.target.lerp(this.cameraMove.target, fraction);
       this.camera.position.lerp(this.cameraMove.position, fraction);
       if (this.camera.position.distanceTo(this.cameraMove.position) < 0.025 &&
           this.controls.target.distanceTo(this.cameraMove.target) < 0.025) {
         this.cameraMove = null;
+        if (this.inspected) this.controls.maxDistance = 12;
       }
     }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };
 }

@@ -1,159 +1,222 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
+import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
+import { cushionGeometry } from './FurnitureGeometry';
+import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 
-// Lightweight visual-only layer: reusable materials and geometry, no navigation
-// obstacles or gameplay state. Safe to replace with higher-quality assets later.
-const cube = new THREE.BoxGeometry(1, 1, 1);
-const materials = new Map<number, THREE.MeshStandardMaterial>();
-function mat(color: number): THREE.MeshStandardMaterial {
-  let material = materials.get(color);
-  if (!material) {
-    material = new THREE.MeshStandardMaterial({ color, roughness: 0.88 });
-    materials.set(color, material);
-  }
-  return material;
-}
-function box(scene: THREE.Object3D, size: [number, number, number], pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(cube, mat(color));
+function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
+  color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, finish(color, finishType));
   mesh.scale.set(...size);
-  mesh.position.set(...pos);
-  scene.add(mesh);
+  mesh.position.set(...position);
+  mesh.castShadow = caster;
   mesh.receiveShadow = true;
+  parent.add(mesh);
   return mesh;
 }
-function blob(scene: THREE.Object3D, r: number, pos: [number, number, number], color: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat(color));
-  mesh.position.set(...pos);
-  scene.add(mesh);
-  return mesh;
+
+function rearWall(home: THREE.Group): void {
+  const wallFront = -4.87;
+  const left = -3.36;
+  const right = 0.06;
+  const bottom = 1.25;
+  const top = 2.81;
+  const height = 3.29;
+  // The opening has real plaster returns, a deep sill and layered glazing.
+  for (const [x1, x2, y1, y2] of [
+    [-6.12, left, 0, height], [right, 6.12, 0, height],
+    [left, right, 0, bottom], [left, right, top, height],
+  ]) {
+    shape(home, cube, [x2 - x1, y2 - y1, 0.25], [(x1 + x2) / 2, (y1 + y2) / 2, -5],
+      C.limestone);
+  }
+  panel(home, [-1.65, 2.03, -5.17], [3.48, 1.64], gardenView(), C.sky, 0.20);
+  // The sash sits in shadow behind the casing. The sill projects into the room.
+  for (const x of [left, right]) {
+    shape(home, softCube, [0.13, 1.70, 0.23], [x, 2.03, -4.89], C.paper, 'wood');
+    shape(home, cube, [0.051, 1.57, 0.068], [x, 2.03, -5.05], C.walnut, 'wood');
+  }
+  shape(home, softCube, [0.093, 1.57, 0.092], [-1.65, 2.03, -5.055], C.paper, 'wood');
+  shape(home, softCube, [3.42, 0.074, 0.084], [-1.65, 2.19, -5.064], C.paper, 'wood');
+  shape(home, softCube, [3.61, 0.105, 0.40], [-1.65, bottom, -4.89], C.oat, 'wood');
+  shape(home, softCube, [3.54, 0.092, 0.23], [-1.65, top, -4.89], C.paper, 'wood');
+  const rod = shape(home, drum, [0.036, 3.84, 0.036], [-1.65, 2.97, wallFront + 0.15], C.brass, 'metal');
+  rod.rotation.z = Math.PI / 2;
+
+  // Pleats taper into the tieback so the curtains read as fabric from above.
+  for (const side of [-1, 1]) {
+    const x = -1.65 + side * 1.68;
+    const vertices: number[] = [];
+    const indices: number[] = [];
+    const levels = [[3.0, 0.27, 0], [2.63, 0.28, 0.023], [1.88, 0.16, 0.095], [1.31, 0.25, 0.085]];
+    for (const [y, width, inset] of levels) for (let i = 0; i <= 18; i++) {
+      const t = i / 18;
+      vertices.push(x + side * inset + (t * 2 - 1) * width,
+        y + (y < 1.4 ? Math.sin(t * Math.PI) * 0.10 : 0),
+        -4.65 + Math.cos(t * Math.PI * 8) * 0.052);
+    }
+    for (let row = 0; row < levels.length - 1; row++) for (let i = 0; i < 18; i++) {
+      const a = row * 19 + i;
+      indices.push(a, a + 19, a + 1, a + 1, a + 19, a + 20);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const linen = finish(0xe0a975).clone();
+    linen.side = THREE.DoubleSide;
+    const curtain = new THREE.Mesh(geometry, linen);
+    curtain.receiveShadow = true;
+    home.add(curtain);
+    shape(home, softCube, [0.31, 0.065, 0.12], [x + side * 0.095, 1.88, -4.60], C.rust);
+  }
 }
-function plate(scene: THREE.Object3D, r: number, height: number, pos: [number, number, number], color: number): void {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, height, 12), mat(color));
-  mesh.position.set(...pos);
-  scene.add(mesh);
+
+function leftWall(home: THREE.Group): void {
+  shape(home, cube, [0.24, 3.29, 10.12], [-6, 1.645, 0], 0xd7c9ae);
+  shape(home, cube, [0.07, 0.91, 9.94], [-5.85, 0.455, 0], C.sage);
+  shape(home, softCube, [0.11, 0.072, 9.94], [-5.81, 0.92, 0], C.pine, 'wood');
+  for (const [first, last] of [[-4.91, -1.84], [0.0, 4.88]]) {
+    for (let z = first + 0.49; z < last - 0.40; z += 0.79) {
+      shape(home, cube, [0.017, 0.71, 0.045], [-5.808, 0.50, z], 0x829278, 'wood');
+    }
+  }
+  const door = new THREE.Group();
+  door.rotation.y = Math.PI / 2;
+  door.position.set(-5.83, 0, -0.92);
+  shape(door, cube, [1.51, 2.51, 0.141], [0, 1.255, 0.025], C.walnut, 'wood');
+  shape(door, softCube, [1.38, 2.45, 0.092], [0, 1.246, 0.069], C.pine, 'wood');
+  for (const x of [-0.76, 0.76]) {
+    shape(door, softCube, [0.14, 2.60, 0.16], [x, 1.3, 0.058], C.paper, 'wood');
+    shape(door, cube, [0.058, 2.49, 0.06], [x * 0.93, 1.25, 0.122], C.oat, 'wood');
+  }
+  shape(door, softCube, [1.66, 0.155, 0.17], [0, 2.54, 0.058], C.paper, 'wood');
+  shape(door, softCube, [1.50, 0.055, 0.24], [0, 0.034, 0.07], C.oat, 'wood');
+  for (const [y, height] of [[0.56, 0.74], [1.70, 1.12]]) {
+    shape(door, softCube, [1.06, height, 0.039], [0, y, 0.105], C.walnut, 'wood');
+    shape(door, softCube, [0.99, height - 0.07, 0.038], [0, y, 0.127], C.leaf, 'wood');
+  }
+  shape(door, softCube, [0.075, 0.13, 0.036], [0.51, 1.13, 0.129], C.brass, 'metal');
+  shape(door, softCube, [0.14, 0.038, 0.063], [0.47, 1.16, 0.158], C.brass, 'metal');
+  batchRigidParts(door);
+  home.add(door);
+}
+
+function leafPlant(home: THREE.Group): void {
+  shape(home, drum, [0.32, 0.49, 0.32], [5.1, 0.26, 3.4], C.clay, 'ceramic', true);
+  shape(home, drum, [0.35, 0.10, 0.35], [5.1, 0.52, 3.4], C.coral, 'ceramic');
+  shape(home, drum, [0.30, 0.023, 0.30], [5.1, 0.58, 3.4], C.darkWood);
+  for (let i = 0; i < 9; i++) {
+    const angle = i * 2.4;
+    const radius = i % 2 ? 0.24 : 0.16;
+    const leaf = shape(home, orb, [0.12, 0.34, 0.056],
+      [5.1 + Math.cos(angle) * radius, 0.81 + i % 3 * 0.12, 3.4 + Math.sin(angle) * radius],
+      i % 2 ? C.leaf : C.pine, 'ceramic', i === 2);
+    leaf.rotation.set(0, -angle, 0.67);
+  }
+}
+
+function practicalLights(home: THREE.Group): void {
+  const x = 5.02;
+  const z = 0.06;
+  shape(home, drum, [0.25, 0.075, 0.25], [x, 0.045, z], C.walnut, 'wood');
+  shape(home, drum, [0.031, 1.58, 0.031], [x, 0.82, z], C.brass, 'metal');
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.31, 0.35, 20, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: 0xe7ad69, emissive: 0xffa452, emissiveIntensity: 0.35, roughness: 0.93,
+      side: THREE.DoubleSide,
+    }));
+  shade.position.set(x, 1.66, z);
+  home.add(shade);
+  shape(home, orb, [0.087, 0.088, 0.087], [x, 1.53, z], C.paper, 'ceramic');
+  const warm = new THREE.PointLight(0xffbb7c, 3.3, 4, 2);
+  warm.position.set(x - 0.10, 1.48, z);
+  home.add(warm);
+}
+
+function petNooks(home: THREE.Group): void {
+  for (const id of PET_IDS) {
+    const { home: { x, z }, bowl, toilet } = PETS[id];
+    const dog = id === 'verdell';
+    shape(home, softCube, [1.20, 0.065, 1.06], [x, 0.035, z], dog ? C.pine : C.rust);
+    shape(home, softCube, [0.99, 0.046, 0.84], [x, 0.076, z], dog ? C.sage : C.oat);
+    shape(home, softCube, [1.08, .16, .15], [x, .13, z - .43], dog ? C.sage : C.oat);
+    shape(home, drum, [0.18, 0.086, 0.18], [bowl.x, 0.051, bowl.z],
+      dog ? C.leaf : C.clay, 'ceramic');
+    const rim = shape(home, torus, [0.165, 0.165, 0.165],
+      [bowl.x, 0.104, bowl.z], C.paper, 'ceramic');
+    rim.rotation.x = -Math.PI / 2;
+    shape(home, drum, [.119, .035, .119], [bowl.x, .078, bowl.z], C.walnut);
+    shape(home, softCube, [.86, .052, .69], [toilet.x, .045, toilet.z], dog ? C.pine : C.clay);
+    shape(home, softCube, [.70, .019, .52], [toilet.x, .079, toilet.z], dog ? C.paper : C.oat);
+    for (const side of [-1, 1]) shape(home, softCube, [.07, .10, .65], [toilet.x + side * .39, .10, toilet.z],
+      dog ? C.sage : C.coral);
+    shape(home, softCube, [.78, .11, .07], [toilet.x, .10, toilet.z - .31], dog ? C.sage : C.coral);
+  }
+}
+
+function platformShadow(scene: THREE.Scene): void {
+  const map = paintedMap('platform-shadow', 128, 128, (ctx) => {
+    const ink = ctx.createRadialGradient(64, 64, 15, 64, 64, 64);
+    ink.addColorStop(0, '#3e302c66');
+    ink.addColorStop(0.72, '#3e302c3b');
+    ink.addColorStop(1, '#3e302c00');
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, 0, 128, 128);
+  });
+  if (!map) return;
+  const shadow = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
+    map, transparent: true, depthWrite: false, toneMapped: false,
+  }));
+  shadow.position.set(-0.14, -0.634, -0.32);
+  shadow.scale.set(18.5, 15, 1);
+  shadow.rotation.x = -Math.PI / 2;
+  scene.add(shadow);
 }
 
 export function decorateHome(scene: THREE.Scene): void {
-  // Subtle staggered wooden floor seams (one draw call, not hundreds of planks).
-  const strokes: number[] = [];
-  const segment = (x1: number, z1: number, x2: number, z2: number): void => {
-    strokes.push(x1, 0.009, z1, x2, 0.009, z2);
-  };
-  for (let x = -5.9; x < 6; x += 0.68) segment(x, -4.92, x, 4.92);
-  for (let z = -4.9, row = 0; z < 4.95; z += 2.15, row++) {
-    const shift = row % 2 ? 0.34 : 0;
-    for (let x = -5.95 + shift; x < 6; x += 0.68) segment(x, z, x + 0.68, z);
+  const home = new THREE.Group();
+  const stage = shape(scene, cube, [90, 0.06, 90], [0, -0.67, 0], 0xa5b8a5);
+  stage.receiveShadow = true;
+  platformShadow(scene);
+  // World-unit bevels keep the square floor deck supported right to its corners.
+  for (const [width, height, depth, y, color, surface] of [
+    [12.52, 0.40, 10.88, -0.42, 0xa5725a, 'ceramic'],
+    [12.36, 0.20, 10.72, -0.17, 0x815841, 'wood'],
+    [12.19, 0.09, 10.56, -0.048, C.oat, 'wood'],
+  ] as const) {
+    const edge = new RoundedBoxGeometry(width, height, depth, 1, height * 0.42);
+    shape(home, edge, [1, 1, 1], [0, y, .20], color, surface, y < -0.1);
   }
-  const lines = new THREE.BufferGeometry();
-  lines.setAttribute('position', new THREE.Float32BufferAttribute(strokes, 3));
-  scene.add(new THREE.LineSegments(lines, new THREE.LineBasicMaterial({
-    color: 0x816c55, transparent: true, opacity: 0.15, depthWrite: false,
-  })));
+  const floor = panel(home, [0, 0, .20], [12, 10.40], oakFloor(), C.oak);
+  floor.rotation.x = -Math.PI / 2;
+  shape(home, softCube, [2.04, 0.16, 0.42], [0.7, -0.46, 5.70], C.clay, 'ceramic', true);
+  shape(home, softCube, [1.92, 0.10, 0.33], [0.7, -0.30, 5.67], C.oat, 'wood', true);
+  shape(home, softCube, [1.60, 0.025, 0.62], [0.7, 0.015, 4.58], C.leaf);
+  rearWall(home);
+  leftWall(home);
+  shape(home, softCube, [12.30, 0.13, 0.34], [0, 3.33, -5], C.paper, 'wood');
+  shape(home, softCube, [0.34, 0.13, 10.15], [-6, 3.33, 0], C.paper, 'wood');
+  shape(home, softCube, [11.84, 0.13, 0.08], [0.06, 0.085, -4.83], C.walnut, 'wood');
+  shape(home, softCube, [0.09, 0.13, 9.94], [-5.82, 0.085, 0], C.walnut, 'wood');
 
-  // Cream wainscoting, wood trim and panel rhythm in the two visible walls.
-  box(scene, [11.8, 0.83, 0.035], [0.04, 0.47, -4.876], 0xeee4d4);
-  box(scene, [0.035, 0.83, 9.8], [-5.885, 0.47, 0], 0xeee4d4);
-  box(scene, [11.9, 0.06, 0.08], [0.02, 0.93, -4.83], 0xc8b29b);
-  box(scene, [0.08, 0.06, 9.8], [-5.85, 0.93, 0], 0xc8b29b);
-  for (let x = -5.55; x < 5.6; x += 1.1) {
-    box(scene, [0.035, 0.68, 0.045], [x, 0.48, -4.845], 0xd7c7b5);
+  shape(home, softCube, [0.93, 1.21, 0.09], [-4.65, 2.22, -4.83], C.walnut, 'wood');
+  panel(home, [-4.65, 2.22, -4.776], [0.80, 1.06], botanicalPrint(), C.paper);
+  shape(home, softCube, [0.26, 0.075, 1.68], [-5.71, 1.63, 1.96], C.walnut, 'wood');
+  for (let i = 0; i < 6; i++) {
+    const height = 0.23 + i % 3 * 0.055;
+    shape(home, softCube, [0.17, height, 0.12], [-5.67, 1.66 + height / 2, 1.40 + i * 0.14],
+      [C.clay, C.sage, C.oat, C.ink][i % 4]);
   }
-  for (let z = -4.46; z < 4.5; z += 1.08) {
-    box(scene, [0.044, 0.68, 0.033], [-5.84, 0.48, z], 0xd7c7b5);
-  }
-
-  // A layered watercolor-like garden outside the existing framed window.
-  box(scene, [2.38, 1.42, 0.025], [-1.65, 2.04, -4.804], 0xbfd5cc);
-  box(scene, [2.38, 0.43, 0.028], [-1.65, 1.47, -4.788], 0x88a88f);
-  blob(scene, 0.29, [-2.45, 1.91, -4.767], 0x7ea488);
-  blob(scene, 0.40, [-1.07, 1.59, -4.767], 0x6c957b);
-  blob(scene, 0.28, [-0.75, 1.71, -4.762], 0x82a98a);
-  blob(scene, 0.17, [-2.05, 2.37, -4.779], 0xffe0a9);
-  // Make the mullions appear in front of scenery.
-  box(scene, [0.065, 1.47, 0.06], [-1.65, 2.04, -4.712], 0xfffaf0);
-  box(scene, [2.43, 0.065, 0.06], [-1.65, 2.06, -4.708], 0xfffaf0);
-  // Curtain tiebacks and gently folded fabric.
-  for (const x of [-3.13, -0.17]) {
-    box(scene, [0.13, 0.38, 0.08], [x, 1.38, -4.61], 0xbfac91);
-    blob(scene, 0.09, [x, 1.44, -4.54], 0xe5d1b4);
-  }
-
-  // Bed linen: stripe, soft blanket and bedside wall artworks.
-  box(scene, [2.42, 0.065, 0.16], [-3.85, 0.94, -1.48], 0xb18883);
-  box(scene, [2.34, 0.065, 0.20], [-3.85, 0.94, -1.68], 0xe5d5ba);
-  box(scene, [1.00, 0.045, 0.09], [-4.44, 0.95, -3.07], 0xe6ddc8);
-  box(scene, [1.00, 0.045, 0.09], [-3.26, 0.95, -3.07], 0xe6ddc8);
-  box(scene, [0.95, 1.14, 0.08], [-4.77, 2.18, -4.78], 0x997a65);
-  box(scene, [0.81, 1.00, 0.09], [-4.77, 2.18, -4.716], 0xf0dfc7);
-  blob(scene, 0.21, [-4.86, 2.19, -4.64], 0x9aab8a);
-  blob(scene, 0.14, [-4.56, 2.01, -4.63], 0xcfa28b);
-
-  // Lived-in sofa: knitted throw and a low side table for a cup.
-  box(scene, [0.69, 0.055, 0.70], [-3.87, 0.73, 1.34], 0xd7bbab);
-  for (const z of [1.03, 1.13, 1.23]) {
-    box(scene, [0.62, 0.015, 0.015], [-3.87, 0.768, z], 0xeedacb);
-  }
-  plate(scene, 0.23, 0.07, [-1.78, 0.065, 2.38], 0x947a62);
-  box(scene, [0.08, 0.36, 0.08], [-1.78, 0.24, 2.38], 0x8c7563);
-  plate(scene, 0.21, 0.04, [-1.78, 0.44, 2.38], 0xc9ae94);
-  plate(scene, 0.09, 0.09, [-1.78, 0.53, 2.38], 0xfff2d9);
-
-  // Small, purposeful stool at the eating spot; it is an interaction seat.
-  box(scene, [0.66, 0.10, 0.64], [-0.84, 0.48, 0.05], 0xa68b75);
+  shape(home, cushionGeometry, [0.67, 0.12, 0.62], [-0.84, 0.48, 0.05], C.sage);
   for (const dx of [-0.24, 0.24]) for (const dz of [-0.22, 0.22]) {
-    box(scene, [0.065, 0.43, 0.065], [-0.84 + dx, 0.24, 0.05 + dz], 0x8d755e);
+    const leg = shape(home, cube, [0.068, 0.44, 0.068], [-0.84 + dx, 0.228, 0.05 + dz], C.walnut, 'wood');
+    leg.rotation.set(Math.sign(dz) * 0.13, 0, -Math.sign(dx) * 0.13);
   }
-
-  // Two floating book shelves on the side wall. The books share one cube geometry.
-  for (const y of [1.49, 2.22]) {
-    box(scene, [0.39, 0.085, 2.18], [-5.64, y, 1.34], 0xb09275);
-    for (let i = 0; i < 12; i++) {
-      const shade = [0x91a88b, 0xd1a998, 0xc5b197, 0x899e9a, 0xdbc7a1][i % 5];
-      const height = 0.28 + (i % 3) * 0.075;
-      box(scene, [0.16, height, 0.11], [-5.58, y + 0.04 + height / 2, 0.44 + i * 0.148], shade);
-    }
-  }
-
-  // Desk accessories: warm mug, notebook, pinned notes over the workplace.
-  box(scene, [0.42, 0.018, 0.34], [2.52, 1.065, 1.54], 0xf1d9b8);
-  box(scene, [0.02, 0.021, 0.32], [2.52, 1.079, 1.54], 0xa99b84);
-  plate(scene, 0.11, 0.18, [4.03, 1.17, 1.45], 0xd3b6a3);
-  box(scene, [0.92, 0.67, 0.08], [4.38, 2.04, -4.77], 0xb4977b);
-  box(scene, [0.80, 0.54, 0.08], [4.38, 2.04, -4.695], 0xdccbb2);
-  for (const [x, y, color] of [[4.17, 2.18, 0xe5b3a1], [4.57, 2.04, 0xa8bcad], [4.3, 1.87, 0xe5d3aa]] as const) {
-    box(scene, [0.20, 0.19, 0.09], [x, y, -4.64], color);
-  }
-
-  // Kitchen jars, herbs and a narrow rack. No extra shadow-casting lights.
-  for (const x of [2.68, 3.07, 3.46]) {
-    plate(scene, 0.12, 0.22, [x, 1.19, -3.62], x < 3 ? 0xd6c6a8 : 0xb3c3a3);
-    plate(scene, 0.125, 0.04, [x, 1.32, -3.62], 0x9f907f);
-  }
-  plate(scene, 0.13, 0.21, [4.75, 1.19, -3.65], 0xe6d8bb);
-  for (const pos of [[4.72, 1.44, -3.64], [4.81, 1.49, -3.68], [4.65, 1.48, -3.70]] as const) {
-    blob(scene, 0.13, [...pos], 0x849d78);
-  }
-
-  // Warm pendant and a tiny practical light; only one shadow-free point lamp.
-  plate(scene, 0.026, 0.34, [0.42, 2.94, 0.89], 0x9c8877);
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.46, 0.28, 14), mat(0xf3dcc0));
-  shade.position.set(0.42, 2.62, 0.89);
-  scene.add(shade);
-  blob(scene, 0.11, [0.42, 2.41, 0.89], 0xffe2a4);
-  const warm = new THREE.PointLight(0xffdcaa, 0.67, 6.8, 2);
-  warm.position.set(0.42, 2.43, 0.89);
-  scene.add(warm);
-
-  // Personal floor cushions, dishes and toys for our two resident pets.
-  for (const id of PET_IDS) {
-    const home = PETS[id].home;
-    const dog = id === 'verdell';
-    const edge = dog ? 0x7d997f : 0xc5a17b;
-    const centre = dog ? 0xb8c4ab : 0xe5c49d;
-    box(scene, [0.87, 0.045, 0.70], [home.x, 0.031, home.z], edge);
-    box(scene, [0.67, 0.05, 0.50], [home.x, 0.080, home.z], centre);
-    plate(scene, 0.20, 0.10, [home.x + 0.61, 0.065, home.z + 0.16], dog ? 0x75988a : 0xc59779);
-    plate(scene, 0.14, 0.025, [home.x + 0.61, 0.128, home.z + 0.16], 0xe6c7a0);
-    blob(scene, 0.125, [home.x - 0.58, 0.13, home.z + 0.28], dog ? 0xc98c74 : 0xd7af84);
-  }
+  leafPlant(home);
+  practicalLights(home);
+  petNooks(home);
+  batchRigidParts(home);
+  scene.add(home);
 }
