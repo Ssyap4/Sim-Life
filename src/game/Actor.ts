@@ -57,6 +57,8 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
+  private activity: 'cook' | 'eat' | null = null;
+  private activityTime = 0;
   private clock = 0;
 
   constructor(readonly id: CharacterId, start: [number, number]) {
@@ -151,6 +153,7 @@ export class Actor {
     this.callback = onArrive;
     this.pose = 'idle';
     this.gesture = null;
+    this.activity = null;
     this.heart.visible = false;
   }
 
@@ -159,7 +162,14 @@ export class Actor {
     this.callback = null;
     this.pose = pose;
     this.gesture = null;
+    this.activity = null;
     this.heart.visible = false;
+  }
+
+  playActivity(kind: 'cook' | 'eat'): void {
+    this.setPose(kind === 'eat' ? 'sit' : 'idle');
+    this.activity = kind;
+    this.activityTime = 0;
   }
 
   faceTowards(point: THREE.Vector3): void {
@@ -210,6 +220,18 @@ export class Actor {
     this.rightArm.rotation.x = stride * 0.80;
     this.leftArm.rotation.z = -0.11;
     this.rightArm.rotation.z = 0.11;
+    if (this.activity) {
+      this.activityTime += dt;
+      if (this.activity === 'cook') {
+        this.leftArm.rotation.x = -0.65 + Math.sin(this.activityTime * 6) * 0.25;
+        this.rightArm.rotation.x = -0.68 - Math.sin(this.activityTime * 6) * 0.25;
+        this.figure.rotation.z = Math.sin(this.activityTime * 4) * 0.045;
+      } else {
+        this.rightArm.rotation.x = -1.35 + Math.sin(this.activityTime * 5) * 0.13;
+        this.leftArm.rotation.x = -0.18;
+      }
+      if (this.activityTime >= 4.2) this.activity = null;
+    }
     if (this.gesture) {
       this.gestureTime += dt;
       if (this.gesture === 'hug') {
@@ -232,6 +254,6 @@ export class Actor {
       : this.pose === 'sleep' ? -0.37
       : this.gesture ? Math.sin(this.clock * 4) * 0.023
       : Math.sin(this.clock * 1.7) * 0.009;
-    this.figure.rotation.z = this.pose === 'sleep' ? -0.13 : 0;
+    if (this.activity !== 'cook') this.figure.rotation.z = this.pose === 'sleep' ? -0.13 : 0;
   }
 }

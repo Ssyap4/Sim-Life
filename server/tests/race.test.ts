@@ -38,8 +38,8 @@ test('Two simultaneous purchases update shared money exactly twice and reject fa
 
     const vFinal = next(v, (p) => p.type === 'snapshot' && p.state.revision === 2);
     const aFinal = next(a, (p) => p.type === 'snapshot' && p.state.revision === 2);
-    v.send(JSON.stringify({ type: 'act', actionId: 'buyEggs' }));
-    a.send(JSON.stringify({ type: 'act', actionId: 'buyEggs' }));
+    v.send(JSON.stringify({ type: 'buy', item: 'eggs' }));
+    a.send(JSON.stringify({ type: 'buy', item: 'eggs' }));
 
     const [vMessage, aMessage] = await Promise.all([vFinal, aFinal]);
     assert.equal(vMessage.type, 'snapshot');
@@ -51,7 +51,7 @@ test('Two simultaneous purchases update shared money exactly twice and reject fa
     }
 
     const rejected = next(v, (p) => p.type === 'error');
-    v.send(JSON.stringify({ type: 'act', actionId: 'buyEggs' }));
+    v.send(JSON.stringify({ type: 'buy', item: 'eggs' }));
     assert.equal((await rejected).type, 'error');
 
     v.close(); a.close();

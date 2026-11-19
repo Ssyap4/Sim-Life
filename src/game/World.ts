@@ -158,6 +158,11 @@ export class World {
     return true;
   }
 
+  performFood(id: CharacterId, action: 'cook' | 'eat'): boolean {
+    return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
+      action === 'cook' ? 'idle' : 'sit', () => this.actors[id].playActivity(action));
+  }
+
   playSocial(kind: SocialKind): boolean {
     const paths = (['vlad', 'alina'] as const).map((role) => {
       const actor = this.actors[role];
@@ -288,6 +293,15 @@ export class World {
     }
     block(kitchen, [0.79, 0.045, 0.52], [1.38, 1.072, -0.03], 0x9cb1ad);
     block(kitchen, [0.43, 0.31, 0.15], [1.44, 1.30, -0.31], 0xbeb7a5);
+    // A small pan, handle, food and backsplash make cooking visibly different.
+    cylinder(kitchen, 0.27, 0.09, [-0.33, 1.14, -0.11], 0x52615b);
+    cylinder(kitchen, 0.215, 0.022, [-0.33, 1.20, -0.11], 0xf0d49b);
+    ball(kitchen, 0.08, [-0.33, 1.22, -0.11], 0xf2ba57);
+    block(kitchen, [0.45, 0.065, 0.09], [-0.68, 1.15, 0.04], 0x636c64);
+    block(kitchen, [4.0, 0.50, 0.12], [0, 1.52, -0.44], 0xe7dcd2, { shadow: false });
+    for (const x of [-1.28, -0.25, 0.75]) {
+      block(kitchen, [0.62, 0.38, 0.09], [x, 1.54, -0.37], 0xc9d5c0, { shadow: false });
+    }
     this.register('kitchen', kitchen, { x: 3.10, z: -2.66 });
 
     // Working desk and computer.

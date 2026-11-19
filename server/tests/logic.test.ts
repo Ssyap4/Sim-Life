@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction } from '../logic';
+import { applyFoodAction } from '../food';
 import { initialState } from '../../src/shared/protocol';
 
 test('Vlad receives a small order payment, while original snapshot stays unchanged', () => {
@@ -36,27 +37,32 @@ test('Alina learns reconstruction before client consultation is unlocked', () =>
   assert.equal(consult.state.characters.alina.skill, 27);
 });
 
-test('Food cannot be created from nowhere or go below zero', () => {
+test('Cooking creates two shareable portions from real ingredients', () => {
   const start = initialState();
-  const a = applyAction(start, 'vlad', 'omelette');
-  assert.equal(a.ok, true);
-  if (!a.ok) return;
-  const b = applyAction(a.state, 'alina', 'omelette');
-  assert.equal(b.ok, true);
-  if (!b.ok) return;
-  assert.equal(b.state.pantry.eggs, 0);
-  const failed = applyAction(b.state, 'vlad', 'omelette');
-  assert.equal(failed.ok, false);
-  assert.equal(b.state.pantry.eggs, 0);
+  assert.equal(applyFoodAction(start, 'vlad', { type: 'cook', recipe: 'omelette' }).ok, false);
+  const milk = applyFoodAction(start, 'alina', { type: 'buy', item: 'milk' });
+  assert.equal(milk.ok, true);
+  if (!milk.ok) return;
+  const cooked = applyFoodAction(milk.state, 'vlad', { type: 'cook', recipe: 'omelette' });
+  assert.equal(cooked.ok, true);
+  if (!cooked.ok) return;
+  assert.equal(cooked.state.pantry.eggs, 2);
+  assert.equal(cooked.state.pantry.milk, 0);
+  assert.equal(cooked.state.meals.omelette, 2);
+  const eaten = applyFoodAction(cooked.state, 'alina', { type: 'eat', recipe: 'omelette' });
+  assert.equal(eaten.ok, true);
+  if (!eaten.ok) return;
+  assert.equal(eaten.state.meals.omelette, 1);
+  assert.equal(start.meals.omelette, 0);
 });
 
 test('Shared funds cannot be overspent by a store purchase', () => {
   const start = initialState();
   start.money = 20;
-  const failed = applyAction(start, 'vlad', 'buyEggs');
+  const failed = applyFoodAction(start, 'vlad', { type: 'buy', item: 'eggs' });
   assert.equal(failed.ok, false);
   assert.equal(start.money, 20);
-  const ok = applyAction(start, 'alina', 'buyBread');
+  const ok = applyFoodAction(start, 'alina', { type: 'buy', item: 'bread' });
   assert.equal(ok.ok, true);
   if (!ok.ok) return;
   assert.equal(ok.state.money, 0);

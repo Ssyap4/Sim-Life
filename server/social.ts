@@ -2,16 +2,7 @@ import {
   SOCIAL_SPOTS, type CharacterId, type GameState, type SocialKind,
 } from '../src/shared/protocol';
 
-export const SOCIAL_TTL_MS = 30_000;
 export const SOCIAL_COOLDOWN_MS = 5_000;
-
-export interface SocialOffer {
-  id: number;
-  from: CharacterId;
-  to: CharacterId;
-  kind: SocialKind;
-  expiresAt: number;
-}
 
 export function otherRole(role: CharacterId): CharacterId {
   return role === 'vlad' ? 'alina' : 'vlad';

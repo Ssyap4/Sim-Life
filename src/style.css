@@ -234,7 +234,32 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .role-option { padding: 7px; }
 }
 
-/* Two-player, explicitly accepted interactions. Small and easy to tap on phones. */
+/* Compact food catalogue: shared supplies, shop and a cook/eat loop. */
+.stock-line {
+  pointer-events: none; text-align: center; border-radius: 13px;
+  background: #fffdf0ed; color: #718373; font-size: 11px; font-weight: 900;
+  padding: 8px 10px; box-shadow: 0 4px 15px #4b554224;
+}
+.food-section-heading {
+  color: #69836f; font-size: 13px; font-weight: 900;
+  letter-spacing: .1px; margin: 3px 3px 1px;
+}
+.food-action {
+  border-radius: 14px; border: 1px solid #d9e3d2; color: #405a47;
+  background: #f7f8ed; text-align: left;
+  padding: 11px 13px; display: flex; flex-direction: column; gap: 4px;
+  min-height: 55px;
+}
+.food-action strong { font-size: 12px; }
+.food-action small { font-size: 10px; color: #819082; font-weight: 700; }
+.food-action:disabled { opacity: 0.46; cursor: default; }
+.food-action:active:not(:disabled) { background: #e2eddb; }
+.food-empty { color: #7e8b7f; font-size: 12px; margin: 4px; }
+@media (max-height: 700px) and (orientation: portrait) {
+  .stock-line { font-size: 10px; padding: 5px 9px; }
+}
+
+/* Two-player interactions (no confirmation dialog for everyday gestures). */
 .social-panel {
   pointer-events: auto;
   background: #fff9f3f5;

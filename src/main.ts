@@ -1,16 +1,16 @@
 import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
+import { showFoodChoices, type FoodCommand } from './foodMenu';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
-  type ActionId, type CharacterId, type GameState, type ItemId, type SocialKind,
+  type ActionId, type CharacterId, type GameState, type ItemId,
 } from './shared/protocol';
 
 let state: GameState | null = null;
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let selectedRole: CharacterId = 'vlad';
-let socialOffer: { id: number; from: CharacterId; to: CharacterId; kind: SocialKind } | null = null;
 let toastTimer: number | undefined;
 let world: World;
 
@@ -25,7 +25,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · УЮТНЫЕ ВСТРЕЧИ</div>
+      <div class="version">0.3 · ЖИВОЙ ДОМ</div>
     </div>
     <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="characters" id="characters">
@@ -42,9 +42,9 @@ app.innerHTML = `
   </header>
   <div id="message" class="message" aria-live="polite"></div>
   <footer class="bottom-ui">
-    <div id="social-panel" class="social-panel" hidden aria-live="polite"></div>
     <div id="actions" class="actions" hidden></div>
-    <button id="market-btn" class="market-btn" type="button" disabled>🛒 Пробная доставка продуктов</button>
+    <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
+    <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продуктовая доставка · 8 товаров</button>
     <div class="tip">
       <span class="tip-icon">✦</span>
       <span>Нажимай на мебель для действий, а на Влада или Алину — для совместных моментов. Камеру можно вращать пальцем.</span>
@@ -73,7 +73,6 @@ app.innerHTML = `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
-const socialEl = document.querySelector<HTMLDivElement>('#social-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
@@ -94,6 +93,10 @@ function render(): void {
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
     online.length + ' из 2 игроков онлайн';
+  document.querySelector<HTMLElement>('#stock-line')!.textContent =
+    '🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread +
+    ' · 🥛 ' + state.pantry.milk + ' · 🍽️ Готово: ' +
+    Object.values(state.meals).reduce((a, b) => a + b, 0) + ' порций';
   for (const id of ['vlad', 'alina'] as const) {
     const stats = state.characters[id];
     const hunger = document.querySelector<HTMLElement>('#' + id + '-hunger')!;
@@ -110,34 +113,6 @@ function render(): void {
   }
 }
 
-function renderSocialOffer(): void {
-  socialEl.replaceChildren();
-  if (!socialOffer || !active) { socialEl.hidden = true; return; }
-  socialEl.hidden = false;
-  const incoming = socialOffer.to === active;
-  const title = document.createElement('strong');
-  title.textContent = incoming
-    ? '💌 ' + names[socialOffer.from] + ' предлагает: ' + SOCIAL_LABELS[socialOffer.kind].toLowerCase()
-    : '💌 Приглашение для ' + names[socialOffer.to] + ' отправлено';
-  socialEl.appendChild(title);
-  const buttons = document.createElement('div');
-  buttons.className = 'social-buttons';
-  function action(label: string, fn: () => void, positive = false): void {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    if (positive) button.className = 'social-accept';
-    button.addEventListener('click', fn);
-    buttons.appendChild(button);
-  }
-  const id = socialOffer.id;
-  if (incoming) {
-    action('❤️ Принять', () => net.replySocial(id, true), true);
-    action('Не сейчас', () => net.replySocial(id, false));
-  } else action('Отменить', () => net.cancelSocial(id));
-  socialEl.appendChild(buttons);
-}
-
 function showStatus(text: string): void {
   statusEl.textContent = text;
   authStatusEl.textContent = text;
@@ -150,8 +125,6 @@ const net = new LiveConnection({
     authEl.hidden = true;
     marketBtn.disabled = false;
     actionsEl.hidden = true;
-    socialOffer = null;
-    renderSocialOffer();
     for (const id of ['vlad', 'alina'] as const) {
       const snapshot = household.characters[id];
       world.restoreCharacter(id, snapshot.x, snapshot.z, snapshot.pose);
@@ -173,26 +146,16 @@ const net = new LiveConnection({
   onAction(role, actionId, message) {
     const def = ACTIONS[actionId];
     if (!def) return;
-    const animated = def.item === 'delivery' || world.perform(role, def.item, def.pose, () => {});
+    const animated = world.perform(role, def.item, def.pose, () => {});
     statusEl.textContent = message;
     notify(animated ? message : message + ' · путь к предмету пока не найден');
   },
-  onSocialOffer(id, from, to, kind) {
-    socialOffer = { id, from, to, kind };
-    actionsEl.hidden = true;
-    renderSocialOffer();
-    if (to === active) notify('💌 ' + names[from] + ' приглашает: ' + SOCIAL_LABELS[kind]);
-  },
-  onSocialClear(id, message) {
-    if (socialOffer?.id === id) {
-      socialOffer = null;
-      renderSocialOffer();
-      notify(message);
-    }
+  onFoodEvent(role, action, message) {
+    if (action !== 'buy') world.performFood(role, action);
+    statusEl.textContent = message;
+    notify(message);
   },
   onSocialStart(kind, message) {
-    socialOffer = null;
-    renderSocialOffer();
     actionsEl.hidden = true;
     const animated = world.playSocial(kind);
     statusEl.textContent = message;
@@ -244,7 +207,7 @@ function openSocialActions(target: CharacterId): void {
     button.addEventListener('click', () => {
       if (net.offerSocial(kind)) {
         actionsEl.hidden = true;
-        statusEl.textContent = 'Отправляем приглашение…';
+        statusEl.textContent = 'Совместное действие…';
       }
     });
     actionsEl.appendChild(button);
@@ -270,6 +233,17 @@ function openActions(item: ItemId): void {
   close.setAttribute('aria-label', 'Закрыть меню');
   close.addEventListener('click', () => { actionsEl.hidden = true; });
   actionsEl.appendChild(close);
+
+  if (state && (item === 'delivery' || item === 'kitchen' || item === 'table')) {
+    showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
+      const sent = net.food(type, id);
+      if (sent) {
+        actionsEl.hidden = true;
+        statusEl.textContent = 'Обрабатываем действие…';
+      }
+      return sent;
+    });
+  }
 
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;

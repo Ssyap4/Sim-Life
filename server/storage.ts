@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
+import { EMPTY_MEALS, EMPTY_PANTRY } from '../src/shared/food';
 
 export interface ServerFiles {
   dataDir: string;
@@ -16,8 +17,17 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
-  if (!Number.isSafeInteger(state.pantry.eggs) || state.pantry.eggs < 0 ||
-      !Number.isSafeInteger(state.pantry.bread) || state.pantry.bread < 0) return false;
+  const pantry = state.pantry as Record<string, unknown>;
+  const meals = state.meals as Record<string, unknown> | undefined;
+  if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
+      !Number.isSafeInteger(pantry.bread) || Number(pantry.bread) < 0) return false;
+  // Older version-2 saves only had eggs and bread; missing catalogue keys are
+  // handled by load() without ever discarding their money, skills or progress.
+  if (!Object.keys(EMPTY_PANTRY).every((key) => pantry[key] === undefined ||
+    Number.isSafeInteger(pantry[key]) && Number(pantry[key]) >= 0 && Number(pantry[key]) <= 99)) return false;
+  if (meals !== undefined && (!meals || !Object.keys(EMPTY_MEALS).every((key) =>
+    meals[key] === undefined || Number.isSafeInteger(meals[key]) &&
+      Number(meals[key]) >= 0 && Number(meals[key]) <= 30))) return false;
   return (['vlad', 'alina'] as const).every((role) => {
     const p = state.characters?.[role];
     if (!p) return false;
@@ -57,7 +67,11 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
-      return data;
+      return {
+        ...data,
+        pantry: { ...EMPTY_PANTRY, ...data.pantry },
+        meals: { ...EMPTY_MEALS, ...data.meals },
+      };
     },
     save(state: GameState): void {
       if (!isValidState(state)) throw new Error('Refusing to save invalid household');

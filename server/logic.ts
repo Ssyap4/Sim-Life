@@ -54,34 +54,15 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       state.money += 80; change(state, role, 'skill', 5);
       change(state, role, 'energy', -8); change(state, role, 'mood', 3);
       message = 'Алина провела консультацию: +80 ₽'; break;
-    case 'omelette':
-      if (state.pantry.eggs < 2) return { ok: false, reason: 'Для омлета не хватает двух яиц' };
-      state.pantry.eggs -= 2; change(state, role, 'hunger', 32);
-      change(state, role, 'mood', 5); change(state, role, 'energy', -4);
-      message = name + ': омлет готов, осталось яиц: ' + state.pantry.eggs; break;
-    case 'snack':
-      if (state.pantry.bread < 1) return { ok: false, reason: 'Хлеб закончился' };
-      state.pantry.bread -= 1; change(state, role, 'hunger', 13);
-      message = name + ': хлеба осталось: ' + state.pantry.bread; break;
-    case 'watchTv':
+     case 'watchTv':
       change(state, role, 'mood', 13); change(state, role, 'energy', -2);
       message = name + ': посмотрел(а) телевизор'; break;
     case 'tableRest':
       change(state, role, 'energy', 6); change(state, role, 'mood', 3);
       message = name + ': отдых за столом'; break;
-    case 'buyEggs':
-      if (state.money < 30) return { ok: false, reason: 'В бюджете не хватает 30 ₽' };
-      state.money -= 30; state.pantry.eggs += 2;
-      message = name + ': куплено 2 яйца за 30 ₽ (демо-доставка)'; break;
-    case 'buyBread':
-      if (state.money < 20) return { ok: false, reason: 'В бюджете не хватает 20 ₽' };
-      state.money -= 20; state.pantry.bread += 1;
-      message = name + ': куплен хлеб за 20 ₽ (демо-доставка)'; break;
-  }
-  if (def.item !== 'delivery') {
-    const point = points[def.item];
-    Object.assign(state.characters[role], { x: point.x, z: point.z, pose: def.pose });
-  }
+   }
+  const point = points[def.item];
+  Object.assign(state.characters[role], { x: point.x, z: point.z, pose: def.pose });
   state.revision += 1;
   return { ok: true, message, state };
 }
