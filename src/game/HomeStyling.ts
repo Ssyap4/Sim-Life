@@ -4,12 +4,6 @@ import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { cushionGeometry } from './FurnitureGeometry';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
-import type { FloorRect } from './navigation';
-
-export const decorObstacles: readonly FloorRect[] = [
-  { minX: 4.70, maxX: 5.35, minZ: -0.26, maxZ: 0.38 },
-  { minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 },
-];
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -143,17 +137,22 @@ function practicalLights(home: THREE.Group): void {
 
 function petNooks(home: THREE.Group): void {
   for (const id of PET_IDS) {
-    const { x, z } = PETS[id].home;
+    const { home: { x, z }, bowl, toilet } = PETS[id];
     const dog = id === 'verdell';
-    shape(home, softCube, [0.93, 0.058, 0.75], [x, 0.034, z], dog ? C.pine : C.rust);
-    shape(home, softCube, [0.78, 0.038, 0.60], [x, 0.073, z], dog ? C.sage : C.oat);
-    shape(home, drum, [0.18, 0.086, 0.18], [x + 0.59, 0.051, z + 0.18],
+    shape(home, softCube, [1.20, 0.065, 1.06], [x, 0.035, z], dog ? C.pine : C.rust);
+    shape(home, softCube, [0.99, 0.046, 0.84], [x, 0.076, z], dog ? C.sage : C.oat);
+    shape(home, softCube, [1.08, .16, .15], [x, .13, z - .43], dog ? C.sage : C.oat);
+    shape(home, drum, [0.18, 0.086, 0.18], [bowl.x, 0.051, bowl.z],
       dog ? C.leaf : C.clay, 'ceramic');
     const rim = shape(home, torus, [0.165, 0.165, 0.165],
-      [x + 0.59, 0.104, z + 0.18], C.paper, 'ceramic');
+      [bowl.x, 0.104, bowl.z], C.paper, 'ceramic');
     rim.rotation.x = -Math.PI / 2;
-    shape(home, orb, [0.097, 0.09, 0.096], [x - 0.56, 0.1, z + 0.19],
-      dog ? C.coral : C.leaf);
+    shape(home, drum, [.119, .035, .119], [bowl.x, .078, bowl.z], C.walnut);
+    shape(home, softCube, [.86, .052, .69], [toilet.x, .045, toilet.z], dog ? C.pine : C.clay);
+    shape(home, softCube, [.70, .019, .52], [toilet.x, .079, toilet.z], dog ? C.paper : C.oat);
+    for (const side of [-1, 1]) shape(home, softCube, [.07, .10, .65], [toilet.x + side * .39, .10, toilet.z],
+      dog ? C.sage : C.coral);
+    shape(home, softCube, [.78, .11, .07], [toilet.x, .10, toilet.z - .31], dog ? C.sage : C.coral);
   }
 }
 
@@ -183,17 +182,17 @@ export function decorateHome(scene: THREE.Scene): void {
   platformShadow(scene);
   // World-unit bevels keep the square floor deck supported right to its corners.
   for (const [width, height, depth, y, color, surface] of [
-    [12.52, 0.40, 10.48, -0.42, 0xa5725a, 'ceramic'],
-    [12.36, 0.20, 10.32, -0.17, 0x815841, 'wood'],
-    [12.19, 0.09, 10.16, -0.048, C.oat, 'wood'],
+    [12.52, 0.40, 10.88, -0.42, 0xa5725a, 'ceramic'],
+    [12.36, 0.20, 10.72, -0.17, 0x815841, 'wood'],
+    [12.19, 0.09, 10.56, -0.048, C.oat, 'wood'],
   ] as const) {
     const edge = new RoundedBoxGeometry(width, height, depth, 1, height * 0.42);
-    shape(home, edge, [1, 1, 1], [0, y, 0], color, surface, y < -0.1);
+    shape(home, edge, [1, 1, 1], [0, y, .20], color, surface, y < -0.1);
   }
-  const floor = panel(home, [0, 0, 0], [12, 10], oakFloor(), C.oak);
+  const floor = panel(home, [0, 0, .20], [12, 10.40], oakFloor(), C.oak);
   floor.rotation.x = -Math.PI / 2;
-  shape(home, softCube, [2.04, 0.16, 0.42], [0.7, -0.46, 5.30], C.clay, 'ceramic', true);
-  shape(home, softCube, [1.92, 0.10, 0.33], [0.7, -0.30, 5.27], C.oat, 'wood', true);
+  shape(home, softCube, [2.04, 0.16, 0.42], [0.7, -0.46, 5.70], C.clay, 'ceramic', true);
+  shape(home, softCube, [1.92, 0.10, 0.33], [0.7, -0.30, 5.67], C.oat, 'wood', true);
   shape(home, softCube, [1.60, 0.025, 0.62], [0.7, 0.015, 4.58], C.leaf);
   rearWall(home);
   leftWall(home);

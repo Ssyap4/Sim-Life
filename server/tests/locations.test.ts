@@ -8,7 +8,6 @@ import { advanceLife } from '../life';
 import { openServerFiles } from '../storage';
 import { beginShift } from '../jobs';
 import { buildFurniture } from '../../src/game/InteriorArt';
-import { decorObstacles } from '../../src/game/HomeStyling';
 import { createLocation } from '../../src/game/LocationScene';
 import { findRoute } from '../../src/game/navigation';
 import { Box3 } from 'three';
@@ -30,7 +29,6 @@ test('Both spawns and every physical station are reachable in all five scenes', 
   for (const [place, stations] of Object.entries(STATIONS) as [PlaceId, typeof STATIONS.home][]) {
     const obstacles = placeObstacles(place);
     if (place === 'home') {
-      obstacles.push(...decorObstacles);
       buildFurniture((_id, group) => {
         group.updateMatrixWorld(true);
         const b = new Box3().setFromObject(group);

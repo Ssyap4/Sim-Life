@@ -1,14 +1,69 @@
 import {
-  PETS, PET_IDS, type PetId, type PetAction,
+  PETS, PET_IDS, PET_ROAM, PET_SPEED, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
+import { placeObstacles, WORLD_FLOOR } from '../src/shared/locations';
+import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
+import { planWalk, pointIsClear, sampleWalk } from '../src/game/navigation';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
   | { ok: false; reason: string };
 
 const clamp = (number: number): number => Math.max(0, Math.min(100, number));
+const homeObstacles = placeObstacles('home');
+
+export function petCarePoint(state: GameState, id: PetId) {
+  const { x, z } = state.pets[id].position;
+  return [[0, .74], [-.74, 0], [.74, 0], [0, -.74]]
+    .map(([dx, dz]) => ({ x: x + dx, z: z + dz }))
+    .find(spot => pointIsClear(spot, homeObstacles, WORLD_FLOOR));
+}
+
+export function pausePetRoutine(state: GameState, id: PetId, now: number): void {
+  const pet = state.pets[id];
+  if (!pet.routine) return;
+  pet.position = sampleWalk(pet.routine.route, Math.max(0, now - pet.routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
+  delete pet.routine;
+}
+
+/** Called on the clock's isolated state. Routes are cosmetic, supplies are authoritative. */
+export function runPetRoutines(state: GameState, minutes: number, now: number,
+  occupied: ReadonlySet<PetId>, random = Math.random): void {
+  for (const id of PET_IDS) {
+    const pet = state.pets[id];
+    const drain = (value: number, rate: number) => Math.round(clamp(value - minutes * rate / 60) * 100) / 100;
+    pet.satiety = drain(pet.satiety, 4);
+    pet.energy = drain(pet.energy, 5);
+    pet.bladder = drain(pet.bladder, 7);
+    const previous = pet.routine;
+    if (previous) pet.position = sampleWalk(previous.route, (now - previous.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
+    if ((id === 'verdell' && state.world.dogWalker) || occupied.has(id)) {
+      delete pet.routine;
+      continue;
+    }
+    if (previous && previous.until > now) continue;
+    if (previous?.kind === 'eat' && state.petFood[id] > 0) {
+      state.petFood[id]--;
+      pet.satiety = clamp(pet.satiety + 27);
+      pet.happiness = clamp(pet.happiness + 3);
+    } else if (previous?.kind === 'toilet') {
+      pet.bladder = 100;
+    } else if (previous?.kind === 'sleep') {
+      pet.energy = clamp(pet.energy + 33);
+    }
+    let kind: PetRoutine['kind'] = 'wander';
+    if (pet.bladder <= 63) kind = 'toilet';
+    else if (pet.satiety <= 66 && state.petFood[id] > 0) kind = 'eat';
+    else if (pet.energy <= 63) kind = 'sleep';
+    let target = Math.floor(random() * PET_ROAM.length);
+    if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
+    const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+    const route = planWalk(pet.position, petDestination(id, { kind, target }), homeObstacles, WORLD_FLOOR);
+    pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;
+  }
+}
 /** Pets are family members. No real-time health penalties or forced purchases. */
 export function applyPetAction(
   source: GameState,
@@ -74,12 +129,10 @@ export function applyPetAction(
       message = names[role] + ' ухаживает за шерстью ' + spec.name;
       break;
   }
-  // Keep the authoritative character position consistent with the visual
-  // approach. Pets may idle-wander cosmetically, but their care marker is stable.
+  // The pet stays at its shared position while the household cares for it.
   if (kind !== 'buyFood') {
-    actor.x = spec.home.x;
-    actor.z = spec.home.z + 0.78;
-    actor.pose = 'idle';
+    const point = petCarePoint(next, id);
+    if (point) Object.assign(actor, point, { pose: 'idle' });
   }
   next.revision++;
   return { ok: true, state: next, message };

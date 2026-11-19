@@ -1,31 +1,32 @@
 import { ingredientList, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
-import { WORLD_FLOOR, approachFor, clockMinutes, meeting, placeObstacles, stationById, type PlaceId, type Station } from '../shared/locations';
+import { WORLD_FLOOR, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
+import { KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../shared/home';
 import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
-import { PETS, type PetId, type PetAction } from '../shared/pets';
-import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from './navigation';
+import { PET_IDS, PET_SPEED, type PetId, type PetAction } from '../shared/pets';
+import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, points, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
-import { decorObstacles, decorateHome } from './HomeStyling';
+import { decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
-import { buildFurniture, buildSoftRugs, furnitureFootprints } from './InteriorArt';
-import { dayPhase } from '../shared/life';
+import { buildFurniture, buildSoftRugs } from './InteriorArt';
+import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
 
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
 // targets only: the server and route planner still use the approach tiles.
-const deskKeys = [new THREE.Vector3(3.37, 1.116, 1.896), new THREE.Vector3(3.03, 1.116, 1.896)] as const;
-const cookingPan = new THREE.Vector3(2.58, 1.169, -3.76);
+const deskKeys = [new THREE.Vector3(2.85, 1.116, 2.166), new THREE.Vector3(2.51, 1.116, 2.166)] as const;
+const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
 // Reuse the existing light articulated rig instead of loading extra animations.
 const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
   sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
@@ -65,8 +66,11 @@ export class World {
   private remote: ReturnType<typeof createLocation> | null = null;
   private externalObstacles: FloorRect[] = [];
   private remoteMeshes: THREE.Object3D[] = [];
-  private closedDoor: string | null = null;
+  private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private readonly sleepingOffline = new Set<CharacterId>();
+  private readonly homeLeisure = new Set<CharacterId>();
+  private readonly petRoutines = new Map<PetId, number>();
   private localRole: CharacterId = 'vlad';
   private cart: THREE.Group | null = null;
   private cartSize = 0;
@@ -82,7 +86,7 @@ export class World {
   private readonly raycaster = new THREE.Raycaster();
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
-  private readonly obstacles: FloorRect[] = [];
+  private readonly obstacles = placeObstacles('home');
   private lastFrame = performance.now();
   private downPoint: (Point & { id: number }) | null = null;
   private socialSequence = 0;
@@ -132,10 +136,8 @@ export class World {
 
     this.createLights();
     this.createHome();
-    this.actors = {
-      vlad: new Actor('vlad', [0.5, 3.5], characters.vlad),
-      alina: new Actor('alina', [1.65, 3.2], characters.alina),
-    };
+    const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
+    this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
@@ -262,7 +264,7 @@ export class World {
       // A sofa and double bed have two visual positions, not two overlapping residents.
       sofa: { x: id === 'vlad' ? -3.60 : -2.60, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
       bed: { x: id === 'vlad' ? -4.40 : -3.30, y: 1.055, z: -1.61, yaw: 0 },
-      desk: { x: 3.2, y: id === 'vlad' ? -0.24 : -0.19, z: 2.47, yaw: Math.PI },
+      desk: { x: 2.68, y: id === 'vlad' ? -0.24 : -0.19, z: 2.74, yaw: Math.PI },
       table: { x: -0.84, y: id === 'vlad' ? -0.27 : -0.22, z: 0.05, yaw: -Math.PI / 2 },
     } as const;
     const anchor = anchors[itemId as keyof typeof anchors];
@@ -298,7 +300,7 @@ export class World {
         if (!current()) return;
         const actor = this.actors[id];
         if (action === 'cook') {
-          actor.setFurniturePose('idle', new THREE.Vector3(2.88, id === 'vlad' ? 0 : 0.025, -3.03), Math.PI);
+          actor.faceTowards(cookingPan);
         }
         if (action === 'eat') this.showMeal(id, -1.46, .585, .04);
         actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
@@ -307,6 +309,7 @@ export class World {
 
   startTimedAction(role: CharacterId, command: TimedCommand): boolean {
     if (this.household && this.household.world.places[role] !== this.place) return true;
+    this.closeStorage(role);
     if (command.type === 'local_activity') {
       const station = stationById(this.place, command.station);
       if (!station) return false;
@@ -331,6 +334,16 @@ export class World {
     const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
+      if (command.actionId in KITCHEN_ACTIONS) {
+        const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
+        const work = KITCHEN_WORK[motion];
+        return this.walkTo(role, work.position, () => {
+          if (!current()) return;
+          const target = new THREE.Vector3().copy(work.target);
+          this.actors[role].faceTowards(target);
+          this.actors[role].playDomesticActivity(motion, target);
+        });
+      }
       return this.perform(role, def.item, def.pose, () => {
         if (!current()) return;
         const motion = DOMESTIC_MOTIONS[command.actionId];
@@ -356,17 +369,17 @@ export class World {
       return acc + Math.hypot(next.x - previous.x, next.z - previous.z);
     }, 0);
     if (!start || !towardStorage || !towardStove ||
-      length(start, towardStorage) + length(approach, towardStove) > 12) {
+      length(start, towardStorage) + length(approach, towardStove) > 22) {
       return this.performFood(role, 'cook', current);
     }
     return this.walkTo(role, approach, () => {
       if (!current()) return;
       actor.faceTowards(this.vector.set(station.center.x, 0, station.center.z));
-      this.openStorage(station.id);
-      actor.playDomesticActivity('tidy');
-      this.preparations.set(role, { remaining: .9, next: () => {
+      this.openStorage(station.id, role);
+      actor.playDomesticActivity('reach');
+      this.preparations.set(role, { remaining: 1.25, next: () => {
         if (!current()) return;
-        this.closeStorage();
+        this.closeStorage(role);
         this.performFood(role, 'cook', current);
       } });
     });
@@ -376,7 +389,7 @@ export class World {
     this.preparations.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
-    this.closeStorage();
+    this.closeStorage(role);
     ++this.taskSequence[role];
     this.actors[role].finishActivity();
   }
@@ -385,7 +398,7 @@ export class World {
     this.preparations.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
-    this.closeStorage();
+    this.closeStorage(role);
     ++this.taskSequence[role];
     ++this.socialSequence;
     this.actors[role].setPose('idle');
@@ -395,8 +408,10 @@ export class World {
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
-    const position = PETS[petId].home;
-    const target = nearestClearPoint({ x: position.x, z: position.z + 0.78 }, this.obstacles);
+    const position = pet.root.position;
+    pet.stop();
+    const spots = [[0, .74], [-.74, 0], [.74, 0], [0, -.74]].map(([x, z]) => ({ x: position.x + x, z: position.z + z }));
+    const target = spots.find(spot => pointIsClear(spot, this.obstacles, WORLD_FLOOR));
     const start = nearestClearPoint(
       { x: actor.root.position.x, z: actor.root.position.z }, this.obstacles);
     const route = start && target ? findRoute(start, target, this.obstacles) : null;
@@ -409,6 +424,54 @@ export class World {
       pet.react(action);
     });
     return true;
+  }
+
+  setHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes?: Partial<Record<CharacterId, WalkRoute>>): void {
+    if (this.place !== 'home') return;
+    if (!activity) {
+      for (const role of roles) if (this.homeLeisure.delete(role)) {
+        ++this.taskSequence[role];
+        const actor = this.actors[role];
+        const point = routes?.[role]?.from;
+        if (point) actor.root.position.set(point.x, 0, point.z);
+        actor.setPose('idle');
+      }
+      return;
+    }
+    if (roles.some(role => !this.actors[role].root.visible || this.sleepingOffline.has(role))) return;
+    const follow = (role: CharacterId, arrive: () => void) => {
+      const route = routes?.[role];
+      if (!route) return;
+      const actor = this.actors[role];
+      actor.root.position.set(route.from.x, 0, route.from.z);
+      actor.walkPath(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), arrive);
+    };
+    for (const role of roles) this.homeLeisure.add(role);
+    if (activity === 'chat') {
+      let arrived = 0;
+      for (const role of roles) follow(role, () => {
+        if (++arrived !== roles.length || roles.some(id => !this.homeLeisure.has(id))) return;
+        const vlad = this.actors.vlad, alina = this.actors.alina;
+        vlad.faceTowards(alina.root.position);
+        alina.faceTowards(vlad.root.position);
+        vlad.playDomesticActivity('chat');
+        alina.playDomesticActivity('chat');
+      });
+      return;
+    }
+    for (const role of roles) {
+      follow(role, () => {
+        if (activity === 'tv' || activity === 'computer') {
+          this.applyFurniturePose(role, activity === 'tv' ? 'sofa' : 'desk', activity === 'tv' ? 'sit' : 'work');
+          if (activity === 'computer') this.actors[role].playDomesticActivity('games');
+        } else {
+          const pet = this.pets[activity];
+          this.actors[role].faceTowards(pet.root.position);
+          this.actors[role].playPetActivity('play');
+          pet.react('play');
+        }
+      });
+    }
   }
 
   playSocial(kind: SocialKind): boolean {
@@ -485,12 +548,6 @@ export class World {
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
-    const bounds = furnitureFootprints[id];
-    const clearance = 0.27;
-    this.obstacles.push({
-      minX: bounds.minX - clearance, maxX: bounds.maxX + clearance,
-      minZ: bounds.minZ - clearance, maxZ: bounds.maxZ + clearance,
-    });
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {
         part.userData.interactable = id;
@@ -507,7 +564,6 @@ export class World {
       batchRigidParts(furniture);
       this.register(id, furniture, point);
     });
-    this.obstacles.push(...decorObstacles, ...placeObstacles('home'));
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
   }
@@ -552,11 +608,19 @@ export class World {
   runLocationPath(role: CharacterId, path: { x: number; z: number }[], station?: string, onArrive = () => {}): void {
     const target = path.at(-1);
     if (!target) { onArrive(); return; }
-    this.closeStorage();
+    this.closeStorage(role);
     this.preparations.delete(role);
     const arrival = () => {
       const site = stationById(this.place, station);
-      if (site) this.actors[role].faceTowards(this.vector.set(site.center.x, 0, site.center.z));
+      if (site) {
+        const actor = this.actors[role];
+        actor.faceTowards(this.vector.set(site.center.x, 0, site.center.z));
+        if (site.action.kind === 'fridge' || site.action.kind === 'cupboard') {
+          this.openStorage(site.id, role);
+          actor.playDomesticActivity('reach');
+          this.preparations.set(role, { remaining: 1.5, next: () => actor.finishActivity() });
+        }
+      }
       onArrive();
     };
     // Replan from the visible position if a walk interrupted a previous one.
@@ -565,8 +629,8 @@ export class World {
     }
   }
 
-  openStorage(id: string): void { this.closedDoor = id; }
-  closeStorage(): void { this.closedDoor = null; }
+  openStorage(id: string, role = this.localRole): void { this.openDoors.set(role, id); }
+  closeStorage(role = this.localRole): void { this.openDoors.delete(role); }
 
   setCart(count: number): void {
     if (!this.cart) {
@@ -592,7 +656,7 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
-    this.closeStorage();
+    this.openDoors.clear();
     this.cameraMove = null;
     this.followSubject = null;
     this.inspected = null;
@@ -600,6 +664,10 @@ export class World {
     this.viewport = null;
     this.lastDayPhase = null;
     this.preparations.clear();
+    this.petRoutines.clear();
+    this.homeLeisure.clear();
+    this.sleepingOffline.clear();
+    for (const pet of Object.values(this.pets)) pet.stop();
     this.dogTrail = [];
     this.lastDogPoint = null;
     this.remote?.root.removeFromParent();
@@ -627,7 +695,7 @@ export class World {
     this.renderer.renderLists.dispose();
   }
 
-  syncHousehold(state: GameState, role: CharacterId, reset = false): void {
+  syncHousehold(state: GameState, role: CharacterId, reset = false, online: CharacterId[] = [role]): void {
     const previous = this.household;
     const place = state.world.places[role];
     const changed = place !== this.place;
@@ -636,23 +704,31 @@ export class World {
     if (changed) this.switchPlace(place);
     this.setTimeOfDay(state.clock.minute);
     for (const id of ['vlad', 'alina'] as const) {
-      const away = !!state.activeShifts[id] || state.world.places[id] !== place;
+      const offline = id !== role && !online.includes(id);
+      const wasSleeping = this.sleepingOffline.has(id);
+      const sleep = offline && place === 'home' && !state.activeShifts[id];
+      const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
-      if (!away && (reset || changed || appeared)) {
+      if (away || sleep) this.closeStorage(id);
+      if (sleep && (!wasSleeping || reset || changed)) {
+        this.sleepingOffline.add(id);
+        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
+      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
       }
+      if (!sleep) this.sleepingOffline.delete(id);
       this.bags[id].visible = !away && state.world.bags[id] > 0;
     }
     const dog = this.pets.verdell.root;
     const walker = state.world.dogWalker;
     dog.visible = walker ? place === 'park' && state.world.places[walker] === 'park' && !state.activeShifts[walker] : place === 'home';
     this.pets.simba.root.visible = place === 'home';
-    if (!walker) dog.position.set(PETS.verdell.home.x, 0, PETS.verdell.home.z);
-    else if (place === 'park' && (changed || previous?.world.dogWalker !== walker)) {
-      dog.position.copy(this.actors[walker].root.position);
-      dog.position.x -= .46;
+    if (!walker && previous?.world.dogWalker) this.petRoutines.delete('verdell');
+    if (place === 'park' && walker && (changed || previous?.world.dogWalker !== walker)) {
+      const point = state.pets.verdell.parkPosition ?? this.actors[walker].root.position;
+      dog.position.set(point.x, 0, point.z);
       this.dogTrail = [];
       this.lastDogPoint = null;
     }
@@ -660,6 +736,7 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
+      this.updateHomePets(state);
       if (this.served) this.served.visible = Object.values(state.meals).some(quantity => quantity > 0);
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
       const counts = { fridge: 0, cupboard: 0 };
@@ -669,6 +746,29 @@ export class World {
       for (const [key, models] of this.extensions.stock) {
         models.forEach((model, index) => { model.visible = index < counts[key as keyof typeof counts]; });
       }
+    }
+  }
+
+  private updateHomePets(state: GameState): void {
+    for (const id of PET_IDS) {
+      const pet = this.pets[id];
+      const routine = state.pets[id].routine;
+      if (!pet.root.visible || !routine) {
+        this.petRoutines.delete(id);
+        if (pet.root.visible) {
+          pet.stop();
+          const position = state.pets[id].position;
+          pet.root.position.set(position.x, 0, position.z);
+        }
+        continue;
+      }
+      if (this.petRoutines.get(id) === routine.until) continue;
+      this.petRoutines.set(id, routine.until);
+      const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
+      const route = sampleWalk(routine.route, distance);
+      pet.root.position.set(route.from.x, 0, route.from.z);
+      pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
+        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined);
     }
   }
 
@@ -689,9 +789,9 @@ export class World {
     const id: unknown = hit?.object.userData.interactable;
     if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') this.onPick(id);
     else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
-    else if (this.place !== 'home') {
+    else {
       const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);
-      if (point) this.navigation?.ground(point.x, point.z);
+      if (point && pointIsClear(point, this.currentObstacles(), WORLD_FLOOR)) this.navigation?.ground(point.x, point.z);
     }
   }
 
@@ -784,7 +884,10 @@ export class World {
       }
       if (this.dogTrail.length > 2 && this.dogTrail[0] &&
         Math.hypot(dog.root.position.x - this.dogTrail[0].x, dog.root.position.z - this.dogTrail[0].z) < .11) this.dogTrail.shift();
-      const target = this.dogTrail[0] ?? actor.position;
+      const endpoint = this.household?.pets.verdell.parkPosition;
+      const atEnd = endpoint && Math.hypot(x - this.household!.characters[walker].x,
+        z - this.household!.characters[walker].z) < .08;
+      const target = atEnd && this.dogTrail.length <= 2 ? endpoint : (this.dogTrail[0] ?? actor.position);
       const dx = target.x - dog.root.position.x, dz = target.z - dog.root.position.z;
       const distance = Math.hypot(dx, dz);
       if (distance > .07) {
@@ -799,7 +902,8 @@ export class World {
     if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
     if (this.pets.simba.root.visible) this.pets.simba.update(dt);
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
-      door.rotation.y = THREE.MathUtils.damp(door.rotation.y, this.closedDoor === id ? -1.53 : 0, 11, dt);
+      const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
+      door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);
     }
     for (const { visual, shade, pet } of this.contacts) {
       visual.getWorldPosition(this.contactPoint);

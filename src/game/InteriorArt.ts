@@ -2,22 +2,12 @@ import * as THREE from 'three';
 import { colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
 import { deskDisplay, kitchenTiles, tvStill, upholsteryWeave, wovenRug } from './ArtTextures';
 import { cushionGeometry, tabletopGeometry } from './FurnitureGeometry';
-import type { FloorRect } from './navigation';
+import { COUNTER } from '../shared/home';
+import { points } from '../shared/protocol';
 
 type FurnitureId = 'sofa' | 'bed' | 'kitchen' | 'desk' | 'tv' | 'table';
 type Point = { x: number; z: number };
 type Register = (id: FurnitureId, group: THREE.Group, point: Point) => void;
-
-// The playable footprints from the portrait release. Upholstery, bevels and
-// props can change shape without rerouting characters or moving approach anchors.
-export const furnitureFootprints: Record<FurnitureId, FloorRect> = {
-  sofa: { minX: -4.44, maxX: -1.76, minZ: 1.16379, maxZ: 2.30 },
-  bed: { minX: -5.19, maxX: -2.51, minZ: -4.00, maxZ: -1.27 },
-  kitchen: { minX: 1.255, maxX: 5.66, minZ: -4.485, maxZ: -3.39 },
-  desk: { minX: 2.075, maxX: 4.325, minZ: 0.97, maxZ: 2.921034 },
-  tv: { minX: -1.56, maxX: 0.36, minZ: -3.905, maxZ: -3.346 },
-  table: { minX: -2.56, maxX: -1.20, minZ: -0.65, maxZ: 0.71 },
-};
 
 const C = {
   linen: colors.paper, cream: 0xfff3dd, oat: colors.oat,
@@ -129,7 +119,7 @@ function makeBed(): THREE.Group {
 }
 
 function makeKitchen(): THREE.Group {
-  const kitchen = group(3.45, -3.91);
+  const kitchen = group(COUNTER.x, COUNTER.z);
   part(kitchen, [4.23, 0.77, 0.83], [0, 0.525, 0], C.mossDark, 'square', true);
   part(kitchen, [4.13, 0.12, 0.74], [0, 0.078, -0.015], C.woodDark, 'square', false, 'wood');
   // Four adjoining pieces leave an actual opening for the recessed basin.
@@ -188,11 +178,6 @@ function makeKitchen(): THREE.Group {
     part(kitchen, [0.70, 0.35, 0.30], [x, 1.79, -0.28], C.linen, 'soft', false, 'wood');
     part(kitchen, [0.26, 0.025, 0.021], [x, 1.70, -0.105], C.brass, 'soft', false, 'metal');
   }
-  part(kitchen, [1.24, 0.07, 0.39], [-1.49, 1.57, -0.30], C.woodLight, 'soft', false, 'wood');
-  for (const x of [-1.82, -1.55, -1.25]) {
-    round(kitchen, 0.095, 0.20, [x, 1.71, -0.27], x < -1.5 ? C.oat : C.glass);
-    round(kitchen, 0.105, 0.025, [x, 1.83, -0.27], C.woodDark);
-  }
   const kettle = oval(kitchen, [0.18, 0.195, 0.154], [-1.69, 1.19, 0.15], C.terracotta);
   kettle.castShadow = true;
   ring(kitchen, 0.085, [-1.68, 1.37, 0.14], C.woodDark);
@@ -201,7 +186,7 @@ function makeKitchen(): THREE.Group {
 }
 
 function makeDesk(): THREE.Group {
-  const desk = group(3.2, 1.46);
+  const desk = group(2.68, 1.73);
   part(desk, [2.25, 0.126, 0.98], [0, 0.99, 0], C.woodLight, 'soft', true, 'wood');
   part(desk, [0.47, 0.42, 0.79], [-0.82, 0.72, -0.019], C.woodDark, 'soft', true, 'wood');
   for (const y of [0.64, 0.83]) {
@@ -284,8 +269,8 @@ function makeCoffeeTable(): THREE.Group {
 export function buildFurniture(register: Register): void {
   register('sofa', makeSofa(), { x: -3.0, z: 0.6 });
   register('bed', makeBed(), { x: -3.85, z: -0.76 });
-  register('kitchen', makeKitchen(), { x: 3.10, z: -2.66 });
-  register('desk', makeDesk(), { x: 3.17, z: 3.65 });
+  register('kitchen', makeKitchen(), points.kitchen);
+  register('desk', makeDesk(), points.desk);
   register('tv', makeTv(), { x: -0.55, z: -2.58 });
   register('table', makeCoffeeTable(), { x: -0.80, z: 0.04 });
 }
@@ -293,7 +278,7 @@ export function buildFurniture(register: Register): void {
 export function buildSoftRugs(scene: THREE.Scene): void {
   const rugs = [
     { style: 'living', x: -2.78, z: 1.22, width: 4.36, depth: 3.36, edge: C.terracotta },
-    { style: 'work', x: 3.20, z: 1.83, width: 2.65, depth: 2.92, edge: C.moss },
+    { style: 'work', x: 2.68, z: 2.10, width: 2.60, depth: 2.82, edge: C.moss },
     { style: 'sleep', x: -3.91, z: -2.56, width: 3.30, depth: 3.52, edge: C.oat },
   ] as const;
   for (const {style, x, z, width, depth, edge} of rugs) {

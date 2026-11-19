@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PETS, type PetAction, type PetId } from '../shared/pets';
+import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine } from '../shared/pets';
 import { buildPetArt } from './PetArt';
 
 export class PetActor {
@@ -13,6 +13,11 @@ export class PetActor {
   private tailPhase = 0;
   private reaction: PetAction | null = null;
   private reactionTime = 0;
+  private route: THREE.Vector3[] = [];
+  private routine: PetRoutine['kind'] | null = null;
+  private facing: number | undefined;
+  private distance = 0;
+  private settled = 0;
 
   constructor(readonly id: PetId) {
     const { x, z } = PETS[id].home;
@@ -27,11 +32,49 @@ export class PetActor {
   }
 
   react(action: PetAction): void {
+    this.stop();
     this.reaction = action;
     this.reactionTime = 0;
   }
 
+  followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number): void {
+    this.route = route;
+    this.routine = routine;
+    this.facing = facing;
+    this.settled = 0;
+  }
+
+  stop(): void {
+    this.route = [];
+    this.routine = null;
+    this.facing = undefined;
+    this.settled = 0;
+  }
+
   update(dt: number, travel = 0, pace = 0): void {
+    if (this.route.length) {
+      const target = this.route[0];
+      const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
+      const distance = Math.hypot(dx, dz);
+      const step = Math.min(distance, dt * PET_SPEED[this.id]);
+      if (distance > .001) {
+        const yaw = Math.atan2(dx, dz);
+        const delta = Math.atan2(Math.sin(yaw - this.root.rotation.y), Math.cos(yaw - this.root.rotation.y));
+        this.root.rotation.y += delta * (1 - Math.exp(-dt * 13));
+        this.root.position.x += dx * step / distance;
+        this.root.position.z += dz * step / distance;
+        this.distance += step;
+        pace = .76;
+      }
+      if (distance - step < .012) this.route.shift();
+    } else if (this.routine) {
+      this.settled += dt;
+      if (this.facing !== undefined) {
+        const delta = this.facing - this.root.rotation.y;
+        this.root.rotation.y += Math.atan2(Math.sin(delta), Math.cos(delta)) * (1 - Math.exp(-dt * 8));
+      }
+    }
+    if (this.routine) travel = this.distance;
     this.clock += dt;
     this.reactionTime += dt;
     const dog = this.id === 'verdell';
@@ -40,7 +83,10 @@ export class PetActor {
     if (r > 2.75) this.reaction = null;
     const weight = this.reaction ? Math.sin(Math.PI * Math.min(1, r / 2.75)) : 0;
     const playful = this.reaction === 'play' ? weight : 0;
-    const eating = this.reaction === 'feed' ? weight : 0;
+    const settled = Math.min(1, this.settled * 3);
+    const eating = this.reaction === 'feed' ? weight : this.routine === 'eat' ? settled : 0;
+    const sleeping = this.routine === 'sleep' ? settled : 0;
+    const toilet = this.routine === 'toilet' ? settled : 0;
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
     const pulse = Math.sin(t * (dog ? 2.6 : 1.9));
@@ -51,8 +97,9 @@ export class PetActor {
       this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch;
     }
     this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045;
-    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028);
-    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023);
+    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15;
+    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13;
+    this.body.rotation.x = -.13 * toilet;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention);
     this.head.position.y = (dog ? 0.728 : 0.537) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073);
     this.head.position.z = (dog ? 0.241 : 0.325) + eating * (dog ? 0.027 : 0.053);
@@ -75,7 +122,7 @@ export class PetActor {
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
     for (let i = 0; i < 2; i++) {
       this.rig.eyes[i].scale.y = THREE.MathUtils.lerp(this.rig.eyes[i].scale.y,
-        blink * (1 - (dog ? 0.22 : 0.50) * attention), smooth);
+        blink * (1 - (dog ? 0.22 : 0.50) * attention) * (1 - .91 * sleeping), smooth);
       const ear = this.rig.ears[i];
       const flick = Math.max(0, Math.sin(t * 1.19 + i * 2)) ** 12;
       ear.rotation.x = flick * (dog ? 0.055 : 0.20) + attention * 0.11;
@@ -85,7 +132,8 @@ export class PetActor {
       const paw = this.paws[i];
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
-      paw.rotation.x = pawLift * playful + Math.sin(travel * 16 + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33;
+      paw.rotation.x = pawLift * playful + Math.sin(travel * 16 + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
+        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31);
       paw.position.y = (dog ? 0.225 : front ? 0.245 : 0.27) + (dog ? 0 : 0.018 * playful * (front ? 1 : 0));
     }
   }

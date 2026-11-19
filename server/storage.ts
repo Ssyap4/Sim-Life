@@ -7,7 +7,7 @@ import { initialState, type CharacterId, type GameState } from '../src/shared/pr
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
-import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, type PetState } from '../src/shared/pets';
+import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 
 export interface ServerFiles {
@@ -79,10 +79,20 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
+  const point = (p: { x: number; z: number } | undefined) => p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
+    Math.abs(p.x) <= 6 && Math.abs(p.z) <= 5;
   if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
     const pet = petData[id];
-    return pet && (['satiety', 'happiness', 'bond'] as const).every((field) =>
-      Number.isSafeInteger(pet[field]) && pet[field] >= 0 && pet[field] <= 100);
+    const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
+    const routine = pet?.routine;
+    return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+      (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition)) &&
+      (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
+        Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
+        routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
+        routine.route && point(routine.route.from) && Array.isArray(routine.route.path) && routine.route.path.length <= 60 &&
+        routine.route.path.every(point));
   }))) return false;
   if (petFood !== undefined && (!petFood || !PET_IDS.every((id) =>
     Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= 24))) return false;
@@ -142,7 +152,10 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
-        pets: { ...structuredClone(INITIAL_PETS), ...data.pets },
+        pets: {
+          verdell: { ...INITIAL_PETS.verdell, ...data.pets?.verdell },
+          simba: { ...INITIAL_PETS.simba, ...data.pets?.simba },
+        },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };
     },

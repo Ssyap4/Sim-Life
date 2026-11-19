@@ -26,6 +26,7 @@ interface TaskView {
   label: string;
   since: number;
   durationMs: number;
+  automatic?: boolean;
 }
 const tasks = new Map<CharacterId, TaskView>();
 let world: World;
@@ -197,7 +198,7 @@ function drawTaskPanel(): void {
     const top = document.createElement('div');
     top.className = 'running-task-top';
     const title = document.createElement('strong');
-    title.textContent = names[role] + ': ' + task.label;
+    title.textContent = names[role] + ': ' + (task.automatic ? 'Самостоятельно · ' : '') + task.label;
     const secs = document.createElement('span');
     secs.className = 'task-seconds';
     top.append(title, secs);
@@ -290,7 +291,7 @@ function render(reset = false): void {
       }
       statusEl.textContent = PLACES[place].name;
     }
-    world.syncHousehold(state, active, reset);
+    world.syncHousehold(state, active, reset, online);
     locationUI.refresh(state, active);
     mapBtn.textContent = '🗺️ Карта';
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
@@ -430,21 +431,31 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(message);
   },
-  onTaskStarted(role, taskId, label, durationMs, command) {
-    tasks.set(role, { taskId, label, durationMs, since: performance.now() });
+  onHomeLeisure(roles, activity, routes) {
+    world.setHomeLeisure(roles, activity, routes);
+  },
+  onStorageEvent(role, station) {
+    if (world.place !== 'home') return;
+    if (station) world.openStorage(station, role);
+    else world.closeStorage(role);
+  },
+  onTaskStarted(role, taskId, label, durationMs, command, automatic) {
+    tasks.set(role, { taskId, label, durationMs, automatic, since: performance.now() });
     drawTaskPanel();
     const animated = world.startTimedAction(role, command);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated) notify('Действие началось на сервере, путь анимации пока недоступен');
   },
   onTaskEnded(role, taskId, outcome, message) {
-    if (tasks.get(role)?.taskId === taskId) {
+    const previous = tasks.get(role);
+    if (previous?.taskId === taskId) {
       if (outcome === 'completed') world.finishTimedAction(role);
       tasks.delete(role);
       drawTaskPanel();
     }
     if (outcome !== 'completed') {
       world.cancelTimedAction(role);
+      if (previous?.automatic) return;
       statusEl.textContent = message;
       notify(message);
     }

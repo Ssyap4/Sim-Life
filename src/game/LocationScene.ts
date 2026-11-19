@@ -284,21 +284,22 @@ export function homeExtensions() {
     } else {
       const fridge = station.action.kind === 'fridge';
       const shelves = new THREE.Group();
-      const h = fridge ? 1.86 : 1.11;
+      const h = fridge ? 2.10 : .81;
       const w = station.width;
       const d = station.depth;
-      root.rotation.y = fridge ? -Math.PI / 2 : 0;
+      if (!fridge) root.position.y = 1.34;
       shape(root, [w, .10, d], [0, h, 0], C.limestone);
       shape(root, [w, .10, d], [0, .11, 0], C.limestone);
       shape(root, [w, h, .06], [0, h / 2, -d * .45], C.oat, cube);
       for (const x of [-w / 2, w / 2]) shape(root, [.075, h, d], [x, h / 2, 0], C.limestone);
       root.add(shelves);
-      for (const y of [0.34, h * .49, h * .73]) shape(shelves, [w - .10, .035, d - .07], [0, y, 0], 0xf3e6cc);
+      for (const y of [h * .18, h * .47, h * .74]) shape(shelves, [w - .10, .035, d - .07], [0, y, 0], 0xf3e6cc);
       const products: THREE.Group[] = [];
       for (let i = 0; i < 9; i++) {
         const p = new THREE.Group();
         const level = Math.floor(i / 3);
-        p.position.set((i % 3 - 1) * w * .25, [.39, h * .49 + .045, h * .73 + .045][level], 0);
+        p.position.set((i % 3 - 1) * w * .25, h * [.18, .47, .74][level] + .02, 0);
+        if (!fridge) p.scale.setScalar(.77);
         shape(p, [.15, .19, .13], [0, .10, 0], accents[i % accents.length]);
         shape(p, [.11, .063, .015], [0, .108, .069], C.paper, cube);
         shelves.add(p); products.push(p);
@@ -306,8 +307,17 @@ export function homeExtensions() {
       stock.set(station.id, products);
       const door = new THREE.Group();
       door.position.set(-w / 2, 0, d / 2);
-      shape(door, [w, h - .07, .067], [w / 2, h / 2, 0], fridge ? 0x8eaea8 : C.walnut, softCube, true);
-      shape(door, [.039, .27, .057], [w * .85, h * .64, .065], C.brass);
+      if (fridge) {
+        shape(door, [w, 1.39, .085], [w / 2, .74, 0], 0xd9e2db, softCube, true);
+        shape(door, [w, .60, .085], [w / 2, 1.76, 0], 0xd9e2db, softCube, true);
+        for (const y of [1.18, 1.67]) shape(door, [.055, .29, .08], [w * .82, y, .067], C.brass);
+        shape(door, [.18, .13, .018], [.30, 1.94, .055], C.pine);
+        shape(door, [.15, .17, .012], [.33, 1.03, .055], C.paper).rotation.z = -.13;
+        shape(door, [.045, .045, .023], [.33, 1.105, .067], C.coral);
+      } else {
+        shape(door, [w, h - .07, .067], [w / 2, h / 2, 0], C.walnut, softCube, true);
+        shape(door, [.039, .22, .057], [w * .85, h * .54, .065], C.brass);
+      }
       root.add(door);
       doors.set(station.id, door);
     }

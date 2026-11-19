@@ -1,5 +1,6 @@
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
+import { HOME_DECOR, HOME_FURNITURE } from './home';
 
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Кухня, запасы и семейный отдых' },
@@ -15,7 +16,8 @@ export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
-  return { x: role === 'vlad' ? 0.5 : 1.65, z: place === 'home' ? (role === 'vlad' ? 3.5 : 3.2) : 4.10 };
+  if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
+  return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
   return { x: role === 'vlad' ? -0.42 : 0.42, z: place === 'home' ? 2.38 : 3.35 };
@@ -49,8 +51,8 @@ const shelf = (id: string, name: string, x: number, z: number, categories: Marke
 
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: [
-    site('fridge', 'Холодильник', 5.12, -1.36, 0.91, 0.88, { kind: 'fridge' }, { approach: { x: 4.15, z: -1.36 } }),
-    site('cupboard', 'Кухонные полки', 0.86, -4.54, 0.69, 0.38, { kind: 'cupboard' }, { approach: { x: 0.87, z: -4.00 } }),
+    site('fridge', 'Холодильник', 5.24, -4.25, 0.94, 0.88, { kind: 'fridge' }, { approach: { x: 5.24, z: -3.32 } }),
+    site('cupboard', 'Кухонные полки', 0.71, -4.47, 0.70, 0.46, { kind: 'cupboard' }, { blocks: false, approach: { x: 0.71, z: -3.08 } }),
     site('parcel', 'Заказы у двери', -0.36, 4.55, 0.51, 0.38, { kind: 'parcel' }, { blocks: false, approach: { x: -0.36, z: 3.92 } }),
     door('home-exit', 'На улицу', 'street', 2.03, 4.66, true),
   ],
@@ -97,6 +99,9 @@ export function placeObstacles(place: PlaceId) {
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
   }] : []);
+  if (place === 'home') obstacles.push(...HOME_DECOR, ...Object.values(HOME_FURNITURE).map(bounds => ({
+    minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
+  })));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
   if (place === 'street') obstacles.push({ minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: -4.05 });
@@ -132,6 +137,7 @@ export function initialWorld(): WorldState {
 }
 export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';
 export type WorldCommand =
+  | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }

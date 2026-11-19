@@ -7,7 +7,7 @@ import { finish, orb } from './ArtKit';
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games';
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat';
 const strideLength = 1.02;
 const stancePortion = 0.54;
 const handAxis = new THREE.Vector3(0, -1, 0);
@@ -144,8 +144,9 @@ export class Actor {
     this.activityTime = 0;
   }
 
-  playDomesticActivity(kind: DomesticMotion): void {
+  playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3): void {
     this.activity = kind;
+    this.pan = target;
     this.activityTime = 0;
   }
 
@@ -354,6 +355,24 @@ export class Actor {
           leftZ = 0.27; rightZ = 0.21;
           gaze = 0.16;
           break;
+        case 'reach': {
+          const reach = Math.sin(Math.PI * Math.min(1, a / 1.45));
+          rightY = -.52 + .46 * reach;
+          rightZ = .16 + .38 * reach;
+          lean = .14 * reach;
+          gaze = .17;
+          break;
+        }
+        case 'chat': {
+          const speaking = Math.sin(a * 1.52 + (this.id === 'alina' ? Math.PI : 0));
+          const gesture = Math.max(0, speaking) * (.72 + .28 * Math.sin(a * 5));
+          leftY = -.49 + .25 * gesture;
+          rightY = -.48 + .34 * gesture;
+          rightZ = .26 + .15 * gesture;
+          gaze = .07 - .08 * Math.sin(a * 3.1);
+          expression = .14 + .37 * gesture;
+          break;
+        }
         case 'stretch':
           leftY = rightY = 0.28 + 0.06 * Math.sin(a * 2);
           leftZ = rightZ = 0.11;
@@ -440,7 +459,8 @@ export class Actor {
     const armZ = this.activity === 'cook' ? -0.11 + Math.sin(a * 5) * 0.15 : armSpread;
     const typing = this.pose === 'work' && this.keys;
     const stirring = this.activity === 'cook' && this.pan;
-    if (!typing && !stirring) {
+    const counter = this.activity && this.activity !== 'cook' && this.pan;
+    if (!typing && !stirring && !counter) {
       this.bend(armA, data.elbows[0], data.upperArm, data.lowerArm, leftY, leftZ, -1, alpha);
       this.bend(armB, data.elbows[1], data.upperArm, data.lowerArm, rightY, rightZ, -1, alpha);
       armA.rotation.y = THREE.MathUtils.lerp(armA.rotation.y, 0, alpha);
@@ -448,7 +468,7 @@ export class Actor {
       armA.rotation.z = THREE.MathUtils.lerp(armA.rotation.z, armSpread, alpha);
       armB.rotation.z = THREE.MathUtils.lerp(armB.rotation.z, -armZ, alpha);
     }
-    if (!typing && !stirring) for (const wrist of data.wrists) {
+    if (!typing && !stirring && !counter) for (const wrist of data.wrists) {
       wrist.rotation.x = THREE.MathUtils.lerp(wrist.rotation.x, this.activity === 'eat' ? 0.12 : 0, alpha);
       wrist.rotation.y = THREE.MathUtils.lerp(wrist.rotation.y, 0, alpha);
       wrist.rotation.z = THREE.MathUtils.lerp(wrist.rotation.z, 0, alpha);
@@ -545,6 +565,15 @@ export class Actor {
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);
       this.reach(hand, this.target, highFive);
       this.aimHand(hand, this.handDirection.copy(up), highFive);
+    }
+    if (counter) {
+      for (const i of [0, 1] as const) {
+        this.target.copy(counter);
+        this.target.x += (i ? -.12 : .12) + .075 * Math.sin(a * (this.activity === 'tidy' ? 4 : 6) + i);
+        this.target.y += .025 * Math.sin(a * 6 + i * 2);
+        this.target.z += .045 * Math.cos(a * 4 + i);
+        this.reach(i, this.target, alpha);
+      }
     }
 
     this.selectionRing.position.x = this.figureBase.x;

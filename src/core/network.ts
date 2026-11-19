@@ -5,6 +5,8 @@ import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { BasketLine } from '../shared/market';
 import type { JobId } from '../shared/jobs';
 import type { PetId, PetAction } from '../shared/pets';
+import type { HomeLeisure } from '../shared/home';
+import type { WalkRoute } from '../game/navigation';
 
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
@@ -15,7 +17,9 @@ export interface ConnectionCallbacks {
   onStoreEvent(role: CharacterId, message: string): void;
   onJobEvent(role: CharacterId, outcome:'started'|'finished'|'left_early', message:string):void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
-  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand): void;
+  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean): void;
+  onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
+  onStorageEvent(role: CharacterId, station?: string): void;
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
@@ -172,7 +176,11 @@ export class LiveConnection {
       } else if (packet.type === 'pet_event' && this.authorized) {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'task_started' && this.authorized) {
-        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command);
+        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command, packet.automatic);
+      } else if (packet.type === 'home_leisure' && this.authorized) {
+        this.callbacks.onHomeLeisure(packet.roles, packet.activity, packet.routes);
+      } else if (packet.type === 'storage_event' && this.authorized) {
+        this.callbacks.onStorageEvent(packet.role, packet.station);
       } else if (packet.type === 'task_ended' && this.authorized) {
         this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message);
       } else if (packet.type === 'social_start' && this.authorized) {

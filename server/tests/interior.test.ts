@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { batchRigidParts } from '../../src/game/ArtKit';
-import { decorObstacles } from '../../src/game/HomeStyling';
-import { buildFurniture, furnitureFootprints } from '../../src/game/InteriorArt';
+import { HOME_DECOR, HOME_FURNITURE, KITCHEN_WORK } from '../../src/shared/home';
+import { placeObstacles, spawn } from '../../src/shared/locations';
+import { buildFurniture } from '../../src/game/InteriorArt';
 import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from '../../src/game/navigation';
 import { PETS, PET_IDS } from '../../src/shared/pets';
 import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
 
 test('both players can reach every interaction around the assembled interior', () => {
-  const obstacles: FloorRect[] = [...decorObstacles];
+  const obstacles: FloorRect[] = [...HOME_DECOR];
   const furnished = new Map<string, { x: number; z: number }>();
   const counts = { meshes: 0, shadows: 0 };
   const sharedGeometries = new Set<THREE.BufferGeometry>();
@@ -22,7 +23,7 @@ test('both players can reach every interaction around the assembled interior', (
     });
     batchRigidParts(root);
     root.updateMatrixWorld(true);
-    const { minX, maxX, minZ, maxZ } = furnitureFootprints[id];
+    const { minX, maxX, minZ, maxZ } = HOME_FURNITURE[id];
     const obstacle = { minX: minX - 0.27, maxX: maxX + 0.27, minZ: minZ - 0.27, maxZ: maxZ + 0.27 };
     obstacles.push(obstacle);
     const box = new THREE.Box3().setFromObject(root);
@@ -35,6 +36,7 @@ test('both players can reach every interaction around the assembled interior', (
     });
   });
   assert.deepEqual([...furnished.keys()].sort(), Object.keys(points).sort());
+  obstacles.push(...placeObstacles('home'));
 
   const destinations = new Map(furnished);
   for (const id of PET_IDS) {
@@ -44,9 +46,10 @@ test('both players can reach every interaction around the assembled interior', (
     destinations.set(id, approach);
   }
   for (const [id, point] of Object.entries(SOCIAL_SPOTS)) destinations.set(id + ' social', point);
+  for (const [name, work] of Object.entries(KITCHEN_WORK)) destinations.set(name, work.position);
   const starts = new Map([
-    ['Vlad spawn', { x: 0.5, z: 3.5 }],
-    ['Alina spawn', { x: 1.65, z: 3.2 }],
+    ['Vlad spawn', spawn('home', 'vlad')],
+    ['Alina spawn', spawn('home', 'alina')],
     ...destinations,
   ]);
   for (const [id, point] of destinations) {

@@ -41,6 +41,8 @@ export function renderPetChoices(
   status.className = 'pet-status';
   const meters: Array<[string, number, string]> = [
     ['Сытость', stats.satiety, 'food'],
+    ['Энергия', stats.energy, 'happy'],
+    ['Туалет', stats.bladder, 'bond'],
     ['Радость', stats.happiness, 'happy'],
     ['Привязанность', stats.bond, 'bond'],
   ];

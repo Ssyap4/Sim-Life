@@ -1,9 +1,11 @@
-import { initialWorld, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
+import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
+import { KITCHEN_WORK, type HomeLeisure } from './home';
+import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
 
@@ -60,7 +62,7 @@ export const itemNames: Record<ItemId, string> = {
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
   sofa: { x: -3.0, z: 0.6 }, bed: { x: -3.85, z: -0.76 },
-  desk: { x: 3.17, z: 3.65 }, kitchen: { x: 3.10, z: -2.66 },
+  desk: { x: 2.68, z: 3.85 }, kitchen: KITCHEN_WORK.stove.position,
   tv: { x: -0.55, z: -2.58 }, table: { x: -0.80, z: 0.04 },
 };
 
@@ -122,6 +124,8 @@ export type ClientPacket = WorldCommand
   | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
+  | { type: 'storage_event'; role: CharacterId; station?: string }
+  | { type: 'home_leisure'; roles: CharacterId[]; activity: HomeLeisure | null; routes: Partial<Record<CharacterId, WalkRoute>> }
   | { type: 'device_token'; role: CharacterId; token: string }
   | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
   | { type: 'world_event'; role: CharacterId; message: string }
@@ -135,7 +139,7 @@ export type ServerPacket =
   | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'left_early'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
-  | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand }
+  | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand; automatic?: boolean }
   | { type: 'task_ended'; role: CharacterId; taskId: number; outcome: 'completed' | 'cancelled' | 'failed'; message: string }
   | { type: 'error'; reason: string };
 
@@ -146,8 +150,8 @@ export function initialState(): GameState {
     takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
-      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, x: 0.5, z: 3.5, pose: 'idle' },
-      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, x: 1.65, z: 3.2, pose: 'idle' },
+      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },
+      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'alina'), pose: 'idle' },
     },
   };
 }

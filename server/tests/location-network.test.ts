@@ -50,6 +50,10 @@ test('Two live clients can shop and cook in different places, reconnect at the s
     await vlad.next('ready');
     const { token } = await vlad.next('device_token');
     assert.ok(!readFileSync(join(dir, 'trusted-devices.json'), 'utf8').includes(token));
+    vlad.send({ type: 'approach', place: 'home', station: 'fridge' });
+    await alina.next('world_path', p => p.role === 'vlad' && p.station === 'fridge');
+    vlad.send({ type: 'close_storage' });
+    await alina.next('storage_event', p => p.role === 'vlad' && !p.station);
     vlad.send({ type: 'travel', place: 'market' });
     await alina.next('snapshot', p => p.state.world.places.vlad === 'market' && p.state.world.places.alina === 'home');
     vlad.send({ type: 'social_offer', kind: 'hug' });

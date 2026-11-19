@@ -5,6 +5,30 @@ const ROOM: FloorRect = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 const CELL = 0.32;
 const STEP = 0.12;
 
+export interface WalkRoute { from: FloorPoint; path: FloorPoint[] }
+
+export function sampleWalk(route: WalkRoute, distance: number): WalkRoute {
+  let from = route.from;
+  for (let i = 0; i < route.path.length; i++) {
+    const to = route.path[i];
+    const span = Math.hypot(to.x - from.x, to.z - from.z);
+    if (span > distance) {
+      const t = distance / span;
+      return { from: { x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t }, path: route.path.slice(i) };
+    }
+    distance -= span;
+    from = to;
+  }
+  return { from, path: [] };
+}
+
+export function planWalk(from: FloorPoint, to: FloorPoint, obstacles: readonly FloorRect[], room: FloorRect = ROOM): WalkRoute | null {
+  const origin = nearestClearPoint(from, obstacles, room);
+  const target = nearestClearPoint(to, obstacles, room);
+  const path = origin && target && findRoute(origin, target, obstacles, room);
+  return origin && path ? { from: origin, path } : null;
+}
+
 export function pointIsClear(point: FloorPoint, obstacles: readonly FloorRect[], room: FloorRect = ROOM): boolean {
   if (point.x < room.minX || point.x > room.maxX || point.z < room.minZ || point.z > room.maxZ) return false;
   return !obstacles.some((o) => point.x >= o.minX && point.x <= o.maxX && point.z >= o.minZ && point.z <= o.maxZ);

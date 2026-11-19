@@ -7,6 +7,7 @@ import type { CharacterId, GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
 import { findRoute, nearestClearPoint, pointIsClear } from '../src/game/navigation';
 import { checkout, grantCart, quoteCart } from './market';
+import { pausePetRoutine } from './pets';
 
 type Result = { ok: false; reason: string } |
   { ok: true; state: GameState; message: string; path?: Point[]; station?: string };
@@ -39,6 +40,14 @@ function at(source: GameState, role: CharacterId, station: Station | undefined):
   return Math.hypot(x - source.characters[role].x, z - source.characters[role].z) < 0.64;
 }
 
+export function setDogParkPosition(state: GameState): void {
+  const walker = state.world.dogWalker;
+  const dog = state.pets.verdell;
+  if (!walker) { delete dog.parkPosition; return; }
+  const { x, z } = state.characters[walker];
+  dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles('park'), WORLD_FLOOR) ?? { x, z };
+}
+
 export const worldMessages = new Set([
   'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
@@ -58,9 +67,13 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
-    if (command.dog === true) next.world.dogWalker = role;
+    if (command.dog === true) {
+      pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
+      next.world.dogWalker = role;
+    }
     Object.assign(next.characters[role], spawn(command.place, role), { pose: 'idle' });
     if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
+    if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
     return done(next, PLACES[command.place].name);
   }
 
@@ -68,7 +81,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.place !== place) return fail('Ты уже в другой локации');
     const station = command.type === 'approach' ? stationById(place, command.station) : undefined;
     if (command.type === 'approach' && !station) return fail('Здесь нет такого объекта');
-    if (!station && (place === 'home' || typeof command.x !== 'number' || typeof command.z !== 'number' ||
+    if (!station && (typeof command.x !== 'number' || typeof command.z !== 'number' ||
       !Number.isFinite(command.x) || !Number.isFinite(command.z))) return fail('Сюда нельзя пройти');
     const target = station ? approachFor(station, role)
       : { x: Math.round(Number(command.x) * 100) / 100, z: Math.round(Number(command.z) * 100) / 100 };
@@ -79,6 +92,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (!path) return fail('Сюда нельзя пройти');
     const next = structuredClone(source);
     Object.assign(next.characters[role], target, { pose: 'idle' });
+    if (next.world.dogWalker === role) setDogParkPosition(next);
     next.revision++;
     return { ok: true, state: next, message: '', path, station: station?.id };
   }
@@ -148,6 +162,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (source.world.dogWalker && source.world.dogWalker !== role) return fail('Верделл уже гуляет со вторым игроком');
     const next = structuredClone(source);
     next.world.dogWalker = source.world.dogWalker ? null : role;
+    if (next.world.dogWalker) pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
+    setDogParkPosition(next);
     return done(next, next.world.dogWalker ? 'Верделл пришёл на прогулку' : 'Верделл вернулся домой');
   }
 

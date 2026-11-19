@@ -2,6 +2,7 @@ import {
   ACTIONS, points, names, type ActionId, type CharacterId,
   type GameState, type Needs,
 } from '../src/shared/protocol';
+import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
 
 export type ActionResult =
   | { ok: true; message: string; state: GameState }
@@ -108,7 +109,8 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'comfort', 9); change(state, role, 'mood', 5);
       message = name + ': составлен план дня'; break;
   }
-  const point = points[def.item];
+  const point = actionId in KITCHEN_ACTIONS
+    ? KITCHEN_WORK[KITCHEN_ACTIONS[actionId as keyof typeof KITCHEN_ACTIONS]].position : points[def.item];
   Object.assign(state.characters[role], { x: point.x, z: point.z, pose: def.pose });
   state.revision += 1;
   return { ok: true, message, state };

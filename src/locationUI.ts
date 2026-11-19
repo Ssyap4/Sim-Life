@@ -33,6 +33,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
+    if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
     panel.hidden = true;
     panel.replaceChildren();
