@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+.npm-cache/
+tools/
+git-setup.exe
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+coverage/
+*.local
