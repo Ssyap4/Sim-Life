@@ -4,13 +4,16 @@ import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
-  names, SOCIAL_LABELS, type CharacterId, type GameState, type ServerPacket,
+  ACTIONS, points, names, SOCIAL_LABELS, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
 import { applyPetAction } from './pets';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
+import { advanceLife } from './life';
+import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
+import { PETS } from '../src/shared/pets';
 
 export interface ServerOptions {
   port?: number;
@@ -48,6 +51,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const active = new Map<CharacterId, WebSocket>();
   const lastAction = new Map<CharacterId, number>();
   const lastSocial = new Map<CharacterId, number>();
+  const lastAutoRest = new Map<CharacterId, number>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout> }
   const running = new Map<CharacterId, RunningTask>();
   let nextTaskId = 0;
@@ -57,6 +61,38 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
   };
+  let lastLifeTick = Date.now();
+  let minuteCarry = 0;
+  // Only the authoritative server moves the clock. With nobody online the
+  // household is paused; reconnects never drain the absent player's needs.
+  const lifeTicker = setInterval(() => {
+    const now = Date.now();
+    const elapsed = Math.min(10_000, Math.max(0, now - lastLifeTick));
+    lastLifeTick = now;
+    if (!active.size) { minuteCarry = 0; return; }
+    minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND;
+    const gameMinutes = Math.floor(minuteCarry);
+    if (gameMinutes < 1) return;
+    minuteCarry -= gameMinutes;
+    const next = advanceLife(state, gameMinutes, online());
+    try { files.save(next); }
+    catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    state = next;
+    all({ type: 'snapshot', state });
+    // Gentle emergency autonomy, only when the resident is connected, idle
+    // and almost exhausted. No autonomous purchases, work or food spending.
+    for (const [role, socket] of active) {
+      if (state.characters[role].energy >= 8 || running.has(role) ||
+          now - (lastAutoRest.get(role) ?? 0) < 120_000 ||
+          now - (lastAction.get(role) ?? 0) < 30_000) continue;
+      const plan = planTask({ type: 'act', actionId: 'bedNap' });
+      if (plan) {
+        lastAutoRest.set(role, now);
+        beginTask(role, socket, plan);
+      }
+    }
+  }, 10_000);
+  lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
     const task = running.get(role);
     if (!task) return;
@@ -75,7 +111,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     const validation = evaluateTask(state, role, plan.command);
     if (!validation.ok) { packet(socket, { type: 'error', reason: validation.reason }); return; }
-    const durationMs = Math.max(15, Math.round(plan.durationMs * scale));
+    // A long walk through the room must not consume the entire activity timer.
+    // This estimates travel conservatively without calculating a second path.
+    const destination = plan.command.type === 'act' ? points[ACTIONS[plan.command.actionId].item]
+      : plan.command.type === 'pet_action' ? {
+          x: PETS[plan.command.pet].home.x, z: PETS[plan.command.pet].home.z + 0.78,
+        } : plan.command.type === 'cook' ? points.kitchen : points.table;
+    const position = state.characters[role];
+    const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,
+      position.z - destination.z) * 1200 + 4200);
+    const durationMs = Math.max(15, Math.round(Math.max(plan.durationMs, travelBudgetMs) * scale));
     const id = ++nextTaskId;
     const timer = setTimeout(() => {
       const current = running.get(role);
@@ -197,6 +242,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           return;
         }
         role = requested;
+        if (active.size === 0) { lastLifeTick = Date.now(); minuteCarry = 0; }
         active.set(role, socket);
         packet(socket, { type: 'ready', role, state, online: online() });
         all({ type: 'online', online: online() });
@@ -318,6 +364,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for (const task of running.values()) clearTimeout(task.timer);
       running.clear();
       clearInterval(heartbeat);
+      clearInterval(lifeTicker);
       for (const socket of wss.clients) socket.terminate();
       await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));
       await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));

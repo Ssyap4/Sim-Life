@@ -1,17 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Actor } from './Actor';
+import { Actor, type DomesticMotion } from './Actor';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
-import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
+import { ACTIONS, SOCIAL_SPOTS, points, type ActionId, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
 import { decorObstacles, decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildSoftRugs, furnitureFootprints } from './InteriorArt';
+import { dayPhase } from '../shared/life';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
@@ -21,6 +22,14 @@ type Point = { x: number; z: number };
 const deskKeys = [new THREE.Vector3(3.37, 1.116, 1.896), new THREE.Vector3(3.03, 1.116, 1.896)] as const;
 const cookingPan = new THREE.Vector3(2.58, 1.169, -3.76);
 const highFiveTarget = new THREE.Vector3(0, 1.64, SOCIAL_SPOTS.vlad.z - 0.16);
+// Reuse the existing light articulated rig instead of loading extra animations.
+const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
+  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
+  bedMake: 'tidy', bedStretch: 'stretch',
+  deskGames: 'games', deskJournal: 'journal',
+  kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
+  tvMusic: 'music', tableTalk: 'phone', tablePlan: 'journal',
+};
 
 const homePosition = new THREE.Vector3(15, 19, 22);
 const homeTarget = new THREE.Vector3(0, 1.45, 0);
@@ -64,6 +73,8 @@ export class World {
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
   private readonly sun = new THREE.DirectionalLight(0xffe5ce, 2.48);
+  private readonly ambient = new THREE.HemisphereLight(0xeef2fb, 0xc6b39e, 1.87);
+  private lastDayPhase: ReturnType<typeof dayPhase> | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
@@ -182,8 +193,9 @@ export class World {
   private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
     const actor = this.actors[id];
     const anchors = {
-      sofa: { x: -3.1, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
-      bed: { x: -3.85, y: 1.055, z: -1.61, yaw: 0 },
+      // A sofa and double bed have two visual positions, not two overlapping residents.
+      sofa: { x: id === 'vlad' ? -3.60 : -2.60, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
+      bed: { x: id === 'vlad' ? -4.40 : -3.30, y: 1.055, z: -1.61, yaw: 0 },
       desk: { x: 3.2, y: id === 'vlad' ? -0.24 : -0.19, z: 2.47, yaw: Math.PI },
       table: { x: -0.84, y: id === 'vlad' ? -0.27 : -0.22, z: 0.05, yaw: -Math.PI / 2 },
     } as const;
@@ -231,7 +243,11 @@ export class World {
     const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
-      return this.perform(role, def.item, def.pose, () => {});
+      return this.perform(role, def.item, def.pose, () => {
+        if (!current()) return;
+        const motion = DOMESTIC_MOTIONS[command.actionId];
+        if (motion) this.actors[role].playDomesticActivity(motion);
+      });
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
     return this.performFood(role, command.type, current);
@@ -299,8 +315,27 @@ export class World {
     return true;
   }
 
+  setTimeOfDay(minute: number): void {
+    const phase = dayPhase({ day: 1, minute });
+    if (phase === this.lastDayPhase) return;
+    this.lastDayPhase = phase;
+    // Reuse existing lights: no new meshes, draw calls or shadow maps.
+    const settings = {
+      morning: { sun: 1.95, ambient: 1.76, sky: 0xc6c3ad, warmth: 0xffd8b9 },
+      day: { sun: 2.48, ambient: 1.87, sky: 0xc0c7ad, warmth: 0xffe5ce },
+      evening: { sun: 1.55, ambient: 1.60, sky: 0xb8adae, warmth: 0xffc8a9 },
+      night: { sun: 0.75, ambient: 1.32, sky: 0x85929c, warmth: 0xc5d1e8 },
+    }[phase];
+    this.sun.intensity = settings.sun;
+    this.sun.color.setHex(settings.warmth);
+    this.ambient.intensity = settings.ambient;
+    this.ambient.color.setHex(phase === 'night' ? 0xc7d7ee : 0xeef2fb);
+    (this.scene.background as THREE.Color).setHex(settings.sky);
+    if (this.scene.fog) this.scene.fog.color.setHex(settings.sky);
+  }
+
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xeef2fb, 0xc6b39e, 1.87));
+    this.scene.add(this.ambient);
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);

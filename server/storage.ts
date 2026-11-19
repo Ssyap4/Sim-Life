@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY } from '../src/shared/food';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, type PetState } from '../src/shared/pets';
+import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 
 export interface ServerFiles {
   dataDir: string;
@@ -18,6 +19,10 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  // A clock was added to existing version-2 households; never reset old saves.
+  if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
+      !Number.isSafeInteger(state.clock.minute) || state.clock.minute < 0 ||
+      state.clock.minute >= 1440)) return false;
   const pantry = state.pantry as Record<string, unknown>;
   const meals = state.meals as Record<string, unknown> | undefined;
   if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
@@ -44,6 +49,9 @@ const isValidState = (value: unknown): value is GameState => {
     if (!p) return false;
     return (['hunger', 'energy', 'mood', 'skill'] as const).every((key) =>
       typeof p[key] === 'number' && Number.isFinite(p[key]) && p[key] >= 0 && p[key] <= 100,
+    ) && (['hygiene', 'social', 'fun', 'comfort'] as const).every((key) =>
+      p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
+        p[key] >= 0 && p[key] <= 100,
     ) && Number.isFinite(p.x) && Number.isFinite(p.z) &&
       Math.abs(p.x) <= 6 && Math.abs(p.z) <= 5 &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
@@ -80,6 +88,11 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
       return {
         ...data,
+        clock: { ...INITIAL_CLOCK, ...data.clock },
+        characters: {
+          vlad: { ...INITIAL_DAILY_NEEDS, ...data.characters.vlad },
+          alina: { ...INITIAL_DAILY_NEEDS, ...data.characters.alina },
+        },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
         pets: { ...structuredClone(INITIAL_PETS), ...data.pets },

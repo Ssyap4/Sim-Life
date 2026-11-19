@@ -53,18 +53,22 @@ export function applyPetAction(
       data.bond = clamp(data.bond + 9);
       actor.energy = clamp(actor.energy - 5);
       actor.mood = clamp(actor.mood + 5);
+      actor.fun = clamp(actor.fun + 12);
+      actor.social = clamp(actor.social + 8);
       message = names[role] + ' играет с ' + spec.name;
       break;
     case 'pet':
       data.happiness = clamp(data.happiness + 9);
       data.bond = clamp(data.bond + 6);
       actor.mood = clamp(actor.mood + 3);
+      actor.social = clamp(actor.social + 7);
       message = names[role] + ' гладит ' + spec.name;
       break;
     case 'brush':
       data.happiness = clamp(data.happiness + 7);
       data.bond = clamp(data.bond + 11);
       actor.mood = clamp(actor.mood + 2);
+      actor.social = clamp(actor.social + 4);
       message = names[role] + ' ухаживает за шерстью ' + spec.name;
       break;
   }
