@@ -6,6 +6,7 @@ import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
 import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
+import { buildFurniture, buildSoftRugs } from './InteriorArt';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
 type Point = { x: number; z: number };
@@ -359,95 +360,10 @@ export class World {
     ball(this.scene, 0.31, [2.55, 2.29, -4.57], 0xa5b39b);
     ball(this.scene, 0.25, [3.01, 2.03, -4.55], 0xd3a38e);
     ball(this.scene, 0.16, [2.77, 1.86, -4.50], 0xe9c7a6);
-    // Rugs.
-    block(this.scene, [4.1, 0.045, 3.2], [-2.6, 0.04, 1.35], 0xe3d8c3, { shadow: false });
-    block(this.scene, [2.4, 0.045, 2.8], [2.8, 0.04, 1.3], 0xe3dccd, { shadow: false });
+    buildSoftRugs(this.scene);
 
-    // Sofa and pillows.
-    const sofa = new THREE.Group();
-    sofa.position.set(-3.1, 0, 1.7);
-    block(sofa, [2.6, 0.39, 1.08], [0, 0.43, 0], PALETTE.olive);
-    block(sofa, [2.6, 0.85, 0.30], [0, 0.78, 0.44], 0x7b917f);
-    block(sofa, [0.30, 0.59, 1.12], [-1.22, 0.66, 0], 0x819684);
-    block(sofa, [0.30, 0.59, 1.12], [1.22, 0.66, 0], 0x819684);
-    for (const x of [-0.75, 0, 0.75]) block(sofa, [0.69, 0.13, 0.78], [x, 0.67, -0.07], 0xa4b4a0);
-    ball(sofa, 0.23, [-0.86, 0.85, 0.05], PALETTE.ivory);
-    ball(sofa, 0.20, [0.89, 0.85, 0.11], PALETTE.rose);
-    this.register('sofa', sofa, { x: -3.0, z: 0.6 });
-
-    // Bed and pillows.
-    const bed = new THREE.Group();
-    bed.position.set(-3.85, 0, -2.62);
-    block(bed, [2.7, 0.35, 2.7], [0, 0.35, 0], PALETTE.woodDark);
-    block(bed, [2.6, 0.34, 2.55], [0, 0.64, 0.02], 0xf5eade);
-    block(bed, [2.68, 1.10, 0.20], [0, 0.81, -1.30], 0xaf9881);
-    block(bed, [2.34, 0.13, 1.50], [0, 0.84, 0.45], 0xc8bcb1);
-    block(bed, [0.98, 0.15, 0.58], [-0.59, 0.86, -0.84], PALETTE.ivory);
-    block(bed, [0.98, 0.15, 0.58], [0.59, 0.86, -0.84], PALETTE.ivory);
-    this.register('bed', bed, { x: -3.85, z: -0.76 });
-
-    // Kitchen counter, cupboards and stove.
-    const kitchen = new THREE.Group();
-    kitchen.position.set(3.45, 0, -3.91);
-    block(kitchen, [4.25, 0.91, 0.88], [0, 0.47, 0], PALETTE.sage);
-    block(kitchen, [4.40, 0.14, 0.97], [0, 0.98, 0], 0xe9e3d5);
-    for (const x of [-1.45, -0.45, 0.55, 1.55]) {
-      block(kitchen, [0.05, 0.45, 0.06], [x, 0.52, 0.46], 0xf1e9dd);
-    }
-    for (const x of [-0.33, 0.33]) for (const z of [-0.21, 0.20]) {
-      const burner = cylinder(kitchen, 0.16, 0.024, [x, 1.065, z], PALETTE.charcoal);
-      burner.scale.z = 0.9;
-    }
-    block(kitchen, [0.79, 0.045, 0.52], [1.38, 1.072, -0.03], 0x9cb1ad);
-    block(kitchen, [0.43, 0.31, 0.15], [1.44, 1.30, -0.31], 0xbeb7a5);
-    // A small pan, handle, food and backsplash make cooking visibly different.
-    cylinder(kitchen, 0.27, 0.09, [-0.33, 1.14, -0.11], 0x52615b);
-    cylinder(kitchen, 0.215, 0.022, [-0.33, 1.20, -0.11], 0xf0d49b);
-    ball(kitchen, 0.08, [-0.33, 1.22, -0.11], 0xf2ba57);
-    block(kitchen, [0.45, 0.065, 0.09], [-0.68, 1.15, 0.04], 0x636c64);
-    block(kitchen, [4.0, 0.50, 0.12], [0, 1.52, -0.44], 0xe7dcd2, { shadow: false });
-    for (const x of [-1.28, -0.25, 0.75]) {
-      block(kitchen, [0.62, 0.38, 0.09], [x, 1.54, -0.37], 0xc9d5c0, { shadow: false });
-    }
-    this.register('kitchen', kitchen, { x: 3.10, z: -2.66 });
-
-    // Working desk and computer.
-    const desk = new THREE.Group();
-    desk.position.set(3.2, 0, 1.46);
-    block(desk, [2.25, 0.15, 1.0], [0, 0.97, 0], PALETTE.wood);
-    for (const x of [-0.95, 0.95]) for (const z of [-0.37, 0.37]) {
-      block(desk, [0.10, 0.87, 0.10], [x, 0.47, z], PALETTE.woodDark);
-    }
-    block(desk, [1.06, 0.72, 0.075], [0, 1.51, -0.25], PALETTE.charcoal);
-    block(desk, [0.91, 0.58, 0.014], [0, 1.51, -0.204], 0x789da2);
-    block(desk, [0.09, 0.37, 0.09], [0, 1.10, -0.25], PALETTE.charcoal);
-    block(desk, [0.36, 0.05, 0.25], [0, 0.98, -0.25], PALETTE.charcoal);
-    block(desk, [0.77, 0.035, 0.21], [0, 1.07, 0.24], 0xc2bfb6);
-    block(desk, [0.58, 0.12, 0.60], [0.0, 0.50, 1.07], PALETTE.rose);
-    block(desk, [0.58, 0.77, 0.13], [0.0, 0.82, 1.35], 0xb99186);
-    // Stand behind the chair rather than walking through it.
-    this.register('desk', desk, { x: 3.17, z: 3.65 });
-
-    // Television stand and screen.
-    const tv = new THREE.Group();
-    tv.position.set(-0.6, 0, -3.63);
-    block(tv, [1.92, 0.56, 0.50], [0, 0.28, 0], PALETTE.wood);
-    block(tv, [1.82, 1.05, 0.10], [0, 1.23, 0], PALETTE.charcoal);
-    block(tv, [1.65, 0.88, 0.015], [0, 1.24, 0.065], 0x748f87);
-    block(tv, [0.45, 0.06, 0.25], [0, 0.65, 0], PALETTE.charcoal);
-    this.register('tv', tv, { x: -0.55, z: -2.58 });
-
-    // Coffee table: room for future combined interactions.
-    const table = new THREE.Group();
-    table.position.set(-1.88, 0, 0.03);
-    cylinder(table, 0.68, 0.12, [0, 0.48, 0], PALETTE.wood);
-    cylinder(table, 0.12, 0.41, [0, 0.23, 0], PALETTE.woodDark);
-    cylinder(table, 0.40, 0.07, [0, 0.055, 0], PALETTE.woodDark);
-    ball(table, 0.10, [0.27, 0.61, -0.04], 0xdcb99c);
-    cylinder(table, 0.09, 0.20, [-0.24, 0.63, -0.12], 0xe8c8af);
-    cylinder(table, 0.025, 0.25, [-0.23, 0.82, -0.13], 0x718e71);
-    ball(table, 0.11, [-0.23, 0.96, -0.13], 0xc68f87);
-    this.register('table', table, { x: -0.80, z: 0.04 });
+    // Reusable soft-edge furniture, with unchanged interaction positions.
+    buildFurniture((id, furniture, point) => this.register(id, furniture, point));
 
     // Decorative plant.
     cylinder(this.scene, 0.35, 0.55, [5.1, 0.3, 3.4], 0xcba68c);
