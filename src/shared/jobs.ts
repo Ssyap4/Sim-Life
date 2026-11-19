@@ -5,6 +5,8 @@ export interface ShiftAssignment {
   hours: number;
   startedAt: number;
   endsAt: number;
+  /** Rolled on the server at shift start; optional only for compatibility with older saves. */
+  targetPay?: number;
 }
 
 
@@ -57,6 +59,24 @@ export type JobId = keyof typeof JOBS;
 export const JOB_IDS = Object.keys(JOBS) as JobId[];
 export function isJobId(id: unknown): id is JobId {
   return typeof id === 'string' && Object.prototype.hasOwnProperty.call(JOBS,id);
+}
+/** Compatibility for shifts created before early-leave payments existed.
+ * Computes a stable value, so old assignments cannot reroll on reconnect. */
+export function shiftFullPay(shift: ShiftAssignment): number {
+  const spec=JOBS[shift.job];
+  if(Number.isSafeInteger(shift.targetPay) &&
+     shift.targetPay!>=spec.payMin && shift.targetPay!<=spec.payMax) return shift.targetPay!;
+  let hash=(shift.startedAt*17+shift.hours*101)>>>0;
+  for(const char of shift.job)hash=(Math.imul(hash,31)+char.charCodeAt(0))>>>0;
+  return spec.payMin+(hash%(spec.payMax-spec.payMin+1));
+}
+export function shiftWorkedMinutes(shift: ShiftAssignment, clock: GameClock): number {
+  return Math.max(0,Math.min(shift.endsAt-shift.startedAt,totalGameMinutes(clock)-shift.startedAt));
+}
+export function shiftWage(shift: ShiftAssignment, clock: GameClock): number {
+  const duration=shift.endsAt-shift.startedAt;
+  if(duration<=0)return 0;
+  return Math.round(shiftFullPay(shift)*shiftWorkedMinutes(shift,clock)/duration);
 }
 export function gameHoursToRealMs(hours: number): number {
   return Math.round(hours * 60 / GAME_MINUTES_PER_REAL_SECOND * 1000);

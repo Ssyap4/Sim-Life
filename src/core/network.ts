@@ -11,7 +11,7 @@ export interface ConnectionCallbacks {
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
   onStoreEvent(role: CharacterId, message: string): void;
-  onJobEvent(role: CharacterId, outcome:'started'|'finished'|'cancelled', message:string):void;
+  onJobEvent(role: CharacterId, outcome:'started'|'finished'|'left_early', message:string):void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
   onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand): void;
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
@@ -56,7 +56,7 @@ export class LiveConnection {
   }
 
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
-  cancelJob():boolean {return this.sendAuthenticated({type:'job_cancel'});}
+  leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
 
   checkout(lines: BasketLine[]): boolean {
     return this.sendAuthenticated({type:'checkout',lines});

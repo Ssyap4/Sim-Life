@@ -27,7 +27,9 @@ Each has a distinctive text description, location name, four story stages, requi
 
 **Game clock semantics**: One in-game day = 48 real minutes when someone is online. One game hour = ~2 real minutes. Thus an Ozon or Wildberries shift lasts approximately 28–32 real minutes **of active simulated time**. This is not a 14-second animation. The work board shows progress and current stage, no pretend 3D taxi/warehouse. While away, the resident is hidden from the home scene and cannot carry out household actions.
 
-The shift is saved and is not dependent on keeping a phone socket open. If one player disconnects and the other keeps playing, their shift continues. If both players go offline, the world clock (and shift) pauses. The start, end and randomized duration survive server restart. On completion, **the authoritative server** samples one integer amount inclusively from the specified pay range and records a single credit in the ledger. No salary at start. One paid shift per resident per **completion day**; cancelled shifts have no pay.
+The shift is saved and is not dependent on keeping a phone socket open. If one player disconnects and the other keeps playing, their shift continues. If both players go offline, the world clock (and shift) pauses. The start, end, randomized duration and **one full-shift payout** are saved at the beginning of the shift by the authoritative server. No salary at start.
+
+**Early-leave pay:** The player can leave at any time and receives `round(fullShiftSalary * gameMinutesWorked / plannedGameMinutes)` rubles, counted from the server's game clock. Partial energy/hunger/hygiene consequences scale with time worked, the money appears in the household ledger, and the work slot for the payout day is consumed; zero-minute departure pays zero and also consumes the slot. A full shift pays the exact full randomly selected amount within the original range. The same early-leave action is also used for legacy `job_cancel` messages, so existing clients do not lose wages. Old active saves without a stored salary derive a stable within-range amount rather than rerolling on each read.
 
 The old 38-second mini-work buttons have become **unpaid practice**. They can no longer be exploited to print 3000 ₽ every 38 seconds. These gigs are NOT the two planned deep careers (Alina hair restoration studio and Vlad game/software development studio), which stay postponed.
 
@@ -42,6 +44,6 @@ The old 38-second mini-work buttons have become **unpaid practice**. They can no
 
 - Production TypeScript/Vite build.
 - 35 relevant existing/new economy, tasks, pet, food, save and multiplayer tests: all green.
-- 6 added focused economy and WebSocket job tests: all green; shared work assignment, malicious client-specified pay/duration ignored, disconnect/reconnect and zero payout on cancellation.
+- 6 focused economy/WebSocket job tests plus 4 early-departure tests: all green. Covers shared assignments, malicious client-specified pay/duration ignored, disconnect/reconnect, full-rate settlement, hourly partial wages, legacy shift compatibility, and zero pay for zero minutes.
 
-Manual iPhone/Android test still required for HUD scrolling, cards, tap targets and subjective FPS. Test environment has its own copied save and access codes; no stable-family save updates.
+Manual iPhone/Android test still required for HUD scrolling, cards, tap targets and subjective FPS. Test environment has its own copied save and access codes; no stable-family save updates. **Preview-only wallet: 500,000 ₽** in `D:\\Sim-Life-EconomyPlus\\server-data\\household.json`, before-credit backup in `household.before-preview-credit.json`. This money was set while the isolated preview server was stopped. **Repository default initial budget remains 2,500 ₽**; before release restore the preview budget or start a fresh save. Never transfer preview data into production.

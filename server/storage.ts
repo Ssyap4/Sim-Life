@@ -67,7 +67,11 @@ const isValidState = (value: unknown): value is GameState => {
         Number(hours) <= JOBS[shift.job].hoursMax &&
         Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
         Number.isSafeInteger(shift.endsAt) &&
-        Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60;
+        Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60 &&
+        (shift.targetPay === undefined ||
+          Number.isSafeInteger(shift.targetPay) &&
+          Number(shift.targetPay) >= JOBS[shift.job].payMin &&
+          Number(shift.targetPay) <= JOBS[shift.job].payMax);
     }))) return false;
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;

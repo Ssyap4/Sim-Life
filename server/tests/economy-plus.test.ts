@@ -4,7 +4,7 @@ import { JOBS, JOB_IDS } from '../../src/shared/jobs';
 import { initialState } from '../../src/shared/protocol';
 import { EMPTY_PANTRY, EMPTY_MEALS, EMPTY_TAKEOUT } from '../../src/shared/food';
 import { storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from '../../src/shared/storageSpace';
-import { beginShift, settleCompletedShifts, cancelShift } from '../jobs';
+import { beginShift, settleCompletedShifts, leaveShiftEarly } from '../jobs';
 import { checkout } from '../market';
 import { applyFoodAction } from '../food';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -53,19 +53,19 @@ test('Each shift persists until the scheduled game time and pays once within its
  }
 });
 
-test('Cancel, exhaustion and hostile identifiers never award wages',()=>{
+test('Immediate early leave pays zero; exhaustion and invalid IDs are rejected',()=>{
  const base=initialState();
  assert.equal(beginShift(base,'alina','__proto__').ok,false);
  const tired=structuredClone(base);tired.characters.alina.energy=0;
  assert.equal(beginShift(tired,'alina','taxi').ok,false);
  const start=beginShift(base,'alina','taxi');
  assert.equal(start.ok,true);if(!start.ok)return;
- const canceled=cancelShift(start.state,'alina');
+ const canceled=leaveShiftEarly(start.state,'alina');
  assert.equal(canceled.ok,true);if(!canceled.ok)return;
  assert.equal(canceled.state.money,2500);
  assert.deepEqual(canceled.state.activeShifts,{});
  assert.equal(canceled.state.ledger.length,0);
- assert.equal(cancelShift(canceled.state,'alina').ok,false);
+ assert.equal(leaveShiftEarly(canceled.state,'alina').ok,false);
 });
 
 test('Refrigerator holds 36 food cells; consuming a portion frees room for groceries',()=>{

@@ -54,8 +54,8 @@ test('Two players see long-term job status; reconnect keeps the shift; cancel pa
   await offline;
   const resumed=await enter(server.port,'vlad',keys.vlad);
   sockets.push(resumed);
-  const assigned=next(a,m=>m.type==='job_event'&&m.outcome==='cancelled');
-  resumed.send(JSON.stringify({type:'job_cancel'}));
+  const assigned=next(a,m=>m.type==='job_event'&&m.outcome==='left_early');
+  resumed.send(JSON.stringify({type:'job_leave_early'}));
   await assigned;
   const saved=JSON.parse(readFileSync(join(dir,'household.json'),'utf8'));
   assert.equal(saved.activeShifts.vlad,undefined);

@@ -15,7 +15,7 @@ import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { advanceLife } from './life';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { PETS } from '../src/shared/pets';
-import { beginShift, cancelShift, settleCompletedShifts } from './jobs';
+import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
 
 export interface ServerOptions {
   port?: number;
@@ -261,12 +261,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         return;
       }
-      if (message.type === 'job_cancel') {
-        const result=cancelShift(state,role);
+      if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
+        // Legacy job_cancel messages are treated as early departure with fair partial pay.
+        const result=leaveShiftEarly(state,role);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
-        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить отмену смены'});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
         state=result.state;
-        all({type:'job_event',role,outcome:'cancelled',message:result.message});
+        all({type:'job_event',role,outcome:'left_early',message:result.message});
         all({type:'snapshot',state});
         return;
       }

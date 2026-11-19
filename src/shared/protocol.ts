@@ -107,7 +107,8 @@ export type ClientPacket =
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
   | { type: 'job_start'; job: import('./jobs').JobId }
-  | { type: 'job_cancel' }
+  | { type: 'job_cancel' } // compatibility with the first job-board prototype
+  | { type: 'job_leave_early' }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
@@ -122,7 +123,7 @@ export type ServerPacket =
   | { type: 'action'; role: CharacterId; actionId: ActionId; message: string }
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
   | { type: 'store_event'; role: CharacterId; message: string }
-  | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'cancelled'; message: string }
+  | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'left_early'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
   | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand }

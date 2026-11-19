@@ -1,4 +1,4 @@
-import { JOBS, JOB_IDS, stageForJob, type JobId } from './shared/jobs';
+import { JOBS, JOB_IDS, stageForJob, shiftWage, shiftWorkedMinutes, shiftFullPay, type JobId } from './shared/jobs';
 import { formatRub } from './shared/economy';
 import { totalGameMinutes } from './shared/jobs';
 import { names, type GameState, type CharacterId } from './shared/protocol';
@@ -18,7 +18,7 @@ export interface JobBoard {
   close:()=>void;
 }
 export function makeJobBoard(root:HTMLElement,
-  sendStart:(id:JobId)=>boolean,sendCancel:()=>boolean):JobBoard {
+  sendStart:(id:JobId)=>boolean,sendLeaveEarly:()=>boolean):JobBoard {
   let state:GameState|null=null;
   let role:CharacterId='vlad';
   let busy=false;
@@ -54,8 +54,11 @@ export function makeJobBoard(root:HTMLElement,
       card.append(progress,create('small','',Math.round(percent*100)+'% · '+stageForJob(s.job,percent)));
       const minutesRemain=Math.max(0,s.endsAt-now);
       card.append(create('small','','Осталось '+Math.ceil(minutesRemain/60)+' ч. '+Math.round(minutesRemain%60)+' мин. игрового времени (≈'+Math.ceil(minutesRemain/0.5/60)+' мин. реального времени при непрерывной игре)'));
-      if(r===role)card.append(control('Прервать смену — без зарплаты',()=>{
-        if(sendCancel())busy=true;draw();
+      card.append(create('strong','jobs-earnings','Отработано: '+(shiftWorkedMinutes(s,state.clock)/60).toFixed(1).replace('.',',')+
+        ' ч. · при уходе сейчас: '+formatRub(shiftWage(s,state.clock))+
+        ' · за полную смену: '+formatRub(shiftFullPay(s))));
+      if(r===role)card.append(control('Завершить досрочно · получить '+formatRub(shiftWage(s,state.clock)),()=>{
+        if(sendLeaveEarly())busy=true;draw();
       },'jobs-abort',busy));
       scroll.append(card);
     }
@@ -72,7 +75,7 @@ export function makeJobBoard(root:HTMLElement,
       card.append(create('p','jobs-description',job.description));
       const spec=create('div','jobs-spec');
       spec.append(create('span','','⏰ '+job.hoursMin+'–'+job.hoursMax+' игровых часов'),
-        create('span','','🎲 Зарплата случайная после полной смены'));
+        create('span','','🎲 Полная смена — вся ставка, досрочный уход — по часам'));
       card.append(spec);
       const phases=create('div','jobs-phases');
       phases.append(create('small','','Что будет происходить:'));

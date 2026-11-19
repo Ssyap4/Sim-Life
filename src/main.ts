@@ -302,7 +302,7 @@ function showStatus(text: string): void {
   authStatusEl.textContent = text;
 }
 const marketUI = createMarketUI(marketOverlay,(lines)=>net.checkout(lines));
-const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.cancelJob());
+const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly());
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;

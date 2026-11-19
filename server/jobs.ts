@@ -1,11 +1,12 @@
 import { randomInt } from 'node:crypto';
-import { JOBS, isJobId, totalGameMinutes, type JobId } from '../src/shared/jobs';
+import { JOBS, isJobId, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
+  type JobId, type ShiftAssignment } from '../src/shared/jobs';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 
 export type JobResult = {ok:true;state:GameState;message:string}|{ok:false;reason:string};
 
-/** Starts persistent work, not a fragile browser timeout. Finishes when the game clock reaches endsAt. */
+/** Starts one persistent shift per paid game day. A whole-shift salary is rolled only once. */
 export function beginShift(source:GameState,role:CharacterId,id:unknown):JobResult {
   if(!isJobId(id))return {ok:false,reason:'Неизвестная подработка'};
   if(source.activeShifts[role])return {ok:false,reason:'Сначала закончи текущую смену'};
@@ -15,49 +16,70 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown):JobResu
   if(resident.hunger<20)return {ok:false,reason:'Перед сменой нужно поесть'};
   const spec=JOBS[id];
   const hours=randomInt(spec.hoursMin,spec.hoursMax+1);
+  const targetPay=randomInt(spec.payMin,spec.payMax+1);
   const state=structuredClone(source);
   const startedAt=totalGameMinutes(state.clock);
-  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60};
+  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60,targetPay};
   state.revision++;
   return {ok:true,state,message:names[role]+' отправился(-ась) на подработку: '+spec.name+' · '+hours+' ч. игрового времени'};
 }
-export function cancelShift(source:GameState,role:CharacterId):JobResult {
-  if(!source.activeShifts[role])return {ok:false,reason:'Активной смены нет'};
+
+/** The same settlement path pays complete and partial shifts. Client never supplies money or duration. */
+function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,early:boolean):{
+  state:GameState; payment:number; message:string;
+} {
   const state=structuredClone(source);
+  const job=JOBS[shift.job];
+  const worked=shiftWorkedMinutes(shift,state.clock);
+  const duration=shift.endsAt-shift.startedAt;
+  const fraction=duration>0 ? worked/duration : 0;
+  const payment=early ? shiftWage(shift,state.clock) : shiftFullPay(shift);
+  const actor=state.characters[role];
+  state.money+=payment;
+  actor.energy=Math.max(0,actor.energy-Math.round(job.energyCost*fraction));
+  actor.hunger=Math.max(0,actor.hunger-Math.round(job.hungerCost*fraction));
+  actor.hygiene=Math.max(0,actor.hygiene-Math.round(job.hygieneCost*fraction));
+  actor.mood=Math.max(0,Math.min(100,actor.mood+Math.round(3*fraction)));
+  state.shiftDays[role]=state.clock.day;
+  if(payment>0){
+    const workedHours=(worked/60).toFixed(1).replace('.',',');
+    addLedger(state,role,'income','work',payment,
+      job.name+(early?' · досрочный уход':' · полная смена')+' · '+workedHours+' ч.');
+  }
   delete state.activeShifts[role];
   state.revision++;
-  return {ok:true,state,message:names[role]+': смена прервана, зарплата не начислена'};
+  const workedHours=(worked/60).toFixed(1).replace('.',',');
+  const message=names[role]+(early?' завершил(а) смену досрочно':' закончил(а) смену')+
+    ' «'+job.name+'» · '+workedHours+' из '+shift.hours+' ч.: +'+formatRub(payment);
+  return {state,payment,message};
 }
+
+/** Any time is allowed, even immediately (0 ₽). A partial shift uses up today's work slot. */
+export function leaveShiftEarly(source:GameState,role:CharacterId):JobResult {
+  const shift=source.activeShifts[role];
+  if(!shift)return {ok:false,reason:'Активной смены нет'};
+  return {ok:true,...payAndClose(source,role,shift,true)};
+}
+
 export interface ShiftCompletion {
   role:CharacterId;
   job:JobId;
   payment:number;
   message:string;
 }
-/** Called after an authoritative clock tick. Emits one payout for each completed shift. */
+/** Called from the server's authoritative game clock; after logout/restart shifts remain valid. */
 export function settleCompletedShifts(source:GameState):{state:GameState;completed:ShiftCompletion[]} {
   const now=totalGameMinutes(source.clock);
   if(!Object.values(source.activeShifts).some(shift=>shift && shift.endsAt<=now))
     return {state:source,completed:[]};
-  const state=structuredClone(source);
+  let state=source;
   const completed:ShiftCompletion[]=[];
-  for(const role of ['vlad','alina'] as const) {
+  for(const role of ['vlad','alina'] as const){
     const shift=state.activeShifts[role];
     if(!shift || shift.endsAt>now)continue;
-    const job=JOBS[shift.job];
-    const payment=randomInt(job.payMin,job.payMax+1);
-    const actor=state.characters[role];
-    state.money+=payment;
-    actor.energy=Math.max(0,actor.energy-job.energyCost);
-    actor.hunger=Math.max(0,actor.hunger-job.hungerCost);
-    actor.hygiene=Math.max(0,actor.hygiene-job.hygieneCost);
-    actor.mood=Math.max(0,Math.min(100,actor.mood+3));
-    state.shiftDays[role]=state.clock.day; // cannot immediately work another shift on the payout day
-    addLedger(state,role,'income','work',payment,job.name+' · '+shift.hours+' ч. смена');
-    delete state.activeShifts[role];
-    state.revision++;
-    completed.push({role,job:shift.job,payment,
-      message:names[role]+' закончил(а) смену «'+job.name+'»: +'+formatRub(payment)});
+    const payout=payAndClose(state,role,shift,false);
+    state=payout.state;
+    completed.push({role,job:shift.job,payment:payout.payment,message:payout.message});
   }
   return {state,completed};
 }
