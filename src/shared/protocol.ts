@@ -1,5 +1,6 @@
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import type { LedgerEntry } from './economy';
+import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
 export type { PetId, PetAction } from './pets';
@@ -43,6 +44,7 @@ export interface GameState {
   takeout: TakeoutStock;
   ledger: LedgerEntry[];
   shiftDays: Record<CharacterId, number>;
+  activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
   petFood: PetFoodStock;
   characters: Record<CharacterId, CharacterState>;
@@ -76,12 +78,12 @@ export const ACTIONS = {
   bedNap: { label: '😴 Вздремнуть', item: 'bed', pose: 'sleep' },
   bedMake: { label: '🛏️ Заправить кровать', item: 'bed', pose: 'idle' },
   bedStretch: { label: '🌅 Утренняя зарядка', item: 'bed', pose: 'idle' },
-  vladOrder: { label: '📦 Подработка: удалённые заявки (+3 000 ₽/смена)', item: 'desk', pose: 'work', role: 'vlad' },
+  vladOrder: { label: '💻 Учебная практика без оплаты', item: 'desk', pose: 'work', role: 'vlad' },
   vladStudy: { label: '📚 Учиться разработке', item: 'desk', pose: 'work', role: 'vlad' },
   deskGames: { label: '🎮 Поиграть на компьютере', item: 'desk', pose: 'work' },
   deskJournal: { label: '📝 Записать мысли', item: 'desk', pose: 'work' },
   alinaStudy: { label: '📖 Изучить реконструкцию волос', item: 'desk', pose: 'work', role: 'alina' },
-  alinaConsult: { label: '📋 Подработка: администратор (+3 200 ₽/смена)', item: 'desk', pose: 'work', role: 'alina' },
+  alinaConsult: { label: '📋 Тренировка общения с клиентами', item: 'desk', pose: 'work', role: 'alina' },
   kitchenWash: { label: '🫧 Умыться у раковины', item: 'kitchen', pose: 'idle' },
   kitchenTidy: { label: '🧽 Убрать кухню', item: 'kitchen', pose: 'idle' },
   kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
@@ -104,6 +106,8 @@ export type ClientPacket =
   | { type: 'act'; actionId: ActionId }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
+  | { type: 'job_start'; job: import('./jobs').JobId }
+  | { type: 'job_cancel' }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
@@ -118,6 +122,7 @@ export type ServerPacket =
   | { type: 'action'; role: CharacterId; actionId: ActionId; message: string }
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
   | { type: 'store_event'; role: CharacterId; message: string }
+  | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'cancelled'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
   | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand }
@@ -128,7 +133,7 @@ export function initialState(): GameState {
   return {
     version: 2, revision: 0, clock: { ...INITIAL_CLOCK }, money: 2500,
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
-    takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 },
+    takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, x: 0.5, z: 3.5, pose: 'idle' },

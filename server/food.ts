@@ -1,5 +1,6 @@
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { addLedger } from '../src/shared/economy';
+import { storageCanFit } from '../src/shared/storageSpace';
 import { names, points, type CharacterId, type GameState } from '../src/shared/protocol';
 
 export type FoodCommand =
@@ -23,6 +24,8 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (state.pantry[id] + product.quantity > 99) return { ok: false, reason: 'Запас этого продукта заполнен' };
     state.money -= product.price;
     state.pantry[id] += product.quantity;
+    const space=storageCanFit(source,state);
+    if(!space.ok)return {ok:false,reason:space.reason};
     addLedger(state, role, 'expense', 'groceries', product.price, product.name);
     message = names[role] + ': доставлено ' + product.name + ' за ' + product.price + ' ₽';
   } else if (command.type === 'cook') {
@@ -38,6 +41,8 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (actor.energy < 4) return { ok: false, reason: 'Не хватает сил для готовки' };
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
+    const space=storageCanFit(source,state);
+    if(!space.ok)return {ok:false,reason:space.reason};
     actor.energy = Math.max(0, actor.energy - 4);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);

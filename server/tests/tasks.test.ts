@@ -103,12 +103,12 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
     await completed;
     const done = await snap;
     if (done.type === 'snapshot') {
-      assert.equal(done.state.money, 5500);
-      assert.equal(done.state.characters.vlad.skill, 0);
-      assert.equal(done.state.ledger[0].amount, 3000);
+      assert.equal(done.state.money, 2500);
+      assert.equal(done.state.characters.vlad.skill, 5);
+      assert.equal(done.state.ledger.length, 0);
     }
     const saved = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-    assert.deepEqual([saved.money, saved.revision], [5500, 1]);
+    assert.deepEqual([saved.money, saved.revision], [2500, 1]);
     ctx.vlad.terminate();
     ctx.alina.terminate();
     await ctx.server.close();
@@ -117,7 +117,7 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
       const after = await enter(restored.port, 'vlad', ctx.keys.vlad);
       after.close();
       const persisted = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-      assert.deepEqual([persisted.money, persisted.revision], [5500, 1]);
+      assert.deepEqual([persisted.money, persisted.revision], [2500, 1]);
     } finally { await restored.close(); }
   } finally {
     if (ctx.server.httpServer.listening) await clean(ctx);

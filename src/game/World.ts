@@ -148,6 +148,17 @@ export class World {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
 
+  setAway(id:CharacterId,away:boolean):void {
+    const resident=this.actors[id];
+    if(resident.root.visible===!away)return;
+    resident.root.visible=!away;
+    const body=resident.root.children[0];
+    for(const item of this.contacts) {
+      if(item.visual===body)item.shade.visible=!away;
+    }
+    if(away && this.inspected===id)this.showcase(null);
+  }
+
   showcase(subject: CharacterId | PetId | null): void {
     this.inspected = subject;
     this.controls.minDistance = subject ? 1.10 : 10;

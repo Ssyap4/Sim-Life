@@ -4,14 +4,14 @@ import { applyAction } from '../logic';
 import { applyFoodAction } from '../food';
 import { initialState } from '../../src/shared/protocol';
 
-test('Vlad earns a realistic daily side-shift payment, while original snapshot stays unchanged', () => {
+test('Vlad practice advances skill without printing instant money', () => {
   const original = initialState();
   const result = applyAction(original, 'vlad', 'vladOrder');
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.state.money, 5500);
-  assert.equal(result.state.characters.vlad.skill, 0);
-  assert.equal(result.state.characters.vlad.energy, 58);
+  assert.equal(result.state.money, 2500);
+  assert.equal(result.state.characters.vlad.skill, 5);
+  assert.equal(result.state.characters.vlad.energy, 76);
   assert.equal(result.state.revision, 1);
   assert.equal(original.money, 2500);
 });
@@ -21,19 +21,14 @@ test('One character cannot execute the other character career action', () => {
   assert.equal(result.ok, false);
 });
 
-test('Alina can take a non-career side shift once per game day', () => {
-  const start = initialState();
-  const paid = applyAction(start, 'alina', 'alinaConsult');
-  assert.equal(paid.ok, true);
-  if (!paid.ok) return;
-  assert.equal(paid.state.money, 5700);
-  assert.equal(paid.state.shiftDays.alina, 1);
-  assert.equal(paid.state.ledger[0].amount, 3200);
-  assert.equal(applyAction(paid.state, 'alina', 'alinaConsult').ok, false);
-  const tomorrow = structuredClone(paid.state);
-  tomorrow.clock.day++;
-  const again = applyAction(tomorrow, 'alina', 'alinaConsult');
-  assert.equal(again.ok, true);
+test('Alina practices communication without an imaginary salary',()=>{
+ const start=initialState();
+ const practiced=applyAction(start,'alina','alinaConsult');
+ assert.equal(practiced.ok,true);
+ if(!practiced.ok)return;
+ assert.equal(practiced.state.money,2500);
+ assert.equal(practiced.state.characters.alina.skill,4);
+ assert.equal(practiced.state.ledger.length,0);
 });
 
 test('Cooking creates two shareable portions from real ingredients', () => {

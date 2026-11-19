@@ -1,5 +1,6 @@
 import { GROCERIES, RECIPES, ingredientList, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import type { GameState } from './shared/protocol';
+import { RECIPE_DESCRIPTIONS } from './shared/storageSpace';
 
 export type FoodCommand = 'buy' | 'cook' | 'eat';
 
@@ -43,7 +44,7 @@ export function showFoodChoices(
       ).join(' · ');
       const available = ingredientList(id).every(([ingredient, qty]) => state.pantry[ingredient] >= qty);
       entry(container, recipe.emoji + ' ' + recipe.name,
-        needed + ' · '+recipe.servings+' порц. · ~'+recipePortionCost(id)+' ₽/порция',
+        RECIPE_DESCRIPTIONS[id]+' · '+needed + ' · '+recipe.servings+' порц. · ~'+recipePortionCost(id)+' ₽/порция',
         !available || state.meals[id] + recipe.servings > 30,
         () => submit('cook', id));
     }

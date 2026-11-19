@@ -1,6 +1,7 @@
 import { type CharacterId, type GameState, names } from '../src/shared/protocol';
 import { type BasketLine, marketProduct } from '../src/shared/market';
 import { addLedger, formatRub } from '../src/shared/economy';
+import { storageCanFit } from '../src/shared/storageSpace';
 
 export type CheckoutResult =
   | { ok: true; state: GameState; message: string }
@@ -54,6 +55,8 @@ export function checkout(source: GameState, actor: CharacterId, unknownLines: un
     }
     namesBought.push(product.name+' ×'+line.quantity);
   }
+  const storage=storageCanFit(source,next);
+  if(!storage.ok)return {ok:false,reason:storage.reason};
   next.money-=cost;
   next.revision++;
   const type = counts.takeout && !counts.groceries && !counts.pets ? 'takeout'
