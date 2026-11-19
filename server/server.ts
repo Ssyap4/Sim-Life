@@ -15,6 +15,7 @@ import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { advanceLife } from './life';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { PETS } from '../src/shared/pets';
+import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
 
 export interface ServerOptions {
   port?: number;
@@ -75,15 +76,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const gameMinutes = Math.floor(minuteCarry);
     if (gameMinutes < 1) return;
     minuteCarry -= gameMinutes;
-    const next = advanceLife(state, gameMinutes, online());
-    try { files.save(next); }
+    const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return; }
-    state = next;
+    state = next.state;
     all({ type: 'snapshot', state });
+    for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     // Gentle emergency autonomy, only when the resident is connected, idle
     // and almost exhausted. No autonomous purchases, work or food spending.
     for (const [role, socket] of active) {
-      if (state.characters[role].energy >= 8 || running.has(role) ||
+      if (state.characters[role].energy >= 8 || running.has(role) || state.activeShifts[role] ||
           now - (lastAutoRest.get(role) ?? 0) < 120_000 ||
           now - (lastAction.get(role) ?? 0) < 30_000) continue;
       const plan = planTask({ type: 'act', actionId: 'bedNap' });
@@ -102,7 +104,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
   const beginTask = (role: CharacterId, socket: WebSocket, plan: TaskPlan): void => {
-    if (running.has(role)) {
+    if (state.activeShifts[role] || running.has(role)) {
       packet(socket, { type: 'error', reason: 'Персонаж занят. Сначала заверши или отмени текущее действие' });
       return;
     }
@@ -259,8 +261,31 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         return;
       }
+      if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
+        // Legacy job_cancel messages are treated as early departure with fair partial pay.
+        const result=leaveShiftEarly(state,role);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
+        state=result.state;
+        all({type:'job_event',role,outcome:'left_early',message:result.message});
+        all({type:'snapshot',state});
+        return;
+      }
       if (running.has(role)) {
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
+        return;
+      }
+      if (message.type === 'job_start') {
+        const result=beginShift(state,role,message.job);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить начало смены'});return;}
+        state=result.state;
+        all({type:'job_event',role,outcome:'started',message:result.message});
+        all({type:'snapshot',state});
+        return;
+      }
+      if (state.activeShifts[role]) {
+        packet(socket,{type:'error',reason:'Ты сейчас на подработке. Дождись окончания или прерви смену'});
         return;
       }
 
@@ -274,7 +299,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket, { type: 'error', reason: names[partner] + ' пока не в игре' });
           return;
         }
-        if (running.has(partner)) {
+        if (running.has(partner) || state.activeShifts[partner]) {
           packet(socket, { type: 'error', reason: names[partner] + ' занят(а) другим действием' });
           return;
         }

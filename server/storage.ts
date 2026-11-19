@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { LEDGER_LIMIT } from '../src/shared/economy';
+import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 
@@ -53,6 +54,25 @@ const isValidState = (value: unknown): value is GameState => {
         (row.kind === 'income' || row.kind === 'expense') &&
         ['groceries','takeout','pets','work'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
+  const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
+  if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
+    Object.keys(activeShifts).some(role => role !== 'vlad' && role !== 'alina') ||
+    !Object.values(activeShifts).every(raw => {
+      if (!raw || typeof raw !== 'object') return false;
+      const shift=raw as Record<string, unknown>;
+      if (!isJobId(shift.job)) return false;
+      const hours=shift.hours;
+      return Number.isSafeInteger(hours) &&
+        Number(hours) >= JOBS[shift.job].hoursMin &&
+        Number(hours) <= JOBS[shift.job].hoursMax &&
+        Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
+        Number.isSafeInteger(shift.endsAt) &&
+        Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60 &&
+        (shift.targetPay === undefined ||
+          Number.isSafeInteger(shift.targetPay) &&
+          Number(shift.targetPay) >= JOBS[shift.job].payMin &&
+          Number(shift.targetPay) <= JOBS[shift.job].payMax);
+    }))) return false;
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
@@ -117,6 +137,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         takeout: { ...EMPTY_TAKEOUT, ...data.takeout },
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
+        activeShifts: { ...data.activeShifts },
         pets: { ...structuredClone(INITIAL_PETS), ...data.pets },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };

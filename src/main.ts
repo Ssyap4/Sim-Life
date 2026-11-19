@@ -3,6 +3,8 @@ import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
 import { createMarketUI, showTakeoutChoices } from './marketUI';
+import { makeJobBoard } from './jobsUI';
+import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
 import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
@@ -36,7 +38,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · МАГАЗИН И БЫТ</div>
+      <div class="version">0.3 · ЖИВАЯ ЭКОНОМИКА</div>
     </div>
     <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button></div>
@@ -69,6 +71,7 @@ app.innerHTML = `
   </section>
   <div id="message" class="message" aria-live="polite"></div>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
+  <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
@@ -76,7 +79,8 @@ app.innerHTML = `
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
         <button id="market-btn" class="market-btn" type="button" disabled>🛒 Магазин</button>
-        <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
+        <button id="jobs-btn" class="market-btn jobs-btn" type="button" disabled>🧰 Подработки</button>
+        <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
       <div class="tip">
         <span class="tip-icon">✦</span>
@@ -115,6 +119,8 @@ const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
+const jobsBtn = document.querySelector<HTMLButtonElement>('#jobs-btn')!;
+const jobsOverlay=document.querySelector<HTMLElement>('#jobs-overlay')!;
 const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
 const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
 const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
@@ -154,7 +160,7 @@ showcaseToggle.addEventListener('click', () => {
 showcaseReturn.addEventListener('click', () => focusModel(null));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
-  if (event.key === 'Escape') {toggleNeeds(false); marketUI.close();}
+  if (event.key === 'Escape') {toggleNeeds(false); marketUI.close(); jobsUI.close();}
 });
 showcaseChoices.addEventListener('click', (event) => {
   const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
@@ -268,12 +274,14 @@ function render(): void {
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
     online.length + ' из 2 игроков онлайн';
+  const used=storageUsage(state);
   document.querySelector<HTMLElement>('#stock-line')!.textContent =
-    '🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread +
-    ' · 🥛 ' + state.pantry.milk + ' · 🍽️ Готово: ' +
-    (Object.values(state.meals).reduce((a,b)=>a+b,0)+
-      Object.values(state.takeout).reduce((a,b)=>a+b,0)) + ' порций';
+    '🧊 Холодильник: '+used.fridge+'/'+FRIDGE_CAPACITY+
+    ' · 🗄️ Полки: '+used.cupboard+'/'+CUPBOARD_CAPACITY+
+    ' · 🍽️ '+(Object.values(state.meals).reduce((a,b)=>a+b,0)+
+      Object.values(state.takeout).reduce((a,b)=>a+b,0))+' порц.';
   for (const id of ['vlad', 'alina'] as const) {
+    world?.setAway(id,Boolean(state.activeShifts[id]));
     const stats = state.characters[id];
     const hunger = document.querySelector<HTMLElement>('#' + id + '-hunger')!;
     const energy = document.querySelector<HTMLElement>('#' + id + '-energy')!;
@@ -282,7 +290,7 @@ function render(): void {
     const button = document.querySelector<HTMLButtonElement>('[data-id="' + id + '"]')!;
     button.classList.toggle('active', id === active);
     button.setAttribute('aria-pressed', String(id === active));
-    button.title = 'Голод ' + Math.round(stats.hunger) + '%, энергия ' + Math.round(stats.energy) + '%, навык ' + Math.round(stats.skill) + '%';
+    button.title = (state.activeShifts[id]?'На подработке · ':'')+'Голод ' + Math.round(stats.hunger) + '%, энергия ' + Math.round(stats.energy) + '%, навык ' + Math.round(stats.skill) + '%';
     const indicator = document.querySelector<HTMLElement>('#online-' + id)!;
     indicator.textContent = online.includes(id) ? '●' : '○';
     indicator.style.color = online.includes(id) ? '#65a876' : '#b9b9b9';
@@ -294,6 +302,7 @@ function showStatus(text: string): void {
   authStatusEl.textContent = text;
 }
 const marketUI = createMarketUI(marketOverlay,(lines)=>net.checkout(lines));
+const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly());
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
@@ -303,8 +312,10 @@ const net = new LiveConnection({
     drawTaskPanel();
     toggleNeeds(false);
     marketUI.close();
+    jobsUI.close();
     authEl.hidden = true;
     marketBtn.disabled = false;
+    jobsBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
     for (const id of ['vlad', 'alina'] as const) {
@@ -320,6 +331,7 @@ const net = new LiveConnection({
       state = household;
       render();
       marketUI.refresh(household);
+      jobsUI.refresh(household);
     }
   },
   onOnline(players) {
@@ -336,6 +348,10 @@ const net = new LiveConnection({
   },
   onStoreEvent(role,message) {
     if(role===active) marketUI.acknowledge();
+    statusEl.textContent=message;
+    notify(message);
+  },
+  onJobEvent(_role,_outcome,message) {
     statusEl.textContent=message;
     notify(message);
   },
@@ -373,12 +389,13 @@ const net = new LiveConnection({
       authEl.hidden = false;
       active = null;
       marketBtn.disabled = true;
+      jobsBtn.disabled = true;
       petsBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else {
       notify(reason);
-      if (state) marketUI.refresh(state); // failed order: re-enable checkout, preserve cart
+      if (state) {marketUI.refresh(state); jobsUI.refresh(state);} // failed action: re-enable controls
     }
   },
   onStatus(text) {
@@ -484,6 +501,10 @@ function openActions(item: ItemId): void {
   close.setAttribute('aria-label', 'Закрыть меню');
   close.addEventListener('click', () => { actionsEl.hidden = true; });
   actionsEl.appendChild(close);
+  const about=document.createElement('p');
+  about.className='food-empty';
+  about.textContent=HOME_OBJECT_DETAILS[item];
+  actionsEl.appendChild(about);
 
   if (state && (item === 'delivery' || item === 'kitchen' || item === 'table')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
@@ -561,7 +582,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       });
     });
-    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;marketUI.open(state);} });
+    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;jobsUI.close();marketUI.open(state);} });
+    jobsBtn.addEventListener('click',()=>{if(state && active){actionsEl.hidden=true;marketUI.close();jobsUI.open(state,active);}});
     petsBtn.addEventListener('click', () => openPetActions());
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {

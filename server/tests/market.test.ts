@@ -8,7 +8,7 @@ import { MARKET_PRODUCTS } from '../../src/shared/market';
 import { initialState } from '../../src/shared/protocol';
 import { checkout } from '../market';
 import { applyTakeoutMeal } from '../food';
-import { applyAction } from '../logic';
+import { beginShift, settleCompletedShifts } from '../jobs';
 import { openServerFiles } from '../storage';
 
 test('Moscow-region benchmark prices make takeaway more expensive than home cooking', () => {
@@ -84,20 +84,20 @@ test('Takeaway is shared, eaten at the table, and consumed only once per portion
   assert.equal(bought.state.takeout.pizzaCheese,2);
 });
 
-test('One real side-shift per game day, with a financial ledger', () => {
-  const first=applyAction(initialState(),'vlad','vladOrder');
-  assert.equal(first.ok,true);
-  if(!first.ok)return;
-  assert.equal(first.state.money,5500);
-  assert.equal(first.state.ledger[0].kind,'income');
-  assert.equal(applyAction(first.state,'vlad','vladOrder').ok,false);
-  const nextDay=structuredClone(first.state);
-  nextDay.clock.day++;
-  const again=applyAction(nextDay,'vlad','vladOrder');
-  assert.equal(again.ok,true);
-  if(!again.ok)return;
-  assert.equal(again.state.money,8500);
-  assert.equal(again.state.ledger.length,2);
+test('Server clock pays a side shift only after a full workday',()=>{
+ const start=beginShift(initialState(),'vlad','taxi');
+ assert.equal(start.ok,true);
+ if(!start.ok)return;
+ const due=start.state.activeShifts.vlad!;
+ const snap=structuredClone(start.state);
+ snap.clock.day=Math.floor(due.endsAt/1440)+1;
+ snap.clock.minute=due.endsAt%1440;
+ const settled=settleCompletedShifts(snap);
+ assert.equal(settled.completed.length,1);
+ assert.ok(settled.completed[0].payment>=2500&&settled.completed[0].payment<=4500);
+ assert.equal(settled.state.money,2500+settled.completed[0].payment);
+ assert.equal(settled.state.ledger.length,1);
+ assert.equal(settleCompletedShifts(settled.state).completed.length,0);
 });
 
 test('Older saves gain pantry items, takeout, ledger and shift data without resetting savings', () => {
@@ -109,7 +109,7 @@ test('Older saves gain pantry items, takeout, ledger and shift data without rese
     old.characters.alina.skill=47;
     old.pantry.eggs=7;
     const legacy={...old,pantry:{eggs:7,bread:2},
-      takeout:undefined,ledger:undefined,shiftDays:undefined};
+      takeout:undefined,ledger:undefined,shiftDays:undefined,activeShifts:undefined};
     writeFileSync(join(dir,'household.json'),JSON.stringify(legacy));
     const state=files.load();
     assert.equal(state.money,13245);
@@ -119,6 +119,7 @@ test('Older saves gain pantry items, takeout, ledger and shift data without rese
     assert.equal(state.takeout.rollsSet,0);
     assert.deepEqual(state.ledger,[]);
     assert.deepEqual(state.shiftDays,{vlad:0,alina:0});
+    assert.deepEqual(state.activeShifts,{});
     files.save(state);
     assert.equal(files.load().money,13245);
   } finally {rmSync(dir,{recursive:true,force:true});}
