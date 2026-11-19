@@ -38,6 +38,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     state.meals[id] += recipe.servings;
     actor.energy = Math.max(0, actor.energy - 4);
     actor.mood = Math.min(100, actor.mood + 2);
+    actor.comfort = Math.min(100, actor.comfort + 3);
     Object.assign(actor, { ...points.kitchen, pose: 'work' as const });
     message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции';
   } else {
@@ -48,6 +49,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     state.meals[id] -= 1;
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     actor.mood = Math.min(100, actor.mood + meal.mood);
+    actor.comfort = Math.min(100, actor.comfort + 4);
     Object.assign(actor, { ...points.table, pose: 'sit' as const });
     message = names[role] + ': поел(а) ' + meal.name;
   }

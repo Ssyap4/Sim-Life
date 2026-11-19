@@ -549,3 +549,45 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 }
 .performance-probe strong { display: block; margin-bottom: 3px; font-size: 12px; }
 .performance-probe small { display: block; margin-top: 3px; opacity: .75; font-size: 9px; }
+
+/* Living World: daily rhythm and expandable household wellbeing. */
+.life-strip {
+  pointer-events: auto; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; border-radius: 12px; padding: 5px 7px 5px 11px;
+  background: rgba(255, 253, 247, .92); border: 1px solid rgba(255,255,255,.94);
+  box-shadow: 0 3px 14px #354a3420; font-weight: 900; font-size: 11px;
+}
+.life-strip > span { white-space: nowrap; color: #5b725d; font-variant-numeric: tabular-nums; }
+.life-strip button {
+  border: 0; border-radius: 9px; padding: 7px 10px;
+  background: #e7eee3; color: #45614c; font-weight: 900; font-size: 11px;
+}
+.life-strip button[aria-expanded="true"] { background: #cadbc8; }
+.needs-panel {
+  z-index: 6; pointer-events: auto; position: absolute;
+  top: calc(var(--hud-top, 214px) + 8px);
+  left: 50%; transform: translateX(-50%); width: min(calc(100% - 28px), 464px);
+  max-height: min(48dvh, 460px); overflow: auto; overscroll-behavior: contain;
+  background: rgba(255,253,247,.98); border: 1px solid #fff;
+  border-radius: 18px; padding: 12px 14px; box-shadow: 0 13px 45px #243b2c60;
+}
+.needs-header { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:14px; margin-bottom:8px; }
+.needs-header button {
+  border:0; background:#ecf0e8; color:#536a56;
+  width:29px; height:29px; border-radius:50%; font-size:20px;
+}
+.needs-group { padding:8px 0 12px; }
+.needs-group + .needs-group { border-top:1px solid #e4eadd; }
+.needs-group > strong { display:block; margin-bottom:7px; color:#405e4c; font-size:12px; }
+.need-row { display:grid; grid-template-columns:116px minmax(40px,1fr) 38px; gap:8px; align-items:center; margin:5px 0; font-size:10px; font-weight:800; }
+.need-track { height:7px; border-radius:20px; background:#e9e8dd; overflow:hidden; }
+.need-track i { display:block; height:100%; border-radius:20px; background:#7daa8a; }
+.need-track i.need-mid { background:#d8b46f; }
+.need-track i.need-low { background:#ce887d; }
+.need-value { text-align:right; color:#6d786a; font-variant-numeric: tabular-nums; }
+.need-hint { display:block; margin-top:8px; color:#9c705c; font-size:10px; }
+@media (max-width:370px) {
+  .life-strip { padding-left:8px; }
+  .life-strip button { padding:6px 8px; font-size:10px; }
+  .need-row { grid-template-columns:106px minmax(32px,1fr) 33px; gap:5px; }
+}

@@ -15,9 +15,12 @@ export interface TaskPlan {
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
-  sofaRest: 9, sofaMovie: 13, bedSleep: 16, bedNap: 10,
-  vladOrder: 14, vladStudy: 11, alinaStudy: 11, alinaConsult: 14,
-  watchTv: 10, tableRest: 7,
+  sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
+  bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
+  vladOrder: 14, vladStudy: 11, deskGames: 12, deskJournal: 9,
+  alinaStudy: 11, alinaConsult: 14,
+  kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
+  watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
 const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProperty.call(obj, key);
@@ -32,7 +35,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'desk' ? 'desk' : null,
+      resource: action.item === 'desk' || action.item === 'kitchen' ? action.item : null,
     };
   }
   if (command.type === 'cook' || command.type === 'eat') {

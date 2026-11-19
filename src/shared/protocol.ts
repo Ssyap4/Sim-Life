@@ -1,5 +1,6 @@
 import { EMPTY_MEALS, EMPTY_PANTRY, type CookedMeals, type Pantry } from './food';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
+import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
 
@@ -21,6 +22,10 @@ export interface Needs {
   energy: number;
   mood: number;
   skill: number;
+  hygiene: number;
+  social: number;
+  fun: number;
+  comfort: number;
 }
 export interface CharacterState extends Needs {
   x: number;
@@ -30,6 +35,7 @@ export interface CharacterState extends Needs {
 export interface GameState {
   version: 2;
   revision: number;
+  clock: GameClock;
   money: number;
   pantry: Pantry;
   meals: CookedMeals;
@@ -59,14 +65,27 @@ export interface ActionDefinition {
 export const ACTIONS = {
   sofaRest: { label: '🛋️ Отдохнуть', item: 'sofa', pose: 'sit' },
   sofaMovie: { label: '🎬 Посмотреть фильм (диван + ТВ)', item: 'sofa', pose: 'sit' },
+  sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },
+  sofaMusic: { label: '🎵 Послушать музыку', item: 'sofa', pose: 'sit' },
+  sofaCall: { label: '📱 Позвонить близким', item: 'sofa', pose: 'sit' },
   bedSleep: { label: '🌙 Поспать', item: 'bed', pose: 'sleep' },
   bedNap: { label: '😴 Вздремнуть', item: 'bed', pose: 'sleep' },
+  bedMake: { label: '🛏️ Заправить кровать', item: 'bed', pose: 'idle' },
+  bedStretch: { label: '🌅 Утренняя зарядка', item: 'bed', pose: 'idle' },
   vladOrder: { label: '💻 Простой фриланс-заказ (+120 ₽)', item: 'desk', pose: 'work', role: 'vlad' },
   vladStudy: { label: '📚 Учиться разработке', item: 'desk', pose: 'work', role: 'vlad' },
+  deskGames: { label: '🎮 Поиграть на компьютере', item: 'desk', pose: 'work' },
+  deskJournal: { label: '📝 Записать мысли', item: 'desk', pose: 'work' },
   alinaStudy: { label: '📖 Изучить реконструкцию волос', item: 'desk', pose: 'work', role: 'alina' },
   alinaConsult: { label: '📋 Консультация клиентки (+80 ₽; навык 15)', item: 'desk', pose: 'work', role: 'alina' },
-   watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'idle' },
+  kitchenWash: { label: '🫧 Умыться у раковины', item: 'kitchen', pose: 'idle' },
+  kitchenTidy: { label: '🧽 Убрать кухню', item: 'kitchen', pose: 'idle' },
+  kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
+  watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'idle' },
+  tvMusic: { label: '🎶 Послушать концерт', item: 'tv', pose: 'idle' },
   tableRest: { label: '☕ Посидеть за столом', item: 'table', pose: 'sit' },
+  tableTalk: { label: '💬 Пообщаться в переписке', item: 'table', pose: 'sit' },
+  tablePlan: { label: '📒 Спланировать день', item: 'table', pose: 'sit' },
  } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
@@ -99,12 +118,12 @@ export type ServerPacket =
 
 export function initialState(): GameState {
   return {
-    version: 2, revision: 0, money: 2500,
+    version: 2, revision: 0, clock: { ...INITIAL_CLOCK }, money: 2500,
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
-      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, x: 0.5, z: 3.5, pose: 'idle' },
-      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, x: 1.65, z: 3.2, pose: 'idle' },
+      vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, x: 0.5, z: 3.5, pose: 'idle' },
+      alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, x: 1.65, z: 3.2, pose: 'idle' },
     },
   };
 }

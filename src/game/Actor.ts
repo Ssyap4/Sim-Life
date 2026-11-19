@@ -7,6 +7,7 @@ import { finish, orb } from './ArtKit';
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games';
 const strideLength = 1.02;
 const stancePortion = 0.54;
 const handAxis = new THREE.Vector3(0, -1, 0);
@@ -44,7 +45,7 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
-  private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | null = null;
+  private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
   private readonly poseOffset = new THREE.Vector3();
   private keys: HandTargets | undefined;
@@ -140,6 +141,11 @@ export class Actor {
     // World has already placed the actor at the visual station.
     this.activity = kind;
     this.pan = pan;
+    this.activityTime = 0;
+  }
+
+  playDomesticActivity(kind: DomesticMotion): void {
+    this.activity = kind;
     this.activityTime = 0;
   }
 
@@ -329,6 +335,58 @@ export class Actor {
           gaze = 0.11 + bite * 0.15;
           break;
         }
+        case 'wash':
+          leftY = -0.07 + 0.048 * Math.sin(a * 4.3);
+          rightY = -0.08 - 0.048 * Math.sin(a * 4.3);
+          leftZ = rightZ = 0.29;
+          gaze = 0.10;
+          break;
+        case 'tidy':
+          leftY = -0.27 + 0.11 * Math.sin(a * 3);
+          rightY = -0.21 - 0.11 * Math.sin(a * 3);
+          leftZ = 0.36; rightZ = 0.43;
+          crouch = 0.055;
+          lean = 0.15;
+          break;
+        case 'tea':
+          leftY = -0.34;
+          rightY = -0.10 + 0.11 * Math.sin(a * 2.8);
+          leftZ = 0.27; rightZ = 0.21;
+          gaze = 0.16;
+          break;
+        case 'stretch':
+          leftY = rightY = 0.28 + 0.06 * Math.sin(a * 2);
+          leftZ = rightZ = 0.11;
+          armSpread = 0.28;
+          expression = 0.15;
+          break;
+        case 'read':
+          leftY = rightY = -0.24;
+          leftZ = rightZ = 0.36;
+          gaze = 0.26 + 0.025 * Math.sin(a * 1.3);
+          break;
+        case 'phone':
+          rightY = 0.075 + 0.016 * Math.sin(a * 2.3);
+          rightZ = 0.11;
+          gaze = 0.04;
+          expression = 0.16;
+          break;
+        case 'music':
+          leftY = -0.36 + 0.045 * Math.sin(a * 2.5);
+          rightY = -0.36 - 0.045 * Math.sin(a * 2.5);
+          gaze = 0.065 * Math.sin(a * 1.4);
+          expression = 0.12;
+          break;
+        case 'journal':
+          leftY = -0.33;
+          rightY = -0.31 + 0.025 * Math.sin(a * 7);
+          leftZ = 0.35; rightZ = 0.37;
+          gaze = 0.23;
+          break;
+        case 'games':
+          // The existing reusable keyboard IK animates both hands.
+          expression = 0.20;
+          break;
         case 'play':
           expression = 0.42;
           leftY = -0.29 + Math.sin(a * 5) * 0.11;

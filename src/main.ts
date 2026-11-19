@@ -4,6 +4,7 @@ import { LiveConnection } from './core/network';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
+import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
   type ActionId, type CharacterId, type GameState, type ItemId,
@@ -37,6 +38,7 @@ app.innerHTML = `
       <div class="version">0.3 · ЖИВОЙ РИТМ</div>
     </div>
     <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
+    <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button></div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
         <span class="avatar avatar-vlad">В</span>
@@ -60,6 +62,10 @@ app.innerHTML = `
       </div>
     </div>
   </header>
+  <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
+    <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
+    <div id="needs-content"></div>
+  </section>
   <div id="message" class="message" aria-live="polite"></div>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
@@ -107,6 +113,17 @@ const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
+const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
+const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
+const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
+const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
+function toggleNeeds(open: boolean): void {
+  needsPanelEl.hidden = !open;
+  needsToggleEl.setAttribute('aria-expanded', String(open));
+  if (open) renderNeeds();
+}
+needsToggleEl.addEventListener('click', () => toggleNeeds(Boolean(needsPanelEl.hidden)));
+document.querySelector<HTMLButtonElement>('#needs-close')!.addEventListener('click', () => toggleNeeds(false));
 const showcaseToggle = document.querySelector<HTMLButtonElement>('#showcase-toggle')!;
 const showcaseChoices = document.querySelector<HTMLDivElement>('#showcase-choices')!;
 const showcaseReturn = document.querySelector<HTMLButtonElement>('#showcase-return')!;
@@ -134,6 +151,7 @@ showcaseToggle.addEventListener('click', () => {
 showcaseReturn.addEventListener('click', () => focusModel(null));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
+  if (event.key === 'Escape') toggleNeeds(false);
 });
 showcaseChoices.addEventListener('click', (event) => {
   const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
@@ -195,8 +213,54 @@ function updateTaskProgress(): void {
 }
 window.setInterval(() => { if (tasks.size) updateTaskProgress(); }, 150);
 
+function renderNeeds(): void {
+  if (!state || needsPanelEl.hidden) return;
+  needsContentEl.replaceChildren();
+  for (const role of ['vlad', 'alina'] as const) {
+    const char = state.characters[role];
+    const group = document.createElement('div');
+    group.className = 'needs-group';
+    const heading = document.createElement('strong');
+    heading.textContent = names[role] + ' · настроение ' + Math.round(char.mood) + '%';
+    group.append(heading);
+    for (const need of VITAL_NEEDS) {
+      const info = NEED_INFO[need];
+      const value = Math.round(char[need]);
+      const row = document.createElement('div');
+      row.className = 'need-row';
+      row.title = info.hint;
+      const label = document.createElement('span');
+      label.textContent = info.emoji + ' ' + info.label;
+      const track = document.createElement('div');
+      track.className = 'need-track';
+      const fill = document.createElement('i');
+      fill.style.width = value + '%';
+      if (value < 30) fill.classList.add('need-low');
+      else if (value < 55) fill.classList.add('need-mid');
+      track.append(fill);
+      const percent = document.createElement('span');
+      percent.className = 'need-value';
+      percent.textContent = value + '%';
+      row.append(label, track, percent);
+      group.append(row);
+    }
+    const urgent = VITAL_NEEDS.find(need => char[need] < 35);
+    if (urgent) {
+      const hint = document.createElement('small');
+      hint.className = 'need-hint';
+      hint.textContent = '✦ ' + NEED_INFO[urgent].hint;
+      group.append(hint);
+    }
+    needsContentEl.append(group);
+  }
+}
+
 function render(): void {
   if (!state) return;
+  clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
+    state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
+  world?.setTimeOfDay(state.clock.minute);
+  renderNeeds();
   document.querySelector<HTMLElement>('#money')!.textContent =
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
@@ -232,6 +296,7 @@ const net = new LiveConnection({
     online = players;
     tasks.clear();
     drawTaskPanel();
+    toggleNeeds(false);
     authEl.hidden = true;
     marketBtn.disabled = false;
     petsBtn.disabled = false;
