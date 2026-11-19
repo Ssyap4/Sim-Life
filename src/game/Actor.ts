@@ -32,7 +32,7 @@ export class Actor {
   private readonly leftArm: THREE.Mesh;
   private readonly rightArm: THREE.Mesh;
   private readonly selectionRing: THREE.Mesh;
-  private destination: THREE.Vector3 | null = null;
+  private waypoints: THREE.Vector3[] = [];
   private callback: Arrival | null = null;
   private pose: Pose = 'idle';
   private clock = 0;
@@ -74,14 +74,14 @@ export class Actor {
     this.selectionRing.visible = value;
   }
 
-  walkTo(position: THREE.Vector3, onArrive: Arrival): void {
-    this.destination = position.clone();
+  walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
+    this.waypoints = points.map((point) => point.clone());
     this.callback = onArrive;
     this.pose = 'idle';
   }
 
   setPose(pose: Pose): void {
-    this.destination = null;
+    this.waypoints = [];
     this.callback = null;
     this.pose = pose;
   }
@@ -90,22 +90,27 @@ export class Actor {
     this.clock += dt;
     let walking = false;
 
-    if (this.destination) {
-      const delta = this.destination.clone().sub(this.root.position);
+    if (this.waypoints.length) {
+      const target = this.waypoints[0];
+      const delta = target.clone().sub(this.root.position);
       delta.y = 0;
       const distance = delta.length();
       const speed = 1.8;
       if (distance <= speed * dt + 0.03) {
-        this.root.position.copy(this.destination);
-        this.destination = null;
-        const callback = this.callback;
-        this.callback = null;
-        callback?.();
+        this.root.position.copy(target);
+        this.waypoints.shift();
+        if (!this.waypoints.length) {
+          const callback = this.callback;
+          this.callback = null;
+          callback?.();
+        }
+        walking = this.waypoints.length > 0;
       } else {
         delta.normalize();
         this.root.position.addScaledVector(delta, speed * dt);
         const angle = Math.atan2(delta.x, delta.z);
-        this.root.rotation.y += THREE.MathUtils.euclideanModulo(angle - this.root.rotation.y + Math.PI, 2 * Math.PI) - Math.PI;
+        const turn = THREE.MathUtils.euclideanModulo(angle - this.root.rotation.y + Math.PI, 2 * Math.PI) - Math.PI;
+        this.root.rotation.y += THREE.MathUtils.clamp(turn, -dt * 8, dt * 8);
         walking = true;
       }
     }

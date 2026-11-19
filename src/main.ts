@@ -121,9 +121,7 @@ const net = new LiveConnection({
     actionsEl.hidden = true;
     for (const id of ['vlad', 'alina'] as const) {
       const snapshot = household.characters[id];
-      const actor = world.actors[id];
-      actor.root.position.set(snapshot.x, 0, snapshot.z);
-      actor.setPose(snapshot.pose);
+      world.restoreCharacter(id, snapshot.x, snapshot.z, snapshot.pose);
     }
     world.setActive(role);
     render();
@@ -142,9 +140,9 @@ const net = new LiveConnection({
   onAction(role, actionId, message) {
     const def = ACTIONS[actionId];
     if (!def) return;
-    if (def.item !== 'delivery') world.perform(role, def.item, def.pose, () => {});
+    const animated = def.item === 'delivery' || world.perform(role, def.item, def.pose, () => {});
     statusEl.textContent = message;
-    notify(message);
+    notify(animated ? message : message + ' · путь к предмету пока не найден');
   },
   onError(reason) {
     if (!authEl.hidden || reason.includes('занят') || reason.includes('Неверный код')) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor } from './Actor';
+import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
 import type { CharacterId } from '../core/state';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
@@ -66,6 +67,7 @@ export class World {
   private readonly raycaster = new THREE.Raycaster();
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
+  private readonly obstacles: FloorRect[] = [];
   private lastFrame = performance.now();
   private downPoint: Point | null = null;
 
@@ -123,13 +125,28 @@ export class World {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
 
-  perform(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work', onArrive: () => void): void {
+  restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
+    // Previous saves may place a character inside the old desk/chair collision area.
+    const safe = nearestClearPoint({ x, z }, this.obstacles);
+    if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
+    this.actors[id].setPose(pose);
+  }
+
+  perform(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work', onArrive: () => void): boolean {
     const location = this.itemPoints.get(itemId);
-    if (!location) return;
-    this.actors[id].walkTo(location, () => {
-      this.actors[id].setPose(pose);
+    if (!location) return false;
+    const actor = this.actors[id];
+    const route = findRoute(
+      { x: actor.root.position.x, z: actor.root.position.z },
+      { x: location.x, z: location.z },
+      this.obstacles,
+    );
+    if (!route) return false;
+    actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
+      actor.setPose(pose);
       onArrive();
     });
+    return true;
   }
 
   private createLights(): void {
@@ -149,6 +166,13 @@ export class World {
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
+    group.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(group);
+    const clearance = 0.27;
+    this.obstacles.push({
+      minX: bounds.min.x - clearance, maxX: bounds.max.x + clearance,
+      minZ: bounds.min.z - clearance, maxZ: bounds.max.z + clearance,
+    });
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {
         part.userData.interactable = id;
@@ -235,7 +259,8 @@ export class World {
     block(desk, [0.77, 0.035, 0.21], [0, 1.07, 0.24], 0xc2bfb6);
     block(desk, [0.58, 0.12, 0.60], [0.0, 0.50, 1.07], PALETTE.rose);
     block(desk, [0.58, 0.77, 0.13], [0.0, 0.82, 1.35], 0xb99186);
-    this.register('desk', desk, { x: 3.17, z: 2.84 });
+    // Stand behind the chair rather than walking through it.
+    this.register('desk', desk, { x: 3.17, z: 3.65 });
 
     // Television stand and screen.
     const tv = new THREE.Group();
@@ -260,6 +285,8 @@ export class World {
     for (const [x, z] of [[5.08, 3.4], [4.85, 3.40], [5.32, 3.30], [5.05, 3.15]] as const) {
       ball(this.scene, 0.39, [x, 0.90, z], 0x769780);
     }
+    // The potted plant also occupies space, but rugs remain walkable.
+    this.obstacles.push({ minX: 4.47, maxX: 5.62, minZ: 2.77, maxZ: 4.05 });
     // Front doorstep.
     block(this.scene, [2.0, 0.035, 0.76], [0.7, 0.035, 4.65], 0xc7b59f, { shadow: false });
   }

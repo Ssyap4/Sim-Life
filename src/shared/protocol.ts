@@ -29,7 +29,7 @@ export const itemNames: Record<ItemId, string> = {
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
   sofa: { x: -3.0, z: 0.6 }, bed: { x: -3.85, z: -0.76 },
-  desk: { x: 3.17, z: 2.84 }, kitchen: { x: 3.10, z: -2.66 },
+  desk: { x: 3.17, z: 3.65 }, kitchen: { x: 3.10, z: -2.66 },
   tv: { x: -0.55, z: -2.58 }, table: { x: -0.80, z: 0.04 },
 };
 

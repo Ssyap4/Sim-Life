@@ -8,7 +8,7 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
     "check": "tsc --noEmit",
-    "test": "tsx --test server/tests/logic.test.ts server/tests/network.test.ts server/tests/storage.test.ts server/tests/race.test.ts",
+    "test": "tsx --test server/tests/*.test.ts",
     "build": "npm run check && vite build",
     "start": "tsx server/index.ts",
     "preview": "vite preview --host 127.0.0.1"
