@@ -49,6 +49,7 @@ app.innerHTML = `
     </div>
     <div class="status-line" id="status">Подключение к общему дому…</div>
     <div class="showcase-ui">
+      <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
       <button id="showcase-toggle" class="showcase-toggle" type="button" aria-expanded="false">🔎 Посмотреть модели</button>
       <div id="showcase-choices" class="showcase-choices" hidden>
         <button type="button" data-showcase="vlad">👨 Влад</button>
@@ -106,29 +107,35 @@ const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
 const showcaseToggle = document.querySelector<HTMLButtonElement>('#showcase-toggle')!;
 const showcaseChoices = document.querySelector<HTMLDivElement>('#showcase-choices')!;
+const showcaseReturn = document.querySelector<HTMLButtonElement>('#showcase-return')!;
+const topHud = document.querySelector<HTMLElement>('.top-ui')!;
+const bottomHud = document.querySelector<HTMLElement>('.bottom-ui')!;
+
+function focusModel(id: CharacterId | PetId | null): void {
+  document.querySelector('#app')?.classList.toggle('inspecting', Boolean(id));
+  showcaseReturn.hidden = id === null;
+  showcaseChoices.hidden = true;
+  showcaseToggle.setAttribute('aria-expanded', 'false');
+  showcaseChoices.querySelectorAll<HTMLButtonElement>('button').forEach((item) => {
+    item.classList.toggle('selected', item.dataset.showcase === (id ?? 'home'));
+  });
+  showcaseToggle.textContent = id === null ? '🔎 Посмотреть модели'
+    : '🔎 ' + (id === 'vlad' || id === 'alina' ? names[id] : PETS[id].name);
+  world.showcase(id);
+}
 
 showcaseToggle.addEventListener('click', () => {
   showcaseChoices.hidden = !showcaseChoices.hidden;
   showcaseToggle.setAttribute('aria-expanded', String(!showcaseChoices.hidden));
 });
-showcaseChoices.querySelectorAll<HTMLButtonElement>('[data-showcase]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const id = button.dataset.showcase;
-    if (id === 'home') world.showcase(null);
-    else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
-      world.showcase(id);
-    }
-    showcaseChoices.querySelectorAll('button').forEach((item) => {
-      item.classList.toggle('selected', item === button);
-    });
-    showcaseChoices.hidden = true;
-    showcaseToggle.setAttribute('aria-expanded', 'false');
-    showcaseToggle.textContent = id === 'home'
-      ? '🔎 Посмотреть модели'
-      : '🔎 ' + ({ vlad: 'Влад', alina: 'Алина',
-        verdell: 'Верделл', simba: 'Симба' } as Record<string, string>)[id!] + ' · сменить';
-    // Keep the model unobstructed; tap again to choose another close-up.
-  });
+showcaseReturn.addEventListener('click', () => focusModel(null));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
+});
+showcaseChoices.addEventListener('click', (event) => {
+  const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
+  if (id === 'home') focusModel(null);
+  else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') focusModel(id);
 });
 
 function notify(message: string): void {
@@ -265,6 +272,7 @@ const net = new LiveConnection({
   },
   onTaskEnded(role, taskId, outcome, message) {
     if (tasks.get(role)?.taskId === taskId) {
+      if (outcome === 'completed') world.finishTimedAction(role);
       tasks.delete(role);
       drawTaskPanel();
     }
@@ -420,6 +428,12 @@ try {
     if (id === 'vlad' || id === 'alina') openSocialActions(id);
     else if (id === 'verdell' || id === 'simba') openPetActions(id);
     else openActions(id);
+  }, () => {
+    const viewport = canvas.getBoundingClientRect();
+    return {
+      top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
+      bottom: (bottomHud.getBoundingClientRect().top - viewport.top) / viewport.height,
+    };
   });
   document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
     button.addEventListener('click', () => {

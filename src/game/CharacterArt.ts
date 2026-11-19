@@ -1,227 +1,234 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors, finish, orb, sculptedCurve } from './ArtKit';
+import { hingedLimb, loft, sculpt } from './SculptMesh';
 import type { CharacterId } from '../shared/protocol';
 
-/**
- * Sim-Life character art, stylized mobile LOD.
- * Shapes and materials are cached across both characters; no textures,
- * skeletal rigs or external assets are needed for this first art pass.
- * All body motion remains driven by Actor's pivot groups.
- */
-const cylinderGeometries = new Map<string, THREE.CylinderGeometry>();
-
-function oval(
-  parent: THREE.Object3D, xyz: [number, number, number],
-  scales: [number, number, number], color: number, shadow = false,
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(orb, finish(color, 'skin'));
-  mesh.position.set(...xyz);
-  mesh.scale.set(...scales);
-  mesh.castShadow = shadow;
-  parent.add(mesh);
-  return mesh;
-}
-function cylinder(
-  parent: THREE.Object3D, position: [number, number, number],
-  top: number, base: number, height: number,
-  color: number, segments = 12,
-): THREE.Mesh {
-  const key = [top, base, height, segments].join(':');
-  let geometry = cylinderGeometries.get(key);
-  if (!geometry) {
-    geometry = new THREE.CylinderGeometry(top, base, height, segments);
-    cylinderGeometries.set(key, geometry);
-  }
-  const mesh = new THREE.Mesh(geometry, finish(color));
-  mesh.position.set(...position);
-  mesh.castShadow = top > 0.12 || base > 0.12;
-  parent.add(mesh);
-  return mesh;
-}
-/** Follow the torso volume so shirts and lapels read as cloth rather than badges. */
-function shirtFront(parent: THREE.Object3D, halfWidth: number, color: number): void {
-  const vertices: number[] = [];
-  const indices: number[] = [];
-  const rows = [[1.275, 0.58], [1.235, 0.94], [1.10, 1], [0.99, 1], [0.88, 0.90]];
-  for (const [y, width] of rows) for (let i = 0; i < 5; i++) {
-    const x = (i / 2 - 1) * halfWidth * width;
-    const curve = 1 - (x / (halfWidth > 0.115 ? 0.325 : 0.286)) ** 2 - ((y - 1.028) / 0.35) ** 2;
-    vertices.push(x, y, 0.006 + 0.22 * Math.sqrt(Math.max(0, curve)));
-  }
-  for (let row = 0; row < rows.length - 1; row++) for (let i = 0; i < 4; i++) {
-    const a = row * 5 + i;
-    indices.push(a, a + 5, a + 1, a + 1, a + 5, a + 6);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setIndex(indices);
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(vertices.length / 3 * 2), 2));
-  geometry.computeVertexNormals();
-  parent.add(new THREE.Mesh(geometry, finish(color)));
-}
 type Pivots = {
-  leftLeg: THREE.Group;
-  rightLeg: THREE.Group;
-  leftArm: THREE.Group;
-  rightArm: THREE.Group;
+  leftLeg: THREE.Group; rightLeg: THREE.Group;
+  leftArm: THREE.Group; rightArm: THREE.Group;
 };
 
-export function buildCharacterArt(
-  figure: THREE.Group,
-  id: CharacterId,
-  joints: Pivots,
-): THREE.Object3D[] {
-  const vlad = id === 'vlad';
-  const palette = vlad
-    ? { skin: 0xe8bc9b, skinShadow: 0xdba588, hair: 0x413630, hairLit: 0x655045,
-        top: colors.pine, topShade: 0x38574e, shirt: colors.paper,
-        trouser: 0x596c75, shoe: 0x66584b, shoeLight: 0xf1e7d8, blush: 0xd59a8e }
-    : { skin: 0xf0c6ab, skinShadow: 0xdcae96, hair: 0x604039, hairLit: 0x866052,
-        top: 0xb77173, topShade: 0x8d4f62, shirt: 0xffefd8,
-        trouser: 0xb18684, shoe: 0x8e6b67, shoeLight: 0xf4decb, blush: 0xdd9a9b };
+export type CharacterRig = {
+  chest: THREE.Group;
+  head: THREE.Group;
+  eyes: readonly THREE.Group[];
+  elbows: readonly THREE.Bone[];
+  knees: readonly THREE.Bone[];
+  waistY: number;
+  thighLength: number;
+  shinLength: number;
+  shoulderY: number;
+  upperArm: number;
+  lowerArm: number;
+};
 
-  // Body construction is layered and tapered rather than two cylinder blocks.
-  oval(figure, [0, 0.85, -0.015], [0.25, 0.22, 0.20], palette.topShade, true);
-  oval(figure, [0, 1.028, -0.005],
-    [vlad ? 0.325 : 0.286, 0.35, 0.22], palette.top, true);
-  oval(figure, [0, 1.311, 0.015], [0.108, 0.125, 0.114], palette.skin, true);
+type Palette = ReturnType<typeof paletteFor>;
+function paletteFor(vlad: boolean) {
+  return vlad ? {
+    skin: 0xdca789, cheek: 0xc58776, lip: 0x95564d,
+    hair: 0x362a26, highlight: 0x543d30, eyebrow: 0x47362f, iris: 0x53655b,
+    outer: 0x526b63, lining: 0x364f49, inner: 0xf0e9d8, pant: 0x444f5b,
+    shoes: 0xa58a70, soles: 0xe9d7c1,
+  } : {
+    skin: 0xe9b79b, cheek: 0xcd907f, lip: 0x9f5855,
+    hair: 0xa58158, highlight: 0xd5b17c, eyebrow: 0x7a5e49, iris: 0x63705e,
+    outer: 0xa26257, lining: 0x754641, inner: 0xf7e6ce, pant: 0x514854,
+    shoes: 0x866257, soles: 0xe0c0a8,
+  };
+}
+
+function oval(parent: THREE.Object3D, color: number, position: THREE.Vector3Tuple,
+  size: THREE.Vector3Tuple, surface: Parameters<typeof finish>[1] = 'skin'): THREE.Mesh {
+  const mesh = new THREE.Mesh(orb, finish(color, surface));
+  mesh.position.set(...position);
+  mesh.scale.set(...size);
+  parent.add(mesh);
+  return mesh;
+}
+
+function makeHair(head: THREE.Group, vlad: boolean, p: Palette): void {
+  // One scalp volume with a shaped hairline. Swept locks follow that surface.
+  const crown = loft([
+    [0, 0.17, 0.147, -0.005], [0.04, 0.191, 0.166, -0.01],
+    [0.10, 0.185, 0.174, -0.011], [0.16, 0.156, 0.157, -0.016],
+    [0.207, 0.093, 0.113, -0.025], [0.224, 0.002, 0.002, -0.031],
+  ], 24, 15, (x, y, z, a) => {
+    const front = Math.cos(a);
+    const line = front > 0 ? 0.077 + 0.020 * Math.sin(a * 2) : vlad ? -0.075 : -0.11;
+    const strength = (1 - y / 0.224) ** 1.7;
+    return [x, y + line * strength, z];
+  });
+  sculpt(head, crown, p.hair, 'wood');
 
   if (vlad) {
-    // Sage casual overshirt with ivory tee, contrasting hem and collar.
-    shirtFront(figure, 0.132, palette.shirt);
-    for (const side of [-1, 1]) {
-      sculptedCurve(figure, [[side * 0.103, 1.284, 0.141],
-        [side * 0.149, 1.21, 0.169], [side * 0.141, 1.125, 0.199],
-        [side * 0.130, 0.918, 0.198]],
-      0.038, 0.011, palette.topShade, 0.43);
-    }
-    oval(figure, [0, 0.745, 0.03], [0.254, 0.048, 0.195], palette.topShade);
-    oval(figure, [0.12, 0.99, 0.213], [0.064, 0.061, 0.018], 0x8fae98);
-    for (const y of [0.89, 0.99, 1.09]) {
-      oval(figure, [0.16, y, 0.213], [0.014, 0.014, 0.009], colors.oat);
-    }
-    oval(figure, [-0.18, 0.84, 0.163], [0.075, 0.045, 0.024], palette.topShade);
-  } else {
-    // Soft layered dress with cardigan and a wide fabric waistband.
-    const skirt = cylinder(figure, [0, 0.705, -0.012], 0.255, 0.394, 0.38, palette.top, 22);
-    skirt.rotation.z = -0.028;
-    cylinder(figure, [0, 0.526, -0.011], 0.391, 0.407, 0.037, palette.topShade, 22);
-    oval(figure, [0, 0.894, 0.02], [0.267, 0.053, 0.215], palette.topShade);
-    shirtFront(figure, 0.105, palette.shirt);
-    for (const side of [-1, 1]) {
-      sculptedCurve(figure, [[side * 0.092, 1.285, 0.137],
-        [side * 0.129, 1.203, 0.173], [side * 0.121, 1.09, 0.205],
-        [side * 0.115, 0.913, 0.181]],
-      0.034, 0.014, palette.topShade, 0.52);
-    }
-    oval(figure, [0, 1.255, 0.17], [0.07, 0.05, 0.022], 0xd9a985);
-    oval(figure, [0, 1.267, 0.195], [0.022, 0.028, 0.013], 0xfff6e4);
-    for (const x of [-0.18, 0.18]) {
-      oval(figure, [x, 0.56, 0.25], [0.024, 0.022, 0.012], 0xe9bbb3);
-    }
-  }
-
-  // Shin/pivot groups preserve sitting, working, walking and sleeping animations.
-  for (const [side, pivot] of [[-1, joints.leftLeg], [1, joints.rightLeg]] as const) {
-    pivot.position.set(side * 0.154, 0.606, -0.016);
-    const legColor = vlad ? palette.trouser : 0xe4c3a9;
-    oval(pivot, [0, -0.232, 0.007], [vlad ? 0.137 : 0.116, 0.29, 0.136],
-      legColor, true);
-    if (vlad) {
-      oval(pivot, [0, -0.443, 0.007], [0.143, 0.063, 0.146], 0x4d5f65);
-      oval(pivot, [0, -0.485, 0.077], [0.160, 0.092, 0.24], palette.shoe, true);
-      oval(pivot, [0, -0.536, 0.107], [0.162, 0.029, 0.225], palette.shoeLight);
-    } else {
-      oval(pivot, [0, -0.422, 0], [0.115, 0.068, 0.121], palette.skin);
-      oval(pivot, [0, -0.468, 0.068], [0.15, 0.110, 0.200], palette.shoe, true);
-      oval(pivot, [0, -0.532, 0.076], [0.15, 0.023, 0.201], palette.shoeLight);
-    }
-    figure.add(pivot);
-  }
-  // Upper-arm pivots; angled shoulder caps, cuffs, expressive hands.
-  for (const [side, pivot] of [[-1, joints.leftArm], [1, joints.rightArm]] as const) {
-    pivot.position.set(side * (vlad ? 0.328 : 0.29), 1.202, -0.008);
-    oval(pivot, [0, -0.105, 0], [0.126, 0.198, 0.14], palette.top, true);
-    oval(pivot, [0, -0.315, 0.02], [0.103, 0.182, 0.107], palette.topShade, true);
-    oval(pivot, [0, -0.44, 0.018], [0.105, 0.051, 0.106], palette.shirt);
-    oval(pivot, [0, -0.516, 0.028], [0.095, 0.103, 0.09], palette.skin, true);
-    oval(pivot, [side * 0.07, -0.487, 0.083], [0.044, 0.068, 0.047], palette.skinShadow);
-    figure.add(pivot);
-  }
-
-  // The head has a clear jaw and forehead, with a small but legible face.
-  const head = oval(figure, [0, 1.535, 0.028], [0.302, 0.315, 0.283],
-    palette.skin, true);
-  head.rotation.z = vlad ? -0.032 : 0.035;
-  // Keep a single head volume: the previous protruding chin read as a muzzle.
-  for (const side of [-1, 1]) {
-    oval(figure, [side * 0.294, 1.531, 0.018], [0.063, 0.10, 0.07], palette.skin);
-    oval(figure, [side * 0.313, 1.525, 0.054], [0.024, 0.052, 0.029], palette.skinShadow);
-  }
-
-  // A fitted cap and tapered, curved locks create one silhouette from every angle.
-  if (vlad) {
-    oval(figure, [0, 1.741, -0.049], [0.304, 0.173, 0.282], palette.hair, true);
-    for (const side of [-1, 1]) {
-      oval(figure, [side * 0.251, 1.641, -0.035], [0.083, 0.163, 0.206], palette.hair);
-    }
     for (let i = 0; i < 5; i++) {
-      const x = -0.24 + i * 0.10;
-      sculptedCurve(figure, [[x, 1.79, -0.13], [x + 0.035, 1.878 + i * 0.006, 0.035],
-        [x - 0.02, 1.865, 0.18], [x - 0.06, 1.751 + i * 0.008, 0.264]],
-      0.068, 0.009, i === 1 ? palette.hairLit : palette.hair, 0.75);
+      const x = -0.144 + i * 0.058;
+      sculptedCurve(head, [[x + 0.02, 0.133, -0.099], [x * 0.75 + 0.028, 0.208, 0.000],
+        [x * 0.77 - 0.022, 0.191, 0.106], [x - 0.034, 0.115 + i * 0.002, 0.155]],
+      0.042, 0.008, i === 2 ? p.highlight : p.hair, 0.62);
     }
   } else {
-    oval(figure, [0, 1.735, -0.072], [0.331, 0.18, 0.304], palette.hair, true);
-    oval(figure, [0, 1.378, -0.255], [0.31, 0.391, 0.151], palette.hair, true);
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        const x = side * (0.20 + i * 0.048);
-        sculptedCurve(figure, [[x * 0.55, 1.854, -0.105], [x, 1.681, 0.052 - i * 0.055],
-          [x + side * 0.048, 1.396, 0.08 - i * 0.087],
-          [x + side * 0.068, 1.22, 0.035 - i * 0.079],
-          [x * 0.85, 1.055 + i * 0.06, 0.105 - i * 0.06]],
-        0.088, 0.013, i === 1 ? palette.hairLit : palette.hair, 0.81, i === 0);
-      }
+    const drape = loft([
+      [-0.47, 0.063, 0.036, -0.143], [-0.40, 0.169, 0.073, -0.141],
+      [-0.29, 0.209, 0.080, -0.133], [-0.10, 0.201, 0.109, -0.099],
+      [0.09, 0.173, 0.119, -0.067], [0.177, 0.082, 0.052, -0.048],
+    ], 22, 21, (x, y, z, a) => [x, y + 0.021 * Math.sin(a * 3), z]);
+    sculpt(head, drape, p.hair, 'wood');
+    for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
+      const x = side * (0.122 + i * 0.028);
+      sculptedCurve(head, [[x * 0.48, 0.207, -0.025], [x * 0.84, 0.116, 0.095 - i * 0.053],
+        [x + side * 0.018, -0.06, 0.067 - i * 0.063],
+        [x + side * 0.013, -0.231, 0.091 - i * 0.05],
+        [x + side * 0.014, -0.394 + i * 0.029, -0.015 - i * 0.039]],
+      0.046, 0.009, i % 3 === 0 ? p.highlight : p.hair, 0.81);
     }
     for (let i = 0; i < 3; i++) {
-      const x = -0.14 + i * 0.086;
-      sculptedCurve(figure, [[x, 1.858, 0.07], [x - 0.089, 1.833, 0.199],
-        [x - 0.131, 1.758, 0.252], [x - 0.133, 1.72 - i * 0.015, 0.253]],
-      0.066, 0.008, i === 0 ? palette.hairLit : palette.hair);
+      sculptedCurve(head, [[0.045 + i * 0.019, 0.212, 0.001], [-0.047 + i * 0.009, 0.181, 0.127],
+        [-0.133 + i * 0.010, 0.103, 0.145], [-0.169 + i * 0.009, -0.019 + i * 0.018, 0.107]],
+      0.031, 0.007, i === 1 ? p.highlight : p.hair, 0.6);
     }
-    oval(figure, [0.266, 1.748, 0.20], [0.052, 0.017, 0.026], colors.brass).rotation.z = 0.32;
-    oval(figure, [0.302, 1.754, 0.197], [0.018, 0.018, 0.022], colors.paper);
+  }
+}
+
+function makeFace(head: THREE.Group, vlad: boolean, p: Palette): THREE.Group[] {
+  const cheeks = vlad ? 0.167 : 0.173;
+  sculpt(head, loft([
+    [-0.227, 0.049, 0.051, 0.035], [-0.184, vlad ? 0.100 : 0.096, 0.103, 0.021],
+    [-0.128, vlad ? 0.137 : 0.131, 0.128, 0.008], [-0.064, cheeks, 0.145, 0.003],
+    [0.010, cheeks, 0.146, 0], [0.100, 0.17, 0.140, -0.004],
+    [0.175, 0.113, 0.105, -0.017], [0.207, 0.002, 0.002, -0.017],
+  ], 28, 25, (x, y, z, a) => {
+    const front = Math.max(0, Math.cos(a));
+    const bridge = Math.exp(-((x / 0.033) ** 2) - (((y + 0.043) / 0.072) ** 2));
+    const tip = Math.exp(-((x / 0.041) ** 2) - (((y + 0.066) / 0.024) ** 2));
+    const mouth = Math.exp(-((x / 0.072) ** 2) - (((y + 0.128) / 0.027) ** 2));
+    return [x, y, z + front * ((vlad ? 0.044 : 0.033) * bridge + 0.021 * tip + 0.012 * mouth)];
+  }), p.skin, 'skin');
+  makeHair(head, vlad, p);
+
+  const eyes: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    oval(head, p.skin, [side * 0.163, -0.061, -0.001], [0.036, 0.055, 0.027]).rotation.z = -side * 0.21;
+    oval(head, p.cheek, [side * 0.178, -0.063, 0.020], [0.015, 0.031, 0.010]);
+    const x = side * (vlad ? 0.069 : 0.072);
+    const eye = new THREE.Group();
+    eye.position.set(x, vlad ? 0.010 : 0.006, 0.132);
+    eye.rotation.set(0, side * 0.27, side * (vlad ? 0.06 : 0.10));
+    const width = vlad ? 0.039 : 0.043;
+    const height = vlad ? 0.018 : 0.023;
+    oval(eye, p.cheek, [0, 0.001, -0.002], [width + 0.006, height + 0.007, 0.010]);
+    oval(eye, 0xf1e8dc, [0, 0, 0.004], [width, height, 0.011]);
+    oval(eye, p.iris, [0.002, 0, 0.014], [height * 0.80, height * 0.87, 0.007]);
+    oval(eye, 0x282623, [0.003, 0, 0.020], [height * 0.40, height * 0.59, 0.004]);
+    oval(eye, 0xffece0, [-0.003, 0.005, 0.023], [0.004, 0.004, 0.002]);
+    sculptedCurve(eye, [[-width, -0.003, 0.006], [-width * 0.53, height * 0.72, 0.014],
+      [0.003, height, 0.017], [width * 0.62, height * 0.57, 0.014], [width, -0.004, 0.006]],
+    vlad ? 0.005 : 0.007, 0.004, p.eyebrow, 0.83);
+    batchRigidParts(eye);
+    head.add(eye);
+    eyes.push(eye);
+    sculptedCurve(head, [[x - side * 0.040, 0.056, 0.142], [x, vlad ? 0.061 : 0.069, 0.136],
+      [x + side * 0.035, 0.051, 0.107]], vlad ? 0.011 : 0.008, 0.004, p.eyebrow, 0.7);
+    if (!vlad) oval(head, colors.brass, [side * 0.177, -0.111, 0.022], [0.010, 0.013, 0.010], 'metal');
   }
 
-  // Wide friendly eyes have separate whites, irises, tiny catchlights and brows.
-  const blinkParts: THREE.Object3D[] = [];
+  const smile = vlad ? -0.127 : -0.119;
+  sculptedCurve(head, [[-0.041, smile, 0.132], [-0.024, -0.136, 0.144],
+    [0, -0.138, 0.148], [0.024, -0.134, 0.144], [0.040, smile + 0.003, 0.131]],
+  0.0035, 0.0035, p.lip, 0.9);
+  oval(head, p.cheek, [0, -0.150, 0.145], [0.024, 0.006, 0.005]);
+  batchRigidParts(head);
+  return eyes;
+}
+
+export function buildCharacterArt(figure: THREE.Group, id: CharacterId, joints: Pivots): CharacterRig {
+  const vlad = id === 'vlad';
+  const p = paletteFor(vlad);
+  const shoulderY = vlad ? 1.428 : 1.367;
+  const hip = vlad ? 0.905 : 0.852;
+  const neck = vlad ? 1.503 : 1.454;
+  const chest = new THREE.Group();
+  figure.add(chest);
+  const jacket = new THREE.Color(p.outer), shirt = new THREE.Color(p.inner);
+  const torso = loft([
+    [hip - 0.061, 0.168, 0.107], [hip + 0.015, 0.200, 0.133],
+    [hip + 0.17, vlad ? 0.209 : 0.181, 0.121, -0.013],
+    [shoulderY - 0.14, vlad ? 0.233 : 0.205, 0.141, 0.010],
+    [shoulderY - 0.025, vlad ? 0.239 : 0.208, 0.119, 0.004],
+    [shoulderY + 0.042, 0.160, 0.091], [neck, 0.090, 0.071],
+  ], 24, 22, undefined, (color, a, y) => {
+    // The narrow T-shirt opening is dyed into the continuous garment surface.
+    const open = 0.28 + 0.58 * THREE.MathUtils.smoothstep(y, shoulderY - 0.07, neck);
+    const seam = 1 - THREE.MathUtils.smoothstep(Math.abs(Math.sin(a)), open - 0.085, open + 0.018);
+    color.copy(jacket).lerp(shirt, Math.cos(a) > 0 ? seam : 0);
+  });
+  sculpt(chest, torso, 0xffffff, 'fabric');
+  sculpt(chest, loft([[neck - 0.022, 0.080, 0.073], [neck + 0.045, 0.068, 0.064],
+    [neck + 0.131, 0.086, 0.083]], 16, 9), p.skin, 'skin');
   for (const side of [-1, 1]) {
-    const x = side * 0.118;
-    const eye = new THREE.Group();
-    eye.position.set(x, 1.560, 0.287);
-    eye.rotation.y = side * 0.21;
-    oval(eye, [0, 0.008, 0], [0.078, 0.077, 0.018], palette.hair);
-    oval(eye, [0, 0, 0.008], [0.073, 0.071, 0.019], 0xfffaf1);
-    oval(eye, [side * 0.006, -0.008, 0.019],
-      [0.044, 0.055, 0.014], vlad ? 0x68564a : 0x756451);
-    oval(eye, [side * 0.009, -0.013, 0.032], [0.025, 0.044, 0.012], 0x2b2d2a);
-    oval(eye, [-0.013, 0.025, 0.047], [0.015, 0.017, 0.008], 0xffffff);
-    oval(eye, [0.014, -0.027, 0.043], [0.007, 0.008, 0.004], 0xfff3e2);
-    eye.scale.setScalar(0.90);
-    figure.add(eye);
-    blinkParts.push(eye);
-    const brow = oval(figure, [x, 1.663, 0.279],
-      [0.081, 0.021, 0.020], palette.hair);
-    brow.rotation.z = -side * (vlad ? 0.10 : 0.17);
-    oval(figure, [side * 0.206, 1.439, 0.227],
-      [0.073, 0.023, 0.009], palette.blush);
+    sculptedCurve(chest, [[side * 0.086, neck, 0.054], [side * 0.142, shoulderY - 0.021, 0.098],
+      [side * 0.107, shoulderY - 0.167, 0.132], [side * 0.063, hip + 0.029, 0.13]],
+    0.019, 0.012, p.lining, 0.48);
+    if (vlad) {
+      sculptedCurve(chest, [[side * 0.069, hip + 0.13, 0.133], [side * 0.125, hip + 0.143, 0.125],
+        [side * 0.174, hip + 0.17, 0.091]], 0.010, 0.008, p.lining, 0.63);
+    }
   }
-  oval(figure, [0, 1.479, 0.321], [0.034, 0.052, 0.04], palette.skinShadow);
-  oval(figure, [0, 1.473, 0.343], [0.023, 0.030, 0.017], palette.skin);
-  sculptedCurve(figure, [[-0.055, 1.421, 0.282], [-0.03, 1.406, 0.292],
-    [0, 1.402, 0.297], [0.03, 1.407, 0.291], [0.055, 1.422, 0.283]],
-  0.008, 0.006, vlad ? 0x975f58 : 0xaa6e6a, 1);
-  for (const pivot of [figure, ...Object.values(joints), ...blinkParts]) batchRigidParts(pivot);
-  return blinkParts;
+  batchRigidParts(chest);
+
+  const head = new THREE.Group();
+  head.position.set(0, neck + 0.260, 0.030);
+  chest.add(head);
+  const eyes = makeFace(head, vlad, p);
+
+  const thighLength = hip * 0.45;
+  const shinLength = hip - thighLength - 0.084;
+  const upperArm = vlad ? 0.296 : 0.270;
+  const lowerArm = vlad ? 0.304 : 0.284;
+  const knees: THREE.Bone[] = [], elbows: THREE.Bone[] = [];
+  sculpt(figure, loft([[hip - 0.105, 0.161, 0.094], [hip - 0.045, 0.195, 0.122],
+    [hip + 0.093, 0.176, 0.110]], 18, 10), p.pant, 'fabric');
+  const leg = loft([
+    [-thighLength - shinLength - 0.014, 0.065, 0.067],
+    [-thighLength - shinLength + 0.038, 0.072, 0.071],
+    [-thighLength - 0.14, 0.083, 0.090, -0.017],
+    [-thighLength, 0.081, 0.083, 0.006],
+    [-0.21, 0.100, 0.107, -0.005], [-0.045, 0.107, 0.113, -0.007],
+    [0.043, 0.101, 0.102, -0.009], [0.081, 0.068, 0.075],
+  ], 14, 20);
+  const shoe = loft([
+    [-shinLength - 0.084, 0.077, 0.130, 0.044], [-shinLength - 0.055, 0.088, 0.150, 0.050],
+    [-shinLength + 0.004, 0.082, 0.145, 0.045], [-shinLength + 0.06, 0.065, 0.076],
+  ], 18, 13, undefined, (color, _a, y) => color.set(y < -shinLength - 0.053 ? p.soles : p.shoes));
+
+  const sleeve = loft([
+    [-upperArm - lowerArm + 0.036, 0.041, 0.042],
+    [-upperArm - lowerArm + 0.074, 0.048, 0.047],
+    [-upperArm - 0.11, 0.063, 0.058, 0.006], [-upperArm, 0.061, 0.064],
+    [-0.127, 0.074, 0.075], [-0.025, 0.091, 0.089], [0.064, 0.077, 0.071],
+    [0.104, 0.036, 0.038],
+  ], 14, 20);
+  const hand = loft([
+    [-lowerArm - 0.097, 0.027, 0.017, 0.011], [-lowerArm - 0.065, 0.042, 0.027, 0.006],
+    [-lowerArm - 0.012, 0.045, 0.032], [-lowerArm + 0.040, 0.039, 0.035],
+  ], 14, 12);
+
+  for (const [side, group] of [[-1, joints.leftLeg], [1, joints.rightLeg]] as const) {
+    group.position.set(side * 0.111, hip, 0);
+    figure.add(group);
+    const knee = hingedLimb(group, leg, -thighLength, p.pant, 'fabric');
+    sculpt(knee, shoe, 0xffffff, 'ceramic');
+    knees.push(knee);
+  }
+  for (const [side, group] of [[-1, joints.leftArm], [1, joints.rightArm]] as const) {
+    group.position.set(side * (vlad ? 0.233 : 0.204), shoulderY - 0.039, 0);
+    chest.add(group);
+    const elbow = hingedLimb(group, sleeve, -upperArm, p.outer, 'fabric');
+    sculpt(elbow, hand, p.skin, 'skin');
+    oval(elbow, p.skin, [-side * 0.035, -lowerArm - 0.026, 0.027],
+      [0.018, 0.041, 0.021]).rotation.z = side * 0.31;
+    elbows.push(elbow);
+  }
+  return { chest, head, eyes, elbows, knees, waistY: hip - 0.061,
+    thighLength, shinLength, shoulderY: shoulderY - 0.039, upperArm, lowerArm };
 }

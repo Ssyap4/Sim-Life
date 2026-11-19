@@ -263,7 +263,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .showcase-ui {
   position: relative; z-index: 4;
   align-self: flex-end;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 7px;
+  display: flex; align-items: center; gap: 7px;
   pointer-events: auto;
 }
 .showcase-toggle {
@@ -381,3 +381,19 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 /* Keep login card inside narrow portrait phones and small browser windows. */
 .auth-screen { grid-template-columns: minmax(0, 1fr); }
 .auth-card { min-width: 0; width: min(100%, 435px); max-width: 100%; justify-self: center; }
+
+
+/* Clear the inspection band while keeping the budget, menus and running task controls. */
+.inspecting .brand-row, .inspecting .characters, .inspecting .status-line,
+.inspecting .stock-line, .inspecting .tip, .inspecting .footer-row {
+  display: none;
+}
+.inspecting .showcase-ui {
+  align-self: stretch;
+  justify-content: space-between;
+}
+#showcase-return {
+  color: #fffdf3;
+  background: #3e6556;
+  border-color: #5f7a6a;
+}

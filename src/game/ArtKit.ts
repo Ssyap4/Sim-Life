@@ -75,7 +75,7 @@ export function panel(parent: THREE.Object3D, position: XYZ, size: [number, numb
 export function batchRigidParts(parent: THREE.Object3D): void {
   const batches = new Map<string, THREE.Mesh[]>();
   for (const child of parent.children) {
-    if (!(child instanceof THREE.Mesh) || Array.isArray(child.material) ||
+    if (!(child instanceof THREE.Mesh) || child instanceof THREE.SkinnedMesh || Array.isArray(child.material) ||
         child.material.transparent || child.geometry.hasAttribute('color')) continue;
     const key = `${child.material.uuid}/${child.castShadow}/${child.receiveShadow}`;
     const batch = batches.get(key) ?? [];

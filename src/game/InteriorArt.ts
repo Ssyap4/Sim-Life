@@ -143,9 +143,9 @@ function makeKitchen(): THREE.Group {
     round(kitchen, 0.17, 0.016, [x, 1.063, z], C.slate);
     round(kitchen, 0.105, 0.019, [x, 1.077, z], C.graphite);
   }
-  round(kitchen, 0.235, 0.085, [-0.87, 1.14, -0.25], C.slate, 'metal');
-  part(kitchen, [0.33, 0.053, 0.068], [-1.16, 1.16, -0.08], C.woodDark, 'soft', false, 'wood');
-  round(kitchen, 0.17, 0.018, [-0.87, 1.195, -0.25], C.oat);
+  round(kitchen, 0.235, 0.085, [-0.87, 1.14, 0.15], C.slate, 'metal');
+  part(kitchen, [0.33, 0.053, 0.068], [-1.16, 1.16, 0.17], C.woodDark, 'soft', false, 'wood');
+  round(kitchen, 0.17, 0.018, [-0.87, 1.195, 0.15], C.oat);
   part(kitchen, [4.12, 0.63, 0.065], [0, 1.34, -0.443], C.stone, 'square');
   panel(kitchen, [0, 1.34, -0.409], [4.10, 0.61], kitchenTiles(), C.linen);
   part(kitchen, [1.07, 0.033, 0.22], [-0.57, 1.657, -0.28], C.stone);
@@ -200,11 +200,11 @@ function makeDesk(): THREE.Group {
   part(desk, [0.08, 0.32, 0.08], [0, 1.12, -0.27], C.graphite, 'soft', false, 'metal');
   part(desk, [0.40, 0.045, 0.26], [0, 1.075, -0.26], C.graphite, 'soft', false, 'metal');
   part(desk, [0.93, 0.017, 0.41], [0, 1.052, 0.23], C.mossDark, 'soft');
-  part(desk, [0.70, 0.035, 0.18], [0, 1.08, 0.20], C.linen, 'soft');
+  part(desk, [0.70, 0.035, 0.18], [0, 1.08, 0.34], C.linen, 'soft');
   for (let i = 0; i < 8; i++) {
-    part(desk, [0.055, 0.008, 0.055], [-0.28 + i * 0.08, 1.103, 0.20], C.slate, 'soft');
+    part(desk, [0.055, 0.008, 0.055], [-0.28 + i * 0.08, 1.103, 0.34], C.slate, 'soft');
   }
-  oval(desk, [0.063, 0.035, 0.09], [0.55, 1.10, 0.27], C.cream);
+  oval(desk, [0.063, 0.035, 0.09], [0.55, 1.10, 0.34], C.cream);
   // Ergonomic upholstered chair, similar position to the original interaction pose.
   part(desk, [0.61, 0.14, 0.58], [0, 0.48, 1.06], C.terracotta, 'soft', true);
   const back = oval(desk, [0.315, 0.37, 0.097], [0, 0.84, 1.33], C.terracotta, true);

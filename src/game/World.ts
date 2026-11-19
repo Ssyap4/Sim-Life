@@ -7,6 +7,8 @@ import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
 import { ACTIONS, SOCIAL_SPOTS, points, type CharacterId, type SocialKind, type TimedCommand } from '../shared/protocol';
 import { decorObstacles, decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
+import { inspectionFrame, type ViewBand } from './InspectionFrame';
+import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildSoftRugs } from './InteriorArt';
 
 type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
@@ -37,18 +39,27 @@ export class World {
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles: FloorRect[] = [];
   private lastFrame = performance.now();
-  private downPoint: Point | null = null;
+  private downPoint: (Point & { id: number }) | null = null;
   private socialSequence = 0;
+  private readonly taskSequence = { vlad: 0, alina: 0 };
+  private inspected: CharacterId | PetId | null = null;
+  private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
+  private followSubject: THREE.Object3D | null = null;
+  private readonly followPoint = new THREE.Vector3();
+  private readonly followDelta = new THREE.Vector3();
+  private readonly contactPoint = new THREE.Vector3();
   private cameraMove: { position: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId | PetId) => void) {
+  constructor(private readonly canvas: HTMLCanvasElement,
+    private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
+    private readonly viewBand: () => ViewBand = () => ({ top: 0.16, bottom: 0.86 })) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.03;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -72,33 +83,29 @@ export class World {
       vlad: new Actor('vlad', [0.5, 3.5]),
       alina: new Actor('alina', [1.65, 3.2]),
     };
-    this.scene.add(this.actors.vlad.root, this.actors.alina.root);
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
-    for (const pet of Object.values(this.pets)) {
-      this.scene.add(pet.root);
-      pet.root.traverse((part) => {
-        if (part instanceof THREE.Mesh) {
-          part.userData.interactable = pet.id;
-          this.interactiveMeshes.push(part);
-        }
+    for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
+      const visual = subject.root.children[0];
+      this.scene.add(subject.root);
+      visual.traverse((part) => {
+        if (!(part instanceof THREE.Mesh)) return;
+        part.userData.interactable = subject.id;
+        this.interactiveMeshes.push(part);
       });
-    }
-    for (const actor of Object.values(this.actors)) {
-      actor.root.traverse((part) => {
-        if (part instanceof THREE.Mesh && part !== actor.root.children[1]) {
-          part.userData.interactable = actor.id;
-          this.interactiveMeshes.push(part);
-        }
-      });
+      const pet = subject instanceof PetActor;
+      const shade = walkingContact(pet);
+      this.contacts.push({ visual, shade, pet });
+      this.scene.add(shade);
     }
     this.setActive('vlad');
 
     canvas.addEventListener('pointerdown', (ev) => {
-      this.downPoint = { x: ev.clientX, z: ev.clientY };
+      this.downPoint = ev.isPrimary && ev.button === 0 && !this.downPoint
+        ? { x: ev.clientX, z: ev.clientY, id: ev.pointerId } : null;
     });
     canvas.addEventListener('pointerup', (ev) => {
-      if (ev.button !== 0 || !this.downPoint) return;
-      if (Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
+      if (this.downPoint?.id === ev.pointerId &&
+          Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
         this.pick(ev.clientX, ev.clientY);
       }
       this.downPoint = null;
@@ -115,36 +122,25 @@ export class World {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
 
-  /** Optional close-up for judging the actual 3D models on a phone.
-   * No special render pass, textures or server state.
-   */
   showcase(subject: CharacterId | PetId | null): void {
-    const home = subject === null;
-    this.controls.minDistance = home ? 10 : 1.5;
-    this.controls.maxDistance = home ? 51 : 12;
-    this.controls.maxPolarAngle = home ? 1.25 : 1.54;
-    if (home) {
-      this.cameraMove = {
-        position: this.homeViewPosition(),
-        target: homeTarget.clone(),
-      };
+    this.inspected = subject;
+    this.controls.minDistance = subject ? 1.10 : 10;
+    // Keep the full transition in range before applying the inspection limit.
+    this.controls.maxDistance = 51;
+    this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
+    if (!subject) {
+      this.followSubject = null;
+      this.cameraMove = { position: this.homeViewPosition(), target: homeTarget.clone() };
       return;
     }
-    const isPerson = subject === 'vlad' || subject === 'alina';
-    const subjectPosition = isPerson
-      ? this.actors[subject].root.position
-      : this.pets[subject].root.position;
-    const target = subjectPosition.clone().add(
-      new THREE.Vector3(0, isPerson ? 0.99 : 0.54, 0));
-    // Portrait phones reserve room for the header and bottom toolbar.
-    // Full-body / full-pet framing is the default; pinch to inspect details.
-    this.cameraMove = {
-      position: target.clone().add(new THREE.Vector3(
-        isPerson ? 2.12 : 1.62, isPerson ? 1.72 : 1.25,
-        isPerson ? 4.85 : 3.58,
-      )),
-      target,
-    };
+    const person = subject === 'vlad' || subject === 'alina';
+    const subjectRoot = person ? this.actors[subject].root : this.pets[subject].root;
+    subjectRoot.updateWorldMatrix(true, true);
+    this.followSubject = subjectRoot.children[0];
+    this.followSubject.getWorldPosition(this.followPoint);
+    const bounds = new THREE.Box3().setFromObject(this.followSubject, true);
+    const angle = new THREE.Vector3(subject === 'simba' ? 0.69 : 0.29, person ? 0.11 : 0.22, 1);
+    this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand());
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
@@ -167,10 +163,10 @@ export class World {
   private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
     const actor = this.actors[id];
     const anchors = {
-      sofa: { x: -3.1, y: -0.25, z: 1.69, yaw: Math.PI },
-      bed: { x: -3.85, y: 0.91, z: -1.76, yaw: 0 },
-      desk: { x: 3.2, y: -0.23, z: 2.53, yaw: Math.PI },
-      table: { x: -0.84, y: -0.27, z: 0.05, yaw: -Math.PI / 2 },
+      sofa: { x: -3.1, y: id === 'vlad' ? 0.057 : 0.106, z: 1.43, yaw: Math.PI },
+      bed: { x: -3.85, y: 1.035, z: -1.53, yaw: 0 },
+      desk: { x: 3.2, y: id === 'vlad' ? -0.24 : -0.19, z: 2.47, yaw: Math.PI },
+      table: { x: -0.84, y: id === 'vlad' ? -0.27 : -0.22, z: 0.05, yaw: -Math.PI / 2 },
     } as const;
     const anchor = anchors[itemId as keyof typeof anchors];
     if (!anchor || pose === 'idle') {
@@ -198,26 +194,41 @@ export class World {
     return true;
   }
 
-  performFood(id: CharacterId, action: 'cook' | 'eat'): boolean {
+  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
     return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
-      action === 'cook' ? 'idle' : 'sit', () => this.actors[id].playActivity(action));
+      action === 'cook' ? 'idle' : 'sit', () => {
+        if (!current()) return;
+        const actor = this.actors[id];
+        if (action === 'cook') {
+          actor.setFurniturePose('idle', new THREE.Vector3(2.88, id === 'vlad' ? 0 : 0.025, -3.03), Math.PI);
+        }
+        actor.playActivity(action);
+      });
   }
 
   startTimedAction(role: CharacterId, command: TimedCommand): boolean {
+    const sequence = ++this.taskSequence[role];
+    const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
       return this.perform(role, def.item, def.pose, () => {});
     }
-    if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action);
-    return this.performFood(role, command.type);
+    if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
+    return this.performFood(role, command.type, current);
+  }
+
+  finishTimedAction(role: CharacterId): void {
+    ++this.taskSequence[role];
+    this.actors[role].finishActivity();
   }
 
   cancelTimedAction(role: CharacterId): void {
+    ++this.taskSequence[role];
     ++this.socialSequence;
     this.actors[role].setPose('idle');
   }
 
-  performPet(role: CharacterId, petId: PetId, action: PetAction): boolean {
+  performPet(role: CharacterId, petId: PetId, action: PetAction, current = () => true): boolean {
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
@@ -229,6 +240,7 @@ export class World {
     if (!route) { pet.react(action); return false; }
     ++this.socialSequence;
     actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
+      if (!current()) return;
       actor.faceTowards(pet.root.position);
       actor.playPetActivity(action);
       pet.react(action);
@@ -267,9 +279,9 @@ export class World {
   }
 
   private createLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xfff1da, 0xa2b6af, 1.55));
+    this.scene.add(new THREE.HemisphereLight(0xfcf0e1, 0xa9bebc, 1.68));
     // Broad daylight illuminates faces from the open side facing the home camera.
-    const sun = new THREE.DirectionalLight(0xffe3bd, 2.75);
+    const sun = new THREE.DirectionalLight(0xffe4c6, 2.58);
     sun.position.set(1.8, 9, 5.5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -279,7 +291,8 @@ export class World {
     sun.shadow.camera.bottom = -8.5;
     sun.shadow.camera.near = 0.5;
     sun.shadow.camera.far = 22;
-    sun.shadow.radius = 2.25;
+    sun.shadow.radius = 2.65;
+    sun.shadow.intensity = 0.83;
     sun.shadow.bias = -0.00025;
     sun.shadow.normalBias = 0.025;
     this.scene.add(sun);
@@ -306,6 +319,7 @@ export class World {
   private createHome(): void {
     decorateHome(this.scene);
     buildSoftRugs(this.scene);
+    this.scene.add(furnitureContact());
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture);
       this.register(id, furniture, point);
@@ -318,7 +332,12 @@ export class World {
     const x = ((clientX - bounds.left) / bounds.width) * 2 - 1;
     const y = -((clientY - bounds.top) / bounds.height) * 2 + 1;
     this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false)[0];
+    const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false).find(entry => {
+      for (let part: THREE.Object3D | null = entry.object; part; part = part.parent) {
+        if (!part.visible) return false;
+      }
+      return true;
+    });
     const id: unknown = hit?.object.userData.interactable;
     if (typeof id !== 'string') return;
     if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
@@ -341,6 +360,7 @@ export class World {
     ));
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    if (this.inspected) this.showcase(this.inspected);
   }
 
   private animate = (): void => {
@@ -352,6 +372,22 @@ export class World {
     this.actors.alina.update(dt);
     this.pets.verdell.update(dt);
     this.pets.simba.update(dt);
+    for (const { visual, shade, pet } of this.contacts) {
+      visual.getWorldPosition(this.contactPoint);
+      shade.position.set(this.contactPoint.x, pet ? 0.098 : 0.029, this.contactPoint.z);
+      shade.material.opacity = pet ? 0.53 : 0.49 * (1 - THREE.MathUtils.smoothstep(this.contactPoint.y, 0.07, 0.52));
+    }
+    if (this.followSubject) {
+      this.followSubject.getWorldPosition(this.followDelta);
+      this.followDelta.sub(this.followPoint).multiplyScalar(1 - Math.exp(-dt * 10));
+      this.followPoint.add(this.followDelta);
+      this.controls.target.add(this.followDelta);
+      this.camera.position.add(this.followDelta);
+      if (this.cameraMove) {
+        this.cameraMove.target.add(this.followDelta);
+        this.cameraMove.position.add(this.followDelta);
+      }
+    }
     if (this.cameraMove) {
       const fraction = Math.min(1, dt * 5.5);
       this.controls.target.lerp(this.cameraMove.target, fraction);
@@ -359,6 +395,7 @@ export class World {
       if (this.camera.position.distanceTo(this.cameraMove.position) < 0.025 &&
           this.controls.target.distanceTo(this.cameraMove.target) < 0.025) {
         this.cameraMove = null;
+        if (this.inspected) this.controls.maxDistance = 12;
       }
     }
     this.controls.update();

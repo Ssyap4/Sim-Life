@@ -38,3 +38,23 @@ test('Lying in bed rotates the body horizontally and walking restores upright po
   assert.ok(Math.abs(actor.root.children[0].rotation.x) < 0.04);
   assert.ok(figurePosition(actor).distanceTo(actor.root.position) < 0.04);
 });
+
+test('Eating keeps the furniture anchor while the articulated arm moves', () => {
+  const actor = new Actor('alina', [-0.80, 0.04]);
+  const anchor = new THREE.Vector3(-0.84, -0.22, 0.05);
+  actor.setFurniturePose('sit', anchor, -Math.PI / 2);
+  actor.playActivity('eat');
+  settle(actor);
+  assert.ok(figurePosition(actor).distanceTo(anchor) < 0.001);
+  const sleevesAndTrousers = actor.root.getObjectsByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh[];
+  assert.equal(sleevesAndTrousers.length, 4);
+  const rightSleeve = sleevesAndTrousers[1];
+  const flex = rightSleeve.skeleton.bones[1].rotation.x;
+  assert.ok(flex < -0.25);
+  settle(actor, 0.51);
+  assert.ok(Math.abs(rightSleeve.skeleton.bones[1].rotation.x - flex) > 0.05);
+  assert.deepEqual(actor.root.position.toArray(), [-0.80, 0, 0.04]);
+  actor.finishActivity();
+  settle(actor);
+  assert.ok(figurePosition(actor).distanceTo(anchor) < 0.001);
+});
