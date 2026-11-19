@@ -1,4 +1,6 @@
 import { EMPTY_MEALS, EMPTY_PANTRY, type CookedMeals, type Pantry } from './food';
+import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
+export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
@@ -31,6 +33,8 @@ export interface GameState {
   money: number;
   pantry: Pantry;
   meals: CookedMeals;
+  pets: PetFamily;
+  petFood: PetFoodStock;
   characters: Record<CharacterId, CharacterState>;
 }
 
@@ -73,7 +77,7 @@ export type ClientPacket =
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
   | { type: 'social_offer'; kind: SocialKind }
-;
+  | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction };
 
 export type ServerPacket =
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
@@ -82,12 +86,14 @@ export type ServerPacket =
   | { type: 'action'; role: CharacterId; actionId: ActionId; message: string }
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
+  | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
   | { type: 'error'; reason: string };
 
 export function initialState(): GameState {
   return {
     version: 2, revision: 0, money: 2500,
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
+    pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, x: 0.5, z: 3.5, pose: 'idle' },
       alina: { hunger: 82, energy: 86, mood: 81, skill: 0, x: 1.65, z: 3.2, pose: 'idle' },

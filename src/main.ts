@@ -2,6 +2,8 @@ import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
+import { renderPetChoices } from './petMenu';
+import { PETS, type PetId } from './shared/pets';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
   type ActionId, type CharacterId, type GameState, type ItemId,
@@ -25,7 +27,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · ЖИВОЙ ДОМ</div>
+      <div class="version">0.3 · СЕМЬЯ И ПИТОМЦЫ</div>
     </div>
     <div class="money-panel"><span>🏡 Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="characters" id="characters">
@@ -44,10 +46,13 @@ app.innerHTML = `
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
-    <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продуктовая доставка · 8 товаров</button>
+    <div class="home-buttons">
+      <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
+      <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
+    </div>
     <div class="tip">
       <span class="tip-icon">✦</span>
-      <span>Нажимай на мебель для действий, а на Влада или Алину — для совместных моментов. Камеру можно вращать пальцем.</span>
+      <span>Нажимай на предметы, Влада, Алину и питомцев для действий. Питомцев можно открыть кнопкой 🐾. Камера вращается пальцем.</span>
     </div>
     <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
   </footer>
@@ -79,6 +84,7 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
+const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
 
 function notify(message: string): void {
   messageEl.textContent = message;
@@ -124,6 +130,7 @@ const net = new LiveConnection({
     online = players;
     authEl.hidden = true;
     marketBtn.disabled = false;
+    petsBtn.disabled = false;
     actionsEl.hidden = true;
     for (const id of ['vlad', 'alina'] as const) {
       const snapshot = household.characters[id];
@@ -155,6 +162,11 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(message);
   },
+  onPetEvent(role, pet, action, message) {
+    if (action !== 'buyFood') world.performPet(role, pet, action);
+    statusEl.textContent = message;
+    notify(message);
+  },
   onSocialStart(kind, message) {
     actionsEl.hidden = true;
     const animated = world.playSocial(kind);
@@ -166,6 +178,7 @@ const net = new LiveConnection({
       authEl.hidden = false;
       active = null;
       marketBtn.disabled = true;
+      petsBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else notify(reason);
@@ -212,6 +225,36 @@ function openSocialActions(target: CharacterId): void {
     });
     actionsEl.appendChild(button);
   }
+}
+
+function openPetActions(pet: PetId | null = null): void {
+  if (!active || !net.isReady() || !state) {
+    notify('Сначала войди в общий дом');
+    return;
+  }
+  actionsEl.replaceChildren();
+  actionsEl.hidden = false;
+  const heading = document.createElement('div');
+  heading.className = 'actions-heading';
+  heading.textContent = pet ? PETS[pet].emoji + ' ' + PETS[pet].name : '🐾 Наши питомцы';
+  actionsEl.appendChild(heading);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'close-actions';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Закрыть меню');
+  close.addEventListener('click', () => { actionsEl.hidden = true; });
+  actionsEl.appendChild(close);
+  renderPetChoices(actionsEl, state, pet,
+    (id) => openPetActions(id),
+    (id, action) => {
+      const sent = net.petAction(id, action);
+      if (sent) {
+        actionsEl.hidden = true;
+        statusEl.textContent = 'Ухаживаем за питомцем…';
+      }
+      return sent;
+    });
 }
 
 function openActions(item: ItemId): void {
@@ -263,6 +306,7 @@ function openActions(item: ItemId): void {
 try {
   world = new World(canvas, (id) => {
     if (id === 'vlad' || id === 'alina') openSocialActions(id);
+    else if (id === 'verdell' || id === 'simba') openPetActions(id);
     else openActions(id);
   });
   document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
@@ -276,6 +320,7 @@ try {
     });
   });
   marketBtn.addEventListener('click', () => openActions('delivery'));
+  petsBtn.addEventListener('click', () => openPetActions());
   const form = document.querySelector<HTMLFormElement>('#auth-form')!;
   document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
     button.addEventListener('click', () => {

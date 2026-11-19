@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PETS, PET_IDS } from '../shared/pets';
 
 // Lightweight visual-only layer: reusable materials and geometry, no navigation
 // obstacles or gameplay state. Safe to replace with higher-quality assets later.
@@ -142,4 +143,17 @@ export function decorateHome(scene: THREE.Scene): void {
   const warm = new THREE.PointLight(0xffdcaa, 0.67, 6.8, 2);
   warm.position.set(0.42, 2.43, 0.89);
   scene.add(warm);
+
+  // Personal floor cushions, dishes and toys for our two resident pets.
+  for (const id of PET_IDS) {
+    const home = PETS[id].home;
+    const dog = id === 'verdell';
+    const edge = dog ? 0x7d997f : 0xc5a17b;
+    const centre = dog ? 0xb8c4ab : 0xe5c49d;
+    box(scene, [0.87, 0.045, 0.70], [home.x, 0.031, home.z], edge);
+    box(scene, [0.67, 0.05, 0.50], [home.x, 0.080, home.z], centre);
+    plate(scene, 0.20, 0.10, [home.x + 0.61, 0.065, home.z + 0.16], dog ? 0x75988a : 0xc59779);
+    plate(scene, 0.14, 0.025, [home.x + 0.61, 0.128, home.z + 0.16], 0xe6c7a0);
+    blob(scene, 0.125, [home.x - 0.58, 0.13, home.z + 0.28], dog ? 0xc98c74 : 0xd7af84);
+  }
 }

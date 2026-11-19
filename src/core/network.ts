@@ -1,5 +1,6 @@
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind } from '../shared/protocol';
 import type { IngredientId, RecipeId } from '../shared/food';
+import type { PetId, PetAction } from '../shared/pets';
 
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
@@ -7,6 +8,7 @@ export interface ConnectionCallbacks {
   onOnline(online: CharacterId[]): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
+  onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
   onStatus(status: string): void;
@@ -45,6 +47,10 @@ export class LiveConnection {
   food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId): boolean {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
+  }
+
+  petAction(pet: PetId, action: PetAction): boolean {
+    return this.sendAuthenticated({ type: 'pet_action', pet, action });
   }
 
   offerSocial(kind: SocialKind): boolean { return this.sendAuthenticated({ type: 'social_offer', kind }); }
@@ -103,6 +109,8 @@ export class LiveConnection {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
         this.callbacks.onFoodEvent(packet.role, packet.action, packet.message);
+      } else if (packet.type === 'pet_event' && this.authorized) {
+        this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {

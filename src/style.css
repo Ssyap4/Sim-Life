@@ -259,6 +259,34 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .stock-line { font-size: 10px; padding: 5px 9px; }
 }
 
+/* Compact companion care panel for two real family pets. */
+.home-buttons { display: flex; gap: 8px; }
+.home-buttons .market-btn { flex: 1; min-width: 0; }
+.pets-btn { background: #fff2e9f5; border-color: #ead8c7; color: #8c694e; }
+.pet-tabs { display: flex; gap: 7px; }
+.pet-tab {
+  flex: 1; border: 1px solid #e3dccd; background: #f6f3ea;
+  color: #6c7367; border-radius: 12px; padding: 10px 7px;
+  font-size: 12px; font-weight: 900; min-width: 0;
+}
+.pet-tab.selected { background: #f3e7d7; color: #795d47; border-color: #cdae93; }
+.pet-note { margin: 0 3px 2px; font-size: 11px; line-height: 1.5; color: #7b8776; }
+.pet-status {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px; background: #f8f5ec; border-radius: 13px; padding: 10px;
+}
+.pet-meter { min-width: 0; font-size: 9px; font-weight: 900; color: #747d70; }
+.pet-meter span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pet-meter-track { background: #e6e1d4; border-radius: 9px; height: 6px; margin-top: 5px; overflow: hidden; }
+.pet-meter-track i { display: block; height: 100%; border-radius: 9px; }
+.pet-meter-track .food { background: #d5ae79; }
+.pet-meter-track .happy { background: #99ae89; }
+.pet-meter-track .bond { background: #d6a0a3; }
+.pet-action { flex-shrink: 0; }
+@media (max-width: 345px) {
+  .home-buttons .market-btn { padding: 10px 7px; font-size: 10px; }
+  .pet-status { gap: 4px; padding: 8px; }
+}
 /* Two-player interactions (no confirmation dialog for everyday gestures). */
 .social-panel {
   pointer-events: auto;

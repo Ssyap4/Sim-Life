@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
+import type { PetAction } from '../shared/pets';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
@@ -57,7 +58,7 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
-  private activity: 'cook' | 'eat' | null = null;
+  private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | null = null;
   private activityTime = 0;
   private readonly poseOffset = new THREE.Vector3();
   private clock = 0;
@@ -181,6 +182,12 @@ export class Actor {
     this.activityTime = 0;
   }
 
+  playPetActivity(kind: Exclude<PetAction, 'buyFood'>): void {
+    this.setPose('idle');
+    this.activity = kind;
+    this.activityTime = 0;
+  }
+
   faceTowards(point: THREE.Vector3): void {
     const dx = point.x - this.root.position.x;
     const dz = point.z - this.root.position.z;
@@ -241,11 +248,17 @@ export class Actor {
         this.leftArm.rotation.x = -0.65 + Math.sin(this.activityTime * 6) * 0.25;
         this.rightArm.rotation.x = -0.68 - Math.sin(this.activityTime * 6) * 0.25;
         this.figure.rotation.z = Math.sin(this.activityTime * 4) * 0.045;
-      } else {
+      } else if (this.activity === 'eat') {
         this.rightArm.rotation.x = -1.35 + Math.sin(this.activityTime * 5) * 0.13;
         this.leftArm.rotation.x = -0.18;
+      } else if (this.activity === 'play') {
+        this.leftArm.rotation.x = -1.1 + Math.sin(this.activityTime * 6) * 0.38;
+        this.rightArm.rotation.x = -1.05 - Math.sin(this.activityTime * 6) * 0.38;
+      } else {
+        this.leftArm.rotation.x = -1.06;
+        this.rightArm.rotation.x = -1.25 + Math.sin(this.activityTime * 7) * 0.24;
       }
-      if (this.activityTime >= 4.2) this.activity = null;
+      if (this.activityTime >= 3.4) this.activity = null;
     }
     if (this.gesture) {
       this.gestureTime += dt;
@@ -271,7 +284,9 @@ export class Actor {
     const alpha = Math.min(1, dt * 7.5);
     this.figure.position.lerp(this.poseOffset, alpha);
     this.figure.position.y += bob;
-    this.figure.rotation.x += ((asleep ? -Math.PI / 2 : 0) - this.figure.rotation.x) * alpha;
+    const petting = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed';
+    const lean = asleep ? -Math.PI / 2 : petting ? 0.24 : 0;
+    this.figure.rotation.x += (lean - this.figure.rotation.x) * alpha;
     if (this.activity !== 'cook') this.figure.rotation.z *= (1 - alpha);
     this.selectionRing.position.x += (this.poseOffset.x - this.selectionRing.position.x) * alpha;
     this.selectionRing.position.z += (this.poseOffset.z - this.selectionRing.position.z) * alpha;

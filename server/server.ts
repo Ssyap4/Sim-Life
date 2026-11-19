@@ -8,6 +8,7 @@ import {
 } from '../src/shared/protocol';
 import { applyAction } from './logic';
 import { applyFoodAction } from './food';
+import { applyPetAction } from './pets';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 
@@ -169,6 +170,33 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastSocial.set(partner, now);
         all({ type: 'social_start', kind: message.kind,
           message: 'Влад и Алина: ' + SOCIAL_LABELS[message.kind].toLowerCase() + ' ❤️' });
+        all({ type: 'snapshot', state });
+        return;
+      }
+
+      if (message.type === 'pet_action') {
+        const now = Date.now();
+        if (now - (lastAction.get(role) ?? 0) < 1500) {
+          packet(socket, { type: 'error', reason: 'Немного подожди перед следующим действием' });
+          return;
+        }
+        const result = applyPetAction(state, role,
+          typeof message.pet === 'string' ? message.pet : '',
+          typeof message.action === 'string' ? message.action : '');
+        if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
+        try { files.save(result.state); }
+        catch (error) {
+          console.error('Failed to persist pet action:', error);
+          packet(socket, { type: 'error', reason: 'Не удалось сохранить уход за питомцем' });
+          return;
+        }
+        state = result.state;
+        lastAction.set(role, now);
+        // Only validated pet/action identifiers are broadcast to the other client.
+        all({ type: 'pet_event', role,
+          pet: message.pet as import('../src/shared/pets').PetId,
+          action: message.action as import('../src/shared/pets').PetAction,
+          message: result.message });
         all({ type: 'snapshot', state });
         return;
       }

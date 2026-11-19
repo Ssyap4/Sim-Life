@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFil
 import { join } from 'node:path';
 import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY } from '../src/shared/food';
+import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, type PetState } from '../src/shared/pets';
 
 export interface ServerFiles {
   dataDir: string;
@@ -28,6 +29,16 @@ const isValidState = (value: unknown): value is GameState => {
   if (meals !== undefined && (!meals || !Object.keys(EMPTY_MEALS).every((key) =>
     meals[key] === undefined || Number.isSafeInteger(meals[key]) &&
       Number(meals[key]) >= 0 && Number(meals[key]) <= 30))) return false;
+  // Pet fields were introduced after version 2 shipped; old saves may omit them.
+  const petData = state.pets as Record<string, PetState> | undefined;
+  const petFood = state.petFood as Record<string, number> | undefined;
+  if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
+    const pet = petData[id];
+    return pet && (['satiety', 'happiness', 'bond'] as const).every((field) =>
+      Number.isSafeInteger(pet[field]) && pet[field] >= 0 && pet[field] <= 100);
+  }))) return false;
+  if (petFood !== undefined && (!petFood || !PET_IDS.every((id) =>
+    Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= 24))) return false;
   return (['vlad', 'alina'] as const).every((role) => {
     const p = state.characters?.[role];
     if (!p) return false;
@@ -71,6 +82,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ...data,
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
+        pets: { ...structuredClone(INITIAL_PETS), ...data.pets },
+        petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };
     },
     save(state: GameState): void {

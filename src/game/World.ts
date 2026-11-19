@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor } from './Actor';
+import { PetActor } from './PetActor';
+import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
 import { SOCIAL_SPOTS, points, type CharacterId, type SocialKind } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
@@ -65,6 +67,7 @@ export class World {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
   readonly actors: Record<CharacterId, Actor>;
+  readonly pets: Record<PetId, PetActor>;
   private readonly raycaster = new THREE.Raycaster();
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
@@ -73,7 +76,7 @@ export class World {
   private downPoint: Point | null = null;
   private socialSequence = 0;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId) => void) {
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly onPick: (id: ItemId | CharacterId | PetId) => void) {
     this.scene.background = new THREE.Color(0xe9e9d9);
     this.scene.fog = new THREE.Fog(0xe9e9d9, 26, 58);
 
@@ -105,6 +108,16 @@ export class World {
       alina: new Actor('alina', [1.65, 3.2]),
     };
     this.scene.add(this.actors.vlad.root, this.actors.alina.root);
+    this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
+    for (const pet of Object.values(this.pets)) {
+      this.scene.add(pet.root);
+      pet.root.traverse((part) => {
+        if (part instanceof THREE.Mesh) {
+          part.userData.interactable = pet.id;
+          this.interactiveMeshes.push(part);
+        }
+      });
+    }
     for (const actor of Object.values(this.actors)) {
       actor.root.traverse((part) => {
         if (part instanceof THREE.Mesh && part !== actor.root.children[1]) {
@@ -189,6 +202,25 @@ export class World {
   performFood(id: CharacterId, action: 'cook' | 'eat'): boolean {
     return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
       action === 'cook' ? 'idle' : 'sit', () => this.actors[id].playActivity(action));
+  }
+
+  performPet(role: CharacterId, petId: PetId, action: PetAction): boolean {
+    if (action === 'buyFood') return true;
+    const actor = this.actors[role];
+    const pet = this.pets[petId];
+    const position = PETS[petId].home;
+    const target = nearestClearPoint({ x: position.x, z: position.z + 0.78 }, this.obstacles);
+    const start = nearestClearPoint(
+      { x: actor.root.position.x, z: actor.root.position.z }, this.obstacles);
+    const route = start && target ? findRoute(start, target, this.obstacles) : null;
+    if (!route) { pet.react(action); return false; }
+    ++this.socialSequence;
+    actor.walkPath(route.map((point) => new THREE.Vector3(point.x, 0, point.z)), () => {
+      actor.faceTowards(pet.root.position);
+      actor.playPetActivity(action);
+      pet.react(action);
+    });
+    return true;
   }
 
   playSocial(kind: SocialKind): boolean {
@@ -399,8 +431,9 @@ export class World {
     const hit = this.raycaster.intersectObjects(this.interactiveMeshes, false)[0];
     const id: unknown = hit?.object.userData.interactable;
     if (typeof id !== 'string') return;
-    if (id === 'vlad' || id === 'alina') this.onPick(id);
-    else if (id in objectNames) this.onPick(id as ItemId);
+    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') {
+      this.onPick(id);
+    } else if (id in objectNames) this.onPick(id as ItemId);
   }
 
   private resize(): void {
@@ -418,6 +451,8 @@ export class World {
     this.lastFrame = now;
     this.actors.vlad.update(dt);
     this.actors.alina.update(dt);
+    this.pets.verdell.update(dt);
+    this.pets.simba.update(dt);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };
