@@ -109,6 +109,18 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
     color.copy(soot).lerp(silver, 0.08 + 0.17 * ruff + ridge * ruff * 0.34);
   });
   sculpt(body, fur, 0xffffff, 'fur');
+  // Keep the continuous low-cost coat, but restore a few swept guard-hair
+  // silhouettes so the compact black Spitz reads as fluffy in close-ups.
+  // The roots sit inside the coat; tips are narrow and never touch the tail.
+  for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
+    const x = side * (0.06 + i * 0.057);
+    sculptedCurve(body, [
+      [x * 0.76, 0.77 - i * 0.018, 0.32 - i * 0.026],
+      [x * 0.95, 0.61 - i * 0.010, 0.45 - i * 0.044],
+      [x * 1.08, 0.42 + i * 0.015, 0.44 - i * 0.044],
+      [x * 1.18, 0.27 + i * 0.021, 0.325 - i * 0.037],
+    ], 0.033, 0.004, i % 2 ? 0x403a42 : 0x38343b, 0.72, true, undefined, 'fur');
+  }
   sculpt(head, loft([
     [-0.18, 0.109, 0.117, 0.049], [-0.125, 0.192, 0.173, 0.088],
     [-0.052, 0.225, 0.202, 0.043], [0.053, 0.238, 0.204, 0.011],
