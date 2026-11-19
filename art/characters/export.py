@@ -25,6 +25,7 @@ def export(path):
         export_materials='EXPORT',
         export_all_vertex_colors=False,
         export_skins=True,
+        export_morph_normal=False,
         export_draco_mesh_compression_enable=False,
     )
     compact(path)

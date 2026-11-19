@@ -23,7 +23,7 @@ export type CharacterRig = {
   shinLength: number;
   upperArm: number;
   lowerArm: number;
-  animateFace?: (dt: number, asleep: boolean) => void;
+  animateFace?: (dt: number, asleep: boolean, smile: number, eyeYaw: number, eyePitch: number) => void;
 };
 
 export type CharacterModel = (figure: THREE.Group) => { rig: CharacterRig; joints: Pivots };

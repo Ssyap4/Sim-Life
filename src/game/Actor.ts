@@ -269,15 +269,25 @@ export class Actor {
     let gaze = asleep ? 0.04 : this.pose === 'work' ? 0.16 : this.activity === 'cook' ? 0.22 : care ? 0.33 : 0;
     const stridePhase = this.gait * Math.PI * 2;
     const motion = this.gaitBlend;
+    const next = this.waypoints[0];
+    const turn = next ? THREE.MathUtils.euclideanModulo(
+      Math.atan2(next.x - this.root.position.x, next.z - this.root.position.z) - this.root.rotation.y + Math.PI,
+      2 * Math.PI,
+    ) - Math.PI : 0;
+    const lead = THREE.MathUtils.clamp(turn * 0.42, -0.19, 0.19) * motion;
+    // Settle the arm swing near arrival without changing the stride or route.
+    const settling = this.waypoints.length === 1 && next
+      ? THREE.MathUtils.smoothstep(this.root.position.distanceTo(next), 0.02, 0.45) : 1;
     const speedBob = 0.010 * (1 - Math.cos(stridePhase * 2));
     const stanceDrop = motion * (0.066 - speedBob);
     const data = this.rig;
     const armA = this.leftArm, armB = this.rightArm;
     let leftY = -data.upperArm - data.lowerArm + 0.018;
     let rightY = leftY;
-    let leftZ = -0.22 * Math.cos(stridePhase - 0.18) * motion;
+    let leftZ = -0.22 * Math.cos(stridePhase - 0.18) * motion * (0.38 + 0.62 * settling);
     let rightZ = -leftZ;
-    let armSpread = -0.077;
+    let armSpread = -0.074 - motion * 0.009 * Math.sin(stridePhase);
+    let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
     if (asleep) {
       leftY = -0.51;
       rightY = -0.44;
@@ -290,6 +300,7 @@ export class Actor {
       leftZ = rightZ = 0.29;
     }
     if (this.pose === 'work') {
+      gaze += 0.032 * Math.sin(t * 1.18);
       const leftTap = Math.max(0, Math.sin(t * 9.0)) ** 2;
       const rightTap = Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
       leftY = 0.097 - leftTap * 0.022;
@@ -319,6 +330,7 @@ export class Actor {
           break;
         }
         case 'play':
+          expression = 0.42;
           leftY = -0.29 + Math.sin(a * 5) * 0.11;
           rightY = -0.29 - Math.sin(a * 5) * 0.11;
           leftZ = rightZ = 0.42;
@@ -343,6 +355,8 @@ export class Actor {
       const reach = THREE.MathUtils.smoothstep(progress, 0, 0.31) *
         (1 - THREE.MathUtils.smoothstep(progress, this.gesture === 'hug' ? 0.63 : 0.44, 1));
       if (this.gesture === 'hug') {
+        expression = 0.11 + 0.72 * reach;
+        gaze = 0.030 * reach;
         armSpread = -0.28 * (1 - reach) + 0.25 * reach;
         leftY = rightY = THREE.MathUtils.lerp(-0.56, -0.06, reach);
         leftZ = rightZ = reach * 0.44;
@@ -351,6 +365,7 @@ export class Actor {
         this.heart.scale.setScalar(0.69 + reach * 0.26);
       } else {
         highFive = reach;
+        expression = 0.10 + 0.56 * reach;
         // Both face each other. Their raised hands meet on the same side of
         // the shared center line by using opposite shoulders.
         if (this.id === 'vlad') { rightY = -0.56 + 0.76 * reach; rightZ = 0.36 * reach; }
@@ -408,13 +423,21 @@ export class Actor {
         asleep ? -0.10 : toePitch - upper.rotation.x - knee.rotation.x, THREE.MathUtils.lerp(alpha, 1, motion));
     }
 
-    const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
-    const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
-    if (data.animateFace) data.animateFace(dt, asleep);
-    else for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
-    const look = seated || asleep || this.activity || this.gesture ? 0 : 0.25 * Math.sin(t * 0.53) ** 7;
-    data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.07 * Math.sin(stridePhase), alpha);
-    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.024 * breath - lean * 0.55, alpha);
+    const idleLook = seated || asleep || this.activity || this.gesture ? 0 : Math.sin(t * 0.53) ** 7;
+    if (data.animateFace) {
+      const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
+        (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion);
+      const eyePitch = asleep ? 0 : this.activity === 'cook' ? 0.07 :
+        this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) : 0.025 * Math.sin(t * 0.67);
+      data.animateFace(dt, asleep, expression, eyeYaw, eyePitch);
+    } else {
+      const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
+      const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
+      for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
+    }
+    const look = 0.20 * idleLook + lead;
+    data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
+    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z, 0.018 * Math.sin(t * 0.73), alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031;
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
@@ -430,7 +453,7 @@ export class Actor {
     // Close the visual gap during a hug while the path endpoints stay fixed.
     this.figure.position.z += embrace;
     this.figure.position.y -= stanceDrop + this.crouchBlend;
-    this.figure.position.x += motion * 0.012 * Math.sin(stridePhase);
+    this.figure.position.x += motion * 0.011 * Math.sin(stridePhase);
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
       const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
@@ -438,19 +461,20 @@ export class Actor {
         const tap = beats * Math.max(0, Math.sin(t * (i === 0 ? 8.5 : 10.2) + i * 1.3)) ** 2;
         this.target.copy(typing[i]);
         this.target.y += 0.028 - 0.018 * tap;
-        this.target.z += 0.032 * Math.sin(t * 1.82 + i);
+        this.target.z += 0.026 * Math.sin(t * 1.82 + i) - 0.008 * tap;
         this.reach(i, this.target, alpha);
         this.aimHand(i, this.handDirection.set(0, -0.27, -1), alpha);
       }
     } else if (stirring) {
-      this.target.copy(stirring).add(this.handDirection.set(0.39, -0.008, 0.18));
+      this.target.copy(stirring).add(this.handDirection.set(0.35, 0.007, 0.19));
       this.reach(0, this.target, alpha);
       this.aimHand(0, this.handDirection.set(0, -0.37, -1), alpha);
       this.target.copy(stirring).add(this.handDirection.set(0.056 * Math.sin(a * 4.4), 0.084, 0.205 + 0.046 * Math.cos(a * 4.4)));
       this.reach(1, this.target, alpha);
       this.aimHand(1, this.handDirection.set(0, -0.25, -1), alpha);
       this.aimSpoon(this.handDirection.copy(stirring).add(this.target.set(
-        Math.sin(a * 4.4) * 0.073, 0.006, Math.cos(a * 4.4) * 0.063)));
+        Math.sin(a * 4.4) * 0.061, 0.004 + 0.008 * Math.sin(a * 8.8) ** 2,
+        Math.cos(a * 4.4) * 0.054)));
     } else if (bite > 0) {
       data.head.localToWorld(this.target.set(0.022, -0.133, 0.151));
       this.handDirection.set(0.066, -0.114, 0.175).applyAxisAngle(up, this.root.rotation.y);

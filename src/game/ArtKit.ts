@@ -19,7 +19,7 @@ export const torus = new THREE.TorusGeometry(1, 0.10, 6, 18);
 export const plane = new THREE.PlaneGeometry();
 type Surface = 'fabric' | 'wood' | 'metal' | 'screen' | 'ceramic' | 'skin' | 'hair' | 'fur' | 'leather';
 const roughness: Record<Surface, number> = {
-  fabric: 0.94, wood: 0.66, metal: 0.38, screen: 0.33, ceramic: 0.48, skin: 0.72, hair: 0.57, fur: 0.91, leather: 0.59,
+  fabric: 0.94, wood: 0.71, metal: 0.43, screen: 0.33, ceramic: 0.48, skin: 0.72, hair: 0.57, fur: 0.91, leather: 0.59,
 };
 const finishes = new Map<string, THREE.MeshStandardMaterial>();
 

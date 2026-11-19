@@ -22,8 +22,8 @@ export function furnitureContact(): THREE.Mesh {
       [3.20, 2.53, 0.55, 0.53], [-0.84, 0.05, 0.49, 0.47],
     ]) {
       const cx = (x + 6) / 12 * 256, cy = (z + 5) / 10 * 256;
-      ellipse(ctx, cx, cy, rx / 12 * 256, rz / 10 * 256, 0.26);
-      ellipse(ctx, cx, cy, rx * 0.72 / 12 * 256, rz * 0.67 / 10 * 256, 0.29);
+      ellipse(ctx, cx, cy, rx * 1.04 / 12 * 256, rz * 1.04 / 10 * 256, 0.19);
+      ellipse(ctx, cx, cy, rx * 0.68 / 12 * 256, rz * 0.64 / 10 * 256, 0.30);
     }
   });
   const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
@@ -36,8 +36,10 @@ export function furnitureContact(): THREE.Mesh {
 }
 
 export function walkingContact(dogOrCat: boolean) {
-  const map = paintedMap('walking-contact', 64, 64,
-    (ctx) => ellipse(ctx, 32, 32, 32, 32, 0.55));
+  const map = paintedMap('walking-contact', 64, 64, (ctx) => {
+    ellipse(ctx, 32, 32, 32, 32, 0.36);
+    ellipse(ctx, 32, 33, 23, 19, 0.29);
+  });
   const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
     map, transparent: true, opacity: map ? 0.48 : 0, depthWrite: false, toneMapped: false,
   }));

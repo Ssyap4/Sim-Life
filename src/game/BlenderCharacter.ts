@@ -74,6 +74,15 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
   const skins = gltf.scene.getObjectsByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh[];
   const skin = skins[0]?.skeleton;
   if (!skin || skins.some(mesh => mesh.skeleton !== skin)) throw new Error('Expected one shared character skin');
+  const face = skins.find(mesh => mesh.morphTargetDictionary?.CloseLids !== undefined);
+  const lids = face?.morphTargetDictionary?.CloseLids;
+  const smile = face?.morphTargetDictionary?.Smile;
+  const blinkTrack = blink.tracks.find(track => track.name === `${face?.name}.morphTargetInfluences`);
+  if (!face || lids === undefined || smile === undefined || !blinkTrack || blink.duration <= 0 ||
+      blinkTrack.getValueSize() <= lids) {
+    throw new Error('Missing face shape keys or eyelid track');
+  }
+  const faceName = face.name;
 
   return (figure) => {
     const model = clone(gltf.scene);
@@ -85,16 +94,20 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
       // joints and inverse bind matrices, so upload one bone texture per resident.
       child.skeleton = skeleton;
       const material = child.material as THREE.Material;
-      child.castShadow = material.name !== 'Eyes' && material.name !== 'Waxed leather';
+      // Hair and clothing carry the shadow silhouette. The dense eyelids,
+      // lips and finger surfaces still receive light and shadow in the main pass.
+      child.castShadow = material.name === 'Hair pigment' || material.name === 'Cloth pigment';
       child.receiveShadow = material.name !== 'Eyes';
       // The rest-pose bound is too small for reaching limbs. The character is
       // one scene unit, and this bound covers all supported furniture poses.
       child.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.6);
     }
     figure.add(model);
-    const mixer = new THREE.AnimationMixer(model);
-    mixer.clipAction(blink).play();
+    const weights = (model.getObjectByName(faceName) as THREE.SkinnedMesh).morphTargetInfluences!;
+    const sampleBlink = new THREE.LinearInterpolant(blinkTrack.times, blinkTrack.values, blinkTrack.getValueSize());
     const eyes = [joints.EyeL, joints.EyeR];
+    let time = id === 'vlad' ? 0 : 0.22;
+    let rest = 0;
     return {
       joints: { leftArm: joints.ArmL, rightArm: joints.ArmR, leftLeg: joints.ThighL, rightLeg: joints.ThighR },
       rig: {
@@ -103,11 +116,15 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
         knees: [joints.KneeL, joints.KneeR], ankles: [joints.AnkleL, joints.AnkleR],
         waistY, thighLength: -joints.KneeL.position.y, shinLength: -joints.AnkleL.position.y,
         upperArm: -joints.ElbowL.position.y, lowerArm: -joints.WristL.position.y,
-        animateFace(dt, asleep) {
-          if (asleep) {
-            for (const eye of eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, 0.075, 1 - Math.exp(-dt * 11));
-          } else {
-            mixer.update(dt);
+        animateFace(dt, asleep, expression, eyeYaw, eyePitch) {
+          const blend = 1 - Math.exp(-dt * 8);
+          time = (time + dt) % blink.duration;
+          rest = THREE.MathUtils.lerp(rest, Number(asleep), blend);
+          weights[lids] = THREE.MathUtils.lerp(sampleBlink.evaluate(time)[lids], 1, rest);
+          weights[smile] = THREE.MathUtils.lerp(weights[smile], expression, blend);
+          for (const eye of eyes) {
+            eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, eyeYaw, blend);
+            eye.rotation.x = THREE.MathUtils.lerp(eye.rotation.x, eyePitch, blend);
           }
         },
       },

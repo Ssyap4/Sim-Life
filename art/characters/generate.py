@@ -20,17 +20,18 @@ def blink(rig, resident):
     scene.render.fps = 30
     scene.frame_start = 1
     scene.frame_end = 181
-    rig.animation_data_create()
-    action = bpy.data.actions.new('Blink')
-    rig.animation_data.action = action
-    first = 32 if resident.woman else 79
-    for suffix, delay in [('L', 0), ('R', 1)]:
-        eye = rig.pose.bones['Eye' + suffix]
-        timing = [(1, 1), (first + delay, 1), (first + 2 + delay, .075),
-                  (first + 4 + delay, .24), (first + 6 + delay, 1), (181, 1)]
-        for frame, height in timing:
-            eye.scale = (1, height, 1)
-            eye.keyframe_insert(data_path='scale', frame=frame, group=eye.name)
+    face = next(mesh for mesh in rig.children if mesh.data.shape_keys)
+    keys = face.data.shape_keys
+    keys.animation_data_create()
+    keys.animation_data.action = bpy.data.actions.new('Blink')
+    lids = keys.key_blocks['CloseLids']
+    first = 35 if resident.woman else 79
+    second = 131 if resident.woman else 152
+    frames = [(1,0),(first,0),(first+3,1),(first+4,1),(first+8,0),
+              (second,0),(second+3,1),(second+8,0),(181,0)]
+    for frame, value in frames:
+        lids.value = value
+        lids.keyframe_insert(data_path='value',frame=frame)
     scene.frame_set(1)
 
 
