@@ -74,7 +74,7 @@ export function sculpt(parent: THREE.Object3D, geometry: THREE.BufferGeometry,
 }
 
 /** The visible skin or fabric spans a joint. Shoes and hands follow the lower bone. */
-export function hingedLimb(parent: THREE.Group, geometry: THREE.BufferGeometry,
+export function hingedLimb(parent: THREE.Object3D, geometry: THREE.BufferGeometry,
   hingeY: number, color: number, surface: Parameters<typeof finish>[1]): THREE.Bone {
   const root = new THREE.Bone();
   const lower = new THREE.Bone();

@@ -4,27 +4,29 @@ import { makeEye } from './EyeArt';
 import { hingedLimb, loft, sculpt } from './SculptMesh';
 import type { CharacterId } from '../shared/protocol';
 
-type Pivots = {
-  leftLeg: THREE.Group; rightLeg: THREE.Group;
-  leftArm: THREE.Group; rightArm: THREE.Group;
+export type Pivots = {
+  leftLeg: THREE.Object3D; rightLeg: THREE.Object3D;
+  leftArm: THREE.Object3D; rightArm: THREE.Object3D;
 };
 
 export type CharacterRig = {
-  chest: THREE.Group;
-  head: THREE.Group;
-  eyes: readonly THREE.Group[];
-  hair: THREE.Group;
-  wrists: readonly THREE.Group[];
-  elbows: readonly THREE.Bone[];
-  knees: readonly THREE.Bone[];
-  ankles: readonly THREE.Group[];
+  chest: THREE.Object3D;
+  head: THREE.Object3D;
+  eyes: readonly THREE.Object3D[];
+  hair: THREE.Object3D;
+  wrists: readonly THREE.Object3D[];
+  elbows: readonly THREE.Object3D[];
+  knees: readonly THREE.Object3D[];
+  ankles: readonly THREE.Object3D[];
   waistY: number;
   thighLength: number;
   shinLength: number;
-  shoulderY: number;
   upperArm: number;
   lowerArm: number;
+  animateFace?: (dt: number, asleep: boolean) => void;
 };
+
+export type CharacterModel = (figure: THREE.Group) => { rig: CharacterRig; joints: Pivots };
 
 type Palette = ReturnType<typeof paletteFor>;
 function paletteFor(vlad: boolean) {
@@ -298,5 +300,5 @@ export function buildCharacterArt(figure: THREE.Group, id: CharacterId, joints: 
     elbows.push(elbow);
   }
   return { chest, head, eyes, hair, wrists, elbows, knees, ankles, waistY: hip - 0.061,
-    thighLength, shinLength, shoulderY: shoulderY - 0.039, upperArm, lowerArm };
+    thighLength, shinLength, upperArm, lowerArm };
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor } from './Actor';
+import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PETS, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, type FloorRect } from './navigation';
@@ -66,7 +67,8 @@ export class World {
 
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
-    private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 })) {
+    private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
+    characters: Partial<Record<CharacterId, CharacterModel>> = {}) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
@@ -93,8 +95,8 @@ export class World {
     this.createLights();
     this.createHome();
     this.actors = {
-      vlad: new Actor('vlad', [0.5, 3.5]),
-      alina: new Actor('alina', [1.65, 3.2]),
+      vlad: new Actor('vlad', [0.5, 3.5], characters.vlad),
+      alina: new Actor('alina', [1.65, 3.2], characters.alina),
     };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {

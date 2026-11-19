@@ -89,7 +89,7 @@ app.innerHTML = `
       </div>
       <label for="access-code">Личный код персонажа</label>
       <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Код из server-data/access.json" autocomplete="off" required />
-      <button class="enter-button" type="submit">Войти в общий дом</button>
+      <button class="enter-button" type="submit" disabled>Войти в общий дом</button>
       <p class="auth-status" id="auth-status">Коды созданы на компьютере в D:\\Sim-Life\\server-data\\access.json</p>
       <small>Доступен по домашней Wi-Fi сети. Пока не публикуй адрес сервера в интернете.</small>
     </form>
@@ -426,53 +426,65 @@ function openActions(item: ItemId): void {
   }
 }
 
-try {
-  world = new World(canvas, (id) => {
-    if (id === 'vlad' || id === 'alina') openSocialActions(id);
-    else if (id === 'verdell' || id === 'simba') openPetActions(id);
-    else openActions(id);
-  }, (inspection) => {
-    const viewport = canvas.getBoundingClientRect();
-    return {
-      top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
-      bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
-    };
-  });
-  const layoutObserver = new ResizeObserver(() => {
-    app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
-    world.refreshViewport();
-  });
-  for (const area of [canvas, topHud, bottomHud, bottomBar]) layoutObserver.observe(area);
-  document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (active && button.dataset.id !== active) {
-        openSocialActions(button.dataset.id === 'alina' ? 'alina' : 'vlad');
-      } else if (active && state) {
-        const s = state.characters[active];
-        notify('Навык: ' + Math.round(s.skill) + '% · настроение: ' + Math.round(s.mood) + '%');
-      }
+async function initializeWorld(app: HTMLDivElement): Promise<void> {
+  try {
+    const useBlender = new URLSearchParams(window.location.search).get('characters') !== 'procedural';
+    const characters = useBlender ? await import('./game/BlenderCharacter')
+      .then(({ loadResidents }) => loadResidents())
+      .catch((err: unknown) => {
+        console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
+        return {};
+      }) : {};
+    world = new World(canvas, (id) => {
+      if (id === 'vlad' || id === 'alina') openSocialActions(id);
+      else if (id === 'verdell' || id === 'simba') openPetActions(id);
+      else openActions(id);
+    }, (inspection) => {
+      const viewport = canvas.getBoundingClientRect();
+      return {
+        top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
+        bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
+      };
+    }, characters);
+    const layoutObserver = new ResizeObserver(() => {
+      app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
+      world.refreshViewport();
     });
-  });
-  marketBtn.addEventListener('click', () => openActions('delivery'));
-  petsBtn.addEventListener('click', () => openPetActions());
-  const form = document.querySelector<HTMLFormElement>('#auth-form')!;
-  document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
-    button.addEventListener('click', () => {
-      selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
-      document.querySelectorAll('.role-option').forEach((item) =>
-        item.classList.toggle('selected', item === button),
-      );
+    for (const area of [canvas, topHud, bottomHud, bottomBar]) layoutObserver.observe(area);
+    document.querySelectorAll<HTMLButtonElement>('.person').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (active && button.dataset.id !== active) {
+          openSocialActions(button.dataset.id === 'alina' ? 'alina' : 'vlad');
+        } else if (active && state) {
+          const s = state.characters[active];
+          notify('Навык: ' + Math.round(s.skill) + '% · настроение: ' + Math.round(s.mood) + '%');
+        }
+      });
     });
-  });
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const code = accessInput.value.trim();
-    if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
-    net.login(selectedRole, code);
-  });
-  window.addEventListener('pagehide', () => net.stop());
-  showStatus('Выбери персонажа и введи личный код');
-} catch (error) {
-  console.error(error);
-  showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
+    marketBtn.addEventListener('click', () => openActions('delivery'));
+    petsBtn.addEventListener('click', () => openPetActions());
+    document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
+      button.addEventListener('click', () => {
+        selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
+        document.querySelectorAll('.role-option').forEach((item) =>
+          item.classList.toggle('selected', item === button),
+        );
+      });
+    });
+    window.addEventListener('pagehide', () => net.stop());
+    document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
+    showStatus('Выбери персонажа и введи личный код');
+  } catch (error) {
+    console.error(error);
+    showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
+  }
 }
+
+document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!world) return;
+  const code = accessInput.value.trim();
+  if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
+  net.login(selectedRole, code);
+});
+void initializeWorld(app);

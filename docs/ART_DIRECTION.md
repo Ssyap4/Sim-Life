@@ -266,3 +266,7 @@ Chromium 156 со SwiftShader при 390 × 844. DPR устройства 3 и �
 - Физические iPhone и Android для этого прохода недоступны. Плавность и нагрев в длинной сессии, реакцию на жесты в Safari и контакты вблизи на реальном экране нужно проверить на устройствах.
 
 Код моделей — `CharacterArt.ts`, `EyeArt.ts`, `PetArt.ts`, `SculptMesh.ts`. Движение и контакты — `Actor.ts`, `PetActor.ts`, `World.ts`. Материалы, карты и контактные тени — `ArtKit.ts`, `ArtTextures.ts`, `ContactShade.ts`. Регрессии поз — `server/tests/poses.test.ts`.
+
+## Blender Pipeline
+
+В следующем проходе Влад и Алина получили новые редактируемые модели с общим скином и клипом моргания. [Исходники, команды экспорта, парные кадры и замеры](BLENDER_PIPELINE.md)

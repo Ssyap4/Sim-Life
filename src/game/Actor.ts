@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PetAction } from '../shared/pets';
-import { buildCharacterArt, type CharacterRig } from './CharacterArt';
+import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { finish, orb } from './ArtKit';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
@@ -26,10 +26,10 @@ const heartGeometry = new THREE.ShapeGeometry(heartShape());
 export class Actor {
   readonly root = new THREE.Group();
   private readonly figure = new THREE.Group();
-  private readonly leftLeg = new THREE.Group();
-  private readonly rightLeg = new THREE.Group();
-  private readonly leftArm = new THREE.Group();
-  private readonly rightArm = new THREE.Group();
+  private readonly leftLeg: THREE.Object3D;
+  private readonly rightLeg: THREE.Object3D;
+  private readonly leftArm: THREE.Object3D;
+  private readonly rightArm: THREE.Object3D;
   private readonly rig: CharacterRig;
   private readonly figureBase = new THREE.Vector3();
   private clock = 0;
@@ -61,11 +61,16 @@ export class Actor {
   private readonly aimRotation = new THREE.Quaternion();
   private readonly parentRotation = new THREE.Quaternion();
 
-  constructor(readonly id: CharacterId, start: [number, number]) {
+  constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);
     this.root.add(this.figure);
     const vlad = id === 'vlad';
-    this.rig = buildCharacterArt(this.figure, id, {
+    const asset = model?.(this.figure);
+    this.leftLeg = asset?.joints.leftLeg ?? new THREE.Group();
+    this.rightLeg = asset?.joints.rightLeg ?? new THREE.Group();
+    this.leftArm = asset?.joints.leftArm ?? new THREE.Group();
+    this.rightArm = asset?.joints.rightArm ?? new THREE.Group();
+    this.rig = asset?.rig ?? buildCharacterArt(this.figure, id, {
       leftLeg: this.leftLeg, rightLeg: this.rightLeg,
       leftArm: this.leftArm, rightArm: this.rightArm,
     });
@@ -405,7 +410,8 @@ export class Actor {
 
     const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
     const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
-    for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
+    if (data.animateFace) data.animateFace(dt, asleep);
+    else for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
     const look = seated || asleep || this.activity || this.gesture ? 0 : 0.25 * Math.sin(t * 0.53) ** 7;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.07 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.024 * breath - lean * 0.55, alpha);
