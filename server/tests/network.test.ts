@@ -77,7 +77,7 @@ test('Two phones get shared state, role ownership, persisted economy and private
     assert.equal(a.type, 'snapshot');
     assert.equal(b.type, 'snapshot');
     if (a.type === 'snapshot' && b.type === 'snapshot') {
-      assert.equal(a.state.money, 2620);
+      assert.equal(a.state.money, 5500);
       assert.deepEqual(a.state, b.state);
     }
 
@@ -96,7 +96,7 @@ test('Two phones get shared state, role ownership, persisted economy and private
       const read = await login(restored, 'vlad', keys.vlad);
       assert.equal(read.type, 'ready');
       if (read.type === 'ready') {
-        assert.equal(read.state.money, 2620);
+        assert.equal(read.state.money, 5500);
         assert.equal(read.state.revision, 1);
       }
       restored.close();

@@ -4,14 +4,14 @@ import { applyAction } from '../logic';
 import { applyFoodAction } from '../food';
 import { initialState } from '../../src/shared/protocol';
 
-test('Vlad receives a small order payment, while original snapshot stays unchanged', () => {
+test('Vlad earns a realistic daily side-shift payment, while original snapshot stays unchanged', () => {
   const original = initialState();
   const result = applyAction(original, 'vlad', 'vladOrder');
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.state.money, 2620);
-  assert.equal(result.state.characters.vlad.skill, 6);
-  assert.equal(result.state.characters.vlad.energy, 71);
+  assert.equal(result.state.money, 5500);
+  assert.equal(result.state.characters.vlad.skill, 0);
+  assert.equal(result.state.characters.vlad.energy, 58);
   assert.equal(result.state.revision, 1);
   assert.equal(original.money, 2500);
 });
@@ -21,20 +21,19 @@ test('One character cannot execute the other character career action', () => {
   assert.equal(result.ok, false);
 });
 
-test('Alina learns reconstruction before client consultation is unlocked', () => {
+test('Alina can take a non-career side shift once per game day', () => {
   const start = initialState();
-  assert.equal(applyAction(start, 'alina', 'alinaConsult').ok, false);
-  const one = applyAction(start, 'alina', 'alinaStudy');
-  assert.equal(one.ok, true);
-  if (!one.ok) return;
-  const two = applyAction(one.state, 'alina', 'alinaStudy');
-  assert.equal(two.ok, true);
-  if (!two.ok) return;
-  const consult = applyAction(two.state, 'alina', 'alinaConsult');
-  assert.equal(consult.ok, true);
-  if (!consult.ok) return;
-  assert.equal(consult.state.money, 2580);
-  assert.equal(consult.state.characters.alina.skill, 27);
+  const paid = applyAction(start, 'alina', 'alinaConsult');
+  assert.equal(paid.ok, true);
+  if (!paid.ok) return;
+  assert.equal(paid.state.money, 5700);
+  assert.equal(paid.state.shiftDays.alina, 1);
+  assert.equal(paid.state.ledger[0].amount, 3200);
+  assert.equal(applyAction(paid.state, 'alina', 'alinaConsult').ok, false);
+  const tomorrow = structuredClone(paid.state);
+  tomorrow.clock.day++;
+  const again = applyAction(tomorrow, 'alina', 'alinaConsult');
+  assert.equal(again.ok, true);
 });
 
 test('Cooking creates two shareable portions from real ingredients', () => {
@@ -58,15 +57,15 @@ test('Cooking creates two shareable portions from real ingredients', () => {
 
 test('Shared funds cannot be overspent by a store purchase', () => {
   const start = initialState();
-  start.money = 20;
+  start.money = 45;
   const failed = applyFoodAction(start, 'vlad', { type: 'buy', item: 'eggs' });
   assert.equal(failed.ok, false);
-  assert.equal(start.money, 20);
+  assert.equal(start.money, 45);
   const ok = applyFoodAction(start, 'alina', { type: 'buy', item: 'bread' });
   assert.equal(ok.ok, true);
   if (!ok.ok) return;
   assert.equal(ok.state.money, 0);
-  assert.equal(ok.state.pantry.bread, 4);
+  assert.equal(ok.state.pantry.bread, 11);
 });
 
 test('Stats are capped and unknown commands rejected', () => {

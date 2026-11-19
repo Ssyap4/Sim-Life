@@ -1,5 +1,6 @@
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
-import type { IngredientId, RecipeId } from '../shared/food';
+import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
+import type { BasketLine } from '../shared/market';
 import type { PetId, PetAction } from '../shared/pets';
 
 export interface ConnectionCallbacks {
@@ -8,6 +9,7 @@ export interface ConnectionCallbacks {
   onOnline(online: CharacterId[]): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
+  onStoreEvent(role: CharacterId, message: string): void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
   onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand): void;
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
@@ -49,6 +51,14 @@ export class LiveConnection {
   food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId): boolean {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
+  }
+
+  checkout(lines: BasketLine[]): boolean {
+    return this.sendAuthenticated({type:'checkout',lines});
+  }
+
+  eatTakeout(item: TakeoutId): boolean {
+    return this.sendAuthenticated({type:'eat_takeout',item});
   }
 
   cancelTask(taskId: number): boolean {
@@ -115,6 +125,8 @@ export class LiveConnection {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
         this.callbacks.onFoodEvent(packet.role, packet.action, packet.message);
+      } else if (packet.type === 'store_event' && this.authorized) {
+        this.callbacks.onStoreEvent(packet.role, packet.message);
       } else if (packet.type === 'pet_event' && this.authorized) {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'task_started' && this.authorized) {

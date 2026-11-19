@@ -1,8 +1,8 @@
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { RECIPES, type RecipeId } from '../src/shared/food';
+import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { applyAction } from './logic';
-import { applyFoodAction } from './food';
+import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
 export type CareAction = Exclude<PetAction, 'buyFood'>;
@@ -17,8 +17,8 @@ export type EvaluatedTask = { ok: true; state: GameState; message: string } | { 
 export const ACTION_SECONDS: Record<ActionId, number> = {
   sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
-  vladOrder: 14, vladStudy: 11, deskGames: 12, deskJournal: 9,
-  alinaStudy: 11, alinaConsult: 14,
+  vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
+  alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
@@ -49,6 +49,12 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
       resource: command.type === 'cook' ? 'kitchen' : null,
     };
   }
+  if (command.type === 'eat_takeout') {
+    const item=command.item;
+    if (typeof item !== 'string' || !own(TAKEOUT,item)) return null;
+    return {command:{type:'eat_takeout',item:item as TakeoutId},
+      label:'🍽️ Едим: '+TAKEOUT[item as TakeoutId].name, durationMs:7_000,resource:null};
+  }
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||
         typeof command.action !== 'string' ||
@@ -68,5 +74,6 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand): EvaluatedTask {
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
+  if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

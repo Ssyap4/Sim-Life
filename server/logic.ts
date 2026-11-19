@@ -2,6 +2,7 @@ import {
   ACTIONS, points, names, type ActionId, type CharacterId,
   type GameState, type Needs,
 } from '../src/shared/protocol';
+import { addLedger } from '../src/shared/economy';
 
 export type ActionResult =
   | { ok: true; message: string; state: GameState }
@@ -58,13 +59,16 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'energy', 5); change(state, role, 'mood', 5);
       change(state, role, 'hygiene', -2);
       message = name + ': утренняя зарядка'; break;
-    // Legacy small orders are preserved for compatibility; realistic salaries
-    // will be balanced in the dedicated Moscow-region economy milestone.
+    // Non-career side shifts use Moscow-region ruble wages, once per game day.
+    // Deep hair-reconstruction and game-development careers remain postponed.
     case 'vladOrder':
-      if (state.characters.vlad.energy < 10) return { ok: false, reason: 'Владу сначала нужно отдохнуть' };
-      state.money += 120; change(state, role, 'skill', 6);
-      change(state, role, 'energy', -11); change(state, role, 'hunger', -7);
-      message = 'Влад выполнил заказ: +120 ₽'; break;
+      if (state.shiftDays.vlad === state.clock.day) return {ok:false,reason:'Подработка уже выполнена сегодня'};
+      if (state.characters.vlad.energy < 25) return {ok:false,reason:'Владу нужно отдохнуть перед сменой'};
+      state.shiftDays.vlad=state.clock.day;
+      state.money += 3000; change(state, role, 'energy', -24); change(state, role, 'hunger', -12);
+      change(state, role, 'fun', -5);
+      addLedger(state,role,'income','work',3000,'Удалённая подработка · смена');
+      message = 'Влад отработал смену: +3 000 ₽'; break;
     case 'vladStudy':
       change(state, role, 'skill', 11); change(state, role, 'energy', -7);
       message = 'Влад изучил приёмы разработки'; break;
@@ -79,11 +83,13 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'skill', 11); change(state, role, 'energy', -7);
       message = 'Алина изучила основы реконструкции волос'; break;
     case 'alinaConsult':
-      if (state.characters.alina.skill < 15) return { ok: false, reason: 'Сначала пройди обучение (навык 15)' };
-      if (state.characters.alina.energy < 10) return { ok: false, reason: 'Алине сначала нужно отдохнуть' };
-      state.money += 80; change(state, role, 'skill', 5);
-      change(state, role, 'energy', -8); change(state, role, 'mood', 3);
-      message = 'Алина провела консультацию: +80 ₽'; break;
+      if (state.shiftDays.alina === state.clock.day) return {ok:false,reason:'Подработка уже выполнена сегодня'};
+      if (state.characters.alina.energy < 25) return {ok:false,reason:'Алине нужно отдохнуть перед сменой'};
+      state.shiftDays.alina=state.clock.day;
+      state.money += 3200; change(state, role, 'energy', -24); change(state, role, 'hunger', -12);
+      change(state, role, 'fun', -5);
+      addLedger(state,role,'income','work',3200,'Подработка администратора · смена');
+      message = 'Алина отработала смену: +3 200 ₽'; break;
     case 'kitchenWash':
       change(state, role, 'hygiene', 30); change(state, role, 'mood', 3);
       message = name + ': умывание у раковины'; break;

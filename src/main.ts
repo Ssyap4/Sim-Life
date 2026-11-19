@@ -2,6 +2,7 @@ import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
+import { createMarketUI, showTakeoutChoices } from './marketUI';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
 import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
@@ -35,7 +36,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.3 · ЖИВОЙ РИТМ</div>
+      <div class="version">0.3 · МАГАЗИН И БЫТ</div>
     </div>
     <div class="money-panel"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip"><span id="life-clock">☀️ День 1 · 08:00</span><button id="needs-toggle" type="button" aria-expanded="false" aria-controls="needs-panel">💗 Потребности</button></div>
@@ -67,13 +68,14 @@ app.innerHTML = `
     <div id="needs-content"></div>
   </section>
   <div id="message" class="message" aria-live="polite"></div>
+  <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
     <div class="bottom-bar">
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
-        <button id="market-btn" class="market-btn" type="button" disabled>🛒 Продукты</button>
+        <button id="market-btn" class="market-btn" type="button" disabled>🛒 Магазин</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Верделл и Симба</button>
       </div>
       <div class="tip">
@@ -117,6 +119,7 @@ const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
 const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
 const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
 const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
+const marketOverlay = document.querySelector<HTMLElement>('#market-overlay')!;
 function toggleNeeds(open: boolean): void {
   needsPanelEl.hidden = !open;
   needsToggleEl.setAttribute('aria-expanded', String(open));
@@ -151,7 +154,7 @@ showcaseToggle.addEventListener('click', () => {
 showcaseReturn.addEventListener('click', () => focusModel(null));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
-  if (event.key === 'Escape') toggleNeeds(false);
+  if (event.key === 'Escape') {toggleNeeds(false); marketUI.close();}
 });
 showcaseChoices.addEventListener('click', (event) => {
   const id = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-showcase]')?.dataset.showcase;
@@ -268,7 +271,8 @@ function render(): void {
   document.querySelector<HTMLElement>('#stock-line')!.textContent =
     '🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread +
     ' · 🥛 ' + state.pantry.milk + ' · 🍽️ Готово: ' +
-    Object.values(state.meals).reduce((a, b) => a + b, 0) + ' порций';
+    (Object.values(state.meals).reduce((a,b)=>a+b,0)+
+      Object.values(state.takeout).reduce((a,b)=>a+b,0)) + ' порций';
   for (const id of ['vlad', 'alina'] as const) {
     const stats = state.characters[id];
     const hunger = document.querySelector<HTMLElement>('#' + id + '-hunger')!;
@@ -289,6 +293,7 @@ function showStatus(text: string): void {
   statusEl.textContent = text;
   authStatusEl.textContent = text;
 }
+const marketUI = createMarketUI(marketOverlay,(lines)=>net.checkout(lines));
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
@@ -297,6 +302,7 @@ const net = new LiveConnection({
     tasks.clear();
     drawTaskPanel();
     toggleNeeds(false);
+    marketUI.close();
     authEl.hidden = true;
     marketBtn.disabled = false;
     petsBtn.disabled = false;
@@ -313,6 +319,7 @@ const net = new LiveConnection({
     if (!state || household.revision >= state.revision) {
       state = household;
       render();
+      marketUI.refresh(household);
     }
   },
   onOnline(players) {
@@ -325,6 +332,11 @@ const net = new LiveConnection({
   },
   onFoodEvent(_role, _action, message) {
     statusEl.textContent = message;
+    notify(message);
+  },
+  onStoreEvent(role,message) {
+    if(role===active) marketUI.acknowledge();
+    statusEl.textContent=message;
     notify(message);
   },
   onPetEvent(_role, _pet, _action, message) {
@@ -357,14 +369,17 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
-    if (!authEl.hidden || reason.includes('занят') || reason.includes('Неверный код')) {
+    if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
       authEl.hidden = false;
       active = null;
       marketBtn.disabled = true;
       petsBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
-    } else notify(reason);
+    } else {
+      notify(reason);
+      if (state) marketUI.refresh(state); // failed order: re-enable checkout, preserve cart
+    }
   },
   onStatus(text) {
     if (text.includes('Связь потеряна')) {
@@ -450,6 +465,11 @@ function openActions(item: ItemId): void {
     notify('Сначала войди в дом');
     return;
   }
+  if(item==='delivery' && state) {
+    actionsEl.hidden=true;
+    marketUI.open(state);
+    return;
+  }
   actionsEl.innerHTML = '';
   actionsEl.hidden = false;
   const heading = document.createElement('div');
@@ -476,6 +496,13 @@ function openActions(item: ItemId): void {
     });
   }
 
+  if (item === 'table' && state) {
+    showTakeoutChoices(actionsEl,state,(id)=>{
+      const sent=net.eatTakeout(id);
+      if(sent) actionsEl.hidden=true;
+      return sent;
+    });
+  }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
     if ('role' in definition && definition.role !== active) continue;
@@ -534,7 +561,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       });
     });
-    marketBtn.addEventListener('click', () => openActions('delivery'));
+    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;marketUI.open(state);} });
     petsBtn.addEventListener('click', () => openPetActions());
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {
