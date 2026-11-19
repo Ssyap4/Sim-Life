@@ -428,13 +428,19 @@ function openActions(item: ItemId): void {
 
 async function initializeWorld(app: HTMLDivElement): Promise<void> {
   try {
-    const useBlender = new URLSearchParams(window.location.search).get('characters') !== 'procedural';
+    const params = new URLSearchParams(window.location.search);
+    const diagnostics = params.get('perf') === '1'
+      ? await import('./game/PerformanceProbe').then(({ createPerformanceProbe }) => createPerformanceProbe(app))
+      : null;
+    const modelsStartedMs = performance.now();
+    const useBlender = params.get('characters') !== 'procedural';
     const characters = useBlender ? await import('./game/BlenderCharacter')
       .then(({ loadResidents }) => loadResidents())
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};
       }) : {};
+    const modelsReadyMs = performance.now();
     world = new World(canvas, (id) => {
       if (id === 'vlad' || id === 'alina') openSocialActions(id);
       else if (id === 'verdell' || id === 'simba') openPetActions(id);
@@ -445,7 +451,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         top: (topHud.getBoundingClientRect().bottom - viewport.top) / viewport.height,
         bottom: ((inspection ? bottomHud : bottomBar).getBoundingClientRect().top - viewport.top) / viewport.height,
       };
-    }, characters);
+    }, characters, diagnostics?.onFrame);
+    diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
+      useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {
       app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
       world.refreshViewport();

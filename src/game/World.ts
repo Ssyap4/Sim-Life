@@ -68,7 +68,8 @@ export class World {
   constructor(private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
-    characters: Partial<Record<CharacterId, CharacterModel>> = {}) {
+    characters: Partial<Record<CharacterId, CharacterModel>> = {},
+    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
 
@@ -454,5 +455,6 @@ export class World {
     }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };
 }
