@@ -12,7 +12,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
-import { PET_IDS, PET_SPEED, petApproach, type PetId, type PetAction } from '../shared/pets';
+import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
@@ -27,6 +27,7 @@ import { residentStep, unoccupiedDestination } from './residentCollision';
 
 type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
+type BowlPick = 'bowl:verdell' | 'bowl:simba';
 
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
 // targets only: the server and route planner still use the approach tiles.
@@ -102,6 +103,7 @@ export class World {
   private yard!: ReturnType<typeof buildYard>;
   private grillCooking = false;
   private readonly otherBody = new THREE.Vector3();
+  private readonly bowlFood: Record<PetId, THREE.Mesh[]> = { verdell: [], simba: [] };
   private readonly steering = {
     vlad: (from: Point, target: Point) => this.steerPast('alina', from, target),
     alina: (from: Point, target: Point) => this.steerPast('vlad', from, target),
@@ -119,7 +121,7 @@ export class World {
   private lastDayPhase: ReturnType<typeof dayPhase> | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement,
-    private readonly onPick: (id: ItemId | CharacterId | PetId) => void,
+    private readonly onPick: (id: ItemId | CharacterId | PetId | BowlPick) => void,
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
@@ -620,14 +622,16 @@ export class World {
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
-    const position = pet.root.position;
-    pet.stop();
+    const filling = action === 'feed';
+    const position = filling ? PETS[petId].bowl : pet.root.position;
+    if (!filling) pet.stop();
     const target = petApproach(position, this.obstacles, HOME_FLOOR);
     const walking = target && this.walkTo(role, target, () => {
       if (!current()) return;
-      actor.faceTowards(pet.root.position);
+      actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
       actor.playPetActivity(action);
-      pet.react(action);
+      // The animal eats during its own routine, not when the player pours food.
+      if (!filling) pet.react(action);
     });
     if (!walking) { pet.react(action); return false; }
     ++this.socialSequence;
@@ -790,6 +794,32 @@ export class World {
     });
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
+    this.createPetBowls();
+  }
+
+  /** The original ceramic bowls remain in the batched room geometry. Add only
+   * two generous touch targets and six tiny food pieces that reflect server state. */
+  private createPetBowls(): void {
+    const hitGeometry = new THREE.CylinderGeometry(.255, .255, .09, 16);
+    const hitMaterial = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true,
+      opacity:.008, depthWrite:false });
+    for (const id of PET_IDS) {
+      const { x, z } = PETS[id].bowl;
+      const hit = new THREE.Mesh(hitGeometry, hitMaterial);
+      hit.position.set(x, .145, z);
+      hit.userData.interactable = 'bowl:' + id;
+      this.scene.add(hit);
+      this.interactiveMeshes.push(hit);
+      for (let i = 0; i < PET_BOWL_CAPACITY; i++) {
+        const pellet = new THREE.Mesh(drum, finish(id==='verdell' ? 0x945c31 : 0xb78551, 'wood'));
+        const angle = (i / PET_BOWL_CAPACITY) * Math.PI * 2;
+        pellet.scale.set(.052,.026,.052);
+        pellet.position.set(x + Math.cos(angle)*.075,.118,z + Math.sin(angle)*.075);
+        pellet.visible=false;
+        this.scene.add(pellet);
+        this.bowlFood[id].push(pellet);
+      }
+    }
   }
 
   private trackStation(target: THREE.Object3D[], id: string, object: THREE.Group): void {
@@ -996,6 +1026,7 @@ export class World {
 
   private updateHomePets(state: GameState): void {
     for (const id of PET_IDS) {
+      this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
       const routine = state.pets[id].routine;
       if (!pet.root.visible || !routine) {
@@ -1032,7 +1063,8 @@ export class World {
     const station: unknown = hit?.object.userData.station;
     if (typeof station === 'string') { this.navigation?.station(station); return; }
     const id: unknown = hit?.object.userData.interactable;
-    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') this.onPick(id);
+    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba' ||
+        id === 'bowl:verdell' || id === 'bowl:simba') this.onPick(id);
     else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
     else {
       const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);

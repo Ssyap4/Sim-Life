@@ -4,7 +4,7 @@ import { DELIVERY_FEE } from './shared/locations';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, recipePortionCost, type TakeoutId } from './shared/food';
 import { MARKET_PRODUCTS, MARKET_CATEGORIES, marketProduct, basketPrice, type BasketLine, type MarketCategory, type MarketProduct } from './shared/market';
 import { formatRub } from './shared/economy';
-import { PETS } from './shared/pets';
+import { PETS, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS } from './shared/pets';
 import { GROCERY_DETAILS, TAKEOUT_DESCRIPTIONS, RECIPE_DESCRIPTIONS,
   FRIDGE_CAPACITY, CUPBOARD_CAPACITY, storageUsage, storageCanFit } from './shared/storageSpace';
 import type { GameState } from './shared/protocol';
@@ -30,7 +30,7 @@ function owned(state: GameState, p: MarketProduct): number {
   if (p.kind === 'takeout') return state.takeout[p.stockKey as keyof GameState['takeout']];
   return state.petFood[p.stockKey as keyof GameState['petFood']];
 }
-function limit(p: MarketProduct): number { return p.kind === 'grocery' ? 99 : p.kind === 'takeout' ? 40 : 24; }
+function limit(p: MarketProduct): number { return p.kind === 'grocery' ? 99 : p.kind === 'takeout' ? 40 : PET_FOOD_MAX_REFILLS; }
 
 export function createMarketUI(
   root: HTMLElement,
@@ -117,7 +117,7 @@ export function createMarketUI(
           : p.kind==='takeout' ? null : null;
         const detail=p.kind==='grocery' ? about?.description
           : p.kind==='takeout' ? TAKEOUT_DESCRIPTIONS[p.stockKey as keyof typeof TAKEOUT_DESCRIPTIONS]
-          : 'Корм для любимого питомца: '+p.quantity+' порции в одной упаковке.';
+          : 'Пачка корма: '+p.quantity+' насыпаний по 3 порции — всего '+(p.quantity*PET_BOWL_CAPACITY)+' кормлений.';
         description.append(el('small','market-product-about',detail??''),
           el('small','market-shelf',p.kind==='grocery'
             ? about?.area==='fridge'?'🧊 Холодильник':'🗄️ Кухонные полки'
@@ -195,7 +195,9 @@ export function createMarketUI(
       }
       scroll.append(el('h3','market-subtitle','🐾 Питомцы'));
       for (const [id,p] of Object.entries(PETS)) {
-        scroll.append(el('div','market-stock-row',p.emoji+' '+p.foodName+' · '+state.petFood[id as keyof GameState['petFood']]+' порц.'));
+        const petId = id as keyof GameState['petFood'];
+        scroll.append(el('div','market-stock-row',p.emoji+' '+p.foodName+' · '+state.petFood[petId]+
+          ' насыпаний · миска: '+state.petBowls[petId]+'/'+PET_BOWL_CAPACITY+' порц.'));
       }
       scroll.append(el('h3','market-subtitle','📖 Что приготовить выгоднее'));
       for (const [id,p] of Object.entries(RECIPES)) {

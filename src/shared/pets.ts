@@ -23,6 +23,12 @@ export interface PetState {
 }
 export type PetFamily = Record<PetId, PetState>;
 export type PetFoodStock = Record<PetId, number>;
+export type PetBowlStock = Record<PetId, number>;
+export const PET_FOOD_REFILLS_PER_PACK = 10;
+export const PET_BOWL_CAPACITY = 3;
+export const PET_FOOD_MAX_REFILLS = 50;
+export const PET_AUTO_EAT_BELOW = 20;
+export const PET_EAT_SATIETY_GAIN = 36;
 
 export const PETS = {
   verdell: {
@@ -31,7 +37,7 @@ export const PETS = {
     emoji: '🐕',
     foodName: 'Корм для шпица',
     foodPrice: 650,
-    foodAmount: 3,
+    foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -3.52, z: 4.48 },
     bowl: { x: -.91, z: -2.63 },
     toilet: { x: 3.25, z: 4.48 },
@@ -42,7 +48,7 @@ export const PETS = {
     emoji: '🐈',
     foodName: 'Корм для кота',
     foodPrice: 550,
-    foodAmount: 3,
+    foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -2.24, z: 4.48 },
     bowl: { x: -.18, z: -2.63 },
     toilet: { x: 4.26, z: 4.48 },
@@ -83,10 +89,11 @@ export const INITIAL_PETS: PetFamily = {
   simba: { satiety: 78, happiness: 76, bond: 32, energy: 81, bladder: 76, position: PETS.simba.home },
 };
 export const INITIAL_PET_FOOD: PetFoodStock = { verdell: 2, simba: 2 };
+export const INITIAL_PET_BOWLS: PetBowlStock = { verdell: 0, simba: 0 };
 
 export const PET_ACTION_NAMES: Record<PetAction, string> = {
   buyFood: 'Купить корм',
-  feed: 'Покормить',
+  feed: 'Насыпать корм в миску',
   play: 'Поиграть',
   pet: 'Погладить',
   brush: 'Расчесать',
