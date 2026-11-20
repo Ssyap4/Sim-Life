@@ -251,7 +251,7 @@ test('A paid delivery survives restart and a full fridge, then can be collected 
     const take = { type: 'delivery_claim', id: order.id };
     assert.equal(applyWorld(at(queued, 'alina', 'parcel'), 'alina', take).ok, false);
     const progressed = advanceLife(queued, 24, ['alina']);
-    progressed.meals.omelette = 30;
+    progressed.meals.omelette = 18;
     progressed.pantry.eggs = 60;
     openServerFiles(dir).save(progressed);
     let state = openServerFiles(dir).load();
@@ -259,7 +259,7 @@ test('A paid delivery survives restart and a full fridge, then can be collected 
     state = at(state, 'alina', 'parcel');
     assert.equal(applyWorld(state, 'alina', take).ok, false);
     assert.equal(state.world.deliveries.length, 1);
-    state.meals.omelette = 28;
+    state.meals.omelette = 14;
     state = send(state, 'alina', take);
     assert.equal(state.pantry.milk, GROCERIES.milk.quantity);
     assert.equal(state.money, queued.money);

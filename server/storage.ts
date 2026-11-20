@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { initialState, points, type CharacterId, type CharacterState, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
+import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
@@ -47,6 +48,8 @@ const isValidState = (value: unknown): value is GameState => {
       return record && Number.isSafeInteger(record.day) && record.day >= 0 &&
         Number.isSafeInteger(record.cups) && record.cups >= 0 && record.cups <= COFFEE_CUPS_PER_DAY;
     }))) return false;
+  if (state.readyFood !== undefined && (!Array.isArray(state.readyFood) || state.readyFood.length > 180 ||
+    !state.readyFood.every(isReadyFoodBatch))) return false;
   const pantry = state.pantry as Record<string, unknown>;
   const meals = state.meals as Record<string, unknown> | undefined;
   if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
@@ -219,6 +222,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
         takeout: { ...EMPTY_TAKEOUT, ...data.takeout },
+        readyFood: data.readyFood ?? [],
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
@@ -230,12 +234,15 @@ export function openServerFiles(dataDir: string): ServerFiles {
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };
+      // The first load of a legacy save permanently records expiration dates.
+      // Merely reopening the file must never reset the countdown.
+      const migratedFood = reconcileReadyFood(household);
       if (data.billing === undefined) {
         // Keep the original household even after later rotating backups.
         const backup = join(dataDir, 'household.pre-billing.json');
         if (!existsSync(backup)) copyFileSync(statePath, backup);
-        this.save(household);
       }
+      if (data.billing === undefined || data.readyFood === undefined || migratedFood) this.save(household);
       return household;
     },
     save(state: GameState): void {

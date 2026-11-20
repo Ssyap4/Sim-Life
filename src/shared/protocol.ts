@@ -2,6 +2,7 @@ import { initialServices, type FamilyServices, type ServiceCommand } from './ser
 import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee';
+import type { ReadyFoodBatch } from './readyFood';
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
@@ -51,6 +52,7 @@ export interface GameState {
   pantry: Pantry;
   meals: CookedMeals;
   takeout: TakeoutStock;
+  readyFood: ReadyFoodBatch[];
   ledger: LedgerEntry[];
   shiftDays: Record<CharacterId, number>;
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
@@ -167,6 +169,7 @@ export type ServerPacket =
   | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
   | { type: 'world_event'; role: CharacterId; message: string }
   | { type: 'delivery_arrived' }
+  | { type: 'ready_food_spoiled'; message: string }
   | { type: 'billing_event'; messages: string[] }
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
   | { type: 'snapshot'; state: GameState }
@@ -190,7 +193,7 @@ export function initialState(): GameState {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
-    takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
+    takeout: { ...EMPTY_TAKEOUT }, readyFood: [], ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(),
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {

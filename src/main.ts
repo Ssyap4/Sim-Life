@@ -566,6 +566,9 @@ const net = new LiveConnection({
     phone.billingMessages(updates);
     notify(updates.length > 2 ? updates[0] + ' · ещё ' + (updates.length - 1) + ' в телефоне' : updates.join(' · '));
   },
+  onReadyFoodSpoiled(message) {
+    notify(message);
+  },
   onDeliveryArrived() {
     notify('Доставка у двери дома');
   },

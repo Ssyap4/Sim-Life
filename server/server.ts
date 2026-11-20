@@ -23,6 +23,7 @@ import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { createHomeSessions, usesHomeSession } from './homeSessions';
 import { gains } from './needs';
 import { advanceLife } from './life';
+import { expireReadyFood, readyFoodName } from '../src/shared/readyFood';
 import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
 import { recoverSleep } from './timeControl';
@@ -66,7 +67,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
   let state: GameState = files.load();
-  if (settleFamilyServices(state, false, false).length) {
+  const spoiledOnBoot = expireReadyFood(state);
+  const serviceUpdatesOnBoot = settleFamilyServices(state, false, false);
+  if (spoiledOnBoot.length || serviceUpdatesOnBoot.length) {
     state.revision++;
     files.save(state);
   }
@@ -209,6 +212,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
     const occupiedPets = new Set<PetId>();
@@ -226,6 +230,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
+    if (spoiled.length) {
+      const portions = spoiled.reduce((count,batch)=>count+batch.portions,0);
+      const samples = [...new Set(spoiled.map(batch=>readyFoodName(batch.kind,batch.item)))].slice(0,2);
+      all({ type: 'ready_food_spoiled', message: '🥀 Испортилась готовая еда: '+samples.join(', ')+
+        (spoiled.length>2?' и другое':'')+' · выброшено порций: '+portions });
+    }
     if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
     if (arrived) all({ type: 'delivery_arrived' });
     if (billingMessages.length) {

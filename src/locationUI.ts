@@ -1,7 +1,10 @@
 import { CAFE_MENU, PLACES, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
-import { GROCERY_DETAILS, storageUsage } from './shared/storageSpace';
+import { GROCERY_DETAILS, storageUsage, FRIDGE_CAPACITY } from './shared/storageSpace';
+import { READY_FOOD_SLOTS, readyFoodRemaining, readyFoodName, readyFoodTableUsage, TABLE_READY_CAPACITY,
+  type ReadyFoodBatch } from './shared/readyFood';
+import { MINUTES_PER_DAY } from './shared/life';
 import { formatRub } from './shared/economy';
 import type { CharacterId, GameState } from './shared/protocol';
 import type { World } from './game/World';
@@ -132,6 +135,45 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const amount = storageUsage(place);
       const capacity = kind === 'fridge' ? amount.fridge + '/36' : amount.cupboard + '/42';
       options.append(element('small', '', 'Занято ячеек: ' + capacity + ' · Выбери ингредиент'));
+      if (kind === 'fridge') {
+        options.append(element('strong', '', '🍲 Готовая еда'));
+        options.append(element('small', '', 'Каждая порция занимает ' + READY_FOOD_SLOTS +
+          ' ячейки. Срок — 2–3 игровых дня. Испорченные порции исчезают автоматически.'));
+        const groups = (location: 'fridge' | 'table') => {
+          const grouped = new Map<string, ReadyFoodBatch>();
+          for (const batch of place.readyFood) {
+            if (batch.storage !== location || batch.expiresAt <= now) continue;
+            const key = batch.kind + ':' + batch.item;
+            const current = grouped.get(key);
+            if (current) { current.portions += batch.portions; current.expiresAt = Math.min(current.expiresAt, batch.expiresAt); }
+            else grouped.set(key, { ...batch });
+          }
+          return [...grouped.values()].sort((a,b) => a.expiresAt - b.expiresAt);
+        };
+        const fridgeReady = groups('fridge');
+        if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
+        for (const batch of fridgeReady) {
+          const name = readyFoodName(batch.kind, batch.item);
+          options.append(element('small', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
+            ' · ' + batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
+          options.append(button('🗑️ Выбросить 1 порцию', () =>
+            send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'fridge' })));
+        }
+        const onTable = groups('table');
+        if (onTable.length) {
+          options.append(element('strong', '', '🍽️ Готовая еда на столе · ' +
+            readyFoodTableUsage(place) + '/' + TABLE_READY_CAPACITY));
+          for (const batch of onTable) {
+            options.append(element('small', '', readyFoodName(batch.kind, batch.item) + ' · ' +
+              batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
+            options.append(button('🧊 Убрать 1 порцию в холодильник', () =>
+              send({ type: 'ready_food_move', kind: batch.kind, item: batch.item }),
+              storageUsage(place).fridge + READY_FOOD_SLOTS > FRIDGE_CAPACITY));
+            options.append(button('🗑️ Выбросить 1 порцию со стола', () =>
+              send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'table' })));
+          }
+        }
+      }
       const ingredients = (Object.entries(place.pantry) as [IngredientId, number][])
         .filter(([id, qty]) => qty > 0 && GROCERY_DETAILS[id].area === kind);
       for (const [id, qty] of ingredients) options.append(button(
@@ -156,13 +198,26 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         const row = element('div', 'world-order');
         row.append(element('strong', '', (order.readyAt <= now ? 'У двери' : 'Едет · ' + (order.readyAt - now) + ' мин.') + ' · ' + formatRub(order.cost)),
           element('small', '', order.lines.map(line => marketProduct(line.id)!.name + ' ×' + line.quantity).join(', ')));
-        row.append(button('Забрать заказ', () => send({ type: 'delivery_claim', id: order.id }), order.readyAt > now));
+        const hasReady = order.lines.some(line => marketProduct(line.id)?.kind === 'takeout');
+        if (hasReady) {
+          if (now >= order.readyAt + 2 * MINUTES_PER_DAY)
+            row.append(element('small', '', '⚠️ Готовая еда испортилась у двери. Остальные продукты можно забрать.'));
+          else row.append(element('small', '', 'Выбери, куда положить готовые блюда. Срок годности не обновляется при переносе.'));
+          row.append(button('🧊 Забрать и убрать в холодильник', () =>
+            send({ type: 'delivery_claim', id: order.id, storage: 'fridge' }), order.readyAt > now));
+          row.append(button('🍽️ Забрать и оставить на столе', () =>
+            send({ type: 'delivery_claim', id: order.id, storage: 'table' }), order.readyAt > now));
+        } else row.append(button('Забрать заказ', () =>
+          send({ type: 'delivery_claim', id: order.id }), order.readyAt > now));
         options.append(row);
       }
     } else if (kind === 'unpack') {
       const count = place.world.tableBags;
       options.append(element('small', '', count ? 'На столе пакетов: ' + count + '. Продукты уже учтены в семейных запасах.' : 'На столе нет покупок.'));
       if (count) options.append(local('Разложить покупки', 'unpack'));
+      const readyOnTable = readyFoodTableUsage(place);
+      if (readyOnTable) options.append(element('small', '', '🍽️ Готовая еда на столе: ' + readyOnTable +
+        '/' + TABLE_READY_CAPACITY + ' порций. Убери в холодильник через его меню, пока еда свежая.'));
     } else if (kind === 'terminal' || kind === 'pickup') {
       const order = place.world.cafe[role];
       if (order) {

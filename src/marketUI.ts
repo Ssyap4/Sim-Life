@@ -8,6 +8,7 @@ import { PETS } from './shared/pets';
 import { GROCERY_DETAILS, TAKEOUT_DESCRIPTIONS, RECIPE_DESCRIPTIONS,
   FRIDGE_CAPACITY, CUPBOARD_CAPACITY, storageUsage, storageCanFit } from './shared/storageSpace';
 import type { GameState } from './shared/protocol';
+import { addReadyFood, readyFoodName, readyFoodRemaining, readyFoodTableUsage, TABLE_READY_CAPACITY } from './shared/readyFood';
 
 type Tab = 'shop' | 'stock' | 'ledger';
 type Filter = 'all' | MarketCategory;
@@ -43,18 +44,25 @@ export function createMarketUI(
   const cart = new Map<string, number>();
   function cartFit(id?:string,delta=0):boolean {
     if(!state)return false;
-    const simulated={pantry:{...state.pantry},meals:{...state.meals},takeout:{...state.takeout}};
     const choices=new Map(cart);
     if(id)choices.set(id,(choices.get(id)??0)+delta);
-    for(const [key,qty] of choices) {
-      if(qty<=0)continue;
-      const product=marketProduct(key);
-      if(!product)continue;
-      const amount=product.quantity*qty;
-      if(product.kind==='grocery')simulated.pantry[product.stockKey as keyof GameState['pantry']]+=amount;
-      if(product.kind==='takeout')simulated.takeout[product.stockKey as keyof GameState['takeout']]+=amount;
-    }
-    return storageCanFit(state,simulated).ok;
+    const fits=(storage:'fridge'|'table')=>{
+      const simulated={clock:state!.clock,pantry:{...state!.pantry},meals:{...state!.meals},
+        takeout:{...state!.takeout},readyFood:state!.readyFood.map(batch=>({...batch}))};
+      for(const [key,qty] of choices) {
+        if(qty<=0)continue;
+        const product=marketProduct(key);
+        if(!product)continue;
+        const amount=product.quantity*qty;
+        if(product.kind==='grocery')simulated.pantry[product.stockKey as keyof GameState['pantry']]+=amount;
+        if(product.kind==='takeout') {
+          simulated.takeout[product.stockKey as keyof GameState['takeout']]+=amount;
+          addReadyFood(simulated,'takeout',product.stockKey,amount,storage);
+        }
+      }
+      return storageCanFit(state!,simulated).ok;
+    };
+    return fits('fridge') || fits('table');
   }
   const close = () => { root.hidden = true; root.replaceChildren(); };
   function redraw(): void {
@@ -130,11 +138,15 @@ export function createMarketUI(
       const selected=[...cart.entries()].map(([id,quantity])=>({id,quantity}));
       const total=basketPrice(selected)+(selected.length ? DELIVERY_FEE : 0);
       const storageOkay=cartFit();
-      const after={pantry:{...state.pantry},meals:{...state.meals},takeout:{...state.takeout}};
+      const after={clock:state.clock,pantry:{...state.pantry},meals:{...state.meals},
+        takeout:{...state.takeout},readyFood:state.readyFood.map(batch=>({...batch}))};
       for(const line of selected){
         const product=marketProduct(line.id)!;
         if(product.kind==='grocery')after.pantry[product.stockKey as keyof GameState['pantry']]+=product.quantity*line.quantity;
-        if(product.kind==='takeout')after.takeout[product.stockKey as keyof GameState['takeout']]+=product.quantity*line.quantity;
+        if(product.kind==='takeout') {
+          after.takeout[product.stockKey as keyof GameState['takeout']]+=product.quantity*line.quantity;
+          addReadyFood(after,'takeout',product.stockKey,product.quantity*line.quantity,'table');
+        }
       }
       const capacity=storageUsage(after);
       const footer=el('div','market-checkout');
@@ -142,7 +154,8 @@ export function createMarketUI(
       amounts.append(el('strong','', 'Корзина: '+selected.reduce((n,l)=>n+l.quantity,0)+' уп. · '+formatRub(total)),
         el('small','', !storageOkay ? 'Недостаточно мест для заказа' :
           total>state.money ? 'Не хватает '+formatRub(total-state.money) : 'После покупки: '+formatRub(state.money-total)),
-        el('small','', '🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY));
+        el('small','', '🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY +
+          ' · 🍽️ стол ' + readyFoodTableUsage(after) + '/' + TABLE_READY_CAPACITY));
       const sendBtn=button('Оформить доставку',()=>{
         if (sendCheckout(selected)) {
           // Keep the basket until the server acknowledges an atomic purchase.
@@ -161,6 +174,12 @@ export function createMarketUI(
       for (const [id,p] of pantry) {
         scroll.append(el('div','market-stock-row',p.emoji+' '+p.name+' · '+state.pantry[id as keyof GameState['pantry']]+' '+p.unit+' · '+
           (GROCERY_DETAILS[id as keyof typeof GROCERY_DETAILS].area==='fridge'?'🧊':'🗄️')));
+      }
+      scroll.append(el('h3','market-subtitle','🍲 Готовая еда · срок 2–3 игровых дня'));
+      for(const batch of [...state.readyFood].sort((a,b)=>a.expiresAt-b.expiresAt)) {
+        scroll.append(el('div','market-stock-row',
+          (batch.kind==='meal'?'🍳 ':'🍕 ')+readyFoodName(batch.kind,batch.item)+' · '+batch.portions+
+          ' порц. · '+(batch.storage==='fridge'?'🧊 холодильник':'🍽️ стол')+' · '+readyFoodRemaining(batch.expiresAt,state.clock)));
       }
       scroll.append(el('h3','market-subtitle','🍳 Приготовлено дома'));
       const home=Object.entries(RECIPES).filter(([id])=>state!.meals[id as keyof GameState['meals']]>0);

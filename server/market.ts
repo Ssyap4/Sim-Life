@@ -2,6 +2,8 @@ import { type CharacterId, type GameState, names } from '../src/shared/protocol'
 import { type BasketLine, marketProduct } from '../src/shared/market';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { storageCanFit } from '../src/shared/storageSpace';
+import { addReadyFood, expireReadyFood, reconcileReadyFood, type ReadyFoodStorage } from '../src/shared/readyFood';
+import { gameMinutes } from '../src/shared/life';
 
 export type CheckoutResult =
   | { ok: true; state: GameState; message: string }
@@ -34,8 +36,11 @@ export function quoteCart(unknownLines: unknown): QuoteResult {
   return { ok: true, lines, cost, units };
 }
 
-export function grantCart(source: GameState, lines: BasketLine[]): CheckoutResult {
+export function grantCart(source: GameState, lines: BasketLine[], readyStorage: ReadyFoodStorage = 'fridge',
+  readyAt = gameMinutes(source.clock)): CheckoutResult {
   const next=structuredClone(source);
+  reconcileReadyFood(next);
+  expireReadyFood(next);
   // Validate and update a clone. No partial cart spending, even across categories.
   for (const line of lines) {
     const product=marketProduct(line.id)!;
@@ -48,6 +53,7 @@ export function grantCart(source: GameState, lines: BasketLine[]): CheckoutResul
       const key=product.stockKey as keyof GameState['takeout'];
       if (next.takeout[key]+delta>40) return {ok:false,reason:'Слишком много готовой еды: '+product.name};
       next.takeout[key]+=delta;
+      addReadyFood(next,'takeout',key,delta,readyStorage,readyAt);
     } else {
       const key=product.stockKey as keyof GameState['petFood'];
       if (next.petFood[key]+delta>24) return {ok:false,reason:'Запас корма заполнен: '+product.name};

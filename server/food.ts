@@ -2,6 +2,7 @@ import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type Ingred
 import { homeSeat } from '../src/shared/home';
 import { addLedger } from '../src/shared/economy';
 import { storageCanFit } from '../src/shared/storageSpace';
+import { addReadyFood, consumeReadyFood, expireReadyFood, reconcileReadyFood } from '../src/shared/readyFood';
 import { names, points, type CharacterId, type GameState } from '../src/shared/protocol';
 
 export type FoodCommand =
@@ -15,6 +16,8 @@ const owns = <T extends object>(record: T, key: string): key is Extract<keyof T,
 
 export function applyFoodAction(source: GameState, role: CharacterId, command: FoodCommand): FoodResult {
   const state = structuredClone(source);
+  reconcileReadyFood(state);
+  expireReadyFood(state);
   const actor = state.characters[role];
   let message: string;
   if (command.type === 'buy') {
@@ -44,6 +47,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (actor.energy < 4) return { ok: false, reason: 'Не хватает сил для готовки' };
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
+    addReadyFood(state,'meal',id,recipe.servings,'fridge');
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
     actor.energy = Math.max(0, actor.energy - 4);
@@ -56,7 +60,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     const id: RecipeId = command.recipe;
     const meal = RECIPES[id];
     if (state.meals[id] < 1) return { ok: false, reason: 'Готовых порций нет — сначала приготовь' };
-    state.meals[id] -= 1;
+    if (!consumeReadyFood(state,'meal',id)) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     actor.mood = Math.min(100, actor.mood + meal.mood);
     actor.comfort = Math.min(100, actor.comfort + 4);
@@ -71,10 +75,12 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
 export function applyTakeoutMeal(source: GameState, role: CharacterId, item: string): FoodResult {
   if (!Object.prototype.hasOwnProperty.call(TAKEOUT, item)) return {ok:false,reason:'Неизвестное готовое блюдо'};
   const id=item as TakeoutId;
-  if (!source.takeout[id]) return {ok:false,reason:'Готовой еды нет в запасе'};
   const state=structuredClone(source);
+  reconcileReadyFood(state);
+  expireReadyFood(state);
+  if (!state.takeout[id] || !consumeReadyFood(state,'takeout',id))
+    return {ok:false,reason:'Готовой еды нет или срок её годности истёк'};
   const meal=TAKEOUT[id];
-  state.takeout[id]-=1;
   const actor=state.characters[role];
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);

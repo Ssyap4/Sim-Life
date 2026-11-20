@@ -71,7 +71,7 @@ test('Immediate early leave pays zero; exhaustion and invalid IDs are rejected',
 test('Refrigerator holds 36 food cells; consuming a portion frees room for groceries',()=>{
  const state=initialState();
  state.pantry={...EMPTY_PANTRY};state.meals={...EMPTY_MEALS};state.takeout={...EMPTY_TAKEOUT};
- state.money=30000;state.meals.omelette=FRIDGE_CAPACITY;
+ state.money=30000;state.meals.omelette=FRIDGE_CAPACITY/2;
  assert.equal(storageUsage(state).fridge,FRIDGE_CAPACITY);
  assert.equal(checkout(state,'vlad',[{id:'grocery:milk',quantity:1}]).ok,false);
  assert.equal(applyFoodAction(state,'vlad',{type:'buy',item:'milk'}).ok,false);
@@ -80,8 +80,8 @@ test('Refrigerator holds 36 food cells; consuming a portion frees room for groce
  assert.equal(ate.ok,true);if(!ate.ok)return;
  const bought=checkout(ate.state,'vlad',[{id:'grocery:milk',quantity:1}]);
  assert.equal(bought.ok,true);if(!bought.ok)return;
- assert.equal(storageUsage(bought.state).fridge,FRIDGE_CAPACITY);
- const eggs=structuredClone(ate.state);eggs.meals.omelette=0;eggs.pantry.eggs=10;
+ assert.equal(storageUsage(bought.state).fridge,FRIDGE_CAPACITY-1);
+ const eggs=structuredClone(ate.state);eggs.meals.omelette=0;eggs.readyFood=[];eggs.pantry.eggs=10;
  assert.equal(storageUsage(eggs).fridge,1);
  assert.ok(CUPBOARD_CAPACITY>=40);
 });

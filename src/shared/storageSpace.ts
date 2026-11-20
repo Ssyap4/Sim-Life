@@ -1,5 +1,6 @@
-import { GROCERIES, TAKEOUT, type IngredientId, type RecipeId, type TakeoutId } from './food';
+import { GROCERIES, type IngredientId, type RecipeId, type TakeoutId } from './food';
 import type { Pantry, CookedMeals, TakeoutStock } from './food';
+import { READY_FOOD_SLOTS, TABLE_READY_CAPACITY, readyFoodTableUsage, type ReadyFoodBatch } from './readyFood';
 
 export const FRIDGE_CAPACITY = 36;  // simulated food-container slots; upgrade path: furniture later
 export const CUPBOARD_CAPACITY = 42; // dry-goods shelf slots
@@ -88,7 +89,7 @@ export const HOME_OBJECT_DETAILS = {
   yardTable:'Здесь подаются готовые блюда с гриля.',
   delivery:'Магазин продуктов, готовых блюд и корма для питомцев. Покупки проверяются общим семейным бюджетом.',
 } as const;
-export function storageUsage(s:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock}):{fridge:number;cupboard:number} {
+export function storageUsage(s:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock;readyFood?:ReadyFoodBatch[]}):{fridge:number;cupboard:number} {
   let fridge=0,cupboard=0;
   for(const [id,p] of Object.entries(GROCERIES) as Array<[IngredientId,(typeof GROCERIES)[IngredientId]]>) {
     const count=s.pantry[id];
@@ -96,19 +97,28 @@ export function storageUsage(s:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutS
     if(GROCERY_DETAILS[id].area==='fridge')fridge+=slots;
     else cupboard+=slots;
   }
-  // One cooked serving uses one food box. Restaurant takeaway is grouped in its original order box.
-  for(const count of Object.values(s.meals))fridge+=count;
-  for(const [id,p] of Object.entries(TAKEOUT) as Array<[TakeoutId,(typeof TAKEOUT)[TakeoutId]]>) {
-    fridge+=Math.ceil(s.takeout[id]/p.quantity);
+  // Each prepared or delivered portion uses two cells; food left on the table
+  // consumes table space instead. Backfill any pre-update stock without batches.
+  const accountedMeals:Record<string,number>={};
+  const accountedTakeout:Record<string,number>={};
+  for (const batch of s.readyFood??[]) {
+    const accounted=batch.kind==='meal'?accountedMeals:accountedTakeout;
+    accounted[batch.item]=(accounted[batch.item]??0)+batch.portions;
+    if(batch.storage==='fridge') fridge+=batch.portions*READY_FOOD_SLOTS;
   }
+  for(const [id,count] of Object.entries(s.meals)) fridge+=Math.max(0,count-(accountedMeals[id]??0))*READY_FOOD_SLOTS;
+  for(const [id,count] of Object.entries(s.takeout)) fridge+=Math.max(0,count-(accountedTakeout[id]??0))*READY_FOOD_SLOTS;
   return {fridge,cupboard};
 }
-export function storageCanFit(before:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock},
-  after:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock}):{ok:true}|{ok:false;reason:string} {
+export function storageCanFit(before:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock;readyFood?:ReadyFoodBatch[]},
+  after:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock;readyFood?:ReadyFoodBatch[]}):{ok:true}|{ok:false;reason:string} {
   const old=storageUsage(before),next=storageUsage(after);
   if(next.fridge>FRIDGE_CAPACITY && next.fridge>old.fridge)
     return {ok:false,reason:'В холодильнике нет места: '+next.fridge+'/'+FRIDGE_CAPACITY+' ячеек'};
   if(next.cupboard>CUPBOARD_CAPACITY && next.cupboard>old.cupboard)
     return {ok:false,reason:'Кухонные полки заполнены: '+next.cupboard+'/'+CUPBOARD_CAPACITY+' ячеек'};
+  const prevTable=readyFoodTableUsage(before),newTable=readyFoodTableUsage(after);
+  if(newTable>TABLE_READY_CAPACITY && newTable>prevTable)
+    return {ok:false,reason:'На столе недостаточно места для готовой еды: '+newTable+'/'+TABLE_READY_CAPACITY+' порций'};
   return {ok:true};
 }
