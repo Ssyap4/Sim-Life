@@ -972,6 +972,8 @@ export class Actor {
     // contact point, following the animated head/chest and their real scale.
     // The same code works with lightweight fallback and Blender skin rigs.
     if (idleTouch > 0.002 && this.idleGesture) {
+      const reachBlend = Math.min(1, idleTouch * alpha * 7.4);
+      const handBlend = Math.min(1, idleTouch * alpha * 4.3);
       let contactHand: 0 | 1 | null = null;
       if (this.idleGesture === 'think') {
         // Right fingertips near chin, safely in front of the face.
@@ -984,20 +986,25 @@ export class Actor {
           0.019 + 0.124 * sweep, 0.144 - 0.031 * sweep));
         contactHand = 0;
       } else if (this.idleGesture === 'adjustSleeve') {
-        // The opposite sleeve follows the *actual* elbow bone regardless
-        // of model proportions or which rig (Blender/fallback) is active.
+        // Present the left cuff in front of the chest, then briefly tug it
+        // with the other hand. Both targets are within reachable distance
+        // of the shoulders on both Blender and fallback models.
         const tug = Math.sin(this.idleGestureTime * 8.3) ** 2;
-        data.elbows[0].localToWorld(this.target.set(0,
-          0.065 + .012 * tug, 0.062));
-        contactHand = 1;
+        data.chest.localToWorld(this.target.set(-0.13, 1.21, 0.29));
+        this.reach(0, this.target, reachBlend);
+        this.aimHand(0, this.handDirection.set(0, 0.20, -1)
+          .applyAxisAngle(up, this.root.rotation.y), handBlend);
+        data.chest.localToWorld(this.target.set(-0.085, 1.225 + .017 * tug, 0.337));
+        this.reach(1, this.target, reachBlend);
+        this.aimHand(1, this.handDirection.set(-0.15, 0.0, -1)
+          .applyAxisAngle(up, this.root.rotation.y), handBlend);
       }
       if (contactHand !== null) {
-        const reachBlend = Math.min(1, idleTouch * alpha * 7.4);
         this.reach(contactHand, this.target, reachBlend);
         this.aimHand(contactHand,
           this.handDirection.set(contactHand === 0 ? -0.18 : 0.11,
             -0.18, -1).applyAxisAngle(up, this.root.rotation.y),
-          Math.min(1, idleTouch * alpha * 4.3));
+          handBlend);
       }
     }
     if (counter) {

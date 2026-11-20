@@ -128,7 +128,7 @@ test('Contact gestures have anticipation, sustained touch and a smooth release',
   assert.equal(residentIdleTouchWeight(3.8), 0);
 });
 
-test('Three reaching habits move a physical wrist toward head or sleeve bones', () => {
+test('Three reaching habits move a physical wrist toward head or cuff targets', () => {
   const cases: Array<['vlad' | 'alina', ResidentIdleGesture, 0 | 1]> = [
     ['vlad', 'think', 1],
     ['alina', 'fixHair', 0],
@@ -144,7 +144,7 @@ test('Three reaching habits move a physical wrist toward head or sleeve bones', 
       needReactionCooldown: number;
       rig: {
         head: { localToWorld: (v: Vector3) => Vector3 };
-        elbows: [{ localToWorld: (v: Vector3) => Vector3 }, { localToWorld: (v: Vector3) => Vector3 }];
+        chest: { localToWorld: (v: Vector3) => Vector3 };
         wrists: [{ getWorldPosition: (v: Vector3) => Vector3 }, { getWorldPosition: (v: Vector3) => Vector3 }];
       };
     };
@@ -158,9 +158,15 @@ test('Three reaching habits move a physical wrist toward head or sleeve bones', 
       ? motion.rig.head.localToWorld(new Vector3(.108, -.151, .180))
       : kind === 'fixHair'
         ? motion.rig.head.localToWorld(new Vector3(-.165, .105, .123))
-        : motion.rig.elbows[0].localToWorld(new Vector3(0, .072, .062));
-    assert.ok(wrist.distanceTo(touch) < .27,
+        : motion.rig.chest.localToWorld(new Vector3(-.085, 1.225, .337));
+    assert.ok(wrist.distanceTo(touch) < .20,
       kind + ': hand should approach its real rig target, not float beside the body');
+    if (kind === 'adjustSleeve') {
+      const cuff = motion.rig.wrists[0].getWorldPosition(new Vector3());
+      const cuffTarget = motion.rig.chest.localToWorld(new Vector3(-.13, 1.21, .29));
+      assert.ok(cuff.distanceTo(cuffTarget) < .20,
+        'left cuff must be held in front of the torso, not behind the back');
+    }
     assert.equal(actor.root.position.x, 2);
     assert.equal(actor.root.position.z, 3);
     assert.equal(actor.currentIdleGesture(), kind);
