@@ -10,6 +10,7 @@ import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
+import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -393,17 +394,25 @@ export class World {
   }
 
   performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
-    return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
-      action === 'cook' ? 'idle' : 'sit', () => {
+    if (action === 'cook') {
+      return this.perform(id, 'kitchen', 'idle', () => {
         if (!current()) return;
         const actor = this.actors[id];
-        if (action === 'cook') {
-          actor.faceTowards(cookingPan);
-        }
-        if (action === 'eat') this.showMeal(id, HOME_PLACEMENTS.table.x + (id === 'vlad' ? .40 : -.40),
-          DINING_TOP + .014, HOME_PLACEMENTS.table.z);
-        actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
+        actor.faceTowards(cookingPan);
+        actor.playActivity('cook', cookingPan);
       });
+    }
+    // Use each person's *own* seat and approach. The old shared table marker
+    // placed two co-op players at the same navigation position.
+    const seat = homeSeat('table', id);
+    return this.walkTo(id, seat.approach, () => {
+      if (!current()) return;
+      const actor = this.actors[id];
+      actor.setFurniturePose('sit', new THREE.Vector3().copy(seat.position), seat.yaw);
+      const plateX = seat.position.x + (id === 'vlad' ? -.59 : .59);
+      this.showMeal(id, plateX, DINING_TOP + .014, seat.position.z);
+      actor.playActivity('eat');
+    });
   }
 
   private bathroomPose(role: CharacterId, item: BathFixture, command: TimedCommand): void {
@@ -852,8 +861,12 @@ export class World {
   private showMeal(role: CharacterId, x: number, y: number, z: number, grilled?: RecipeId): void {
     const meal = this.meals.get(role)!;
     meal.position.set(x, y, z);
-    meal.getObjectByName('Indoor serving')!.visible = !grilled;
+    // Reused plates reset for every serving, including after a cancelled meal.
+    const indoor = meal.getObjectByName('Indoor serving')!;
+    indoor.scale.set(.22, .072, .20);
+    indoor.visible = !grilled;
     const food = meal.getObjectByName('Grilled serving')!;
+    food.scale.setScalar(1);
     food.visible = grilled !== undefined;
     if (grilled) selectGrilledFood(food, grilled);
     meal.visible = true;
@@ -1150,6 +1163,15 @@ export class World {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
       actor.update(dt, this.steering[id]);
+      // The ceramic plate stays while its food gets smaller with each bite.
+      // Inventory is only consumed by the server after the timed task finishes.
+      const elapsed = actor.eatingElapsed();
+      const plate = this.meals.get(id)!;
+      if (plate.visible && elapsed !== null) {
+        const scale = mealServingScale(elapsed);
+        plate.getObjectByName('Indoor serving')!.scale.set(.22 * scale, .072 * scale, .20 * scale);
+        plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
+      }
       if (this.bags[id].visible) this.followBag(this.bags[id], actor);
     }
     if (this.place === 'home') {

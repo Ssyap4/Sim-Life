@@ -64,7 +64,8 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     actor.mood = Math.min(100, actor.mood + meal.mood);
     actor.comfort = Math.min(100, actor.comfort + 4);
-    Object.assign(actor, { ...(isGrillRecipe(id) ? homeSeat('yardTable', role).approach : points.table), pose: 'sit' as const });
+    Object.assign(actor, { ...homeSeat(isGrillRecipe(id) ? 'yardTable' : 'table', role).approach,
+      pose: 'sit' as const });
     message = names[role] + ': поел(а) ' + meal.name;
   }
   state.revision += 1;
@@ -85,7 +86,7 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);
   actor.comfort=Math.min(100,actor.comfort+4);
-  Object.assign(actor,{...points.table,pose:'sit' as const});
+  Object.assign(actor,{...homeSeat('table',role).approach,pose:'sit' as const});
   state.revision++;
   return {ok:true,state,message:names[role]+': поел(а) '+meal.name};
 }

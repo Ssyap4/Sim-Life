@@ -16,7 +16,8 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
-import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
+import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
+  type HomeLeisure } from '../src/shared/home';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
@@ -340,7 +341,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
-        : plan.command.type === 'cook' ? points.kitchen : points.table;
+        : plan.command.type === 'cook' ? points.kitchen
+        : homeSeat('table', role).approach;
     const position = state.characters[role];
     const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,
       position.z - destination.z) * 1200 + 4200);

@@ -7,6 +7,7 @@ import { activityProps } from './ActivityProps';
 import { finish, orb } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
+import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
 
@@ -174,6 +175,8 @@ export class Actor {
     this.poseOffset.copy(local);
     this.keys = keys;
   }
+
+  eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 
   playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3): void {
     // World has already placed the actor at the visual station.
@@ -410,12 +413,17 @@ export class Actor {
           rightZ = 0.43 + Math.cos(a * 5) * 0.053;
           break;
         case 'eat': {
-          const swallow = a % 2.21;
-          bite = THREE.MathUtils.smoothstep(swallow, 0.19, 0.92) *
-            (1 - THREE.MathUtils.smoothstep(swallow, 1.12, 1.70));
-          rightY = THREE.MathUtils.lerp(-0.37, 0.14, bite);
-          rightZ = THREE.MathUtils.lerp(0.41, 0.13, bite);
-          gaze = 0.11 + bite * 0.15;
+          // Pick up a portion, bring it to the mouth, chew and rest between bites.
+          // Each resident eats at a slightly different rhythm.
+          const meal = mealGesture(a, this.id);
+          bite = meal.lift;
+          rightY = THREE.MathUtils.lerp(-0.40, 0.145, bite);
+          rightZ = THREE.MathUtils.lerp(0.36, 0.12, bite);
+          leftY = -0.43 + meal.settle * 0.025;
+          leftZ = 0.30 + meal.settle * 0.018;
+          gaze = .15 + .11 * bite - .035 * meal.chew + meal.glance;
+          lean = .045 + .013 * meal.chew;
+          expression = .065 + meal.chew * .095;
           break;
         }
         case 'wash':
