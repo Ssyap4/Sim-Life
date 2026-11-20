@@ -7,7 +7,7 @@ import { approachFor, floorFor, placeObstacles, stationById } from '../src/share
 import { points, type CharacterId, type GameState, type ServerPacket, type TimedCommand } from '../src/shared/protocol';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import type { StudyMaterial } from '../src/shared/education';
-import { MATERIAL_BY_ID, studyQuestions } from '../src/shared/educationCatalog';
+import { MATERIAL_BY_ID, studyQuestion, studyQuestions } from '../src/shared/educationCatalog';
 import { answerMatches, awardActivity, completeStudy, saveBookMinutes, studyDenial, studyMinutes } from './education';
 import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
@@ -212,7 +212,8 @@ export function createHomeSessions(hooks: Hooks) {
     const profile = hooks.state().education.characters[roles[0]];
     const study = material && { material, start: 0, previous: profile.studied[material.id]?.minutes ?? 0,
       minutes: studyMinutes(profile, material),
-      questions: studyQuestions(material, profile.enrollments[material.id]?.attended), correct: 0, lastAnswer: 0 };
+      questions: studyQuestions(material, profile.enrollments[material.id]?.attended ??
+        profile.studied[material.id]?.completions ?? 0), correct: 0, lastAnswer: 0 };
     const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs) * hooks.timeScale));
     const participants: Participant[] = [];
     for (const role of roles) {
@@ -284,12 +285,15 @@ export function createHomeSessions(hooks: Hooks) {
     if (study.correct === study.questions.length) return;
     if (Date.now() - study.lastAnswer < 900) return;
     study.lastAnswer = Date.now();
-    const correct = answerMatches(study.questions[study.correct], choice);
+    const current = study.questions[study.correct];
+    const correct = answerMatches(current, choice);
+    const insight = studyQuestion(current)?.explanation ?? study.material.description;
     if (correct) study.correct++;
     const question = study.questions[study.correct];
     hooks.send(socket, { type: 'education_feedback', taskId: taskId as number, correct, question,
-      message: correct ? question ? 'Верно. Следующий вопрос' : 'Верно. Задание зачтено после занятия'
-        : 'Ответ не подходит. ' + study.material.description });
+      message: correct
+        ? (question ? 'Верно! ' : 'Все задания решены. ') + insight
+        : 'Пока неверно. Разбор: ' + insight });
     if (study.material.channel === 'exam' && !correct)
       end(session, 'failed', 'Аттестация пока не сдана. Повтори тему и попробуй ещё раз');
   }

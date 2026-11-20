@@ -1,5 +1,5 @@
 import {
-  CLASS_WINDOW, SKILLS, SKILL_IDS, educationalXP, missingKnowledge, nextClassSlots, rankTitle, repeatFactor, skillRank, talent,
+  CLASS_WINDOW, SKILLS, SKILL_IDS, educationalXP, materialRepeatFactor, missingKnowledge, nextClassSlots, rankTitle, skillRank, talent,
   type EducationCommand, type EducationProfile, type LearningChannel, type SkillId, type StudyMaterial,
 } from './shared/education';
 import { COURSE_STAGES, EDUCATION_GOALS, GOAL_NAMES, MATERIALS, MATERIAL_BY_ID, PROGRAMS, SKILL_GOALS,
@@ -181,7 +181,10 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
       section.append(picker);
       if (page === 'academy' && !hasInternet)
         section.append(node('p', 'Для занятий в Академии нужен оплаченный домашний интернет.', 'education-feedback'));
-      const items = MATERIALS.filter(item => item.channel === page && item.skill === skill &&
+      const archived = [...MATERIAL_BY_ID.values()].filter(item => item.retired && item.channel === page &&
+        item.skill === skill && (state.education.licenses.includes(item.id) ||
+          Boolean(profile.studied[item.id]?.completions || profile.studied[item.id]?.minutes)));
+      const items = [...MATERIALS, ...archived].filter(item => item.channel === page && item.skill === skill &&
         (!selectedRoom || item.station === selectedRoom || selectedRoom === 'reception'));
       for (const item of items) section.append(materialCard(item, profile, state, role, selected.level, now, send, !hasInternet));
       if (!items.length) section.append(node('p', 'В этой зоне выбери другое направление или открой расписание всех курсов.'));
@@ -204,11 +207,11 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
       ? Math.round(item.xp * (1 + talent(role, item.skill) / 100)) : educationalXP(item, role, profile);
     const card = node('article', '', 'education-card');
     card.dataset.material = item.id;
-    card.append(node('h3', item.title), node('p', item.description),
+    card.append(node('h3', item.title + (item.retired ? ' · Архив' : '')), node('p', item.description),
       node('small', (item.author ? item.author + ' · ' : '') + 'Уровни ' + item.min + '–' +
         (exam ? 20 : item.max - 1) + ' · ' + item.minutes + ' игровых мин' + (exam ? '' : ' · +' + xp + ' XP')));
     if (record?.completions && !course && !exam) card.append(node('small', 'Завершено: ' + record.completions +
-      ' · следующее повторение ' + Math.round(100 * repeatFactor(record.completions)) + '%'));
+      ' · следующее повторение ' + Math.round(100 * materialRepeatFactor(item, record.completions)) + '%'));
     if (record?.minutes) card.append(node('small', 'Сохранено ' + Math.round(record.minutes / item.minutes * 100) + '%'),
       bar(record.minutes, item.minutes));
     if (item.channel === 'book' && record?.completions) card.append(node('small', '✓ Изучено'));

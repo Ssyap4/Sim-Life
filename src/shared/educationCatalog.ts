@@ -1,4 +1,5 @@
 import { SKILL_IDS, SKILLS, type KnowledgeRequirement, type LearningChannel, type SkillId, type StudyMaterial } from './education';
+import { CHALLENGES } from './educationChallenges';
 
 type Topic = [name: string, description: string, prompt: string, choices: [string, string, string]];
 export const TOPICS: Record<SkillId, Topic[]> = {
@@ -77,7 +78,9 @@ const xp = [69, 158, 285, 480, 750];
 // substantially more efficient, while independent free paths remain available.
 const pacedMinutes = (channel: LearningChannel, base: number, price: number) =>
   Math.round(base * (channel === 'center' ? 2.5 : channel === 'exam' ? 2 : price ? 8 : 12));
+// Hidden legacy entries remain loadable so older purchases and bookmarks survive.
 const materials: StudyMaterial[] = [];
+const archivedMaterials: StudyMaterial[] = [];
 
 for (const [index, skill] of SKILL_IDS.entries()) {
   for (const [tier, [topic, description]] of TOPICS[skill].entries()) {
@@ -85,19 +88,20 @@ for (const [index, skill] of SKILL_IDS.entries()) {
     const base = { skill, min, max, description };
     const question = skill + ':' + tier;
     const entry = (channel: LearningChannel, title: string, minutes: number, points: number, price = 0,
-      details: Partial<StudyMaterial> = {}) => materials.push({
+      details: Partial<StudyMaterial> = {}, retired = false) => (retired ? archivedMaterials : materials).push({
       ...base, channel, title, minutes: pacedMinutes(channel, minutes, price), xp: Math.round(points * xp[tier]), price,
+      ...(retired ? { retired: true } : {}),
       id: channel + ':' + question + (price && channel !== 'center' ? ':plus' : ''), ...details,
     });
     entry('tv', series[index] + ' · ' + topic, 8 + tier * 2, .78, 0, { series: series[index] });
     entry('tv', series[index] + ' · Разбор «' + topic + '»', 8 + tier, 1.22, 420 + tier * 660, { series: series[index] });
-    entry('book', topic + ' · Самоучитель', 15 + tier * 4, 1.13, 0, { author: authors[index] });
-    entry('book', topic + ' · Сборник разборов', 15 + tier * 3, 1.63, 560 + tier * 920, { author: authors[index] });
+    entry('book', topic + ' · Самоучитель', 15 + tier * 4, 1.13, 0, { author: authors[index] }, tier >= 2);
+    entry('book', topic + ' · Сборник разборов', 15 + tier * 3, 1.63, 560 + tier * 920, { author: authors[index] }, tier < 2);
     entry('academy', 'Урок · ' + topic, 9 + tier * 2, 1.05, 0, { question });
     entry('academy', 'Проект · ' + topic, 9 + tier * 2, 1.63, 950 + tier * 1550, { question });
-    entry('practice', 'Практикум · ' + topic, 9 + tier * 2, .86, 0, { question });
+    entry('practice', 'Практикум · ' + topic, 9 + tier * 2, .86, 0, { question }, true);
     entry('practice', 'Тренировка решения · ' + topic, 14 + tier * 2, 1.18, 0,
-      { id: 'practice:' + question + ':drill', question, description: 'Разбери задачу и проверь решение по шагам. ' + description });
+      { id: 'practice:' + question + ':drill', question, description: 'Разбери задачу и проверь решение по шагам. ' + description }, true);
     entry('practice', 'Самостоятельный проект · ' + topic, 20 + tier * 3, 1.45, 0,
       { id: 'practice:' + question + ':project', question, description: 'Примени тему к самостоятельной работе и сверь ключевой результат. ' + description });
     entry('center', 'Потенциал · ' + topic, 14 + tier * 3, 1.90, [5200, 8500, 15500, 33000, 54000][tier],
@@ -130,7 +134,10 @@ for (const [program, spec] of Object.entries(PROGRAMS)) {
     channel: 'academy', skill, min: 4, max: 8, minutes: pacedMinutes('academy', 11, 2700), xp: 150, price: 2700, question: skill + ':1', program });
 }
 export const MATERIALS: readonly StudyMaterial[] = materials;
-export const MATERIAL_BY_ID: ReadonlyMap<string, StudyMaterial> = new Map(materials.map(item => [item.id, item]));
+export const MATERIAL_BY_ID: ReadonlyMap<string, StudyMaterial> =
+  new Map([...archivedMaterials, ...materials].map(item => [item.id, item]));
+export const ACTIVE_MATERIAL_COUNT = materials.length;
+export const ARCHIVED_MATERIAL_COUNT = archivedMaterials.length;
 export const EDUCATION_GOALS = ['first-book', 'skill-5', 'first-program', 'first-course', 'first-certificate', 'three-skills', 'expert'] as const;
 export const SKILL_GOAL_LEVELS = [5, 10, 15, 20] as const;
 export const SKILL_GOALS = new Map(SKILL_IDS.flatMap(skill => SKILL_GOAL_LEVELS.map(level =>
@@ -141,18 +148,34 @@ export const GOAL_NAMES: Record<string, string> = {
   'three-skills': 'Развить три навыка до уровня 5', expert: 'Достичь уровня эксперта',
   ...Object.fromEntries([...SKILL_GOALS].map(([id, { skill, level }]) => [id, SKILLS[skill][1] + ' · достичь ' + level + ' уровня'])),
 };
+// Each skill has five themes and four different checks per theme.
+const originalAnswers = [0, 1, 2, 0, 1] as const;
 export function studyQuestion(id: string) {
-  const [skill, tier] = id.split(':');
-  const row = TOPICS[skill as SkillId]?.[Number(tier)];
-  return row ? { prompt: row[2], choices: row[3] } : undefined;
+  const [skill, tierRaw, variantRaw = '0'] = id.split(':');
+  const tier = Number(tierRaw), variant = Number(variantRaw);
+  if (!SKILL_IDS.includes(skill as SkillId) || !Number.isInteger(tier) || tier < 0 || tier >= 5 ||
+      !Number.isInteger(variant) || variant < 0 || variant > 3) return undefined;
+  const row = TOPICS[skill as SkillId][tier];
+  if (variant === 0) return { prompt: row[2], choices: row[3], answer: originalAnswers[tier],
+    explanation: row[1] };
+  const caseStudy = CHALLENGES[skill as SkillId]?.[tier]?.[variant - 1];
+  return caseStudy ? { prompt: caseStudy[0], choices: caseStudy[1],
+    answer: caseStudy[2], explanation: caseStudy[3] } : undefined;
 }
+export const studyAnswer = (id: string) => studyQuestion(id)?.answer;
 export const COURSE_STAGES = ['Теория и вводный случай', 'Практика под руководством', 'Итоговая работа'] as const;
 export function studyQuestions(item: StudyMaterial, lesson = 0): string[] {
   if (!item.question) return [];
-  if (item.channel === 'exam') return [1, 2, 3].map(tier => item.skill + ':' + tier);
+  const key = item.question;
+  if (item.channel === 'exam') return [`${item.skill}:2:1`, `${item.skill}:3:2`, `${item.skill}:4:3`];
   if (item.channel === 'center') {
-    const tier = Math.floor(item.min / 4);
-    return [item.skill + ':' + (lesson === 0 ? tier : lesson === 1 ? (tier + 1) % 5 : (tier + 4) % 5)];
+    if (lesson === 0) return [key + ':0', key + ':1'];
+    if (lesson === 1) return [key + ':1', key + ':2'];
+    return [key + ':2', key + ':3'];
   }
-  return [item.question];
+  if (item.channel === 'practice')
+    return Array.from({ length: 3 }, (_, index) => key + ':' + ((lesson + index + 1) % 4));
+  if (item.channel === 'academy')
+    return item.price ? [key + ':2', key + ':3'] : [key + ':0', key + ':1'];
+  return [];
 }

@@ -36,7 +36,7 @@ export type LearningChannel = 'tv' | 'book' | 'academy' | 'practice' | 'center' 
 export type StudyMaterial = {
   id: string; title: string; description: string; skill: SkillId; channel: LearningChannel;
   min: number; max: number; minutes: number; xp: number; price: number;
-  question?: string; author?: string; secondary?: SkillId; series?: string;
+  question?: string; author?: string; secondary?: SkillId; series?: string; retired?: boolean;
   station?: 'classroom' | 'lab' | 'workshop'; sessions?: number; program?: string; certificate?: string;
 };
 
@@ -73,11 +73,16 @@ export type EducationCommand =
 
 export const REPEAT_FACTORS: readonly number[] = [1, .30, .10];
 export const repeatFactor = (completions: number) => REPEAT_FACTORS[completions] ?? 0;
+export const materialRepeatFactor = (material: StudyMaterial, completions: number) =>
+  // Practical work stays a slower, viable free path within its current tier.
+  // Television, books and paid courses stop granting XP after three runs.
+  material.channel === 'practice' ? ([1, .60, .35, .20][completions] ?? .15) : repeatFactor(completions);
 export function educationalXP(material: StudyMaterial, role: CharacterId, profile: EducationProfile) {
   const level = skillRank(profile.xp[material.skill]).level;
   if (level < material.min || level >= material.max) return 0;
-  const factor = repeatFactor(profile.studied[material.id]?.completions ?? 0);
-  return Math.round(material.xp * factor * (1 + talent(role, material.skill) / 100));
+  const repetitions = profile.studied[material.id]?.completions ?? 0;
+  return Math.round(material.xp * materialRepeatFactor(material, repetitions) *
+    (1 + talent(role, material.skill) / 100));
 }
 
 export type KnowledgeRequirement = {

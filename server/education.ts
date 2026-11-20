@@ -3,7 +3,7 @@ import {
   maximumXP, missingKnowledge, nextClassSlots, repeatFactor, skillRank, talent,
   type EducationProfile, type EducationState, type SkillId, type StudyMaterial,
 } from '../src/shared/education';
-import { GOAL_NAMES, MATERIAL_BY_ID, PROGRAMS, SKILL_GOALS } from '../src/shared/educationCatalog';
+import { GOAL_NAMES, MATERIAL_BY_ID, PROGRAMS, SKILL_GOALS, studyAnswer } from '../src/shared/educationCatalog';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { gameMinutes } from '../src/shared/life';
 import { serviceAvailable } from '../src/shared/services';
@@ -11,8 +11,7 @@ import { BOOKS, type BookId } from '../src/shared/homeLife';
 import type { CharacterId, GameState, TimedCommand } from '../src/shared/protocol';
 
 const xpLogLimit = 60;
-const ANSWERS = [0, 1, 2, 0, 1];
-export const answerMatches = (id: string, choice: number) => ANSWERS[Number(id.split(':')[1])] === choice;
+export const answerMatches = (id: string, choice: number) => studyAnswer(id) === choice;
 
 export function educationEvent(profile: EducationProfile, at: number, title: string,
   milestone = false, skill?: SkillId, xp?: number): void {
@@ -54,6 +53,9 @@ function grant(profile: EducationProfile, id: SkillId, value: number, label: str
 export function studyDenial(state: GameState, role: CharacterId, material: StudyMaterial, now: number): string | undefined {
   const profile = profileOf(state, role);
   const center = material.channel === 'center' || material.channel === 'exam';
+  if (material.retired && !state.education.licenses.includes(material.id) &&
+      !profile.studied[material.id]?.completions && !profile.studied[material.id]?.minutes)
+    return 'Материал перенесён в архив и более не доступен для первого изучения';
   if (state.world.places[role] !== (center ? 'education' : 'home'))
     return center ? 'Занятие проходит в центре «Потенциал»' : 'Это занятие проходит дома';
   if (skillRank(profile.xp[material.skill]).level < material.min)
@@ -151,6 +153,8 @@ export function applyEducation(source: GameState, role: CharacterId, command: Re
   }
   const item = MATERIAL_BY_ID.get(id);
   if (!item) return fail('Учебный материал не найден');
+  if (item.retired && command.type === 'education_buy')
+    return fail('Материал в архиве и больше не продаётся');
   const enrollment = profile.enrollments[id];
   const course = item.channel === 'center';
   const exam = item.channel === 'exam';

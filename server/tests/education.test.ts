@@ -239,10 +239,14 @@ test('Two live players resume a book and submit a real academy exercise with sep
     assert.ok(resumed.durationMs < original.durationMs);
     await vlad.take('task_active', p => p.taskId === resumed.taskId);
     await alina.take('task_active', p => p.taskId === quiz.taskId);
+    for (const [index, question] of studyQuestions(exercise).entries()) {
+      if (index) await new Promise(resolve => setTimeout(resolve, 920));
+      const choice = [0, 1, 2].find(i => answerMatches(question, i));
+      assert.notEqual(choice, undefined);
+      alina.send({ type: 'education_answer', taskId: quiz.taskId, choice });
+      assert.ok((await alina.take('education_feedback')).correct);
+    }
     const correct = [0, 1, 2].find(i => answerMatches(quiz.home!.question!, i));
-    assert.notEqual(correct, undefined);
-    alina.send({ type: 'education_answer', taskId: quiz.taskId, choice: correct });
-    assert.ok((await alina.take('education_feedback')).correct);
     // Scale the fake-clock jump to the actual curriculum duration, not a fixed short lesson.
     now += Math.ceil(Math.max(book.minutes, exercise.minutes) / .5 * .06 * 1000) + 1000;
     await vlad.take('task_ended', p => p.taskId === resumed.taskId && p.outcome === 'completed');
@@ -284,9 +288,12 @@ test('Two learners attend the same classroom; a self-taught player earns a certi
     assert.notDeepEqual(classVlad.home?.route.path.at(-1), classAlina.home?.route.path.at(-1));
     for (const [client, task] of [[vlad, classVlad], [alina, classAlina]] as const) {
       await client.take('task_active', p => p.taskId === task.taskId);
-      client.send({ type: 'education_answer', taskId: task.taskId,
-        choice: [0, 1, 2].find(i => answerMatches(task.home!.question!, i)) });
-      assert.ok((await client.take('education_feedback')).correct);
+      for (const [index, question] of studyQuestions(course, 0).entries()) {
+        if (index) await new Promise(resolve => setTimeout(resolve, 920));
+        client.send({ type: 'education_answer', taskId: task.taskId,
+          choice: [0, 1, 2].find(i => answerMatches(question, i)) });
+        assert.ok((await client.take('education_feedback')).correct);
+      }
     }
     now += 6_000;
     await vlad.take('task_ended', p => p.taskId === classVlad.taskId && p.outcome === 'completed');
