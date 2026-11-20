@@ -46,7 +46,7 @@ test('Two simultaneous purchases update shared money exactly twice and reject fa
     assert.equal(vMessage.type, 'snapshot');
     assert.equal(aMessage.type, 'snapshot');
     if (vMessage.type === 'snapshot' && aMessage.type === 'snapshot') {
-      assert.equal(vMessage.state.money, 2500 - GROCERIES.eggs.price * 2);
+      assert.equal(vMessage.state.money, 10000 - GROCERIES.eggs.price * 2);
       assert.equal(vMessage.state.pantry.eggs, 4 + GROCERIES.eggs.quantity * 2);
       assert.deepEqual(vMessage.state, aMessage.state);
     }

@@ -87,6 +87,7 @@ test('Both residents can save in the yard and walk back through the house thresh
 test('A paid store basket changes the shared pantry once and unpacking never grants a second copy', () => {
   const cart = { type: 'store_pay', sequence: 0, lines: [{ id: 'grocery:milk', quantity: 1 }] };
   let state = initialState();
+  state.money = 2500; // Intentionally verify a low-budget case.
   assert.equal(applyWorld(state, 'vlad', cart).ok, false);
   state = travel(state, 'vlad', 'market');
   assert.equal(state.world.places.alina, 'home');
@@ -191,7 +192,7 @@ test('Two cafe orders, a shared table and one leash retain independent state', (
     s = at(travel(s, role, 'cafe'), role, 'terminal');
     s = send(s, role, { type: 'cafe_order', item: 'cappuccino', sequence: 0 });
   }
-  assert.equal(s.money, 2500 - CAFE_MENU.cappuccino.price * 2);
+  assert.equal(s.money, 10000 - CAFE_MENU.cappuccino.price * 2);
   s = advanceLife(s, 3, ['vlad', 'alina']);
   for (const role of ['vlad', 'alina'] as const) {
     s = send(at(s, role, 'pickup'), role, { type: 'cafe_pickup' });

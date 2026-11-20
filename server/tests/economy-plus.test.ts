@@ -33,7 +33,7 @@ test('Each shift persists until the scheduled game time and pays once within its
    const job=JOBS[id],assignment=start.state.activeShifts.vlad!;
    assert.ok(assignment.hours>=job.hoursMin&&assignment.hours<=job.hoursMax);
    assert.equal(assignment.endsAt-assignment.startedAt,assignment.hours*60);
-   assert.equal(start.state.money,2500);
+   assert.equal(start.state.money,10000);
    assert.equal(beginShift(start.state,'vlad',id).ok,false);
    const before=structuredClone(start.state);
    const early=assignment.endsAt-1;
@@ -45,7 +45,7 @@ test('Each shift persists until the scheduled game time and pays once within its
    assert.equal(settled.completed.length,1);
    const rub=settled.completed[0].payment;
    assert.ok(Number.isInteger(rub)&&rub>=job.payMin&&rub<=job.payMax);
-   assert.equal(settled.state.money,2500+rub);
+   assert.equal(settled.state.money,10000+rub);
    assert.equal(settled.state.activeShifts.vlad,undefined);
    assert.equal(settled.state.ledger.length,1);
    assert.equal(settleCompletedShifts(settled.state).completed.length,0);
@@ -62,7 +62,7 @@ test('Immediate early leave pays zero; exhaustion and invalid IDs are rejected',
  assert.equal(start.ok,true);if(!start.ok)return;
  const canceled=leaveShiftEarly(start.state,'alina');
  assert.equal(canceled.ok,true);if(!canceled.ok)return;
- assert.equal(canceled.state.money,2500);
+ assert.equal(canceled.state.money,10000);
  assert.deepEqual(canceled.state.activeShifts,{});
  assert.equal(canceled.state.ledger.length,0);
  assert.equal(leaveShiftEarly(canceled.state,'alina').ok,false);

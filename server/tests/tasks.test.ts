@@ -84,7 +84,7 @@ test('The desk is exclusive, cancellation grants no reward, and another player c
     const [sv, sa] = await Promise.all([snapV, snapA]);
     assert.deepEqual(sv, sa);
     if (sv.type === 'snapshot') {
-      assert.equal(sv.state.money, 2500);
+      assert.equal(sv.state.money, 10000);
       assert.equal(sv.state.characters.alina.skill, 11);
       assert.equal(sv.state.revision, 1);
     }
@@ -104,12 +104,12 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
     await completed;
     const done = await snap;
     if (done.type === 'snapshot') {
-      assert.equal(done.state.money, 2500);
+      assert.equal(done.state.money, 10000);
       assert.equal(done.state.characters.vlad.skill, 5);
       assert.equal(done.state.ledger.length, 0);
     }
     const saved = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-    assert.deepEqual([saved.money, saved.revision], [2500, 1]);
+    assert.deepEqual([saved.money, saved.revision], [10000, 1]);
     ctx.vlad.terminate();
     ctx.alina.terminate();
     await ctx.server.close();
@@ -118,7 +118,7 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
       const after = await enter(restored.port, 'vlad', ctx.keys.vlad);
       after.close();
       const persisted = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-      assert.deepEqual([persisted.money, persisted.revision], [2500, 1]);
+      assert.deepEqual([persisted.money, persisted.revision], [10000, 1]);
     } finally { await restored.close(); }
   } finally {
     if (ctx.server.httpServer.listening) await clean(ctx);
@@ -148,7 +148,7 @@ test('Kitchen tasks lock the stove while the other player can care for a pet', a
     const [v, a] = await Promise.all([finalV, finalA]);
     assert.deepEqual(v, a);
     if (v.type === 'snapshot') {
-      assert.equal(v.state.money, 2405);
+      assert.equal(v.state.money, 9905);
       assert.equal(v.state.pantry.eggs, 2);
       assert.equal(v.state.pantry.milk, 0);
       assert.equal(v.state.meals.omelette, 2);
@@ -320,7 +320,7 @@ test('All twelve books reach the shelf and a physical seat before completion', a
     assert.equal(state.characters.vlad.fun,100);
     assert.equal(state.characters.vlad.comfort,100);
     assert.equal(state.revision,12);
-    assert.equal(state.money,2500);
+    assert.equal(state.money,10000);
     assert.equal(state.pantry.eggs,4);
   } finally {await clean(ctx);}
 });

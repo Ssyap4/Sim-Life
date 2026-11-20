@@ -64,7 +64,7 @@ test('Two live clients can shop and cook in different places, reconnect at the s
     vlad.send(pay);
     vlad.send(pay);
     const shared = await alina.next('snapshot', p => p.state.pantry.milk === GROCERIES.milk.quantity);
-    assert.equal(shared.state.money, 2500 - GROCERIES.milk.price);
+    assert.equal(shared.state.money, 10000 - GROCERIES.milk.price);
     await vlad.next('error', p => p.reason.includes('уже обработана'));
     alina.send({ type: 'cook', recipe: 'omelette' });
     await vlad.next('task_started', p => p.role === 'alina' && p.command.type === 'cook');

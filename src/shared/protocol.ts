@@ -175,7 +175,7 @@ export type ServerPacket =
 
 export function initialState(): GameState {
   return {
-    version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 2500,
+    version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
     billing: initialServices((INITIAL_CLOCK.day - 1) * 1440 + INITIAL_CLOCK.minute),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},

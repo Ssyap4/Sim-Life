@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import WebSocket, { type RawData } from 'ws';
 import { startServer } from '../server';
+import { openServerFiles } from '../storage';
 import type { CharacterId, ServerPacket } from '../../src/shared/protocol';
 
 function next(ws: WebSocket, predicate: (p:ServerPacket)=>boolean):Promise<ServerPacket> {
@@ -29,6 +30,10 @@ async function connect(port:number,role:CharacterId,code:string):Promise<WebSock
 }
 test('Two clients receive a shared shop checkout; failed second purchase cannot overspend or create stock',async()=>{
   const dir=mkdtempSync(join(tmpdir(),'sim-life-cart-'));
+  const files=openServerFiles(dir);
+  const sample=files.load();
+  sample.money=2500; // Exercise double-spend prevention under a small budget.
+  files.save(sample);
   const server=await startServer({port:0,dataDir:dir,taskTimeScale:0.03});
   const sockets:WebSocket[]=[];
   try {

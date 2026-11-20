@@ -44,7 +44,7 @@ test('Two players see long-term job status; reconnect keeps the shift; cancel pa
   assert.equal(snap.type,'snapshot');
   if(snap.type==='snapshot'){
     assert.ok(snap.state.activeShifts.vlad!.hours>=14&&snap.state.activeShifts.vlad!.hours<=16);
-    assert.equal(snap.state.money,2500);
+    assert.equal(snap.state.money,10000);
   }
   const refused=next(v,m=>m.type==='error');
   v.send(JSON.stringify({type:'checkout',lines:[{id:'grocery:milk',quantity:1}]}));
@@ -59,7 +59,7 @@ test('Two players see long-term job status; reconnect keeps the shift; cancel pa
   await assigned;
   const saved=JSON.parse(readFileSync(join(dir,'household.json'),'utf8'));
   assert.equal(saved.activeShifts.vlad,undefined);
-  assert.equal(saved.money,2500);
+  assert.equal(saved.money,10000);
   assert.equal(saved.ledger.length,0);
  } finally {
   sockets.forEach(s=>s.terminate());

@@ -32,12 +32,12 @@ test('Fair partial wages: 4h/5h/6h of 15h at Ozon pay 1033/1292/1550 rubles',()=
     if(res){
       assert.equal(res.completed.length,1);
       assert.equal(res.completed[0].payment,expected);
-      assert.equal(res.state.money,2500+expected);
+      assert.equal(res.state.money,10000+expected);
     }
     if(early){
       assert.equal(early.ok,true);
       if(!early.ok)continue;
-      assert.equal(early.state.money,2500+expected);
+      assert.equal(early.state.money,10000+expected);
       assert.equal(early.state.ledger.length,1);
       assert.match(early.state.ledger[0].label,/досрочный уход/);
       assert.equal(early.state.activeShifts.vlad,undefined);
@@ -78,7 +78,7 @@ test('An older active shift without rolled salary still gets a stable pro-rated 
   const result=leaveShiftEarly(base,'vlad');
   assert.equal(result.ok,true);
   if(!result.ok)return;
-  assert.equal(result.state.money,2500+Math.round(one/3));
+  assert.equal(result.state.money,10000+Math.round(one/3));
 });
 test('Leaving immediately pays zero but uses the day, while tomorrow offers work again',()=>{
   const base=beginShift(initialState(),'vlad','courier');
@@ -87,7 +87,7 @@ test('Leaving immediately pays zero but uses the day, while tomorrow offers work
   const result=leaveShiftEarly(base.state,'vlad');
   assert.equal(result.ok,true);
   if(!result.ok)return;
-  assert.equal(result.state.money,2500);
+  assert.equal(result.state.money,10000);
   assert.equal(result.state.ledger.length,0);
   assert.equal(beginShift(result.state,'vlad','courier').ok,false);
   const tomorrow=structuredClone(result.state);
