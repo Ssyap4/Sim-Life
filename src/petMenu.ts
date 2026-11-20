@@ -1,5 +1,5 @@
 import {
-  PETS, PET_IDS, PET_ACTION_NAMES, type PetId, type PetAction,
+  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petHungerLevel, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
 
@@ -18,7 +18,9 @@ export function renderPetChoices(
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pet-tab' + (selected === id ? ' selected' : '');
-    button.textContent = pet.emoji + ' ' + pet.name;
+    const hunger = petHungerLevel(state.pets[id].satiety);
+    button.textContent = pet.emoji + ' ' + pet.name + (hunger === 'critical' ? ' ❗' : hunger === 'warning' ? ' ⚠️' : '');
+    button.title = 'Сытость: ' + Math.round(state.pets[id].satiety) + '%';
     button.addEventListener('click', () => choose(id));
     tabs.appendChild(button);
   }
@@ -28,8 +30,21 @@ export function renderPetChoices(
   const stats = state.pets[selected];
   const description = document.createElement('p');
   description.className = 'pet-note';
-  description.textContent = pet.species + ' · корм: ' + state.petFood[selected] + ' порций';
+  description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
+    ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const hungerLevel = petHungerLevel(stats.satiety);
+  if (hungerLevel !== 'normal') {
+    const hungry = document.createElement('p');
+    hungry.className = 'pet-note';
+    hungry.setAttribute('role','status');
+    hungry.textContent = (hungerLevel === 'critical' ? '❗ Критический голод' : '⚠️ Проголодался') +
+      ' · сытость ' + Math.round(stats.satiety) + '%.' +
+      (state.petBowls[selected] === 0
+        ? ' Миска пуста: насыпь корм, чтобы ' + pet.name + ' смог поесть.'
+        : ' В миске есть корм: ' + pet.name + ' сможет самостоятельно поесть.');
+    container.appendChild(hungry);
+  }
 
   const status = document.createElement('div');
   status.className = 'pet-status';
@@ -59,8 +74,8 @@ export function renderPetChoices(
   const actions: Array<{ action: PetAction; icon: string; hint: string; disabled: boolean }> = [
     {
       action: 'feed', icon: '🥣',
-      hint: '1 порция корма · сытость +27',
-      disabled: state.petFood[selected] < 1,
+      hint: '−1 насыпание из пачки · +3 порции в миску · питомец ест сам при сытости <20%',
+      disabled: state.petFood[selected] < 1 || state.petBowls[selected] > 0,
     },
     {
       action: 'play', icon: '🎾',
@@ -71,8 +86,8 @@ export function renderPetChoices(
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
     {
       action: 'buyFood', icon: '🛍️',
-      hint: pet.foodName + ' · ' + pet.foodPrice + ' ₽ за ' + pet.foodAmount + ' порции',
-      disabled: state.money < pet.foodPrice || state.petFood[selected] > 24 - pet.foodAmount,
+      hint: pet.foodName + ' · ' + pet.foodPrice + ' ₽ за 10 насыпаний (30 порций)',
+      disabled: state.money < pet.foodPrice || state.petFood[selected] > PET_FOOD_MAX_REFILLS - pet.foodAmount,
     },
   ];
   for (const row of actions) {

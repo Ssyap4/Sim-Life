@@ -2,6 +2,7 @@ import { type CharacterId, type GameState, names } from '../src/shared/protocol'
 import { type BasketLine, marketProduct } from '../src/shared/market';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { storageCanFit } from '../src/shared/storageSpace';
+import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
 import { addReadyFood, expireReadyFood, reconcileReadyFood, type ReadyFoodStorage } from '../src/shared/readyFood';
 import { gameMinutes } from '../src/shared/life';
 
@@ -56,7 +57,7 @@ export function grantCart(source: GameState, lines: BasketLine[], readyStorage: 
       addReadyFood(next,'takeout',key,delta,readyStorage,readyAt);
     } else {
       const key=product.stockKey as keyof GameState['petFood'];
-      if (next.petFood[key]+delta>24) return {ok:false,reason:'Запас корма заполнен: '+product.name};
+      if (next.petFood[key]+delta>PET_FOOD_MAX_REFILLS) return {ok:false,reason:'Запас корма заполнен: '+product.name};
       next.petFood[key]+=delta;
     }
   }

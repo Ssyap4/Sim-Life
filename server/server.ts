@@ -324,7 +324,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const resource = routine.activity === 'computer' ? 'desk' : 'pet:' + routine.activity;
       if (resource === plan.resource) stopLeisure(resident);
     }
-    if (plan.command.type === 'pet_action' && state.pets[plan.command.pet].routine) {
+    // Filling the bowl must not interrupt a pet that is walking to eat.
+    if (plan.command.type === 'pet_action' && plan.command.action !== 'feed' &&
+        state.pets[plan.command.pet].routine) {
       pausePetRoutine(state, plan.command.pet, liveGameTime());
       state.revision++;
       all({ type: 'snapshot', state });
@@ -337,7 +339,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
         : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
-      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet) ?? state.characters[role]
+      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen : points.table;
     const position = state.characters[role];
     const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,

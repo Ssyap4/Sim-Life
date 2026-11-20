@@ -1,6 +1,8 @@
 import { pointIsClear, segmentIsClear, type FloorPoint, type FloorRect } from './navigation';
 
-export const RESIDENT_CLEARANCE = .62;
+// Keep visible shoulders, arms and gait away from the other resident;
+// .62 m was barely the static torso width and let animated meshes intersect.
+export const RESIDENT_CLEARANCE = .82;
 const clearanceSquared = RESIDENT_CLEARANCE ** 2;
 const passes = [.97, 1.45, 1.86, 2.37].map(angle => [Math.cos(angle), Math.sin(angle)] as const);
 
@@ -33,8 +35,8 @@ export function residentStep(from: FloorPoint, desired: FloorPoint, body: FloorP
 export function unoccupiedDestination(target: FloorPoint, body: FloorPoint,
   obstacles: readonly FloorRect[], floor: FloorRect): FloorPoint | undefined {
   if (Math.hypot(target.x - body.x, target.z - body.z) >= RESIDENT_CLEARANCE) return target;
-  for (const distance of [.32, .46, .635]) for (let i = 0; i < 16; i++) {
-    const angle = i * Math.PI / 8;
+  for (const distance of [.42, .64, .84, 1.04, 1.28, 1.52]) for (let i = 0; i < 24; i++) {
+    const angle = i * Math.PI / 12;
     const point = { x: target.x + distance * Math.cos(angle), z: target.z + distance * Math.sin(angle) };
     if (Math.hypot(point.x - body.x, point.z - body.z) >= RESIDENT_CLEARANCE && pointIsClear(point, obstacles, floor)) return point;
   }

@@ -22,13 +22,14 @@ test('Two pets have separate care supplies; buying, feeding and bonding keep mon
   assert.equal(purchase.ok, true);
   if (!purchase.ok) return;
   assert.equal(purchase.state.money, 9350);
-  assert.equal(purchase.state.petFood.verdell, 3);
+  assert.equal(purchase.state.petFood.verdell, 10);
   assert.equal(purchase.state.petFood.simba, 2);
   const feeding = applyPetAction(purchase.state, 'alina', 'verdell', 'feed');
   assert.equal(feeding.ok, true);
   if (!feeding.ok) return;
-  assert.equal(feeding.state.petFood.verdell, 2);
-  assert.equal(feeding.state.pets.verdell.satiety, 72);
+  assert.equal(feeding.state.petFood.verdell, 9);
+  assert.equal(feeding.state.petBowls.verdell, 3);
+  assert.equal(feeding.state.pets.verdell.satiety, 45, 'pouring into the bowl must not feed the dog instantly');
   assert.equal(feeding.state.pets.simba.satiety, original.pets.simba.satiety);
 
   const play = applyPetAction(feeding.state, 'vlad', 'verdell', 'play');
@@ -109,7 +110,7 @@ test('Care actions from Vlad and Alina synchronize as a single shared pet family
     assert.equal(vs.type, 'snapshot');
     if (vs.type === 'snapshot') {
       assert.equal(vs.state.money, 9350);
-      assert.equal(vs.state.petFood.verdell, 5);
+      assert.equal(vs.state.petFood.verdell, 12);
       assert.equal(vs.state.pets.simba.bond, 38);
       assert.equal(vs.state.characters.alina.mood, 84);
     }

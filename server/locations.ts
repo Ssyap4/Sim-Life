@@ -46,7 +46,10 @@ export function validWorld(value: unknown): value is WorldState {
 function at(source: GameState, role: CharacterId, station: Station | undefined): boolean {
   if (!station) return false;
   const { x, z } = approachFor(station, role);
-  return Math.hypot(x - source.characters[role].x, z - source.characters[role].z) < 0.64;
+  // The shared checkout has a wide counter; two people need to stand next to
+  // each other instead of occupying exactly the same interaction tile.
+  const reach = station.id === 'checkout' ? 0.94 : 0.64;
+  return Math.hypot(x - source.characters[role].x, z - source.characters[role].z) < reach;
 }
 
 export function setDogParkPosition(state: GameState): void {
