@@ -6,13 +6,13 @@ import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
 import { finish, orb } from './ArtKit';
 import type { FloorPoint } from './navigation';
+import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
 export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
-const stancePortion = 0.60;
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
 const up = THREE.Object3D.DEFAULT_UP;
@@ -302,7 +302,7 @@ export class Actor {
     const walking = this.waypoints.length > 0 && traveled > 0;
     const alpha = 1 - Math.exp(-dt * 11);
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend, walking ? 1 : 0, alpha);
-    const strideLength = this.id === 'vlad' ? 1.43 : 1.31;
+    const strideLength = walkStrideLength(this.id);
     this.gait = (this.gait + traveled / strideLength) % 1;
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
@@ -323,8 +323,9 @@ export class Actor {
     // Settle the arm swing near arrival without changing the stride or route.
     const settling = this.waypoints.length === 1 && next
       ? THREE.MathUtils.smoothstep(this.root.position.distanceTo(next), 0.02, 0.45) : 1;
-    const speedBob = 0.010 * (1 - Math.cos(stridePhase * 2));
-    const stanceDrop = motion * (.116 - speedBob);
+    // Upright walking: very small, soft pelvis displacement instead of a
+    // permanent 12 cm squat. Knee reach is solved with shorter foot arcs.
+    const stanceDrop = walkPelvisDrop(this.gait, motion);
     const data = this.rig;
     const armA = this.leftArm, armB = this.rightArm;
     let leftY = -data.upperArm - data.lowerArm + 0.018;
@@ -581,22 +582,17 @@ export class Actor {
         upper.rotation.x = THREE.MathUtils.lerp(upper.rotation.x, thigh + i * 0.06, alpha);
         knee.rotation.x = THREE.MathUtils.lerp(knee.rotation.x, 0.16 - thigh - i * 0.065, alpha);
       } else {
-        const phase = (this.gait + i * 0.5) % 1;
-        const swing = phase > stancePortion;
-        const travel = swing ? (phase - stancePortion) / (1 - stancePortion) : phase / stancePortion;
-        const lift = swing ? Math.sin(travel * Math.PI) ** 1.55 * .126 : 0;
-        const step = swing ? THREE.MathUtils.smoothstep(travel, 0, 1) * 2 - 1 : 1 - 2 * travel;
-        // The stance ankle compensates for the body bob. Only the swing
-        // phase lifts the sole off the floor and pitches it into the step.
-        const y = -data.thighLength - data.shinLength + stanceDrop + motion * lift + this.crouchBlend;
-        toePitch = swing ? -.23 * motion * Math.sin(travel * Math.PI * 2) : 0;
-        const z = step * motion * strideLength * stancePortion / 2 + 0.08 * this.crouchBlend;
-        const legBlend = THREE.MathUtils.lerp(alpha, 1, motion);
-        this.bend(upper, knee, data.thighLength, data.shinLength, y, z, 1, legBlend);
+        const foot = walkFootTarget(this.gait, i as 0 | 1,
+          data.thighLength + data.shinLength, strideLength, motion, stanceDrop, this.crouchBlend);
+        toePitch = foot.toePitch;
+        // Frame-rate independent damping: do not snap legs between poses.
+        const legBlend = 1 - Math.exp(-dt * (12 + 15 * motion));
+        this.bend(upper, knee, data.thighLength, data.shinLength, foot.y, foot.z, 1, legBlend);
       }
       const ankle = data.ankles[i];
       ankle.rotation.x = THREE.MathUtils.lerp(ankle.rotation.x,
-        asleep ? -0.10 : toePitch - upper.rotation.x - knee.rotation.x, THREE.MathUtils.lerp(alpha, 1, motion));
+        asleep ? -0.10 : toePitch - upper.rotation.x - knee.rotation.x,
+        1 - Math.exp(-dt * (12 + 15 * motion)));
     }
 
     const idleLook = seated || asleep || this.activity || this.gesture ? 0 : Math.sin(t * 0.53) ** 7;
@@ -618,8 +614,8 @@ export class Actor {
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031;
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
-    data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.076, alpha);
-    data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y, motion * 0.092 * Math.cos(stridePhase), alpha);
+    data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.025, alpha);
+    data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y, motion * 0.055 * Math.cos(stridePhase), alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z, 0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase), alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
     data.chest.position.y = (1 - Math.cos(data.chest.rotation.x)) * data.waistY + 0.006 * breath;
