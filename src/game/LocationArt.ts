@@ -11,7 +11,6 @@ export function part(parent: THREE.Object3D, size: XYZ, position: XYZ, color: nu
   const mesh = new THREE.Mesh(geometry, finish(color, surface));
   mesh.scale.set(...size);
   mesh.position.set(...position);
-  mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
 }
