@@ -14,6 +14,8 @@ import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import { PET_PERSON_CLEARANCE, petGap, separatePetBodies,
+  separatePetFromFixed } from './PetTraffic';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
@@ -1308,8 +1310,44 @@ export class World {
         });
       }
     }
-    if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
-    if (this.pets.simba.root.visible) this.pets.simba.update(dt);
+    const cat = this.pets.simba;
+    const petTraffic = this.place === 'home' && dog.root.visible && cat.root.visible;
+    if (petTraffic) {
+      const people = (['vlad', 'alina'] as const).filter(role =>
+        this.actors[role].root.visible && !this.sleepingOffline.has(role) &&
+        this.household?.characters[role].pose !== 'sleep').map(role => {
+        const body = this.actors[role].bodyPosition(this.otherBody);
+        return { x: body.x, z: body.z };
+      });
+      const geometry = { obstacles: this.obstacles, floor: HOME_FLOOR };
+      // The dog and cat use the *visible* coordinates of each other, plus
+      // the people nearby, rather than waiting for the next server snapshot.
+      dog.update(dt, this.dogTravel, pace, {
+        ...geometry, blockers: [cat.root.position, ...people],
+      });
+      cat.update(dt, 0, 0, {
+        ...geometry, blockers: [dog.root.position, ...people],
+      });
+      let dogPosition: Point = { x: dog.root.position.x, z: dog.root.position.z };
+      let catPosition: Point = { x: cat.root.position.x, z: cat.root.position.z };
+      // A saved overlapping position or two simultaneous arrivals must not
+      // remain interpenetrating, even if no movement command is in progress.
+      for (let pass = 0; pass < 3; pass++) {
+        for (const person of people) {
+          if (petGap(dogPosition, person) < PET_PERSON_CLEARANCE)
+            dogPosition = separatePetFromFixed(dogPosition, person, this.obstacles, HOME_FLOOR);
+          if (petGap(catPosition, person) < PET_PERSON_CLEARANCE)
+            catPosition = separatePetFromFixed(catPosition, person, this.obstacles, HOME_FLOOR);
+        }
+        [dogPosition, catPosition] = separatePetBodies(
+          dogPosition, catPosition, this.obstacles, HOME_FLOOR);
+      }
+      dog.root.position.set(dogPosition.x, 0, dogPosition.z);
+      cat.root.position.set(catPosition.x, 0, catPosition.z);
+    } else {
+      if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
+      if (cat.root.visible) cat.update(dt);
+    }
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
       const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
       door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);

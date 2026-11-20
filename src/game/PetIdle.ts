@@ -14,7 +14,8 @@ export const PET_IDLE_SECONDS = 3.4;
 
 /** Only picks a client-side animation. Never drives navigation, needs, or food. */
 export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): PetIdleGesture {
-  if (state.satiety < 25 && state.bowl === 0) return 'hungryLook';
+  if (state.satiety < 25 && state.bowl === 0)
+    return turn % 3 === 2 ? (id === 'simba' ? 'groom' : 'sniff') : 'hungryLook';
   if (state.energy < 27 && turn % 3 === 0) return 'stretch';
   if (id === 'verdell') {
     if (state.personNearby && state.happiness >= 43 && turn % 3 !== 2) return 'greet';
