@@ -45,6 +45,8 @@ const homePosition = new THREE.Vector3(15, 19, 22);
 const locationTarget = new THREE.Vector3(0, 1.45, 0);
 const portraitAspect = 390 / 844;
 const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
+const tapSlop = 9;
+const minTwistSpanSquared = 16 ** 2;
 
 type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
@@ -88,7 +90,6 @@ export class World {
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
   private lastFrame = performance.now();
-  private downPoint: (Point & { id: number }) | null = null;
   private socialSequence = 0;
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
@@ -127,6 +128,8 @@ export class World {
     this.controls.target.set(0, 1.0, 1.8);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
+    this.controls.touches.ONE = THREE.TOUCH.PAN;
+    this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     this.controls.enablePan = true;
     this.controls.maxTargetRadius = 13;
     this.controls.minDistance = 10;
@@ -184,22 +187,68 @@ export class World {
     this.served = serving;
     this.setActive('vlad');
 
-    canvas.addEventListener('pointerdown', (ev) => {
-      this.downPoint = ev.isPrimary && ev.button === 0 && !this.downPoint
-        ? { x: ev.clientX, z: ev.clientY, id: ev.pointerId } : null;
-    });
-    canvas.addEventListener('pointerup', (ev) => {
-      if (this.downPoint?.id === ev.pointerId &&
-          Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
-        this.pick(ev.clientX, ev.clientY);
-      }
-      this.downPoint = null;
-    });
-    canvas.addEventListener('pointercancel', () => { this.downPoint = null; });
+    this.bindCanvasInput();
     window.addEventListener('resize', () => this.refreshViewport());
     this.compactPortrait.addEventListener('change', () => this.refreshViewport());
     this.refreshViewport();
     this.animate();
+  }
+
+  private bindCanvasInput(): void {
+    const touches = new Map<number, { x: number; y: number }>();
+    let tap: { id: number; x: number; y: number } | null = null;
+    const tapDistance = (event: PointerEvent, start: { x: number; y: number }) =>
+      Math.hypot(event.clientX - start.x, event.clientY - start.y);
+
+    this.canvas.addEventListener('pointerdown', event => {
+      const touch = event.pointerType === 'touch';
+      if (touch) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (event.isPrimary) {
+        // Enable touch panning in every location while keeping the mouse controls for the current scene.
+        this.controls.enablePan = touch || this.place === 'home';
+        this.controls.dampingFactor = touch ? .22 : .065;
+      }
+      tap = event.isPrimary && event.button === 0 && touches.size === (touch ? 1 : 0)
+        ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+    }, { capture: true });
+
+    this.canvas.addEventListener('pointermove', event => {
+      const point = touches.get(event.pointerId);
+      if (tap?.id === event.pointerId) {
+        if (tapDistance(event, tap) >= tapSlop) tap = null;
+        else if (point) {
+          // Let a tap absorb small finger movements before OrbitControls starts panning.
+          event.stopPropagation();
+          return;
+        }
+      }
+      if (!point) return;
+      if (touches.size === 2) {
+        const [first, second] = touches.values();
+        const other = first === point ? second : first;
+        const ax = point.x - other.x, ay = point.y - other.y;
+        const bx = event.clientX - other.x, by = event.clientY - other.y;
+        // OrbitControls handles the two-finger drag and pinch. Also honor a twist in place.
+        if (ax * ax + ay * ay >= minTwistSpanSquared && bx * bx + by * by >= minTwistSpanSquared) {
+          const angle = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+          if (angle) this.controls.rotateLeft(-angle);
+        }
+      }
+      point.x = event.clientX;
+      point.y = event.clientY;
+    });
+
+    const clearPointer = (event: PointerEvent) => {
+      touches.delete(event.pointerId);
+      if (tap?.id === event.pointerId) tap = null;
+    };
+    this.canvas.addEventListener('pointerup', event => {
+      const picked = tap?.id === event.pointerId && tapDistance(event, tap) < tapSlop;
+      clearPointer(event);
+      if (picked) this.pick(event.clientX, event.clientY);
+    });
+    this.canvas.addEventListener('pointercancel', clearPointer);
+    this.canvas.addEventListener('lostpointercapture', clearPointer);
   }
 
   setActive(id: CharacterId): void {
