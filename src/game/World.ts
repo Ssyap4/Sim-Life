@@ -975,6 +975,8 @@ export class World {
     if (changed) this.switchPlace(place);
     this.setTimeOfDay(state.clock.minute);
     for (const id of ['vlad', 'alina'] as const) {
+      // Both clients animate from the same authoritative household needs.
+      this.actors[id].setNeeds(state.characters[id]);
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
       const sleep = offline && place === 'home' && !state.activeShifts[id];
