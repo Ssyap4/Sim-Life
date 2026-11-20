@@ -9,7 +9,7 @@ export type JobResult = {ok:true;state:GameState;message:string}|{ok:false;reaso
 /** Starts one persistent shift per paid game day. A whole-shift salary is rolled only once. */
 export function beginShift(source:GameState,role:CharacterId,id:unknown):JobResult {
   if(!isJobId(id))return {ok:false,reason:'Неизвестная подработка'};
-  if(source.activeShifts[role])return {ok:false,reason:'Сначала закончи текущую смену'};
+  if(source.activeShifts[role]||source.careers.residents[role].shift)return {ok:false,reason:'Сначала закончи текущую смену'};
   if(source.shiftDays[role]===source.clock.day)return {ok:false,reason:'Смена на сегодня уже отработана'};
   const resident=source.characters[role];
   if(resident.energy<25)return {ok:false,reason:'Для длинной смены нужно хотя бы 25% энергии'};

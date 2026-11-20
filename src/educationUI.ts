@@ -53,6 +53,7 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
   let skill: SkillId = 'logic';
   let detail = false;
   let selectedRoom: string | undefined;
+  let requestedMaterial: string | undefined;
   let previous = '';
   let feedback = '';
   const slotSelection = new Map<string, number>();
@@ -191,6 +192,11 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
     }
     root.replaceChildren(section);
     root.scrollTop = scroll;
+    if (requestedMaterial) {
+      const card = section.querySelector<HTMLElement>('[data-material="' + CSS.escape(requestedMaterial) + '"]');
+      if (card) root.scrollTop += card.getBoundingClientRect().top - root.getBoundingClientRect().top - 12;
+      requestedMaterial = undefined;
+    }
   }
   function materialCard(item: StudyMaterial, profile: EducationProfile, state: GameState, role: CharacterId, level: number,
     now: number, send: (command: EducationCommand) => void, noInternet: boolean) {
@@ -275,8 +281,11 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
   }
   return {
     render,
-    open(view: EducationView = 'overview', room?: string) {
+    open(view: EducationView = 'overview', room?: string, materialId?: string) {
       page = view; detail = false; feedback = ''; previous = ''; selectedRoom = room;
+      requestedMaterial = materialId;
+      const material = materialId && MATERIAL_BY_ID.get(materialId);
+      if (material) skill = material.skill;
       if (room === 'lab') skill = 'technology';
       else if (room === 'workshop') skill = 'practical';
       else if (room === 'classroom') skill = 'communication';

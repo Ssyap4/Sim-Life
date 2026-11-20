@@ -10,6 +10,10 @@ import type { NeedEffects } from './shared/homeLife';
 import type { StudyMaterial } from './shared/education';
 import { MATERIAL_BY_ID, studyQuestion } from './shared/educationCatalog';
 import type { EducationView } from './educationUI';
+import { createCareerHUD } from './careerUI';
+import { CAREERS } from './shared/careers';
+import { WORK_EVENT_BY_ID } from './shared/careerCatalog';
+import { HOME_LAPTOP } from './shared/locations';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
@@ -67,7 +71,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.11 · ОБРАЗОВАНИЕ</div>
+      <div class="version">0.12 · КАРЬЕРА</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -118,6 +122,7 @@ app.innerHTML = `
     <div id="need-gain" class="need-gain" aria-live="polite"></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
     <div id="time-panel" class="task-panel time-panel" hidden aria-live="polite"></div>
+    <section id="career-hud" class="career-hud" aria-label="Рабочая смена" hidden></section>
     <div class="bottom-bar">
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
@@ -449,6 +454,7 @@ function render(reset = false): void {
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
+  careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
   document.querySelector<HTMLElement>('#money')!.textContent =
@@ -506,6 +512,7 @@ function signOut(): void {
   phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
+  careerHUD.render(null,null);
   shownPayments.clear();
   paymentNotice.hidden = true;
   window.clearTimeout(paymentNoticeTimer);
@@ -520,7 +527,8 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
   () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
-  () => net.world({ type: 'travel', place: 'education' }));
+  () => net.world({ type: 'travel', place: 'education' }),command=>net.career(command),enabled=>net.setShiftSpeed(enabled));
+const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
   locationUI.close();
@@ -997,6 +1005,17 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         if (!active) return;
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
+        if (stationById(world.place,id)?.action.kind==='career') {
+          const shift=state?.careers.residents[active].shift;
+          const task=shift?.task;
+          if (shift&&task?.phase==='new') {
+            const event=WORK_EVENT_BY_ID.get(task.event)!;
+            const expected=shift.mode==='remote'?HOME_LAPTOP:event.station;
+            if(id===expected) net.career({type:'career_approach',nonce:task.nonce});
+            else notify('Текущее поручение · '+CAREERS[shift.career].stations[event.station]);
+          } else if (!shift) phone.open('career');
+          return;
+        }
         net.world({ type: 'approach', place: world.place, station: id });
       },
       ground(x, z) {

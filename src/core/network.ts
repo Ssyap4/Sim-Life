@@ -120,6 +120,7 @@ export class LiveConnection {
   }
 
   world(command: WorldCommand): boolean { return this.sendAuthenticated(command); }
+  career(command: import('../shared/careers').CareerCommand): boolean { return this.sendAuthenticated(command); }
 
   forgetDevice(): void {
     storeTrust(null);

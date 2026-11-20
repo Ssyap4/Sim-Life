@@ -1,4 +1,5 @@
 import { CAFE_MENU, PLACES, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
+import { isCareerPlace } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
 import { GROCERY_DETAILS, storageUsage, FRIDGE_CAPACITY } from './shared/storageSpace';
@@ -62,7 +63,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      const entry = button('', () => travel(id), location === id || !!state.activeShifts[role]);
+      if (isCareerPlace(id)) continue;
+      const entry = button('', () => travel(id), location === id || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
         element('small', '', location === id ? 'Вы здесь' : destination.detail));
