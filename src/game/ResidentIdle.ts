@@ -39,6 +39,20 @@ export function chooseResidentIdle(id: CharacterId, context: ResidentIdleContext
   return cycle[slot % cycle.length];
 }
 
+/** Smooth 0..1 section of a gesture, with finite input handling. */
+export function residentIdleEase(seconds: number, start: number, end: number): number {
+  if (!Number.isFinite(seconds) || end <= start) return 0;
+  const t = Math.max(0, Math.min(1, (seconds - start) / (end - start)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Hands only approach a contact point after anticipation, then leave it
+ * before the general body pose is completely neutral. */
+export function residentIdleTouchWeight(seconds: number): number {
+  return residentIdleEase(seconds, 0.42, 1.12) *
+    (1 - residentIdleEase(seconds, 2.75, 3.62));
+}
+
 export function residentIdleWeight(seconds: number): number {
   if (!Number.isFinite(seconds) || seconds <= 0 || seconds >= RESIDENT_IDLE_SECONDS) return 0;
   const fade = Math.max(0, Math.min(1, seconds / 0.58, (RESIDENT_IDLE_SECONDS - seconds) / 0.78));
