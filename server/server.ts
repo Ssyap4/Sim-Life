@@ -1,4 +1,5 @@
 import { applyServiceCommand, settleFamilyServices } from './services';
+import { applyEducation, awardActivity, practiceXP } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
@@ -158,6 +159,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state: () => state, save(next) { files.save(next); state = next; },
     all, send: packet, socket: role => active.get(role),
     busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role]),
+    gameTime: () => liveGameTime(),
+    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource),
     prepare(role, tv) {
       if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
       closeStorage(role);
@@ -214,6 +217,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    homeTasks.checkpoint(next.state);
     const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
@@ -315,6 +319,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     walkingHome.delete(role);
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
+    if (plan.resource && homeTasks.reserved(plan.resource)) {
+      if (!automatic) packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
+      return;
+    }
     if (occupied && (automatic || !occupied.automatic)) {
       packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
       return;
@@ -375,6 +383,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: result.reason });
         return;
       }
+      if (!automatic) awardActivity(result.state, role, plan.command, plan.label);
       try { files.save(result.state); }
       catch (error) {
         console.error('Could not persist completed task:', error);
@@ -501,7 +510,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         active.set(role, socket);
         lastIntent.set(role, Date.now());
         packet(socket, { type: 'ready', role, state, online: online() });
-        if (state.world.places[role] === 'home') { sendLeisure(socket); homeTasks.replay(socket); }
+        if (state.world.places[role] === 'home') sendLeisure(socket);
+        homeTasks.replay(socket);
         announceTime();
         if (deviceToken && message.type === 'auth') packet(socket, { type: 'device_token', role, token: deviceToken });
         all({ type: 'online', online: online() });
@@ -567,6 +577,24 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role, Date.now());
         return;
       }
+      if (message.type === 'education_answer') {
+        homeTasks.answer(role, socket, message.taskId, message.choice);
+        return;
+      }
+      if (message.type === 'education_buy' || message.type === 'education_cancel' ||
+          message.type === 'education_reschedule' || message.type === 'education_goal') {
+        if (message.type !== 'education_goal' && homeTasks.busy(role)) {
+          packet(socket, { type: 'error', reason: 'Сначала закончи текущее занятие' }); return;
+        }
+        const result = applyEducation(state, role, message, Math.floor(liveGameTime()));
+        if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
+        try { files.save(result.state); }
+        catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить учебную операцию' }); return; }
+        state = result.state;
+        all({ type: 'snapshot', state });
+        packet(socket, { type: 'education_notice', role, message: result.message });
+        return;
+      }
       if (message.type === 'service_connect' || message.type === 'service_renewal' || message.type === 'service_pay') {
         const result = applyServiceCommand(state, role, message);
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
@@ -629,8 +657,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
         state = result.state;
         all({ type: 'snapshot', state });
-        if (message.type === 'travel') walkingHome.delete(role);
-        if (message.type === 'travel' && state.world.places[role] === 'home') { sendLeisure(socket); homeTasks.replay(socket); }
+        if (message.type === 'travel') {
+          walkingHome.delete(role);
+          if (state.world.places[role] === 'home') sendLeisure(socket);
+          homeTasks.replay(socket);
+        }
         if (result.path) {
           if (state.world.places[role] === 'home') walkingHome.set(role,{
             route:{from:{x:from.x,z:from.z},path:result.path},started:Date.now(),
@@ -687,6 +718,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         const before = state;
         const next = applySocial(state, message.kind);
+        for (const actor of [role, partner])
+          practiceXP(next, actor, 'social:' + message.kind, 'communication', SOCIAL_LABELS[message.kind], 5, 5);
         if (next.world.dogWalker) setDogParkPosition(next);
         try { files.save(next); }
         catch (error) {
@@ -707,7 +740,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

@@ -187,12 +187,12 @@ function sculptFace(group: THREE.Group) {
   part(group,[.116,.044,.091],[0,1.485,-.096],0x7a8873,smallOrb);
 }
 
-export function marketCashier(resources: LocationResources) {
+export function marketCashier(resources: LocationResources, costume?: { title: string; color: number }) {
   const group=new THREE.Group();
-  group.name='Cashier';
+  group.name=costume?.title ?? 'Cashier';
   group.position.set(CASHIER_SPOT.x,0,CASHIER_SPOT.z);
   group.rotation.y=-.13;
-  const shirt=0xd7c9a8, apron=0x496e61, skin=0xbd896d;
+  const shirt=0xd7c9a8, apron=costume?.color ?? 0x496e61, skin=0xbd896d;
   for(const x of [-.098,.098]){
     trim(group,[.151,.72,.162],[x,.404,.010],0x424d4b);
     trim(group,[.179,.106,.239],[x,.071,.046],0x33443d);
@@ -215,7 +215,7 @@ export function marketCashier(resources: LocationResources) {
   }
   sculptFace(group);
   batchRigidParts(group,true);
-  lettering(group,resources,[0,2.017,.055],.69,.186,'Кассир',['#fcf0d6','#3d594c'],undefined,true);
+  lettering(group,resources,[0,2.017,.055],costume ? 1.29 : .69,.186,costume?.title ?? 'Кассир',['#fcf0d6','#3d594c'],undefined,true);
   return group;
 }
 

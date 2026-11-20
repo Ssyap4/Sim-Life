@@ -1,5 +1,6 @@
 import { HomeEffects } from './HomeEffects';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
+import { MATERIAL_BY_ID } from '../shared/educationCatalog';
 import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
@@ -454,17 +455,35 @@ export class World {
   }
 
   private startHomeTask(role: CharacterId, command: TimedCommand, home: HomePresentation): boolean {
-    if (this.place !== 'home') return true;
+    const inCenter = home.station === 'classroom' || home.station === 'lab' || home.station === 'workshop';
+    if (this.place !== (inCenter ? 'education' : 'home')) return true;
     this.clearHomeTask(role);
     this.preparations.delete(role);
     this.homeTasks.set(role,home);
     const actor = this.actors[role];
     const {route,station,pickup,program} = home;
+    const study = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
     actor.root.position.set(route.from.x,0,route.from.z);
     const path = route.path.map(p => new THREE.Vector3(p.x,0,p.z));
     const current = () => this.homeTasks.get(role) === home;
     const arrive = () => {
       if (!current()) return;
+      if (station === 'classroom' || station === 'lab' || station === 'workshop') {
+        const { x, z } = stationById('education', station)!.center;
+        const seatX = x + (role === 'vlad' ? -.63 : .63);
+        const keys = station === 'lab' ? [new THREE.Vector3(seatX + .14, .91, z - .035),
+          new THREE.Vector3(seatX - .14, .91, z - .035)] as const : undefined;
+        actor.setFurniturePose(station === 'lab' ? 'work' : 'sit',
+          new THREE.Vector3(seatX, role === 'vlad' ? -.28 : -.23, z + .64), Math.PI, keys);
+        actor.playDomesticActivity(station === 'lab' ? 'games' : 'journal');
+        return;
+      }
+      if (station === 'studyDesk') {
+        this.applyFurniturePose(role, 'desk', 'work');
+        actor.playDomesticActivity('games');
+        return;
+      }
+      if (station === 'studyPractice') { actor.playDomesticActivity('stretch'); return; }
       if (station === 'grill') {
         const target = new THREE.Vector3().copy(GRILL_WORK.target);
         actor.faceTowards(target);
@@ -481,7 +500,8 @@ export class World {
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
       if (program) {
         actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
-      } else if (command.type === 'read_book') actor.playDomesticActivity('read');
+      } else if (command.type === 'read_book' || study?.channel === 'book') actor.playDomesticActivity('read');
+      else if (study?.channel === 'practice') actor.playDomesticActivity('journal');
       else if (station === 'yardTable' && command.type === 'eat') {
         this.showMeal(role, seat.position.x, DINING_TOP, HOME_PLACEMENTS.yardTable.z + .22, command.recipe);
         actor.playActivity('eat');
@@ -491,10 +511,10 @@ export class World {
         if (motion) actor.playDomesticActivity(motion);
       }
     };
-    if (pickup !== undefined && command.type === 'read_book') {
+    if (pickup !== undefined && (command.type === 'read_book' || study?.channel === 'book')) {
       const takeBook = () => {
         if (!current()) return;
-        actor.carryBook(BOOKS[command.book][4]);
+        actor.carryBook(command.type === 'read_book' ? BOOKS[command.book][4] : '#507e76');
         actor.walkPath(path.slice(pickup),arrive);
       };
       const reach = () => {
@@ -514,7 +534,7 @@ export class World {
 
   activateHomeTask(role: CharacterId): void {
     const home = this.homeTasks.get(role);
-    if (home?.program) this.homeEffects.television(role,home.program);
+    if (home?.program) this.homeEffects.television(role,home.program,home.lesson);
   }
 
   private clearHomeTask(role: CharacterId): boolean {
@@ -1058,7 +1078,7 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
-    this.controls.enablePan = place === 'home' || place === 'street' || place === 'market';
+    this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education';
     this.frameShadows(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;

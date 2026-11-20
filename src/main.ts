@@ -6,7 +6,10 @@ import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } f
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
 import { needChips, needFeedback } from './needsFeedback';
-import { readingSkillLabel, type NeedEffects } from './shared/homeLife';
+import type { NeedEffects } from './shared/homeLife';
+import type { StudyMaterial } from './shared/education';
+import { MATERIAL_BY_ID, studyQuestion } from './shared/educationCatalog';
+import type { EducationView } from './educationUI';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
@@ -45,7 +48,10 @@ interface TaskView {
   effects?: NeedEffects;
   durationMs: number;
   automatic?: boolean;
-  reading: boolean;
+  material?: StudyMaterial;
+  studyProgress?: { elapsed: number; total: number };
+  question?: string;
+  answer?: { correct: boolean; message: string };
 }
 const tasks = new Map<CharacterId, TaskView>();
 let world: World;
@@ -61,7 +67,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.9 · ЖИВОЙ ДОМ</div>
+      <div class="version">0.11 · ОБРАЗОВАНИЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -260,16 +266,30 @@ function drawTaskPanel(): void {
     const fill = document.createElement('i');
     track.appendChild(fill);
     box.append(top, track);
-    if (task.effects) {
-      const chips = needChips(task.effects,false);
-      if (task.reading) {
-        const preview = document.createElement('span');
-        preview.className = 'reading-preview';
-        preview.textContent = readingSkillLabel() + ' · будущий навык';
-        preview.hidden = task.since === null;
-        chips.append(preview);
+    if (task.effects) box.append(needChips(task.effects,false));
+    const question = task.question ? studyQuestion(task.question) : undefined;
+    if ((question || task.answer) && role === active && task.since !== null) {
+      const form = document.createElement('div');
+      form.className = 'study-question';
+      const title = document.createElement('strong');
+      title.textContent = question ? question.prompt : 'Задание';
+      form.append(title);
+      for (const [choice, label] of (question?.choices ?? []).entries()) {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'education-button';
+        option.textContent = label;
+        option.dataset.answer = String(choice);
+        option.addEventListener('click', () => net.education({ type: 'education_answer', taskId: task.taskId, choice }));
+        form.append(option);
       }
-      box.append(chips);
+      if (task.answer) {
+        const status = document.createElement('small');
+        status.setAttribute('role', 'status');
+        status.textContent = task.answer.message;
+        form.append(status);
+      }
+      box.append(form);
     }
     if (role === active) {
       const cancel = document.createElement('button');
@@ -292,11 +312,12 @@ function updateTaskProgress(): void {
     if (!card) continue;
     const elapsed = task.since === null ? 0 : Math.min(performance.now() - task.since, task.durationMs);
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
-      Math.min(100, elapsed / task.durationMs * 100) + '%';
+      (task.material ? (task.studyProgress ? task.studyProgress.elapsed / task.studyProgress.total * 100 : 0)
+        : Math.min(100, elapsed / task.durationMs * 100)) + '%';
     card.querySelector<HTMLElement>('.task-seconds')!.textContent =
-      task.since === null ? 'Подходит' : Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
-    const preview = card.querySelector<HTMLElement>('.reading-preview');
-    if (preview) preview.hidden = task.since === null;
+      task.since === null ? 'Подходит' : task.studyProgress
+        ? Math.ceil(task.studyProgress.total - task.studyProgress.elapsed) + ' игр. мин'
+        : Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
   }
 }
 window.setInterval(() => {
@@ -469,7 +490,8 @@ const marketUI = createMarketUI(marketOverlay, (lines) => {
   return true;
 }, () => phone.open('mobile'));
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
-  recipe => { net.food('cook', recipe); }, signOut);
+  recipe => { net.food('cook', recipe); }, signOut,
+  (room, exam) => openEducation(exam ? 'exam' : 'center', room));
 
 function signOut(): void {
   net.forgetDevice();
@@ -497,14 +519,20 @@ const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
-  () => {marketUI.close();jobsUI.close();},command=>net.service(command));
+  () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
+  () => net.world({ type: 'travel', place: 'education' }));
+function openEducation(view: EducationView, room?: string) {
+  actionsEl.hidden = true;
+  locationUI.close();
+  phone.openEducation(view, room);
+}
 paymentNotice.querySelector('button')!.addEventListener('click', () => {
   paymentNotice.hidden = true;
   actionsEl.hidden = true;
   phone.open('finance');
 });
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre),
-  () => state, () => active, where => phone.open(where));
+  () => state, () => active, where => phone.open(where), openEducation);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
@@ -530,8 +558,13 @@ const net = new LiveConnection({
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
+      const milestones = active ? household.education.characters[active].events.filter(event => event.milestone) : [];
+      const last = milestones.at(-1);
+      const known = active && state?.education.characters[active].events.some(event =>
+        event.milestone && event.at === last?.at && event.title === last?.title);
       state = household;
       render();
+      if (last && !known) notify(last.title);
       marketUI.refresh(household);
       jobsUI.refresh(household);
     }
@@ -611,19 +644,34 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now(),
-      reading: command.type === 'read_book' });
+      question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+    if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
     const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
-    if (!animated) notify('Действие началось на сервере, путь анимации пока недоступен');
+    if (!animated && role === active) notify('Действие началось на сервере, путь анимации пока недоступен');
   },
   onTaskActive(role,taskId,elapsedMs) {
     const task=tasks.get(role);
     if(task?.taskId!==taskId) return;
     task.since=performance.now()-elapsedMs;
     world.activateHomeTask(role);
+    if (task.material) drawTaskPanel(); else updateTaskProgress();
+  },
+  onStudyProgress(role, taskId, elapsed, total) {
+    const task = tasks.get(role);
+    if (task?.taskId !== taskId) return;
+    task.studyProgress = { elapsed, total };
     updateTaskProgress();
   },
+  onEducationFeedback(taskId, correct, message, question) {
+    const task = active && tasks.get(active);
+    if (!task || task.taskId !== taskId) return;
+    task.answer = { correct, message };
+    task.question = question;
+    drawTaskPanel();
+  },
+  onEducationNotice(message) { if (!phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
   onMovieOffer(inviteId,from,genre) { invites.show(inviteId,names[from],genre,from===active); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
@@ -652,7 +700,8 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
-    if (document.querySelector('#phone-overlay:not([hidden])')) phone.billingMessages([reason]);
+    if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
+      phone.billingMessages([reason]);
     deliverySequence = null;
     locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
@@ -875,6 +924,14 @@ function openActions(item: ItemId): void {
     }
   }
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
+  if (item==='desk' || item==='table') {
+    const study = document.createElement('button');
+    study.type = 'button';
+    study.className = 'action-button';
+    study.textContent = item === 'desk' ? '🎓 Академия знаний' : '🎓 Учебная практика';
+    study.addEventListener('click', () => openEducation(item === 'desk' ? 'academy' : 'practice'));
+    actionsEl.append(study);
+  }
   if (item==='sofa'||item==='officeChair') {
     const books=document.createElement('button');
     books.type='button'; books.className='action-button'; books.textContent='📚 Выбрать книгу';

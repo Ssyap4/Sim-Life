@@ -1,3 +1,4 @@
+import { skillRank } from '../src/shared/education';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { homeSeat } from '../src/shared/home';
 import { addDirtyDish } from '../src/shared/dirtyDishes';
@@ -45,13 +46,15 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
         missing.map(([item, count]) => GROCERIES[item].name + ' (нужно ' + count + ')').join(', ') };
     }
     if (state.meals[id] + recipe.servings > 30) return { ok: false, reason: 'Слишком много готовой еды этого вида' };
-    if (actor.energy < 4) return { ok: false, reason: 'Не хватает сил для готовки' };
+    const cooking = skillRank(state.education.characters[role].xp.cooking).level;
+    const effort = cooking >= 12 ? 2 : cooking >= 6 ? 3 : 4;
+    if (actor.energy < effort) return { ok: false, reason: 'Не хватает сил для готовки' };
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
     addReadyFood(state,'meal',id,recipe.servings,'fridge');
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
-    actor.energy = Math.max(0, actor.energy - 4);
+    actor.energy = Math.max(0, actor.energy - effort);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);
     Object.assign(actor, isGrillRecipe(id) ? { ...points.grill, pose: 'idle' } : { ...points.kitchen, pose: 'work' });
