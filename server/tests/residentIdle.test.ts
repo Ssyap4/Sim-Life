@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { Vector3 } from 'three';
 import { Actor } from '../../src/game/Actor';
 import { chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
-  RESIDENT_IDLE_SECONDS, type ResidentIdleContext } from '../../src/game/ResidentIdle';
+  residentIdleEase, residentIdleTouchWeight,
+  RESIDENT_IDLE_SECONDS, type ResidentIdleContext, type ResidentIdleGesture } from '../../src/game/ResidentIdle';
 import type { ReactionNeeds } from '../../src/game/NeedReactions';
 
 const healthy: ReactionNeeds = { energy: 89, hunger: 87, bladder: 92, hygiene: 88, mood: 85 };
@@ -112,4 +113,81 @@ test('Pet glance stops as soon as pet leaves; partner glance requires proximity'
   actor.setIdleSurroundings(null, null);
   actor.update(.1);
   assert.equal(actor.currentIdleGesture(), null);
+});
+
+test('Contact gestures have anticipation, sustained touch and a smooth release', () => {
+  assert.equal(residentIdleEase(-1, 0, 2), 0);
+  assert.equal(residentIdleEase(0, 0, 2), 0);
+  assert.equal(residentIdleEase(2, 0, 2), 1);
+  assert.equal(residentIdleEase(Number.NaN, 0, 2), 0);
+  assert.equal(residentIdleEase(1, 2, 2), 0);
+  assert.equal(residentIdleTouchWeight(0), 0);
+  assert.ok(residentIdleTouchWeight(0.8) > 0 && residentIdleTouchWeight(0.8) < 1);
+  assert.equal(residentIdleTouchWeight(1.75), 1);
+  assert.ok(residentIdleTouchWeight(3.25) > 0 && residentIdleTouchWeight(3.25) < 1);
+  assert.equal(residentIdleTouchWeight(3.8), 0);
+});
+
+test('Three reaching habits move a physical wrist toward head or sleeve bones', () => {
+  const cases: Array<['vlad' | 'alina', ResidentIdleGesture, 0 | 1]> = [
+    ['vlad', 'think', 1],
+    ['alina', 'fixHair', 0],
+    ['alina', 'adjustSleeve', 1],
+  ];
+  for (const [id, kind, wristIndex] of cases) {
+    const actor = new Actor(id, [2, 3]);
+    actor.setNeeds(healthy);
+    const motion = actor as unknown as {
+      idleGesture: ResidentIdleGesture | null;
+      idleGestureTime: number;
+      idleCooldown: number;
+      needReactionCooldown: number;
+      rig: {
+        head: { localToWorld: (v: Vector3) => Vector3 };
+        elbows: [{ localToWorld: (v: Vector3) => Vector3 }, { localToWorld: (v: Vector3) => Vector3 }];
+        wrists: [{ getWorldPosition: (v: Vector3) => Vector3 }, { getWorldPosition: (v: Vector3) => Vector3 }];
+      };
+    };
+    motion.idleGesture = kind;
+    motion.idleGestureTime = 0;
+    motion.idleCooldown = 10000;
+    motion.needReactionCooldown = 10000;
+    for (let i = 0; i < 132; i++) actor.update(1/60);
+    const wrist = motion.rig.wrists[wristIndex].getWorldPosition(new Vector3());
+    const touch = kind === 'think'
+      ? motion.rig.head.localToWorld(new Vector3(.108, -.151, .180))
+      : kind === 'fixHair'
+        ? motion.rig.head.localToWorld(new Vector3(-.165, .105, .123))
+        : motion.rig.elbows[0].localToWorld(new Vector3(0, .072, .062));
+    assert.ok(wrist.distanceTo(touch) < .27,
+      kind + ': hand should approach its real rig target, not float beside the body');
+    assert.equal(actor.root.position.x, 2);
+    assert.equal(actor.root.position.z, 3);
+    assert.equal(actor.currentIdleGesture(), kind);
+  }
+});
+
+test('Scanning left/right produces distinct controlled head positions', () => {
+  const actor = new Actor('vlad', [0, 0]);
+  actor.setNeeds(healthy);
+  const internals = actor as unknown as {
+    idleGesture: ResidentIdleGesture | null;
+    idleCooldown: number;
+    needReactionCooldown: number;
+    rig: { head: { rotation: { y: number } }; chest: { rotation: { y: number } } };
+  };
+  internals.idleGesture = 'lookAround';
+  internals.idleCooldown = 10000;
+  internals.needReactionCooldown = 10000;
+  let left = 0;
+  let right = 0;
+  for (let n = 0; n < 150; n++) {
+    actor.update(1/60);
+    if (n === 88) left = internals.rig.head.rotation.y;
+    if (n === 144) right = internals.rig.head.rotation.y;
+  }
+  assert.ok(left > .12, 'first glance reaches one side');
+  assert.ok(right < -.09, 'second glance reaches the opposite side');
+  assert.ok(Math.abs(internals.rig.chest.rotation.y) < .17,
+    'chest follows slightly instead of rotating the whole person');
 });
