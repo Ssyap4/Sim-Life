@@ -13,6 +13,7 @@ import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
+import { showCoffeeChoices } from './coffeeUI';
 import { createMarketUI, showTakeoutChoices } from './marketUI';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
@@ -771,6 +772,14 @@ function openActions(item: ItemId): void {
         actionsEl.hidden = true;
         statusEl.textContent = 'Обрабатываем действие…';
       }
+      return sent;
+    });
+  }
+
+  if ((item === 'kitchen' || item === 'coffeeMaker') && state && active) {
+    showCoffeeChoices(actionsEl, state, active, blend => {
+      const sent = net.brewCoffee(blend);
+      if (sent) { actionsEl.hidden = true; statusEl.textContent = '☕ Готовим кофе…'; }
       return sent;
     });
   }

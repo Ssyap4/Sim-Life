@@ -49,6 +49,7 @@ export const HOME_PLACEMENTS = {
   sofa: { x: -2.36, z: 2.02 },
   bed: { x: -6.97, z: -5.86 },
   kitchen: COUNTER,
+  coffeeMaker: { x: COUNTER.x - 1.56, z: COUNTER.z - .22 },
   desk: { x: 7.18, z: -6.72 },
   tv: { x: -2.39, z: -.38 },
   table: { x: 2.39, z: -2.22 },
@@ -127,6 +128,7 @@ const defaultFurnitureBounds = Object.fromEntries(
 export const HOME_FURNITURE = {
   ...defaultFurnitureBounds,
   kitchen: homeFootprint(COUNTER, -2.195, 2.21, -.575, .49),
+  coffeeMaker: homeFootprint(HOME_PLACEMENTS.coffeeMaker, -.21, .21, -.20, .19),
   toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),
   bathtub: homeFootprint(BATH_FIXTURES.bathtub.center, -.67, .67, -1.08, 1.08),
   basin: homeFootprint(BATH_FIXTURES.basin.center, -.63, .63, -.32, .36),
@@ -172,6 +174,7 @@ export const KITCHEN_WORK = {
   wash: work(1.28, 1.09, .14),
   tidy: work(.37, 1.04, .29),
   tea: work(-1.68, 1.18, .16),
+  coffee: work(-1.56, 1.20, -.22),
 } as const;
 
 export const KITCHEN_ACTIONS = {

@@ -17,7 +17,7 @@ export const MARKET_CATEGORIES: Record<MarketCategory, string> = {
   ...GROCERY_CATEGORIES, takeout:'Готовая еда · дорого', pets:'Для питомцев',
 };
 export const MARKET_PRODUCTS: MarketProduct[] = [
-  ...Object.entries(GROCERIES).map(([id, p]) => ({
+  ...Object.entries(GROCERIES).filter(([id]) => id !== 'coffee').map(([id, p]) => ({
     id:'grocery:'+id, stockKey:id, kind:'grocery' as const,
     category:p.category, name:p.name, emoji:p.emoji, price:p.price,quantity:p.quantity,unit:p.unit,
   })),
