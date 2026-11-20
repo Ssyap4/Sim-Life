@@ -14,8 +14,7 @@ import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
-import { PET_PERSON_CLEARANCE, petGap, separatePetBodies,
-  separatePetFromFixed } from './PetTraffic';
+import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
@@ -27,7 +26,7 @@ import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
-import { residentStep, unoccupiedDestination } from './residentCollision';
+import { RESIDENT_CLEARANCE, residentStepAroundBodies, unoccupiedDestination } from './residentCollision';
 
 type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
@@ -912,10 +911,25 @@ export class World {
   }
 
   private steerPast(other: CharacterId, from: Point, target: Point): Point {
+    const bodies: { position: Point; clearance: number }[] = [];
     const neighbor = this.actors[other];
-    if (!neighbor.root.visible) return target;
-    const body = neighbor.bodyPosition(this.otherBody);
-    return residentStep(from, target, body, this.currentObstacles(), floorFor(this.place));
+    if (neighbor.root.visible && !this.sleepingOffline.has(other)) {
+      const body = neighbor.bodyPosition(this.otherBody);
+      bodies.push({ position: { x: body.x, z: body.z }, clearance: RESIDENT_CLEARANCE });
+    }
+    // People choose a side-step around a pet, never push the pet away.
+    // Sweep against both animals and the other resident simultaneously, so
+    // avoiding Simba cannot steer the player through Verdell (or Alina).
+    if (this.place === 'home') for (const id of PET_IDS) {
+      const pet = this.pets[id].root;
+      if (pet.visible) bodies.push({
+        position: { x: pet.position.x, z: pet.position.z },
+        clearance: PET_PERSON_CLEARANCE,
+      });
+    }
+    return bodies.length
+      ? residentStepAroundBodies(from, target, bodies, this.currentObstacles(), floorFor(this.place))
+      : target;
   }
 
   private sitAt(role: CharacterId, station: Station): void {
@@ -1330,18 +1344,12 @@ export class World {
       });
       let dogPosition: Point = { x: dog.root.position.x, z: dog.root.position.z };
       let catPosition: Point = { x: cat.root.position.x, z: cat.root.position.z };
-      // A saved overlapping position or two simultaneous arrivals must not
-      // remain interpenetrating, even if no movement command is in progress.
-      for (let pass = 0; pass < 3; pass++) {
-        for (const person of people) {
-          if (petGap(dogPosition, person) < PET_PERSON_CLEARANCE)
-            dogPosition = separatePetFromFixed(dogPosition, person, this.obstacles, HOME_FLOOR);
-          if (petGap(catPosition, person) < PET_PERSON_CLEARANCE)
-            catPosition = separatePetFromFixed(catPosition, person, this.obstacles, HOME_FLOOR);
-        }
-        [dogPosition, catPosition] = separatePetBodies(
-          dogPosition, catPosition, this.obstacles, HOME_FLOOR);
-      }
+      // Pets separate from one another only. We intentionally do NOT move
+      // an idle pet when a human comes near: the human's steering above
+      // yields first. That prevents a running player from shoving animals
+      // across the yard, away from bowls, or out of an intended routine.
+      [dogPosition, catPosition] = separatePetBodies(
+        dogPosition, catPosition, this.obstacles, HOME_FLOOR);
       dog.root.position.set(dogPosition.x, 0, dogPosition.z);
       cat.root.position.set(catPosition.x, 0, catPosition.z);
     } else {

@@ -7,6 +7,8 @@ import { placeObstacles } from '../../src/shared/locations';
 import { initialState } from '../../src/shared/protocol';
 import { runPetRoutines } from '../pets';
 import { PetActor } from '../../src/game/PetActor';
+import { Actor } from '../../src/game/Actor';
+import { residentStepAroundBodies, RESIDENT_CLEARANCE } from '../../src/game/residentCollision';
 import { pointIsClear, segmentIsClear } from '../../src/game/navigation';
 import {
   PET_PET_CLEARANCE, PET_PERSON_CLEARANCE,
@@ -100,4 +102,67 @@ test('Interacting with pets overrides emotional gestures and never creates an it
   assert.equal(cat.currentIdleGesture(),null);
   assert.equal(cat.root.visible,true);
   assert.equal(PETS.simba.name,'Симба');
+});
+
+test('A walking resident goes around a resting dog without sliding or pushing the dog', () => {
+  const dog = new PetActor('verdell');
+  dog.root.position.set(0, 0, 0);
+  const player = new Actor('vlad', [-2, 0]);
+  let arrived = 0;
+  player.walkPath([new Vector3(2, 0, 0)], () => { arrived++; });
+  const dogBefore = dog.root.position.clone();
+  let minDistance = Infinity;
+  for (let frame = 0; frame < 850; frame++) {
+    player.update(1 / 60, (from, target) =>
+      residentStepAroundBodies(from, target, [
+        { position: dog.root.position, clearance: PET_PERSON_CLEARANCE },
+      ], empty, area));
+    minDistance = Math.min(minDistance, petGap(player.root.position, dog.root.position));
+    if (arrived) break;
+  }
+  assert.ok(minDistance >= PET_PERSON_CLEARANCE - .008, 'resident must not intersect dog');
+  assert.equal(arrived, 1, 'resident should reach the destination, not freeze behind the dog');
+  assert.ok(player.root.position.distanceTo(new Vector3(2, 0, 0)) < .03);
+  assert.ok(dog.root.position.distanceTo(dogBefore) < .0001, 'dog must remain stationary');
+});
+
+test('Resident steering considers both pets and another person in the same step', () => {
+  const player = new Actor('alina', [-2.5, 0]);
+  const dog = { x: -.05, z: .1 };
+  const cat = { x: .9, z: -.2 };
+  const other = { x: 1.6, z: .3 };
+  const before = structuredClone([dog,cat,other]);
+  let arrived = false;
+  player.walkPath([new Vector3(2.8, 0, 0)], () => { arrived = true; });
+  let minDog = Infinity, minCat = Infinity, minOther = Infinity;
+  for (let frame = 0; frame < 1100; frame++) {
+    player.update(1 / 60, (from,target) =>
+      residentStepAroundBodies(from,target,[
+        {position: dog, clearance: PET_PERSON_CLEARANCE},
+        {position: cat, clearance: PET_PERSON_CLEARANCE},
+        {position: other, clearance: RESIDENT_CLEARANCE},
+      ],empty,area));
+    const pos = player.root.position;
+    minDog = Math.min(minDog,petGap(pos,dog));
+    minCat = Math.min(minCat,petGap(pos,cat));
+    minOther = Math.min(minOther,petGap(pos,other));
+    if (arrived) break;
+  }
+  assert.equal(arrived,true,'player can navigate among all three bodies');
+  assert.ok(minDog >= PET_PERSON_CLEARANCE - .008);
+  assert.ok(minCat >= PET_PERSON_CLEARANCE - .008);
+  assert.ok(minOther >= RESIDENT_CLEARANCE - .008);
+  assert.deepEqual([dog,cat,other],before,'neither the pets nor the other resident moved');
+});
+
+test('Static pet is not displaced just because a person overlaps its location', () => {
+  const pet = new PetActor('simba');
+  pet.root.position.set(.1,0,.1);
+  const before = pet.root.position.clone();
+  // When no route is active, the pet's update can animate a paw but must not
+  // move its root away from a person that walks close.
+  for (let i = 0; i < 240; i++) pet.update(1 / 60,0,0,{
+    blockers: [{x:.2,z:.1}], obstacles: empty, floor: area,
+  });
+  assert.ok(pet.root.position.distanceTo(before) < .0001);
 });
