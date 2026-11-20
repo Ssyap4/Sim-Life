@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
-import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL } from '../shared/home';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 
@@ -152,23 +152,6 @@ function entryDoor(home: THREE.Group) {
   return door;
 }
 
-function practicalLights(home: THREE.Group): void {
-  const { x, z } = HOME_PLACEMENTS.lamp;
-  shape(home, drum, [0.25, 0.075, 0.25], [x, 0.045, z], C.walnut, 'wood');
-  shape(home, drum, [0.031, 1.58, 0.031], [x, 0.82, z], C.brass, 'metal');
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.31, 0.35, 20, 1, true),
-    new THREE.MeshStandardMaterial({
-      color: 0xe7ad69, emissive: 0xffa452, emissiveIntensity: 0.35, roughness: 0.93,
-      side: THREE.DoubleSide,
-    }));
-  shade.position.set(x, 1.66, z);
-  home.add(shade);
-  shape(home, orb, [0.087, 0.088, 0.087], [x, 1.53, z], C.paper, 'ceramic');
-  const warm = new THREE.PointLight(0xffbb7c, 3.3, 4, 2);
-  warm.position.set(x - 0.10, 1.48, z);
-  home.add(warm);
-}
-
 function petNooks(home: THREE.Group): void {
   const bowls = PET_IDS.map(id => PETS[id].bowl);
   shape(home, softCube, [1.34, .026, .55], [(bowls[0].x + bowls[1].x) / 2, .016, bowls[0].z], C.sage);
@@ -243,7 +226,6 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   shape(home, softCube, [1.16, 1.28, .065], [pictureX, 2.07, HOUSE.minZ + .14], C.walnut, 'wood');
   panel(home, [pictureX, 2.07, HOUSE.minZ + .177], [1.02, 1.13], botanicalPrint(), C.paper);
   shape(home, cube, [4.92, 1.25, .021], [COUNTER.x + .27, .71, HOUSE.minZ + .136], 0xe3cfb2);
-  practicalLights(home);
   petNooks(home);
   batchRigidParts(home, true);
   scene.add(home);

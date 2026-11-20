@@ -1,7 +1,7 @@
 import { initialServices } from '../src/shared/services';
 import { validBilling } from './services';
 import { validWorld } from './locations';
-import { WORLD_FLOOR, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
+import { floorFor, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
 import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { randomBytes } from 'node:crypto';
@@ -9,10 +9,12 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFil
 import { join } from 'node:path';
 import { initialState, points, type CharacterId, type CharacterState, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
+import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
+import { BOOKS } from '../src/shared/homeLife';
 
 export interface ServerFiles {
   dataDir: string;
@@ -29,10 +31,22 @@ const isValidState = (value: unknown): value is GameState => {
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
+  const readBooks = state.readBooks;
+  if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
+    const books = readBooks[role];
+    return Array.isArray(books) && books.length <= Object.keys(BOOKS).length &&
+      new Set(books).size === books.length && books.every(id => typeof id === 'string' && Object.hasOwn(BOOKS, id));
+  }))) return false;
   // A clock was added to existing version-2 households; never reset old saves.
   if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
       !Number.isSafeInteger(state.clock.minute) || state.clock.minute < 0 ||
       state.clock.minute >= 1440)) return false;
+  if (state.coffeeDaily !== undefined && (!state.coffeeDaily ||
+    !(['vlad', 'alina'] as const).every(role => {
+      const record = state.coffeeDaily?.[role];
+      return record && Number.isSafeInteger(record.day) && record.day >= 0 &&
+        Number.isSafeInteger(record.cups) && record.cups >= 0 && record.cups <= COFFEE_CUPS_PER_DAY;
+    }))) return false;
   const pantry = state.pantry as Record<string, unknown>;
   const meals = state.meals as Record<string, unknown> | undefined;
   if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
@@ -84,10 +98,10 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined, home = true) => {
-    const { minX, maxX, minZ, maxZ } = home ? HOME_FLOOR : WORLD_FLOOR;
+  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
+    const { minX, maxX, minZ, maxZ } = floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
-      p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (home ? maxZ : 5);
+      p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (place === 'home' ? maxZ : Math.max(maxZ, 5));
   };
   if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
     const pet = petData[id];
@@ -95,7 +109,7 @@ const isValidState = (value: unknown): value is GameState => {
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, false)) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
@@ -112,7 +126,7 @@ const isValidState = (value: unknown): value is GameState => {
     ) && (['hygiene', 'social', 'fun', 'comfort', 'bladder'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && point(p, !state.world || state.world.places[role] === 'home') &&
+    ) && point(p, state.world?.places[role] ?? 'home') &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
@@ -128,6 +142,11 @@ const previousSeats = [
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
+  if (place === 'street' || place === 'market') {
+    // Preserve saved positions except where a newly added solid occupies them.
+    const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
+    return { ...resident, x: point.x, z: point.z };
+  }
   if (place !== 'home') return resident;
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
@@ -203,6 +222,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
+        readBooks: data.readBooks ?? { vlad: [], alina: [] },
+        coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),
           simba: restorePet('simba', data.pets?.simba),

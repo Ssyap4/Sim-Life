@@ -1,18 +1,19 @@
+import { CASHIER_OBSTACLE, PLAZA_FLOOR, PLAZA_OBSTACLES } from './locationLayout';
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FLOOR, HOME_FURNITURE, HOME_PLACEMENTS, HOME_YARD, HOME_STRUCTURE_OBSTACLES } from './home';
 
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный двор' },
-  street: { name: 'Тихий квартал', icon: '▥', detail: 'Тротуар, скамья и входы в соседние места' },
-  market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса самообслуживания' },
+  street: { name: 'Тихий квартал', icon: '▥', detail: 'Площадь с фонтаном и входами в соседние места' },
+  market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place === 'street' ? PLAZA_FLOOR : WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -76,7 +77,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     shelf('drinks', 'Напитки', 4.39, -0.92, []),
     shelf('ready', 'Готовая еда', -4.37, 1.79, ['takeout']),
     shelf('pet-shelf', 'Для питомцев', 4.39, 1.79, ['pets']),
-    site('checkout', 'Касса самообслуживания', 0, 1.83, 1.50, 0.72, { kind: 'checkout' }),
+    site('checkout', 'Касса', 0, 1.83, 1.50, 0.72, { kind: 'checkout' }),
     door('market-exit', 'Выход на улицу', 'street', -2.75, 4.60, true),
   ],
   cafe: [
@@ -108,7 +109,8 @@ export function placeObstacles(place: PlaceId) {
   })));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
-  if (place === 'street') obstacles.push({ minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: -4.05 });
+  if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);
+  if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
   return obstacles;
 }
 
@@ -154,4 +156,4 @@ export type WorldCommand =
   | { type: 'dog_leash' }
   | { type: 'local_activity'; action: LocalActivity; station: string };
 
-export const clockMinutes = ({ day, minute }: { day: number; minute: number }) => (day - 1) * 1440 + minute;
+export { gameMinutes as clockMinutes } from './life';

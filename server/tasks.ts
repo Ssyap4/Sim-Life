@@ -2,10 +2,13 @@ import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import { BATH_ACTIONS } from '../src/shared/home';
+import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
+import { GROCERIES } from '../src/shared/food';
+import { brewInstantCoffee } from './coffee';
 import { applyAction } from './logic';
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
@@ -21,12 +24,13 @@ export type EvaluatedTask = { ok: true; state: GameState; message: string } | { 
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
   sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
+  officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
   toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
-  bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath,
+  bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath, wcWash: 6,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
@@ -44,9 +48,10 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
       durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
   }
   if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {
+    if (command.seat !== undefined && command.seat !== 'officeChair') return null;
     const book = command.book as BookId;
-    return { command: { type: 'read_book', book }, label: '📖 ' + BOOKS[book][0],
-      durationMs: BOOKS[book][3] * 1000, resource: null };
+    return { command: { type: 'read_book', book, ...(command.seat ? { seat: command.seat } : {}) },
+      label: '📖 ' + BOOKS[book][0], durationMs: BOOKS[book][3] * 1000, resource: command.seat ?? null };
   }
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
@@ -66,18 +71,27 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'desk' || action.item === 'kitchen' || own(BATH_ACTIONS, id) ? action.item : null,
+      resource: action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
+        : action.item === 'desk' || action.item === 'kitchen' || action.item === 'officeChair' ||
+          own(BATH_ACTIONS, id) ? action.item : null,
     };
+  }
+  if (command.type === 'brew_coffee') {
+    if (typeof command.blend !== 'string' || !INSTANT_COFFEE.some(id => id === command.blend)) return null;
+    const blend = command.blend as InstantCoffeeId;
+    return { command: { type: 'brew_coffee', blend }, label: '☕ Завариваем ' + GROCERIES[blend].name,
+      durationMs: 12_000, resource: 'kitchen' };
   }
   if (command.type === 'cook' || command.type === 'eat') {
     const id = command.recipe;
     if (typeof id !== 'string' || !own(RECIPES, id)) return null;
     const recipe = id as RecipeId;
+    const grill = isGrillRecipe(recipe);
     return {
       command: { type: command.type, recipe },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
-      durationMs: command.type === 'cook' ? 12_000 : 7_000,
-      resource: command.type === 'cook' ? 'kitchen' : null,
+      durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : 7_000,
+      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
     };
   }
   if (command.type === 'eat_takeout') {
@@ -123,11 +137,13 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }
+    if (command.type === 'read_book' && !next.readBooks[role].includes(command.book)) next.readBooks[role].push(command.book);
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
   }
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);
+  if (command.type === 'brew_coffee') return brewInstantCoffee(state, role, command.blend);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

@@ -2,7 +2,7 @@ import { createBillingUI, type BillingApp } from './billingUI';
 import type { ServiceCommand } from './shared/services';
 import { formatRub } from './shared/economy';
 import { JOBS } from './shared/jobs';
-import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
+import { clockAt, clockLabel, gameDate, NEED_INFO, VITAL_NEEDS, type GameClock } from './shared/life';
 import { PLACES } from './shared/locations';
 import { PETS, PET_IDS } from './shared/pets';
 import { names, type CharacterId, type GameState } from './shared/protocol';
@@ -15,7 +15,7 @@ const apps: Record<App,[string,string]> = {
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],family:['❤️','Семья'],
 };
-type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus};
+type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
 export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTMLElement,
   read: () => View | null, openDelivery: (state: GameState) => void,
@@ -39,6 +39,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
+  let calendarDate: HTMLElement | null = null;
 
   function block(title: string, description: string) {
     const card=document.createElement('article');
@@ -54,16 +55,17 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if(root.hidden||!view) return;
     const {state,role,online,time}=view;
-    clock.textContent=clockLabel(state.clock);
     root.dataset.owner=role;
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app==='calendar') {
       const shift=state.activeShifts[role];
       const end=shift?.endsAt;
-      const ending=end===undefined?'':clockLabel({day:Math.floor(end/1440)+1,minute:end%1440});
+      const ending=end===undefined?'':clockLabel(clockAt(end));
+      const today=block('📅 Сегодня','');
+      calendarDate=today.querySelector('p');
       info.replaceChildren(
-        block('📅 Сегодня',clockLabel(state.clock)),
+        today,
         block('🧰 Подработка',shift ? JOBS[shift.job].name+' · окончание '+ending : 'Активной смены нет'),
         block('⏱ Скорость общего времени','×'+time.multiplier.toLocaleString('ru-RU')));
     }
@@ -80,6 +82,17 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         return block(PETS[id].emoji+' '+PETS[id].name,`Сытость ${Math.round(pet.satiety)}% · Настроение ${Math.round(pet.happiness)}%`);
       });
       info.replaceChildren(block('Семейный бюджет',formatRub(state.money)),...family,...pets);
+    }
+    refreshClock(view.clock);
+  }
+
+  function refreshClock(value: GameClock) {
+    if (root.hidden) return;
+    const label=clockLabel(value);
+    if (clock.textContent!==label) clock.textContent=label;
+    if (app==='calendar'&&calendarDate) {
+      const today=label+' · '+gameDate(value.day).season;
+      if (calendarDate.textContent!==today) calendarDate.textContent=today;
     }
   }
 
@@ -118,5 +131,6 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if ((app==='delivery'&&delivery.hidden)||(app==='jobs'&&jobs.hidden)) show(null);
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
-  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh, billingMessages(messages: string[]) { billing.setMessages(messages); refresh(); } };
+  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+    billingMessages(messages: string[]) { billing.setMessages(messages); refresh(); } };
 }

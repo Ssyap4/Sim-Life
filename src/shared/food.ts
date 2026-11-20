@@ -27,7 +27,12 @@ export const GROCERIES = {
   cucumber:{ name:'Огурцы · 500 г', emoji:'🥒', price:170, quantity:4, unit:'шт.', category:'vegetables' },
   sourCream:{ name:'Сметана · 300 г', emoji:'🥛', price:135, quantity:4, unit:'порц.', category:'dairy' },
   tea:     { name:'Чай · 25 пакетиков', emoji:'🍵', price:160, quantity:25, unit:'пак.', category:'pantry' },
-  coffee:  { name:'Кофе · 100 г', emoji:'☕', price:390, quantity:20, unit:'порц.', category:'pantry' },
+  coffee:  { name:'Кофе (старые запасы) · 100 г', emoji:'☕', price:390, quantity:20, unit:'порц.', category:'pantry' },
+  coffeeNescafeGold: { name:'Nescafé Gold · 15 порций', emoji:'☕', price:480, quantity:15, unit:'порц.', category:'pantry' },
+  coffeeEgoiste: { name:'Egoiste · 25 порций', emoji:'☕', price:860, quantity:25, unit:'порц.', category:'pantry' },
+  beansJardin: { name:'Jardin Espresso Di Milano · зерно 500 г', emoji:'🫘', price:2200, quantity:30, unit:'порц.', category:'pantry' },
+  beansLavazza: { name:'Lavazza Qualità Oro · зерно 500 г', emoji:'🫘', price:2450, quantity:30, unit:'порц.', category:'pantry' },
+  beansBushido: { name:'Bushido Red Katana · зерно 500 г', emoji:'🫘', price:2700, quantity:30, unit:'порц.', category:'pantry' },
 } as const;
 export type IngredientId = keyof typeof GROCERIES;
 export type Pantry = Record<IngredientId, number>;
@@ -52,9 +57,18 @@ export const RECIPES = {
   homemadePizza: { name:'Домашняя пицца',emoji:'🍕', ingredients:{ flour:2,cheese:2,sausage:2,tomato:2 }, servings:4,hunger:38,mood:11 },
   fruitSalad: { name:'Фруктовый салат',emoji:'🍎', ingredients:{ apple:2,banana:2,sourCream:1 }, servings:2,hunger:24,mood:8 },
   pastaCheese: { name:'Макароны с сыром',emoji:'🧀', ingredients:{ pasta:2,cheese:2,butter:1 }, servings:2,hunger:41,mood:7 },
+  grillChicken: { name:'Куриные шашлычки',emoji:'🍢', ingredients:{ chicken:2,onion:1,oil:1 }, servings:3,hunger:38,mood:8, appliance:'grill' },
+  grillSteak: { name:'Стейки на углях',emoji:'🥩', ingredients:{ beef:2,onion:1,oil:1 }, servings:2,hunger:49,mood:10, appliance:'grill' },
+  grillVegetables: { name:'Овощи на решётке',emoji:'🍅', ingredients:{ tomato:2,carrot:2,onion:1,oil:1 }, servings:2,hunger:27,mood:8, appliance:'grill' },
+  grillBurgers: { name:'Бургеры с гриля',emoji:'🍔', ingredients:{ mince:2,bread:2,cheese:1,tomato:1 }, servings:2,hunger:44,mood:10, appliance:'grill' },
 } as const;
 export type RecipeId = keyof typeof RECIPES;
 export type CookedMeals = Record<RecipeId, number>;
+export function isGrillRecipe(id: RecipeId) {
+  const recipe = RECIPES[id];
+  return Boolean(recipe && 'appliance' in recipe);
+}
+export const GRILL_RECIPES = (Object.keys(RECIPES) as RecipeId[]).filter(isGrillRecipe);
 
 export const TAKEOUT = {
   shawarma: { name:'Шаурма',emoji:'🌯',price:650,quantity:1,hunger:38,mood:7 },

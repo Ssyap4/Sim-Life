@@ -23,8 +23,14 @@ export const BOOKS = {
   holmes: ['Шерлок Холмс: Собака Баскервилей', 'Артур Конан Дойл', 'Детектив', 75, '#515a62'],
   flowers: ['Цветы для Элджернона', 'Дэниел Киз', 'Научная фантастика', 85, '#546c66'],
   musketeers: ['Три мушкетёра', 'Александр Дюма', 'Историческое приключение', 110, '#435c7c'],
+  eightyDays: ['Вокруг света за 80 дней', 'Жюль Верн', 'Приключения', 80, '#996c4f'],
+  treasure: ['Остров сокровищ', 'Роберт Льюис Стивенсон', 'Приключения', 75, '#55756a'],
+  martian: ['Марсианин', 'Энди Вейер', 'Научная фантастика', 100, '#a2604a'],
+  monteCristo: ['Граф Монте-Кристо', 'Александр Дюма', 'Исторический роман', 120, '#56567b'],
 } as const;
 export type BookId = keyof typeof BOOKS;
+export const READING_SKILL_PREVIEW = { skill: 'logic', label: 'Логика', percent: 1 } as const;
+export const readingSkillLabel = () => READING_SKILL_PREVIEW.label + ' +' + READING_SKILL_PREVIEW.percent + '%';
 export const HOME_SECONDS = { teeth: 18, foamBath: 75, shower: 38, youtube: 40, movie: 120, freeTv: 60 } as const;
 export const READING_REWARD = { fun: 60, comfort: 10 } as const;
 export type NeedKey = Exclude<keyof Needs, 'skill'>;
@@ -34,13 +40,13 @@ export type Entertainment =
   | { type: 'youtube' }
   | { type: 'free_tv' }
   | { type: 'movie'; genre: Genre }
-  | { type: 'read_book'; book: BookId };
-export const HOME_SEATS = ['sofa','officeSofa','table','yardBench','spareSeat'] as const;
+  | { type: 'read_book'; book: BookId; seat?: 'officeChair' };
+export const HOME_SEATS = ['sofa','officeChair','table','yardBench','yardTable'] as const;
 export type HomeSeat = (typeof HOME_SEATS)[number];
 export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture;
+  station: HomeSeat | BathFixture | 'grill';
   program?: Program;
 };

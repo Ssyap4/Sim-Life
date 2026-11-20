@@ -37,7 +37,7 @@ test('Home activity durations and exact gains are independent of the shared cale
   }
   assert.equal(planTask({type:'act',actionId:'sofaMovie'})?.durationMs,120_000);
   assert.equal(planTask({type:'act',actionId:'sofaRead'})?.durationMs,40_000);
-  assert.equal(Object.keys(BOOKS).length,12);
+  assert.equal(Object.keys(BOOKS).length,16);
   assert.equal(planTask({type:'read_book',book:'toString'}),null);
   assert.equal(planTask({type:'movie',genre:'unknown'}),null);
 });
@@ -46,7 +46,7 @@ test('Both library approaches and all reading seats are navigable inside the hom
   const obstacles=placeObstacles('home');
   for(const role of ['vlad','alina'] as const) {
     assert.ok(findRoute(spawn('home',role),LIBRARY_APPROACH,obstacles,HOME_FLOOR));
-    for(const id of ['sofa','officeSofa','table','yardBench','spareSeat'] as const) {
+    for(const id of ['sofa','officeChair','table','yardBench','yardTable'] as const) {
       const {approach}=homeSeat(id,role);
       assert.ok(pointIsClear(approach,obstacles,HOME_FLOOR),role+' '+id);
       assert.ok(findRoute(LIBRARY_APPROACH,approach,obstacles,HOME_FLOOR),role+' '+id);

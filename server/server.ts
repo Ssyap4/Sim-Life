@@ -23,7 +23,7 @@ import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { createHomeSessions, usesHomeSession } from './homeSessions';
 import { gains } from './needs';
 import { advanceLife } from './life';
-import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
+import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
 import { recoverSleep } from './timeControl';
 import type { PetId } from '../src/shared/pets';
@@ -101,7 +101,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
   };
-  const announceTime = () => all({ type: 'time_status', status: timeStatus() });
+  const announceTime = () => {
+    all({ type: 'time_status', status: timeStatus() });
+    sendClock();
+  };
   const leisureRoute = (role: CharacterId, now: number) => {
     const task = leisure.get(role)!;
     return sampleWalk(task.route, Math.max(0, Math.min(task.until, now) - task.startedAt) / 1000 * 1.8);
@@ -168,28 +171,35 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const effects = gains(before, after, role);
     if (Object.keys(effects).length) all({ type: 'need_gain', role, label, effects });
   };
-  const lifeNow = options.lifeClock?.now ?? Date.now;
+  const lifeNow = options.lifeClock?.now ?? (() => performance.now());
   let lastLifeTick = lifeNow();
   let minuteCarry = 0;
+  const timeSinceTick = (now: number) => Math.min(30_000, Math.max(0, now - lastLifeTick));
   /** Charge elapsed real time at the OLD rate before any player changes the rate. */
   const accountTime = (): void => {
     const now = lifeNow();
-    const elapsed = Math.min(10_000, Math.max(0, now - lastLifeTick));
+    const elapsed = timeSinceTick(now);
     lastLifeTick = now;
     if (active.size) minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
-    else minuteCarry = 0;
   };
-  const liveGameTime = () => clockMinutes(state.clock) + minuteCarry +
-    (lifeNow() - lastLifeTick) / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
+  const liveGameTime = (multiplier = timeStatus().multiplier) => clockMinutes(state.clock) + minuteCarry +
+    timeSinceTick(lifeNow()) / 1000 * GAME_MINUTES_PER_REAL_SECOND * multiplier;
+  const sendClock = () => {
+    if (!active.size) return;
+    const { multiplier } = timeStatus();
+    all({ type: 'clock_sync', sample: { minutes: liveGameTime(multiplier), multiplier } });
+  };
+  const clockSync = setInterval(sendClock, CLOCK_SYNC_MS);
+  clockSync.unref();
   // Only the authoritative server moves the clock. With nobody online the
   // household is paused; reconnects never drain the absent player's needs.
-  const lifeTicker = setInterval(() => {
+  const commitLife = (): boolean => {
     const now = Date.now();
     const speedBefore = timeStatus().multiplier;
     accountTime();
-    if (!active.size) return;
+    if (!active.size) return false;
     const gameMinutes = Math.min(1440, Math.floor(minuteCarry));
-    if (gameMinutes < 1) return;
+    if (gameMinutes < 1) return false;
     for (const [role, activity] of leisure) {
       if (activity.until <= now) stopLeisure(role, now);
       else {
@@ -207,7 +217,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
-    catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    catch (error) { console.error('Could not save daily-life clock:', error); return false; }
     minuteCarry -= gameMinutes;
     if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
     for (const role of finishedSleeping) sleepers.delete(role);
@@ -229,6 +239,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         for (const [role, task] of leisure) if (task.activity === 'computer') stopLeisure(role);
     }
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
+    return true;
+  };
+  const lifeTicker = setInterval(() => {
+    if (!commitLife()) return;
+    const now = Date.now();
     const available: CharacterId[] = [];
     for (const [role, socket] of active) {
       if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || homeTasks.busy(role) || state.activeShifts[role] || storageOpen.has(role) ||
@@ -311,6 +326,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : plan.command.type === 'act' ? plan.command.actionId in KITCHEN_ACTIONS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
         : points[ACTIONS[plan.command.actionId].item]
+      : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen : points.table;
     const position = state.characters[role];
@@ -454,7 +470,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           catch { packet(socket, { type: 'error', reason: 'Не удалось запомнить устройство. Войди без этой опции' }); return; }
         }
         role = requested;
-        if (active.size === 0) { lastLifeTick = lifeNow(); minuteCarry = 0; }
+        if (active.size === 0) lastLifeTick = lifeNow();
         else accountTime();
         active.set(role, socket);
         lastIntent.set(role, Date.now());
@@ -558,9 +574,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       lastIntent.set(role, Date.now());
       closeStorage(role);
       stopLeisure(role);
-      if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Управление возвращено игроку');
+      if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
+      if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
+        accountTime();
         const result=leaveShiftEarly(state,role);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
@@ -579,7 +597,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         const from = state.characters[role];
-        const result = applyWorld(state, role, message);
+        const result = applyWorld(state, role, message, active.has(otherRole(role)));
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
@@ -663,7 +681,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
@@ -715,7 +733,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         stopLeisure(role);
         stopTask(role, names[role] + ': действие отменено из-за отключения');
         homeTasks.closeInvite('Игрок отключился');
-        accountTime();
+        if (active.size === 1) commitLife(); else accountTime();
         active.delete(role);
         shiftVotes.delete(role);
         stopSleep(role);
@@ -750,6 +768,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       running.clear();
       homeTasks.dispose();
       clearInterval(heartbeat);
+      clearInterval(clockSync);
       clearInterval(lifeTicker);
       for (const socket of wss.clients) socket.terminate();
       await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));

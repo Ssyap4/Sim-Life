@@ -3,6 +3,7 @@ import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
+import type { InstantCoffeeId } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
@@ -10,12 +11,15 @@ import type { PetId, PetAction } from '../shared/pets';
 import type { Entertainment, Genre, HomePresentation, NeedEffects } from '../shared/homeLife';
 import type { HomeLeisure } from '../shared/home';
 import type { WalkRoute } from '../game/navigation';
+import type { ClockSample } from '../shared/life';
 
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
   onOnline(online: CharacterId[]): void;
   onTimeStatus(status: TimeStatus): void;
+  onClock(sample: ClockSample): void;
+  onDisconnect(): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
   onStoreEvent(role: CharacterId, message: string): void;
@@ -78,6 +82,8 @@ export class LiveConnection {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
   }
+
+  brewCoffee(blend: InstantCoffeeId): boolean {return this.sendAuthenticated({type:'brew_coffee',blend});}
 
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
@@ -185,6 +191,8 @@ export class LiveConnection {
         this.callbacks.onOnline(packet.online);
       } else if (packet.type === 'time_status' && this.authorized) {
         this.callbacks.onTimeStatus(packet.status);
+      } else if (packet.type === 'clock_sync' && this.authorized) {
+        this.callbacks.onClock(packet.sample);
       } else if (packet.type === 'action' && this.authorized) {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
@@ -225,6 +233,7 @@ export class LiveConnection {
       }
     };
     socket.onclose = () => {
+      if (this.authorized) this.callbacks.onDisconnect();
       this.authorized = false;
       if (!this.stopped) {
         this.callbacks.onStatus('Связь потеряна. Повторное подключение…');

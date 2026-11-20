@@ -117,7 +117,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (station.action.kind === 'shelf') {
         const { categories } = station.action;
         const products = MARKET_PRODUCTS.filter(p => station.id === 'drinks'
-          ? p.stockKey === 'tea' || p.stockKey === 'coffee' : categories.includes(p.category));
+          ? p.stockKey === 'tea' || p.stockKey.startsWith('coffee') || p.stockKey.startsWith('beans') : categories.includes(p.category));
         for (const product of products) options.append(productRow(product.id));
         options.append(element('small', '', 'Выбранные товары оплачиваются на кассе.'));
       } else {

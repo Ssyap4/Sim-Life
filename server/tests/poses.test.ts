@@ -11,6 +11,23 @@ function figurePosition(actor: Actor): THREE.Vector3 {
   return figure.getWorldPosition(new THREE.Vector3());
 }
 
+test('A picked-up book follows the right hand until the actor opens it to read', () => {
+  const actor = new Actor('vlad', [0, 0]);
+  actor.carryBook('#ad8b61');
+  actor.walkPath([new THREE.Vector3(1, 0, 0)], () => {});
+  actor.update(.15);
+  const book = actor.root.getObjectByName('Held book');
+  assert.ok(book?.visible && book.parent);
+  const wrist = book.parent;
+  assert.notEqual(wrist, actor.root.children[0]);
+  assert.ok(book.getWorldPosition(new THREE.Vector3()).distanceTo(wrist.getWorldPosition(new THREE.Vector3())) < .12);
+  actor.playDomesticActivity('read');
+  actor.update(.15);
+  assert.equal(book.parent, actor.root.children[0]);
+  actor.clearProps();
+  assert.equal(book.visible, false);
+});
+
 test('Seated furniture pose places the model on sofa without moving its safe navigation root', () => {
   const actor = new Actor('alina', [-3.0, 0.6]);
   const anchor = new THREE.Vector3(-3.1, -0.25, 1.69);

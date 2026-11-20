@@ -2,7 +2,8 @@ import { randomInt } from 'node:crypto';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { clockMinutes } from '../src/shared/locations';
 import type { CharacterId, GameState } from '../src/shared/protocol';
-import { SERVICES, SERVICE_IDS, isServiceId, serviceAvailable,
+import { MINUTES_PER_DAY, clockAt, clockLabel } from '../src/shared/life';
+import { SERVICES, SERVICE_IDS, PAYMENT_REMINDER_PREFIX, UTILITY_RANGE, isServiceId, serviceAvailable, upcomingPayments,
   type Bill, type FamilyServices, type ServiceId } from '../src/shared/services';
 
 type Account = { money: number; billing: FamilyServices };
@@ -11,8 +12,10 @@ export { serviceAvailable };
 
 function issue(billing: FamilyServices, service: ServiceId, due: number): Bill {
   const definition = SERVICES[service];
+  const quote = service === 'utilities' && billing.utilityQuote?.due === due ? billing.utilityQuote : undefined;
   const bill: Bill = { id: service + ':' + due, service, issuedAt: due,
-    amount: definition.price ?? randomInt(definition.range[0], definition.range[1] + 1), paidAt: null };
+    amount: definition.price ?? quote?.amount ?? randomInt(UTILITY_RANGE[0], UTILITY_RANGE[1] + 1), paidAt: null };
+  if (quote) delete billing.utilityQuote;
   billing.bills.push(bill);
   return bill;
 }
@@ -102,14 +105,18 @@ export function settleFamilyServices(state: GameState, retry: boolean, remind = 
       messages.push(SERVICES[id].icon + ' ' + SERVICES[id].name + ' · оплачено −' + formatRub(total));
   }
   if (!remind) return messages;
-  for (const id of SERVICE_IDS) {
+  const utility = state.billing.services.utilities;
+  const due = utility.nextDue;
+  if (utility.enabled && due !== null && due > now && due - now <= MINUTES_PER_DAY &&
+      state.billing.utilityQuote?.due !== due) {
+    state.billing.utilityQuote = { due, amount: randomInt(UTILITY_RANGE[0], UTILITY_RANGE[1] + 1) };
+  }
+  for (const { id, due, amount } of upcomingPayments(state.billing, now)) {
     const status = state.billing.services[id];
-    const due = status.nextDue;
-    if (status.enabled && status.autoRenew && due !== null && due > now && due - now <= 1440 &&
-        status.remindedFor !== due) {
-      status.remindedFor = due;
-      messages.push(SERVICES[id].icon + ' Скоро платёж · ' + SERVICES[id].name);
-    }
+    if (status.remindedFor === due || amount === null) continue;
+    status.remindedFor = due;
+    messages.push(SERVICES[id].icon + ' ' + PAYMENT_REMINDER_PREFIX + ' · ' + SERVICES[id].name +
+      ' · ' + formatRub(amount) + ' · ' + clockLabel(clockAt(due)));
   }
   return messages;
 }
@@ -159,7 +166,7 @@ export function applyServiceCommand(source: GameState, actor: CharacterId, comma
 
 export function validBilling(value: unknown): value is FamilyServices {
   if (!value || typeof value !== 'object') return false;
-  const { services, bills } = value as Partial<FamilyServices>;
+  const { services, bills, utilityQuote } = value as Partial<FamilyServices>;
   const minute = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
   if (!services || !SERVICE_IDS.every(id => {
     const status = services[id];
@@ -167,6 +174,9 @@ export function validBilling(value: unknown): value is FamilyServices {
       (status.paidUntil === null || minute(status.paidUntil)) && (status.nextDue === null || minute(status.nextDue)) &&
       (status.remindedFor === undefined || minute(status.remindedFor));
   })) return false;
+  if (utilityQuote !== undefined && (!utilityQuote || !minute(utilityQuote.due) ||
+      utilityQuote.due !== services.utilities.nextDue || !minute(utilityQuote.amount) ||
+      utilityQuote.amount < UTILITY_RANGE[0] || utilityQuote.amount > UTILITY_RANGE[1])) return false;
   if (!Array.isArray(bills)) return false;
   const ids = new Set<string>();
   return bills.every(bill => {

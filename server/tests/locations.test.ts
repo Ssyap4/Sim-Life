@@ -9,10 +9,11 @@ import { openServerFiles } from '../storage';
 import { beginShift } from '../jobs';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { createLocation } from '../../src/game/LocationScene';
-import { findRoute, segmentIsClear } from '../../src/game/navigation';
-import { Box3 } from 'three';
+import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
+import { Box3, LineSegments, Mesh, Sprite } from 'three';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, DELIVERY_FEE, STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
+import { CASHIER_SPOT, PLAZA_BEDS, PLAZA_FOUNTAIN, PLAZA_TREES } from '../../src/shared/locationLayout';
 import { GROCERIES } from '../../src/shared/food';
 
 const send = (state: GameState, role: CharacterId, command: Record<string, unknown>) => {
@@ -52,6 +53,86 @@ test('Both spawns and every physical station are reachable in all five scenes', 
         assert.ok(findRoute(start, end, obstacles, floorFor(place)), JSON.stringify({ place, start, end }));
     }
   }
+});
+
+test('The plaza routes both residents around its landmarks and through every doorway', () => {
+  const stage = createLocation('street');
+  const jets = stage.root.getObjectByName('Fountain streams');
+  assert.ok(jets instanceof LineSegments);
+  stage.animate?.(2);
+  assert.ok(jets.rotation.y > 0);
+  let disposed = false;
+  jets.geometry.addEventListener('dispose', () => { disposed = true; });
+  stage.dispose();
+  assert.ok(disposed);
+
+  const floor = floorFor('street');
+  const obstacles = placeObstacles('street');
+  let state = initialState();
+  for (const role of ['vlad', 'alina'] as const) {
+    state = travel(state, role, 'street');
+    const start = spawn('street', role);
+    assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, start);
+    for (const { x, z } of [PLAZA_FOUNTAIN, ...PLAZA_BEDS, ...PLAZA_TREES]) {
+      assert.equal(applyWorld(state, role, { type: 'walk', place: 'street', x, z }).ok, false);
+    }
+    const target = { x: .10, z: -3.31 };
+    assert.equal(segmentIsClear(start, target, obstacles, floor), false);
+    const walk = applyWorld(state, role, { type: 'walk', place: 'street', ...target });
+    assert.ok(walk.ok && walk.path && walk.path.length > 1);
+    assert.ok(walk.path.every((end, index, path) => segmentIsClear(path[index - 1] ?? start, end, obstacles, floor)));
+    state = walk.state;
+    for (const station of STATIONS.street) {
+      if (station.action.kind !== 'door') continue;
+      const destination = station.action.destination;
+      state = send(at(state, role, station.id), role, { type: 'travel', place: destination, via: station.id });
+      assert.equal(state.world.places[role], destination);
+      assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, spawn(destination, role));
+      const exit = STATIONS[destination].find(item => item.action.kind === 'door' && item.action.destination === 'street');
+      assert.ok(exit);
+      state = send(at(state, role, exit.id), role, { type: 'travel', place: 'street', via: exit.id });
+    }
+  }
+});
+
+test('The decoration stays behind checkout and leaves the shopper approach open', () => {
+  const market = createLocation('market');
+  const cashier = market.root.getObjectByName('Cashier');
+  assert.ok(cashier);
+  assert.ok(cashier.getObjectByName('Кассир') instanceof Sprite);
+  assert.ok(![...market.stations.values()].some(station => station === cashier));
+  const checkout = market.stations.get('checkout');
+  const cashierBody = cashier.children.find(child => child instanceof Mesh);
+  assert.ok(checkout && cashierBody);
+  assert.ok(new Box3().setFromObject(cashierBody).max.z < new Box3().setFromObject(checkout).min.z);
+  market.dispose();
+});
+
+test('A 0.6 save relocates only residents standing on the new fountain or cashier', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-plaza-migration-'));
+  try {
+    const files = openServerFiles(dir);
+    let legacy = travel(travel(initialState(), 'vlad', 'street'), 'alina', 'market');
+    legacy = send(at(legacy, 'alina', 'checkout'), 'alina', {
+      type: 'store_pay', sequence: 0, lines: [{ id: 'grocery:milk', quantity: 1 }],
+    });
+    legacy.characters.vlad = { ...legacy.characters.vlad, x: PLAZA_FOUNTAIN.x, z: PLAZA_FOUNTAIN.z };
+    legacy.characters.alina = { ...legacy.characters.alina, x: CASHIER_SPOT.x, z: CASHIER_SPOT.z };
+    files.save(legacy);
+    const restored = files.load();
+    for (const role of ['vlad', 'alina'] as const) {
+      const place = legacy.world.places[role];
+      const { x, z } = restored.characters[role];
+      assert.ok(pointIsClear({ x, z }, placeObstacles(place), floorFor(place)));
+      legacy.characters[role].x = x;
+      legacy.characters[role].z = z;
+    }
+    assert.deepEqual(restored, legacy);
+    const edge = { x: -.25, z: 5.22 };
+    const expanded = send(restored, 'vlad', { type: 'walk', place: 'street', ...edge });
+    files.save(expanded);
+    assert.deepEqual(files.load(), expanded);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('Both residents can save in the yard and walk back through the house threshold', () => {

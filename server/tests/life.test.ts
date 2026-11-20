@@ -57,7 +57,7 @@ test('All bathroom actions complete at their shared approach and restore the int
 });
 
 test('Calendar uses predictable phases without separate shadow meshes', () => {
-  assert.equal(clockLabel({ day: 2, minute: 60 }), 'День 2 · 01:00');
+  assert.equal(clockLabel({ day: 2, minute: 60 }), '2 марта, год 1 · 01:00');
   assert.equal(dayPhase({ day: 1, minute: 0 }), 'night');
   assert.equal(dayPhase({ day: 1, minute: 400 }), 'morning');
   assert.equal(dayPhase({ day: 1, minute: 900 }), 'day');
@@ -102,7 +102,7 @@ test('Pre-Living-World saves preserve money, skills, pantry, pets and gain clock
     save.characters.vlad.skill = 63;
     save.pantry.bread = 8;
     save.pets.simba.bond = 55;
-    const legacy = { ...save, clock: undefined, characters: {
+    const legacy = { ...save, clock: undefined, readBooks: undefined, characters: {
       vlad: { ...save.characters.vlad }, alina: { ...save.characters.alina },
     } };
     for (const character of Object.values(legacy.characters)) {
@@ -116,6 +116,7 @@ test('Pre-Living-World saves preserve money, skills, pantry, pets and gain clock
     assert.equal(loaded.pantry.bread, 8);
     assert.equal(loaded.pets.simba.bond, 55);
     assert.deepEqual(loaded.clock, { day: 1, minute: 480 });
+    assert.deepEqual(loaded.readBooks, { vlad: [], alina: [] });
     assert.equal(loaded.characters.vlad.hygiene, 82);
     assert.equal(loaded.characters.vlad.bladder, INITIAL_DAILY_NEEDS.bladder);
     files.save(loaded);

@@ -5,8 +5,9 @@ import { batchRigidParts } from '../../src/game/ArtKit';
 import { EAST_WALL, HOME_FLOOR, HOME_FURNITURE, HOME_DOORS, KITCHEN_WORK } from '../../src/shared/home';
 import { placeObstacles, spawn } from '../../src/shared/locations';
 import { buildFurniture, buildPersonalFurniture } from '../../src/game/InteriorArt';
-import { findRoute, nearestClearPoint, pointIsClear, segmentIsClear, type FloorRect } from '../../src/game/navigation';
-import { PETS, PET_IDS } from '../../src/shared/pets';
+import { buildYard } from '../../src/game/YardArt';
+import { findRoute, pointIsClear, segmentIsClear, type FloorRect } from '../../src/game/navigation';
+import { PETS, PET_IDS, petApproach } from '../../src/shared/pets';
 import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
 
 test('both players can reach every interaction around the assembled interior', () => {
@@ -18,11 +19,10 @@ test('both players can reach every interaction around the assembled interior', (
   const register: Parameters<typeof buildFurniture>[0] = (id, root, point) => {
     assert.deepEqual(point, points[id], id + ' approach must match server coordinates');
     furnished.set(id, point);
-    // The library is already batched with the room decor before registration.
-    if (id !== 'bookcase') root.traverse((object) => {
+    if (id !== 'bookcase' && id !== 'grill' && id !== 'yardTable') root.traverse((object) => {
       if (object instanceof THREE.Mesh) sharedGeometries.add(object.geometry);
     });
-    else assert.ok(root.children.length <= 4, 'the library should stay batched');
+    else assert.ok(root.children.length <= 9, id + ' should stay batched');
     batchRigidParts(root);
     root.updateMatrixWorld(true);
     if (id !== 'shower') {
@@ -39,12 +39,14 @@ test('both players can reach every interaction around the assembled interior', (
   };
   buildFurniture(register);
   buildPersonalFurniture(new THREE.Scene(), library => register('bookcase',library,points.bookcase));
+  const yard = buildYard(new THREE.Scene());
+  register('grill', yard.grill, points.grill);
+  register('yardTable', yard.table, points.yardTable);
   assert.deepEqual([...furnished.keys()].sort(), Object.keys(points).sort());
 
   const destinations = new Map(furnished);
   for (const id of PET_IDS) {
-    const { x, z } = PETS[id].home;
-    const approach = nearestClearPoint({ x, z: z + 0.78 }, obstacles, HOME_FLOOR);
+    const approach = petApproach(PETS[id].home, obstacles, HOME_FLOOR);
     assert.ok(approach, id + ' must have a reachable approach');
     destinations.set(id, approach);
   }

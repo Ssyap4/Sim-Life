@@ -1,0 +1,41 @@
+import { pointIsClear, segmentIsClear, type FloorPoint, type FloorRect } from './navigation';
+
+export const RESIDENT_CLEARANCE = .62;
+const clearanceSquared = RESIDENT_CLEARANCE ** 2;
+const passes = [.97, 1.45, 1.86, 2.37].map(angle => [Math.cos(angle), Math.sin(angle)] as const);
+
+function clearsBody(from: FloorPoint, to: FloorPoint, body: FloorPoint): boolean {
+  const x = from.x - body.x, z = from.z - body.z;
+  const dx = to.x - from.x, dz = to.z - from.z;
+  const travel = dx * dx + dz * dz;
+  if (!travel) return true;
+  const dot = x * dx + z * dz;
+  if (x * x + z * z < clearanceSquared) return dot >= 0;
+  const t = Math.max(0, Math.min(1, -dot / travel));
+  return (x + dx * t) ** 2 + (z + dz * t) ** 2 >= clearanceSquared;
+}
+
+/** Sweep each movement step between frames. Both residents pass on the same side
+ * relative to their own direction, including when they approach head-on. */
+export function residentStep(from: FloorPoint, desired: FloorPoint, body: FloorPoint,
+  obstacles: readonly FloorRect[], floor: FloorRect): FloorPoint {
+  if (clearsBody(from, desired, body) &&
+      (segmentIsClear(from, desired, obstacles, floor) || !pointIsClear(from, obstacles, floor))) return desired;
+  const dx = desired.x - from.x, dz = desired.z - from.z;
+  for (const [cosine, sine] of passes) for (const side of [1, -1]) {
+    const step = { x: from.x + dx * cosine - side * dz * sine,
+      z: from.z + side * dx * sine + dz * cosine };
+    if (clearsBody(from, step, body) && segmentIsClear(from, step, obstacles, floor)) return step;
+  }
+  return from;
+}
+
+export function unoccupiedDestination(target: FloorPoint, body: FloorPoint,
+  obstacles: readonly FloorRect[], floor: FloorRect): FloorPoint | undefined {
+  if (Math.hypot(target.x - body.x, target.z - body.z) >= RESIDENT_CLEARANCE) return target;
+  for (const distance of [.32, .46, .635]) for (let i = 0; i < 16; i++) {
+    const angle = i * Math.PI / 8;
+    const point = { x: target.x + distance * Math.cos(angle), z: target.z + distance * Math.sin(angle) };
+    if (Math.hypot(point.x - body.x, point.z - body.z) >= RESIDENT_CLEARANCE && pointIsClear(point, obstacles, floor)) return point;
+  }
+}

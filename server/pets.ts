@@ -1,12 +1,12 @@
 import { HOME_FLOOR } from '../src/shared/home';
 import {
-  PETS, PET_IDS, PET_ROAM, PET_SPEED, petDestination, type PetId, type PetAction, type PetRoutine,
+  PETS, PET_IDS, PET_ROAM, PET_SPEED, petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
 import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
-import { planWalk, pointIsClear, sampleWalk } from '../src/game/navigation';
+import { planWalk, sampleWalk } from '../src/game/navigation';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -16,10 +16,7 @@ const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 const homeObstacles = placeObstacles('home');
 
 export function petCarePoint(state: GameState, id: PetId) {
-  const { x, z } = state.pets[id].position;
-  return [[0, .74], [-.74, 0], [.74, 0], [0, -.74]]
-    .map(([dx, dz]) => ({ x: x + dx, z: z + dz }))
-    .find(spot => pointIsClear(spot, homeObstacles, HOME_FLOOR));
+  return petApproach(state.pets[id].position, homeObstacles, HOME_FLOOR);
 }
 
 export function pausePetRoutine(state: GameState, id: PetId, now: number): void {

@@ -5,6 +5,7 @@ const material = (color: number) => new THREE.MeshStandardMaterial({color,roughn
 const paper = material(0xffe9c1);
 const ink = material(0x9f8772);
 const bristles = material(0xf5f0dc);
+const steel = material(0xa4a8a2);
 
 function part(parent: THREE.Group, mat: THREE.Material, size: number[], position: number[]) {
   const mesh = new THREE.Mesh(cube,mat);
@@ -17,6 +18,7 @@ function part(parent: THREE.Group, mat: THREE.Material, size: number[], position
 export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object3D[]) {
   const cover = material(0x6d574b);
   const book = new THREE.Group();
+  book.name = 'Held book';
   const leaves = [-1,1].map(sign => {
     const leaf = new THREE.Group();
     part(leaf,cover,[.135,.027,.183],[sign*.067,0,0]);
@@ -39,20 +41,38 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   brush.position.set(0,-.039,.020);
   brush.rotation.x = -.34;
   brush.visible=false;
+  const tongs = new THREE.Group();
+  tongs.position.set(0, -.090, .043);
+  const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
+  wrists[1].add(tongs);
+  tongs.visible = false;
   const left=new THREE.Vector3(),right=new THREE.Vector3();
   return {
     brush,
+    tongs,
+    grip(time: number) {
+      const opening = .07 + .075 * (1 + Math.sin(time * 4));
+      jaws[0].rotation.y = -opening;
+      jaws[1].rotation.y = opening;
+    },
     hideBook() { book.visible=false; },
     color(value: string) {cover.color.set(value);},
     book(t: number, reading: boolean, closing = 0) {
-      wrists[0].getWorldPosition(left);
-      wrists[1].getWorldPosition(right);
-      book.position.copy(figure.worldToLocal(left.lerp(right,.5)));
-      book.position.y += .064;
-      book.position.z += .080;
+      if (reading || closing > 0) {
+        if (book.parent !== figure) figure.add(book);
+        wrists[0].getWorldPosition(left);
+        wrists[1].getWorldPosition(right);
+        book.position.copy(figure.worldToLocal(left.lerp(right,.5)));
+        book.position.y += .064;
+        book.position.z += .080;
+        book.rotation.set(-.47, 0, 0);
+      } else {
+        if (book.parent !== wrists[1]) wrists[1].add(book);
+        book.position.set(.034, -.069, .035);
+        book.rotation.set(.18, 0, Math.PI / 2);
+      }
       const opening = reading ? THREE.MathUtils.smoothstep(t,0,.5) : 0;
       const open = Math.max(opening,closing);
-      book.rotation.x = -.23-open*.24;
       leaves[0].rotation.z = (1-open)*-1.44;
       leaves[1].rotation.z = (1-open)*1.44;
       const phase = t%10.5;

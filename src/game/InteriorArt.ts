@@ -105,6 +105,28 @@ function makeSofa(): THREE.Group {
   return sofa;
 }
 
+function makeOfficeChair(): THREE.Group {
+  const chair = group(HOME_PLACEMENTS.officeChair.x, HOME_PLACEMENTS.officeChair.z);
+  chair.rotation.y = Math.PI / 2;
+  const fabric = 0xb8735d;
+  for (const x of [-.43, .43]) for (const z of [-.34, .34]) {
+    const leg = part(chair, [.075, .26, .078], [x, .136, z], C.woodDark, 'soft', true, 'wood');
+    leg.rotation.z = Math.sign(x) * .12;
+  }
+  part(chair, [1.12, .115, .83], [0, .278, -.031], C.woodDark, 'soft', true, 'wood');
+  part(chair, [1.20, .225, .86], [0, .405, -.035], 0x935947, cushionGeometry, true);
+  part(chair, [.87, .154, .73], [0, .527, .030], fabric, cushionGeometry, true);
+  const back = part(chair, [1.14, .82, .246], [0, .88, -.374], fabric, cushionGeometry, true);
+  back.rotation.x = -.11;
+  const padding = part(chair, [.83, .61, .156], [0, .92, -.259], 0xc5886d, cushionGeometry, true);
+  padding.rotation.x = -.11;
+  for (const x of [-.51, .51]) {
+    part(chair, [.20, .335, .89], [x, .619, .048], fabric, cushionGeometry, true);
+    part(chair, [.153, .058, .79], [x, .782, .060], 0xc88a70, cushionGeometry, true);
+  }
+  return chair;
+}
+
 function makeBed(): THREE.Group {
   const bed = group(HOME_PLACEMENTS.bed.x, HOME_PLACEMENTS.bed.z);
   part(bed, [2.48, 0.32, 2.49], [0, 0.19, 0.015], C.woodDark, 'soft', true, 'wood');
@@ -280,10 +302,27 @@ function makeDiningTable(): THREE.Group {
   return table;
 }
 
+function makeCoffeeMaker(): THREE.Group {
+  const { x, z } = HOME_PLACEMENTS.coffeeMaker;
+  const maker = group(x, z);
+  // Low-poly countertop instant-coffee brewer, between kettle and backsplash.
+  part(maker, [.30, .31, .27], [0, 1.245, -.02], C.graphite, 'soft', true, 'metal');
+  part(maker, [.25, .14, .035], [0, 1.31, .123], C.warmWhite, 'soft', false, 'ceramic');
+  part(maker, [.19, .045, .15], [0, 1.115, .096], C.slate, 'square', false, 'metal');
+  part(maker, [.15, .025, .115], [0, 1.410, -.029], C.terracotta, 'soft');
+  round(maker, .019, .015, [.075, 1.324, .15], C.moss, 'metal');
+  part(maker, [.105, .095, .09], [0, 1.169, .103], C.cream, 'soft', false, 'ceramic');
+  oval(maker, [.035, .035, .015], [.075, 1.192, .103], C.cream);
+  part(maker, [.035, .034, .074], [0, 1.264, .108], C.graphite, 'square', false, 'metal');
+  return maker;
+}
+
 export function buildFurniture(register: Register): void {
   register('sofa', makeSofa(), points.sofa);
+  register('officeChair', makeOfficeChair(), points.officeChair);
   register('bed', makeBed(), points.bed);
   register('kitchen', makeKitchen(), points.kitchen);
+  register('coffeeMaker', makeCoffeeMaker(), points.coffeeMaker);
   register('desk', makeDesk(), points.desk);
   register('tv', makeTv(), points.tv);
   register('table', makeDiningTable(), points.table);
@@ -334,15 +373,6 @@ export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (mod
   part(bookcase, [.32, .046, .20], [.44, 1.81, 0], C.linen);
   part(bookcase, [.24, .037, .14], [.44, 1.85, 0], C.paleSage);
 
-  const officeSofa = makeSofa();
-  officeSofa.position.set(HOME_PLACEMENTS.officeSofa.x, 0, HOME_PLACEMENTS.officeSofa.z);
-  officeSofa.rotation.y = -Math.PI / 2;
-  officeSofa.scale.setScalar(.64);
-  const officeTv = makeTv();
-  officeTv.position.set(HOME_PLACEMENTS.officeTv.x, 0, HOME_PLACEMENTS.officeTv.z);
-  officeTv.rotation.y = -Math.PI / 2;
-  officeTv.scale.setScalar(.64);
-
   for (const [index, { x, z }] of [HOME_PLACEMENTS.bedroomLampLeft, HOME_PLACEMENTS.bedroomLampRight].entries()) {
     const nightstand = group(x, z);
     part(nightstand, [.63, .53, .59], [0, .325, 0], C.woodLight, 'soft', false, 'wood');
@@ -354,7 +384,7 @@ export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (mod
     batchRigidParts(nightstand, true);
     scene.add(nightstand);
   }
-  for (const furniture of [vanity, bookcase, officeSofa, officeTv]) {
+  for (const furniture of [vanity, bookcase]) {
     batchRigidParts(furniture, true);
     if (furniture === bookcase) registerLibrary(bookcase); else scene.add(furniture);
   }

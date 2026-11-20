@@ -27,9 +27,10 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
   let message = '';
   switch (key) {
     case 'sofaRest':
+    case 'officeChairSit':
       change(state, role, 'energy', 12); change(state, role, 'mood', 4);
       change(state, role, 'comfort', 12);
-      message = name + ': отдых на диване'; break;
+      message = name + (key === 'sofaRest' ? ': отдых на диване' : ': отдых в кресле'); break;
     case 'sofaMovie':
       change(state, role, 'mood', 15); change(state, role, 'energy', -3);
       change(state, role, 'fun', 23); change(state, role, 'comfort', 5);
@@ -94,6 +95,9 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
     case 'toiletUse':
       change(state, role, 'bladder', 100);
       message = name + ': нужда восстановлена'; break;
+    case 'wcWash':
+      change(state, role, 'hygiene', 12);
+      message = name + ': руки вымыты'; break;
     case 'bathShower':
       change(state, role, 'hygiene', 75);
       message = name + ': освежился после душа'; break;

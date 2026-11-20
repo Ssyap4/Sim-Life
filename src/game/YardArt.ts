@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { HOUSE_ENTRY, HOME_YARD } from '../shared/home';
+import { GRILL_RECIPES, type RecipeId } from '../shared/food';
+import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, softCube, type XYZ } from './ArtKit';
 
 const edging = 0xb29e83;
@@ -52,30 +53,112 @@ function flat(parent: THREE.Group, x: number, y: number, z: number, width: numbe
   panel(parent, [x, y, z], [width, depth], map, color).rotation.x = -Math.PI / 2;
 }
 
-function grillAndTable(yard: THREE.Group): void {
+function skewerFood(recipe: RecipeId, food: THREE.Group) {
+  const vegetables = recipe === 'grillVegetables';
+  for (const [i, x] of [-.069, .036].entries()) {
+    shape(food, [.014, .016, .276], [x, .016, 0], C.oat, cube, false, 'wood');
+    for (const [j, z] of [-.078, -.026, .029, .082].entries()) {
+      const colors = vegetables ? [0x9a9e58, 0xc57a3f, 0xb86448] : [0x945441, 0xd09459, 0xa88b50];
+      shape(food, [.064, .048, .048], [x, .033, z], colors[(i + j) % colors.length], softCube, false, 'wood');
+      if (!vegetables && j % 2 === 0) shape(food, [.045, .006, .010], [x, .058, z], 0x704832, cube, false, 'wood');
+    }
+  }
+}
+
+let foodModels: THREE.Group | undefined;
+export function grilledFood(): THREE.Group {
+  if (foodModels) return foodModels.clone();
+  const food = new THREE.Group();
+  food.name = 'Grilled serving';
+  for (const recipe of GRILL_RECIPES) {
+    const serving = new THREE.Group();
+    serving.name = recipe;
+    if (recipe === 'grillSteak') {
+      shape(serving, [.138, .044, .218], [0, .031, 0], 0x995947, softCube, false, 'wood').rotation.y = .15;
+      for (const z of [-.055, -.02, .02, .057])
+        shape(serving, [.109, .008, .009], [0, .055, z], 0x694132, cube, false, 'wood').rotation.y = -.19;
+    } else if (recipe === 'grillBurgers') {
+      for (const [y, radius, h, color] of [[.027, .103, .035, 0xc88e55], [.052, .10, .024, 0x815345],
+        [.067, .111, .012, 0x688253], [.085, .108, .031, 0xe0a761]]) {
+        const bun = shape(serving, [radius, h, radius], [0, y, 0], color, drum, false, 'wood');
+        bun.rotation.y = .12;
+      }
+    } else {
+      skewerFood(recipe, serving);
+    }
+    batchRigidParts(serving, true);
+    serving.visible = false;
+    food.add(serving);
+  }
+  foodModels = food;
+  return foodModels.clone();
+}
+
+export function selectGrilledFood(group: THREE.Object3D, recipe: RecipeId): void {
+  for (const meal of group.children) meal.visible = meal.name === recipe;
+}
+
+function grillAndTable() {
   const grill = new THREE.Group();
-  grill.position.set(HOME_YARD.grill.x, 0, HOME_YARD.grill.z);
+  const grillPosition = furniturePosition('grill');
+  grill.position.set(grillPosition.x, 0, grillPosition.z);
   for (const x of [-.39, .39]) for (const z of [-.24, .24]) {
     shape(grill, [.063, .68, .063], [x, .35, z], C.ink, cube);
   }
   shape(grill, [.89, .11, .50], [0, .22, 0], C.ink, softCube);
   shape(grill, [1.12, .27, .70], [0, .72, 0], 0x39474a, softCube, true, 'metal');
-  shape(grill, [.52, .25, .31], [0, .91, -.042], C.ink, orb, true, 'metal');
-  shape(grill, [.37, .05, .076], [0, .96, .32], C.oak, softCube, false, 'wood');
+  for (let i = -4; i <= 4; i++)
+    shape(grill, [.026, .023, .55], [.105 * i, .865, .016], 0x9b9b8a, cube, false, 'metal');
+  const lid = new THREE.Group();
+  lid.position.set(0, .87, -.33);
+  shape(lid, [.52, .25, .31], [0, .04, .288], C.ink, orb, true, 'metal');
+  shape(lid, [.37, .05, .076], [0, .09, .65], C.oak, softCube, false, 'wood');
   for (const x of [-.22, 0, .22]) {
     shape(grill, [.049, .043, .049], [x, .67, .368], C.oat, drum).rotation.x = Math.PI / 2;
   }
-  shape(grill, [.113, .015, .113], [.34, 1.04, .06], C.limestone, drum);
+  batchRigidParts(lid, true);
   batchRigidParts(grill, true);
-  yard.add(grill);
+  const contents = grilledFood();
+  contents.scale.setScalar(2);
+  contents.position.set(.11, .867, .028);
+  contents.visible = false;
+  grill.add(lid, contents);
 
-  const { x, z } = HOME_YARD.sideTable;
-  shape(yard, [.91, .073, .65], [x, .70, z], C.oak, softCube, true, 'wood');
-  for (const dx of [-.34, .34]) for (const dz of [-.23, .23]) {
-    shape(yard, [.06, .66, .065], [x + dx, .34, z + dz], C.walnut, cube, false, 'wood');
+  const table = new THREE.Group();
+  const { x, z } = furniturePosition('yardTable');
+  table.position.set(x, 0, z);
+  for (const dz of [-.30, -.10, .10, .30])
+    shape(table, [1.91, .095, .193], [0, DINING_TOP - .047, dz], C.oak, softCube, true, 'wood');
+  for (const dx of [-.76, .76]) {
+    shape(table, [.13, .118, 1.15], [dx, .38, .24], C.walnut, cube, false, 'wood');
+    for (const dz of [-.25, .30])
+      shape(table, [.104, .74, .115], [dx, .391, dz], C.walnut, softCube, true, 'wood');
   }
-  shape(yard, [.172, .034, .172], [x - .12, .756, z], C.paper, drum, false, 'ceramic');
-  shape(yard, [.085, .16, .085], [x + .24, .81, z - .16], C.clay, drum, false, 'ceramic');
+  for (const dz of [.591, .718, .845])
+    shape(table, [1.89, .087, .12], [0, .477, dz], C.oak, softCube, true, 'wood');
+  for (const dx of [-.71, .71])
+    shape(table, [.102, .433, .18], [dx, .225, .80], C.walnut, softCube, true, 'wood');
+  batchRigidParts(table, true);
+
+  const platter = new THREE.Group();
+  platter.name = 'Grill platter';
+  platter.position.set(x, DINING_TOP, z);
+  const servings = new Map<RecipeId, THREE.Group>();
+  for (const [i, recipe] of GRILL_RECIPES.entries()) {
+    const plate = new THREE.Group();
+    plate.position.set((i - 1.5) * .39, 0, -.14);
+    shape(plate, [.175, .033, .15], [0, .021, 0], C.paper, drum, false, 'ceramic');
+    const serving = grilledFood();
+    serving.position.y = .039;
+    serving.rotation.y = Math.PI / 2;
+    selectGrilledFood(serving, recipe);
+    plate.add(serving);
+    plate.visible = false;
+    platter.add(plate);
+    servings.set(recipe, plate);
+  }
+  platter.visible = false;
+  return { grill, table, lid, contents, platter, servings };
 }
 
 function fence(yard: THREE.Group): void {
@@ -117,7 +200,7 @@ function garden(yard: THREE.Group): void {
   }
 }
 
-export function buildYard(scene: THREE.Scene): void {
+export function buildYard(scene: THREE.Scene) {
   const yard = new THREE.Group();
   shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
   shape(yard, [12.25, .11, 6.92], [0, -.071, 8.70], 0x69764f, softCube);
@@ -128,7 +211,7 @@ export function buildYard(scene: THREE.Scene): void {
   const { parking } = HOME_YARD;
   const stones = paving();
   flat(yard, x, .006, 8.58, 1.88, 6.83, stones, flagstone);
-  flat(yard, -3.98, .004, 6.56, 3.40, 2.24, stones, flagstone);
+  flat(yard, -3.51, .004, 6.67, 4.24, 2.75, stones, flagstone);
   for (const dx of [-2.37, -1.92, -1.47]) {
     shape(yard, [.40, .045, .58], [x + dx, -.005, 7.16], flagstone, softCube);
   }
@@ -140,9 +223,11 @@ export function buildYard(scene: THREE.Scene): void {
   shape(yard, [2.50, .012, .055], [parking.x, .01, 6.61], C.paper, cube);
   shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z - 2.52], 0x8a7e6d, softCube);
 
-  grillAndTable(yard);
   garden(yard);
   fence(yard);
   batchRigidParts(yard, true);
   scene.add(yard);
+  const furniture = grillAndTable();
+  scene.add(furniture.platter);
+  return furniture;
 }

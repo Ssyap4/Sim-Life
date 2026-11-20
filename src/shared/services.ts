@@ -1,5 +1,7 @@
+import { MINUTES_PER_DAY } from './life';
+
 /** Shared catalogue for family services. Times are absolute game minutes. */
-export const BILLING_PERIOD = 10 * 24 * 60;
+export const BILLING_PERIOD = 10 * MINUTES_PER_DAY;
 export const UTILITY_RANGE = [2450, 3750] as const;
 
 export const SERVICES = {
@@ -28,6 +30,7 @@ export type Bill = {
 export type FamilyServices = {
   services: Record<ServiceId, ServiceState>;
   bills: Bill[];
+  utilityQuote?: { due: number; amount: number };
 };
 
 export function initialServices(now: number): FamilyServices {
@@ -43,6 +46,18 @@ export function initialServices(now: number): FamilyServices {
 }
 
 export const SERVICE_IDS = Object.keys(SERVICES) as ServiceId[];
+export const PAYMENT_REMINDER_PREFIX = 'Скоро платёж';
+
+export function upcomingPayments(billing: FamilyServices, now: number) {
+  return SERVICE_IDS.flatMap(id => {
+    const status = billing.services[id];
+    const due = status.nextDue;
+    if (!status.enabled || !status.autoRenew || due === null || due <= now || due - now > MINUTES_PER_DAY) return [];
+    const quote = billing.utilityQuote;
+    const amount = id === 'utilities' && quote?.due === due ? quote.amount : SERVICES[id].price;
+    return [{ id, due, amount }];
+  }).sort((a, b) => a.due - b.due);
+}
 
 export type ServiceCommand =
   | { type: 'service_connect'; service: ServiceId }

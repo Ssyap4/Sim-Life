@@ -187,22 +187,70 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
     assert.equal(existsSync(join(ctx.dir, 'household.json')), false);
 
     const accepted = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');
-    const vladDone = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.role === 'vlad');
+    const vladDone = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.taskId === first.taskId);
+    const wash = waitFor(ctx.alina, p => p.type === 'task_started' && p.role === 'vlad' && p.home?.station === 'wcBasin');
     const alinaDone = waitFor(ctx.alina, p => p.type === 'task_ended' && p.role === 'alina');
-    const a = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.revision === 2);
-    const b = waitFor(ctx.alina, p => p.type === 'snapshot' && p.state.revision === 2);
+    const completed = (p: ServerPacket) => p.type === 'snapshot' &&
+      p.state.characters.vlad.hygiene === 94 && p.state.characters.alina.hygiene === 100;
+    const a = waitFor(ctx.vlad, completed);
+    const b = waitFor(ctx.alina, completed);
     send(ctx.alina, { type: 'act', actionId: 'bathShower' });
     await accepted;
     for (const finish of await Promise.all([vladDone, alinaDone]))
       assert.ok(finish.type === 'task_ended' && finish.outcome === 'completed');
 
-    const [vSnapshot, aSnapshot] = await Promise.all([a, b]);
+    const [vSnapshot, aSnapshot, handWash] = await Promise.all([a, b, wash]);
+    assert.ok(handWash.type === 'task_started' && handWash.home && handWash.automatic === true);
+    assert.deepEqual(handWash.home.route.from, points.toilet);
+    assert.deepEqual(handWash.home.route.path.at(-1), points.wcBasin);
     assert.deepEqual(vSnapshot, aSnapshot);
     assert.ok(vSnapshot.type === 'snapshot');
     const { vlad, alina } = vSnapshot.state.characters;
-    assert.deepEqual([vlad.bladder, vlad.x, vlad.z], [100, points.toilet.x, points.toilet.z]);
+    assert.deepEqual([vlad.bladder, vlad.x, vlad.z], [100, points.wcBasin.x, points.wcBasin.z]);
     assert.deepEqual([alina.hygiene, alina.x, alina.z], [100, points.shower.x, points.shower.z]);
     assert.equal(openServerFiles(ctx.dir).load().characters.vlad.bladder, 100);
+  } finally { await clean(ctx); }
+});
+
+test('The grill is exclusive and produces shared portions served at the yard table', async () => {
+  const ctx = await setup(.025);
+  try {
+    const cook = { type: 'cook', recipe: 'grillChicken' };
+    const missing = waitFor(ctx.vlad, p => p.type === 'error');
+    send(ctx.vlad, cook);
+    const rejected = await missing;
+    assert.ok(rejected.type === 'error' && /ингредиентов/.test(rejected.reason));
+
+    const supplies = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.pantry.chicken > 0);
+    send(ctx.vlad, { type: 'checkout', lines: ['chicken', 'onion', 'oil']
+      .map(item => ({ id: 'grocery:' + item, quantity: 1 })) });
+    await supplies;
+    const start = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'vlad');
+    const done = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.role === 'vlad' && p.outcome === 'completed');
+    const stocked = waitFor(ctx.alina, p => p.type === 'snapshot' && p.state.meals.grillChicken === 3);
+    const before = openServerFiles(ctx.dir).load();
+    send(ctx.vlad, cook);
+    const task = await start;
+    assert.ok(task.type === 'task_started' && task.home?.station === 'grill');
+    const busy = waitFor(ctx.alina, p => p.type === 'error');
+    send(ctx.alina, cook);
+    const occupied = await busy;
+    assert.ok(occupied.type === 'error' && /занято/.test(occupied.reason));
+    const [, ready] = await Promise.all([done, stocked]);
+    assert.ok(ready.type === 'snapshot');
+    assert.equal(ready.state.pantry.chicken, before.pantry.chicken - 2);
+    assert.equal(ready.state.pantry.oil, before.pantry.oil - 1);
+    assert.equal(ready.state.money, before.money);
+
+    const eating = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');
+    const ate = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.meals.grillChicken === 2);
+    send(ctx.alina, { type: 'eat', recipe: 'grillChicken' });
+    const meal = await eating;
+    assert.ok(meal.type === 'task_started' && meal.home?.station === 'yardTable');
+    const after = await ate;
+    assert.ok(after.type === 'snapshot');
+    assert.ok(after.state.characters.alina.hunger > before.characters.alina.hunger);
+    assert.equal(openServerFiles(ctx.dir).load().meals.grillChicken, 2);
   } finally { await clean(ctx); }
 });
 
@@ -297,7 +345,7 @@ test('A declined invitation starts no action; disconnect cancels both accepted v
   } finally {await clean(ctx);}
 });
 
-test('All twelve books reach the shelf and a physical seat before completion', async () => {
+test('Every book reaches the shelf and a physical seat before completion', async () => {
   const {BOOKS}=await import('../../src/shared/homeLife');
   const {LIBRARY_APPROACH}=await import('../../src/shared/home');
   const ctx=await setup(.003);
@@ -312,15 +360,53 @@ test('All twelve books reach the shelf and a physical seat before completion', a
       assert.equal(task.durationMs,record[3]*3);
       assert.deepEqual(task.effects,{fun:60,comfort:10});
       assert.deepEqual(task.home.route.path[task.home.pickup-1],LIBRARY_APPROACH);
-      assert.ok(['sofa','officeSofa','table','yardBench','spareSeat'].includes(task.home.station));
+      assert.ok(['sofa','table','yardBench','yardTable'].includes(task.home.station));
       await playing;
       await ended;
     }
     const state=openServerFiles(ctx.dir).load();
     assert.equal(state.characters.vlad.fun,100);
     assert.equal(state.characters.vlad.comfort,100);
-    assert.equal(state.revision,12);
+    assert.deepEqual(state.readBooks, { vlad: Object.keys(BOOKS), alina: [] });
+    assert.equal(state.characters.vlad.skill,0);
     assert.equal(state.money,10000);
     assert.equal(state.pantry.eggs,4);
   } finally {await clean(ctx);}
+});
+
+test('Reading in the chair is exclusive, and only completion marks a book for its reader', async () => {
+  const ctx = await setup(.02);
+  try {
+    const start = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'vlad');
+    const read = { type: 'read_book', book: 'prince', seat: 'officeChair' };
+    send(ctx.vlad, read);
+    const task = await start;
+    assert.ok(task.type === 'task_started' && task.home?.station === 'officeChair');
+    const denied = waitFor(ctx.alina, p => p.type === 'error');
+    send(ctx.alina, { type: 'act', actionId: 'officeChairSit' });
+    const error = await denied;
+    assert.ok(error.type === 'error' && /занято/.test(error.reason));
+    const canceled = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.outcome === 'cancelled');
+    send(ctx.vlad, { type: 'cancel_task', taskId: task.taskId });
+    await canceled;
+    assert.deepEqual(openServerFiles(ctx.dir).load().readBooks, { vlad: [], alina: [] });
+
+    const sitting = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');
+    const stood = waitFor(ctx.alina, p => p.type === 'task_ended' && p.outcome === 'completed');
+    send(ctx.alina, { type: 'act', actionId: 'officeChairSit' });
+    const seat = await sitting;
+    assert.ok(seat.type === 'task_started' && seat.home?.station === 'officeChair');
+    await stood;
+
+    for (let n = 0; n < 2; n++) {
+      const synced = waitFor(ctx.alina, p => p.type === 'snapshot' && p.state.readBooks.vlad.includes('prince'));
+      const done = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.outcome === 'completed');
+      send(ctx.vlad, read);
+      await Promise.all([synced, done]);
+    }
+    const restored = openServerFiles(ctx.dir).load();
+    assert.deepEqual(restored.readBooks, { vlad: ['prince'], alina: [] });
+    assert.equal(restored.characters.vlad.skill, 0);
+    assert.equal(restored.characters.vlad.pose, 'idle');
+  } finally { await clean(ctx); }
 });
