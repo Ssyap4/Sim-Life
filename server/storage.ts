@@ -11,6 +11,7 @@ import { initialState, points, type CharacterId, type CharacterState, type GameS
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
 import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
+import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
@@ -51,6 +52,8 @@ const isValidState = (value: unknown): value is GameState => {
     }))) return false;
   if (state.readyFood !== undefined && (!Array.isArray(state.readyFood) || state.readyFood.length > 180 ||
     !state.readyFood.every(isReadyFoodBatch))) return false;
+  // Legacy version-2 saves have no dish counter; a missing value migrates to zero.
+  if (state.dirtyDishes !== undefined && !validDirtyDishes(state.dirtyDishes)) return false;
   const pantry = state.pantry as Record<string, unknown>;
   const meals = state.meals as Record<string, unknown> | undefined;
   if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
@@ -227,6 +230,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         meals: { ...EMPTY_MEALS, ...data.meals },
         takeout: { ...EMPTY_TAKEOUT, ...data.takeout },
         readyFood: data.readyFood ?? [],
+        dirtyDishes: data.dirtyDishes ?? { ...EMPTY_DIRTY_DISHES },
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
@@ -249,7 +253,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
       }
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
-      if (data.billing === undefined || data.readyFood === undefined || data.petBowls === undefined || migratedFood)
+      if (data.billing === undefined || data.readyFood === undefined || data.petBowls === undefined ||
+          data.dirtyDishes === undefined || migratedFood)
         this.save(household);
       return household;
     },

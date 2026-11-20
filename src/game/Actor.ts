@@ -4,7 +4,7 @@ import type { PetAction } from '../shared/pets';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
-import { finish, orb } from './ArtKit';
+import { drum, finish, orb } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
 import { mealGesture } from './MealGesture';
@@ -15,7 +15,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
 const up = THREE.Object3D.DEFAULT_UP;
@@ -44,6 +44,7 @@ export class Actor {
   private gaitBlend = 0;
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
+  private readonly dirtyPlate: THREE.Mesh;
   private readonly selectionRing: THREE.Mesh;
   private readonly heart: THREE.Mesh;
   private waypoints: THREE.Vector3[] = [];
@@ -66,10 +67,13 @@ export class Actor {
   /** Latest server-authoritative needs, used only to animate idle body language. */
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
+  carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
+  hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
+    this.dirtyPlate.visible = false;
     this.props.brush.visible = this.props.tongs.visible = false;
   }
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
@@ -119,6 +123,11 @@ export class Actor {
     this.spoon.rotation.x = 0.31;
     this.spoon.visible = false;
     this.rig.wrists[1].add(this.spoon);
+    this.dirtyPlate = new THREE.Mesh(drum, finish(0xeee2ce, 'ceramic'));
+    this.dirtyPlate.scale.set(.12, .013, .12);
+    this.dirtyPlate.position.set(0, -.055, .02);
+    this.dirtyPlate.visible = false;
+    this.rig.wrists[1].add(this.dirtyPlate);
 
     const ringMat = new THREE.MeshBasicMaterial({
       color: vlad ? 0x6da38c : 0xe2a188, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
@@ -140,7 +149,9 @@ export class Actor {
   select(value: boolean): void { this.selectionRing.visible = value; }
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
+    const carryingDishes = this.dirtyPlate.visible;
     this.setPose('idle');
+    if (carryingDishes) this.dirtyPlate.visible = true;
     // Furniture poses offset only the rendered body from its navigation root.
     // If that offset eases away *during* a new walk, the visible person can
     // pass straight through a neighbor although their navigation roots don't.
@@ -161,6 +172,7 @@ export class Actor {
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
+    this.dirtyPlate.visible = false;
     this.props.brush.visible = false;
     this.props.tongs.visible = false;
   }
@@ -199,6 +211,7 @@ export class Actor {
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
+    this.dirtyPlate.visible = false;
   }
 
   playPetActivity(kind: Exclude<PetAction, 'buyFood'>): void {
@@ -426,6 +439,14 @@ export class Actor {
           expression = .065 + meal.chew * .095;
           break;
         }
+        case 'dishes':
+          // Both hands rinse the carried plate over the sink.
+          leftY = -.11 + .04 * Math.sin(a * 4);
+          rightY = -.09 - .04 * Math.sin(a * 4);
+          leftZ = rightZ = .35;
+          lean = .15;
+          gaze = .22;
+          break;
         case 'wash':
           leftY = -0.07 + 0.048 * Math.sin(a * 4.3);
           rightY = -0.08 - 0.048 * Math.sin(a * 4.3);
@@ -767,7 +788,11 @@ export class Actor {
     if (counter) {
       for (const i of [0, 1] as const) {
         this.target.copy(counter);
-        if (this.activity === 'washHands') {
+        if (this.activity === 'dishes') {
+          this.target.x += (i ? -.07 : .07) + .035 * Math.sin(a * 4.5 + i * Math.PI);
+          this.target.y += .02 * Math.cos(a * 5 + i * Math.PI);
+          this.target.z += .045 * Math.sin(a * 3.4);
+        } else if (this.activity === 'washHands') {
           this.target.x += (i ? -.044 : .044) + .025 * Math.sin(a * 7 + i * Math.PI);
           this.target.y += .019 * Math.cos(a * 7 + i * Math.PI);
           this.target.z += .038 * Math.sin(a * 5);

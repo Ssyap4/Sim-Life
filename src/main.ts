@@ -1,6 +1,7 @@
 import { taskAccessError } from './shared/serviceAccess';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
+import { dishCount } from './shared/dirtyDishes';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
@@ -804,6 +805,16 @@ function openActions(item: ItemId): void {
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];
   actionsEl.appendChild(about);
+  if (state && (item === 'table' || item === 'yardTable' || item === 'kitchen')) {
+    const quantity = item === 'table' ? state.dirtyDishes.table
+      : item === 'yardTable' ? state.dirtyDishes.yardTable : dishCount(state.dirtyDishes);
+    const note = document.createElement('p');
+    note.className = 'food-empty';
+    note.textContent = quantity > 0
+      ? '🍽️ Грязная посуда: ' + quantity + ' шт. · можно помыть у кухонной раковины'
+      : '✨ Грязной посуды нет';
+    actionsEl.appendChild(note);
+  }
 
   if (state && (item === 'delivery' || item === 'kitchen' || item === 'table' || item === 'grill' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
@@ -877,7 +888,9 @@ function openActions(item: ItemId): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'action-button';
-    button.textContent = definition.label;
+    button.textContent = actionId === 'kitchenDishes' && state
+      ? definition.label + ' · ' + dishCount(state.dirtyDishes) + ' шт.' : definition.label;
+    if (actionId === 'kitchenDishes') button.disabled = !state || dishCount(state.dirtyDishes) === 0;
     button.addEventListener('click', () => {
       actionsEl.hidden = true;
       const denial = state && taskAccessError(state, {type:'act', actionId:actionId as ActionId});

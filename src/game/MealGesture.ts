@@ -21,7 +21,7 @@ export function mealGesture(time: number, role: CharacterId): MealGesture {
   const phase = (elapsed % cycle) / cycle;
   // After every three mouthfuls, give the character a short natural pause.
   const resting = round % 4 === 3;
-  const lift = resting ? 0 : smooth(.09, .31, phase) * (1 - smooth(.50, .72, phase));
+  const lift = resting ? 0 : smooth(.09, .31, phase) * (1 - smooth(.43, .60, phase));
   const chew = resting ? 0 : smooth(.47, .63, phase) * (1 - smooth(.89, .98, phase));
   const settle = smooth(0, .12, phase) * (1 - smooth(.87, 1, phase));
   return {

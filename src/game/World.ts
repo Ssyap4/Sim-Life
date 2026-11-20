@@ -10,6 +10,7 @@ import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
+import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
@@ -98,6 +99,8 @@ export class World {
   private socialSequence = 0;
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
+  private readonly dishTasks = new Set<CharacterId>();
+  private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
   private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
@@ -155,6 +158,7 @@ export class World {
 
     this.createLights();
     this.createHome();
+    this.createDirtyDishes();
     // Reuse the existing low-poly bags on the dining table, not in the hands at home.
     for (const [index, bag] of this.shoppingBags.entries()) {
       const offsets = [[-.39, .15], [.39, .15], [0, -.20]];
@@ -551,6 +555,37 @@ export class World {
     }
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
+      if (command.actionId === 'kitchenDishes') {
+        // One errand collects plates at the used tables, then brings them to
+        // the kitchen sink. Both players see the same server-backed counters.
+        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role) : [];
+        if (!stops.length) return false;
+        const actor = this.actors[role];
+        const sink = KITCHEN_WORK.dishes;
+        const visit = (index: number): boolean => {
+          if (!current()) return false;
+          if (index >= stops.length) {
+            return this.walkTo(role, sink.position, () => {
+              if (!current()) return;
+              const target = new THREE.Vector3().copy(sink.target);
+              actor.faceTowards(target);
+              actor.playDomesticActivity('dishes', target);
+            });
+          }
+          return this.walkTo(role, stops[index], () => {
+            if (!current()) return;
+            actor.playDomesticActivity('reach');
+            this.preparations.set(role, { remaining: .8, next: () => {
+              if (!current()) return;
+              actor.carryDirtyPlate();
+              visit(index + 1);
+            } });
+          });
+        };
+        const started = visit(0);
+        if (started) this.dishTasks.add(role);
+        return started;
+      }
       if (command.actionId in KITCHEN_ACTIONS) {
         const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
         const work = KITCHEN_WORK[motion];
@@ -604,6 +639,7 @@ export class World {
 
   finishTimedAction(role: CharacterId): void {
     this.preparations.delete(role);
+    const dishes = this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
     this.closeStorage(role);
@@ -611,12 +647,14 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
+    if (dishes) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
       this.actors[role].setPose('idle');
   }
 
   cancelTimedAction(role: CharacterId): void {
     this.preparations.delete(role);
+    this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
     this.closeStorage(role);
@@ -806,6 +844,33 @@ export class World {
     this.createPetBowls();
   }
 
+  /** Dirty plates are lightweight, shared visual props. The authoritative
+   * counts live on the server and survive reloading the household. */
+  private createDirtyDishes(): void {
+    const plateMaterial = finish(0xd6c4ac, 'ceramic');
+    const crumbsMaterial = finish(0x8a664c, 'wood');
+    for (const station of ['table', 'yardTable'] as const) {
+      const place = HOME_PLACEMENTS[station];
+      for (let index = 0; index < 6; index++) {
+        // Three places along the far tabletop edge, then a little stack
+        // directly above the first three. A meal can still use either seat.
+        const mesh = new THREE.Mesh(drum, plateMaterial);
+        mesh.scale.set(.132, .022, .132);
+        mesh.position.set(place.x + (index % 3 - 1) * .34,
+          DINING_TOP + .02 + Math.floor(index / 3) * .042,
+          place.z + (station === 'table' ? -.37 : .36));
+        // A tiny brown residue distinguishes these from ready-to-eat plates.
+        const residue = new THREE.Mesh(softCube, crumbsMaterial);
+        residue.scale.set(.26, .14, .19);
+        residue.position.set(.12, .65, -.08);
+        mesh.add(residue);
+        mesh.visible = false;
+        this.homeScene.add(mesh);
+        this.dirtyVisuals[station].push(mesh);
+      }
+    }
+  }
+
   /** The original ceramic bowls remain in the batched room geometry. Add only
    * two generous touch targets and six tiny food pieces that reflect server state. */
   private createPetBowls(): void {
@@ -968,6 +1033,7 @@ export class World {
     this.homeEffects.reset();
     this.grillCooking = false;
     this.homeTasks.clear();
+    this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
     this.controls.enablePan = place === 'home' || place === 'street' || place === 'market';
@@ -1025,6 +1091,11 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
+      for (const station of ['table', 'yardTable'] as const) {
+        this.dirtyVisuals[station].forEach((plate, index) => {
+          plate.visible = index < state.dirtyDishes[station];
+        });
+      }
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
       this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });

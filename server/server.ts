@@ -23,6 +23,7 @@ import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { createHomeSessions, usesHomeSession } from './homeSessions';
 import { gains } from './needs';
+import { dirtyDishStops } from '../src/shared/dirtyDishes';
 import { advanceLife } from './life';
 import { expireReadyFood, readyFoodName } from '../src/shared/readyFood';
 import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
@@ -347,9 +348,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,
       position.z - destination.z) * 1200 + 4200);
     const cookBudget = plan.command.type === 'cook' ? 19_000 : 0;
+    // Dishwashing makes an actual collection trip past the dirty tables and
+    // back to the kitchen. Never end the timer before the actor reaches sink.
+    const dishStops = plan.command.type === 'act' && plan.command.actionId === 'kitchenDishes'
+      ? dirtyDishStops(state.dirtyDishes, role) : [];
+    const dishPath = [position, ...dishStops, KITCHEN_WORK.dishes.position];
+    const dishDistance = dishPath.slice(1).reduce((sum, p, index) => {
+      const prev = dishPath[index];
+      return sum + Math.hypot(p.x - prev.x, p.z - prev.z);
+    }, 0);
+    const dishBudget = dishStops.length
+      ? Math.round(dishDistance / HOME_WALK_SPEED * 1000 + dishStops.length * 1500 + 8500) : 0;
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
     const duration = personalCare ? plan.durationMs + travelBudgetMs
-      : Math.max(plan.durationMs, travelBudgetMs, cookBudget);
+      : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
     const timer = setTimeout(() => {

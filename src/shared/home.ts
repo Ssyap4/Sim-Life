@@ -172,13 +172,14 @@ const work = (x: number, y: number, z: number) => ({
 export const KITCHEN_WORK = {
   stove: work(-.87, 1.17, .15),
   wash: work(1.28, 1.09, .14),
+  dishes: work(1.28, 1.09, .14),
   tidy: work(.37, 1.04, .29),
   tea: work(-1.68, 1.18, .16),
   coffee: work(-1.56, 1.20, -.22),
 } as const;
 
 export const KITCHEN_ACTIONS = {
-  kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
+  kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea', kitchenDishes: 'dishes',
 } as const;
 
 export const BATH_ACTIONS = {
