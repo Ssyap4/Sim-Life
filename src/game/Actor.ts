@@ -10,6 +10,8 @@ import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait'
 import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
+import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
+  type ResidentIdleContext, type ResidentIdleGesture } from './ResidentIdle';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
@@ -63,9 +65,20 @@ export class Actor {
   private needReactionTime = 0;
   private needReactionCooldown: number;
   private needReactionTurn = 0;
+  private readonly idleContext: ResidentIdleContext = { petYaw: null, partnerYaw: null };
+  private idleGesture: ResidentIdleGesture | null = null;
+  private idleGestureTime = 0;
+  private idleCooldown: number;
+  private idleTurn = 0;
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
+  /** Local visual awareness only: no game state or social actions are changed. */
+  setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
+    this.idleContext.petYaw = petYaw;
+    this.idleContext.partnerYaw = partnerYaw;
+  }
+  currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
@@ -98,6 +111,7 @@ export class Actor {
   constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);
     this.needReactionCooldown = id === 'vlad' ? 5.5 : 8.0;
+    this.idleCooldown = id === 'vlad' ? 4.8 : 6.3;
     this.root.add(this.figure);
     const vlad = id === 'vlad';
     const asset = model?.(this.figure);
@@ -168,6 +182,9 @@ export class Actor {
     this.pose = pose;
     this.gesture = null;
     this.activity = null;
+    this.idleGesture = null;
+    this.idleGestureTime = 0;
+    this.idleCooldown = Math.max(this.idleCooldown, 4);
     this.keys = this.pan = this.gestureTarget = undefined;
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
@@ -367,6 +384,30 @@ export class Actor {
         this.needReaction = pickNeedReaction(this.needs, this.needReactionTurn++);
         this.needReactionTime = 0;
         if (!this.needReaction) this.needReactionCooldown = 2.5;
+      }
+    }
+    // Natural habits fill quiet moments, but real need warnings take
+    // precedence. In particular a yawn/urgent bladder gesture never gets
+    // replaced by a cheery cosmetic action. Nothing here moves the root.
+    const canIdle = canReact && !!this.needs && !this.needReaction &&
+      !pickNeedReaction(this.needs, 0);
+    if (!canIdle || (this.idleGesture && !residentIdleAllowed(this.idleGesture, this.idleContext))) {
+      this.idleGesture = null;
+      this.idleGestureTime = 0;
+      this.idleCooldown = Math.max(this.idleCooldown, canReact ? 3 : 4);
+    } else if (this.idleGesture) {
+      this.idleGestureTime += dt;
+      if (this.idleGestureTime >= RESIDENT_IDLE_SECONDS) {
+        this.idleGesture = null;
+        this.idleGestureTime = 0;
+        this.idleCooldown = 7.5 + (this.idleTurn % 3) * 1.8 +
+          (this.id === 'alina' ? 1.3 : 0);
+      }
+    } else {
+      this.idleCooldown -= dt;
+      if (this.idleCooldown <= 0) {
+        this.idleGesture = chooseResidentIdle(this.id, this.idleContext, this.idleTurn++);
+        this.idleGestureTime = 0;
       }
     }
     const next = this.waypoints[0];
@@ -671,6 +712,79 @@ export class Actor {
       }
     }
 
+    // A handful of inexpensive, noticeable rig poses. The weights keep
+    // returning to the same neutral pose used for walking and normal work.
+    const idleWeight = this.idleGesture ? residentIdleWeight(this.idleGestureTime) : 0;
+    let idleHeadYaw = 0, idleHeadRoll = 0, idleChestRoll = 0, idleEyeYaw = 0;
+    if (idleWeight > 0) {
+      const w = idleWeight;
+      const phase = this.idleGestureTime;
+      switch (this.idleGesture) {
+        case 'think':
+          // Vlad brings a hand to his chin and looks down thoughtfully.
+          rightY = THREE.MathUtils.lerp(rightY, 0.18, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.18, w);
+          gaze += 0.10 * w;
+          lean += 0.035 * w;
+          idleHeadRoll = 0.055 * w;
+          break;
+        case 'fixHair': {
+          // Alina briefly smooths her hair back, rather than endlessly waving.
+          const sweep = 0.5 + 0.5 * Math.sin(phase * 3.0);
+          leftY = THREE.MathUtils.lerp(leftY, 0.20 + 0.085 * sweep, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.15 + 0.045 * sweep, w);
+          idleHeadRoll = -0.085 * w;
+          idleHeadYaw = -0.11 * w;
+          expression += 0.065 * w;
+          break;
+        }
+        case 'lookAround':
+          // Curious glances to either side, not rotation of navigation.
+          idleHeadYaw = 0.36 * Math.sin(phase * 1.25 - 0.70) * w;
+          idleHeadRoll = 0.045 * Math.sin(phase * 1.55) * w;
+          idleEyeYaw = idleHeadYaw * 0.25;
+          gaze -= 0.027 * w;
+          break;
+        case 'adjustSleeve':
+          rightY = THREE.MathUtils.lerp(rightY, -0.14, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.27 + 0.035 * Math.sin(phase * 4.7), w);
+          armSpread = THREE.MathUtils.lerp(armSpread, 0.035, w);
+          gaze += 0.075 * w;
+          idleHeadYaw = -0.12 * w;
+          break;
+        case 'shiftWeight':
+          // Keep feet and root where they are; gently relax the upper body.
+          idleChestRoll = 0.055 * Math.sin(phase * 1.1 + 0.3) * w;
+          idleHeadRoll = -idleChestRoll * 0.65;
+          leftY = THREE.MathUtils.lerp(leftY, -0.46, w * 0.46);
+          rightY = THREE.MathUtils.lerp(rightY, -0.51, w * 0.46);
+          break;
+        case 'stretchNeck':
+          leftY = THREE.MathUtils.lerp(leftY, -0.33, w);
+          rightY = THREE.MathUtils.lerp(rightY, -0.33, w);
+          armSpread = THREE.MathUtils.lerp(armSpread, 0.085, w);
+          lean -= 0.052 * w;
+          gaze -= 0.085 * w;
+          idleHeadRoll = 0.13 * Math.sin(phase * 1.1) * w;
+          break;
+        case 'noticePet':
+          // Just a glance. Petting and feeding remain explicit game actions.
+          idleHeadYaw = THREE.MathUtils.clamp(this.idleContext.petYaw ?? 0, -0.58, 0.58) * w;
+          idleEyeYaw = idleHeadYaw * 0.2;
+          gaze += 0.18 * w;
+          expression += 0.12 * w;
+          idleHeadRoll = 0.045 * w;
+          break;
+        case 'noticePartner':
+          // A small, friendly acknowledgment without an invented social reward.
+          idleHeadYaw = THREE.MathUtils.clamp(this.idleContext.partnerYaw ?? 0, -0.56, 0.56) * w;
+          idleEyeYaw = idleHeadYaw * 0.18;
+          gaze += 0.025 * Math.sin(phase * 2.8) * w;
+          expression += 0.20 * w;
+          break;
+      }
+    }
+
     this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
     this.props.tongs.visible = this.activity === 'grill';
     if (this.props.tongs.visible) this.props.grip(a);
@@ -717,10 +831,10 @@ export class Actor {
         1 - Math.exp(-dt * (12 + 15 * motion)));
     }
 
-    const idleLook = seated || asleep || this.activity || this.gesture ? 0 : Math.sin(t * 0.53) ** 7;
+    const idleLook = seated || asleep || this.activity || this.gesture || this.idleGesture ? 0 : Math.sin(t * 0.53) ** 7;
     if (data.animateFace) {
       const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
-        (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion);
+        (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion) + idleEyeYaw;
       const eyePitch = asleep ? 0 : this.activity === 'cook' ? 0.07 :
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) : 0.025 * Math.sin(t * 0.67);
       data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),
@@ -730,18 +844,18 @@ export class Actor {
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
     }
-    const look = 0.20 * idleLook + lead;
+    const look = 0.20 * idleLook + lead + idleHeadYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
-      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4, alpha);
+      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031;
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.025, alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y, motion * 0.055 * Math.cos(stridePhase), alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
-      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway, alpha);
+      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway + idleChestRoll, alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
     data.chest.position.y = (1 - Math.cos(data.chest.rotation.x)) * data.waistY + 0.006 * breath;
 
