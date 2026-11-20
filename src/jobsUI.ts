@@ -2,6 +2,7 @@ import { JOBS, JOB_IDS, stageForJob, shiftWage, shiftWorkedMinutes, shiftFullPay
 import { formatRub } from './shared/economy';
 import { totalGameMinutes } from './shared/jobs';
 import { names, type GameState, type CharacterId } from './shared/protocol';
+import type { TimeStatus } from './shared/timeControl';
 
 const create=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',value=''):HTMLElementTagNameMap[K]=>{
   const node=document.createElement(tag);
@@ -18,7 +19,9 @@ export interface JobBoard {
   close:()=>void;
 }
 export function makeJobBoard(root:HTMLElement,
-  sendStart:(id:JobId)=>boolean,sendLeaveEarly:()=>boolean):JobBoard {
+  sendStart:(id:JobId)=>boolean,sendLeaveEarly:()=>boolean,
+  sendSpeedVote:(enabled:boolean)=>boolean, getTime:()=>TimeStatus,
+  getOnline:()=>CharacterId[]):JobBoard {
   let state:GameState|null=null;
   let role:CharacterId='vlad';
   let busy=false;
@@ -61,6 +64,21 @@ export function makeJobBoard(root:HTMLElement,
         if(sendLeaveEarly())busy=true;draw();
       },'jobs-abort',busy));
       scroll.append(card);
+    }
+    if (Object.values(state.activeShifts).some(Boolean)) {
+      const status = getTime();
+      const agreed = status.shiftVotes.includes(role);
+      const votes = getOnline().filter(id => status.shiftVotes.includes(id)).length;
+      const note = create('div', 'jobs-active');
+      note.append(create('strong', '', '⏩ Ускорение подработок · ×1,5'),
+        create('small', '', status.multiplier === 1.5
+          ? 'Ускорение включено по согласию всех игроков онлайн.'
+          : 'Согласие: ' + votes + ' из ' + getOnline().length +
+            '. Если второй игрок онлайн, он тоже должен нажать кнопку в разделе «Подработки».'));
+      note.append(control(agreed ? 'Вернуть обычное время ×1' : 'Разрешить ускорение ×1,5', () => {
+        if (sendSpeedVote(!agreed)) busy = false;
+      }, 'jobs-speed'));
+      scroll.append(note);
     }
     if(state.shiftDays[role]===state.clock.day)
       scroll.append(create('p','jobs-message','Сегодня смена уже оплачена. Следующую можно взять завтра.'));

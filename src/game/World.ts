@@ -304,6 +304,17 @@ export class World {
     });
   }
 
+  /** Client-only presentation. Sleep ownership and recovery remain server-authoritative. */
+  showSleep(id: CharacterId, sleeping: boolean): void {
+    if (this.place !== 'home') return;
+    if (sleeping) {
+      if (!this.perform(id, 'bed', 'sleep', () => {}))
+        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
+    } else {
+      this.restoreCharacter(id, points.bed.x, points.bed.z, 'idle');
+    }
+  }
+
   performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
     return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
       action === 'cook' ? 'idle' : 'sit', () => {

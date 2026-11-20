@@ -298,6 +298,18 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 }
 
 /* Server-authoritative activities: visible progress for both players, local cancel only. */
+.time-panel {
+  background: #fffdf4f0;
+  border: 1px solid #e8dcca;
+  box-shadow: 0 4px 20px #44543c25;
+  border-radius: 13px;
+  padding: 9px 11px;
+  color: #49624d;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.time-panel small { color: #6d7868; }
+.time-panel .action-button { min-height: 44px; padding: 8px 12px; }
 .task-panel {
   pointer-events: auto;
   display: flex; flex-direction: column; gap: 6px;
@@ -554,7 +566,8 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .jobs-phases>small{font-size:10px;font-weight:900;color:#5a785f}
 .jobs-phases ol{margin:6px 0 0 16px;padding:0}
 .jobs-phases li{font-size:10px;line-height:1.6;padding-left:3px;color:#69796b}
-.jobs-start,.jobs-abort{min-height:44px;padding:10px 14px;border:0;border-radius:12px;font-size:12px;font-weight:900}
+.jobs-start,.jobs-abort,.jobs-speed{min-height:44px;padding:10px 14px;border:0;border-radius:12px;font-size:12px;font-weight:900}
+.jobs-speed{width:100%;margin-top:10px;background:#526f68;color:#fff}
 .jobs-start{background:#658f73;color:#fff}
 .jobs-abort{background:#faeee6;color:#a16553;margin-top:12px;border:1px solid #efd5c7}
 .jobs-start:disabled,.jobs-abort:disabled{opacity:.42;cursor:default}

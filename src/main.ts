@@ -11,6 +11,7 @@ import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY }
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
 import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
+import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
   type ActionId, type CharacterId, type GameState, type ItemId,
@@ -21,6 +22,7 @@ const shortPlaces = { home: 'Дом', street: 'Квартал', market: 'Маг�
 let state: GameState | null = null;
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
+let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
 let toastTimer: number | undefined;
 interface TaskView {
@@ -88,6 +90,7 @@ app.innerHTML = `
     <div id="actions" class="actions" hidden></div>
     <div id="location-panel" class="actions location-panel" hidden></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
+    <div id="time-panel" class="task-panel time-panel" hidden aria-live="polite"></div>
     <div class="bottom-bar">
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
@@ -126,6 +129,7 @@ app.innerHTML = `
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
 const taskPanelEl = document.querySelector<HTMLDivElement>('#task-panel')!;
+const timePanelEl = document.querySelector<HTMLDivElement>('#time-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
@@ -292,6 +296,27 @@ function renderNeeds(): void {
   }
 }
 
+function renderTimePanel(): void {
+  timePanelEl.replaceChildren();
+  if (!active || !state) { timePanelEl.hidden = true; return; }
+  const mode = timeStatus.sleepers[active];
+  timePanelEl.hidden = !mode;
+  if (!mode) return;
+  const status = document.createElement('strong');
+  status.textContent = (mode === 'full' ? '🌙 Сон до 100%' : '😴 Отдых до 50%') +
+    ' · энергия ' + Math.round(state.characters[active].energy) + '%' +
+    (timeStatus.multiplier > 1 ? ' · ×' + timeStatus.multiplier : ' · обычное время');
+  const note = document.createElement('small');
+  note.textContent = online.length > 1 && Object.keys(timeStatus.sleepers).length < online.length
+    ? 'Ускорение начнётся, когда второй игрок тоже уснёт.' : 'Сон прервётся автоматически при достижении цели.';
+  const wake = document.createElement('button');
+  wake.type = 'button';
+  wake.className = 'action-button';
+  wake.textContent = 'Проснуться сейчас';
+  wake.addEventListener('click', () => net.stopSleep());
+  timePanelEl.append(status, note, wake);
+}
+
 function render(reset = false): void {
   if (!state) return;
   if (active && world) {
@@ -319,8 +344,10 @@ function render(reset = false): void {
   }
   clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
     state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
+  if (timeStatus.multiplier > 1) clockEl.textContent += ' · ×' + timeStatus.multiplier;
   world?.setTimeOfDay(state.clock.minute);
   renderNeeds();
+  renderTimePanel();
   document.querySelector<HTMLElement>('#money')!.textContent =
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
@@ -379,12 +406,14 @@ function signOut(): void {
   locationUI.reset();
   showStatus('Выбери персонажа и введи личный код');
 }
-const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly());
+const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
+  enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
     state = household;
     online = players;
+    timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
     tasks.clear();
     drawTaskPanel();
     toggleNeeds(false);
@@ -411,6 +440,19 @@ const net = new LiveConnection({
   onOnline(players) {
     online = players;
     render();
+    if (state) jobsUI.refresh(state);
+  },
+  onTimeStatus(status) {
+    const before = timeStatus.sleepers;
+    timeStatus = status;
+    if (active && world) {
+      for (const role of ['vlad', 'alina'] as const) {
+        if (Boolean(before[role]) !== Boolean(status.sleepers[role]))
+          world.showSleep(role, Boolean(status.sleepers[role]));
+      }
+    }
+    render();
+    if (state) jobsUI.refresh(state);
   },
   onWorldPath(role, place, path, station) {
     if (!active || world.place !== place) return;
@@ -630,8 +672,32 @@ function openActions(item: ItemId): void {
       actionsEl.append(unpack);
     }
   }
+  if (item === 'bed' && state && active) {
+    const sleeping = timeStatus.sleepers[active];
+    const sleepButton = (label: string, mode: SleepMode) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'action-button';
+      button.textContent = label;
+      button.disabled = state!.characters[active!].energy >= (mode === 'full' ? 100 : 50);
+      button.addEventListener('click', () => {
+        if (net.startSleep(mode)) actionsEl.hidden = true;
+      });
+      actionsEl.append(button);
+    };
+    if (!sleeping) {
+      sleepButton('🌙 Спать до упора · до 100% · ×2', 'full');
+      sleepButton('😴 Небольшой отдых · до 50% · ×3', 'half');
+    } else {
+      const wake = document.createElement('button');
+      wake.type = 'button'; wake.className = 'action-button'; wake.textContent = '☀️ Проснуться';
+      wake.addEventListener('click', () => { if (net.stopSleep()) actionsEl.hidden = true; });
+      actionsEl.append(wake);
+    }
+  }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
+    if (actionId === 'bedSleep' || actionId === 'bedNap') continue;
     if ('role' in definition && definition.role !== active) continue;
     const button = document.createElement('button');
     button.type = 'button';
