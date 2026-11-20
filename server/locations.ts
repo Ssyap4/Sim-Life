@@ -10,6 +10,11 @@ import { findRoute, nearestClearPoint, pointIsClear } from '../src/game/navigati
 import { unoccupiedDestination } from '../src/game/residentCollision';
 import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
+import { RECIPES, TAKEOUT } from '../src/shared/food';
+import { MINUTES_PER_DAY } from '../src/shared/life';
+import { discardReadyFood, moveReadyFoodToFridge, readyFoodName } from '../src/shared/readyFood';
+import { storageCanFit } from '../src/shared/storageSpace';
+import { marketProduct } from '../src/shared/market';
 
 type Result = { ok: false; reason: string } |
   { ok: true; state: GameState; message: string; path?: Point[]; station?: string };
@@ -41,7 +46,10 @@ export function validWorld(value: unknown): value is WorldState {
 function at(source: GameState, role: CharacterId, station: Station | undefined): boolean {
   if (!station) return false;
   const { x, z } = approachFor(station, role);
-  return Math.hypot(x - source.characters[role].x, z - source.characters[role].z) < 0.64;
+  // The shared checkout has a wide counter; two people need to stand next to
+  // each other instead of occupying exactly the same interaction tile.
+  const reach = station.id === 'checkout' ? 0.94 : 0.64;
+  return Math.hypot(x - source.characters[role].x, z - source.characters[role].z) < reach;
 }
 
 export function setDogParkPosition(state: GameState): void {
@@ -53,7 +61,8 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim', 'cafe_order', 'cafe_pickup', 'dog_leash',
+  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim',
+  'ready_food_move', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
 export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>, neighborOnline = false): Result {
@@ -140,8 +149,11 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       if (!quote.ok) return quote;
       const cost = quote.cost + DELIVERY_FEE;
       if (source.money < cost) return fail('Недостаточно денег с учётом доставки');
-      const fits = grantCart(source, quote.lines);
-      if (!fits.ok) return fits;
+      // The buyer can decide at the door whether takeaway goes in the fridge
+      // or on the table. Neither storage choice may bypass the shared limits.
+      const fitsFridge = grantCart(source, quote.lines, 'fridge');
+      const fitsTable = grantCart(source, quote.lines, 'table');
+      if (!fitsFridge.ok && !fitsTable.ok) return fail(fitsFridge.reason + '; ' + fitsTable.reason);
       const id = 'D-' + role + '-' + next.world.sequence[role]++;
       next.money -= cost;
       next.world.deliveries.push({ id, role, lines: quote.lines, cost, readyAt: now + DELIVERY_MINUTES });
@@ -164,11 +176,47 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (place !== 'home' || !at(source, role, stationById('home', 'parcel'))) return fail('Подойди к двери дома');
     const order = source.world.deliveries.find(d => d.id === command.id);
     if (!order || order.readyAt > clockMinutes(source.clock)) return fail('Заказ ещё не доступен или уже получен');
-    const grant = grantCart(source, order.lines);
+    const storage = command.storage ?? 'fridge';
+    if (storage !== 'fridge' && storage !== 'table') return fail('Выбери, куда положить готовую еду');
+    // Takeaway left at the doorstep for >= 2 game days is spoiled before
+    // collection. Even choosing the fridge cannot revive it.
+    const now = clockMinutes(source.clock);
+    let spoiled = 0;
+    const freshLines = order.lines.filter(line => {
+      const item = marketProduct(line.id);
+      if (item?.kind !== 'takeout' || now < order.readyAt + 2 * MINUTES_PER_DAY) return true;
+      spoiled += item.quantity * line.quantity;
+      return false;
+    });
+    const grant = grantCart(source, freshLines, storage, order.readyAt);
     if (!grant.ok) return fail(grant.reason + '. Оплаченный заказ подождёт у двери');
     grant.state.world.deliveries = grant.state.world.deliveries.filter(d => d.id !== order.id);
     grant.state.world.tableBags++;
-    return done(grant.state, 'Заказ получен. Пакет на обеденном столе, товары уже в общих запасах');
+    return done(grant.state, 'Заказ получен. Пакет на обеденном столе' +
+      (freshLines.some(line => marketProduct(line.id)?.kind === 'takeout')
+        ? storage === 'fridge' ? ', готовая еда убрана в холодильник' : ', готовая еда оставлена на столе' : '') +
+      (spoiled ? '. Испортившихся порций выброшено: ' + spoiled : ''));
+  }
+
+  if (command.type === 'ready_food_move' || command.type === 'ready_food_discard') {
+    if (place !== 'home' || !at(source, role, stationById('home', 'fridge')))
+      return fail('Сначала подойди к холодильнику');
+    const kind = command.kind;
+    const item = command.item;
+    if ((kind !== 'meal' && kind !== 'takeout') || typeof item !== 'string' ||
+      !(kind === 'meal' ? Object.hasOwn(RECIPES, item) : Object.hasOwn(TAKEOUT, item)))
+      return fail('Нет такого готового блюда');
+    const next = structuredClone(source);
+    if (command.type === 'ready_food_move') {
+      if (!moveReadyFoodToFridge(next, kind, item)) return fail('На столе больше нет свежих порций этого блюда');
+      const fit = storageCanFit(source, next);
+      if (!fit.ok) return fail(fit.reason);
+      return done(next, 'В холодильник убрана 1 порция: ' + readyFoodName(kind, item));
+    }
+    const storage = command.storage;
+    if (storage !== 'fridge' && storage !== 'table') return fail('Неизвестное место хранения');
+    if (!discardReadyFood(next, kind, item, storage)) return fail('Свежих порций уже нет');
+    return done(next, 'Выброшена 1 порция: ' + readyFoodName(kind, item));
   }
 
   if (command.type === 'cafe_pickup') {

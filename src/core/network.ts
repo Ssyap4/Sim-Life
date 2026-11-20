@@ -39,6 +39,7 @@ export interface ConnectionCallbacks {
   onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
   onWorldEvent(role: CharacterId, message: string): void;
   onDeliveryArrived(): void;
+  onReadyFoodSpoiled(message: string): void;
   onBillingEvent(messages: string[]): void;
 }
 
@@ -185,6 +186,8 @@ export class LiveConnection {
         this.callbacks.onWorldEvent(packet.role, packet.message);
       } else if (packet.type === 'delivery_arrived' && this.authorized) {
         this.callbacks.onDeliveryArrived();
+      } else if (packet.type === 'ready_food_spoiled' && this.authorized) {
+        this.callbacks.onReadyFoodSpoiled(packet.message);
       } else if (packet.type === 'snapshot' && this.authorized) {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {

@@ -150,7 +150,9 @@ export type WorldCommand =
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }
   | { type: 'delivery_order'; lines: BasketLine[]; sequence: number }
-  | { type: 'delivery_claim'; id: string }
+  | { type: 'delivery_claim'; id: string; storage?: 'fridge' | 'table' }
+  | { type: 'ready_food_move'; kind: 'meal' | 'takeout'; item: string }
+  | { type: 'ready_food_discard'; kind: 'meal' | 'takeout'; item: string; storage: 'fridge' | 'table' }
   | { type: 'cafe_order'; item: CafeItem; sequence: number }
   | { type: 'cafe_pickup' }
   | { type: 'dog_leash' }

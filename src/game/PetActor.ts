@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine } from '../shared/pets';
+import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
+import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 
 export class PetActor {
@@ -18,6 +19,8 @@ export class PetActor {
   private facing: number | undefined;
   private distance = 0;
   private settled = 0;
+  private readonly hungerMarker = petHungerSprite();
+  private hungerLevel: PetHungerLevel = 'normal';
 
   constructor(readonly id: PetId) {
     const { x, z } = PETS[id].home;
@@ -31,6 +34,23 @@ export class PetActor {
     this.head.position.set(0, dog ? .728 : .542, dog ? .241 : .405);
     this.tail.position.set(0, dog ? .523 : .433, dog ? -.454 : -.567);
     this.root.rotation.y = dog ? 0.20 : 0.21;
+    if (this.hungerMarker) {
+      // The dog and cat use different model scales: keep both icons readable
+      // in world-space, and above their actual heads, not at the floor origin.
+      const size = 0.64 / this.root.scale.x;
+      this.hungerMarker.scale.set(size, size, 1);
+      this.hungerMarker.position.set(0, dog ? 1.43 : 1.44, 0);
+      this.root.add(this.hungerMarker);
+    }
+  }
+
+  setHungerLevel(level: PetHungerLevel): void {
+    if (level === this.hungerLevel) return;
+    this.hungerLevel = level;
+    if (!this.hungerMarker) return;
+    this.hungerMarker.visible = level !== 'normal';
+    if (level !== 'normal') this.hungerMarker.material.map = warningTexture(level);
+    this.hungerMarker.material.needsUpdate = true;
   }
 
   react(action: PetAction): void {
@@ -78,6 +98,11 @@ export class PetActor {
     }
     if (this.routine) travel = this.distance;
     this.clock += dt;
+    if (this.hungerMarker?.visible) {
+      this.hungerMarker.position.y = (this.id === 'verdell' ? 1.43 : 1.44) + Math.sin(this.clock * 3.1) * 0.045;
+      this.hungerMarker.material.opacity = this.hungerLevel === 'critical'
+        ? 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(this.clock * 4.2)) : 1;
+    }
     this.reactionTime += dt;
     const dog = this.id === 'verdell';
     const t = this.clock + (dog ? 0 : 1.75);

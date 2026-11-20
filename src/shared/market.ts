@@ -27,7 +27,7 @@ export const MARKET_PRODUCTS: MarketProduct[] = [
   })),
   ...Object.entries(PETS).map(([id,p])=>({
     id:'pet:'+id, stockKey:id, kind:'pet' as const,
-    category:'pets' as const,name:p.foodName,emoji:p.emoji,price:p.foodPrice,quantity:p.foodAmount,unit:'порц.',
+    category:'pets' as const,name:p.foodName,emoji:p.emoji,price:p.foodPrice,quantity:p.foodAmount,unit:'насып.',
   })),
 ];
 export const MARKET_BY_ID = new Map(MARKET_PRODUCTS.map(p=>[p.id,p]));

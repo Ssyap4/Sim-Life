@@ -91,7 +91,8 @@ test('Pet routes, real food, sleep and toilet persist and the leash excludes the
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-home-pets-'));
   try {
     const state = initialState();
-    state.pets.verdell.satiety = 50;
+    state.pets.verdell.satiety = 19;
+    state.petBowls.verdell = 3;
     state.pets.simba.bladder = 40;
     state.pets.simba.energy = 40;
     const firstMinute = 1920;
@@ -104,12 +105,13 @@ test('Pet routes, real food, sleep and toilet persist and the leash excludes the
     const reloaded = files.load();
     assert.deepEqual(reloaded.pets, state.pets);
     runPetRoutines(reloaded, 10, firstMinute + 10, new Set(), () => 0);
-    assert.equal(reloaded.petFood.verdell, 1);
-    assert.ok(reloaded.pets.verdell.satiety > 70);
+    assert.equal(reloaded.petFood.verdell, 2, 'automatic eating does not use pack refills');
+    assert.equal(reloaded.petBowls.verdell, 2, 'one serving consumed from the bowl');
+    assert.ok(reloaded.pets.verdell.satiety > 50);
     assert.ok(reloaded.pets.simba.bladder > 98);
     assert.equal(reloaded.pets.simba.routine?.kind, 'sleep');
     runPetRoutines(reloaded, 16, firstMinute + 26, new Set(), () => .5);
-    assert.equal(reloaded.petFood.verdell, 1);
+    assert.equal(reloaded.petFood.verdell, 2);
     assert.ok(reloaded.pets.simba.energy > 66);
     const park = applyWorld(reloaded, 'vlad', { type: 'travel', place: 'park', dog: true });
     assert.ok(park.ok);

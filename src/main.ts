@@ -18,7 +18,7 @@ import { createMarketUI, showTakeoutChoices } from './marketUI';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
-import { PETS, type PetId } from './shared/pets';
+import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
@@ -406,6 +406,13 @@ function render(reset = false): void {
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
+    const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
+    const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
+    petsBtn.textContent = '🐾 Питомцы' + (criticalPets.length ? ' ❗' + criticalPets.length
+      : hungryPets.length ? ' ⚠️' + hungryPets.length : '');
+    petsBtn.title = criticalPets.length ? 'Сильно голодны: ' + criticalPets.map(id => PETS[id].name).join(', ')
+      : hungryPets.length ? 'Проголодались: ' + hungryPets.map(id => PETS[id].name).join(', ')
+      : 'Уход за Верделлом и Симбой';
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       deliverySequence = null;
@@ -565,6 +572,9 @@ const net = new LiveConnection({
     if (!updates.length) return;
     phone.billingMessages(updates);
     notify(updates.length > 2 ? updates[0] + ' · ещё ' + (updates.length - 1) + ' в телефоне' : updates.join(' · '));
+  },
+  onReadyFoodSpoiled(message) {
+    notify(message);
   },
   onDeliveryArrived() {
     notify('Доставка у двери дома');
@@ -746,6 +756,36 @@ function openPetActions(pet: PetId | null = null): void {
     });
 }
 
+function openPetBowlActions(pet: PetId): void {
+  locationUI.close();
+  if (!active || !state || !net.isReady()) return notify('Сначала войди в общий дом');
+  const spec = PETS[pet];
+  const servings = state.petBowls[pet];
+  const fillings = state.petFood[pet];
+  showActionMenu('🥣 Миска · ' + spec.name);
+  const note = document.createElement('p');
+  note.className = 'pet-note';
+  note.textContent = 'В миске: ' + servings + '/' + PET_BOWL_CAPACITY + ' порции · в запасе: ' + fillings +
+    ' насыпаний · пачка за ' + spec.foodPrice + ' ₽ даёт ' + PET_FOOD_REFILLS_PER_PACK +
+    ' насыпаний по ' + PET_BOWL_CAPACITY + ' порции.';
+  actionsEl.append(note);
+  const refill = document.createElement('button');
+  refill.type='button';
+  refill.className='food-action pet-action';
+  refill.disabled=servings>0 || fillings<1;
+  const name=document.createElement('strong');
+  name.textContent='🥣 Насыпать корм · +' + PET_BOWL_CAPACITY + ' порции';
+  const hint=document.createElement('small');
+  hint.textContent=servings>0 ? 'В миске ещё есть корм — дождись, когда питомец доест.'
+    : fillings<1 ? 'Корм закончился — купи пачку в магазине или в меню питомца.'
+    : '−1 насыпание из семейных запасов. Питомец сам подойдёт при сытости ниже 20%.';
+  refill.append(name,hint);
+  refill.addEventListener('click',()=>{
+    if(net.petAction(pet,'feed')) {actionsEl.hidden=true;statusEl.textContent='Насыпаем корм в миску…';}
+  });
+  actionsEl.append(refill);
+}
+
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
@@ -871,6 +911,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     world = new World(canvas, (id) => {
       if (id === 'vlad' || id === 'alina') openSocialActions(id);
       else if (id === 'verdell' || id === 'simba') openPetActions(id);
+      else if (id === 'bowl:verdell' || id === 'bowl:simba') openPetBowlActions(id.slice(5) as PetId);
       else openActions(id);
     }, (inspection) => {
       const viewport = canvas.getBoundingClientRect();
