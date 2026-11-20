@@ -328,6 +328,17 @@ test('An ongoing study advances at the agreed shift rate and pauses with no play
     const closed = [vlad, alina].map(player => once(player.socket, 'close'));
     vlad.socket.close(); alina.socket.close();
     await Promise.all(closed);
+    // A client's close event may precede the server-side disconnect handler.
+    // Wait until both roles have been removed before advancing the fake clock.
+    let online = 2;
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      const response = await fetch('http://127.0.0.1:' + server.port + '/health');
+      online = ((await response.json()) as { online: number }).online;
+      if (online === 0) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(online, 0);
     const before = files.load();
     now += 300_000;
     const back = await connect(server.port, 'vlad', files.access.vlad);
