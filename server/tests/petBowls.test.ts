@@ -37,9 +37,9 @@ test('One priced pack gives ten bowl refills, each worth three distinct meal ser
   assert.equal(PET_BOWL_CAPACITY,3);
 });
 
-test('Verdell autonomously walks to his own bowl only below 20%, eats one portion and not one refill',()=>{
+test('Verdell autonomously walks to his own bowl at 40%, eats one portion and not one refill',()=>{
   const s=initialState();
-  s.pets.verdell.satiety=20.3;
+  s.pets.verdell.satiety=40.3;
   s.pets.verdell.bladder=95;
   s.pets.verdell.energy=99;
   s.petBowls.verdell=3;

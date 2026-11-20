@@ -27,7 +27,8 @@ export type PetBowlStock = Record<PetId, number>;
 export const PET_FOOD_REFILLS_PER_PACK = 10;
 export const PET_BOWL_CAPACITY = 3;
 export const PET_FOOD_MAX_REFILLS = 50;
-export const PET_AUTO_EAT_BELOW = 20;
+// Pets approach their own filled bowl at 40% or lower, before red hunger.
+export const PET_AUTO_EAT_BELOW = 40;
 export const PET_EAT_SATIETY_GAIN = 36;
 
 // One shared, read-only classification for 3D signals, menus and any later
@@ -35,7 +36,8 @@ export const PET_EAT_SATIETY_GAIN = 36;
 export const PET_HUNGER_WARNING_BELOW = 35;
 export type PetHungerLevel = 'normal' | 'warning' | 'critical';
 export function petHungerLevel(satiety: number): PetHungerLevel {
-  if (satiety < PET_AUTO_EAT_BELOW) return 'critical';
+  // Warning/critical colors are independent from the earlier meal trigger.
+  if (satiety < 20) return 'critical';
   if (satiety < PET_HUNGER_WARNING_BELOW) return 'warning';
   return 'normal';
 }
@@ -49,7 +51,7 @@ export const PETS = {
     foodPrice: 650,
     foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -3.52, z: 4.48 },
-    bowl: { x: -.91, z: -2.63 },
+    bowl: { x: -1.65, z: -2.63 },
     toilet: { x: 3.25, z: 4.48 },
   },
   simba: {
@@ -60,7 +62,7 @@ export const PETS = {
     foodPrice: 550,
     foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -2.24, z: 4.48 },
-    bowl: { x: -.18, z: -2.63 },
+    bowl: { x: .15, z: -2.63 },
     toilet: { x: 4.26, z: 4.48 },
   },
 } as const satisfies Record<PetId, {
@@ -71,10 +73,12 @@ export const PETS = {
   toilet: { x: number; z: number };
 }>;
 
+// Spacious, deliberate resting/sniffing spots. Avoid walls, tight door
+// edges, kitchen furniture and shared household work positions.
 export const PET_ROAM = [
-  { x: -3.0, z: 3.43 }, { x: -6.30, z: -3.81 }, { x: -.62, z: 2.40 },
-  { x: .84, z: -.56 }, { x: .48, z: 4.45 }, { x: 1.20, z: 2.58 }, { x: 7.72, z: -3.80 },
-  { x: -2.64, z: 8.08 }, { x: -3.82, z: 9.63 }, { x: -.96, z: 10.53 }, { x: 1.37, z: 8.88 },
+  { x: -2.90, z: 3.34 }, { x: -6.26, z: -3.71 }, { x: -.25, z: 1.32 },
+  { x: .17, z: -.47 }, { x: .48, z: 4.43 }, { x: 1.12, z: 1.84 }, { x: 7.65, z: -3.72 },
+  { x: -2.70, z: 8.20 }, { x: -3.65, z: 9.55 }, { x: -.96, z: 10.28 }, { x: 1.40, z: 8.85 },
 ] as const;
 
 export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[], floor: FloorRect) {

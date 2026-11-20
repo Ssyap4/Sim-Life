@@ -59,7 +59,6 @@ export const HOME_PLACEMENTS = {
   bedroomLampRight: { x: -5.12, z: -6.70 },
   bookcase: { x: 8.97, z: -4.49 },
   officeChair: { x: 6.47, z: -2.84 },
-  yardBench: { x: -3.23, z: 10.24 },
   grill: { x: -4.72, z: 6.49 },
   yardTable: { x: -2.68, z: 6.43 },
 } as const;
@@ -77,12 +76,11 @@ export const HOME_WALK_SPEED = 1.8;
 
 export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./protocol').CharacterId, layout?: HomeLayout) {
   const first = role === 'vlad';
-  const p = id === 'yardBench' ? HOME_PLACEMENTS.yardBench : furniturePosition(id, layout);
+  const p = furniturePosition(id, layout);
   const seat = {
     sofa: [first ? -.50 : .50, first ? .057 : .106, -.27, Math.PI, first ? -.50 : .50, -1.01],
     officeChair: [.14, first ? -.24 : -.19, 0, Math.PI / 2, 1.02, 0],
     table: [first ? .99 : -.99, first ? -.27 : -.22, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
-    yardBench: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
     yardTable: [first ? -.57 : .57, first ? -.27 : -.22, .72, Math.PI, first ? -.57 : .57, 1.42],
   }[id];
   const [x,y,z,yaw,approachX,approachZ] = seat;
@@ -140,7 +138,6 @@ export const HOME_DECOR = [
   homeFootprint(HOME_PLACEMENTS.vanity, -.51, 1.14, -.90, .90),
   homeFootprint(HOME_PLACEMENTS.bedroomLampLeft, -.34, .34, -.38, .38),
   homeFootprint(HOME_PLACEMENTS.bedroomLampRight, -.35, .35, -.38, .38),
-  homeFootprint(HOME_PLACEMENTS.yardBench, -.96, .96, -.36, .36),
   // The shower tray is walkable. Its glazing forms a U with the entrance facing west.
   homeFootprint(shower, -.73, .77, -.91, -.54),
   homeFootprint(shower, -.72, .77, .54, .91),

@@ -4,6 +4,7 @@ import { validWorld } from './locations';
 import { floorFor, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
 import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
+import { petNavigationGeometry } from '../src/game/PetNavigation';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,7 +16,7 @@ import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes'
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
-  PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, type PetId, type PetState } from '../src/shared/pets';
+  PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { BOOKS } from '../src/shared/homeLife';
 
@@ -142,6 +143,7 @@ const isValidState = (value: unknown): value is GameState => {
 };
 
 const homeObstacles = placeObstacles('home');
+const safePetHome = petNavigationGeometry(homeObstacles, HOME_FLOOR);
 
 const previousSeats = [
   { item: 'bed', pose: 'sleep', x: -4.30, z: -1.40 },
@@ -167,13 +169,21 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
 
 function restorePet(id: PetId, saved: PetState | undefined): PetState {
   const pet = { ...INITIAL_PETS[id], ...saved };
-  pet.position = nearestClearPoint(pet.position, homeObstacles, HOME_FLOOR) ?? INITIAL_PETS[id].position;
+  // Old positions or animation routes may now graze an enlarged pet collider,
+  // or refer to a bowl/bench/roaming stop removed from the current layout.
+  // Repair only the spatial data; never reset affection, hunger or food stock.
+  pet.position = nearestClearPoint(pet.position, safePetHome.obstacles, safePetHome.floor)
+    ?? INITIAL_PETS[id].position;
   const route = pet.routine?.route;
-  // A route saved by an earlier layout may now cross a wall or furniture.
-  if (route && (!pointIsClear(route.from, homeObstacles, HOME_FLOOR) ||
-    !route.path.every((point, index) =>
-      segmentIsClear(route.path[index - 1] ?? route.from, point, homeObstacles, HOME_FLOOR)))) {
-    delete pet.routine;
+  if (route && pet.routine) {
+    const expected = petDestination(id, pet.routine);
+    const last = route.path.at(-1) ?? route.from;
+    if (Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
+      !pointIsClear(route.from, safePetHome.obstacles, safePetHome.floor) ||
+      !route.path.every((point, index) =>
+        segmentIsClear(route.path[index - 1] ?? route.from, point, safePetHome.obstacles, safePetHome.floor))) {
+      delete pet.routine;
+    }
   }
   return pet;
 }

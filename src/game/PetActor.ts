@@ -3,6 +3,8 @@ import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetH
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
+import { nearestClearPoint, pointIsClear } from './navigation';
+import { petTemporaryDetour } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
 import { PET_IDLE_SECONDS, choosePetIdle, petIdleWeight,
   type PetIdleContext, type PetIdleGesture } from './PetIdle';
@@ -23,6 +25,9 @@ export class PetActor {
   private facing: number | undefined;
   private distance = 0;
   private settled = 0;
+  private stuckFor = 0;
+  private lastProgressGap = Infinity;
+  private rerouteCooldown = 0;
   private readonly hungerMarker = petHungerSprite();
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
@@ -84,6 +89,9 @@ export class PetActor {
     this.routine = routine;
     this.facing = facing;
     this.settled = 0;
+    this.stuckFor = 0;
+    this.lastProgressGap = Infinity;
+    this.rerouteCooldown = 0;
   }
 
   stop(): void {
@@ -91,10 +99,25 @@ export class PetActor {
     this.routine = null;
     this.facing = undefined;
     this.settled = 0;
+    this.stuckFor = 0;
+    this.lastProgressGap = Infinity;
+    this.rerouteCooldown = 0;
   }
 
   update(dt: number, travel = 0, pace = 0,
     traffic?: { blockers: readonly FloorPoint[]; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
+    this.rerouteCooldown = Math.max(0, this.rerouteCooldown - dt);
+    // Old saves can place a pet a few centimetres inside a newly widened
+    // collider. Escape once to the nearest clear tile, not in an endless
+    // series of tiny oscillations through the wall.
+    if (traffic && this.route.length && !pointIsClear(this.root.position, traffic.obstacles, traffic.floor)) {
+      const escape = nearestClearPoint(this.root.position, traffic.obstacles, traffic.floor);
+      if (escape) {
+        this.root.position.set(escape.x, 0, escape.z);
+        this.stuckFor = 0;
+        this.lastProgressGap = Infinity;
+      }
+    }
     if (this.route.length) {
       const target = this.route[0];
       const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
@@ -119,8 +142,34 @@ export class PetActor {
           pace = .76;
         }
       }
-      if (Math.hypot(target.x - this.root.position.x, target.z - this.root.position.z) < .012) {
+      const remaining = Math.hypot(target.x - this.root.position.x,
+        target.z - this.root.position.z);
+      if (traffic && distance > .04) {
+        // Progress is measured toward the actual waypoint, not the distance
+        // of sideways shuffling, which previously caused indefinite twitching.
+        // Checkpoint distance rather than one frame's microstep: a pet
+        // shuffling back and forth can briefly move toward the waypoint
+        // without making meaningful overall progress.
+        if (remaining < this.lastProgressGap - .075) {
+          this.lastProgressGap = remaining;
+          this.stuckFor = 0;
+        } else this.stuckFor += dt;
+        if (this.stuckFor > 1.10 && this.rerouteCooldown <= 0) {
+          this.rerouteCooldown = 3.6;
+          this.stuckFor = 0;
+          this.lastProgressGap = Infinity;
+          const destination = this.route[this.route.length - 1];
+          const detour = petTemporaryDetour(this.root.position, destination,
+            traffic.blockers, traffic);
+          if (detour && detour.path.length) {
+            this.route = detour.path.map(point => new THREE.Vector3(point.x, 0, point.z));
+          }
+        }
+      }
+      if (remaining < .018) {
         this.route.shift();
+        this.stuckFor = 0;
+        this.lastProgressGap = Infinity;
         // Most idle moments happen at the destination of a real roaming
         // route. Give these short pauses a chance to show their personality.
         if (!this.route.length && this.routine === 'wander')
