@@ -32,6 +32,7 @@ import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '..
 import { recoverSleep } from './timeControl';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
+import { advanceCareers, applyCareer, careerCommands } from './careers';
 import { sampleWalk, type WalkRoute } from '../src/game/navigation';
 
 export interface ServerOptions {
@@ -100,7 +101,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const sleepers = new Map<CharacterId, SleepMode>();
   const shiftVotes = new Set<CharacterId>();
   const timeStatus = (): TimeStatus => ({
-    multiplier: timeMultiplier(online(), state.activeShifts, sleepers, shiftVotes),
+    multiplier: timeMultiplier(online(), { vlad: state.activeShifts.vlad || state.careers.residents.vlad.shift,
+      alina: state.activeShifts.alina || state.careers.residents.alina.shift }, sleepers, shiftVotes),
     shiftVotes: [...shiftVotes],
     sleepers: Object.fromEntries(sleepers) as TimeStatus['sleepers'],
   });
@@ -158,7 +160,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const homeTasks = createHomeSessions({
     state: () => state, save(next) { files.save(next); state = next; },
     all, send: packet, socket: role => active.get(role),
-    busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role]),
+    busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role] || state.careers.residents[role].shift),
     gameTime: () => liveGameTime(),
     resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource),
     prepare(role, tv) {
@@ -217,6 +219,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    advanceCareers(next.state, clockMinutes(state.clock), clockMinutes(next.state.clock), online());
     homeTasks.checkpoint(next.state);
     const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
@@ -262,7 +265,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const now = Date.now();
     const available: CharacterId[] = [];
     for (const [role, socket] of active) {
-      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || homeTasks.busy(role) || state.activeShifts[role] || storageOpen.has(role) ||
+      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || homeTasks.busy(role) || state.activeShifts[role] || state.careers.residents[role].shift || storageOpen.has(role) ||
           now - (lastIntent.get(role) ?? now) < 18_000) continue;
       const command = now - (lastAutoCare.get(role) ?? 0) >= 70_000 && urgentHomeAction(state, role);
       const plan = command && planTask(command);
@@ -522,8 +525,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (typeof message.enabled !== 'boolean') {
           packet(socket, { type: 'error', reason: 'Неверный режим скорости' }); return;
         }
-        if (!Object.values(state.activeShifts).some(Boolean)) {
-          packet(socket, { type: 'error', reason: 'Сейчас нет активной подработки' }); return;
+        if (!Object.values(state.activeShifts).some(Boolean) && !Object.values(state.careers.residents).some(person => person.shift)) {
+          packet(socket, { type: 'error', reason: 'Сейчас нет активной смены' }); return;
         }
         accountTime();
         if (message.enabled) shiftVotes.add(role); else shiftVotes.delete(role);
@@ -534,7 +537,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (message.mode !== 'full' && message.mode !== 'half') {
           packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
         }
-        if (state.world.places[role] !== 'home' || state.activeShifts[role] ||
+        if (state.world.places[role] !== 'home' || state.activeShifts[role] || state.careers.residents[role].shift ||
             (running.has(role) && !running.get(role)?.automatic) || (homeTasks.busy(role) && !homeTasks.automatic(role))) {
           packet(socket, { type: 'error', reason: 'Для сна нужно находиться дома и закончить текущее дело' }); return;
         }
@@ -575,6 +578,38 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (message.type === 'close_storage') {
         closeStorage(role);
         lastIntent.set(role, Date.now());
+        return;
+      }
+      const careerShift = state.careers.residents[role].shift;
+      if (typeof message.type === 'string' && careerCommands.has(message.type)) {
+        commitLife();
+        const time = Math.floor(liveGameTime());
+        const occupied = running.has(role) || homeTasks.busy(role) || sleepers.has(role);
+        if (message.type === 'career_start' && !occupied) { closeStorage(role); stopLeisure(role); }
+        const result = applyCareer(state, role, message, time, occupied, active.has(otherRole(role)));
+        if (!result.ok) { packet(socket,{type:'error',reason:result.reason}); return; }
+        if (message.type === 'career_start' && result.state.world.dogWalker === role) {
+          result.state.world.dogWalker = null;
+          setDogParkPosition(result.state);
+        }
+        const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
+        try { files.save(result.state); }
+        catch { packet(socket,{type:'error',reason:'Не удалось сохранить рабочее действие'}); return; }
+        state = result.state;
+        if (message.type === 'career_start' || message.type === 'career_leave') {
+          walkingHome.delete(role);
+          shiftVotes.clear();
+          announceTime();
+        }
+        lastIntent.set(role,Date.now());
+        all({type:'snapshot',state});
+        if (result.path) all({type:'world_path',place:state.world.places[role],role,path:result.path});
+        packet(socket,{type:'world_event',role,message:result.message});
+        if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
+        return;
+      }
+      if (careerShift && message.type !== 'walk' && !['service_connect','service_renewal','service_pay','education_goal'].includes(String(message.type))) {
+        packet(socket,{type:'error',reason:'Заверши рабочую смену через приложение «Работа и карьера»'});
         return;
       }
       if (message.type === 'education_answer') {
@@ -707,7 +742,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket, { type: 'error', reason: 'Сначала встретьтесь в одной локации' });
           return;
         }
-        if ((running.has(partner) && !running.get(partner)?.automatic) || homeTasks.busy(partner) || state.activeShifts[partner]) {
+        if ((running.has(partner) && !running.get(partner)?.automatic) || homeTasks.busy(partner) || state.activeShifts[partner] || state.careers.residents[partner].shift) {
           packet(socket, { type: 'error', reason: names[partner] + ' занят(а) другим действием' });
           return;
         }

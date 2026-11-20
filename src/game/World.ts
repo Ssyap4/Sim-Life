@@ -1,9 +1,10 @@
 import { HomeEffects } from './HomeEffects';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
+import { isCareerPlace, type CareerShift } from '../shared/careers';
 import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
-import { floorFor, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
+import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
@@ -1078,13 +1079,31 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
-    this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education';
+    this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameShadows(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
     this.renderer.renderLists.dispose();
+  }
+
+  private showCareerStation(id: CharacterId, shift: CareerShift): void {
+    const key = shift.mode === 'remote' ? HOME_LAPTOP : shift.station;
+    const site = stationById(this.place,key);
+    if (!site || !shift.station) return;
+    const actor = this.actors[id];
+    const {x,z} = site.center;
+    if (key === HOME_LAPTOP || shift.station === 'desk') {
+      const keyboard = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+      actor.setFurniturePose('work',new THREE.Vector3(x,id==='alina'?-.23:-.28,z+.64),Math.PI,keyboard);
+      actor.playDomesticActivity('games');
+    } else {
+      actor.setPose('idle');
+      actor.faceTowards(new THREE.Vector3(x,0,z));
+      actor.playDomesticActivity(shift.station==='lead'?'phone':shift.station==='service'?'reach':'journal',
+        shift.station==='service'?new THREE.Vector3(x,.91,z):undefined);
+    }
   }
 
   syncHousehold(state: GameState, role: CharacterId, reset = false, online: CharacterId[] = [role]): void {
@@ -1100,7 +1119,9 @@ export class World {
       this.actors[id].setNeeds(state.characters[id]);
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
-      const sleep = offline && place === 'home' && !state.activeShifts[id];
+      const work = state.careers.residents[id].shift;
+      const previousWork = previous?.careers.residents[id].shift;
+      const sleep = offline && place === 'home' && !state.activeShifts[id] && !work;
       const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
@@ -1113,6 +1134,11 @@ export class World {
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
       }
       if (!sleep) this.sleepingOffline.delete(id);
+      if (!away && !sleep && work?.station && (reset || changed || appeared || work.station !== previousWork?.station ||
+          work.task?.phase !== previousWork?.task?.phase && work.task?.phase !== 'walking')) {
+        this.showCareerStation(id,work);
+      }
+      if (!away && !work && previousWork?.mode === 'remote') this.actors[id].setPose('idle');
       this.bags[id].visible = !away && state.world.bags[id] > 0;
     }
     const dog = this.pets.verdell.root;

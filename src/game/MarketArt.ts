@@ -138,8 +138,7 @@ function checkout(station: Station, resources: LocationResources): THREE.Group {
   return group;
 }
 
-function sculptFace(group: THREE.Group) {
-  const skin = 0xbd896d;
+function sculptFace(group: THREE.Group, skin = 0xbd896d) {
   // A tapered jaw, hair cap and separate lids make the face readable at shop scale.
   const outline = [[.004,-.239],[.074,-.226],[.121,-.178],[.163,-.115],[.185,-.029],
     [.183,.087],[.159,.164],[.114,.216],[.037,.237],[.004,.241]];
@@ -187,12 +186,12 @@ function sculptFace(group: THREE.Group) {
   part(group,[.116,.044,.091],[0,1.485,-.096],0x7a8873,smallOrb);
 }
 
-export function marketCashier(resources: LocationResources, costume?: { title: string; color: number }) {
+export function marketCashier(resources: LocationResources, costume?: { title: string; color: number; animated?: boolean; skin?: number; shirt?: number }) {
   const group=new THREE.Group();
   group.name=costume?.title ?? 'Cashier';
   group.position.set(CASHIER_SPOT.x,0,CASHIER_SPOT.z);
   group.rotation.y=-.13;
-  const shirt=0xd7c9a8, apron=costume?.color ?? 0x496e61, skin=0xbd896d;
+  const shirt=costume?.shirt ?? 0xd7c9a8, apron=costume?.color ?? 0x496e61, skin=costume?.skin ?? 0xbd896d;
   for(const x of [-.098,.098]){
     trim(group,[.151,.72,.162],[x,.404,.010],0x424d4b);
     trim(group,[.179,.106,.239],[x,.071,.046],0x33443d);
@@ -207,14 +206,32 @@ export function marketCashier(resources: LocationResources, costume?: { title: s
   trim(group,[.120,.066,.018],[.077,1.16,.174],0xe7cfac);
   part(group,[.016,.026,.008],[.040,1.163,.184],0xb39362);
   part(group,[.069,.010,.008],[.078,1.164,.185],0x799584);
+  const arms: THREE.Group[] = [];
   for(const side of [-1,1]){
-    part(group,[.102,.122,.095],[side*.182,1.171,.001],shirt,smallOrb).rotation.z=side*.24;
-    part(group,[.060,.115,.055],[side*.239,1.046,.057],skin,smallOrb).rotation.x=-.38;
-    part(group,[.059,.065,.138],[side*.208,.958,.158],skin,smallOrb).rotation.y=side*-.46;
-    part(group,[.049,.039,.068],[side*.172,.934,.274],skin,smallOrb).rotation.y=side*-.58;
+    const arm = costume?.animated ? new THREE.Group() : group;
+    const pivot = costume?.animated ? 1.17 : 0;
+    part(arm,[.102,.122,.095],[side*.182,1.171-pivot,.001],shirt,smallOrb).rotation.z=side*.24;
+    part(arm,[.060,.115,.055],[side*.239,1.046-pivot,.057],skin,smallOrb).rotation.x=-.38;
+    part(arm,[.059,.065,.138],[side*.208,.958-pivot,.158],skin,smallOrb).rotation.y=side*-.46;
+    part(arm,[.049,.039,.068],[side*.172,.934-pivot,.274],skin,smallOrb).rotation.y=side*-.58;
+    if (costume?.animated) { arm.position.y = pivot; arms.push(arm); }
   }
-  sculptFace(group);
-  batchRigidParts(group,true);
+  if (costume?.animated) {
+    const head = new THREE.Group();
+    const face = new THREE.Group();
+    sculptFace(face,skin);
+    batchRigidParts(face,true);
+    face.position.y=-1.51;
+    head.position.y=1.51;
+    head.add(face);
+    batchRigidParts(group,true);
+    for (const arm of arms) batchRigidParts(arm,true);
+    group.add(head,...arms);
+    group.userData.motion = { head, arms };
+  } else {
+    sculptFace(group);
+    batchRigidParts(group,true);
+  }
   lettering(group,resources,[0,2.017,.055],costume ? 1.29 : .69,.186,costume?.title ?? 'Кассир',['#fcf0d6','#3d594c'],undefined,true);
   return group;
 }

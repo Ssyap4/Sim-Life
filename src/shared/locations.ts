@@ -1,4 +1,5 @@
 import { CASHIER_OBSTACLE, PLAZA_FLOOR, PLAZA_OBSTACLES } from './locationLayout';
+import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FLOOR, HOME_FURNITURE, HOME_PLACEMENTS, HOME_YARD, HOME_STRUCTURE_OBSTACLES } from './home';
@@ -10,6 +11,10 @@ export const PLACES = {
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
   education: { name: 'Центр «Потенциал»', icon: '🎓', detail: 'Аудитория, компьютерный класс и мастерская' },
+  'work-it': { name: 'IT-офис «Север»', icon: '💻', detail: 'Внутренние системы и отчёты' },
+  'work-detail': { name: 'Детейлинг «Линия блеска»', icon: '🚙', detail: 'Ресепшен и два рабочих поста' },
+  'work-marketing': { name: 'Агентство «Искра»', icon: '📣', detail: 'Кампании, материалы и аналитика' },
+  'work-clinic': { name: 'Клиника «Лапа и хвост»', icon: '🐾', detail: 'Приёмная, наблюдение и учебный кабинет' },
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
@@ -31,6 +36,7 @@ type SiteAction =
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
+  | { kind: 'career'; station: WorkStation }
   | { kind: 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'unpack' };
 
 export interface Station {
@@ -54,8 +60,33 @@ const door = (id: string, name: string, destination: PlaceId, x: number, z: numb
 const shelf = (id: string, name: string, x: number, z: number, categories: MarketCategory[]) =>
   site(id, name, x, z, 1.86, 0.68, { kind: 'shelf', categories });
 
+export const HOME_LAPTOP = 'career-laptop';
+const workSites: Record<CareerId, readonly [number, number, number, number][]> = {
+  it: [[-3.55,-2.35,1.72,.97],[1.30,-3.68,1.7,.54],[3.38,-2.65,1.95,1.14],[3.9,1.30,1.5,.87],[-3.55,1.46,1.6,.8]],
+  detail: [[-3.74,1.13,1.60,.91],[-4.28,-2.22,1.45,.53],[-.44,1.64,1.93,.79],[-4.23,3.35,1.83,.60],[2.9,-1.38,2.65,2.80]],
+  marketing: [[-3.63,-1.70,1.71,.99],[-4.05,1.45,1.74,.51],[3.59,1.42,2.04,1.21],[.1,-3.62,1.54,.65],[3.66,-2.23,1.9,.72]],
+  clinic: [[3.54,-2.50,1.68,.90],[-3.97,-2.67,1.65,.66],[-3.90,1.34,1.86,.78],[3.68,1.63,1.81,.96],[.14,-1.94,1.52,1.35]],
+};
+function workStations(career: CareerId) {
+  return CAREER_STATIONS.map((id,i) => site(id, CAREERS[career].stations[id], ...workSites[career][i], { kind:'career', station:id }));
+}
+
+export const WORK_DECOR: Partial<Record<PlaceId, { x: number; z: number; w: number; d: number }[]>> = {
+  'work-it': [{x:-.65,z:-2.67,w:1.62,d:.85},{x:2.17,z:-4.12,w:1.28,d:.73},{x:-4.70,z:-4.47,w:1.15,d:.68}],
+  'work-detail': [{x:.42,z:-2.86,w:2.13,d:2.27},{x:4.90,z:-3.9,w:1.28,d:.76},{x:3.62,z:2.70,w:2.5,d:.54}],
+  'work-marketing': [{x:-.54,z:-1.64,w:1.56,d:.87},{x:1.66,z:-3.86,w:1.12,d:.57},{x:-.54,z:2.12,w:1.95,d:.51}],
+  'work-clinic': [{x:1.4,z:-3.9,w:1.54,d:.74},{x:3.8,z:3.37,w:1.53,d:.67},{x:-.38,z:2.04,w:1.95,d:.54}],
+};
+export const WORK_NPCS: Record<CareerId, readonly Point[]> = {
+  it:[{x:3.38,z:-3.42},{x:-.65,z:-3.22},{x:-3.55,z:.78}],
+  detail:[{x:-.45,z:1.11},{x:1.75,z:-2.11},{x:.95,z:-3.91}],
+  marketing:[{x:3.59,z:.65},{x:-.54,z:-2.27},{x:.1,z:-4.18}],
+  clinic:[{x:3.54,z:-3.14},{x:1.4,z:-4.25},{x:-3.90,z:.81}],
+};
+
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: [
+    site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
     site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
     site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
     site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
@@ -105,6 +136,10 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('workshop', 'Практическая зона', 3.53, -2.25, 2.62, .98, { kind: 'education', room: 'workshop' }),
     door('education-exit', 'На площадь', 'street', -2.55, 4.60, true),
   ],
+  'work-it': workStations('it'),
+  'work-detail': workStations('detail'),
+  'work-marketing': workStations('marketing'),
+  'work-clinic': workStations('clinic'),
 };
 export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find(station => station.id === id);
 export function approachFor(station: Station, role: CharacterId): Point {
@@ -125,6 +160,14 @@ export function placeObstacles(place: PlaceId) {
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
   if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
+  for (const { x,z,w,d } of WORK_DECOR[place] ?? []) obstacles.push({
+    minX:x-w/2-.26,maxX:x+w/2+.26,minZ:z-d/2-.26,maxZ:z+d/2+.26,
+  });
+  const workId = (Object.keys(CAREERS) as CareerId[]).find(id=>CAREERS[id].place===place);
+  if (workId) for (const {x,z} of WORK_NPCS[workId]) obstacles.push({minX:x-.42,maxX:x+.42,minZ:z-.39,maxZ:z+.39});
+  const workDesk = STATIONS[place].find(site=>site.id===(place==='home'?HOME_LAPTOP:workId?'desk':''));
+  if (workDesk) obstacles.push({minX:workDesk.center.x-.48,maxX:workDesk.center.x+.48,
+    minZ:workDesk.center.z+.13,maxZ:Math.min(workDesk.approach.z-.10,workDesk.center.z+1.10)});
   if (place === 'education') obstacles.push(
     { minX: -4.45, maxX: -2.85, minZ: .43, maxZ: 1.10 },
     { minX: 1.46, maxX: 2.14, minZ: -3.98, maxZ: -3.30 },

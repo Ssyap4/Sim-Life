@@ -5,6 +5,8 @@ import { locationGeometry } from './LocationArt';
 import { buildPlaza, plazaEntrance } from './PlazaArt';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 import { buildEducationCenter, educationStation } from './EducationArt';
+import { buildCareerPlace, careerStation } from './CareerArt';
+import { careerAt, isCareerPlace } from '../shared/careers';
 
 const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry]);
 const accents = [0xc38367, 0xd4a560, 0x759785, 0x8e9eb5, 0xe1cc9d, 0x9b625a];
@@ -131,11 +133,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const plaza = place === 'street' ? buildPlaza(floor, resources) : null;
+  const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
   if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
   } else if (place === 'education') buildEducationCenter(floor, resources);
-  else if (!plaza) {
+  else if (!plaza && !animateWork) {
     shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (outdoor) {
@@ -195,12 +198,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     batchRigidParts(coffee);
     sign(floor, 'ТЁПЛЫЙ УГОЛ', 2.18, -4.89, 3.02, C.paper, textures, materials);
   }
-  batchRigidParts(floor, place === 'market' || place === 'street' || place === 'education');
+  batchRigidParts(floor, place === 'market' || place === 'street' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
     const custom = place === 'street' && station.action.kind === 'door'
       ? plazaEntrance(station, resources)
       : place === 'market' ? marketStation(station, resources)
-        : place === 'education' ? educationStation(station, resources) : null;
+        : place === 'education' ? educationStation(station, resources)
+          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);
@@ -216,7 +220,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
-    animate: plaza?.animate,
+    animate: plaza?.animate ?? animateWork,
     setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
@@ -239,6 +243,10 @@ export function homeExtensions() {
   const stock = new Map<string, THREE.Group[]>();
   const parcel = new THREE.Group();
   for (const station of STATIONS.home) {
+    if (station.action.kind === 'career') {
+      const laptop = careerStation(station,'marketing');
+      group.add(laptop); stations.set(station.id,laptop); continue;
+    }
     const root = new THREE.Group();
     root.position.set(station.center.x, 0, station.center.z);
     group.add(root);

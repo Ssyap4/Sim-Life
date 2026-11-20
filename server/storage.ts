@@ -20,6 +20,8 @@ import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, P
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
+import { recoverCareers, validCareers } from './careers';
+import { initialCareers } from '../src/shared/careers';
 
 export interface ServerFiles {
   dataDir: string;
@@ -36,6 +38,7 @@ const isValidState = (value: unknown): value is GameState => {
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
+  if (state.careers !== undefined && !validCareers(state.careers)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   const readBooks = state.readBooks;
   if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
@@ -248,6 +251,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         activeShifts: { ...data.activeShifts },
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
+        careers: data.careers ?? initialCareers(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),
@@ -259,6 +263,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // The first load of a legacy save permanently records expiration dates.
       // Merely reopening the file must never reset the countdown.
       const migratedFood = reconcileReadyFood(household);
+      const recoveredCareer = recoverCareers(household);
       if (data.billing === undefined) {
         // Keep the original household even after later rotating backups.
         const backup = join(dataDir, 'household.pre-billing.json');
@@ -267,7 +272,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.readyFood === undefined || data.petBowls === undefined ||
-          data.dirtyDishes === undefined || migratedFood)
+          data.dirtyDishes === undefined || migratedFood || recoveredCareer)
         this.save(household);
       return household;
     },

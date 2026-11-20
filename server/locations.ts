@@ -7,6 +7,7 @@ import {
 import type { CharacterId, GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
 import { findRoute, nearestClearPoint, pointIsClear } from '../src/game/navigation';
+import { isCareerPlace } from '../src/shared/careers';
 import { unoccupiedDestination } from '../src/game/residentCollision';
 import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
@@ -67,12 +68,15 @@ export const worldMessages = new Set([
 
 export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>, neighborOnline = false): Result {
   if (source.activeShifts[role]) return fail('Сначала закончи смену');
+  const career = source.careers.residents[role].shift;
+  if (career && (command.type !== 'walk' || career.task && career.task.phase !== 'new')) return fail('Сейчас выполняется рабочее поручение');
   const place = source.world.places[role];
   const neighbor = role === 'vlad' ? 'alina' : 'vlad';
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
   if (command.type === 'travel') {
+    if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
     if (command.via !== undefined) {
       const door = stationById(place, command.via);
@@ -123,6 +127,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (!path || !target) return fail('Сюда нельзя пройти');
     const next = structuredClone(source);
     Object.assign(next.characters[role], target, { pose: 'idle' });
+    if (career) delete next.careers.residents[role].shift!.station;
     if (next.world.dogWalker === role) setDogParkPosition(next);
     next.revision++;
     return { ok: true, state: next, message: '', path, station: station?.id };
