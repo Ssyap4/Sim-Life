@@ -85,8 +85,8 @@ function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
 function petEyes(head: THREE.Group, dog: boolean): THREE.Group[] {
   return [-1, 1].map((side) => {
     const eye = new THREE.Group();
-    eye.position.set(side * (dog ? 0.109 : 0.114), dog ? 0.034 : 0.026, dog ? 0.205 : 0.192);
-    eye.rotation.set(0, side * (dog ? 0.47 : 0.56), side * (dog ? 0.10 : 0.21));
+    eye.position.set(side * (dog ? 0.109 : 0.114), dog ? 0.034 : 0.026, dog ? 0.192 : 0.158);
+    eye.rotation.set(0, side * (dog ? 0.47 : 0.67), side * (dog ? 0.10 : 0.21));
     makeEye(eye, dog ? 0.033 : 0.047, dog ? 0.026 : 0.027, dog ? 0.016 : 0.018,
       dog ? { iris: '#74513f', edge: '#362b31', white: '#594038', pupil: 0.65 }
         : { iris: '#a28851', edge: '#684634', white: '#9c8757', pupil: 0.29 });
@@ -191,12 +191,12 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   const nose = loft([[-0.097, 0.005, 0.008, 0.27], [-0.079, 0.030, 0.014, 0.273],
     [-0.055, 0.037, 0.012, 0.265], [-0.050, 0.028, 0.008, 0.262]], 16, 9);
   sculpt(head, nose, 0xad7165, 'skin', false);
-  sculptedCurve(jaw, [[-0.048, -0.119, 0.244], [-0.018, -0.127, 0.267], [0, -0.118, 0.281],
-    [0.018, -0.127, 0.267], [0.048, -0.119, 0.244]], 0.004, 0.004, 0x82594a, 0.84);
+  sculptedCurve(jaw, [[-0.044, -0.109, 0.246], [-0.018, -0.116, 0.235], [0, -0.109, 0.237],
+    [0.018, -0.116, 0.235], [0.044, -0.109, 0.246]], 0.003, 0.003, 0x82594a, 0.84);
 
   const lines: number[] = [];
   for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
-    const start: THREE.Vector3Tuple = [side * 0.062, -0.100 - i * 0.008, 0.267 - i * 0.006];
+    const start: THREE.Vector3Tuple = [side * 0.062, -0.100 - i * 0.008, 0.236 - i * 0.009];
     const middle: THREE.Vector3Tuple = [side * 0.165, -0.092 - i * 0.020, 0.286 - i * 0.016];
     const end: THREE.Vector3Tuple = [side * (0.298 + i * 0.008), -0.068 - i * 0.042, 0.23 - i * 0.014];
     lines.push(...start, ...middle, ...middle, ...end);
