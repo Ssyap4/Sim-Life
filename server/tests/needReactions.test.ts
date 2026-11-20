@@ -18,7 +18,8 @@ test('Need reactions use actual thresholds, not permanent idle loops', () => {
     assert.equal(reactionAllowed(low(field), gesture), true);
     assert.equal(reactionAllowed(okay, gesture), false);
   }
-  assert.equal(pickNeedReaction(low('energy', 35), 0), null);
+  assert.equal(pickNeedReaction(low('energy', 50), 0), null);
+  assert.equal(pickNeedReaction(low('energy', 49.9), 0), 'yawn');
   assert.equal(pickNeedReaction(low('hunger', 34.9), 0), 'hunger');
   assert.equal(pickNeedReaction(low('mood', 24), 0), null);
 });

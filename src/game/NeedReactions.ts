@@ -9,7 +9,7 @@ export const NEED_REACTION_DURATION = 3.6;
 
 const triggers: readonly { kind: NeedReaction; key: keyof ReactionNeeds; below: number }[] = [
   { kind: 'bladder', key: 'bladder', below: 35 },
-  { kind: 'yawn', key: 'energy', below: 35 },
+  { kind: 'yawn', key: 'energy', below: 50 },
   { kind: 'hunger', key: 'hunger', below: 35 },
   { kind: 'hygiene', key: 'hygiene', below: 24 },
   { kind: 'lowMood', key: 'mood', below: 24 },
