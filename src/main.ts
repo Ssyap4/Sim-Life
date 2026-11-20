@@ -10,7 +10,7 @@ import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
-import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
+import { clockLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
@@ -285,7 +285,7 @@ function renderNeeds(): void {
       row.append(label, track, percent);
       group.append(row);
     }
-    const urgent = VITAL_NEEDS.find(need => char[need] < 35);
+    const urgent = char.bladder < LOW_BLADDER ? 'bladder' : VITAL_NEEDS.find(need => char[need] < 35);
     if (urgent) {
       const hint = document.createElement('small');
       hint.className = 'need-hint';
@@ -345,6 +345,10 @@ function render(reset = false): void {
   clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
     state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
   if (timeStatus.multiplier > 1) clockEl.textContent += ' · ×' + timeStatus.multiplier;
+  const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
+  needsToggleEl.classList.toggle('needs-alert', lowBladder);
+  needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
+  needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
   renderNeeds();
   renderTimePanel();

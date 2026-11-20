@@ -1,11 +1,11 @@
 import { validWorld } from './locations';
-import { initialWorld, placeObstacles } from '../src/shared/locations';
+import { WORLD_FLOOR, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
 import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { initialState, type CharacterId, type GameState } from '../src/shared/protocol';
+import { initialState, points, type CharacterId, type CharacterState, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
@@ -81,15 +81,18 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined, maxZ = HOME_FLOOR.maxZ) =>
-    p && Number.isFinite(p.x) && Number.isFinite(p.z) && Math.abs(p.x) <= 6 && p.z >= -5 && p.z <= maxZ;
+  const point = (p: { x: number; z: number } | undefined, home = true) => {
+    const { minX, maxX, minZ, maxZ } = home ? HOME_FLOOR : WORLD_FLOOR;
+    return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
+      p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (home ? maxZ : 5);
+  };
   if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 5)) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, false)) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
@@ -103,15 +106,32 @@ const isValidState = (value: unknown): value is GameState => {
     if (!p) return false;
     return (['hunger', 'energy', 'mood', 'skill'] as const).every((key) =>
       typeof p[key] === 'number' && Number.isFinite(p[key]) && p[key] >= 0 && p[key] <= 100,
-    ) && (['hygiene', 'social', 'fun', 'comfort'] as const).every((key) =>
+    ) && (['hygiene', 'social', 'fun', 'comfort', 'bladder'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && point(p, state.world?.places[role] === 'home' ? HOME_FLOOR.maxZ : 5) &&
+    ) && point(p, !state.world || state.world.places[role] === 'home') &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
 
 const homeObstacles = placeObstacles('home');
+
+const previousSeats = [
+  { item: 'bed', pose: 'sleep', x: -4.30, z: -1.40 },
+  { item: 'desk', pose: 'work', x: 4.58, z: 3.26 },
+  { item: 'sofa', pose: 'sit', x: -3.48, z: .66 },
+  { item: 'table', pose: 'sit', x: 3.02, z: -.26 },
+] as const;
+
+function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId): CharacterState {
+  const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
+  if (place !== 'home') return resident;
+  const movedSeat = previousSeats.find(seat =>
+    resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
+  const point = movedSeat ? points[movedSeat.item]
+    : nearestClearPoint(resident, homeObstacles, HOME_FLOOR) ?? spawn('home', role);
+  return { ...resident, x: point.x, z: point.z };
+}
 
 function restorePet(id: PetId, saved: PetState | undefined): PetState {
   const pet = { ...INITIAL_PETS[id], ...saved };
@@ -170,8 +190,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
-          vlad: { ...INITIAL_DAILY_NEEDS, ...data.characters.vlad },
-          alina: { ...INITIAL_DAILY_NEEDS, ...data.characters.alina },
+          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home'),
+          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home'),
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },

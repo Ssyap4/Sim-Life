@@ -1,6 +1,6 @@
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
-import { HOME_DECOR, HOME_FLOOR, HOME_FURNITURE, HOME_PLACEMENTS, HOME_YARD, HOME_YARD_OBSTACLES } from './home';
+import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FLOOR, HOME_FURNITURE, HOME_PLACEMENTS, HOME_YARD, HOME_STRUCTURE_OBSTACLES } from './home';
 
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный двор' },
@@ -52,8 +52,8 @@ const shelf = (id: string, name: string, x: number, z: number, categories: Marke
 
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: [
-    site('fridge', 'Холодильник', 5.24, -4.25, 0.94, 0.88, { kind: 'fridge' }, { approach: { x: 5.24, z: -3.32 } }),
-    site('cupboard', 'Кухонные полки', 0.71, -4.47, 0.70, 0.46, { kind: 'cupboard' }, { blocks: false, approach: { x: 0.71, z: -3.08 } }),
+    site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
+    site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
     site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
     site('shopping-table', 'Покупки на столе', HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z,
       0.20, 0.20, { kind: 'unpack' }, { blocks: false,
@@ -103,7 +103,7 @@ export function placeObstacles(place: PlaceId) {
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
   }] : []);
-  if (place === 'home') obstacles.push(...HOME_DECOR, ...HOME_YARD_OBSTACLES, ...Object.values(HOME_FURNITURE).map(bounds => ({
+  if (place === 'home') obstacles.push(...HOME_DECOR, ...HOME_STRUCTURE_OBSTACLES, ...Object.values(HOME_FURNITURE).map(bounds => ({
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });

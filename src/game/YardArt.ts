@@ -66,7 +66,7 @@ function grillAndTable(yard: THREE.Group): void {
     shape(grill, [.049, .043, .049], [x, .67, .368], C.oat, drum).rotation.x = Math.PI / 2;
   }
   shape(grill, [.113, .015, .113], [.34, 1.04, .06], C.limestone, drum);
-  batchRigidParts(grill);
+  batchRigidParts(grill, true);
   yard.add(grill);
 
   const { x, z } = HOME_YARD.sideTable;
@@ -142,6 +142,6 @@ export function buildYard(scene: THREE.Scene): void {
   grillAndTable(yard);
   garden(yard);
   fence(yard);
-  batchRigidParts(yard);
+  batchRigidParts(yard, true);
   scene.add(yard);
 }

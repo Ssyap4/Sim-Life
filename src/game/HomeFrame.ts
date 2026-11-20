@@ -1,26 +1,24 @@
 import * as THREE from 'three';
+import { HOUSE, HOME_YARD } from '../shared/home';
 import type { ViewBand } from './InspectionFrame';
 
-/** The two standing walls and the full platform, including the front garden. */
-export const houseOutline = [
-  [-6.26, -.63, -5.24], [6.26, -.63, -5.24], [-6.26, -.63, 12.24], [6.26, -.63, 12.24],
-  [-6.26, 0, -5.24], [6.26, 0, -5.24], [-6.26, 0, 12.24], [6.26, 0, 12.24],
-  [-6.17, 3.40, -5.17], [6.15, 3.40, -5.17], [-6.17, 3.40, 5.08],
-] as const;
-
-/** Keep the furniture, path and front fence visible on narrow screens. */
-export const playOutline = [
-  [-5.69, 1.41, -4.74], [-5.69, 0, -2.00], [-5.80, 1.96, -1.00],
-  [5.72, 2.18, -4.25], [5.72, 0, -3.40], [5.74, 1.93, 1.96],
-  [5.63, .13, 4.88], [-5.68, .15, 4.88],
-  [-5.98, .22, 8.60], [5.98, .22, 8.60], [-6.04, .55, 12.14], [6.04, .55, 12.14],
-] as const;
-
 type Vertex = readonly [number, number, number];
+const rear = HOUSE.minZ - .25;
+const front = HOUSE.maxZ + .24;
+const wing = HOUSE.maxX + .25;
+const yardFront = HOME_YARD.gate.z + .18;
+
+export const houseOutline: readonly Vertex[] = [-1, 1].flatMap(side => [
+  [side * wing, -.63, rear], [side * wing, -.63, front], [side * 6.26, -.63, yardFront],
+  [side * wing, 3.22, rear], [side * wing, 1.24, front], [side * 6.26, .66, yardFront],
+]);
+export const playOutline: readonly Vertex[] = [-1, 1].flatMap(side => [
+  [side * HOUSE.maxX, 3.20, rear], [side * HOUSE.maxX, 0, front], [side * 6.05, .66, yardFront],
+]);
 
 export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
   horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline,
-  direction: Vertex = [0.20, 1.26, 1.02]) {
+  direction: Vertex = [0.13, 1.42, 1.08]) {
   // An elevated, front-facing view keeps the house threshold and yard readable.
   const axis = new THREE.Vector3(...direction).normalize();
   const right = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, axis).normalize();

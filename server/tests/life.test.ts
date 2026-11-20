@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { initialState } from '../../src/shared/protocol';
-import { dayPhase, clockLabel } from '../../src/shared/life';
+import { ACTIONS, initialState, points } from '../../src/shared/protocol';
+import { dayPhase, clockLabel, INITIAL_DAILY_NEEDS } from '../../src/shared/life';
 import { advanceLife } from '../life';
 import { applyAction } from '../logic';
 import { applySocial } from '../social';
@@ -20,6 +20,38 @@ test('Clock passes midnight and only online residents lose needs', () => {
   assert.ok(next.characters.vlad.hygiene < start.characters.vlad.hygiene);
   assert.deepEqual(next.characters.alina, start.characters.alina);
   assert.deepEqual(start.clock, { day: 6, minute: 1435 });
+});
+
+test('Bladder drain follows elapsed game minutes and pauses for the offline resident', () => {
+  const start = initialState();
+  start.characters.vlad.bladder = 10;
+  for (const speed of [1, 1.5, 2, 3]) {
+    const next = advanceLife(start, 20 * speed, ['vlad']);
+    assert.equal(next.characters.vlad.bladder, Math.round((10 - 6.5 * speed / 3) * 100) / 100);
+    assert.equal(next.characters.alina.bladder, INITIAL_DAILY_NEEDS.bladder);
+  }
+  const empty = advanceLife(start, 120, ['vlad']);
+  assert.equal(empty.characters.vlad.bladder, 0);
+  assert.equal(empty.characters.vlad.mood, start.characters.vlad.mood);
+});
+
+test('All four bathroom actions complete at their shared approach and restore the intended needs', () => {
+  const start = initialState();
+  Object.assign(start.characters.vlad, { bladder: 8, hygiene: 12, comfort: 28, mood: 36 });
+  const effects = [
+    { action: 'toiletUse', bladder: 100, hygiene: 12, comfort: 28 },
+    { action: 'bathWash', bladder: 8, hygiene: 35, comfort: 28 },
+    { action: 'bathShower', bladder: 8, hygiene: 60, comfort: 28 },
+    { action: 'bathSoak', bladder: 8, hygiene: 76, comfort: 52 },
+  ] as const;
+  for (const { action, bladder, hygiene, comfort } of effects) {
+    const result = applyAction(start, 'vlad', action);
+    assert.ok(result.ok);
+    const resident = result.state.characters.vlad;
+    assert.deepEqual({ x: resident.x, z: resident.z }, points[ACTIONS[action].item]);
+    assert.deepEqual([resident.bladder, resident.hygiene, resident.comfort], [bladder, hygiene, comfort]);
+    assert.deepEqual(result.state.characters.alina, start.characters.alina);
+  }
 });
 
 test('Calendar uses predictable phases without separate shadow meshes', () => {
@@ -73,7 +105,7 @@ test('Pre-Living-World saves preserve money, skills, pantry, pets and gain clock
     } };
     for (const character of Object.values(legacy.characters)) {
       const editable = character as Record<string, unknown>;
-      for (const need of ['hygiene', 'social', 'fun', 'comfort']) delete editable[need];
+      for (const need of ['hygiene', 'social', 'fun', 'comfort', 'bladder']) delete editable[need];
     }
     writeFileSync(join(dir, 'household.json'), JSON.stringify(legacy));
     const loaded = files.load();
@@ -83,6 +115,7 @@ test('Pre-Living-World saves preserve money, skills, pantry, pets and gain clock
     assert.equal(loaded.pets.simba.bond, 55);
     assert.deepEqual(loaded.clock, { day: 1, minute: 480 });
     assert.equal(loaded.characters.vlad.hygiene, 82);
+    assert.equal(loaded.characters.vlad.bladder, INITIAL_DAILY_NEEDS.bladder);
     files.save(loaded);
     assert.equal(files.load().money, 7447);
   } finally { rmSync(dir, { recursive: true, force: true }); }

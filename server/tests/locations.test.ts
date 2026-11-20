@@ -29,7 +29,8 @@ test('Both spawns and every physical station are reachable in all five scenes', 
   for (const [place, stations] of Object.entries(STATIONS) as [PlaceId, typeof STATIONS.home][]) {
     const obstacles = placeObstacles(place);
     if (place === 'home') {
-      buildFurniture((_id, group) => {
+      buildFurniture((id, group) => {
+        if (id === 'shower') return;
         group.updateMatrixWorld(true);
         const b = new Box3().setFromObject(group);
         obstacles.push({ minX: b.min.x - .27, maxX: b.max.x + .27, minZ: b.min.z - .27, maxZ: b.max.z + .27 });

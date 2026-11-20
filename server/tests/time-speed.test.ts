@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
-import { initialState, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
+import { initialState, points, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
 import { timeMultiplier, sleepTarget, type SleepMode } from '../../src/shared/timeControl';
 import { recoverSleep } from '../timeControl';
 import { advanceLife } from '../life';
@@ -106,6 +106,10 @@ test('Live two-player sleep and shift votes never speed up a non-consenting awak
     b.send({ type: 'sleep_start', mode: 'half' });
     await a.next('time_status', p => p.status.multiplier === 2 &&
       p.status.sleepers.vlad === 'full' && p.status.sleepers.alina === 'half');
+    const sleeping = await a.next('snapshot', p =>
+      p.state.characters.vlad.pose === 'sleep' && p.state.characters.alina.pose === 'sleep');
+    for (const resident of Object.values(sleeping.state.characters))
+      assert.deepEqual({ x: resident.x, z: resident.z }, points.bed);
     b.send({ type: 'sleep_stop' });
     await a.next('time_status', p => p.status.multiplier === 1 && !p.status.sleepers.alina);
     a.send({ type: 'sleep_stop' });
