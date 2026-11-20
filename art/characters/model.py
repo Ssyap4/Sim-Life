@@ -184,7 +184,7 @@ def seam(surface, points, width, depth, color, bone, count=12, sides=6, taper=.3
             lateral = tangent.cross(Vector((0,1,0)))
         lateral.normalize()
         normal = tangent.cross(lateral)
-        thickness = taper + (1-taper) * sin(pi*i/(count-1)) ** .56
+        thickness = taper + (1-taper) * max(0,sin(pi*i/(count-1))) ** .56
         row = []
         for j in range(sides):
             a = 2*pi*j/sides
@@ -208,16 +208,27 @@ class Resident:
         self.shin = self.hip - self.thigh - .084
         self.arm_x = .193 if self.woman else .22
         self.eye_y = self.head_y + (.021 if self.woman else .017)
-        self.eye_x = .064 if self.woman else .061
+        self.eye_x = .063 if self.woman else .060
+        self.head_sections = (
+            [(-.226,.015,.025,.048),(-.207,.053,.061,.047),(-.182,.086,.082,.038),
+             (-.143,.109,.101,.025),(-.096,.128,.119,.011),(-.047,.145,.127,.008),
+             (.006,.145,.137,-.003),(.061,.139,.137,-.010),(.114,.135,.130,-.013),
+             (.160,.113,.115,-.021),(.196,.076,.078,-.031),(.225,.024,.034,-.036),(.234,.003,.004,-.038)]
+            if self.woman else
+            [(-.230,.015,.028,.047),(-.210,.065,.065,.046),(-.187,.091,.084,.031),
+             (-.150,.110,.104,.017),(-.099,.125,.115,.005),(-.050,.138,.123,.003),
+             (.006,.142,.132,-.003),(.061,.140,.139,-.009),(.110,.137,.130,-.014),
+             (.156,.116,.111,-.019),(.193,.078,.082,-.030),(.222,.024,.033,-.035),(.232,.003,.004,-.038)]
+        )
 
         colors = (
-            dict(skin='e5b6a5', cheek='ce8c86', lip='aa6664', hair='75533e', hair_light='d9bc8c',
-                 shirt='eee4d4', jacket='a76857', hem='78473e', denim='504751', sole='bd9b80', shoe='936d58',
-                 iris='6b775c')
+            dict(skin='e4b39e', lip='b26768', hair='635044', hair_light='ba9f75', brow='6c4d3f',
+                 shirt='eee7df', jacket='526d92', hem='3f5575', denim='444754', sole='c4ac98', shoe='86766d',
+                 iris='658495')
             if self.woman else
-            dict(skin='cda088', cheek='bd8576', lip='86524c', hair='282523', hair_light='665348',
-                 shirt='eae2ce', jacket='456675', hem='294954', denim='445866', sole='c3a489', shoe='7a6455',
-                 iris='69736e')
+            dict(skin='d4a386', lip='9b5f59', hair='2d241f', hair_light='634836', brow='50362b',
+                 shirt='efeadc', jacket='486572', hem='344d58', denim='42535e', sole='c3ab91', shoe='78675e',
+                 iris='77634a')
         )
         self.c = {name: srgb(value) for name, value in colors.items()}
 
@@ -258,292 +269,346 @@ class Resident:
     def face(self, skin, eyes):
         c = self.c
         w = self.woman
-        # Individual jaw/zygoma/temple silhouettes. Depth increases behind the
-        # cheeks so the profile has room for the cranium and the jaw hinge.
-        profile = [
-            (-.218,.028,.039,.043),(-.200,.066,.066,.045),
-            (-.173,.100 if w else .107,.080,.034),(-.129,.121 if w else .125,.100,.022),
-            (-.080,.140 if w else .135,.116,.012),(-.039,.153 if w else .146,.132,.004),
-            (.006,.148 if w else .145,.139,-.002),(.053,.144 if w else .145,.137,-.006),
-            (.105,.142,.127,-.008),(.155,.117,.111,-.020),(.199,.066,.072,-.027),(.222,.002,.004,-.031),
-        ]
         eye_y = self.eye_y - self.head_y
+        tip_y = -.055 if w else -.067
+        mouth_y = -.130 if w else -.136
+        mouth_half = .047
 
-        def form(x, y, z, a):
-            forward = max(0, cos(a))
+        def face_relief(x, y, a):
             side = abs(x)
-            root = bell((y-.024)/.033)*bell(x/.027)
-            bridge = bell((y+.020)/.057)*bell(x/(.022 if w else .020))
-            tip = bell((y+.060)/.015)*bell((x+.001)/.026)
-            alar = bell((y+.073)/.013)*bell((side-.022)/.010)
-            nostril = bell((y+.079)/.0059)*bell((side-.019)/.0071)
-            orbit = bell((y-eye_y)/.025)*bell((side-self.eye_x)/.037)
-            brow = bell((y-.058)/.018)*bell((side-.063)/.041)
-            cheekbone = bell((y+.027)/.033)*bell((side-.107)/.028)
-            lower_cheek = bell((y+.112)/.046)*bell((side-.102)/.032)
-            mouth = bell((y+.120)/.036)*bell(x/.062)
-            philtrum = bell((y+.097)/.017)*(bell((side-.009)/.007)-.63*bell(x/.007))
-            chin = bell((y+.180)/.027)*bell(x/.051)
-            return x, z + forward*(.014*root + (.037 if w else .044)*bridge + .021*tip
-                + .010*alar - .011*nostril - .020*orbit + (.009 if w else .015)*brow
-                + .018*cheekbone - (.004 if w else .012)*lower_cheek + .012*mouth
-                + .004*philtrum + .013*chin)
+            bridge_width = .019 + .005 * ease((y-tip_y)/.088)
+            root = bell((y-.034)/.035)*bell(x/.042)
+            bridge = bell((y-tip_y-.034)/.050)*bell(x/bridge_width)
+            tip = bell((y-tip_y)/.018)*bell((x+.0015)/(.018 if w else .021))
+            wing = bell((y-tip_y+.010)/.012)*bell((side-.020)/.012)
+            nostril = bell((y-tip_y+.016)/.0058)*bell((side-.016)/.0067)
+            socket = bell((y-eye_y)/.022)*bell((side-self.eye_x)/.029)
+            brow = bell((y-eye_y-.034)/.021)*bell((side-.064)/.057)
+            cheekbone = bell((y+.027)/.041)*bell((side-.105)/.036)
+            lower_cheek = bell((y+.105)/.043)*bell((side-.103)/.035)
+            muzzle = bell((y-mouth_y)/.047)*bell(x/.072)
+            chin = bell((y+.186)/.031)*bell(x/(.052 if w else .055))
+            philtrum = bell((y-mouth_y-.022)/.014)*(
+                bell((side-.009)/.006) - .7*bell(x/.008))
+            under_lip = bell((y-mouth_y+.021)/.009)*bell(x/.036)
+            return max(0,cos(a)) * (
+                .009*root + (.032 if w else .037)*bridge + (.032 if w else .036)*tip
+                + .017*wing - .015*nostril - .021*socket + (.008 if w else .013)*brow
+                + (.013 if w else .016)*cheekbone - (.001 if w else .012)*lower_cheek
+                + .013*muzzle + .013*chin + .004*philtrum - .004*under_lip)
 
         def front(x, y):
-            rx, rz, center = section_at(profile, y)
+            rx, rz, center = section_at(self.head_sections, y)
             ratio = max(-.999, min(.999, x/rx))
             a = atan2(ratio, sqrt(1-ratio*ratio))
-            return form(x,y,center+cos(a)*rz,a)[1]+.030
+            return center + cos(a)*rz + face_relief(x,y,a) + .030
 
-        warm = srgb('b6796e' if w else '9e6f61')
-        shadow = srgb('705049')
-        cool = srgb('be988f' if w else 'ac887b')
+        warm = srgb('bc7772' if w else 'ab7868')
+        cool = srgb('caaa9f' if w else 'ac9184')
+        recess = srgb('623d3b' if w else '61453a')
+        lip_highlight = srgb('ebbeaa')
 
         def skin_color(x, y, facing):
             side = abs(x)
-            cheek = bell((side-.103)/.052)*bell((y+.067)/.043)
-            nose = bell(x/.029)*bell((y+.060)/.030)
-            eyelid = bell((side-self.eye_x)/.040)*bell((y-eye_y)/.026)
-            nostril = bell((side-.019)/.007)*bell((y+.080)/.005)
-            chin = bell((y+.174)/.045)*bell(x/.091)
-            base = mix(c['skin'],warm,facing*(.27*cheek+.15*nose+.22*eyelid))
-            base = mix(base,cool,facing*.14*chin + .13*(1-facing))
-            return mix(base,shadow,facing*.55*nostril)
+            cheek = bell((side-.104)/.044)*bell((y+.063)/.035)
+            nose = bell(x/.031)*bell((y-tip_y)/.023)
+            lid = bell((side-self.eye_x)/.031)*bell((y-eye_y)/.023)
+            nostril = bell((side-.016)/.0069)*bell((y-tip_y+.017)/.005)
+            jaw = bell((y+.164)/.039)*bell((side-.094)/.035)
+            base = mix(c['skin'],warm,facing*((.30 if w else .18)*cheek+.17*nose+.19*lid))
+            base = mix(base,cool,.28*jaw + .17*(1-facing))
+            return mix(base,recess,facing*.72*nostril)
 
         def smile(x, y, z):
             local = y-self.head_y
-            if abs(x) > .128 or not -.185 < local < -.038 or z < .080:
+            if abs(x) > .126 or not -.205 < local < -.050 or z < .085:
                 return x,y,z
-            lips = bell((local+.126)/.027)*bell(x/.052)
-            corner = bell((abs(x)-.032)/.015)
-            cheek = bell((abs(x)-.080)/.038)*bell((local+.074)/.051)
-            return x*(1+.125*lips), y+.010*lips*corner+.0055*cheek, z+.004*cheek
+            lips = bell((local-mouth_y)/.021)*bell(x/.056)
+            corner = bell((abs(x)-.038)/.018)
+            cheek = bell((abs(x)-.086)/.041)*bell((local+.074)/.052)
+            return x*(1+.085*lips), y+.011*lips*corner+.004*cheek, z+.0035*cheek
 
-        skin_start = len(skin.points)
-        shell(skin,profile,(0,self.head_y,.030),
-              lambda y,a:skin_color(sin(a)*section_at(profile,y)[0],y,max(0,cos(a))),
-              solid('Head'),rings=35,sides=40,flow=form)
-        skin.morph('Smile',skin_start,smile)
+        def mouth(x, y, v):
+            a = x/mouth_half
+            fullness = max(0,1-a*a)**.61
+            bow = .0027*bell((abs(a)-.30)/.21) - .0015*bell(a/.22)
+            line = mouth_y + .0044*min(a*a,1) + (.0013 if w else -.0006)*a
+            thickness = (.0105 if w else .0085) if v < .5 else (.0083 if w else .0060)+bow
+            t = 2*v-1
+            lip_y = line + t*thickness*(.22+.78*fullness)
+            y += (lip_y-y)*(1-ease((abs(a)-.88)/.37))
+            edge = max(0,sin(pi*v))**.68 * fullness**.55
+            closure = bell((v-.50)/.084)
+            color = mix(skin_color(x,y,1),c['lip'],edge*(.82 if w else .59))
+            color = mix(color,recess,.44*edge*closure)
+            color = mix(color,lip_highlight,.14*bell((v-.26)/.15)*edge)
+            relief = edge*((.0065 if w else .0047)-.005*closure)
+            return y, relief, color
+
+        # Allocate the rings to the features visible head-on. The covered
+        # back, lower jaw and top of the skull need fewer samples.
+        lip_rings = {mouth_y+.013*(2*v-1):v for v in (0,.17,.32,.43,.50,.57,.70,.85,1)}
+        levels = sorted(set((
+            self.head_sections[0][0], -.210, -.196, -.188, -.176, -.167, -.158,
+            mouth_y-.017, *lip_rings, mouth_y+.017, -.106, -.098, -.091,
+            tip_y-.024, tip_y-.019, tip_y-.015, tip_y-.010, tip_y-.005, tip_y,
+            tip_y+.008, tip_y+.017, -.029, -.016, -.005, eye_y-.010,
+            eye_y, eye_y+.011, eye_y+.023, eye_y+.035, eye_y+.049,
+            .084, .102, .125, .148, .173, .197, .214, self.head_sections[-1][0])))
+        angles = [-1.29 + 2.58*t for t in samples(41)]
+        angles += [1.29 + (2*pi-2.58)*i/15 for i in range(1,15)]
+        rows = []
+        for y in levels:
+            rx, rz, center = section_at(self.head_sections, y)
+            row = []
+            for a in angles:
+                x = sin(a)*rx
+                local_y, relief = y, 0
+                if y in lip_rings and cos(a) > 0 and abs(x) < mouth_half*1.25:
+                    local_y, relief, pigment = mouth(x,y,lip_rings[y])
+                    z = front(x,local_y)+relief
+                else:
+                    z = center + cos(a)*rz + face_relief(x,y,a) + .030
+                    pigment = skin_color(x,y,max(0,cos(a)))
+                row.append(((x,self.head_y+local_y,z),pigment,{'Head':1}))
+            rows.append(row)
+        start = len(skin.points)
+        skin.patch(rows,closed=True,caps=True)
+        skin.morph('Smile',start,smile)
 
         for side, suffix in [(-1,'L'),(1,'R')]:
             def ear(x,y,z,a):
-                return x+side*y*.20, z + cos(a)*(.005*bell((y-.005)/.025)-.008*bell((y+.007)/.017))
-            shell(skin,[(-.044,.007,.009,0),(-.028,.021,.012,0),(.012,.026,.017,0),
-                        (.038,.013,.010,0),(.044,.004,.004,0)],
-                  (side*.145,self.head_y-.045,.007),
-                  lambda y,a:mix(c['skin'],warm,.51*max(0,cos(a))*bell(y/.027)),
-                  solid('Head'),rings=10,sides=12,flow=ear)
+                rim = .006*bell((y-.019)/.031)
+                concha = .008*bell((y+.001)/.019)*bell(x/.018)
+                return x+side*y*.26, z + max(0,cos(a))*(rim-concha)
+            ear_y = self.head_y - (.049 if w else .060)
+            shell(skin,[(-.044,.004,.007,0),(-.029,.018,.011,-.002),(.008,.022,.017,0),
+                        (.036,.012,.012,-.004),(.043,.003,.004,-.005)],
+                  (side*(.135 if w else .140),ear_y,.015),
+                  lambda y,a:mix(c['skin'],warm,.56*max(0,cos(a))*bell(y/.030)),
+                  solid('Head'),rings=12,sides=14,flow=ear)
             self.eye(skin,eyes,side,suffix,front,skin_color)
             cx = side*self.eye_x
             brow = []
-            for dx,dy in [(-.033,.032),(-.014,.041),(.004,.043 if w else .040),(.024,.036),(.037,.027)]:
+            for dx,dy in [(-.034,.033),(-.022,.037),(-.004,.039),
+                          (.013,.040 if w else .039),(.027,.036),(.039,.029)]:
                 x,y = cx+side*dx,eye_y+dy
-                brow.append((x,self.head_y+y,front(x,y)+.0022))
-            seam(skin,brow,.0041 if w else .0049,.0017,mix(c['hair'],warm,.52 if w else .25),
-                 'Head',count=13,sides=5,taper=.13)
-
-        # Upper bow, lower lip and the commissures share the nasolabial motion.
-        start = len(skin.points)
-        lips = []
-        for v in samples(7):
-            row = []
-            for u in samples(23):
-                a = 2*u-1
-                x = (.034 if w else .032)*a
-                edge = (1-a*a)**.83
-                bow = .0022*bell((abs(a)-.30)/.16) - .0011*bell(a/.17)
-                y = -.126+.0040*a*a+(2*v-1)*edge*(.0073 if v < .5 else .0054+bow*190*.0054)
-                core = bell((v-.51)/.15)
-                lower_light = bell((v-.23)/.17)
-                tint = mix(skin_color(x,y,1),c['lip'],edge*(.35+.51*core))
-                tint = mix(tint,srgb('e2ae9b'),.16*lower_light*edge)
-                z = front(x,y)+.0003+.0037*edge*sin(pi*v)
-                row.append(((x,self.head_y+y,z),tint,{'Head':1}))
-            lips.append(row)
-        skin.patch(lips)
-        skin.morph('Smile',start,smile)
+                brow.append((x,self.head_y+y,front(x,y)+.0015))
+            seam(skin,brow,.0034 if w else .0041,.0015,c['brow'],
+                 'Head',count=14,sides=5,taper=.10)
 
     def eye(self, skin, eyes, side, suffix, front, skin_color):
         w = self.woman
         c = self.c
-        half = .034 if w else .032
-        height = .0135 if w else .0114
+        half = .035 if w else .033
         cx = side*self.eye_x
         cy = self.eye_y-self.head_y
-        depth = front(cx,cy)+.0085
-        radius = .053
+        depth = front(cx,cy)+.0092
+        radius = .052
         eye_bone = 'Eye'+suffix
-        lid_line = srgb('65483f' if w else '715047')
-        white, tear, pupil = map(srgb,('e5dcd2','a97570','1a1b19'))
+        upper_line = srgb('48312e' if w else '664539')
+        lower_line = srgb('a46b63' if w else '9c6559')
+        white, tear, pupil = map(srgb,('e4dbd0','b0867d','1b1a19'))
 
         def globe(x,y):
             return depth-radius+sqrt(max(.0001,radius**2-(x-cx)**2-(y-cy)**2)) - side*(x-cx)*.29
 
         def margins(a):
-            contour = max(0,1-a*a)**.79
-            center = cy+side*a*.0028
-            return center-height*.68*contour, center+height*contour
+            outer = side*a
+            contour = max(0,1-a*a)**.68
+            line = cy+outer*(.0047 if w else .0027)
+            top = (.0126 if w else .0110)*(1-.14*outer)
+            bottom = (.0089 if w else .0068)*(1+.13*outer)
+            return line-bottom*contour, line+top*contour
 
-        def eye_vertex(a,v,offset=0):
-            x = cx+a*half
-            lower, upper = margins(a)
-            y = lower+(upper-lower)*v
+        def point(x,y,offset=0):
             return x,self.head_y+y,globe(x,y)+offset
 
         white_patch = []
-        for v in samples(7):
+        for v in samples(6):
             row = []
-            for u in samples(23):
+            for u in samples(25):
                 a = 2*u-1
-                tint = mix(white,tear,.27*max(0,-side*a)**4+.21*max(0,2*v-1)**2)
-                row.append((eye_vertex(a,v),tint,{'Head':1}))
+                low, high = margins(a)
+                x, y = cx+a*half, low + (high-low)*v
+                color = mix(white,tear,.18*max(0,-side*a)**4+.27*max(0,2*v-1)**2)
+                row.append((point(x,y),color,{'Head':1}))
             white_patch.append(row)
         eyes.patch(white_patch)
 
         rings = []
-        for radius_fraction in [.012,.34,.42,.54,.76,.93,1]:
+        for fraction in (.015,.35,.43,.60,.81,.94,1):
             row = []
-            for index in range(19):
-                theta = 2*pi*index/19
-                a = cos(theta)*radius_fraction*.405
-                v = .52-sin(theta)*radius_fraction*.478
-                warm = .14+.19*max(0,-sin(theta))+.095*cos(theta*8)**2
-                pigment = mix(c['iris'],srgb('c4a575' if w else '9d9881'),warm)
-                pigment = mix(pigment,lid_line,.61) if radius_fraction > .92 else pigment
-                pigment = pupil if radius_fraction < .42 else pigment
-                row.append((eye_vertex(a,v,.0014),pigment,{eye_bone:1}))
+            for index in range(21):
+                theta = 2*pi*index/21
+                size = .0130 if w else .0118
+                x = cx + cos(theta)*fraction*size
+                y = cy + .001 - sin(theta)*fraction*size
+                low, high = margins((x-cx)/half)
+                y = max(low-.00012,min(high+.00012,y))
+                pigment = mix(c['iris'],srgb('b99e70' if w else '9d9569'),
+                              .11+.22*max(0,-sin(theta))+.09*cos(theta*7)**2)
+                if fraction >= .94:
+                    pigment = mix(pigment,pupil,.49 if fraction == 1 else .35)
+                if fraction < .43:
+                    pigment = pupil
+                row.append((point(x,y,.00115),pigment,{eye_bone:1}))
             rings.append(row)
         eyes.patch(rings,closed=True)
-        # Diffuse window glint plus the material's small specular component.
-        eyes.patch([[(eye_vertex(a,v,.0024),srgb('eee6d3'),{eye_bone:1})
-                    for a in [-.129,-.054]] for v in [.64,.72]])
+        # A tiny, muted catchlight remains legible without changing scene lights.
+        eyes.patch([[(point(cx+dx,cy+dy,.00205),srgb('eee6d7'),{eye_bone:1})
+                    for dx in (-.0049,-.0027)] for dy in (.0037,.0054)])
 
-        for upper_lid in (False,True):
+        for upper in (False,True):
             base = []
             closed = []
-            for t in (0,.23,.49,.74,1):
+            direction = 1 if upper else -1
+            for t in (0,.16,.34,.61,1):
                 actual, target = [], []
-                for u in samples(23):
+                for u in samples(25):
                     a = 2*u-1
-                    contour = max(0,1-a*a)**.79
-                    direction = 1 if upper_lid else -1
+                    contour = max(0,1-a*a)**.77
                     x = cx+a*(half+.007*t)
-                    y0,y1 = margins(a)
-                    rim = y1 if upper_lid else y0
-                    edge = rim+direction*t*(.010+.016*contour)
-                    meet = cy+side*a*.0028 - .0061*contour
-                    displacement = (meet-rim-.00025*direction)*(1-ease(t))
-                    def point(y, closing=False):
-                        # Keep the lid in front of the globe across the entire
-                        # original eye opening. Feather only outside that area.
-                        outside = max(y-y1,y0-y,0)
-                        side_feather = ease((abs(x-cx)/half-.90)/.32)
-                        feather = max(ease(outside/.017),side_feather)
-                        socket = globe(x,y)+(.0047 if closing else .0030)
-                        z = socket+(front(x,y)-.0018-socket)*feather
+                    low,high = margins(a)
+                    rim = high if upper else low
+                    edge = rim+direction*t*(.008+(.017 if upper else .013)*contour)
+                    meet = (low+high)*.5-.0058*contour
+                    displacement = (meet-rim-.0004*direction)*(1-ease(t))
+                    def lid_point(y, closing=False):
+                        outside = max(y-high,low-y,0)
+                        feather = max(ease(outside/(.014 if upper else .012)),
+                                      ease((abs(x-cx)/half-.89)/.33))
+                        depth = globe(x,y)+(.0046 if closing else .0023)
+                        z = depth + (front(x,y)-.0014-depth)*feather
                         return x,self.head_y+y,z
-                    color = mix(skin_color(x,edge,1),lid_line,
-                                (.51 if upper_lid else .27)*(1-ease(t/.38))*contour)
-                    actual.append((point(edge),color,{'Head':1}))
-                    target.append(point(edge+displacement,closing=True))
-                if not upper_lid:
+                    line_strength = (.93 if w else .71) if upper else .31
+                    line_width = .58 if upper else .34
+                    color = mix(skin_color(x,edge,1), upper_line if upper else lower_line,
+                                line_strength*(1-ease(t/line_width))*contour)
+                    actual.append((lid_point(edge),color,{'Head':1}))
+                    target.append(lid_point(edge+displacement,closing=True))
+                if not upper:
                     actual.reverse()
                     target.reverse()
                 base.append(actual)
                 closed.extend(target)
             start = len(skin.points)
             skin.patch(base)
-            # All lids are sculpted into the same shape key; the iris stays put.
             skin.morphs.setdefault('CloseLids',{}).update(
-                {start+index:xyz(point) for index,point in enumerate(closed)})
+                {start+index:xyz(p) for index,p in enumerate(closed)})
 
     def hair(self, surface):
+        if self.woman:
+            self.parted_hair(surface)
+        else:
+            self.swept_hair(surface)
+
+    def swept_hair(self, surface):
         c = self.c
-        w = self.woman
-        # Compact sides taper along the temple. A directional flow field goes
-        # across the raised part, then merges into the lower nape.
-        profile = [
-            (-.085,.151,.136,.005),(-.022,.155,.145,.004),(.049,.158,.157,.001),
-            (.108,.156,.157,-.003),(.154,.149,.148,-.008),(.192,.125,.125,-.017),
-            (.222,.086,.084,-.024),(.248,.040,.052,-.027),(.263,.001,.002,-.034),
-        ]
         rows = []
-        for t in samples(22):
+        for t in samples(25):
             row = []
-            for i in range(40):
-                a = 2*pi*i/40
-                swept = sin(a)
-                forward = ease((cos(a)+.1)/1.05)
-                temple = sin(a)**2
-                front = .166 if w else .183
-                hairline = -.086 + forward*front + temple*(.074 if w else .087)
-                hairline += forward*(.016*cos(a*3+.82)+.013*sin(a*1.3))
-                edge = hairline + .0025*sin(a*23)
-                height = edge+(.263-edge)*t
-                rx,rz,center = section_at(profile,height)
-                if w:
-                    root = (1-ease((cos(a)+.2)/.50))*(1-ease((height-.074)/.096))
-                    rx *= 1-.13*root
-                    rz *= 1-.16*root
-                flow = a*(12 if w else 11)+t*(5.2 if w else 6.4)+sin(a-t*1.9)*2.21
-                fine = .5 + .5*cos(flow)
-                volume = sin(pi*t)**1.24
-                ridge = (.0056*fine**3-.0018)*volume
-                quiff = forward*volume*(.011 if w else .025)*(1+.37*swept)
-                x = sin(a)*(rx+ridge)+volume*(.017 if w else .025)
-                z = center+cos(a)*(rz+ridge)+quiff*.43
-                y = height+quiff
-                part = bell((a-(.46 if w else .69))/.094)*bell((t-.49)/.31)
-                color = mix(c['hair'],c['hair_light'],.13+(.49 if w else .34)*fine**2
-                            +.16*volume+.21*part)
-                row.append(((x,self.head_y+y,z),color,{'Head':1}))
+            for i in range(48):
+                a = 2*pi*i/48
+                direction = cos(a)
+                front = max(0,direction)**.76
+                nape = max(0,-direction)**1.15
+                side = sin(a)
+                # High temples lead into the fade above the ear. The cap
+                # is built over the same head sections as the skin.
+                hairline = .025 + .110*front - .100*nape
+                hairline += front*(.012*sin(a+1.10)+.006*cos(3*a-.5))
+                y = hairline+(self.head_sections[-1][0]-hairline)*t
+                rx,rz,center = section_at(self.head_sections,y)
+                volume = sin(pi*t)**.82
+                sweep = a*9.0 + t*7.3 + .44*sin(a*2-t*2.2)
+                strand = .5+.5*cos(sweep)
+                texture = (.5+.5*cos(2*sweep+.55))**2
+                crown = .0031 + volume*(.008+.012*front+.0025*strand**2)
+                crest = .027*front*volume*(.80+.30*side)
+                x = side*(rx+crown)+ .013*volume*front
+                z = center+.030+direction*(rz+crown)+.19*crest
+                fade = (1-.96*front)*bell(t/.24)
+                color = mix(c['hair'],c['hair_light'],.12+.26*strand**2+.09*texture+.10*fade)
+                color = mix(color,c['skin'],.36*fade)
+                row.append(((x,self.head_y+y+.008*t+crest,z),color,{'Head':1}))
             rows.append(row)
         surface.patch(rows,closed=True)
+        surface.faces.append(tuple(range(len(surface.points)-len(rows[-1]),len(surface.points))))
 
-        if not w:
-            return
-
-        # One flowing mantle from the part to the nape. Variable contours
-        # between its waves create distinct tips while keeping the crown united.
-        curtain = [
-            (-.420,.143,.079,.002),(-.372,.170,.108,.006),(-.292,.189,.128,.013),
-            (-.185,.200,.149,.004),(-.091,.184,.158,-.012),
-            (.016,.168,.160,-.014),(.107,.157,.145,-.020),(.181,.119,.107,-.027),
-            (.227,.080,.064,-.033),
+    def parted_hair(self, surface):
+        c = self.c
+        drape = [
+            (-.405,.164,.106,.013),(-.352,.176,.126,.011),(-.268,.179,.143,.002),
+            (-.186,.177,.143,-.001),(-.092,.169,.150,-.003),(.003,.160,.154,.003),
         ]
-        mantle = []
-        for t in samples(24):
+        hairline = [
+            (-.43,1.14),(.03,1.03),(.075,.88),(.110,.65),(.140,.37),
+            (.159,.21),(.178,.081),(.195,.011),(.216,.008),(.259,.008),
+        ]
+        crown = [(.175,.107,.115,.006),(.195,.093,.107,.001),(.216,.075,.092,-.003),
+                 (.237,.056,.068,-.006),(.248,.037,.048,-.009),(.255,.023,.031,-.011),
+                 (.259,.003,.004,-.012)]
+        heights = [i*.60/37 for i in range(38)] + [.614,.627,.638,.647,.654,.659,.662,.664]
+        rows = []
+        for height in heights:
+            t = height/.664
             row = []
-            for u in samples(44):
-                neck_fall = 1-ease(t/.26)
-                hem = .022*cos(5*pi*u)+.015*cos(17*pi*u+1.1)
-                height = -.42+.647*t+neck_fall*hem
-                rx,rz,center = section_at(curtain,height)
-                opening = .96+.20*sin(pi*t)+.07*sin(17*t)
-                angle = opening+(2*pi-2*opening)*u+.075*sin(10*t)
-                flow = 2*pi*u*8+.93*sin(12*t+3*u)+.16*sin(29*t)
-                wave = (.0064+.007*neck_fall)*cos(flow)
-                x = sin(angle)*(rx+wave)+.010*sin(12*t+2*u)
-                z = center+cos(angle)*(rz+wave)
-                lit = (.5+.5*cos(flow))**1.3
-                tint = mix(c['hair'],c['hair_light'],.13+.39*lit+.19*(1-t)+.06*max(0,cos(angle)))
-                bind = weighted('Hair','Head',height,.034,.207)
-                row.append(((x,self.head_y+height,z),tint,bind))
-            mantle.append(row)
-        surface.patch(mantle)
-        # Narrow, offset face-framing wisps release the ends from the mantle.
-        for side in (-1,1):
-            for j in range(2):
-                path = [
-                    (side*(.078+j*.027),self.head_y+.188-j*.014,.091-j*.013),
-                    (side*(.127+j*.028),self.head_y+.095,.125-j*.026),
-                    (side*(.162+j*.022),self.head_y-.039,.107-j*.028),
-                    (side*(.167+j*.024),self.head_y-.149,.145-j*.029),
-                    (side*(.179+j*.015),self.head_y-.261,.116-j*.028),
-                    (side*(.149+j*.018),self.head_y-.383+j*.029,.079-j*.013),
-                ]
-                seam(surface,path,.031-j*.008,.010,mix(c['hair'],c['hair_light'],.62-j*.15),
-                     'Hair',count=17,sides=7,taper=.10)
+            for u in samples(48):
+                hem = (1-ease(t/.24))*(.017*cos(3*pi*u+.7)+.010*cos(9*pi*u+1.15))
+                y = -.405+height+hem
+                gap, = section_at(hairline,y)
+                gap += .06*bell((y+.07)/.15)
+                side_part = .12 + .11*bell((y-.147)/.083)
+                a = gap+(2*pi-2*gap)*u+side_part
+                if y > .003:
+                    h = min(y,self.head_sections[-1][0])
+                    rx,rz,center = section_at(self.head_sections,h)
+                    thickness = .010 + .014*bell((y-.098)/.115)
+                    rx,rz,center = rx+thickness,rz+thickness,center+.030
+                    blend = ease((y-.003)/.072)
+                    rx,rz,center = mix(drape[-1][1:],(rx,rz,center),blend)
+                    rx,rz,center = mix((rx,rz,center),section_at(crown,y),ease((y-.170)/.040))
+                else:
+                    rx,rz,center = section_at(drape,y)
+                flow = 2*pi*u*7 + 1.0*sin(7.5*t+3.1*u)+.44*cos(11*t-14*u)
+                strand = (.5+.5*cos(flow))**1.45
+                texture = (.5+.5*cos(2*flow+.75))**2
+                waves = sin(pi*t)**.54*(.007+.004*bell((y+.148)/.20))
+                groove = bell(min(u,1-u)/.035)*bell((y-.190)/.034)
+                ridge = waves*(strand-.38)-.003*groove
+                framing = bell(min(u,1-u)/.075)
+                swing = .012*sin(y*11.8+u*3.6)+.006*cos(u*17+t*3.2)
+                x = sin(a)*(rx+ridge) + swing*(1-ease((t-.84)/.17))
+                z = center+cos(a)*(rz+ridge)+framing*.014*bell((y+.042)/.17)
+                root = ease((y-.080)/.14)
+                tip = 1-ease((y+.37)/.49)
+                tint = mix(c['hair'],c['hair_light'],.21+.26*strand+.085*texture+.31*tip-.13*root-.09*groove)
+                bind = weighted('Hair','Head',y,-.131,.086)
+                row.append(((x,self.head_y+y,z),tint,bind))
+            rows.append(row)
+        first = len(surface.points)
+        surface.patch(rows)
+        width = len(rows[0])
+        for i in range(len(rows)-1):
+            if rows[i][0][0][1]-self.head_y >= .193:
+                start = first + width*i
+                surface.faces.append((start+width-1,start,start+width,start+2*width-1))
+        surface.faces.append(tuple(range(first+width*(len(rows)-1),first+width*len(rows))))
+        # Give the visible face-framing edges rounded thickness without
+        # stacking free-floating locks in front of the cheeks.
+        for side, edge in ((1,0),(-1,-1)):
+            edge_rows = []
+            for height,row in zip(heights,rows):
+                p, tint, bind = row[edge]
+                x,y,z = p
+                amt = .65*(1-ease((height/.664-.81)/.14))
+                vertices = [((x,y,z),tint,bind),
+                            ((x-side*.008*amt,y-.004*amt,z-.013*amt),tint,bind),
+                            ((x-side*.011*amt,y-.009*amt,z-.024*amt),
+                             mix(tint,c['hair'],.40),bind)]
+                edge_rows.append(vertices if side == 1 else list(reversed(vertices)))
+            surface.patch(edge_rows)
 
     def garments(self, woven, skin, leather):
         c = self.c
@@ -555,6 +620,10 @@ class Resident:
                 (s+.071,.138,.083,-.010),(self.neck,.074,.065,-.008)]
         shell(woven,body,(0,0,0),lambda y,a:mix(c['shirt'],srgb('9f8e76'),.20*max(0,-cos(a))),
               solid('Chest'),rings=14,sides=18,front_only=True)
+        rib = [(sin(a)*.077,self.neck-.005-.007*cos(a),cos(a)*.069-.008)
+               for a in (-.92,-.58,0,.58,.92)]
+        seam(woven,rib,.005,.003,mix(c['shirt'],srgb('b2a294'),.22),
+             'Chest',count=12,sides=6)
 
         def gap(y):
             return .22+.34*ease((y-s+.24)/.34)
@@ -569,7 +638,7 @@ class Resident:
             edge = bell((min(a,2*pi-a)-gap(y))/.23)
             return mix(c['jacket'],c['hem'],.56*hem+.48*edge + .14*max(0,-cos(a)))
 
-        shell(woven,jacket,(0,0,0),coat_color,solid('Chest'),rings=19,sides=32,flow=coat_flow,opening=gap)
+        shell(woven,jacket,(0,0,0),coat_color,solid('Chest'),rings=17,sides=27,flow=coat_flow,opening=gap)
         for side in (-1,1):
             points=[]
             for y in [h-.060,h+.045,s-.25,s-.08,s+.052,self.neck-.005]:
@@ -589,6 +658,10 @@ class Resident:
               (0,0,0),uniform(c['denim']),solid('Pelvis'),rings=8,sides=18)
 
         for side,suffix in [(-1,'L'),(1,'R')]:
+            if w:
+                hoop = [(side*(.143+.002*cos(a)),self.head_y-.087+.011*cos(a),.025+.009*sin(a))
+                        for a in (0,pi/3,2*pi/3,pi,4*pi/3,5*pi/3,2*pi)]
+                seam(leather,hoop,.002,.002,srgb('b99155'),'Head',count=13,sides=5,taper=1)
             a,f = self.arm,self.forearm
             sleeve = [(-a-f+.020,.041,.037,-.002),(-a-f+.058,.045,.042,-.003),
                       (-a-.125,.060,.051,0),(-a,.058,.057,.005),(-.125,.066,.067,.005),
@@ -600,13 +673,13 @@ class Resident:
                 if y > -.08:
                     return weighted('Arm'+suffix,'Chest',y,-.08,.085)
                 return weighted('Elbow'+suffix,'Arm'+suffix,y,-a-.088,-a+.10)
-            shell(woven,sleeve,(side*self.arm_x,s,0),cuff,sleeve_weights,rings=15,sides=15,
+            shell(woven,sleeve,(side*self.arm_x,s,0),cuff,sleeve_weights,rings=13,sides=14,
                   flow=lambda x,y,z,angle:(x-side*.028*ease((y+.015)/.098),
                        z+.004*cos(31*y+angle*2)*bell((y+a)/.15)))
             wrist = (side*self.arm_x,s-a-f,0)
             shell(skin,[(-.096,.023,.013,.010),(-.076,.031,.019,.009),(-.040,.035,.023,.001),
                         (-.014,.030,.022,-.002),(.037,.031,.027,0)],wrist,uniform(c['skin']),
-                  solid('Wrist'+suffix),rings=12,sides=15)
+                  solid('Wrist'+suffix),rings=10,sides=13)
             thumb = [(wrist[0]-side*x,wrist[1]+y,z) for x,y,z in
                      [(.020,-.019,.003),(.036,-.039,.016),(.038,-.060,.023),(.029,-.072,.025)]]
             seam(skin,thumb,.012,.014,c['skin'],'Wrist'+suffix, count=9,sides=8)
@@ -628,14 +701,14 @@ class Resident:
                 if y > -.12:
                     return weighted('Thigh'+suffix,'Pelvis',y,-.118,.065)
                 return weighted('Knee'+suffix,'Thigh'+suffix,y,-knee-.093,-knee+.105)
-            shell(woven,leg,(side*.111,h,0),denim,leg_weights,rings=16,sides=15,
+            shell(woven,leg,(side*.111,h,0),denim,leg_weights,rings=13,sides=14,
                   flow=lambda x,y,z,a:(x-side*.031*ease((y+.09)/.16),z+.005*sin(a*2-y*42)*bell((y+knee)/.071)))
 
             shoe = [(-.083,.069,.129,.045),(-.070,.078,.144,.046),(-.050,.080,.145,.047),
                     (-.025,.077,.133,.046),(.011,.068,.099,.022),(.052,.055,.070,-.009)]
             def shoe_color(y,angle):
                 return mix(c['shoe'],c['sole'],1-ease((y+.061)/.014))
-            shell(leather,shoe,(side*.111,.084,0),shoe_color,solid('Ankle'+suffix),rings=10,sides=19,
+            shell(leather,shoe,(side*.111,.084,0),shoe_color,solid('Ankle'+suffix),rings=8,sides=16,
                   flow=lambda x,y,z,a:(x*(.87+.13*cos(a)),z))
             for y,z,width in [(.124,.111,.041),(.112,.137,.039)]:
                 seam(leather,[(side*.111-width,y-.001,z),(side*.111,y+.005,z+.003),

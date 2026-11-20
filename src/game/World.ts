@@ -163,6 +163,10 @@ export class World {
       });
       const pet = subject instanceof PetActor;
       const shade = walkingContact(pet);
+      if (subject instanceof PetActor) {
+        if (subject.id === 'verdell') shade.scale.multiplyScalar(subject.root.scale.x);
+        else { shade.scale.x *= .79; shade.scale.y *= 1.14; }
+      }
       this.contacts.push({ visual, shade, pet });
       this.scene.add(shade);
     }
