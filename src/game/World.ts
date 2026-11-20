@@ -32,6 +32,13 @@ type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
 type BowlPick = 'bowl:verdell' | 'bowl:simba';
 
+// Reuse one helper, not a per-frame closure for each resident on mobile.
+function relativeLookYaw(root: THREE.Object3D, target: THREE.Vector3): number {
+  const dx = target.x - root.position.x, dz = target.z - root.position.z;
+  return THREE.MathUtils.euclideanModulo(Math.atan2(dx, dz) - root.rotation.y + Math.PI,
+    Math.PI * 2) - Math.PI;
+}
+
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
 // targets only: the server and route planner still use the approach tiles.
 const deskKeys = [
@@ -1249,6 +1256,25 @@ export class World {
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
+      // Local, visual-only awareness for spontaneous glances. Never steer
+      // people toward a pet/partner or change server gameplay state.
+      const center = actor.root.position;
+      const partnerId = id === 'vlad' ? 'alina' : 'vlad';
+      const partner = this.actors[partnerId];
+      const partnerYaw = partner.root.visible && !this.sleepingOffline.has(partnerId) &&
+        Math.hypot(partner.root.position.x - center.x, partner.root.position.z - center.z) < 2.6
+        ? relativeLookYaw(actor.root, partner.root.position) : null;
+      let petYaw: number | null = null;
+      let petDistance = 2.5;
+      for (const pet of Object.values(this.pets)) {
+        if (!pet.root.visible) continue;
+        const distance = Math.hypot(pet.root.position.x - center.x, pet.root.position.z - center.z);
+        if (distance < petDistance) {
+          petDistance = distance;
+          petYaw = relativeLookYaw(actor.root, pet.root.position);
+        }
+      }
+      actor.setIdleSurroundings(petYaw, partnerYaw);
       actor.update(dt, this.steering[id]);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
