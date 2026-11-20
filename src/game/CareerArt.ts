@@ -3,7 +3,7 @@ import { batchRigidParts, drum, type XYZ } from './ArtKit';
 import { lettering, paintContactShade, part, paving, round, smallOrb, trim, type LocationResources } from './LocationArt';
 import { marketCashier } from './MarketArt';
 import { CAREERS, careerAt, type CareerId, type CareerPlace } from '../shared/careers';
-import { STATIONS, WORK_DECOR, WORK_NPCS, type Station } from '../shared/locations';
+import { STATIONS, WORK_DECOR, WORK_NPCS, WORK_VISITORS, type Station } from '../shared/locations';
 
 const palettes: Record<CareerId, { floor: string; seam: string; wall: number; base: number; ink: string; color: string; accent: number }> = {
   it:{floor:'#c6c7bc',seam:'#afb6b1',wall:0xaabdbb,base:0x536a70,ink:'#284757',color:'#e4eadc',accent:0x567d8e},
@@ -195,6 +195,10 @@ export function buildCareerPlace(place: CareerPlace, root: THREE.Group, people: 
   lettering(root,resources,[0,2.22,-4.782],3.06,.59,spec.employer,[scheme.color,scheme.ink],
     {it:'Внутренние проекты',detail:'Приёмка и уход',marketing:'Кампании и аналитика',clinic:'Приём и наблюдение'}[id]);
   for (const x of [-.85,.86]) trim(root,[.71,.064,.16],[x,2.73,-4.784],pale);
+  if (id==='detail') for (const x of [.43,2.9]) {
+    trim(root,[1.40,.09,.22],[x,2.67,-3.45],frame);
+    part(root,[1.29,.029,.16],[x,2.619,-3.45],0xf1dfb6);
+  }
   plant(root,5.18,-4.34,scheme.accent); plant(root,-5.33,3.74,scheme.accent);
   for (const [i,{x,z,w,d}] of (WORK_DECOR[place] ?? []).entries()) {
     const decoration = new THREE.Group(); decoration.position.set(x,0,z); root.add(decoration);
@@ -218,17 +222,34 @@ export function buildCareerPlace(place: CareerPlace, root: THREE.Group, people: 
     const rig = actor.userData.motion as {head:THREE.Group;arms:THREE.Group[]};
     return { actor, ...rig };
   });
-  return (time: number) => staff.forEach(({head,arms,actor},i)=>{
-    const beat=time*(i===0?1.4:4.4)+i*1.86;
-    head.rotation.y=Math.sin(time*.65+i)*.17;
-    head.rotation.x=Math.cos(time*.9+i)*.038;
-    if (id==='detail' && i) {
-      arms[i%2].rotation.x=-.7+Math.sin(beat)*.31;
-      arms[i%2].rotation.z=Math.sin(beat)*.11;
-    } else {
-      arms[0].rotation.x=-.15+Math.sin(beat)*.1;
-      arms[1].rotation.x=-.18+Math.cos(beat+i)*.09;
+  const visit = WORK_VISITORS[id];
+  const visitor = visit && marketCashier(resources,{title:id==='clinic'?'Владелец пациента':'Посетитель',color:0xb27b70,shirt:0xc7c5ad});
+  if (visitor && visit) {
+    visitor.position.set(visit.x,0,visit.z);
+    visitor.rotation.y = Math.PI + .2;
+    visitor.visible = false;
+    visitor.userData.careerVisitor = true;
+    if (id==='clinic') animal(visitor,-.39,0,.06);
+    people.add(visitor);
+  }
+  return (time: number) => {
+    for (const [i,{head,arms,actor}] of staff.entries()) {
+      const beat=time*(i===0?1.4:4.4)+i*1.86;
+      head.rotation.y=Math.sin(time*.65+i)*.17;
+      head.rotation.x=Math.cos(time*.9+i)*.038;
+      if (id==='detail' && i) {
+        arms[i%2].rotation.x=-.7+Math.sin(beat)*.31;
+        arms[i%2].rotation.z=Math.sin(beat)*.11;
+      } else {
+        arms[0].rotation.x=-.15+Math.sin(beat)*.1;
+        arms[1].rotation.x=-.18+Math.cos(beat+i)*.09;
+      }
+      actor.position.y=Math.sin(time*1.65+i)*.009;
     }
-    actor.position.y=Math.sin(time*1.65+i)*.009;
-  });
+    if (visitor) {
+      const phase = time % 72;
+      visitor.visible = phase >= 18 && phase < 42;
+      visitor.rotation.y = Math.PI + .2 + Math.sin(time*.72)*.16;
+    }
+  };
 }

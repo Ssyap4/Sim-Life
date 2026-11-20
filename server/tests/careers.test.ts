@@ -284,6 +284,14 @@ test('All 20 workstations connect, staff occupy safe blocked footprints and ligh
     const previous=npc.userData.motion.head.rotation.y;
     location.animate?.(1.1);
     assert.notEqual(npc.userData.motion.head.rotation.y,previous);
+    const visitor = location.root.children.find(item=>item.userData.careerVisitor);
+    if(id!=='it') {
+      assert.ok(visitor && !visitor.visible);
+      location.animate?.(25);
+      assert.ok(visitor.visible);
+      location.animate?.(50);
+      assert.ok(!visitor.visible);
+    }
     location.dispose();
     assert.equal(location.root.children.length,0);
   }

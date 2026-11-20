@@ -83,6 +83,9 @@ export const WORK_NPCS: Record<CareerId, readonly Point[]> = {
   marketing:[{x:3.59,z:.65},{x:-.54,z:-2.27},{x:.1,z:-4.18}],
   clinic:[{x:3.54,z:-3.14},{x:1.4,z:-4.25},{x:-3.90,z:.81}],
 };
+export const WORK_VISITORS: Partial<Record<CareerId, Point>> = {
+  detail:{x:5.25,z:2.35}, marketing:{x:-4.67,z:3.12}, clinic:{x:-3.10,z:3.72},
+};
 
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: [
@@ -164,7 +167,11 @@ export function placeObstacles(place: PlaceId) {
     minX:x-w/2-.26,maxX:x+w/2+.26,minZ:z-d/2-.26,maxZ:z+d/2+.26,
   });
   const workId = (Object.keys(CAREERS) as CareerId[]).find(id=>CAREERS[id].place===place);
-  if (workId) for (const {x,z} of WORK_NPCS[workId]) obstacles.push({minX:x-.42,maxX:x+.42,minZ:z-.39,maxZ:z+.39});
+  if (workId) {
+    const visitor = WORK_VISITORS[workId];
+    for (const {x,z} of WORK_NPCS[workId]) obstacles.push({minX:x-.42,maxX:x+.42,minZ:z-.39,maxZ:z+.39});
+    if (visitor) obstacles.push({minX:visitor.x-.43,maxX:visitor.x+.43,minZ:visitor.z-.42,maxZ:visitor.z+.42});
+  }
   const workDesk = STATIONS[place].find(site=>site.id===(place==='home'?HOME_LAPTOP:workId?'desk':''));
   if (workDesk) obstacles.push({minX:workDesk.center.x-.48,maxX:workDesk.center.x+.48,
     minZ:workDesk.center.z+.13,maxZ:Math.min(workDesk.approach.z-.10,workDesk.center.z+1.10)});
