@@ -13,7 +13,8 @@ import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
 import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
-import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
+import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
+  PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { BOOKS } from '../src/shared/homeLife';
 
@@ -101,6 +102,7 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
+  const petBowls = state.petBowls as Record<string, number> | undefined;
   const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
     const { minX, maxX, minZ, maxZ } = floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
@@ -120,7 +122,9 @@ const isValidState = (value: unknown): value is GameState => {
         routine.route.path.every(p => point(p)));
   }))) return false;
   if (petFood !== undefined && (!petFood || !PET_IDS.every((id) =>
-    Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= 24))) return false;
+    Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= PET_FOOD_MAX_REFILLS))) return false;
+  if (petBowls !== undefined && (!petBowls || !PET_IDS.every(id =>
+    Number.isSafeInteger(petBowls[id]) && petBowls[id] >= 0 && petBowls[id] <= PET_BOWL_CAPACITY))) return false;
   return (['vlad', 'alina'] as const).every((role) => {
     const p = state.characters?.[role];
     if (!p) return false;
@@ -233,6 +237,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
           simba: restorePet('simba', data.pets?.simba),
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
+        petBowls: { ...INITIAL_PET_BOWLS, ...data.petBowls },
       };
       // The first load of a legacy save permanently records expiration dates.
       // Merely reopening the file must never reset the countdown.
@@ -242,7 +247,10 @@ export function openServerFiles(dataDir: string): ServerFiles {
         const backup = join(dataDir, 'household.pre-billing.json');
         if (!existsSync(backup)) copyFileSync(statePath, backup);
       }
-      if (data.billing === undefined || data.readyFood === undefined || migratedFood) this.save(household);
+      // Legacy supplies become refill units without losing already-owned food.
+      // Empty bowls are introduced once, and the migration never repeats.
+      if (data.billing === undefined || data.readyFood === undefined || data.petBowls === undefined || migratedFood)
+        this.save(household);
       return household;
     },
     save(state: GameState): void {

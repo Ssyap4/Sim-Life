@@ -1,6 +1,7 @@
 import { HOME_FLOOR } from '../src/shared/home';
 import {
-  PETS, PET_IDS, PET_ROAM, PET_SPEED, petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
+  PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
+  PET_FOOD_MAX_REFILLS, petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
@@ -15,8 +16,9 @@ export type PetResult =
 const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 const homeObstacles = placeObstacles('home');
 
-export function petCarePoint(state: GameState, id: PetId) {
-  return petApproach(state.pets[id].position, homeObstacles, HOME_FLOOR);
+export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
+  return petApproach(action === 'feed' ? PETS[id].bowl : state.pets[id].position,
+    homeObstacles, HOME_FLOOR);
 }
 
 export function pausePetRoutine(state: GameState, id: PetId, now: number): void {
@@ -41,10 +43,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       delete pet.routine;
       continue;
     }
-    if (previous && previous.until > now) continue;
-    if (previous?.kind === 'eat' && state.petFood[id] > 0) {
-      state.petFood[id]--;
-      pet.satiety = clamp(pet.satiety + 27);
+    // A pre-update saved 'eat' route cannot mime eating from a newly empty bowl.
+    if (previous && previous.until > now && !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
+    if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
+      // The bowl — not a packet in household storage — pays for each meal.
+      state.petBowls[id]--;
+      pet.satiety = clamp(pet.satiety + PET_EAT_SATIETY_GAIN);
       pet.happiness = clamp(pet.happiness + 3);
     } else if (previous?.kind === 'toilet') {
       pet.bladder = 100;
@@ -52,8 +56,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.energy = clamp(pet.energy + 33);
     }
     let kind: PetRoutine['kind'] = 'wander';
-    if (pet.bladder <= 63) kind = 'toilet';
-    else if (pet.satiety <= 66 && state.petFood[id] > 0) kind = 'eat';
+    if (pet.satiety < PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
+    else if (pet.bladder <= 63) kind = 'toilet';
     else if (pet.energy <= 63) kind = 'sleep';
     let target = Math.floor(random() * PET_ROAM.length);
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
@@ -84,21 +88,22 @@ export function applyPetAction(
     case 'buyFood':
       if (next.money < spec.foodPrice)
         return { ok: false, reason: 'В семейном бюджете не хватает денег на корм' };
-      if (next.petFood[id] > 24 - spec.foodAmount)
+      if (next.petFood[id] > PET_FOOD_MAX_REFILLS - spec.foodAmount)
         return { ok: false, reason: 'Корма уже достаточно, сначала используйте запасы' };
       next.money -= spec.foodPrice;
       next.petFood[id] += spec.foodAmount;
       addLedger(next,role,'expense','pets',spec.foodPrice,spec.foodName);
-      message = names[role] + ': куплен ' + spec.foodName + ' (+' + spec.foodAmount + ')';
+      message = names[role] + ': куплена пачка ' + spec.foodName + ' (+' + spec.foodAmount + ' насыпаний по 3 порции)';
       break;
     case 'feed':
+      if (next.petBowls[id] > 0)
+        return { ok: false, reason: 'В миске ' + spec.name + ' ещё есть корм. Дождись, пока питомец его съест' };
       if (next.petFood[id] <= 0)
-        return { ok: false, reason: 'Корм для ' + spec.name + ' закончился, сначала купи ещё' };
+        return { ok: false, reason: 'Корм для ' + spec.name + ' закончился — купи ещё одну пачку' };
       next.petFood[id]--;
-      data.satiety = clamp(data.satiety + 27);
-      data.happiness = clamp(data.happiness + 6);
-      data.bond = clamp(data.bond + 3);
-      message = names[role] + ' покормил(а) питомца ' + spec.name;
+      next.petBowls[id] += PET_BOWL_CAPACITY;
+      message = names[role] + ': насыпано ' + PET_BOWL_CAPACITY + ' порции в миску ' + spec.name +
+        ' · осталось насыпаний в запасе: ' + next.petFood[id];
       break;
     case 'play':
       if (actor.energy < 5) return { ok: false, reason: 'Для игры с питомцем нужно немного отдохнуть' };
@@ -129,7 +134,7 @@ export function applyPetAction(
   }
   // The pet stays at its shared position while the household cares for it.
   if (kind !== 'buyFood') {
-    const point = petCarePoint(next, id);
+    const point = petCarePoint(next, id, kind);
     if (point) Object.assign(actor, point, { pose: 'idle' });
   }
   next.revision++;

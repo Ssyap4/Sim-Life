@@ -37,7 +37,7 @@ test('An atomic mixed basket purchases groceries, takeaway and pet supplies with
   assert.equal(result.state.pantry.milk,1);
   assert.equal(result.state.pantry.bread,11);
   assert.equal(result.state.takeout.pizzaCheese,2);
-  assert.equal(result.state.petFood.verdell,5);
+  assert.equal(result.state.petFood.verdell,12);
   assert.equal(result.state.ledger.length,1);
   assert.equal(result.state.ledger[0].amount,1640);
   assert.equal(result.state.ledger[0].actor,'vlad');

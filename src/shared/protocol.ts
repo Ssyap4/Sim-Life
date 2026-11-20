@@ -5,7 +5,7 @@ import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee
 import type { ReadyFoodBatch } from './readyFood';
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
-import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
+import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type PetFoodStock, type PetBowlStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
 import { BATH_FIXTURES, GRILL_WORK, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
 import type { BookId, Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
@@ -58,6 +58,7 @@ export interface GameState {
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
   petFood: PetFoodStock;
+  petBowls: PetBowlStock;
   readBooks: Record<CharacterId, BookId[]>;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
@@ -195,7 +196,7 @@ export function initialState(): GameState {
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(),
-    pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
+    pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },
       alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'alina'), pose: 'idle' },
