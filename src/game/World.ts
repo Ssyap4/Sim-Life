@@ -1300,7 +1300,7 @@ export class World {
             this.household?.world.places[role] === 'home' &&
             !this.household.activeShifts[role] && this.household.characters[role].pose !== 'sleep' &&
             Math.hypot(resident.root.position.x - this.pets[id].root.position.x,
-              resident.root.position.z - this.pets[id].root.position.z) < 1.9;
+              resident.root.position.z - this.pets[id].root.position.z) < 2.8;
         });
         this.pets[id].setAmbient({
           satiety: pet.satiety, energy: pet.energy, happiness: pet.happiness,

@@ -91,8 +91,8 @@ test('Dog is sociable while cat stretches, observes and grooms independently', (
   };
   assert.equal(choosePetIdle('verdell', context, 0), 'greet');
   assert.equal(choosePetIdle('verdell', { ...context, satiety: 15, bowl: 0 }, 0), 'hungryLook');
-  assert.equal(choosePetIdle('simba', context, 0), 'stretch');
-  assert.equal(choosePetIdle('simba', context, 1), 'observe');
+  assert.equal(choosePetIdle('simba', context, 0), 'groom');
+  assert.equal(choosePetIdle('simba', context, 1), 'stretch');
   assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 2), 'groom');
   assert.equal(petIdleWeight(0), 0);
   assert.equal(petIdleWeight(PET_IDLE_SECONDS), 0);
@@ -123,7 +123,7 @@ test('Cat grooming and stretching never override the authoritative sleep routine
     satiety: 85, energy: 80, happiness: 84, bond: 55, bowl: 2, personNearby: false,
   });
   for (let i = 0; i < 365; i++) cat.update(1 / 60);
-  assert.equal(cat.currentIdleGesture(), 'stretch');
+  assert.equal(cat.currentIdleGesture(), 'groom');
   cat.followRoute([], 'sleep');
   cat.update(.4);
   assert.equal(cat.currentIdleGesture(), null);
@@ -131,4 +131,73 @@ test('Cat grooming and stretching never override the authoritative sleep routine
   cat.react('brush');
   cat.update(.3);
   assert.equal(cat.currentIdleGesture(), null);
+});
+
+test('A roaming pet can perform a visible gesture once it reaches a stop', () => {
+  const dog = new PetActor('verdell');
+  dog.setAmbient({ satiety: 85, energy: 80, happiness: 90, bond: 72,
+    bowl: 2, personNearby: true });
+  dog.followRoute([new Vector3(dog.root.position.x + .12, 0, dog.root.position.z)], 'wander');
+  for (let i = 0; i < 250; i++) dog.update(1 / 60);
+  assert.equal(dog.currentIdleGesture(), 'greet',
+    'wandering routine does not forbid idle animation at its endpoint');
+  assert.ok(Math.abs(dog.root.position.x - (PETS.verdell.home.x + .12)) < .03,
+    'gesture does not displace the pet or disrupt server path');
+  dog.followRoute([], 'eat', Math.PI);
+  dog.update(.1);
+  assert.equal(dog.currentIdleGesture(), null, 'feeding immediately overrides idle gesture');
+});
+
+test('Cat brings a raised front paw near the face when grooming', () => {
+  const cat = new PetActor('simba');
+  cat.setAmbient({ satiety: 81, energy: 84, happiness: 78,
+    bond: 45, bowl: 0, personNearby: false });
+  // On the third idle cycle the cat chooses grooming.
+  for (let i = 0; i < 2700 && cat.currentIdleGesture() !== 'groom'; i++) {
+    cat.update(1 / 60);
+  }
+  assert.equal(cat.currentIdleGesture(), 'groom');
+  for (let i = 0; i < 65; i++) cat.update(1 / 60);
+  const paw = (cat as unknown as { paws: { position: Vector3; rotation: {x:number} }[] }).paws[0];
+  assert.ok(paw.position.y > .48, 'front paw is visibly raised towards the muzzle');
+  assert.ok(paw.rotation.x < -.8, 'raised front paw tilts inward towards face');
+  cat.followRoute([new Vector3(cat.root.position.x + 1,0,cat.root.position.z)],'wander');
+  cat.update(1 / 60);
+  assert.equal(cat.currentIdleGesture(), null);
+});
+
+test('At an empty bowl a hungry pet has animated body language without faking a feed', () => {
+  for (const id of ['verdell', 'simba'] as const) {
+    const pet = new PetActor(id);
+    pet.setAmbient({ satiety: 6, energy: 78, happiness: 52,
+      bond: 54, bowl: 0, personNearby: false });
+    pet.followRoute([], 'wander');
+    for (let i = 0; i < (id === 'verdell' ? 270 : 380); i++) pet.update(1 / 60);
+    assert.equal(pet.currentIdleGesture(), 'hungryLook', id);
+    const head = (pet as unknown as { head: {rotation:{x:number}} }).head;
+    assert.ok(head.rotation.x > .1, 'noticeable searching / head dip');
+  }
+});
+
+test('Dog visibly wags while passing an owner, without stopping navigation', () => {
+  const makeDog = (personNearby: boolean) => {
+    const dog = new PetActor('verdell');
+    dog.setAmbient({ satiety: 85, energy: 83, happiness: 85, bond: 64,
+      bowl: 1, personNearby });
+    dog.followRoute([new Vector3(PETS.verdell.home.x, 0, PETS.verdell.home.z + 10)], 'wander');
+    return dog;
+  };
+  const near = makeDog(true);
+  const far = makeDog(false);
+  const sweep = (dog: PetActor) => {
+    let angle = 0;
+    for (let i = 0; i < 110; i++) {
+      dog.update(1 / 60);
+      const tail = (dog as unknown as {tail:{rotation:{y:number}}}).tail;
+      angle = Math.max(angle, Math.abs(tail.rotation.y));
+    }
+    return angle;
+  };
+  assert.ok(sweep(near) > sweep(far) + .25, 'owner-near tail is substantially more expressive');
+  assert.ok(near.root.position.z > PETS.verdell.home.z + 1, 'walking remains active');
 });

@@ -22,9 +22,10 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
   }
   // The cat is independent: grooming and stretching happen often, and
   // nearby people mostly get a curious, quiet glance.
-  return turn % 4 === 0 ? 'stretch'
-    : turn % 4 === 1 || (state.personNearby && turn % 2 === 0) ? 'observe'
-      : 'groom';
+  // Lead with a distinctive, recognizable action so the player sees a cat,
+  // not just a walking orange silhouette. Still leave room for variation.
+  return turn % 4 === 0 || turn % 4 === 2 ? 'groom'
+    : turn % 4 === 1 ? 'stretch' : 'observe';
 }
 
 /** Smoothly enters and exits a gesture without a sudden body pop. */
