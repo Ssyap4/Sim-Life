@@ -129,6 +129,12 @@ export class Actor {
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
     this.setPose('idle');
+    // Furniture poses offset only the rendered body from its navigation root.
+    // If that offset eases away *during* a new walk, the visible person can
+    // pass straight through a neighbor although their navigation roots don't.
+    // Reattach the body to the collision-aware root before taking a step.
+    this.figureBase.set(0, 0, 0);
+    this.figure.position.set(0, 0, 0);
     this.waypoints = points.map((point) => point.clone());
     this.callback = onArrive;
   }
