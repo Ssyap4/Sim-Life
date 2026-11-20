@@ -1,3 +1,4 @@
+import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
@@ -33,6 +34,8 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if (command.type === 'free_tv') return { command: { type: 'free_tv' }, label: '📺 Обычные телеканалы',
+    durationMs: HOME_SECONDS.freeTv * 1000, resource: 'tv' };
   if (command.type === 'youtube') return { command: { type: 'youtube' }, label: '▶️ Смотрим YouTube',
     durationMs: HOME_SECONDS.youtube * 1000, resource: 'tv' };
   if (command.type === 'movie' && typeof command.genre === 'string' && own(GENRES, command.genre)) {
@@ -55,6 +58,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     const id = command.actionId;
     if (typeof id !== 'string' || !own(ACTIONS, id)) return null;
     // Older clients can still submit the former sofa menu commands.
+    if (id === 'watchTv' || id === 'tvMusic') return planTask({type:'free_tv'});
     if (id === 'sofaMovie') return planTask({type:'movie',genre:'comedy'});
     if (id === 'sofaRead') return planTask({type:'read_book',book:'prince'});
     const actionId = id as ActionId;
@@ -100,16 +104,19 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 
 export function entertainmentReward(command: Entertainment, together = false): NeedEffects {
   if (command.type === 'read_book') return READING_REWARD;
+  if (command.type === 'free_tv') return { fun: 5 };
   if (command.type === 'youtube') return { fun: 20, comfort: 10 };
   return together ? { fun: 100, social: 100, comfort: 15 } : { fun: 100, comfort: 15 };
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+  const denial = taskAccessError(state, command);
+  if (denial) return { ok: false, reason: denial };
   if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);
   if (state.world.places[role] !== 'home') return { ok: false, reason: 'Это действие доступно дома' };
   if (command.type === 'pet_action' && command.pet === 'verdell' && state.world.dogWalker)
     return { ok: false, reason: 'Верделл сейчас в парке' };
-  if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book') {
+  if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book' || command.type === 'free_tv') {
     const next = structuredClone(state);
     const needs = next.characters[role];
     for (const [key, amount] of Object.entries(entertainmentReward(command, together))) {

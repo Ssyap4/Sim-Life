@@ -1,3 +1,4 @@
+import { taskAccessError } from '../src/shared/serviceAccess';
 import WebSocket from 'ws';
 import { BATH_ACTIONS, BATH_FIXTURES, HOME_FLOOR, HOME_WALK_SPEED, homeSeat, LIBRARY_APPROACH } from '../src/shared/home';
 import { GENRES, HOME_SEATS, YOUTUBE, type Genre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
@@ -46,12 +47,12 @@ function sampled(home: HomePresentation, elapsed: number) {
   return {route:remaining, pickup:Math.max(0,home.pickup-route.path.length+remaining.path.length),
     pickupMs:home.pickupMs-pause};
 }
-const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book';
+const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv';
 
 export function usesHomeSession(command: TimedCommand): boolean {
   return isEntertainment(command) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
-      ['watchTv','tvMusic','sofaMovie','sofaRead','sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan'].includes(command.actionId));
+      ['sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan'].includes(command.actionId));
 }
 
 export function createHomeSessions(hooks: Hooks) {
@@ -97,10 +98,9 @@ export function createHomeSessions(hooks: Hooks) {
     const station = command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
     const route = walk(from, homeSeat(station, role).approach);
     if (!route) return null;
-    const program = command.type === 'movie' ? command.genre
+    const program = command.type === 'free_tv' ? 'broadcast' : command.type === 'movie' ? command.genre
       : command.type === 'youtube' ? YOUTUBE[Math.floor(Math.random() * YOUTUBE.length)]
-      : command.type === 'act' && command.actionId === 'tvMusic' ? 'concert'
-      : command.type === 'act' && ['watchTv','sofaMovie'].includes(command.actionId) ? 'broadcast' : undefined;
+      : undefined;
     return { route, station, program };
   }
 
@@ -141,7 +141,9 @@ export function createHomeSessions(hooks: Hooks) {
 
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false) {
     const command = plan.command;
-    const resource = command.type === 'act' && ['watchTv','tvMusic','sofaMovie'].includes(command.actionId) ? 'tv' : plan.resource;
+    const denial = taskAccessError(hooks.state(), command);
+    if (denial) { if (!automatic) error(initiator, denial); return; }
+    const resource = plan.resource;
     const occupant = [...sessions.values()].find(session => resource && session.plan.resource === resource);
     if (occupant && (automatic || !occupant.participants[0].packet.automatic)) {
       if (!automatic) error(initiator, 'Это место сейчас занято вторым игроком');
@@ -213,6 +215,8 @@ export function createHomeSessions(hooks: Hooks) {
     if (message.type === 'movie_invite') {
       const genre = message.genre;
       if (typeof genre !== 'string' || !Object.hasOwn(GENRES, genre)) return error(socket,'Неизвестный жанр');
+      const denial = taskAccessError(hooks.state(), { type: 'movie', genre: genre as Genre });
+      if (denial) return error(socket, denial);
       if (!hooks.socket(otherRole(role))) return error(socket,'Второй игрок пока не в сети');
       if (invite) return error(socket,'Уже есть приглашение на фильм');
       if (!available(role) || !available(otherRole(role)) || reserved('tv'))
@@ -228,6 +232,8 @@ export function createHomeSessions(hooks: Hooks) {
       return error(socket,'Ответить может только приглашённый игрок');
     if (!message.accept) return closeInvite('Приглашение отклонено');
     const {from,genre} = invite;
+    const denial = taskAccessError(hooks.state(), { type: 'movie', genre });
+    if (denial) return closeInvite(denial);
     if (!available(from) || !available(role) || reserved('tv')) {
       closeInvite('Кто-то занят или вышел из дома. Попробуйте ещё раз'); return;
     }
@@ -235,7 +241,18 @@ export function createHomeSessions(hooks: Hooks) {
     start([from,role],planTask({type:'movie',genre})!,socket);
   }
 
-  return { busy, reserved, start, cancel, replay, invitation,
+  function recheckAccess() {
+    for (const session of new Set(sessions.values())) {
+      const reason = taskAccessError(hooks.state(), session.plan.command);
+      if (reason) cancel(session.participants[0].role, reason);
+    }
+    if (invite) {
+      const reason = taskAccessError(hooks.state(), { type: 'movie', genre: invite.genre });
+      if (reason) closeInvite(reason);
+    }
+  }
+
+  return { busy, reserved, start, cancel, replay, invitation, recheckAccess,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

@@ -33,7 +33,7 @@ test('An atomic mixed basket purchases groceries, takeaway and pet supplies with
   const result=checkout(original,'vlad',lines);
   assert.equal(result.ok,true);
   if (!result.ok) return;
-  assert.equal(result.state.money, 2500-95-45-850-650);
+  assert.equal(result.state.money, 10000-95-45-850-650);
   assert.equal(result.state.pantry.milk,1);
   assert.equal(result.state.pantry.bread,11);
   assert.equal(result.state.takeout.pizzaCheese,2);
@@ -42,12 +42,13 @@ test('An atomic mixed basket purchases groceries, takeaway and pet supplies with
   assert.equal(result.state.ledger[0].amount,1640);
   assert.equal(result.state.ledger[0].actor,'vlad');
   assert.equal(result.state.revision,1);
-  assert.equal(original.money,2500);
+  assert.equal(original.money,10000);
   assert.equal(original.takeout.pizzaCheese,0);
 });
 
 test('Bad cart contents, overspend and capacity violations never mutate game state', () => {
   const source=initialState();
+  source.money=2500; // Force a low-budget scenario for the overspend check.
   const bad=[
     [{id:'takeout:rollsPremium',quantity:1}], // costs 2990
     [{id:'grocery:milk',quantity:0}],
@@ -95,7 +96,7 @@ test('Server clock pays a side shift only after a full workday',()=>{
  const settled=settleCompletedShifts(snap);
  assert.equal(settled.completed.length,1);
  assert.ok(settled.completed[0].payment>=2500&&settled.completed[0].payment<=4500);
- assert.equal(settled.state.money,2500+settled.completed[0].payment);
+ assert.equal(settled.state.money,10000+settled.completed[0].payment);
  assert.equal(settled.state.ledger.length,1);
  assert.equal(settleCompletedShifts(settled.state).completed.length,0);
 });

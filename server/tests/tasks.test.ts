@@ -84,7 +84,7 @@ test('The desk is exclusive, cancellation grants no reward, and another player c
     const [sv, sa] = await Promise.all([snapV, snapA]);
     assert.deepEqual(sv, sa);
     if (sv.type === 'snapshot') {
-      assert.equal(sv.state.money, 2500);
+      assert.equal(sv.state.money, 10000);
       assert.equal(sv.state.characters.alina.skill, 11);
       assert.equal(sv.state.revision, 1);
     }
@@ -104,12 +104,12 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
     await completed;
     const done = await snap;
     if (done.type === 'snapshot') {
-      assert.equal(done.state.money, 2500);
+      assert.equal(done.state.money, 10000);
       assert.equal(done.state.characters.vlad.skill, 5);
       assert.equal(done.state.ledger.length, 0);
     }
     const saved = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-    assert.deepEqual([saved.money, saved.revision], [2500, 1]);
+    assert.deepEqual([saved.money, saved.revision], [10000, 1]);
     ctx.vlad.terminate();
     ctx.alina.terminate();
     await ctx.server.close();
@@ -118,7 +118,7 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
       const after = await enter(restored.port, 'vlad', ctx.keys.vlad);
       after.close();
       const persisted = JSON.parse(readFileSync(join(ctx.dir, 'household.json'), 'utf8')) as { money: number; revision: number };
-      assert.deepEqual([persisted.money, persisted.revision], [2500, 1]);
+      assert.deepEqual([persisted.money, persisted.revision], [10000, 1]);
     } finally { await restored.close(); }
   } finally {
     if (ctx.server.httpServer.listening) await clean(ctx);
@@ -148,7 +148,7 @@ test('Kitchen tasks lock the stove while the other player can care for a pet', a
     const [v, a] = await Promise.all([finalV, finalA]);
     assert.deepEqual(v, a);
     if (v.type === 'snapshot') {
-      assert.equal(v.state.money, 2405);
+      assert.equal(v.state.money, 9905);
       assert.equal(v.state.pantry.eggs, 2);
       assert.equal(v.state.pantry.milk, 0);
       assert.equal(v.state.meals.omelette, 2);
@@ -209,12 +209,15 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
 test('A jointly accepted movie starts one synchronized timer and commits both capped rewards', async () => {
   const ctx=await setup(.006);
   try {
+    const subscribed=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.billing.services.netflix.enabled);
+    send(ctx.vlad,{type:'service_connect',service:'netflix'});
+    await subscribed;
     const offer=waitFor(ctx.alina,p=>p.type==='movie_offer');
     send(ctx.vlad,{type:'movie_invite',genre:'comedy'});
     const invited=await offer;
     assert.ok(invited.type==='movie_offer');
     assert.equal(invited.from,'vlad');
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    assert.equal(openServerFiles(ctx.dir).load().revision,1);
     const forged=waitFor(ctx.vlad,p=>p.type==='error');
     send(ctx.vlad,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     assert.equal((await forged).type,'error');
@@ -222,7 +225,7 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
     const starts=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_started'&&p.role===role));
     const active=['vlad','alina'].map(role=>waitFor(ctx.alina,p=>p.type==='task_active'&&p.role===role));
     const ends=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_ended'&&p.role===role));
-    const snap=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.revision===2);
+    const snap=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.revision===3);
     send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     const seats=[];
     for(const started of await Promise.all(starts)) {
@@ -238,7 +241,7 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
       assert.ok(playing.type==='task_active');
       assert.equal(playing.elapsedMs,0);
     }
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false,'Approach and playback do not award needs');
+    assert.equal(openServerFiles(ctx.dir).load().revision,1,'Approach and playback do not award needs');
     const state=await snap;
     assert.ok(state.type==='snapshot');
     for(const ended of await Promise.all(ends)) {
@@ -252,13 +255,16 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
     const duplicate=waitFor(ctx.alina,p=>p.type==='error');
     send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     await duplicate;
-    assert.equal(openServerFiles(ctx.dir).load().revision,2);
+    assert.equal(openServerFiles(ctx.dir).load().revision,3);
   } finally {await clean(ctx);}
 });
 
 test('A declined invitation starts no action; disconnect cancels both accepted viewers', async () => {
   const ctx=await setup(.012);
   try {
+    const subscribed=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.billing.services.netflix.enabled);
+    send(ctx.vlad,{type:'service_connect',service:'netflix'});
+    await subscribed;
     const offer=async()=>{
       const pending=waitFor(ctx.alina,p=>p.type==='movie_offer');
       send(ctx.vlad,{type:'movie_invite',genre:'horror'});
@@ -270,7 +276,7 @@ test('A declined invitation starts no action; disconnect cancels both accepted v
     const declined=waitFor(ctx.vlad,p=>p.type==='movie_offer_closed');
     send(ctx.alina,{type:'movie_reply',inviteId:id,accept:false});
     assert.match((await declined as Extract<ServerPacket,{type:'movie_offer_closed'}>).message,/отклонено/);
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    assert.equal(openServerFiles(ctx.dir).load().revision,1);
     const accepted=await offer();
     const running=waitFor(ctx.vlad,p=>p.type==='task_active'&&p.role==='alina');
     send(ctx.alina,{type:'movie_reply',inviteId:accepted,accept:true});
@@ -314,7 +320,7 @@ test('All twelve books reach the shelf and a physical seat before completion', a
     assert.equal(state.characters.vlad.fun,100);
     assert.equal(state.characters.vlad.comfort,100);
     assert.equal(state.revision,12);
-    assert.equal(state.money,2500);
+    assert.equal(state.money,10000);
     assert.equal(state.pantry.eggs,4);
   } finally {await clean(ctx);}
 });

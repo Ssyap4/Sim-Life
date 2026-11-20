@@ -1,5 +1,7 @@
+import { initialServices } from '../src/shared/services';
+import { validBilling } from './services';
 import { validWorld } from './locations';
-import { WORLD_FLOOR, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
+import { WORLD_FLOOR, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
 import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { randomBytes } from 'node:crypto';
@@ -25,6 +27,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   // A clock was added to existing version-2 households; never reset old saves.
   if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
@@ -55,9 +58,9 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.day) && row.day >= 1 &&
         Number.isSafeInteger(row.minute) && row.minute >= 0 && row.minute < 1440 &&
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
-        (row.actor === 'vlad' || row.actor === 'alina') &&
+        (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
@@ -174,8 +177,9 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
-      return {
+      const household: GameState = {
         ...data,
+        billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
           ...data.world,
           // Older saves could leave a shopping bag in the hands of a resident at home.
@@ -205,6 +209,13 @@ export function openServerFiles(dataDir: string): ServerFiles {
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
       };
+      if (data.billing === undefined) {
+        // Keep the original household even after later rotating backups.
+        const backup = join(dataDir, 'household.pre-billing.json');
+        if (!existsSync(backup)) copyFileSync(statePath, backup);
+        this.save(household);
+      }
+      return household;
     },
     save(state: GameState): void {
       if (!isValidState(state)) throw new Error('Refusing to save invalid household');

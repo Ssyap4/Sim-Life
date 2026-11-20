@@ -1,3 +1,6 @@
+import { applyServiceCommand, settleFamilyServices } from './services';
+import { serviceAvailable } from '../src/shared/services';
+import { taskAccessError } from '../src/shared/serviceAccess';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor } from '../src/shared/locations';
@@ -34,6 +37,8 @@ export interface ServerOptions {
   distDir?: string;
   /** For fast deterministic integration tests; production defaults to real time. */
   taskTimeScale?: number;
+  /** Deterministic clock input and tick cadence for isolated integration tests. */
+  lifeClock?: { now: () => number; tickMs: number };
 }
 export interface RunningServer {
   httpServer: HttpServer;
@@ -61,6 +66,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
   let state: GameState = files.load();
+  if (settleFamilyServices(state, false, false).length) {
+    state.revision++;
+    files.save(state);
+  }
   // Interrupted sleep sessions do not keep earning energy after a server restart.
   for (const id of ['vlad', 'alina'] as const)
     if (state.characters[id].pose === 'sleep') state.characters[id].pose = 'idle';
@@ -159,18 +168,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const effects = gains(before, after, role);
     if (Object.keys(effects).length) all({ type: 'need_gain', role, label, effects });
   };
-  let lastLifeTick = Date.now();
+  const lifeNow = options.lifeClock?.now ?? Date.now;
+  let lastLifeTick = lifeNow();
   let minuteCarry = 0;
   /** Charge elapsed real time at the OLD rate before any player changes the rate. */
   const accountTime = (): void => {
-    const now = Date.now();
+    const now = lifeNow();
     const elapsed = Math.min(10_000, Math.max(0, now - lastLifeTick));
     lastLifeTick = now;
     if (active.size) minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
     else minuteCarry = 0;
   };
   const liveGameTime = () => clockMinutes(state.clock) + minuteCarry +
-    (Date.now() - lastLifeTick) / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
+    (lifeNow() - lastLifeTick) / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
   // Only the authoritative server moves the clock. With nobody online the
   // household is paused; reconnects never drain the absent player's needs.
   const lifeTicker = setInterval(() => {
@@ -178,9 +188,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const speedBefore = timeStatus().multiplier;
     accountTime();
     if (!active.size) return;
-    const gameMinutes = Math.floor(minuteCarry);
+    const gameMinutes = Math.min(1440, Math.floor(minuteCarry));
     if (gameMinutes < 1) return;
-    minuteCarry -= gameMinutes;
     for (const [role, activity] of leisure) {
       if (activity.until <= now) stopLeisure(role, now);
       else {
@@ -196,8 +205,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
+    const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    minuteCarry -= gameMinutes;
     if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
     for (const role of finishedSleeping) sleepers.delete(role);
     if (next.completed.length) shiftVotes.clear();
@@ -207,6 +218,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all({ type: 'snapshot', state });
     if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
     if (arrived) all({ type: 'delivery_arrived' });
+    if (billingMessages.length) {
+      all({ type: 'billing_event', messages: billingMessages });
+      homeTasks.recheckAccess();
+      for (const [role, task] of running) {
+        const reason = taskAccessError(state, task.plan.command);
+        if (reason) stopTask(role, reason);
+      }
+      if (!serviceAvailable(state.billing, 'internet', clockMinutes(state.clock)))
+        for (const [role, task] of leisure) if (task.activity === 'computer') stopLeisure(role);
+    }
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     const available: CharacterId[] = [];
     for (const [role, socket] of active) {
@@ -214,7 +235,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           now - (lastIntent.get(role) ?? now) < 18_000) continue;
       const command = now - (lastAutoCare.get(role) ?? 0) >= 70_000 && urgentHomeAction(state, role);
       const plan = command && planTask(command);
-      if (plan && ![...running.values()].some(task => plan.resource && task.plan.resource === plan.resource)) {
+      if (plan && !taskAccessError(state, plan.command) && ![...running.values()].some(task => plan.resource && task.plan.resource === plan.resource)) {
         stopLeisure(role);
         lastAutoCare.set(role, now);
         beginTask(role, socket, plan, true);
@@ -224,6 +245,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     if (!available.length) return;
     const options: HomeLeisure[] = ['tv', 'computer', 'simba'];
+    if (!serviceAvailable(state.billing, 'internet', clockMinutes(state.clock))) options.splice(options.indexOf('computer'), 1);
     if (!state.world.dogWalker) options.push('verdell');
     if (available.length === 2) options.push('chat', 'chat');
     const choices = options.filter(activity => ![...leisure.values()].some(current => current.activity === activity) &&
@@ -245,7 +267,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     for (const role of roles) leisure.set(role, { activity, startedAt: now, until: now + 16_000, route: routes[role]! });
     all({ type: 'home_leisure', roles, activity, routes });
-  }, 10_000);
+  }, options.lifeClock?.tickMs ?? 10_000);
   lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
     if (homeTasks.cancel(role, reason)) return;
@@ -432,7 +454,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           catch { packet(socket, { type: 'error', reason: 'Не удалось запомнить устройство. Войди без этой опции' }); return; }
         }
         role = requested;
-        if (active.size === 0) { lastLifeTick = Date.now(); minuteCarry = 0; }
+        if (active.size === 0) { lastLifeTick = lifeNow(); minuteCarry = 0; }
         else accountTime();
         active.set(role, socket);
         lastIntent.set(role, Date.now());
@@ -503,6 +525,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role, Date.now());
         return;
       }
+      if (message.type === 'service_connect' || message.type === 'service_renewal' || message.type === 'service_pay') {
+        const result = applyServiceCommand(state, role, message);
+        if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
+        const retry = message.type === 'service_renewal' && message.enabled === true;
+        const messages = [result.message, ...settleFamilyServices(result.state, retry)];
+        try { files.save(result.state); }
+        catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить платёж' }); return; }
+        state = result.state;
+        all({ type: 'snapshot', state });
+        all({ type: 'billing_event', messages });
+        homeTasks.recheckAccess();
+        return;
+      }
       if (message.type === 'movie_invite' || message.type === 'movie_reply' || message.type === 'movie_withdraw') {
         homeTasks.invitation(role, socket, message);
         return;
@@ -528,12 +563,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
         const result=leaveShiftEarly(state,role);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
         state=result.state;
         shiftVotes.clear();
         announceTime();
         all({type:'job_event',role,outcome:'left_early',message:result.message});
         all({type:'snapshot',state});
+        if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
         return;
       }
       if (running.has(role) || homeTasks.busy(role)) {
@@ -626,7 +663,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'read_book' ||
+      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

@@ -9,11 +9,11 @@ test('Vlad practice advances skill without printing instant money', () => {
   const result = applyAction(original, 'vlad', 'vladOrder');
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.equal(result.state.money, 2500);
+  assert.equal(result.state.money, 10000);
   assert.equal(result.state.characters.vlad.skill, 5);
   assert.equal(result.state.characters.vlad.energy, 76);
   assert.equal(result.state.revision, 1);
-  assert.equal(original.money, 2500);
+  assert.equal(original.money, 10000);
 });
 
 test('One character cannot execute the other character career action', () => {
@@ -26,7 +26,7 @@ test('Alina practices communication without an imaginary salary',()=>{
  const practiced=applyAction(start,'alina','alinaConsult');
  assert.equal(practiced.ok,true);
  if(!practiced.ok)return;
- assert.equal(practiced.state.money,2500);
+ assert.equal(practiced.state.money,10000);
  assert.equal(practiced.state.characters.alina.skill,4);
  assert.equal(practiced.state.ledger.length,0);
 });

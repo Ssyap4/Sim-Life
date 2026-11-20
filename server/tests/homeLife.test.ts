@@ -1,3 +1,4 @@
+import { applyServiceCommand } from '../services';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { planTask, evaluateTask } from '../tasks';
@@ -8,12 +9,19 @@ import { placeObstacles, spawn } from '../../src/shared/locations';
 import { findRoute, pointIsClear } from '../../src/game/navigation';
 
 test('Home activity durations and exact gains are independent of the shared calendar', () => {
-  const state=initialState();
+  const seed=initialState();
+  seed.money=5000;
+  const withNetflix=applyServiceCommand(seed,'vlad',{type:'service_connect',service:'netflix'});
+  assert.ok(withNetflix.ok);
+  const withYouTube=applyServiceCommand(withNetflix.state,'alina',{type:'service_connect',service:'youtube'});
+  assert.ok(withYouTube.ok);
+  const state=withYouTube.state;
   Object.assign(state.characters.vlad,{fun:0,hygiene:0,comfort:0,social:0});
   const cases=[
     [{type:'act',actionId:'bathTeeth'},18,20,0,0],
     [{type:'act',actionId:'bathFoam'},75,100,0,15],
     [{type:'act',actionId:'bathShower'},38,75,0,0],
+    [{type:'free_tv'},60,0,5,0],
     [{type:'youtube'},40,0,20,10],
     ...Object.keys(GENRES).map(genre=>[{type:'movie',genre},120,0,100,15] as const),
   ] as const;

@@ -25,13 +25,14 @@ export const BOOKS = {
   musketeers: ['Три мушкетёра', 'Александр Дюма', 'Историческое приключение', 110, '#435c7c'],
 } as const;
 export type BookId = keyof typeof BOOKS;
-export const HOME_SECONDS = { teeth: 18, foamBath: 75, shower: 38, youtube: 40, movie: 120 } as const;
+export const HOME_SECONDS = { teeth: 18, foamBath: 75, shower: 38, youtube: 40, movie: 120, freeTv: 60 } as const;
 export const READING_REWARD = { fun: 60, comfort: 10 } as const;
 export type NeedKey = Exclude<keyof Needs, 'skill'>;
 export type NeedEffects = Partial<Record<NeedKey, number>>;
 
 export type Entertainment =
   | { type: 'youtube' }
+  | { type: 'free_tv' }
   | { type: 'movie'; genre: Genre }
   | { type: 'read_book'; book: BookId };
 export const HOME_SEATS = ['sofa','officeSofa','table','yardBench','spareSeat'] as const;

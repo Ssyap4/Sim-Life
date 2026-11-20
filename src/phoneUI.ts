@@ -1,3 +1,5 @@
+import { createBillingUI, type BillingApp } from './billingUI';
+import type { ServiceCommand } from './shared/services';
 import { formatRub } from './shared/economy';
 import { JOBS } from './shared/jobs';
 import { clockLabel, NEED_INFO, VITAL_NEEDS } from './shared/life';
@@ -6,15 +8,19 @@ import { PETS, PET_IDS } from './shared/pets';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'delivery' | 'jobs' | 'calendar' | 'family';
+type App = 'delivery' | 'jobs' | 'calendar' | 'family' | BillingApp;
+const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
+  utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],family:['❤️','Семья'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus};
 
 export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTMLElement,
   read: () => View | null, openDelivery: (state: GameState) => void,
-  openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void) {
+  openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
+  sendService: (command: ServiceCommand) => boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -26,6 +32,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const screen=root.querySelector<HTMLElement>('.phone-screen')!;
   const grid=root.querySelector<HTMLElement>('.phone-grid')!;
   const info=root.querySelector<HTMLElement>('.phone-info')!;
+  const billing = createBillingUI(info, sendService);
   const back=root.querySelector<HTMLButtonElement>('[data-phone-back]')!;
   const closeButton=root.querySelector<HTMLButtonElement>('[data-phone-close]')!;
   const owner=root.querySelector<HTMLElement>('[data-phone-owner]')!;
@@ -50,6 +57,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     clock.textContent=clockLabel(state.clock);
     root.dataset.owner=role;
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
+    if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app==='calendar') {
       const shift=state.activeShifts[role];
       const end=shift?.endsAt;
@@ -83,7 +91,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='calendar'&&next!=='family';
+    info.hidden=next!=='calendar'&&next!=='family'&&(!next||!billingApps.has(next));
+    billing.reset();
+    info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);
     if(next==='jobs') openJobs(view.state,view.role);
     refresh();
@@ -108,5 +118,5 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if ((app==='delivery'&&delivery.hidden)||(app==='jobs'&&jobs.hidden)) show(null);
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
-  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh };
+  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh, billingMessages(messages: string[]) { billing.setMessages(messages); refresh(); } };
 }

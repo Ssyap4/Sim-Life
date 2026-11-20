@@ -125,7 +125,7 @@ test('Live two-player sleep and shift votes never speed up a non-consenting awak
     a.send({ type: 'job_leave_early' });
     await b.next('job_event', p => p.outcome === 'left_early');
     assert.equal(files.load().activeShifts.vlad, undefined);
-    assert.equal(files.load().money, 2500);
+    assert.equal(files.load().money, 10000);
   } finally {
     for (const socket of sockets) await socket.close();
     await server.close();
