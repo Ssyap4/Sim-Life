@@ -1028,6 +1028,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   font-weight: 800; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
 .career-button[aria-current=page] { background: #496b59; color: #fff9e7; border-color: #496b59; }
 .career-button:disabled { opacity: .55; }
+.career-tabs .career-button { padding-inline: 3px; font-size: 11px; white-space: nowrap; }
 .career-card { display: grid; gap: 6px; background: #f9f7ed; border-radius: 11px; padding: 9px; min-width: 0; }
 .career-card p, .career-card small { margin: 0; line-height: 1.35; overflow-wrap: anywhere; }
 .career-card small { font-size: 11px; }
