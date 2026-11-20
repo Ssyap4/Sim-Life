@@ -1,0 +1,88 @@
+import { BOOKS, GENRES, HOME_SECONDS, type Entertainment, type Genre } from './shared/homeLife';
+
+function button(label: string, click: () => void, className = 'action-button') {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = className;
+  element.textContent = label;
+  element.addEventListener('click',click);
+  return element;
+}
+
+export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
+  submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean) {
+  const send = (result: boolean) => { if (result) root.hidden = true; };
+  const movie = (genre: Genre) => {
+    heading(GENRES[genre]);
+    const detail = document.createElement('p');
+    detail.className = 'food-empty';
+    detail.textContent = '120 с · 🎲 Досуг +100 · 🏡 Комфорт +15. Вместе также ❤️ Общение +100 каждому.';
+    root.append(detail,
+      button('Смотреть одному', () => send(submit({type:'movie',genre}))),
+      button('Смотреть вместе', () => send(invite(genre))),
+      button('← Жанры', genres));
+  };
+  const genres = () => {
+    heading('🎬 Выбор жанра');
+    const grid = document.createElement('div');
+    grid.className = 'genre-grid';
+    for(const [genre,name] of Object.entries(GENRES)) grid.append(button(name,() => movie(genre as Genre)));
+    root.append(grid);
+  };
+  return {
+    television() {
+      root.append(button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
+        () => send(submit({type:'youtube'}))),button('🎬 Смотреть фильм',genres));
+    },
+    genres,
+    library() {
+      heading('📚 Домашняя библиотека');
+      const shelf = document.createElement('div');
+      shelf.className = 'library-list';
+      for(const [id,[title,author,genre,seconds,color]] of Object.entries(BOOKS)) {
+        const entry = document.createElement('article');
+        entry.className = 'library-book';
+        entry.style.setProperty('--book-color',color);
+        const text = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent=title;
+        const authorLine=document.createElement('small');
+        authorLine.textContent=author+' · '+genre;
+        const reward=document.createElement('small');
+        reward.textContent=seconds+' с · 🎲 +60 · 🏡 +10';
+        reward.title='Досуг +60, комфорт +10';
+        const read = button('Читать',() => send(submit({type:'read_book',book:id as keyof typeof BOOKS})));
+        read.setAttribute('aria-label','Читать: '+title);
+        text.append(name,authorLine,reward);
+        entry.append(text,read);
+        shelf.append(entry);
+      }
+      root.append(shelf);
+    },
+  };
+}
+
+export function movieInvite(root: HTMLElement, respond: (id: number,accept: boolean) => boolean, withdraw: (id: number) => boolean) {
+  let current: number | null = null;
+  return {
+    show(id: number, from: string, genre: Genre, outgoing: boolean) {
+      current = id;
+      const title=document.createElement('strong');
+      title.textContent=outgoing ? '🎬 Ждём ответа на приглашение' : '🎬 '+from+' предлагает посмотреть фильм';
+      const detail=document.createElement('small');
+      detail.textContent=GENRES[genre]+' · 2 минуты';
+      const controls=document.createElement('div');
+      if(outgoing) controls.append(button('Отозвать',() => { if (withdraw(id)) controls.remove(); }));
+      else controls.append(button('Принять',() => { if(respond(id,true)) controls.remove(); }),
+        button('Отклонить',() => { if(respond(id,false)) controls.remove(); }));
+      root.replaceChildren(title,detail,controls);
+      root.hidden=false;
+    },
+    close(id?: number) {
+      if(id !== undefined && id !== current) return;
+      current=null;
+      root.hidden=true;
+      root.replaceChildren();
+    },
+  };
+}

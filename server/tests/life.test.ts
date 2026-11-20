@@ -35,13 +35,15 @@ test('Bladder drain follows elapsed game minutes and pauses for the offline resi
   assert.equal(empty.characters.vlad.mood, start.characters.vlad.mood);
 });
 
-test('All four bathroom actions complete at their shared approach and restore the intended needs', () => {
+test('All bathroom actions complete at their shared approach and restore the intended needs', () => {
   const start = initialState();
   Object.assign(start.characters.vlad, { bladder: 8, hygiene: 12, comfort: 28, mood: 36 });
   const effects = [
     { action: 'toiletUse', bladder: 100, hygiene: 12, comfort: 28 },
     { action: 'bathWash', bladder: 8, hygiene: 35, comfort: 28 },
-    { action: 'bathShower', bladder: 8, hygiene: 60, comfort: 28 },
+    { action: 'bathShower', bladder: 8, hygiene: 87, comfort: 28 },
+    { action: 'bathTeeth', bladder: 8, hygiene: 32, comfort: 28 },
+    { action: 'bathFoam', bladder: 8, hygiene: 100, comfort: 43 },
     { action: 'bathSoak', bladder: 8, hygiene: 76, comfort: 52 },
   ] as const;
   for (const { action, bladder, hygiene, comfort } of effects) {

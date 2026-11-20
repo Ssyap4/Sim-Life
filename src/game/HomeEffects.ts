@@ -1,0 +1,197 @@
+import * as THREE from 'three';
+import { BATH_FIXTURES, HOME_PLACEMENTS } from '../shared/home';
+import type { Program } from '../shared/homeLife';
+import { GENRES } from '../shared/homeLife';
+import { cube, finish } from './ArtKit';
+
+const themes: Record<Program, [string,string,string,string]> = {
+  horror: ['#111725','#334151','#dde4ba','Лунная тропа'],
+  drama: ['#553a42','#8c6861','#efad7c','Последний разговор'],
+  crime: ['#121f39','#384e66','#e8bb77','Улики в городе'],
+  thriller: ['#1e2430','#732d44','#fdc18d','Тень в коридоре'],
+  action: ['#421c2c','#924831','#ffca77','Погоня'],
+  comedy: ['#855e67','#d66f67','#ffdd8c','Не тот чемодан'],
+  romance: ['#67435b','#b87280','#ffd7a1','Встреча на закате'],
+  pets: ['#36584a','#73935c','#eac294','Звери дома'],
+  vlog: ['#464277','#987fa6','#ffe0a4','День со мной'],
+  travel: ['#263f57','#659aaa','#f4db9f','Дорога к морю'],
+  tech: ['#163342','#387780','#a7f4d4','Рабочий стол'],
+  cooking: ['#503f4c','#ad6549','#f2c79b','Готовим ужин'],
+  broadcast: ['#244355','#527c7b','#e8d2a6','Вечерний эфир'],
+  concert: ['#32294e','#805877','#e9a290','Живой концерт'],
+};
+
+export function homeBench(kind: 'yardBench' | 'spareSeat') {
+  const bench = new THREE.Group();
+  const {x,z} = HOME_PLACEMENTS[kind];
+  bench.position.set(x,0,z);
+  const plank = (px: number,y: number,pz: number,w: number,h: number,d: number,color: number) => {
+    const mesh = new THREE.Mesh(cube,finish(color,'wood'));
+    mesh.scale.set(w,h,d);
+    mesh.position.set(px,y,pz);
+    bench.add(mesh);
+  };
+  plank(0,.50,0,1.80,.10,.59,0xb78b63);
+  plank(0,.85,-.283,1.80,.22,.077,0xa97651);
+  for (const x of [-.72,.72]) {
+    plank(x,.25,.22,.08,.48,.08,0x70533e);
+    plank(x,.47,-.24,.08,.94,.08,0x70533e);
+  }
+  return bench;
+}
+
+export class HomeEffects {
+  private readonly canvas = document.createElement('canvas');
+  private readonly context: CanvasRenderingContext2D;
+  private readonly texture: THREE.CanvasTexture;
+  private readonly screen: THREE.Mesh;
+  private readonly shower: THREE.LineSegments;
+  private readonly foam: THREE.InstancedMesh;
+  private readonly media = new Map<string, Program>();
+  private lastScreen = -1;
+
+  constructor(scene: THREE.Scene) {
+    this.canvas.width = 256;
+    this.canvas.height = 144;
+    this.context = this.canvas.getContext('2d')!;
+    this.texture = new THREE.CanvasTexture(this.canvas);
+    this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.generateMipmaps = false;
+    this.texture.minFilter = THREE.LinearFilter;
+    this.screen = new THREE.Mesh(new THREE.PlaneGeometry(1.744,.938),
+      new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false }));
+    const tv = HOME_PLACEMENTS.tv;
+    this.screen.position.set(tv.x,1.26,tv.z-.006);
+    this.screen.visible = false;
+
+    const lines = Array.from({length:18},(_,i) => {
+      const angle = i*2.39996, radius = .48*Math.sqrt((i+1)/18);
+      const x = Math.cos(angle)*radius, z = Math.sin(angle)*radius;
+      const y = .23+(i*31%17)/10;
+      return [x,y,z,x+.07,y+.28,z];
+    }).flat();
+    this.shower = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(
+      Array.from({length:36},(_,i) => new THREE.Vector3().fromArray(lines,i*3))),
+      new THREE.LineBasicMaterial({color:0xa5e4f0,transparent:true,opacity:.65}));
+    const shower = BATH_FIXTURES.shower.center;
+    this.shower.position.set(shower.x+.16,.08,shower.z+.14);
+    this.shower.visible = false;
+
+    this.foam = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),
+      new THREE.MeshStandardMaterial({color:0xeaf8ee,roughness:.83}),36);
+    const dummy = new THREE.Object3D();
+    for(let i=0;i<36;i++){
+      const x = i%6, z = Math.floor(i/6);
+      const size = .091+(i*13%9)*.008;
+      dummy.position.set((x-2.5)*.143+Math.sin(i*4)*.034,.47+Math.sin(i*5)*.028,(z-2.5)*.265);
+      dummy.scale.set(size,size*.58,size*1.22);
+      dummy.updateMatrix();
+      this.foam.setMatrixAt(i,dummy.matrix);
+    }
+    const bath = BATH_FIXTURES.bathtub.center;
+    this.foam.position.set(bath.x,0,bath.z);
+    this.foam.visible = false;
+    scene.add(this.screen,this.shower,this.foam);
+  }
+
+  television(id: string, program?: Program) {
+    if(program) this.media.set(id,program); else this.media.delete(id);
+    this.screen.visible = this.media.size > 0;
+    this.lastScreen = -1;
+  }
+
+  water(station: 'shower' | 'bathtub', active: boolean) {
+    if(station === 'shower') this.shower.visible = active;
+    else this.foam.visible = active;
+  }
+
+  reset() {
+    this.media.clear();
+    this.screen.visible = this.shower.visible = this.foam.visible = false;
+  }
+
+  update(seconds: number) {
+    if(this.shower.visible) this.shower.rotation.y = seconds*1.2;
+    if(this.foam.visible) this.foam.position.y = .016*Math.sin(seconds*2.8);
+    if(!this.screen.visible) return;
+    const frame = Math.floor(seconds*8);
+    if(frame === this.lastScreen) return;
+    this.lastScreen = frame;
+    const program = this.media.values().next().value!;
+    this.draw(program,seconds);
+    this.texture.needsUpdate = true;
+  }
+
+  private draw(program: Program, t: number) {
+    const c = this.context;
+    const [dark,mid,light,title] = themes[program];
+    const sky = c.createLinearGradient(0,0,0,144);
+    sky.addColorStop(0,dark); sky.addColorStop(1,mid);
+    c.fillStyle = sky; c.fillRect(0,0,256,144);
+    const disk = (x: number,y: number,r: number,color: string) => {
+      c.fillStyle=color; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+    };
+    const walk = Math.sin(t*.91)*19;
+    const silhouette = (x: number,y: number,h: number,hat = false) => {
+      disk(x,y-h,h*.24,dark);
+      c.fillStyle=dark; c.fillRect(x-h*.31,y-h*.74,h*.62,h*.75);
+      if(hat) c.fillRect(x-h*.44,y-h*.98,h*.88,h*.12);
+    };
+    disk(183+Math.sin(t*.34)*9,45,program==='horror'?26:19,light);
+    if(program==='thriller') {
+      for(let i=0;i<5;i++){
+        const z = 12+i*20+(t*14)%20;
+        c.strokeStyle = i%2 ? light : dark;
+        c.lineWidth = 2;
+        c.strokeRect(127-z,64-z*.44,z*2,z*.94);
+      }
+    } else if(program==='tech') {
+      c.fillStyle=dark; c.fillRect(73,43,111,54);
+      c.fillStyle=light; c.fillRect(78,47,101,43);
+      c.fillStyle=mid; c.fillRect(109,93,38,13);
+      c.fillStyle=dark; c.fillRect(84,54,(Math.sin(t*2)+1)*43,5);
+    } else if(program==='crime' || program==='action') {
+      for(let i=0;i<10;i++){
+        const h=14+(i*23%49);
+        c.fillStyle=i%2===0?dark:mid;
+        c.fillRect(i*28,112-h,23,h);
+        c.fillStyle=light;
+        c.fillRect(i*28+8,104-h,3,4);
+      }
+      if(program==='action'){
+        c.fillStyle=light;
+        c.fillRect((t*95)%290-30,95,30,6);
+        c.fillRect((t*143)%295-26,84,26,3);
+      }
+    } else {
+      c.fillStyle=mid; c.beginPath(); c.moveTo(0,105);
+      for(let i=0;i<=8;i++) c.lineTo(i*32,84+13*Math.sin(i*2.4+t*.34));
+      c.lineTo(256,122); c.lineTo(0,122); c.fill();
+    }
+    if(program==='pets') {
+      for(const x of [86+walk,133-walk*.55]) {
+        disk(x,78+Math.sin(t*4)*4,15,light);
+        disk(x-9,65,5,dark); disk(x+9,65,5,dark);
+        disk(x-5,78,2,dark); disk(x+5,78,2,dark);
+      }
+    } else if(program==='cooking') {
+      c.fillStyle = dark; c.fillRect(62,80,124,20);
+      for(let i=0;i<4;i++) disk(91+i*21,74-(t*21+i*9)%40,2.5,light);
+    } else if(program==='horror') {
+      silhouette(101+walk,113,45); silhouette(55-walk*.4,113,25);
+      if(Math.sin(t*2.3)>.97){c.fillStyle='#dae4dc30';c.fillRect(0,0,256,108);}
+    } else if(program==='romance' || program==='drama' || program==='comedy') {
+      silhouette(110+walk*.34,111,37+(program==='comedy'?Math.sin(t*6)*8:0));
+      silhouette(151-walk*.34,111,32);
+      if(program==='romance') {
+        for(let i=0;i<8;i++) disk(41+i*25,25+Math.sin(i*.9)*8,1.4+Math.sin(t*2+i)*.5,light);
+      }
+    } else if(program!=='travel' && program!=='tech') {
+      silhouette(102+walk,113,36,program==='crime');
+    }
+    c.fillStyle='#182028'; c.fillRect(0,112,256,32);
+    c.fillStyle='#fff3da'; c.font='bold 12px sans-serif'; c.fillText(title,10,132);
+    c.fillStyle=light; c.fillRect(10,139,(t*10)%235,1);
+    if(Object.hasOwn(GENRES,program)){c.fillStyle=light;c.fillRect(238,120,8,8);}
+  }
+}

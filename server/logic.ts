@@ -95,12 +95,18 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'bladder', 100);
       message = name + ': нужда восстановлена'; break;
     case 'bathShower':
-      change(state, role, 'hygiene', 48);
+      change(state, role, 'hygiene', 75);
       message = name + ': освежился после душа'; break;
     case 'bathSoak':
       change(state, role, 'hygiene', 64); change(state, role, 'comfort', 24);
       change(state, role, 'mood', 5);
       message = name + ': отдохнул(а) в ванной'; break;
+    case 'bathTeeth':
+      change(state, role, 'hygiene', 20);
+      message = name + ': почистил(а) зубы'; break;
+    case 'bathFoam':
+      change(state, role, 'hygiene', 100); change(state, role, 'comfort', 15);
+      message = name + ': расслабился(-ась) в пенной ванне'; break;
     case 'bathWash':
       change(state, role, 'hygiene', 23);
       message = name + ': умывание в ванной'; break;

@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PetAction } from '../shared/pets';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
+import { HOME_WALK_SPEED } from '../shared/home';
+import { activityProps } from './ActivityProps';
 import { finish, orb } from './ArtKit';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet';
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch';
 const strideLength = 1.02;
 const stancePortion = 0.54;
 const handAxis = new THREE.Vector3(0, -1, 0);
@@ -47,6 +49,14 @@ export class Actor {
   private gestureTime = 0;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
+  private readonly props: ReturnType<typeof activityProps>;
+  private carryingBook = false;
+  private closingBook = 0;
+  private reaction = 0;
+  carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
+  clearProps(): void { this.carryingBook = false; this.closingBook = 0; this.props.hideBook(); this.props.brush.visible = false; }
+  watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
+
   private readonly poseOffset = new THREE.Vector3();
   private keys: HandTargets | undefined;
   private pan: THREE.Vector3 | undefined;
@@ -76,6 +86,7 @@ export class Actor {
       leftArm: this.leftArm, rightArm: this.rightArm,
     });
 
+    this.props = activityProps(this.figure,this.rig.wrists);
     const utensil = finish(0xb68354, 'wood');
     const handle = new THREE.Mesh(orb, utensil);
     handle.scale.set(0.011, 0.014, 0.122);
@@ -124,6 +135,7 @@ export class Actor {
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
+    this.props.brush.visible = false;
   }
 
   /** Pose the visible character on the furniture while the navigation root
@@ -151,6 +163,9 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
+    this.carryingBook = false;
+    this.props.brush.visible = false;
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
@@ -177,7 +192,7 @@ export class Actor {
   }
 
   private advance(dt: number): number {
-    let budget = dt * 1.8;
+    let budget = dt * HOME_WALK_SPEED;
     let traveled = 0;
     let heading = this.root.rotation.y;
     while (budget > 0 && this.waypoints.length) {
@@ -342,6 +357,21 @@ export class Actor {
           leftZ = rightZ = 0.29;
           gaze = 0.10;
           break;
+        case 'teeth': {
+          const stroke = Math.sin(a*9.3);
+          rightY = .295+stroke*.028;
+          rightZ = .19+stroke*.042;
+          leftY = -.31;
+          gaze = .07;
+          this.props.brush.visible = true;
+          break;
+        }
+        case 'watch':
+          gaze = -.05 + Math.sin(a*1.22)*.047;
+          lean = -.07;
+          expression = this.reaction > 0 ? .15+Math.max(0,Math.sin(a*.93))*.53 : .03;
+          if (this.reaction < 0) gaze += Math.max(0,Math.sin(a*2.4))*.16;
+          break;
         case 'shower':
           leftY = .20 + Math.sin(a * 4) * .13;
           rightY = .23 - Math.sin(a * 4) * .14;
@@ -400,9 +430,10 @@ export class Actor {
           expression = 0.15;
           break;
         case 'read':
-          leftY = rightY = -0.24;
-          leftZ = rightZ = 0.36;
-          gaze = 0.26 + 0.025 * Math.sin(a * 1.3);
+          leftY = -.23;
+          rightY = -.23 + .079*Math.sin(Math.PI*THREE.MathUtils.smoothstep(a%10.5,8.15,9.10));
+          leftZ = rightZ = .36;
+          gaze = .26+.034*Math.sin(a*1.3);
           break;
         case 'phone':
           rightY = 0.075 + 0.016 * Math.sin(a * 2.3);
@@ -598,5 +629,9 @@ export class Actor {
 
     this.selectionRing.position.x = this.figureBase.x;
     this.selectionRing.position.z = this.figureBase.z;
+    if (this.carryingBook || this.closingBook > 0) {
+      this.props.book(this.activityTime,this.activity === 'read',this.closingBook/.36);
+      this.closingBook = Math.max(0,this.closingBook-dt);
+    } else this.props.hideBook();
   }
 }

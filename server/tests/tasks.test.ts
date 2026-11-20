@@ -205,3 +205,116 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
     assert.equal(openServerFiles(ctx.dir).load().characters.vlad.bladder, 100);
   } finally { await clean(ctx); }
 });
+
+test('A jointly accepted movie starts one synchronized timer and commits both capped rewards', async () => {
+  const ctx=await setup(.006);
+  try {
+    const offer=waitFor(ctx.alina,p=>p.type==='movie_offer');
+    send(ctx.vlad,{type:'movie_invite',genre:'comedy'});
+    const invited=await offer;
+    assert.ok(invited.type==='movie_offer');
+    assert.equal(invited.from,'vlad');
+    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    const forged=waitFor(ctx.vlad,p=>p.type==='error');
+    send(ctx.vlad,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
+    assert.equal((await forged).type,'error');
+
+    const starts=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_started'&&p.role===role));
+    const active=['vlad','alina'].map(role=>waitFor(ctx.alina,p=>p.type==='task_active'&&p.role===role));
+    const ends=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_ended'&&p.role===role));
+    const snap=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.revision===2);
+    send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
+    const seats=[];
+    for(const started of await Promise.all(starts)) {
+      assert.ok(started.type==='task_started');
+      assert.equal(started.durationMs,720);
+      assert.deepEqual(started.effects,{fun:100,social:100,comfort:15});
+      assert.equal(started.home?.program,'comedy');
+      assert.equal(started.home?.station,'sofa');
+      seats.push(started.home.route.path.at(-1));
+    }
+    assert.notDeepEqual(seats[0],seats[1]);
+    for(const playing of await Promise.all(active)) {
+      assert.ok(playing.type==='task_active');
+      assert.equal(playing.elapsedMs,0);
+    }
+    assert.equal(existsSync(join(ctx.dir,'household.json')),false,'Approach and playback do not award needs');
+    const state=await snap;
+    assert.ok(state.type==='snapshot');
+    for(const ended of await Promise.all(ends)) {
+      assert.ok(ended.type==='task_ended');
+      assert.equal(ended.outcome,'completed');
+      const role=ended.role;
+      assert.deepEqual(ended.effects,{social:25,fun:28,comfort:15});
+      const s: import('../../src/shared/protocol').Needs = state.state.characters[role];
+      assert.deepEqual([s.fun,s.social,s.comfort],[100,100,95]);
+    }
+    const duplicate=waitFor(ctx.alina,p=>p.type==='error');
+    send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
+    await duplicate;
+    assert.equal(openServerFiles(ctx.dir).load().revision,2);
+  } finally {await clean(ctx);}
+});
+
+test('A declined invitation starts no action; disconnect cancels both accepted viewers', async () => {
+  const ctx=await setup(.012);
+  try {
+    const offer=async()=>{
+      const pending=waitFor(ctx.alina,p=>p.type==='movie_offer');
+      send(ctx.vlad,{type:'movie_invite',genre:'horror'});
+      const p=await pending;
+      assert.ok(p.type==='movie_offer');
+      return p.inviteId;
+    };
+    const id=await offer();
+    const declined=waitFor(ctx.vlad,p=>p.type==='movie_offer_closed');
+    send(ctx.alina,{type:'movie_reply',inviteId:id,accept:false});
+    assert.match((await declined as Extract<ServerPacket,{type:'movie_offer_closed'}>).message,/отклонено/);
+    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    const accepted=await offer();
+    const running=waitFor(ctx.vlad,p=>p.type==='task_active'&&p.role==='alina');
+    send(ctx.alina,{type:'movie_reply',inviteId:accepted,accept:true});
+    await running;
+    const endings=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_ended'&&p.role===role));
+    ctx.alina.terminate();
+    for(const ended of await Promise.all(endings)) {
+      assert.ok(ended.type==='task_ended');
+      assert.equal(ended.outcome,'cancelled');
+      assert.equal(ended.effects,undefined);
+    }
+    const offline=waitFor(ctx.vlad,p=>p.type==='error');
+    send(ctx.vlad,{type:'movie_invite',genre:'action'});
+    assert.match((await offline as Extract<ServerPacket,{type:'error'}>).reason,/не в сети/);
+    const saved=openServerFiles(ctx.dir).load();
+    assert.equal(saved.characters.vlad.fun,72);
+    assert.equal(saved.characters.alina.social,75);
+  } finally {await clean(ctx);}
+});
+
+test('All twelve books reach the shelf and a physical seat before completion', async () => {
+  const {BOOKS}=await import('../../src/shared/homeLife');
+  const {LIBRARY_APPROACH}=await import('../../src/shared/home');
+  const ctx=await setup(.003);
+  try {
+    for(const [book,record] of Object.entries(BOOKS)) {
+      const started=waitFor(ctx.vlad,p=>p.type==='task_started');
+      const playing=waitFor(ctx.vlad,p=>p.type==='task_active');
+      const ended=waitFor(ctx.vlad,p=>p.type==='task_ended'&&p.outcome==='completed');
+      send(ctx.vlad,{type:'read_book',book});
+      const task=await started;
+      assert.ok(task.type==='task_started'&&task.home&&task.home.pickup);
+      assert.equal(task.durationMs,record[3]*3);
+      assert.deepEqual(task.effects,{fun:60,comfort:10});
+      assert.deepEqual(task.home.route.path[task.home.pickup-1],LIBRARY_APPROACH);
+      assert.ok(['sofa','officeSofa','table','yardBench','spareSeat'].includes(task.home.station));
+      await playing;
+      await ended;
+    }
+    const state=openServerFiles(ctx.dir).load();
+    assert.equal(state.characters.vlad.fun,100);
+    assert.equal(state.characters.vlad.comfort,100);
+    assert.equal(state.revision,12);
+    assert.equal(state.money,2500);
+    assert.equal(state.pantry.eggs,4);
+  } finally {await clean(ctx);}
+});

@@ -60,6 +60,8 @@ export const HOME_PLACEMENTS = {
   bookcase: { x: 8.97, z: -4.49 },
   officeSofa: { x: 6.47, z: -2.84 },
   officeTv: { x: 8.35, z: -2.85 },
+  yardBench: { x: -3.23, z: 10.24 },
+  spareSeat: { x: -8.29, z: .12 },
 } as const;
 
 export const BATH_FIXTURES = {
@@ -68,6 +70,23 @@ export const BATH_FIXTURES = {
   bathtub: { center: { x: 8.32, z: 3.72 }, approach: { x: 7.21, z: 3.72 } },
   basin: { center: { x: 5.98, z: -.44 }, approach: { x: 5.98, z: .59 } },
 } as const;
+
+export const LIBRARY_APPROACH = { x: 8.12, z: -4.48 };
+export const HOME_WALK_SPEED = 1.8;
+
+export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./protocol').CharacterId) {
+  const first = role === 'vlad';
+  const p = HOME_PLACEMENTS[id];
+  const seat = {
+    sofa: [first ? -.50 : .50, first ? .057 : .106, -.27, Math.PI, first ? -.50 : .50, -1.01],
+    officeSofa: [0, first ? -.19 : -.14, first ? -.43 : .43, Math.PI / 2, .98, first ? -.43 : .43],
+    table: [first ? .99 : -.99, first ? -.27 : -.22, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
+    yardBench: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
+    spareSeat: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
+  }[id];
+  const [x,y,z,yaw,approachX,approachZ] = seat;
+  return { position: {x:p.x+x,y,z:p.z+z}, yaw, approach: {x:p.x+approachX,z:p.z+approachZ} };
+}
 
 export const DINING_TOP = .86;
 
@@ -86,6 +105,7 @@ export const HOME_FURNITURE = {
   table: homeFootprint(HOME_PLACEMENTS.table, -1.36, 1.36, -.62, .62),
   toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),
   bathtub: homeFootprint(BATH_FIXTURES.bathtub.center, -.67, .67, -1.08, 1.08),
+  bookcase: homeFootprint(HOME_PLACEMENTS.bookcase, -.44, .44, -1.02, 1.02),
   basin: homeFootprint(BATH_FIXTURES.basin.center, -.63, .63, -.32, .36),
 };
 
@@ -95,9 +115,10 @@ export const HOME_DECOR = [
   homeFootprint(HOME_PLACEMENTS.lamp, -.36, .36, -.36, .36),
   homeFootprint(HOME_PLACEMENTS.bedroomLampLeft, -.34, .34, -.38, .38),
   homeFootprint(HOME_PLACEMENTS.bedroomLampRight, -.35, .35, -.38, .38),
-  homeFootprint(HOME_PLACEMENTS.bookcase, -.44, .44, -1.02, 1.02),
   homeFootprint(HOME_PLACEMENTS.officeSofa, -.66, .58, -1.00, 1.00),
   homeFootprint(HOME_PLACEMENTS.officeTv, -.45, .48, -.67, .67),
+  homeFootprint(HOME_PLACEMENTS.yardBench, -.96, .96, -.36, .36),
+  homeFootprint(HOME_PLACEMENTS.spareSeat, -.96, .96, -.36, .36),
   // The shower tray is walkable. Its glazing forms a U with the entrance facing west.
   homeFootprint(shower, -.73, .77, -.91, -.54),
   homeFootprint(shower, -.72, .77, .54, .91),
@@ -142,7 +163,7 @@ export const KITCHEN_ACTIONS = {
 } as const;
 
 export const BATH_ACTIONS = {
-  toiletUse: 'toilet', bathShower: 'shower', bathSoak: 'bathtub', bathWash: 'basin',
+  toiletUse: 'toilet', bathShower: 'shower', bathSoak: 'bathtub', bathFoam: 'bathtub', bathWash: 'basin', bathTeeth: 'basin',
 } as const;
 export type BathFixture = keyof typeof BATH_FIXTURES;
 export type HomeLeisure = 'tv' | 'computer' | 'verdell' | 'simba' | 'chat';

@@ -1,9 +1,11 @@
+import { HomeEffects, homeBench } from './HomeEffects';
+import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { ingredientList, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
-import { BATH_ACTIONS, BATH_FIXTURES, DINING_TOP, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
-  KITCHEN_ACTIONS, KITCHEN_WORK, type BathFixture, type HomeLeisure } from '../shared/home';
+import { BATH_FIXTURES, DINING_TOP, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
+  KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -91,6 +93,8 @@ export class World {
   private readonly obstacles = placeObstacles('home');
   private lastFrame = performance.now();
   private socialSequence = 0;
+  private readonly homeEffects = new HomeEffects(this.homeScene);
+  private readonly homeTasks = new Map<CharacterId, HomePresentation>();
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
   private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
@@ -308,6 +312,12 @@ export class World {
       else this.actors[id].setPose('idle');
       return;
     }
+    const seat = pose === 'sit' && HOME_SEATS.map(seatId => homeSeat(seatId,id))
+      .find(({approach}) => Math.hypot(approach.x-x,approach.z-z)<.20);
+    if(seat) {
+      this.actors[id].setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
+      return;
+    }
     const item = (['bed', 'sofa', 'desk', 'table'] as const).find((candidate) => {
       const location = points[candidate];
       return Math.hypot(location.x - x, location.z - z) < 0.5;
@@ -377,29 +387,92 @@ export class World {
       });
   }
 
-  private performBathroom(role: CharacterId, item: BathFixture, current: () => boolean): boolean {
-    const { center, approach } = BATH_FIXTURES[item];
-    return this.walkTo(role, approach, () => {
-      if (!current()) return;
-      const actor = this.actors[role];
-      if (item === 'toilet' || item === 'bathtub') {
-        const toilet = item === 'toilet';
-        actor.setFurniturePose('sit',
-          new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
-          toilet ? Math.PI / 2 : Math.PI);
-        actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
-      } else {
-        const shower = item === 'shower';
-        const target = new THREE.Vector3(center.x + (shower ? .62 : 0), 1.03, center.z + (shower ? 0 : .09));
-        actor.faceTowards(target);
-        actor.playDomesticActivity(shower ? 'shower' : 'wash', shower ? undefined : target);
-      }
-    });
+  private bathroomPose(role: CharacterId, item: BathFixture, command: TimedCommand): void {
+    const { center } = BATH_FIXTURES[item];
+    const actor = this.actors[role];
+    const action = command.type === 'act' ? command.actionId : undefined;
+    if (item === 'toilet' || item === 'bathtub') {
+      const toilet = item === 'toilet';
+      actor.setFurniturePose('sit',
+        new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
+        toilet ? Math.PI / 2 : Math.PI);
+      actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
+      if (action === 'bathFoam') this.homeEffects.water('bathtub',true);
+    } else {
+      const shower = item === 'shower';
+      const target = new THREE.Vector3(center.x + (shower ? .62 : 0), 1.03, center.z + (shower ? 0 : .09));
+      actor.faceTowards(target);
+      if (shower) actor.setFurniturePose('idle',actor.root.position.clone().setY(.083),actor.root.rotation.y);
+      actor.playDomesticActivity(shower ? 'shower' : action === 'bathTeeth' ? 'teeth' : 'wash', shower ? undefined : target);
+      if (shower) this.homeEffects.water('shower',true);
+    }
   }
 
-  startTimedAction(role: CharacterId, command: TimedCommand): boolean {
+  private startHomeTask(role: CharacterId, command: TimedCommand, home: HomePresentation): boolean {
+    if (this.place !== 'home') return true;
+    this.clearHomeTask(role);
+    this.preparations.delete(role);
+    this.homeTasks.set(role,home);
+    const actor = this.actors[role];
+    const {route,station,pickup,program} = home;
+    actor.root.position.set(route.from.x,0,route.from.z);
+    const path = route.path.map(p => new THREE.Vector3(p.x,0,p.z));
+    const current = () => this.homeTasks.get(role) === home;
+    const arrive = () => {
+      if (!current()) return;
+      if (station === 'basin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
+        this.bathroomPose(role,station,command);
+        return;
+      }
+      const seat = homeSeat(station,role);
+      actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
+      if (program) {
+        actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
+      } else if (command.type === 'read_book') actor.playDomesticActivity('read');
+      else if (command.type === 'act') {
+        const motion = DOMESTIC_MOTIONS[command.actionId];
+        if (motion) actor.playDomesticActivity(motion);
+      }
+    };
+    if (pickup !== undefined && command.type === 'read_book') {
+      const takeBook = () => {
+        if (!current()) return;
+        actor.carryBook(BOOKS[command.book][4]);
+        actor.walkPath(path.slice(pickup),arrive);
+      };
+      const reach = () => {
+        if (!current()) return;
+        if (!home.pickupMs) { takeBook(); return; }
+        const shelf = HOME_PLACEMENTS.bookcase;
+        const target = new THREE.Vector3(shelf.x-.29,1.23,shelf.z);
+        actor.faceTowards(target);
+        actor.playDomesticActivity('reach',target);
+        this.preparations.set(role,{remaining:home.pickupMs/1000,next:takeBook});
+      };
+      if (pickup) actor.walkPath(path.slice(0,pickup),reach);
+      else reach();
+    } else actor.walkPath(path,arrive);
+    return true;
+  }
+
+  activateHomeTask(role: CharacterId): void {
+    const home = this.homeTasks.get(role);
+    if (home?.program) this.homeEffects.television(role,home.program);
+  }
+
+  private clearHomeTask(role: CharacterId): boolean {
+    const home = this.homeTasks.get(role);
+    if (!home) return false;
+    this.homeTasks.delete(role);
+    this.homeEffects.television(role);
+    if (home.station === 'shower' || home.station === 'bathtub') this.homeEffects.water(home.station,false);
+    return true;
+  }
+
+  startTimedAction(role: CharacterId, command: TimedCommand, home?: HomePresentation): boolean {
     if (this.household && this.household.world.places[role] !== this.place) return true;
     this.closeStorage(role);
+    if (home) return this.startHomeTask(role,command,home);
     if (command.type === 'local_activity') {
       const station = stationById(this.place, command.station);
       if (!station) return false;
@@ -424,8 +497,6 @@ export class World {
     const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
-      if (Object.hasOwn(BATH_ACTIONS, command.actionId))
-        return this.performBathroom(role, BATH_ACTIONS[command.actionId as keyof typeof BATH_ACTIONS], current);
       if (command.actionId in KITCHEN_ACTIONS) {
         const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
         const work = KITCHEN_WORK[motion];
@@ -445,7 +516,7 @@ export class World {
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
     if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
     if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
-    return this.performFood(role, command.type, current);
+    return command.type === 'eat' && this.performFood(role, command.type, current);
   }
 
   private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
@@ -483,7 +554,10 @@ export class World {
     this.meals.get(role)!.visible = false;
     this.closeStorage(role);
     ++this.taskSequence[role];
+    const home = this.homeTasks.get(role);
+    this.clearHomeTask(role);
     this.actors[role].finishActivity();
+    if (home && ['basin','bathtub','shower','toilet'].includes(home.station)) this.actors[role].setPose('idle');
   }
 
   cancelTimedAction(role: CharacterId): void {
@@ -493,6 +567,8 @@ export class World {
     this.closeStorage(role);
     ++this.taskSequence[role];
     ++this.socialSequence;
+    this.clearHomeTask(role);
+    this.actors[role].clearProps();
     this.actors[role].setPose('idle');
   }
 
@@ -656,7 +732,13 @@ export class World {
   private createHome(): void {
     this.entryLeaf = decorateHome(this.scene);
     buildYard(this.scene);
-    buildPersonalFurniture(this.scene);
+    buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
+      new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)));
+    for (const kind of ['yardBench','spareSeat'] as const) {
+      const bench = homeBench(kind);
+      batchRigidParts(bench,true);
+      this.scene.add(bench);
+    }
     buildSoftRugs(this.scene);
     this.scene.add(furnitureContact());
     buildFurniture((id, furniture, point) => {
@@ -786,6 +868,9 @@ export class World {
       ...this.contacts.map(contact => contact.shade), ...Object.values(this.bags), ...this.meals.values());
     for (const meal of this.meals.values()) meal.visible = false;
     if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
+    this.homeEffects.reset();
+    this.homeTasks.clear();
+    for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
     this.controls.enablePan = place === 'home';
     this.frameShadows(place === 'home');
@@ -1044,6 +1129,7 @@ export class World {
       }
     }
     this.controls.update();
+    if (this.place === 'home') this.homeEffects.update(now/1000);
     this.renderer.render(this.scene, this.camera);
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };

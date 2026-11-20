@@ -292,7 +292,7 @@ export function buildFurniture(register: Register): void {
   }
 }
 
-export function buildPersonalFurniture(scene: THREE.Scene): void {
+export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (model: THREE.Group) => void): void {
   const vanity = group(HOME_PLACEMENTS.vanity.x, HOME_PLACEMENTS.vanity.z);
   vanity.rotation.y = Math.PI / 2;
   part(vanity, [1.33, .11, .63], [0, .86, 0], C.woodLight, 'soft', true, 'wood');
@@ -356,7 +356,7 @@ export function buildPersonalFurniture(scene: THREE.Scene): void {
   }
   for (const furniture of [vanity, bookcase, officeSofa, officeTv]) {
     batchRigidParts(furniture, true);
-    scene.add(furniture);
+    if (furniture === bookcase) registerLibrary(bookcase); else scene.add(furniture);
   }
 }
 
