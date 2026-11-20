@@ -154,7 +154,8 @@ function entryDoor(home: THREE.Group) {
 
 function petNooks(home: THREE.Group): void {
   const bowls = PET_IDS.map(id => PETS[id].bowl);
-  shape(home, softCube, [1.34, .026, .55], [(bowls[0].x + bowls[1].x) / 2, .016, bowls[0].z], C.sage);
+  // Two distinct feeding stations provide ample separation when both eat.
+  for (const bowl of bowls) shape(home, softCube, [.68, .026, .63], [bowl.x, .016, bowl.z], C.sage);
   const toilets = PET_IDS.map(id => PETS[id].toilet);
   const x = (toilets[0].x + toilets[1].x) / 2;
   shape(home, softCube, [2.09, .025, .93], [x, .015, toilets[0].z], C.oat);

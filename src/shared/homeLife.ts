@@ -41,7 +41,7 @@ export type Entertainment =
   | { type: 'free_tv' }
   | { type: 'movie'; genre: Genre }
   | { type: 'read_book'; book: BookId; seat?: 'officeChair' };
-export const HOME_SEATS = ['sofa','officeChair','table','yardBench','yardTable'] as const;
+export const HOME_SEATS = ['sofa','officeChair','table','yardTable'] as const;
 export type HomeSeat = (typeof HOME_SEATS)[number];
 export type HomePresentation = {
   route: WalkRoute;

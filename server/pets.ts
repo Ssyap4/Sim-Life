@@ -7,7 +7,8 @@ import { names, type CharacterId, type GameState } from '../src/shared/protocol'
 import { addLedger } from '../src/shared/economy';
 import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
-import { planWalk, sampleWalk } from '../src/game/navigation';
+import { sampleWalk } from '../src/game/navigation';
+import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -15,6 +16,7 @@ export type PetResult =
 
 const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 const homeObstacles = placeObstacles('home');
+const petGeometry = petNavigationGeometry(homeObstacles, HOME_FLOOR);
 
 export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
   return petApproach(action === 'feed' ? PETS[id].bowl : state.pets[id].position,
@@ -56,7 +58,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.energy = clamp(pet.energy + 33);
     }
     let kind: PetRoutine['kind'] = 'wander';
-    if (pet.satiety < PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
+    if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
     else if (pet.bladder <= 63) kind = 'toilet';
     else if (pet.energy <= 63) kind = 'sleep';
     let target = Math.floor(random() * PET_ROAM.length);
@@ -74,7 +76,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
-    const route = planWalk(pet.position, petDestination(id, { kind, target }), homeObstacles, HOME_FLOOR);
+    const route = planPetRoute(pet.position, petDestination(id, { kind, target }), petGeometry);
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;
   }
 }

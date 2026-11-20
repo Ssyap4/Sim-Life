@@ -1,4 +1,4 @@
-import { HomeEffects, homeBench } from './HomeEffects';
+import { HomeEffects } from './HomeEffects';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
@@ -15,6 +15,7 @@ import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
+import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
@@ -103,6 +104,7 @@ export class World {
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
+  private readonly petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
   private lastFrame = performance.now();
   private socialSequence = 0;
   private readonly homeEffects = new HomeEffects(this.homeScene);
@@ -838,9 +840,6 @@ export class World {
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
       new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)));
-    const bench = homeBench();
-    batchRigidParts(bench,true);
-    this.scene.add(bench);
     buildSoftRugs(this.scene);
     this.scene.add(furnitureContact());
     buildFurniture((id, furniture, point) => {
@@ -1359,14 +1358,14 @@ export class World {
         const body = this.actors[role].bodyPosition(this.otherBody);
         return { x: body.x, z: body.z };
       });
-      const geometry = { obstacles: this.obstacles, floor: HOME_FLOOR };
+      const geometry = this.petGeometry;
       // The dog and cat use the *visible* coordinates of each other, plus
       // the people nearby, rather than waiting for the next server snapshot.
       dog.update(dt, this.dogTravel, pace, {
-        ...geometry, blockers: [cat.root.position, ...people],
+        ...geometry, blockers: [cat.root.position, ...people], otherPet: cat.root.position,
       });
       cat.update(dt, 0, 0, {
-        ...geometry, blockers: [dog.root.position, ...people],
+        ...geometry, blockers: [dog.root.position, ...people], otherPet: dog.root.position,
       });
       let dogPosition: Point = { x: dog.root.position.x, z: dog.root.position.z };
       let catPosition: Point = { x: cat.root.position.x, z: cat.root.position.z };
@@ -1375,7 +1374,7 @@ export class World {
       // yields first. That prevents a running player from shoving animals
       // across the yard, away from bowls, or out of an intended routine.
       [dogPosition, catPosition] = separatePetBodies(
-        dogPosition, catPosition, this.obstacles, HOME_FLOOR);
+        dogPosition, catPosition, geometry.obstacles, geometry.floor);
       dog.root.position.set(dogPosition.x, 0, dogPosition.z);
       cat.root.position.set(catPosition.x, 0, catPosition.z);
     } else {

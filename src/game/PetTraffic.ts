@@ -38,6 +38,11 @@ export function petTrafficStep(
       nearby.every(b => petGap(straight, b) >= clearance))
     return straight;
 
+  // If furniture or a wall (rather than a moving body) blocks the waypoint,
+  // stop briefly and allow A* to recalculate a real route. The previous
+  // unconditional sideways steps sent pets in circles along table corners.
+  if (!nearby.length) return { x: from.x, z: from.z };
+
   // Side-step to the right first. Two animals meeting head-on therefore
   // sidestep to opposite sides rather than choosing the same passing lane.
   const turns = [-.35, -.7, -1.1, -1.55, -2.0, -2.6, Math.PI,

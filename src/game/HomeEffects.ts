@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { BATH_FIXTURES, HOME_PLACEMENTS } from '../shared/home';
 import type { Program } from '../shared/homeLife';
 import { GENRES } from '../shared/homeLife';
-import { cube, finish } from './ArtKit';
 
 const themes: Record<Program, [string,string,string,string]> = {
   horror: ['#111725','#334151','#dde4ba','Лунная тропа'],
@@ -20,25 +19,6 @@ const themes: Record<Program, [string,string,string,string]> = {
   broadcast: ['#244355','#527c7b','#e8d2a6','Вечерний эфир'],
   concert: ['#32294e','#805877','#e9a290','Живой концерт'],
 };
-
-export function homeBench() {
-  const bench = new THREE.Group();
-  const {x,z} = HOME_PLACEMENTS.yardBench;
-  bench.position.set(x,0,z);
-  const plank = (px: number,y: number,pz: number,w: number,h: number,d: number,color: number) => {
-    const mesh = new THREE.Mesh(cube,finish(color,'wood'));
-    mesh.scale.set(w,h,d);
-    mesh.position.set(px,y,pz);
-    bench.add(mesh);
-  };
-  plank(0,.50,0,1.80,.10,.59,0xb78b63);
-  plank(0,.85,-.283,1.80,.22,.077,0xa97651);
-  for (const x of [-.72,.72]) {
-    plank(x,.25,.22,.08,.48,.08,0x70533e);
-    plank(x,.47,-.24,.08,.94,.08,0x70533e);
-  }
-  return bench;
-}
 
 export class HomeEffects {
   private readonly canvas = document.createElement('canvas');

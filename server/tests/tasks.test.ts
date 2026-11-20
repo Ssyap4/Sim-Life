@@ -360,7 +360,7 @@ test('Every book reaches the shelf and a physical seat before completion', async
       assert.equal(task.durationMs,record[3]*3);
       assert.deepEqual(task.effects,{fun:60,comfort:10});
       assert.deepEqual(task.home.route.path[task.home.pickup-1],LIBRARY_APPROACH);
-      assert.ok(['sofa','table','yardBench','yardTable'].includes(task.home.station));
+      assert.ok(['sofa','table','yardTable'].includes(task.home.station));
       await playing;
       await ended;
     }
