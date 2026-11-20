@@ -1,3 +1,5 @@
+import { serviceAvailable, SERVICE_MESSAGES } from './shared/services';
+import { clockMinutes } from './shared/locations';
 import { DELIVERY_FEE } from './shared/locations';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, recipePortionCost, type TakeoutId } from './shared/food';
 import { MARKET_PRODUCTS, MARKET_CATEGORIES, marketProduct, basketPrice, type BasketLine, type MarketCategory, type MarketProduct } from './shared/market';
@@ -32,6 +34,7 @@ function limit(p: MarketProduct): number { return p.kind === 'grocery' ? 99 : p.
 export function createMarketUI(
   root: HTMLElement,
   sendCheckout: (lines: BasketLine[]) => boolean,
+  openMobile: () => void,
 ): { open: (household: GameState) => void; refresh: (household: GameState) => void;
      close: () => void; acknowledge: () => void } {
   let state: GameState | null = null;
@@ -67,6 +70,12 @@ export function createMarketUI(
       el('small','', 'Семейный бюджет: '+formatRub(state.money)));
     header.append(title,button('✕',close,'market-close'));
     panel.append(header);
+    const mobile = serviceAvailable(state.billing, 'mobile', clockMinutes(state.clock));
+    if (!mobile) {
+      const alert = el('div','market-service-alert');
+      alert.append(el('small','',SERVICE_MESSAGES.mobile),button('Мобильная связь',openMobile,'billing-button'));
+      panel.append(alert);
+    }
     const tabs = el('div','market-tabs');
     for (const [tab,label] of [['shop','🛍️ Каталог'],['stock','🥘 Запасы'],['ledger','📒 Финансы']] as const) {
       tabs.append(button(label,()=>{currentTab=tab;redraw();},'market-tab'+(currentTab===tab?' selected':'')));
@@ -140,7 +149,7 @@ export function createMarketUI(
           sendBtn.disabled=true;
           sendBtn.textContent='Отправлено…';
         }
-      },'market-order',selected.length===0 || total>state.money || !storageOkay);
+      },'market-order',selected.length===0 || total>state.money || !storageOkay || !mobile);
       footer.append(amounts,sendBtn);
       panel.append(scroll,footer);
     } else if (currentTab==='stock') {
@@ -199,7 +208,7 @@ export function createMarketUI(
         const hour=Math.floor(entry.minute/60).toString().padStart(2,'0');
         const minute=(entry.minute%60).toString().padStart(2,'0');
         const row=el('div','market-ledger-row');
-        const who=entry.actor==='vlad'?'Влад':'Алина';
+        const who={vlad:'Влад',alina:'Алина',family:'Семья'}[entry.actor];
         const details=el('div','market-ledger-description');
         details.append(el('strong','',entry.label),el('small','',who+' · день '+entry.day+' · '+hour+':'+minute));
         row.append(details,el('b',entry.kind==='income'?'market-positive':'market-negative',

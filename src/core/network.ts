@@ -1,3 +1,4 @@
+import type { ServiceCommand } from '../shared/services';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
@@ -34,6 +35,7 @@ export interface ConnectionCallbacks {
   onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
   onWorldEvent(role: CharacterId, message: string): void;
   onDeliveryArrived(): void;
+  onBillingEvent(messages: string[]): void;
 }
 
 export class LiveConnection {
@@ -91,6 +93,7 @@ export class LiveConnection {
     return this.sendAuthenticated({type:'eat_takeout',item});
   }
 
+  service(command: ServiceCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
   inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
@@ -186,6 +189,8 @@ export class LiveConnection {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
         this.callbacks.onFoodEvent(packet.role, packet.action, packet.message);
+      } else if (packet.type === 'billing_event' && this.authorized) {
+        this.callbacks.onBillingEvent(packet.messages);
       } else if (packet.type === 'store_event' && this.authorized) {
         this.callbacks.onStoreEvent(packet.role, packet.message);
       } else if (packet.type === 'job_event' && this.authorized) {

@@ -3,14 +3,14 @@ export interface LedgerEntry {
   id: number;
   day: number;
   minute: number;
-  actor: CharacterId;
+  actor: CharacterId | 'family';
   kind: 'expense' | 'income';
-  category: 'groceries' | 'takeout' | 'pets' | 'work';
+  category: 'groceries' | 'takeout' | 'pets' | 'work' | 'services';
   amount: number;
   label: string;
 }
 export const LEDGER_LIMIT = 40;
-export function addLedger(state: GameState, actor: CharacterId, kind: LedgerEntry['kind'],
+export function addLedger(state: GameState, actor: LedgerEntry['actor'], kind: LedgerEntry['kind'],
   category: LedgerEntry['category'], amount: number, label: string): void {
   const previous = state.ledger.at(-1)?.id ?? 0;
   state.ledger.push({ id: previous + 1, day: state.clock.day, minute: state.clock.minute,

@@ -1,3 +1,4 @@
+import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import {
   CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
   approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById,
@@ -120,6 +121,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const next = structuredClone(source);
     const now = clockMinutes(source.clock);
     if (command.type === 'delivery_order') {
+      if (!serviceAvailable(source.billing, 'mobile', now)) return fail(SERVICE_MESSAGES.mobile);
       if (source.world.deliveries.length >= 12) return fail('Сначала забери заказы у двери');
       const quote = quoteCart(command.lines);
       if (!quote.ok) return quote;

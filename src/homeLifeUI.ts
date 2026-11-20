@@ -1,3 +1,7 @@
+import { serviceAvailable } from './shared/services';
+import { clockMinutes } from './shared/locations';
+import { taskAccessError } from './shared/serviceAccess';
+import type { GameState } from './shared/protocol';
 import { BOOKS, GENRES, HOME_SECONDS, type Entertainment, type Genre } from './shared/homeLife';
 
 function button(label: string, click: () => void, className = 'action-button') {
@@ -10,16 +14,37 @@ function button(label: string, click: () => void, className = 'action-button') {
 }
 
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
-  submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean) {
+  submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean,
+  read: () => GameState | null, payments: (where: 'internet' | 'subscriptions') => void) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
+  const permitted = (command: Entertainment) => {
+    const state = read();
+    if (!state) return false;
+    const reason = taskAccessError(state, command);
+    if (!reason) return true;
+    const id = command.type === 'youtube' ? 'youtube' : 'netflix';
+    const where = serviceAvailable(state.billing,id,clockMinutes(state.clock)) ? 'internet' : 'subscriptions';
+    root.querySelector('.media-denial')?.remove();
+    const alert = document.createElement('div');
+    alert.className = 'media-denial';
+    alert.setAttribute('role','status');
+    const text = document.createElement('p');
+    text.textContent = reason;
+    alert.append(text,button(where === 'internet' ? 'Открыть интернет' : 'Открыть подписки', () => {
+      root.hidden = true;
+      payments(where);
+    }));
+    root.append(alert);
+    return false;
+  };
   const movie = (genre: Genre) => {
     heading(GENRES[genre]);
     const detail = document.createElement('p');
     detail.className = 'food-empty';
     detail.textContent = '120 с · 🎲 Досуг +100 · 🏡 Комфорт +15. Вместе также ❤️ Общение +100 каждому.';
     root.append(detail,
-      button('Смотреть одному', () => send(submit({type:'movie',genre}))),
-      button('Смотреть вместе', () => send(invite(genre))),
+      button('Смотреть одному', () => permitted({type:'movie',genre}) && send(submit({type:'movie',genre}))),
+      button('Смотреть вместе', () => permitted({type:'movie',genre}) && send(invite(genre))),
       button('← Жанры', genres));
   };
   const genres = () => {
@@ -31,8 +56,10 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   };
   return {
     television() {
-      root.append(button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
-        () => send(submit({type:'youtube'}))),button('🎬 Смотреть фильм',genres));
+      root.append(button('📺 Смотреть обычные телеканалы · ' + HOME_SECONDS.freeTv + ' с',
+        () => send(submit({type:'free_tv'}))),button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
+        () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
+        button('🎬 Смотреть фильм',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
     },
     genres,
     library() {

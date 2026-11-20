@@ -124,6 +124,10 @@ export class HomeEffects {
 
   private draw(program: Program, t: number) {
     const c = this.context;
+    if (program === 'broadcast') {
+      this.drawBroadcast(t);
+      return;
+    }
     const [dark,mid,light,title] = themes[program];
     const sky = c.createLinearGradient(0,0,0,144);
     sky.addColorStop(0,dark); sky.addColorStop(1,mid);
@@ -194,4 +198,40 @@ export class HomeEffects {
     c.fillStyle=light; c.fillRect(10,139,(t*10)%235,1);
     if(Object.hasOwn(GENRES,program)){c.fillStyle=light;c.fillRect(238,120,8,8);}
   }
+
+  private drawBroadcast(t: number): void {
+    const c = this.context;
+    const weather = Math.floor(t / 12) % 2 === 1;
+    c.fillStyle = weather ? '#648b94' : '#284957';
+    c.fillRect(0, 0, 256, 144);
+    c.fillStyle = '#b9d4c6';
+    c.fillRect(14, 17, 228, 88);
+    if (weather) {
+      for (let i = 0; i < 3; i++) {
+        c.fillStyle = '#eff2cb';
+        c.beginPath();
+        c.arc(56 + i * 68, 54 + Math.sin(t + i) * 3, 13, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#386472';
+        c.fillRect(42 + i * 68, 74, 29, 9);
+      }
+    } else {
+      c.fillStyle = '#568177';
+      c.beginPath();
+      c.ellipse(55, 65, 27, 26, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#2b4b52';
+      c.fillRect(110, 46, 101, 7);
+      c.fillRect(110, 61, 85, 6);
+      c.fillRect(110, 76, 108, 6);
+    }
+    c.fillStyle = '#172e35';
+    c.fillRect(0, 108, 256, 36);
+    c.fillStyle = '#fff6df';
+    c.font = 'bold 14px sans-serif';
+    c.fillText(weather ? 'Прогноз погоды' : 'Новости района', 14, 131);
+    c.fillStyle = '#a8d4b4';
+    c.fillRect(10 + (t * 21) % 201, 138, 35, 2);
+  }
+
 }

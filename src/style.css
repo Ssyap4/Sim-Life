@@ -899,3 +899,66 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   bottom: max(86px, calc(env(safe-area-inset-bottom) + 78px));
   width: min(calc(100% - 20px), 355px);
 }
+
+.phone-grid {
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.phone-header div { min-width: 0; overflow-wrap: anywhere; }
+.billing-hero {
+  padding: 16px;
+  border-radius: 15px;
+  background: var(--phone-accent);
+  color: #fffefa;
+  margin-bottom: 12px;
+}
+.billing-hero > strong { display: block; font-size: 29px; margin-top: 3px; }
+.billing-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; margin-top: 12px; }
+.billing-metrics div { padding: 8px; border-radius: 8px; background: #ffffff20; min-width: 0; }
+.billing-metrics small, .billing-metrics strong { display: block; overflow-wrap: anywhere; }
+.billing-metrics strong { font-size: 13px; margin-top: 4px; }
+.billing-service, .billing-journal, .billing-messages {
+  background: #fffefa;
+  border: 1px solid #e6e3d6;
+  padding: 12px;
+  border-radius: 13px;
+  margin-bottom: 10px;
+}
+.billing-service-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 8px; }
+.billing-service h3, .billing-journal h3, .billing-journal h4 { margin: 0; font-size: 15px; }
+.billing-tariff { color: var(--phone-accent); font-size: 15px; }
+.billing-status { background: #f4e6d6; color: #714b29; padding: 3px 7px; border-radius: 12px; font-size: 11px; font-weight: 800; }
+.billing-status.active { background: #e0eedf; color: #345f43; }
+.billing-debt { color: #843f39; font-weight: 800; }
+.billing-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eae8dc;
+  align-items: start;
+  font-size: 12px;
+}
+.billing-row small { display: block; color: #596d60; margin-top: 3px; overflow-wrap: anywhere; }
+.billing-row b { white-space: nowrap; }
+.billing-amount { color: #845049; }
+.billing-invoices { margin: 10px 0 0; background: #f7f5ea; }
+.billing-button {
+  background: var(--phone-light, #e5eee0);
+  color: var(--phone-accent, #365744);
+  display: block;
+  border: 1px solid #d5ded2;
+  border-radius: 9px;
+  min-height: 44px;
+  padding: 7px 10px;
+  font-weight: 800;
+  margin-top: 8px;
+}
+.billing-button:disabled { opacity: .6; }
+.billing-messages { background: var(--phone-light); }
+.billing-messages p { margin: 3px 0; }
+.media-denial, .market-service-alert { padding: 8px 10px; color: #724b28; background: #f5eadb; border-radius: 9px; }
+.media-denial p { margin: 0 0 4px; font-size: 12px; }
+.market-service-alert { margin: 0 8px 5px; }
+.market-service-alert button { margin-top: 3px; }

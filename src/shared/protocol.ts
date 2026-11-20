@@ -1,3 +1,4 @@
+import { initialServices, type FamilyServices, type ServiceCommand } from './services';
 import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import type { LedgerEntry } from './economy';
@@ -45,6 +46,7 @@ export interface GameState {
   clock: GameClock;
   world: WorldState;
   money: number;
+  billing: FamilyServices;
   pantry: Pantry;
   meals: CookedMeals;
   takeout: TakeoutStock;
@@ -122,7 +124,7 @@ export type TimedCommand = Entertainment
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket = WorldCommand | Entertainment
+export type ClientPacket = WorldCommand | Entertainment | ServiceCommand
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -153,6 +155,7 @@ export type ServerPacket =
   | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
   | { type: 'world_event'; role: CharacterId; message: string }
   | { type: 'delivery_arrived' }
+  | { type: 'billing_event'; messages: string[] }
   | { type: 'ready'; role: CharacterId; state: GameState; online: CharacterId[] }
   | { type: 'snapshot'; state: GameState }
   | { type: 'online'; online: CharacterId[] }
@@ -173,6 +176,7 @@ export type ServerPacket =
 export function initialState(): GameState {
   return {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 2500,
+    billing: initialServices((INITIAL_CLOCK.day - 1) * 1440 + INITIAL_CLOCK.minute),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },

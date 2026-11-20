@@ -209,12 +209,15 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
 test('A jointly accepted movie starts one synchronized timer and commits both capped rewards', async () => {
   const ctx=await setup(.006);
   try {
+    const subscribed=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.billing.services.netflix.enabled);
+    send(ctx.vlad,{type:'service_connect',service:'netflix'});
+    await subscribed;
     const offer=waitFor(ctx.alina,p=>p.type==='movie_offer');
     send(ctx.vlad,{type:'movie_invite',genre:'comedy'});
     const invited=await offer;
     assert.ok(invited.type==='movie_offer');
     assert.equal(invited.from,'vlad');
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    assert.equal(openServerFiles(ctx.dir).load().revision,1);
     const forged=waitFor(ctx.vlad,p=>p.type==='error');
     send(ctx.vlad,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     assert.equal((await forged).type,'error');
@@ -222,7 +225,7 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
     const starts=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_started'&&p.role===role));
     const active=['vlad','alina'].map(role=>waitFor(ctx.alina,p=>p.type==='task_active'&&p.role===role));
     const ends=['vlad','alina'].map(role=>waitFor(ctx.vlad,p=>p.type==='task_ended'&&p.role===role));
-    const snap=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.revision===2);
+    const snap=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.revision===3);
     send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     const seats=[];
     for(const started of await Promise.all(starts)) {
@@ -238,7 +241,7 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
       assert.ok(playing.type==='task_active');
       assert.equal(playing.elapsedMs,0);
     }
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false,'Approach and playback do not award needs');
+    assert.equal(openServerFiles(ctx.dir).load().revision,1,'Approach and playback do not award needs');
     const state=await snap;
     assert.ok(state.type==='snapshot');
     for(const ended of await Promise.all(ends)) {
@@ -252,13 +255,16 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
     const duplicate=waitFor(ctx.alina,p=>p.type==='error');
     send(ctx.alina,{type:'movie_reply',inviteId:invited.inviteId,accept:true});
     await duplicate;
-    assert.equal(openServerFiles(ctx.dir).load().revision,2);
+    assert.equal(openServerFiles(ctx.dir).load().revision,3);
   } finally {await clean(ctx);}
 });
 
 test('A declined invitation starts no action; disconnect cancels both accepted viewers', async () => {
   const ctx=await setup(.012);
   try {
+    const subscribed=waitFor(ctx.alina,p=>p.type==='snapshot'&&p.state.billing.services.netflix.enabled);
+    send(ctx.vlad,{type:'service_connect',service:'netflix'});
+    await subscribed;
     const offer=async()=>{
       const pending=waitFor(ctx.alina,p=>p.type==='movie_offer');
       send(ctx.vlad,{type:'movie_invite',genre:'horror'});
@@ -270,7 +276,7 @@ test('A declined invitation starts no action; disconnect cancels both accepted v
     const declined=waitFor(ctx.vlad,p=>p.type==='movie_offer_closed');
     send(ctx.alina,{type:'movie_reply',inviteId:id,accept:false});
     assert.match((await declined as Extract<ServerPacket,{type:'movie_offer_closed'}>).message,/отклонено/);
-    assert.equal(existsSync(join(ctx.dir,'household.json')),false);
+    assert.equal(openServerFiles(ctx.dir).load().revision,1);
     const accepted=await offer();
     const running=waitFor(ctx.vlad,p=>p.type==='task_active'&&p.role==='alina');
     send(ctx.alina,{type:'movie_reply',inviteId:accepted,accept:true});

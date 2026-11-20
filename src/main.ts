@@ -1,3 +1,4 @@
+import { taskAccessError } from './shared/serviceAccess';
 import { PLACES, stationById } from './shared/locations';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
@@ -49,7 +50,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.5 · ДОМАШНЯЯ ЖИЗНЬ</div>
+      <div class="version">0.6 · СЕМЕЙНЫЕ ФИНАНСЫ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -396,7 +397,7 @@ const marketUI = createMarketUI(marketOverlay, (lines) => {
   if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
   deliverySequence = sequence;
   return true;
-});
+}, () => phone.open('mobile'));
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut);
 
@@ -423,8 +424,9 @@ const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
-  () => {marketUI.close();jobsUI.close();});
-const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre));
+  () => {marketUI.close();jobsUI.close();},command=>net.service(command));
+const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre),
+  () => state, where => phone.open(where));
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
@@ -481,6 +483,11 @@ const net = new LiveConnection({
   },
   onWorldEvent(role, message) {
     if (role === active) notify(message);
+  },
+  onBillingEvent(messages) {
+    phone.billingMessages(messages);
+    const display = messages.length > 2 ? messages[0] + ' · ещё ' + (messages.length - 1) + ' в телефоне' : messages.join(' · ');
+    notify(display);
   },
   onDeliveryArrived() {
     notify('Доставка у двери дома');
@@ -556,6 +563,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    if (document.querySelector('#phone-overlay:not([hidden])')) phone.billingMessages([reason]);
     deliverySequence = null;
     locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
@@ -738,7 +746,7 @@ function openActions(item: ItemId): void {
   }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
-    if (['bedSleep','bedNap','sofaMovie','sofaRead'].includes(actionId)) continue;
+    if (['bedSleep','bedNap','sofaMovie','sofaRead','watchTv','tvMusic'].includes(actionId)) continue;
     if ('role' in definition && definition.role !== active) continue;
     const button = document.createElement('button');
     button.type = 'button';
@@ -746,6 +754,13 @@ function openActions(item: ItemId): void {
     button.textContent = definition.label;
     button.addEventListener('click', () => {
       actionsEl.hidden = true;
+      const denial = state && taskAccessError(state, {type:'act', actionId:actionId as ActionId});
+      if (denial) {
+        phone.open(actionId === 'sofaCall' || actionId === 'tableTalk' ? 'mobile' : 'internet');
+        phone.billingMessages([denial]);
+        notify(denial);
+        return;
+      }
       if (net.perform(actionId as ActionId)) statusEl.textContent = 'Отправляем действие на сервер…';
     });
     actionsEl.appendChild(button);
