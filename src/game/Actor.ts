@@ -984,11 +984,11 @@ export class Actor {
           0.019 + 0.124 * sweep, 0.144 - 0.031 * sweep));
         contactHand = 0;
       } else if (this.idleGesture === 'adjustSleeve') {
-        // Contact above left elbow, in the local chest frame. The left arm
-        // was already brought forward by the pose pass above.
+        // The opposite sleeve follows the *actual* elbow bone regardless
+        // of model proportions or which rig (Blender/fallback) is active.
         const tug = Math.sin(this.idleGestureTime * 8.3) ** 2;
-        data.chest.localToWorld(this.target.set(-0.183,
-          1.170 + .013 * tug, .195));
+        data.elbows[0].localToWorld(this.target.set(0,
+          0.065 + .012 * tug, 0.062));
         contactHand = 1;
       }
       if (contactHand !== null) {
