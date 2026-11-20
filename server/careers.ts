@@ -16,14 +16,14 @@ import { unoccupiedDestination } from '../src/game/residentCollision';
 import { practiceXP } from './education';
 
 export const careerCommands = new Set(['career_hire','career_resign','career_start','career_leave','career_overtime','career_promote','career_approach','career_choose','career_verify']);
-const answers: Record<string,number> = {'it-1':0,'it-2':1,'it-4':2,'it-22':0,'detail-1':0,'detail-4':1,'detail-15':2,
-  'marketing-1':0,'marketing-2':1,'marketing-12':2,'clinic-1':0,'clinic-2':1,'clinic-15':2};
 const roles = ['vlad','alina'] as const;
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 const UNPAID = 30;
 const COOLDOWN = 7;
 const TASK_WINDOW = 72;
 const taskCap = (p: CareerProgress) => p.rank >= 3 ? 6 : p.rank >= 1 ? 5 : 4;
+const workplace = (p: CareerProgress) =>
+  p.workplace ??= { trust:50, backlog:0, improvements:0, recoveries:0 };
 
 function journal(state: GameState, p: CareerProgress, at: number, title: string, text: string,
   extra: { choice?: string; author?: number; pay?: number; bonus?: number } = {}) {
@@ -48,7 +48,9 @@ function settle(state: GameState, role: CharacterId, now: number, early: boolean
   const extra = Math.max(0, until - shift.regularEnd);
   const pay = worked < UNPAID ? 0 : Math.floor(base * (regular + 1.25 * extra) / duration);
   const productivity = clamp(shift.completed ? shift.score / shift.completed * Math.min(1, shift.completed / 3) - 6 * shift.missed : 0);
-  const bonus = early || !pay || productivity < 76 ? 0 : Math.round(pay * (productivity >= 90 ? .14 : .08));
+  const bonus = early || !pay || productivity < 76 ? 0 : Math.round(pay *
+    ((productivity >= 90 ? .14 : .08) +
+      (p.workplace && p.workplace.improvements >= 3 && p.workplace.backlog === 0 ? .02 : 0)));
   state.money += pay + bonus;
   if (pay) addLedger(state, role, 'income', 'work', pay, CAREERS[shift.career].employer + (early ? ' · досрочный уход' : ' · зарплата'));
   if (bonus) addLedger(state, role, 'income', 'work', bonus, CAREERS[shift.career].employer + ' · премия');
@@ -100,6 +102,14 @@ function nextTask(state: GameState, online: boolean, role: CharacterId, now: num
     storyId = story.id;
   } else if (id === 'detail' && p.orders.some(order => !order.delivered && order.readyAt <= now)) {
     event = WORK_EVENT_BY_ID.get('detail-handover');
+  } else if (shift.completed + shift.missed === 0 &&
+      (p.workplace?.backlog ?? 0) >= 3 &&
+      (!p.seen[id+'-recovery'] || shift.day + 1 - p.seen[id+'-recovery'] >= 2)) {
+    event = WORK_EVENT_BY_ID.get(id+'-recovery');
+  } else if (shift.completed + shift.missed === 0 &&
+      (p.workplace?.improvements ?? 0) >= 3 && (p.workplace?.trust ?? 50) >= 65 &&
+      (!p.seen[id+'-recognition'] || shift.day + 1 - p.seen[id+'-recognition'] >= 3)) {
+    event = WORK_EVENT_BY_ID.get(id+'-recognition');
   } else {
     const options = WORK_EVENTS[id].filter(item => item.rank <= p.rank &&
       (!p.seen[item.id] || shift.day + 1 - p.seen[item.id] >= COOLDOWN));
@@ -144,6 +154,19 @@ function applyEffect(state: GameState, p: CareerProgress, event: CareerEvent, ch
     return p.clinicModules === CLINIC_MODULES.length ? ' Выдана игровая квалификация «Клинический практикум».' : ' Учебный модуль зачтён.';
   }
   if (event.effect === 'evaluation') p.evaluation = choice.quality >= 90;
+  if (event.effect === 'recovery') {
+    const work = workplace(p);
+    const cleared = quality >= 88 ? 3 : quality >= 75 ? 2 : 1;
+    work.backlog = Math.max(0,work.backlog-cleared);
+    work.recoveries++;
+    return ' Снято незакрытых вопросов: ' + cleared + '.';
+  }
+  if (event.effect === 'recognition') {
+    const work = workplace(p);
+    work.trust = clamp(work.trust + 4);
+    work.improvements = Math.max(0,work.improvements-2);
+    return ' Благодарность команды внесена в историю работы.';
+  }
   return '';
 }
 
@@ -158,9 +181,13 @@ function advanceTask(state: GameState, role: CharacterId, now: number) {
   }
   if (task.phase === 'working' && now >= task.readyAt && task.readyAt <= task.deadline) {
     const choice = event.choices[task.choice!];
+    const work = workplace(p);
     const level = skillRank(state.education.characters[role].xp[event.skill]).level;
+    // Past choices matter: a reliable team gets a small advantage, unresolved work
+    // makes future tasks harder. No hidden random roll overrides a player decision.
     const quality = clamp(choice.quality - 9 * (task.attempts ?? 0) + Math.min(8, level) +
-      (task.story ? Math.sign(p.stories[task.story]?.outcome ?? 0) * 3 : 0));
+      (task.story ? Math.sign(p.stories[task.story]?.outcome ?? 0) * 3 : 0) +
+      Math.trunc((work.trust-50)/24) - Math.min(6,work.backlog));
     shift.completed++;
     shift.score += quality;
     p.duties++;
@@ -168,14 +195,28 @@ function advanceTask(state: GameState, role: CharacterId, now: number) {
     p.reputation = clamp(p.reputation + choice.reputation);
     practiceXP(state, role, 'career:' + event.id, event.skill, event.title, 10 + p.rank * 4 + Math.floor(quality / 20), 9 + p.rank * 2);
     const result = applyEffect(state,p,event,choice,task.readyAt,quality);
+    if (event.effect !== 'recovery' && event.effect !== 'recognition') {
+      work.trust = clamp(work.trust + (quality >= 90 ? 2 : quality >= 78 ? 1 : quality < 65 ? -3 : 0));
+      if (quality >= 90 && !(task.attempts ?? 0)) work.improvements = Math.min(9999,work.improvements+1);
+      if (quality < 70 || (task.attempts ?? 0) >= 2) work.backlog = Math.min(12,work.backlog+1);
+      else if (quality >= 85) work.backlog = Math.max(0,work.backlog-1);
+    }
     if (task.story) {
       const progress = p.stories[task.story] ??= { stage:0, nextShift:0, outcome:0 };
       progress.stage++; progress.nextShift = p.shifts + 1; progress.outcome += quality-75;
     }
-    journal(state,p,task.readyAt,event.title,choice.result + result + ' Оценка ' + quality + '%.',{ choice:choice.label,author:event.author });
+    const proof = WORK_CHECKS[event.id] ? ' Проверено шагов: ' + WORK_CHECKS[event.id].length +
+      (task.attempts ? ', понадобились ' + task.attempts + ' исправления.' : ', без исправлений.') : '';
+    journal(state,p,task.readyAt,event.title,choice.result + result + proof + ' Оценка ' + quality +
+      '%. Доверие ' + work.trust + '%, незакрытые вопросы ' + work.backlog + '.',
+      { choice:choice.label,author:event.author });
   } else if (now >= task.deadline) {
     shift.missed++;
-    journal(state,p,task.deadline,'Истёк срок · ' + event.title,'Поручение передано другой смене.',{ author:event.author });
+    const work = workplace(p);
+    work.backlog = Math.min(12,work.backlog+1);
+    work.trust = clamp(work.trust-2);
+    journal(state,p,task.deadline,'Истёк срок · ' + event.title,
+      'Поручение передано другой смене. В очереди незакрытых вопросов теперь ' + work.backlog + '.',{ author:event.author });
   } else return;
   delete shift.task;
   shift.nextTaskAt = Math.min(now, shift.endsAt) + 19;
@@ -297,16 +338,31 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     return done('Подход к рабочему месту',path);
   }
   if (command.type === 'career_verify' && task.phase === 'checking') {
-    const check = WORK_CHECKS[event.id];
+    const checks = WORK_CHECKS[event.id], step = task.checkStep ?? 0;
+    const check = checks?.[step];
     const choice = event.choices[task.choice!];
-    if (!check || !whole(command.choice) || Number(command.choice) >= check.options.length) return fail('Выбери вариант проверки');
+    if (!check || !whole(command.step) || command.step !== step) return fail('Этап уже обработан. Обнови поручение');
+    if (!whole(command.choice) || Number(command.choice) >= check.options.length) return fail('Выбери вариант проверки');
     if (now + choice.minutes > task.deadline) return fail('На этот вариант не хватит времени');
     if (shift.mode === 'remote' && !serviceAvailable(state.billing,'internet',now)) return fail('Нужен действующий домашний интернет');
-    const correct = command.choice === answers[event.id];
-    if (!correct) task.attempts = (task.attempts ?? 0) + 1;
-    if (!correct && task.attempts === 1) return done('В проверке найдено расхождение. Сверь данные ещё раз.');
+    const correct = command.choice === check.answer;
+    if (!correct) {
+      task.attempts = (task.attempts ?? 0) + 1;
+      task.hint = check.explanation;
+      if (task.wrongAtStep !== step) {
+        task.wrongAtStep = step;
+        return done('В проверке найдено расхождение. ' + check.explanation);
+      }
+    }
+    task.checkStep = step + 1;
+    if (task.checkStep < checks.length) {
+      task.hint = correct ? check.explanation : 'Напарник объяснил решение. ' + check.explanation;
+      return done('Этап ' + (step + 1) + '/' + checks.length + ' проверен. ' + check.explanation);
+    }
+    task.hint = correct ? check.explanation : 'Понадобилась помощь коллеги. ' + check.explanation;
     task.phase='working'; task.readyAt=now+choice.minutes;
-    return done(correct?'Контрольная сверка пройдена':'Коллега помог исправить данные. Помощь учтена в оценке.');
+    return done(correct ? 'Контрольная проверка завершена. ' + check.explanation
+      : 'Коллега помог устранить расхождение. ' + check.explanation);
   }
   if (command.type !== 'career_choose' || task.phase !== 'ready') return fail('Сначала подойди к рабочему месту');
   if (typeof command.choice !== 'number' || !Number.isInteger(command.choice) ||
@@ -358,6 +414,11 @@ export function validCareers(value: unknown): value is CareersState {
         !Array.isArray(p.orders) || p.orders.length > 16 ||
         !p.orders.every(o => o && Object.hasOwn(DETAIL_SERVICES,o.service) && (o.bay===1 || o.bay===2) &&
           whole(o.agreed) && whole(o.readyAt) && typeof o.delivered==='boolean' && whole(o.loyalty))) return false;
+      if (p.workplace !== undefined && (!p.workplace ||
+        !whole(p.workplace.trust) || p.workplace.trust > 100 ||
+        !whole(p.workplace.backlog) || p.workplace.backlog > 12 ||
+        !whole(p.workplace.improvements) || p.workplace.improvements > 9999 ||
+        !whole(p.workplace.recoveries) || p.workplace.recoveries > 9999)) return false;
       if (p.campaign !== undefined && (!p.campaign || ![p.campaign.budget,p.campaign.reach,p.campaign.engagement,p.campaign.leads].every(n=>whole(n)))) return false;
       if (p.clinic !== undefined && (!p.clinic || !whole(p.clinic.reference,1) || !whole(p.clinic.observations) || typeof p.clinic.reviewed!=='boolean')) return false;
       if (Object.entries(p.stories).some(([key,s])=>!s || !CAREER_STORIES[id].some(story=>story.id===key &&
@@ -376,7 +437,10 @@ export function validCareers(value: unknown): value is CareersState {
       (!t.story || CAREER_STORIES[shift.career].some(story=>story.id===t.story && story.events.includes(event.id))) &&
       whole(t.nonce,1) && ['new','walking','ready','checking','working'].includes(t.phase) &&
       whole(t.readyAt) && whole(t.deadline) && t.deadline <= shift.endsAt &&
-      (t.attempts===undefined || (whole(t.attempts) && t.attempts<=2)) &&
+      (t.attempts===undefined || (whole(t.attempts) && t.attempts<=2*(WORK_CHECKS[event.id]?.length??1))) &&
+      (t.checkStep===undefined || (whole(t.checkStep) && t.checkStep <= (WORK_CHECKS[event.id]?.length ?? 0))) &&
+      (t.wrongAtStep===undefined || (whole(t.wrongAtStep) && t.wrongAtStep < (WORK_CHECKS[event.id]?.length ?? 0))) &&
+      (t.hint===undefined || (typeof t.hint==='string' && t.hint.length<=360)) &&
       (!['working','checking'].includes(t.phase) || (whole(t.choice) && t.choice! < event.choices.length));
   });
 }

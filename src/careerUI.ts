@@ -61,11 +61,13 @@ function taskCard(state: GameState, role: CharacterId, send: Submit) {
     card.append(action);
   } else if (task.phase === 'walking') card.append(node('p','Персонаж идёт к рабочему месту…'));
   else if (task.phase === 'checking') {
-    const check = WORK_CHECKS[event.id];
-    card.append(node('p',check.prompt));
-    if (task.attempts) card.append(node('small','Найдено расхождение. Проверь записи ещё раз.'));
+    const checks = WORK_CHECKS[event.id];
+    const check = checks[task.checkStep ?? 0];
+    card.append(node('small', 'Профессиональная проверка · шаг ' + ((task.checkStep ?? 0) + 1) + '/' + checks.length),
+      node('p', check.prompt));
+    if (task.hint) card.append(node('small', 'Разбор: ' + task.hint));
     for (const [index,label] of check.options.entries()) {
-      const action = button(label,()=>send({type:'career_verify',nonce:task.nonce,choice:index}));
+      const action = button(label,()=>send({type:'career_verify',nonce:task.nonce,choice:index,step:task.checkStep??0}));
       action.dataset.careerVerify=String(index); card.append(action);
     }
   }
@@ -191,6 +193,13 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       hero.classList.add('career-hero');
       hero.append(node('p','Репутация '+p.reputation+'% · Опыт '+p.experience+' · Смены '+p.shifts),
         node('small','Последняя продуктивность '+p.productivity+'% · Поручения '+p.duties));
+      const work = p.workplace;
+      const trustName = id==='it' ? 'Надёжность команды' : id==='detail' ? 'Доверие клиентов'
+        : id==='marketing' ? 'Доверие агентства' : 'Доверие посетителей';
+      hero.append(node('small',trustName+' '+(work?.trust??50)+'% · Нерешённые вопросы '+(work?.backlog??0)+
+        ' · Улучшения '+(work?.improvements??0)));
+      if ((work?.backlog??0) >= 3) hero.append(node('small',
+        'На следующей смене может прийти отдельное поручение по разбору накопившихся вопросов.'));
       section.append(hero);
       if (shift) {
         const current = block(shift.mode === 'remote' ? 'Алина работает из дома' : 'Смена идёт',

@@ -4,6 +4,8 @@ import { it } from './work/it';
 import { detail } from './work/detail';
 import { marketing } from './work/marketing';
 import { clinic } from './work/clinic';
+import { DEEP_WORK_CHECKS, type WorkCheck } from './workChallenges';
+import { WORK_OUTCOMES } from './workOutcomes';
 
 export type CareerTopic = 'Поручение' | 'Клиент' | 'Сроки' | 'Команда' | 'Качество' | 'Обучение' | 'Оценка' | 'Инициатива';
 export interface CareerChoice {
@@ -12,9 +14,9 @@ export interface CareerChoice {
 }
 export interface CareerEvent {
   id: string; title: string; text: string; author: number; topic: CareerTopic; station: WorkStation;
-  skill: SkillId; rank: number; choices: CareerChoice[]; effect?: 'booking' | 'handover' | 'campaign' | 'patient' | 'clinical' | 'evaluation';
+  skill: SkillId; rank: number; choices: CareerChoice[]; effect?: 'booking' | 'handover' | 'campaign' | 'patient' | 'clinical' | 'evaluation' | 'recovery' | 'recognition';
 }
-export const WORK_CHECKS: Record<string, { prompt: string; options: [string,string,string] }> = {
+const LEGACY_WORK_CHECKS: Record<string, { prompt: string; options: [string,string,string] }> = {
   'it-1':{prompt:'Какую строку можно сохранить, если нужны уникальный номер, отдел «Склад» и статус «Новая»?',options:['№104 · Склад · Новая','№104 · Снабжение · Новая','Без номера · Склад · Новая']},
   'it-2':{prompt:'В базе уже есть №201 и №203. Какая строка должна попасть в итоговый импорт?',options:['№201 · 12 000 ₽','№202 · 8 460 ₽','№203 · 2 500 ₽']},
   'it-4':{prompt:'Выбери правильный порядок числовых номеров для теста сортировки.',options:['20, 2, 10','10, 2, 20','2, 10, 20']},
@@ -28,6 +30,33 @@ export const WORK_CHECKS: Record<string, { prompt: string; options: [string,stri
   'clinic-1':{prompt:'Владелец подтвердил учебную карточку №073 и сегодняшнюю дату. Какую запись нужно открыть?',options:['№073 · сегодняшний приём','№037 · сегодняшний приём','№073 · прошлый визит']},
   'clinic-2':{prompt:'В записи владельца Бублика есть код В-18. Какая карточка совпадает?',options:['Бублик · В-81','Бублик · В-18','Плюша · В-18']},
   'clinic-15':{prompt:'Что из трёх записей является наблюдением, которое можно передать наставнику?',options:['«Наверное, просто не любит людей»','«С ним всё было в порядке как всегда»','«В 11:15 сидел в переноске, в 11:25 подошёл к дверце»']},
+};
+const CHECK_ANSWERS: Record<string, 0 | 1 | 2> = {
+  'it-1':0,'it-2':1,'it-4':2,'it-22':0,
+  'detail-1':0,'detail-4':1,'detail-15':2,
+  'marketing-1':0,'marketing-2':1,'marketing-12':2,
+  'clinic-1':0,'clinic-2':1,'clinic-15':2,
+};
+const LEGACY_EXPLANATIONS: Record<string,string> = {
+  'it-1':'Выбирай запись с точным отделом и статусом, без потери номера.',
+  'it-2':'При повторном импорте сохраняют только номер, которого ещё не было.',
+  'it-4':'При числовой сортировке 2 меньше 10, а 10 меньше 20.',
+  'it-22':'Заголовок не считается строкой данных, первая запись не должна пропадать.',
+  'detail-1':'Нужно учитывать фактическую доступность поста и все 25 минут услуги.',
+  'detail-4':'Первый пост занят до 14:00, поэтому 13:25 доступно только на втором.',
+  'detail-15':'Бирка, цвет и запись владельца должны совпадать одновременно.',
+  'marketing-1':'Рекламное обещание не должно расширять реальные районы и дни доставки.',
+  'marketing-2':'Сравни потери на каждом шаге: самый резкий переход здесь от показов к переходам.',
+  'marketing-12':'В воскресенье стоимость заявки 900/3, в субботу — 1500/3.',
+  'clinic-1':'Используй подтверждённый номер текущего визита и сегодняшнюю дату.',
+  'clinic-2':'Совпадать должны и кличка, и идентификатор карточки.',
+  'clinic-15':'Наблюдение содержит время и видимое поведение, а не домыслы.',
+};
+export const WORK_CHECKS: Record<string, readonly WorkCheck[]> = {
+  ...DEEP_WORK_CHECKS,
+  ...Object.fromEntries(Object.entries(LEGACY_WORK_CHECKS).map(([id, check]) =>
+    [id, [{ ...check, answer:CHECK_ANSWERS[id],
+      explanation:LEGACY_EXPLANATIONS[id] }]])),
 };
 const sources = { it, detail, marketing, clinic };
 const stations: Record<CareerId, WorkStation[]> = {
@@ -43,14 +72,21 @@ export const WORK_EVENTS = Object.fromEntries(CAREER_IDS.map(career => [career,
     const rank = index < 24 ? 0 : index < 31 ? 1 : index < 36 ? 2 : index < 41 ? 3 : 4;
     const skill = CAREERS[career].skills[index % 3];
     const coordination = index % 5 === 1 || index % 5 === 4;
+    const flavor = WORK_OUTCOMES[career][topics[index % topics.length]];
     const choices: CareerChoice[] = [
       { label: thorough, minutes: coordination ? 14 : 19, quality: coordination ? 73 : 87, reputation: coordination ? 4 : 2,
-        result: coordination ? 'Команда получила ясное решение и согласовала следующий шаг.' : 'Результат проверен и у задачи есть зафиксированный итог.',
+        result: flavor[0],
         ...(rank && index % 3 === 0 ? { requires: { skills: { [skill]: rank * 2 } } } : {}) },
       { label: pragmatic, minutes: coordination ? 21 : 12, quality: coordination ? 89 : 67, reputation: coordination ? 2 : 3,
-        result: coordination ? 'Пришлось потратить больше времени, зато у команды есть запасной вариант.' :
-          'Срочная часть закрыта. Следующую проверку внесли в рабочий журнал.' },
+        result: flavor[1] },
     ];
+    // A third approach is available on many tasks for an educated worker.
+    // It is not an unconditional win: it takes more time and earns less reputation.
+    if (index % 2 === 0 || index % 7 === 1) choices.push({
+      label: flavor[2], minutes: index % 4 === 0 ? 24 : 18,
+      quality: 89 + index % 4, reputation: 1,
+      requires: { skills: { [skill]: Math.min(12, 2 + rank * 2) } }, result: flavor[3],
+    });
     return { id: career + '-' + (index + 1), title, text, rank, author: index % 7 === 0 ? 0 : (index % 2) + 1,
       station: stations[career][index % stations[career].length], topic: topics[index % topics.length], skill, choices,
       effect: career === 'marketing' && [1,4,11,14,29,32,36,40,44].includes(index) ? 'campaign'
@@ -84,6 +120,54 @@ special.set('detail-handover', { id:'detail-handover', title:'Выдача го�
   author:1, topic:'Клиент', station:'service', skill:'attention', rank:0, effect:'handover',
   choices:[{label:'Сверить результат с карточкой вместе с владельцем',minutes:16,quality:93,reputation:4,result:'Автомобиль выдан после совместной приёмки.'},
     {label:'Попросить мастера подтвердить готовность, затем выдать ключи',minutes:12,quality:78,reputation:2,result:'Выдача закрыта с отметкой мастера.'}] });
+// These events depend on real previous decisions instead of appearing randomly.
+const CONTINUITY: Record<CareerId, {
+  setback: [string,string,string]; achievement: [string,string,string];
+}> = {
+  it: {
+    setback:['Накопились незакрытые проверки','В отделе осталось несколько спорных правок. Руководитель просит согласовать очередь и снять блокировки.','Разбить риски по важности и назначить проверяющих'],
+    achievement:['Команда отмечает твой вклад','Коллеги заметили, что новые проверки сократили возвраты задач.','Поделиться рабочей методикой на короткой встрече']
+  },
+  detail: {
+    setback:['Очередь детейлинга перегружена','У двух постов накопились заказы с неуточнёнными сроками. Управляющая просит восстановить порядок.','Сверить очередь и лично подтвердить перенесённые слоты'],
+    achievement:['Хорошие отзывы о смене','Повторные клиенты отмечают точность записи и корректную выдачу ключей.','Поблагодарить мастеров и закрепить удачный порядок']
+  },
+  marketing: {
+    setback:['Накопились незакрытые правки','Редактор и клиент ждут подтверждения нескольких версий контента. Нужно снять противоречия.','Разобрать бриф и собрать единую очередь правок'],
+    achievement:['Клиент оценил прозрачность отчётов','Отделу понравилось, что результаты кампаний можно перепроверить.','Предложить коллегам готовый пример отчёта']
+  },
+  clinic: {
+    setback:['Необработанные уточнения в карточках','В очереди скопились записи с непроверенным временем и источниками. Наставник просит помочь со сверкой.','Сверить источники и передать спорные случаи врачу'],
+    achievement:['Благодарность от владельцев','Посетители отметили спокойное объяснение очереди и аккуратные карточки.','Передать благодарность всей смене и закрепить процедуру']
+  },
+};
+for (const id of CAREER_IDS) {
+  const note = CONTINUITY[id], skill = CAREERS[id].skills[0];
+  special.set(id + '-recovery', {
+    id:id+'-recovery',title:note.setback[0],text:note.setback[1],author:0,
+    rank:0,topic:'Качество',station:'board',skill,effect:'recovery',
+    choices:[
+      {label:note.setback[2],minutes:24,quality:92,reputation:3,
+        result:'Очередь сократилась: ответственные и следующие шаги теперь зафиксированы.'},
+      {label:'Попросить коллегу взять часть незакрытых задач',minutes:16,quality:78,reputation:2,
+        result:'Нагрузка распределена между сотрудниками, но один вопрос оставлен на контроль.'},
+      {label:'Согласовать с руководителем перенос самых сложных случаев',minutes:12,quality:72,reputation:1,
+        result:'Команда получила реалистичные сроки, однако потребуется дополнительная смена.'}
+    ]
+  });
+  special.set(id + '-recognition', {
+    id:id+'-recognition',title:note.achievement[0],text:note.achievement[1],author:0,
+    rank:0,topic:'Команда',station:'lead',skill,effect:'recognition',
+    choices:[
+      {label:note.achievement[2],minutes:17,quality:92,reputation:3,
+        result:'Коллеги получили проверенный подход и договорились применять его чаще.'},
+      {label:'Поблагодарить команду и предложить следующую совместную цель',minutes:12,quality:87,reputation:4,
+        result:'Достижение отметили всей сменой; новый ориентир согласован.'},
+      {label:'Разобрать, что помогло достичь результата',minutes:20,quality:95,reputation:2,
+        result:'Удачный опыт превращён в конкретные правила для будущих задач.'}
+    ]
+  });
+}
 export const WORK_EVENT_BY_ID = new Map([...Object.values(WORK_EVENTS).flat().map(row => [row.id,row] as const), ...special]);
 
 type Story = { id: string; title: string; events: string[] };

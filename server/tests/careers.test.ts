@@ -39,18 +39,26 @@ function hire(id: CareerId, day = 0, offset = 0) {
 function start(id: CareerId, day = 0, offset = 0) {
   return command(hire(id,day,offset),CAREERS[id].owner,{type:'career_start'});
 }
-function finish(state: GameState, role: CharacterId, selection?: number, verification = 0) {
+function finish(state: GameState, role: CharacterId, selection?: number, verification?: number) {
   let shift = state.careers.residents[role].shift!, task = shift.task!;
   const nonce = task.nonce;
   const event = WORK_EVENT_BY_ID.get(task.event)!;
-  const best = event.choices.indexOf([...event.choices].sort((a,b)=>b.quality-a.quality)[0]);
+  // Rank-zero regression fixtures have not unlocked skill-gated specialist choices.
+  const best = event.choices.indexOf([...event.choices.filter(choice=>!choice.requires)].sort((a,b)=>b.quality-a.quality)[0]);
   state = command(state,role,{type:'career_approach',nonce});
   task = state.careers.residents[role].shift!.task!;
   tick(state,task.readyAt);
   state = command(state,role,{type:'career_choose',nonce,choice:selection??best});
-  if (WORK_CHECKS[event.id]) state = command(state,role,{type:'career_verify',nonce,choice:verification});
-  shift = state.careers.residents[role].shift!; task = shift.task!;
-  if (task.phase === 'checking') state = command(state,role,{type:'career_verify',nonce,choice:verification});
+  const checks = WORK_CHECKS[event.id] ?? [];
+  for (let i=0;i<checks.length;i++) {
+    const answer = i === 0 && verification !== undefined ? verification : checks[i].answer;
+    state = command(state,role,{type:'career_verify',nonce,choice:answer,step:i});
+    // If intentionally tested with a wrong answer, correct it before continuing.
+    if (state.careers.residents[role].shift!.task!.phase === 'checking' &&
+        (state.careers.residents[role].shift!.task!.checkStep ?? 0) === i) {
+      state = command(state,role,{type:'career_verify',nonce,choice:checks[i].answer,step:i});
+    }
+  }
   tick(state,state.careers.residents[role].shift!.task!.readyAt);
   return state;
 }
@@ -106,9 +114,9 @@ test('Task choices, timed approach and interactive validation are server-owned a
   state=command(state,'vlad',{type:'career_choose',nonce,choice:0});
   assert.equal(state.careers.residents.vlad.shift!.task!.phase,'checking');
   assert.equal(state.education.characters.vlad.xp.technology,0);
-  state=command(state,'vlad',{type:'career_verify',nonce,choice:2});
+  state=command(state,'vlad',{type:'career_verify',nonce,choice:2,step:0});
   assert.equal(state.careers.residents.vlad.shift!.task!.attempts,1);
-  state=command(state,'vlad',{type:'career_verify',nonce,choice:0});
+  state=command(state,'vlad',{type:'career_verify',nonce,choice:0,step:0});
   const ready=state.careers.residents.vlad.shift!.task!.readyAt;
   tick(state,ready-1);
   assert.equal(state.education.characters.vlad.xp.technology,0);
@@ -116,7 +124,7 @@ test('Task choices, timed approach and interactive validation are server-owned a
   const xp=state.education.characters.vlad.xp.technology;
   assert.ok(xp>0);
   assert.equal(state.careers.residents.vlad.shift!.score,78);
-  assert.equal(applyCareer(state,'vlad',{type:'career_verify',nonce,choice:0},now(state)).ok,false);
+  assert.equal(applyCareer(state,'vlad',{type:'career_verify',nonce,choice:0,step:0},now(state)).ok,false);
   tick(state,ready+2);
   assert.equal(state.education.characters.vlad.xp.technology,xp);
 });
@@ -348,7 +356,7 @@ test('Two live residents share wages, keep their own tasks, vote on speed and re
     assert.equal(back.ready.state.money,10000);
     back.send({type:'career_choose',nonce:alice.nonce,choice:0});
     await back.take('snapshot',p=>p.state.careers.residents.alina.shift?.task?.phase==='checking');
-    back.send({type:'career_verify',nonce:alice.nonce,choice:0});
+    back.send({type:'career_verify',nonce:alice.nonce,choice:0,step:0});
     await back.take('snapshot',p=>p.state.careers.residents.alina.shift?.task?.phase==='working');
     for(let i=0;i<3;i++) {
       ms+=24_000;

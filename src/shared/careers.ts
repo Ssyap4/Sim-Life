@@ -101,11 +101,14 @@ export interface CareerProgress {
   rank: number; shifts: number; qualityShifts: number; experience: number; reputation: number;
   productivity: number; duties: number; lastDay: number; evaluation: boolean;
   stories: Record<string, CareerStoryProgress>; seen: Record<string, number>; history: CareerHistory[];
+  // Persistent workplace consequences. Optional so 0.12 draft saves migrate safely.
+  workplace?: { trust: number; backlog: number; improvements: number; recoveries: number };
   orders: DetailOrder[]; campaign?: CampaignResult; clinic?: ClinicRecord; clinicModules: number;
 }
 export interface CareerTask {
   nonce: number; event: string; phase: 'new' | 'walking' | 'ready' | 'checking' | 'working'; readyAt: number;
   deadline: number; choice?: number; story?: string; attempts?: number;
+  checkStep?: number; wrongAtStep?: number; hint?: string;
 }
 export interface CareerShift {
   id: number; career: CareerId; mode: CareerMode; day: number; startedAt: number; endsAt: number; regularEnd: number;
@@ -129,4 +132,5 @@ export type CareerCommand =
   | { type: 'career_hire'; career: CareerId }
   | { type: 'career_resign' | 'career_start' | 'career_leave' | 'career_overtime' | 'career_promote' }
   | { type: 'career_approach'; nonce: number }
-  | { type: 'career_choose' | 'career_verify'; nonce: number; choice: number };
+  | { type: 'career_choose'; nonce: number; choice: number }
+  | { type: 'career_verify'; nonce: number; choice: number; step: number };
