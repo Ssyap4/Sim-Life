@@ -23,6 +23,8 @@ def export(path):
         export_animation_mode='ACTIONS',
         export_extras=True,
         export_materials='EXPORT',
+        export_image_format='JPEG',
+        export_image_quality=94,
         export_all_vertex_colors=False,
         export_skins=True,
         export_morph_normal=False,
