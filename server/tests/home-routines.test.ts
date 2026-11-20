@@ -28,7 +28,7 @@ test('The server plans leisure routes in shared coordinates without rewarding co
   state.characters.vlad.hygiene = 8.01;
   assert.equal(urgentHomeAction(state, 'vlad'), undefined);
   state.characters.vlad.hygiene = 8;
-  assert.deepEqual(urgentHomeAction(state, 'vlad'), { type: 'act', actionId: 'kitchenWash' });
+  assert.deepEqual(urgentHomeAction(state, 'vlad'), { type: 'act', actionId: 'bathShower' });
   state.characters.vlad.hunger = 4;
   state.meals.omelette = 1;
   assert.deepEqual(urgentHomeAction(state, 'vlad'), { type: 'eat', recipe: 'omelette' });

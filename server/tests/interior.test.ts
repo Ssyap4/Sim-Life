@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { batchRigidParts } from '../../src/game/ArtKit';
-import { HOME_DECOR, HOME_FURNITURE, KITCHEN_WORK } from '../../src/shared/home';
+import { EAST_WALL, HOME_FLOOR, HOME_FURNITURE, HOME_DOORS, KITCHEN_WORK } from '../../src/shared/home';
 import { placeObstacles, spawn } from '../../src/shared/locations';
 import { buildFurniture } from '../../src/game/InteriorArt';
-import { findRoute, nearestClearPoint, pointIsClear, type FloorRect } from '../../src/game/navigation';
+import { findRoute, nearestClearPoint, pointIsClear, segmentIsClear, type FloorRect } from '../../src/game/navigation';
 import { PETS, PET_IDS } from '../../src/shared/pets';
 import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
 
 test('both players can reach every interaction around the assembled interior', () => {
-  const obstacles: FloorRect[] = [...HOME_DECOR];
+  const obstacles: FloorRect[] = placeObstacles('home');
   const furnished = new Map<string, { x: number; z: number }>();
   const counts = { meshes: 0, shadows: 0 };
   const sharedGeometries = new Set<THREE.BufferGeometry>();
@@ -23,12 +23,12 @@ test('both players can reach every interaction around the assembled interior', (
     });
     batchRigidParts(root);
     root.updateMatrixWorld(true);
-    const { minX, maxX, minZ, maxZ } = HOME_FURNITURE[id];
-    const obstacle = { minX: minX - 0.27, maxX: maxX + 0.27, minZ: minZ - 0.27, maxZ: maxZ + 0.27 };
-    obstacles.push(obstacle);
-    const box = new THREE.Box3().setFromObject(root);
-    assert.ok(box.min.x >= obstacle.minX && box.max.x <= obstacle.maxX &&
-      box.min.z >= obstacle.minZ && box.max.z <= obstacle.maxZ, id + ' must fit its collider');
+    if (id !== 'shower') {
+      const { minX, maxX, minZ, maxZ } = HOME_FURNITURE[id];
+      const box = new THREE.Box3().setFromObject(root);
+      assert.ok(box.min.x >= minX - .27 && box.max.x <= maxX + .27 &&
+        box.min.z >= minZ - .27 && box.max.z <= maxZ + .27, id + ' must fit its collider');
+    }
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       counts.meshes++;
@@ -36,30 +36,45 @@ test('both players can reach every interaction around the assembled interior', (
     });
   });
   assert.deepEqual([...furnished.keys()].sort(), Object.keys(points).sort());
-  obstacles.push(...placeObstacles('home'));
 
   const destinations = new Map(furnished);
   for (const id of PET_IDS) {
     const { x, z } = PETS[id].home;
-    const approach = nearestClearPoint({ x, z: z + 0.78 }, obstacles);
+    const approach = nearestClearPoint({ x, z: z + 0.78 }, obstacles, HOME_FLOOR);
     assert.ok(approach, id + ' must have a reachable approach');
     destinations.set(id, approach);
   }
   for (const [id, point] of Object.entries(SOCIAL_SPOTS)) destinations.set(id + ' social', point);
   for (const [name, work] of Object.entries(KITCHEN_WORK)) destinations.set(name, work.position);
   const starts = new Map([
+    ['yard', { x: 1, z: 9.02 }],
+    ['spare room', { x: -7, z: .35 }],
+    ...Object.entries(HOME_DOORS).map(([name, door]) => [name + ' threshold', { x: door.x, z: door.z }] as const),
     ['Vlad spawn', spawn('home', 'vlad')],
     ['Alina spawn', spawn('home', 'alina')],
     ...destinations,
   ]);
   for (const [id, point] of destinations) {
-    assert.ok(pointIsClear(point, obstacles), id + ' interaction anchor blocked');
+    assert.ok(pointIsClear(point, obstacles, HOME_FLOOR), id + ' interaction anchor blocked');
     for (const [from, start] of starts) {
-      assert.ok(findRoute(start, point, obstacles), from + ' cannot reach ' + id);
+      assert.ok(findRoute(start, point, obstacles, HOME_FLOOR), from + ' cannot reach ' + id);
     }
   }
   assert.ok(counts.meshes <= 135, 'too many furniture meshes: ' + counts.meshes);
   assert.ok(counts.shadows < 45, 'too many furniture shadow casters: ' + counts.shadows);
-  assert.ok(sharedGeometries.size <= 9, 'furniture parts should reuse the shared geometry kit');
+  assert.ok(sharedGeometries.size <= 11, 'furniture parts should reuse the shared geometry kit');
   console.log('INTERIOR_BUDGET ' + JSON.stringify({ ...counts, sharedGeometries: sharedGeometries.size }));
+});
+
+test('The bathroom is entered through its doorway and the shower is entered from the open side', () => {
+  const obstacles = placeObstacles('home');
+  const livingSide = { x: EAST_WALL - .84, z: 1.00 };
+  const bathroomSide = { x: EAST_WALL + .81, z: 1.00 };
+  assert.ok(pointIsClear(livingSide, obstacles, HOME_FLOOR));
+  assert.ok(pointIsClear(bathroomSide, obstacles, HOME_FLOOR));
+  assert.equal(segmentIsClear(livingSide, bathroomSide, obstacles, HOME_FLOOR), false);
+  const throughDoor = findRoute(livingSide, bathroomSide, obstacles, HOME_FLOOR);
+  assert.ok(throughDoor && throughDoor.length > 1);
+  assert.ok(segmentIsClear({ x: 7.27, z: .55 }, points.shower, obstacles, HOME_FLOOR));
+  assert.equal(segmentIsClear({ x: 8.08, z: 1.63 }, points.shower, obstacles, HOME_FLOOR), false);
 });

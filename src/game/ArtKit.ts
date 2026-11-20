@@ -22,6 +22,7 @@ const roughness: Record<Surface, number> = {
   fabric: 0.94, wood: 0.71, metal: 0.43, screen: 0.33, ceramic: 0.48, skin: 0.72, hair: 0.57, fur: 0.91, leather: 0.59,
 };
 const finishes = new Map<string, THREE.MeshStandardMaterial>();
+const solidSurfaces = new WeakMap<THREE.Material, Surface>();
 
 export function finish(color: number, surface: Surface = 'fabric', vertexColors = false): THREE.MeshStandardMaterial {
   const key = `${color}/${surface}/${vertexColors}`;
@@ -31,6 +32,7 @@ export function finish(color: number, surface: Surface = 'fabric', vertexColors 
       color, vertexColors, roughness: roughness[surface], metalness: surface === 'metal' ? 0.28 : 0,
     });
     finishes.set(key, material);
+    if (!vertexColors) solidSurfaces.set(material, surface);
   }
   return material;
 }
@@ -69,37 +71,49 @@ export function panel(parent: THREE.Object3D, position: XYZ, size: [number, numb
   return mesh;
 }
 
-/** Join rigid mesh parts with the same material and shadow settings at setup time.
- * Only direct children are combined, so animation pivots and their transforms survive.
+/** Join direct rigid children at setup time, preserving animation pivots.
+ * Solid art-kit colors may be baked per vertex when the finish and shadow flags match.
  */
-export function batchRigidParts(parent: THREE.Object3D): void {
-  const batches = new Map<string, THREE.Mesh[]>();
+export function batchRigidParts(parent: THREE.Object3D, bakeColors = false): void {
+  const batches = new Map<string, { parts: THREE.Mesh[]; surface?: Surface }>();
   for (const child of parent.children) {
     if (!(child instanceof THREE.Mesh) || child instanceof THREE.SkinnedMesh || Array.isArray(child.material) ||
         child.material.transparent || child.geometry.hasAttribute('color')) continue;
-    const key = `${child.material.uuid}/${child.castShadow}/${child.receiveShadow}`;
-    const batch = batches.get(key) ?? [];
-    batch.push(child);
+    const surface = bakeColors ? solidSurfaces.get(child.material) : undefined;
+    const attributes = Object.keys(child.geometry.attributes).sort().join(',');
+    const key = `${surface ?? child.material.uuid}/${child.castShadow}/${child.receiveShadow}/${attributes}`;
+    const batch = batches.get(key) ?? { parts: [], surface };
+    batch.parts.push(child);
     batches.set(key, batch);
   }
-  for (const batch of batches.values()) {
-    if (batch.length < 2) continue;
-    const sources = batch.map((mesh) => {
+  for (const { parts, surface } of batches.values()) {
+    if (parts.length < 2) continue;
+    const sources = parts.map((mesh) => {
       mesh.updateMatrix();
       // Keep indexed surfaces indexed so batching doesn't repeat the vertex
       // attributes at every triangle. Coincident vertices with split normals or
       // UV seams keep their separate attributes.
       const geometry = mesh.geometry.index ? mesh.geometry.clone() : mergeVertices(mesh.geometry, 1e-6);
+      if (surface) {
+        const { r, g, b } = (mesh.material as THREE.MeshStandardMaterial).color;
+        const colors = new Float32Array(geometry.getAttribute('position').count * 3);
+        for (let i = 0; i < colors.length; i += 3) {
+          colors[i] = r;
+          colors[i + 1] = g;
+          colors[i + 2] = b;
+        }
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      }
       return geometry.applyMatrix4(mesh.matrix);
     });
     const geometry = mergeGeometries(sources);
     for (const source of sources) source.dispose();
     if (!geometry) continue;
-    const [sample] = batch;
-    const combined = new THREE.Mesh(geometry, sample.material);
+    const [sample] = parts;
+    const combined = new THREE.Mesh(geometry, surface ? finish(0xffffff, surface, true) : sample.material);
     combined.castShadow = sample.castShadow;
     combined.receiveShadow = sample.receiveShadow;
-    parent.remove(...batch);
+    parent.remove(...parts);
     parent.add(combined);
   }
 }

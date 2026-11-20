@@ -32,9 +32,9 @@ export const PETS = {
     foodName: 'Корм для шпица',
     foodPrice: 650,
     foodAmount: 3,
-    home: { x: -5.02, z: 4.40 },
-    bowl: { x: .02, z: -1.84 },
-    toilet: { x: 4.12, z: 4.44 },
+    home: { x: -3.52, z: 4.48 },
+    bowl: { x: -.91, z: -2.63 },
+    toilet: { x: 3.25, z: 4.48 },
   },
   simba: {
     name: 'Симба',
@@ -43,9 +43,9 @@ export const PETS = {
     foodName: 'Корм для кота',
     foodPrice: 550,
     foodAmount: 3,
-    home: { x: -3.72, z: 4.40 },
-    bowl: { x: .72, z: -1.84 },
-    toilet: { x: 5.17, z: 4.44 },
+    home: { x: -2.24, z: 4.48 },
+    bowl: { x: -.18, z: -2.63 },
+    toilet: { x: 4.26, z: 4.48 },
   },
 } as const satisfies Record<PetId, {
   name: string; species: string; emoji: string;
@@ -56,8 +56,8 @@ export const PETS = {
 }>;
 
 export const PET_ROAM = [
-  { x: -3.0, z: 3.43 }, { x: -2.95, z: -1.33 }, { x: -.62, z: 2.40 },
-  { x: 1.22, z: -.88 }, { x: .48, z: 4.45 }, { x: 1.20, z: 2.58 }, { x: -1.80, z: 1.06 },
+  { x: -3.0, z: 3.43 }, { x: -6.30, z: -3.81 }, { x: -.62, z: 2.40 },
+  { x: .84, z: -.56 }, { x: .48, z: 4.45 }, { x: 1.20, z: 2.58 }, { x: 7.72, z: -3.80 },
   { x: -2.64, z: 7.52 }, { x: -3.82, z: 9.63 }, { x: -.96, z: 10.53 }, { x: 1.37, z: 8.88 },
 ] as const;
 

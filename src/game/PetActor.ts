@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine } from '../shared/pets';
-import { buildPetArt } from './PetArt';
+import { buildPetArt, verdellScale } from './PetArt';
 
 export class PetActor {
   readonly root = new THREE.Group();
@@ -26,8 +26,10 @@ export class PetActor {
     const dog = id === 'verdell';
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
     this.body.add(this.head, this.tail);
-    this.head.position.set(0, dog ? 0.728 : 0.537, dog ? 0.241 : 0.325);
-    this.tail.position.set(0, dog ? 0.458 : 0.415, dog ? -0.454 : -0.501);
+    if (dog) this.root.scale.setScalar(verdellScale);
+    else this.head.scale.set(.90, .97, 1);
+    this.head.position.set(0, dog ? .728 : .542, dog ? .241 : .405);
+    this.tail.position.set(0, dog ? .458 : .433, dog ? -.454 : -.567);
     this.root.rotation.y = dog ? 0.20 : 0.21;
   }
 
@@ -101,8 +103,8 @@ export class PetActor {
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13;
     this.body.rotation.x = -.13 * toilet;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention);
-    this.head.position.y = (dog ? 0.728 : 0.537) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073);
-    this.head.position.z = (dog ? 0.241 : 0.325) + eating * (dog ? 0.027 : 0.053);
+    this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073);
+    this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053);
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
         - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful), smooth);
@@ -132,7 +134,7 @@ export class PetActor {
       const paw = this.paws[i];
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
-      paw.rotation.x = pawLift * playful + Math.sin(travel * 16 + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
+      paw.rotation.x = pawLift * playful + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
         sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31);
       paw.position.y = (dog ? 0.225 : front ? 0.245 : 0.27) + (dog ? 0 : 0.018 * playful * (front ? 1 : 0));
     }

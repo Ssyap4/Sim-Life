@@ -66,7 +66,7 @@ function grillAndTable(yard: THREE.Group): void {
     shape(grill, [.049, .043, .049], [x, .67, .368], C.oat, drum).rotation.x = Math.PI / 2;
   }
   shape(grill, [.113, .015, .113], [.34, 1.04, .06], C.limestone, drum);
-  batchRigidParts(grill);
+  batchRigidParts(grill, true);
   yard.add(grill);
 
   const { x, z } = HOME_YARD.sideTable;
@@ -121,7 +121,8 @@ export function buildYard(scene: THREE.Scene): void {
   const yard = new THREE.Group();
   shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
   shape(yard, [12.25, .11, 6.92], [0, -.071, 8.70], 0x69764f, softCube);
-  flat(yard, 0, -.015, 8.73, 12.18, 6.80, turf(), lawn);
+  // Leave a depth gap above the deck for the wider home's overview camera.
+  flat(yard, 0, -.005, 8.73, 12.18, 6.80, turf(), lawn);
 
   const { x } = HOUSE_ENTRY;
   const { parking } = HOME_YARD;
@@ -142,6 +143,6 @@ export function buildYard(scene: THREE.Scene): void {
   grillAndTable(yard);
   garden(yard);
   fence(yard);
-  batchRigidParts(yard);
+  batchRigidParts(yard, true);
   scene.add(yard);
 }

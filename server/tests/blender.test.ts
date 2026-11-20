@@ -9,7 +9,11 @@ import { createBlenderCharacter } from '../../src/game/BlenderCharacter';
 for (const id of ['vlad', 'alina'] as const) {
   test(`${id}: exported skin and blink load, and the game rig reaches the keyboard`, async () => {
     const buffer = await readFile(new URL(`../../src/assets/characters/${id}.glb`, import.meta.url));
-    const gltf = await new GLTFLoader().parseAsync(Uint8Array.from(buffer).buffer, '');
+    // This Node test exercises the skin and animations. The browser decodes the embedded atlas.
+    const loader = new GLTFLoader().register(() => ({
+      name: 'HeadlessTexture', loadTexture: async () => new THREE.Texture(),
+    }));
+    const gltf = await loader.parseAsync(Uint8Array.from(buffer).buffer, '');
     const model = createBlenderCharacter(gltf, id);
     const actor = new Actor(id, [3.17, 3.65], model);
     const copy = new Actor(id, [3.17, 3.65], model);
@@ -33,12 +37,12 @@ for (const id of ['vlad', 'alina'] as const) {
     copy.root.updateMatrixWorld(true);
     const eyeCenter = copy.root.getObjectByName('EyeL')!.getWorldPosition(new THREE.Vector3());
     const ray = new THREE.Raycaster(eyeCenter.clone().add(new THREE.Vector3(0, 0, .40)), new THREE.Vector3(0, 0, -1));
-    assert.equal(ray.intersectObjects([spareFace, eyeMesh])[0]?.object, eyeMesh, 'open pupil is visible');
+    assert.equal(ray.intersectObjects([spareFace, eyeMesh])[0]?.object.name, eyeMesh.name, 'open pupil is visible');
     const spareWeights = spareFace.morphTargetInfluences!;
     spareWeights[lids] = 1;
     for (const dy of [-.004, 0, .005, .008]) {
       ray.ray.origin.y = eyeCenter.y + dy;
-      assert.equal(ray.intersectObjects([spareFace, eyeMesh])[0]?.object, spareFace,
+      assert.equal(ray.intersectObjects([spareFace, eyeMesh])[0]?.object.name, spareFace.name,
         'closed eyelid renders in front of the iris');
     }
     spareWeights[lids] = 0;

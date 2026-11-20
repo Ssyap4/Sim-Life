@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { batchRigidParts, colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
 import { deskDisplay, kitchenTiles, tvStill, upholsteryWeave, wovenRug } from './ArtTextures';
 import { cushionGeometry } from './FurnitureGeometry';
-import { COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
-import { points } from '../shared/protocol';
+import { buildBathFixture } from './BathroomArt';
+import { BATH_FIXTURES, COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
+import { points, type ItemId } from '../shared/protocol';
 
-type FurnitureId = 'sofa' | 'bed' | 'kitchen' | 'desk' | 'tv' | 'table';
 type Point = { x: number; z: number };
-type Register = (id: FurnitureId, group: THREE.Group, point: Point) => void;
+type Register = (id: Exclude<ItemId, 'delivery'>, group: THREE.Group, point: Point) => void;
 
 const C = {
   linen: colors.paper, cream: 0xfff3dd, oat: colors.oat,
@@ -17,6 +17,12 @@ const C = {
   stone: 0xd8cbb8, slate: 0x42595b, graphite: colors.ink,
   brass: colors.brass, glass: 0x8cb4ad, softBlue: 0x78ada8,
 };
+
+const bedsideShade = new THREE.CylinderGeometry(.13, .23, .24, 12);
+
+const officeLamp = new THREE.MeshStandardMaterial({
+  color: 0xe7c58f, emissive: 0xffb968, emissiveIntensity: .33, roughness: .9,
+});
 
 const wovenFinishes = new WeakMap<THREE.MeshStandardMaterial, THREE.MeshStandardMaterial>();
 
@@ -227,6 +233,10 @@ function makeDesk(): THREE.Group {
   part(desk, [0.025, 0.025, 0.27], [-0.94, 1.076, 0.12], C.brass);
   round(desk, 0.105, 0.14, [0.86, 1.15, 0.12], C.terracotta);
   ring(desk, 0.07, [0.99, 1.17, 0.12], C.brass);
+  round(desk, .10, .041, [-.85, 1.075, -.28], C.brass, 'metal');
+  round(desk, .018, .34, [-.85, 1.23, -.28], C.brass, 'metal');
+  const light = part(desk, [.64, .70, .64], [-.85, 1.42, -.28], C.linen, bedsideShade);
+  light.material = officeLamp;
   return desk;
 }
 
@@ -277,18 +287,14 @@ export function buildFurniture(register: Register): void {
   register('desk', makeDesk(), points.desk);
   register('tv', makeTv(), points.tv);
   register('table', makeDiningTable(), points.table);
+  for (const id of Object.keys(BATH_FIXTURES) as (keyof typeof BATH_FIXTURES)[]) {
+    register(id, buildBathFixture(id), points[id]);
+  }
 }
 
 export function buildPersonalFurniture(scene: THREE.Scene): void {
-  const wardrobe = group(HOME_PLACEMENTS.wardrobe.x, HOME_PLACEMENTS.wardrobe.z);
-  part(wardrobe, [.80, 1.89, 1.31], [-.05, 1.04, 0], C.woodDark, 'soft', true, 'wood');
-  part(wardrobe, [.88, .09, 1.35], [-.05, 2.00, 0], C.woodLight, 'soft', false, 'wood');
-  for (const z of [-.327, .327]) {
-    part(wardrobe, [.08, 1.62, .635], [.38, 1.10, z], C.woodLight, 'soft', false, 'wood');
-    part(wardrobe, [.024, 1.41, .48], [.426, 1.10, z], C.wood, 'soft', false, 'wood');
-    part(wardrobe, [.07, .15, .032], [.469, 1.06, z * .24], C.brass, 'soft', false, 'metal');
-  }
   const vanity = group(HOME_PLACEMENTS.vanity.x, HOME_PLACEMENTS.vanity.z);
+  vanity.rotation.y = Math.PI / 2;
   part(vanity, [1.33, .11, .63], [0, .86, 0], C.woodLight, 'soft', true, 'wood');
   part(vanity, [1.19, .18, .54], [0, .72, 0], C.wood, 'soft', false, 'wood');
   part(vanity, [.20, .025, .031], [0, .72, .28], C.brass, 'soft', false, 'metal');
@@ -303,17 +309,62 @@ export function buildPersonalFurniture(scene: THREE.Scene): void {
   round(vanity, .052, .08, [-.44, 1.08, .015], C.brass, 'metal');
   part(vanity, [.50, .40, .44], [0, .20, .67], C.wood, 'soft', false, 'wood');
   part(vanity, [.55, .13, .49], [0, .46, .67], C.blush, cushionGeometry);
-  for (const furniture of [wardrobe, vanity]) {
-    batchRigidParts(furniture);
+  const bookcase = group(HOME_PLACEMENTS.bookcase.x, HOME_PLACEMENTS.bookcase.z);
+  bookcase.rotation.y = -Math.PI / 2;
+  part(bookcase, [1.86, 1.67, .066], [0, .88, -.272], C.woodDark, 'square', false, 'wood');
+  for (const x of [-.875, .875]) {
+    part(bookcase, [.10, 1.74, .55], [x, .88, 0], C.wood, 'soft', false, 'wood');
+  }
+  for (const y of [.15, .63, 1.12, 1.73]) {
+    part(bookcase, [1.80, .085, .57], [0, y, 0], C.woodLight, 'soft', false, 'wood');
+  }
+  const bindings = [C.moss, C.terracotta, C.oat, C.softBlue, C.woodDark];
+  for (const [row, y] of [.19, .675, 1.16].entries()) {
+    const length = 6 + row % 2;
+    for (let i = 0; i < length; i++) {
+      const h = .23 + ((i + row * 2) % 4) * .053;
+      const x = (row % 2 ? -.39 : -.71) + i * .187;
+      part(bookcase, [.136, h, .30], [x, y + h / 2, .035], bindings[(i + row * 3) % bindings.length], 'square');
+      part(bookcase, [.090, .025, .009], [x, y + h * .73, .19], C.oat, 'square');
+    }
+  }
+
+  part(bookcase, [.14, .27, .16], [-.57, 1.91, .01], C.terracotta, 'soft', false, 'ceramic');
+  part(bookcase, [.26, .21, .22], [-.57, 2.10, .01], C.moss, orb);
+  part(bookcase, [.32, .046, .20], [.44, 1.81, 0], C.linen);
+  part(bookcase, [.24, .037, .14], [.44, 1.85, 0], C.paleSage);
+
+  const officeSofa = makeSofa();
+  officeSofa.position.set(HOME_PLACEMENTS.officeSofa.x, 0, HOME_PLACEMENTS.officeSofa.z);
+  officeSofa.rotation.y = -Math.PI / 2;
+  officeSofa.scale.setScalar(.64);
+  const officeTv = makeTv();
+  officeTv.position.set(HOME_PLACEMENTS.officeTv.x, 0, HOME_PLACEMENTS.officeTv.z);
+  officeTv.rotation.y = -Math.PI / 2;
+  officeTv.scale.setScalar(.64);
+
+  for (const [index, { x, z }] of [HOME_PLACEMENTS.bedroomLampLeft, HOME_PLACEMENTS.bedroomLampRight].entries()) {
+    const nightstand = group(x, z);
+    part(nightstand, [.63, .53, .59], [0, .325, 0], C.woodLight, 'soft', false, 'wood');
+    part(nightstand, [.56, .22, .03], [0, .415, .294], C.wood, 'soft', false, 'wood');
+    part(nightstand, [.11, .028, .025], [0, .414, .32], C.brass, 'soft', false, 'metal');
+    const lamp = index === 0 ? C.terracotta : C.moss;
+    round(nightstand, .11, .31, [0, .735, -.065], lamp, 'ceramic');
+    part(nightstand, [1, 1, 1], [0, .99, -.065], C.linen, bedsideShade);
+    batchRigidParts(nightstand, true);
+    scene.add(nightstand);
+  }
+  for (const furniture of [vanity, bookcase, officeSofa, officeTv]) {
+    batchRigidParts(furniture, true);
     scene.add(furniture);
   }
 }
 
 export function buildSoftRugs(scene: THREE.Scene): void {
   const rugs = [
-    { style: 'living', x: -3.47, z: .71, width: 3.41, depth: 3.06, edge: C.terracotta },
-    { style: 'work', x: HOME_PLACEMENTS.desk.x, z: 1.88, width: 2.50, depth: 2.64, edge: C.moss },
-    { style: 'sleep', x: -4.26, z: -3.20, width: 3.12, depth: 3.22, edge: C.oat },
+    { style: 'living', x: HOME_PLACEMENTS.sofa.x, z: .98, width: 3.72, depth: 3.39, edge: C.terracotta },
+    { style: 'work', x: HOME_PLACEMENTS.desk.x, z: -5.83, width: 2.68, depth: 2.79, edge: C.moss },
+    { style: 'sleep', x: HOME_PLACEMENTS.bed.x, z: -5.27, width: 4.15, depth: 3.31, edge: C.oat },
   ] as const;
   for (const {style, x, z, width, depth, edge} of rugs) {
     part(scene, [width, 0.022, depth], [x, 0.011, z], edge);

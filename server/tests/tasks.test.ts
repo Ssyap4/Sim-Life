@@ -5,7 +5,8 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
-import type { CharacterId, ServerPacket } from '../../src/shared/protocol';
+import { points, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
+import { openServerFiles } from '../storage';
 import { startServer } from '../server';
 
 function waitFor(ws: WebSocket, accepts: (p: ServerPacket) => boolean): Promise<ServerPacket> {
@@ -168,5 +169,39 @@ test('Disconnect cancels an unfinished activity and never grants its reward', as
     if (result.type === 'task_ended') assert.equal(result.outcome, 'cancelled');
     await new Promise(resolve => setTimeout(resolve, 600));
     assert.equal(existsSync(join(ctx.dir, 'household.json')), false);
+  } finally { await clean(ctx); }
+});
+
+test('Bathroom fixtures are independently exclusive and physiology is published once on completion', async () => {
+  const ctx = await setup();
+  try {
+    const started = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'vlad');
+    send(ctx.vlad, { type: 'act', actionId: 'toiletUse' });
+    const first = await started;
+    assert.ok(first.type === 'task_started');
+    const rejected = waitFor(ctx.alina, p => p.type === 'error');
+    send(ctx.alina, { type: 'act', actionId: 'toiletUse' });
+    const rejection = await rejected;
+    assert.ok(rejection.type === 'error');
+    assert.match(rejection.reason, /место.*занято/);
+    assert.equal(existsSync(join(ctx.dir, 'household.json')), false);
+
+    const accepted = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');
+    const vladDone = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.role === 'vlad');
+    const alinaDone = waitFor(ctx.alina, p => p.type === 'task_ended' && p.role === 'alina');
+    const a = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.revision === 2);
+    const b = waitFor(ctx.alina, p => p.type === 'snapshot' && p.state.revision === 2);
+    send(ctx.alina, { type: 'act', actionId: 'bathShower' });
+    await accepted;
+    for (const finish of await Promise.all([vladDone, alinaDone]))
+      assert.ok(finish.type === 'task_ended' && finish.outcome === 'completed');
+
+    const [vSnapshot, aSnapshot] = await Promise.all([a, b]);
+    assert.deepEqual(vSnapshot, aSnapshot);
+    assert.ok(vSnapshot.type === 'snapshot');
+    const { vlad, alina } = vSnapshot.state.characters;
+    assert.deepEqual([vlad.bladder, vlad.x, vlad.z], [100, points.toilet.x, points.toilet.z]);
+    assert.deepEqual([alina.hygiene, alina.x, alina.z], [100, points.shower.x, points.shower.z]);
+    assert.equal(openServerFiles(ctx.dir).load().characters.vlad.bladder, 100);
   } finally { await clean(ctx); }
 });

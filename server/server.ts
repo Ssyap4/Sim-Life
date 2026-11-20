@@ -13,7 +13,7 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
-import { KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
+import { BATH_ACTIONS, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
@@ -261,7 +261,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,
       position.z - destination.z) * 1200 + 4200);
     const cookBudget = plan.command.type === 'cook' ? 19_000 : 0;
-    const durationMs = Math.max(15, Math.round(Math.max(plan.durationMs, travelBudgetMs, cookBudget) * scale));
+    const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
+    const duration = personalCare ? plan.durationMs + travelBudgetMs
+      : Math.max(plan.durationMs, travelBudgetMs, cookBudget);
+    const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
     const timer = setTimeout(() => {
       const current = running.get(role);

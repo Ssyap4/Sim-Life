@@ -12,6 +12,8 @@ const soot = new THREE.Color(0x28252b);
 const silver = new THREE.Color(0x635d65);
 const charcoal = 0x322d34;
 
+export const verdellScale = .76;
+
 type PetRig = {
   ears: THREE.Group[];
   eyes: THREE.Group[];
@@ -33,12 +35,13 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
   for (const side of [-1, 1]) for (const back of [false, true]) {
     const pivot = new THREE.Group();
     const base = dog ? 0.225 : back ? 0.27 : 0.245;
-    const end = dog ? 0.074 : 0.059;
+    const end = dog ? 0.074 : 0.045;
+    const toes = dog ? .102 : .082;
     const leg = loft([
-      [-base, end, 0.083, 0.043], [-base + 0.025, end * 1.14, 0.102, 0.044],
-      [-base + 0.068, end, 0.085, 0.025], [-0.085, end * 0.85, 0.072, -0.017],
+      [-base, end, toes * .82, 0.043], [-base + 0.025, end * 1.11, toes, 0.044],
+      [-base + 0.068, end, toes * .83, 0.025], [-0.085, end * 0.85, toes * .70, -0.017],
       [-0.027, back ? end * 1.37 : end, back ? 0.142 : 0.085], [0.14, end * 1.30, back ? 0.125 : 0.083],
-    ], 14, 17, (x, y, z) => {
+    ], 12, 15, (x, y, z) => {
       const shoulder = dog ? 0 : THREE.MathUtils.smoothstep(y, -0.055, 0.13);
       const toe = Math.sin(x * (dog ? 96 : 122)) ** 2 *
         (1 - THREE.MathUtils.smoothstep(y, -base + 0.014, -base + 0.051));
@@ -50,7 +53,9 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
         .lerp(amber, (0.5 + 0.5 * Math.cos(y * 77)) ** 6 * THREE.MathUtils.smoothstep(y, -0.2, -0.09) * 0.42);
     });
     sculpt(pivot, leg, 0xffffff, 'fur', back);
-    pivot.position.set(side * (dog ? 0.16 : back ? 0.135 : 0.118), base, back ? -0.32 : 0.24);
+    const spacing = dog ? .16 : back ? .109 : .094;
+    const along = dog ? (back ? -.32 : .24) : (back ? -.395 : .285);
+    pivot.position.set(side * spacing, base, along);
     body.add(pivot);
     result.push(pivot);
   }
@@ -59,14 +64,14 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
 
 function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
   const pivot = new THREE.Group();
-  const height = dog ? 0.126 : 0.229;
-  const width = dog ? 0.084 : 0.102;
+  const height = dog ? 0.126 : 0.247;
+  const width = dog ? 0.084 : 0.095;
   const outside = dog ? soot : ginger;
   const inner = new THREE.Color(dog ? 0x544951 : 0xd18974);
   const shape = loft([
     [-0.044, width * 0.91, 0.056, -0.023], [0.021, width, 0.053, -0.014],
     [height * 0.55, width * 0.59, 0.035, -0.008], [height * 0.91, 0.015, 0.013], [height, 0.002, 0.004],
-  ], 16, 16, (x, y, z, a) => [x, y, z - Math.max(0, Math.cos(a)) ** 4 * 0.023 * Math.sin(Math.PI * Math.max(0, y / height))],
+  ], 14, 14, (x, y, z, a) => [x, y, z - Math.max(0, Math.cos(a)) ** 4 * 0.023 * Math.sin(Math.PI * Math.max(0, y / height))],
   (color, a, y) => color.copy(outside).lerp(inner,
     THREE.MathUtils.smoothstep(Math.cos(a), 0.43, 0.85) * THREE.MathUtils.smoothstep(y, -0.003, 0.045) *
     (1 - THREE.MathUtils.smoothstep(y, height * 0.76, height * 0.94))));
@@ -80,9 +85,9 @@ function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
 function petEyes(head: THREE.Group, dog: boolean): THREE.Group[] {
   return [-1, 1].map((side) => {
     const eye = new THREE.Group();
-    eye.position.set(side * (dog ? 0.109 : 0.114), dog ? 0.034 : 0.026, dog ? 0.205 : 0.192);
-    eye.rotation.set(0, side * (dog ? 0.47 : 0.56), side * (dog ? 0.10 : 0.21));
-    makeEye(eye, dog ? 0.033 : 0.050, dog ? 0.026 : 0.031, dog ? 0.016 : 0.018,
+    eye.position.set(side * (dog ? 0.109 : 0.114), dog ? 0.034 : 0.026, dog ? 0.192 : 0.158);
+    eye.rotation.set(0, side * (dog ? 0.47 : 0.67), side * (dog ? 0.10 : 0.21));
+    makeEye(eye, dog ? 0.033 : 0.047, dog ? 0.026 : 0.027, dog ? 0.016 : 0.018,
       dog ? { iris: '#74513f', edge: '#362b31', white: '#594038', pupil: 0.65 }
         : { iris: '#a28851', edge: '#684634', white: '#9c8757', pupil: 0.29 });
     head.add(eye);
@@ -98,7 +103,7 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
     [0.33, 0.323, 0.466, -0.067], [0.48, 0.343, 0.481, -0.039],
     [0.62, 0.345, 0.436, 0.029], [0.78, 0.258, 0.301, 0.093],
     [0.913, 0.160, 0.168, 0.163], [0.963, 0.004, 0.004, 0.196],
-  ], 40, 33, (x, y, z, a) => {
+  ], 36, 30, (x, y, z, a) => {
     const chest = Math.max(0, Math.cos(a));
     const taper = Math.sin(Math.PI * THREE.MathUtils.smoothstep(y, 0.14, 0.94));
     const ridge = (0.5 + 0.5 * Math.cos(a * 10 + y * 4 + Math.sin(a * 3) * 1.1)) ** 3;
@@ -114,8 +119,8 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   // Keep the continuous low-cost coat, but restore a few swept guard-hair
   // silhouettes so the compact black Spitz reads as fluffy in close-ups.
   // The roots sit inside the coat; tips are narrow and never touch the tail.
-  for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
-    const x = side * (0.06 + i * 0.057);
+  for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const x = side * (0.067 + i * 0.069);
     sculptedCurve(body, [
       [x * 0.76, 0.77 - i * 0.018, 0.32 - i * 0.026],
       [x * 0.95, 0.61 - i * 0.010, 0.45 - i * 0.044],
@@ -127,7 +132,7 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
     [-0.18, 0.109, 0.117, 0.049], [-0.125, 0.192, 0.173, 0.088],
     [-0.052, 0.225, 0.202, 0.043], [0.053, 0.238, 0.204, 0.011],
     [0.151, 0.202, 0.168, -0.016], [0.228, 0.122, 0.111, -0.039], [0.263, 0.002, 0.002, -0.036],
-  ], 26, 23, (x, y, z, a) => {
+  ], 24, 22, (x, y, z, a) => {
     const rim = 1 + 0.032 * Math.cos(a * 13 + y * 38);
     const muzzle = Math.exp(-((x / 0.083) ** 2) - (((y + 0.087) / 0.043) ** 2));
     return [x * rim, y, z + Math.max(0, Math.cos(a)) ** 3 * muzzle * 0.086];
@@ -142,16 +147,16 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
 
 function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THREE.Group): THREE.Mesh {
   const torso = loft([
-    [-0.58, 0.015, 0.028, -0.411], [-0.54, 0.14, 0.14, -0.411],
-    [-0.41, 0.183, 0.203, -0.441], [-0.26, 0.163, 0.166, -0.458],
-    [-0.03, 0.149, 0.174, -0.460], [0.19, 0.184, 0.210, -0.444],
-    [0.31, 0.164, 0.188, -0.461], [0.44, 0.096, 0.127, -0.499], [0.50, 0.026, 0.041, -0.511],
-  ], 30, 41, (x, y, z, a) => {
-    const shoulder = Math.exp(-(((y - 0.18) / 0.095) ** 2)) * Math.sin(a) ** 2;
-    return [x * (1 + shoulder * 0.055), y, z - shoulder * 0.027];
+    [-.655, .014, .026, -.444], [-.598, .101, .109, -.434],
+    [-.460, .143, .171, -.456], [-.291, .117, .129, -.474],
+    [-.050, .103, .137, -.475], [.207, .139, .175, -.458],
+    [.366, .121, .161, -.479], [.505, .078, .118, -.514], [.586, .024, .037, -.525],
+  ], 28, 37, (x, y, z, a) => {
+    const shoulder = Math.exp(-(((y - .250) / .112) ** 2)) * Math.sin(a) ** 2;
+    return [x * (1 + shoulder * .055), y, z - shoulder * .025];
   }, (color, a, z) => {
     const belly = Math.cos(a);
-    const wave = Math.sin((z + 0.58) * 32 + 2.8 * belly ** 2 + Math.sin(a * 3 + z * 6) * 0.83);
+    const wave = Math.sin((z + .655) * 29 + 2.8 * belly ** 2 + Math.sin(a * 3 + z * 6) * 0.83);
     const stripe = THREE.MathUtils.smoothstep(wave, 0.25, 0.72) * (1 - THREE.MathUtils.smoothstep(belly, 0.25, 0.88));
     color.copy(ginger).lerp(honey, 0.29)
       .lerp(cream, THREE.MathUtils.smoothstep(belly, 0.18, 0.95) * 0.88).lerp(amber, stripe * 0.84);
@@ -160,7 +165,7 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   const positions = torso.getAttribute('position');
   const arch: number[] = [];
   for (let i = 0; i < positions.count; i++) {
-    arch.push(0, Math.exp(-((positions.getZ(i) / 0.29) ** 2)) * 0.041, 0);
+    arch.push(0, Math.exp(-((positions.getZ(i) / .34) ** 2)) * 0.041, 0);
   }
   torso.morphAttributes.position = [new THREE.Float32BufferAttribute(arch, 3)];
   torso.morphTargetsRelative = true;
@@ -169,7 +174,7 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
     [-0.175, 0.058, 0.071, 0.032], [-0.131, 0.127, 0.127, 0.066],
     [-0.074, 0.172, 0.167, 0.066], [0.004, 0.199, 0.203, 0.010],
     [0.095, 0.200, 0.194, 0.003], [0.178, 0.157, 0.132, -0.020], [0.215, 0.002, 0.002, -0.015],
-  ], 32, 25, (x, y, z, a) => {
+  ], 30, 24, (x, y, z, a) => {
     const whiskerPad = Math.exp(-(((Math.abs(x) - 0.046) / 0.054) ** 2) - (((y + 0.087) / 0.037) ** 2));
     const socket = Math.exp(-(((Math.abs(x) - 0.114) / 0.056) ** 2) - (((y - 0.025) / 0.034) ** 2));
     return [x, y, z + Math.max(0, Math.cos(a)) * (0.068 * whiskerPad - 0.014 * socket)];
@@ -186,12 +191,12 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   const nose = loft([[-0.097, 0.005, 0.008, 0.27], [-0.079, 0.030, 0.014, 0.273],
     [-0.055, 0.037, 0.012, 0.265], [-0.050, 0.028, 0.008, 0.262]], 16, 9);
   sculpt(head, nose, 0xad7165, 'skin', false);
-  sculptedCurve(jaw, [[-0.048, -0.119, 0.244], [-0.018, -0.127, 0.267], [0, -0.118, 0.281],
-    [0.018, -0.127, 0.267], [0.048, -0.119, 0.244]], 0.004, 0.004, 0x82594a, 0.84);
+  sculptedCurve(jaw, [[-0.044, -0.109, 0.246], [-0.018, -0.116, 0.235], [0, -0.109, 0.237],
+    [0.018, -0.116, 0.235], [0.044, -0.109, 0.246]], 0.003, 0.003, 0x82594a, 0.84);
 
   const lines: number[] = [];
   for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
-    const start: THREE.Vector3Tuple = [side * 0.062, -0.100 - i * 0.008, 0.267 - i * 0.006];
+    const start: THREE.Vector3Tuple = [side * 0.062, -0.100 - i * 0.008, 0.236 - i * 0.009];
     const middle: THREE.Vector3Tuple = [side * 0.165, -0.092 - i * 0.020, 0.286 - i * 0.016];
     const end: THREE.Vector3Tuple = [side * (0.298 + i * 0.008), -0.068 - i * 0.042, 0.23 - i * 0.014];
     lines.push(...start, ...middle, ...middle, ...end);
@@ -199,8 +204,8 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   const whiskers = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
   head.add(new THREE.LineSegments(whiskers, new THREE.LineBasicMaterial({ color: 0xffe6c2 })));
   sculptedCurve(tail, [[0, 0.004, 0.065], [0.04, 0.14, -0.16], [0.13, 0.32, -0.29],
-    [0.23, 0.54, -0.35], [0.20, 0.72, -0.31], [0.105, 0.756, -0.25]],
-  0.063, 0.012, 0xd08b4a, 0.96, true, 0xaa7849, 'fur');
+    [0.15, 0.49, -0.35], [0.11, 0.63, -0.36], [0.035, 0.69, -0.34]],
+  .045, .009, 0xd08b4a, 0.96, true, 0xaa7849, 'fur');
   return back;
 }
 

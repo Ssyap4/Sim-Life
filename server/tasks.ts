@@ -3,6 +3,7 @@ import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
+import { BATH_ACTIONS } from '../src/shared/home';
 import { applyAction } from './logic';
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
@@ -22,6 +23,7 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
+  toiletUse: 5, bathShower: 9, bathSoak: 15, bathWash: 5,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
@@ -43,7 +45,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'desk' || action.item === 'kitchen' ? action.item : null,
+      resource: action.item === 'desk' || action.item === 'kitchen' || own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
   if (command.type === 'cook' || command.type === 'eat') {

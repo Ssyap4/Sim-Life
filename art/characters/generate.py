@@ -44,7 +44,7 @@ def save_sources(resident, source_dir):
                 view.region_3d.view_location = (0, 0, 1)
                 view.region_3d.view_distance = 2.9
                 view.region_3d.view_rotation = Quaternion((1, 0, 0), 1.39)
-                view.shading.color_type = 'VERTEX'
+                view.shading.type = 'MATERIAL'
     source_dir.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(source_dir / (resident.name + '.blend')), compress=True)
 

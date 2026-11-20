@@ -7,7 +7,7 @@ import { finish, orb } from './ArtKit';
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat';
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet';
 const strideLength = 1.02;
 const stancePortion = 0.54;
 const handAxis = new THREE.Vector3(0, -1, 0);
@@ -151,7 +151,7 @@ export class Actor {
   }
 
   finishActivity(): void {
-    if (this.activity === 'cook') this.setPose('idle');
+    if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
   }
@@ -341,6 +341,26 @@ export class Actor {
           rightY = -0.08 - 0.048 * Math.sin(a * 4.3);
           leftZ = rightZ = 0.29;
           gaze = 0.10;
+          break;
+        case 'shower':
+          leftY = .20 + Math.sin(a * 4) * .13;
+          rightY = .23 - Math.sin(a * 4) * .14;
+          leftZ = rightZ = .24;
+          armSpread = .15;
+          gaze = .10 + Math.sin(a * 2.1) * .08;
+          break;
+        case 'bath':
+          leftY = rightY = -.37;
+          leftZ = .19;
+          rightZ = .26;
+          gaze = -.04 + Math.sin(a * 1.3) * .06;
+          lean = -.13;
+          break;
+        case 'toilet':
+          leftY = rightY = -.43;
+          leftZ = rightZ = .24;
+          gaze = .12;
+          lean = .08;
           break;
         case 'tidy':
           leftY = -0.27 + 0.11 * Math.sin(a * 3);

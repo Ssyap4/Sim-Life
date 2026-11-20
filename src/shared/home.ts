@@ -1,16 +1,72 @@
 import type { FloorRect } from '../game/navigation';
 
-export const COUNTER = { x: 2.43, z: -3.91 };
+export const HOUSE_ENTRY = { x: .48, z: 5.17, width: 2.42 };
+export const HOUSE = { minX: -9.50, maxX: 9.50, minZ: -7.58, maxZ: HOUSE_ENTRY.z };
+export const WEST_WALL = -4.35;
+export const EAST_WALL = 4.95;
+export const BEDROOM_END = -1.35;
+export const WC_START = 2.00;
+export const OFFICE_END = -1.10;
+export const HOME_FLOOR = { minX: -9.18, maxX: 9.18, minZ: -7.28, maxZ: 11.70 };
+
+const WALL_THICKNESS = .19;
+const ACTOR_CLEARANCE = .26;
+export const HOME_DOORS = {
+  bedroom: { x: WEST_WALL, z: -3.60, width: 2.00 },
+  spare: { x: WEST_WALL, z: .25, width: 1.95 },
+  toilet: { x: WEST_WALL, z: 3.64, width: 1.90 },
+  office: { x: EAST_WALL, z: -3.58, width: 2.04 },
+  bathroom: { x: EAST_WALL, z: 2.47, width: 2.08 },
+} as const;
+
+/** Wall segments stop at the visible jambs. Navigation expands them by body clearance. */
+export const HOME_WALLS: readonly FloorRect[] = [
+  ...[-1, 1].map(side => {
+    const edge = side < 0 ? HOUSE.minX : HOUSE.maxX;
+    const jamb = HOUSE_ENTRY.x + side * HOUSE_ENTRY.width / 2;
+    return { minX: Math.min(edge, jamb), maxX: Math.max(edge, jamb),
+      minZ: HOUSE_ENTRY.z - WALL_THICKNESS / 2, maxZ: HOUSE_ENTRY.z + WALL_THICKNESS / 2 };
+  }),
+  ...[
+    { x: WEST_WALL, doors: [HOME_DOORS.bedroom, HOME_DOORS.spare, HOME_DOORS.toilet] },
+    { x: EAST_WALL, doors: [HOME_DOORS.office, HOME_DOORS.bathroom] },
+  ].flatMap(({ x, doors }) => {
+    const edges = [HOUSE.minZ, ...doors.flatMap(({ z, width }) => [z - width / 2, z + width / 2]), HOUSE.maxZ];
+    return edges.flatMap((mark, i) => i % 2 === 0 ? [{
+      minX: x - WALL_THICKNESS / 2, maxX: x + WALL_THICKNESS / 2, minZ: mark, maxZ: edges[i + 1],
+    }] : []);
+  }),
+  ...[
+    { minX: HOUSE.minX, maxX: WEST_WALL, z: BEDROOM_END },
+    { minX: HOUSE.minX, maxX: WEST_WALL, z: WC_START },
+    { minX: EAST_WALL, maxX: HOUSE.maxX, z: OFFICE_END },
+  ].map(({ minX, maxX, z }) => ({ minX, maxX,
+    minZ: z - WALL_THICKNESS / 2, maxZ: z + WALL_THICKNESS / 2 })),
+];
+
+export const COUNTER = { x: .79, z: -6.86 };
 export const HOME_PLACEMENTS = {
-  sofa: { x: -3.48, z: 1.76 },
-  bed: { x: -4.30, z: -3.35 },
+  sofa: { x: -2.36, z: 2.02 },
+  bed: { x: -6.97, z: -5.86 },
   kitchen: COUNTER,
-  desk: { x: 4.58, z: 1.22 },
-  tv: { x: -3.43, z: -0.48 },
-  table: { x: 3.02, z: -1.40 },
-  wardrobe: { x: -5.33, z: -1.00 },
-  vanity: { x: -1.89, z: -4.27 },
-  lamp: { x: -5.28, z: 1.63 },
+  desk: { x: 7.18, z: -6.72 },
+  tv: { x: -2.39, z: -.38 },
+  table: { x: 2.39, z: -2.22 },
+  vanity: { x: -8.70, z: -2.86 },
+  lamp: { x: -3.81, z: 3.31 },
+  fridge: { x: 3.72, z: COUNTER.z - .26 },
+  bedroomLampLeft: { x: -8.84, z: -6.70 },
+  bedroomLampRight: { x: -5.12, z: -6.70 },
+  bookcase: { x: 8.97, z: -4.49 },
+  officeSofa: { x: 6.47, z: -2.84 },
+  officeTv: { x: 8.35, z: -2.85 },
+} as const;
+
+export const BATH_FIXTURES = {
+  toilet: { center: { x: -8.30, z: 3.59 }, approach: { x: -7.13, z: 3.59 } },
+  shower: { center: { x: 8.36, z: .50 }, approach: { x: 8.08, z: .55 } },
+  bathtub: { center: { x: 8.32, z: 3.72 }, approach: { x: 7.21, z: 3.72 } },
+  basin: { center: { x: 5.98, z: -.44 }, approach: { x: 5.98, z: .59 } },
 } as const;
 
 export const DINING_TOP = .86;
@@ -28,15 +84,26 @@ export const HOME_FURNITURE = {
   desk: homeFootprint(HOME_PLACEMENTS.desk, -1.125, 1.125, -.49, 1.46),
   tv: homeFootprint(HOME_PLACEMENTS.tv, -.96, .96, -.275, .284),
   table: homeFootprint(HOME_PLACEMENTS.table, -1.36, 1.36, -.62, .62),
+  toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),
+  bathtub: homeFootprint(BATH_FIXTURES.bathtub.center, -.67, .67, -1.08, 1.08),
+  basin: homeFootprint(BATH_FIXTURES.basin.center, -.63, .63, -.32, .36),
 };
 
+const shower = BATH_FIXTURES.shower.center;
 export const HOME_DECOR = [
-  homeFootprint(HOME_PLACEMENTS.wardrobe, -.54, .52, -.72, .72),
-  homeFootprint(HOME_PLACEMENTS.vanity, -.78, .78, -.39, 1.02),
+  homeFootprint(HOME_PLACEMENTS.vanity, -.51, 1.14, -.90, .90),
   homeFootprint(HOME_PLACEMENTS.lamp, -.36, .36, -.36, .36),
+  homeFootprint(HOME_PLACEMENTS.bedroomLampLeft, -.34, .34, -.38, .38),
+  homeFootprint(HOME_PLACEMENTS.bedroomLampRight, -.35, .35, -.38, .38),
+  homeFootprint(HOME_PLACEMENTS.bookcase, -.44, .44, -1.02, 1.02),
+  homeFootprint(HOME_PLACEMENTS.officeSofa, -.66, .58, -1.00, 1.00),
+  homeFootprint(HOME_PLACEMENTS.officeTv, -.45, .48, -.67, .67),
+  // The shower tray is walkable. Its glazing forms a U with the entrance facing west.
+  homeFootprint(shower, -.73, .77, -.91, -.54),
+  homeFootprint(shower, -.72, .77, .54, .91),
+  homeFootprint(shower, .52, .88, -.91, .91),
 ];
 
-export const HOUSE_ENTRY = { x: .48, z: 5.17, width: 2.42 };
 export const HOME_YARD = {
   gate: { x: HOUSE_ENTRY.x, z: 12.06, width: 1.46 },
   grill: { x: -4.72, z: 6.49 },
@@ -44,27 +111,38 @@ export const HOME_YARD = {
   parking: { x: 3.85, z: 8.87 },
   planter: { x: -5.73, z: 9.80 },
 };
-export const HOME_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 11.70 };
-export const HOME_YARD_OBSTACLES = [
-  { minX: HOME_FLOOR.minX, maxX: HOUSE_ENTRY.x - HOUSE_ENTRY.width / 2 + .22,
-    minZ: HOUSE_ENTRY.z - .30, maxZ: HOUSE_ENTRY.z + .30 },
-  { minX: HOUSE_ENTRY.x + HOUSE_ENTRY.width / 2 - .22, maxX: HOME_FLOOR.maxX,
-    minZ: HOUSE_ENTRY.z - .30, maxZ: HOUSE_ENTRY.z + .30 },
+
+export const HOME_STRUCTURE_OBSTACLES = [
+  ...HOME_WALLS.map(wall => ({
+    minX: wall.minX - ACTOR_CLEARANCE, maxX: wall.maxX + ACTOR_CLEARANCE,
+    minZ: wall.minZ - ACTOR_CLEARANCE, maxZ: wall.maxZ + ACTOR_CLEARANCE,
+  })),
+  // The wider house has wings on either side of the existing, narrower courtyard.
+  { minX: HOME_FLOOR.minX, maxX: -5.62, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
+  { minX: 5.62, maxX: HOME_FLOOR.maxX, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
   homeFootprint(HOME_YARD.grill, -.69, .69, -.62, .62),
   homeFootprint(HOME_YARD.sideTable, -.67, .67, -.55, .55),
   homeFootprint(HOME_YARD.parking, -.99, .99, -2.79, -2.25),
   homeFootprint(HOME_YARD.planter, -.45, .50, -2.11, 2.11),
 ];
 
+const work = (x: number, y: number, z: number) => ({
+  position: { x: COUNTER.x + x, z: COUNTER.z + .83 },
+  target: { x: COUNTER.x + x, y, z: COUNTER.z + z },
+});
 export const KITCHEN_WORK = {
-  stove: { position: { x: COUNTER.x - .87, z: -3.08 }, target: { x: COUNTER.x - .87, y: 1.17, z: -3.76 } },
-  wash: { position: { x: COUNTER.x + 1.28, z: -3.08 }, target: { x: COUNTER.x + 1.28, y: 1.09, z: -3.77 } },
-  tidy: { position: { x: COUNTER.x + .37, z: -3.08 }, target: { x: COUNTER.x + .37, y: 1.04, z: -3.62 } },
-  tea: { position: { x: COUNTER.x - 1.68, z: -3.08 }, target: { x: COUNTER.x - 1.68, y: 1.18, z: -3.75 } },
+  stove: work(-.87, 1.17, .15),
+  wash: work(1.28, 1.09, .14),
+  tidy: work(.37, 1.04, .29),
+  tea: work(-1.68, 1.18, .16),
 } as const;
 
 export const KITCHEN_ACTIONS = {
   kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
 } as const;
 
+export const BATH_ACTIONS = {
+  toiletUse: 'toilet', bathShower: 'shower', bathSoak: 'bathtub', bathWash: 'basin',
+} as const;
+export type BathFixture = keyof typeof BATH_FIXTURES;
 export type HomeLeisure = 'tv' | 'computer' | 'verdell' | 'simba' | 'chat';

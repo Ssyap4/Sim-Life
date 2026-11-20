@@ -2,7 +2,8 @@ import { ingredientList, type RecipeId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
-import { DINING_TOP, HOME_FLOOR, HOME_PLACEMENTS, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../shared/home';
+import { BATH_ACTIONS, BATH_FIXTURES, DINING_TOP, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
+  KITCHEN_ACTIONS, KITCHEN_WORK, type BathFixture, type HomeLeisure } from '../shared/home';
 import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -11,7 +12,7 @@ import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PET_IDS, PET_SPEED, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
-import { ACTIONS, points, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
+import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
@@ -21,7 +22,7 @@ import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './Interio
 import { buildYard } from './YardArt';
 import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 
-type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table';
+type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
 
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
@@ -42,24 +43,19 @@ const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
 
 const homePosition = new THREE.Vector3(15, 19, 22);
 const locationTarget = new THREE.Vector3(0, 1.45, 0);
-const homeTarget = new THREE.Vector3(0, 1.05, 3.18);
 const portraitAspect = 390 / 844;
 const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
+const tapSlop = 9;
+const minTwistSpanSquared = 16 ** 2;
 
 type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
-export const objectNames: Record<ItemId, string> = {
-  sofa: 'Уютный диван',
-  bed: 'Двуспальная кровать',
-  desk: 'Рабочее место',
-  kitchen: 'Кухня',
-  tv: 'Телевизор',
-  table: 'Обеденный стол',
-};
+export const objectNames = itemNames;
 
 export class World {
   scene = new THREE.Scene();
   private readonly homeScene = this.scene;
+  private entryLeaf?: THREE.Group;
   private readonly extensions = homeExtensions();
   private readonly subjectMeshes: THREE.Object3D[] = [];
   private readonly stationMeshes: THREE.Object3D[] = [];
@@ -94,7 +90,6 @@ export class World {
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
   private lastFrame = performance.now();
-  private downPoint: (Point & { id: number }) | null = null;
   private socialSequence = 0;
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
@@ -118,7 +113,7 @@ export class World {
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void }) {
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
+    this.scene.fog = new THREE.Fog(0xc0c7ad, 64, 97);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -127,15 +122,18 @@ export class World {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
-    this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 90);
+    this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 110);
     this.camera.position.copy(homePosition);
     this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.target.copy(homeTarget);
+    this.controls.target.set(0, 1.0, 1.8);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
-    this.controls.enablePan = false;
+    this.controls.touches.ONE = THREE.TOUCH.PAN;
+    this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+    this.controls.enablePan = true;
+    this.controls.maxTargetRadius = 13;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = 51;
+    this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.controls.update();
@@ -165,6 +163,10 @@ export class World {
       });
       const pet = subject instanceof PetActor;
       const shade = walkingContact(pet);
+      if (subject instanceof PetActor) {
+        if (subject.id === 'verdell') shade.scale.multiplyScalar(subject.root.scale.x);
+        else { shade.scale.x *= .79; shade.scale.y *= 1.14; }
+      }
       this.contacts.push({ visual, shade, pet });
       this.scene.add(shade);
     }
@@ -189,22 +191,68 @@ export class World {
     this.served = serving;
     this.setActive('vlad');
 
-    canvas.addEventListener('pointerdown', (ev) => {
-      this.downPoint = ev.isPrimary && ev.button === 0 && !this.downPoint
-        ? { x: ev.clientX, z: ev.clientY, id: ev.pointerId } : null;
-    });
-    canvas.addEventListener('pointerup', (ev) => {
-      if (this.downPoint?.id === ev.pointerId &&
-          Math.hypot(ev.clientX - this.downPoint.x, ev.clientY - this.downPoint.z) < 9) {
-        this.pick(ev.clientX, ev.clientY);
-      }
-      this.downPoint = null;
-    });
-    canvas.addEventListener('pointercancel', () => { this.downPoint = null; });
+    this.bindCanvasInput();
     window.addEventListener('resize', () => this.refreshViewport());
     this.compactPortrait.addEventListener('change', () => this.refreshViewport());
     this.refreshViewport();
     this.animate();
+  }
+
+  private bindCanvasInput(): void {
+    const touches = new Map<number, { x: number; y: number }>();
+    let tap: { id: number; x: number; y: number } | null = null;
+    const tapDistance = (event: PointerEvent, start: { x: number; y: number }) =>
+      Math.hypot(event.clientX - start.x, event.clientY - start.y);
+
+    this.canvas.addEventListener('pointerdown', event => {
+      const touch = event.pointerType === 'touch';
+      if (touch) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (event.isPrimary) {
+        // Enable touch panning in every location while keeping the mouse controls for the current scene.
+        this.controls.enablePan = touch || this.place === 'home';
+        this.controls.dampingFactor = touch ? .22 : .065;
+      }
+      tap = event.isPrimary && event.button === 0 && touches.size === (touch ? 1 : 0)
+        ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+    }, { capture: true });
+
+    this.canvas.addEventListener('pointermove', event => {
+      const point = touches.get(event.pointerId);
+      if (tap?.id === event.pointerId) {
+        if (tapDistance(event, tap) >= tapSlop) tap = null;
+        else if (point) {
+          // Let a tap absorb small finger movements before OrbitControls starts panning.
+          event.stopPropagation();
+          return;
+        }
+      }
+      if (!point) return;
+      if (touches.size === 2) {
+        const [first, second] = touches.values();
+        const other = first === point ? second : first;
+        const ax = point.x - other.x, ay = point.y - other.y;
+        const bx = event.clientX - other.x, by = event.clientY - other.y;
+        // OrbitControls handles the two-finger drag and pinch. Also honor a twist in place.
+        if (ax * ax + ay * ay >= minTwistSpanSquared && bx * bx + by * by >= minTwistSpanSquared) {
+          const angle = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+          if (angle) this.controls.rotateLeft(-angle);
+        }
+      }
+      point.x = event.clientX;
+      point.y = event.clientY;
+    });
+
+    const clearPointer = (event: PointerEvent) => {
+      touches.delete(event.pointerId);
+      if (tap?.id === event.pointerId) tap = null;
+    };
+    this.canvas.addEventListener('pointerup', event => {
+      const picked = tap?.id === event.pointerId && tapDistance(event, tap) < tapSlop;
+      clearPointer(event);
+      if (picked) this.pick(event.clientX, event.clientY);
+    });
+    this.canvas.addEventListener('pointercancel', clearPointer);
+    this.canvas.addEventListener('lostpointercapture', clearPointer);
   }
 
   setActive(id: CharacterId): void {
@@ -226,7 +274,7 @@ export class World {
     this.inspected = subject;
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = 51;
+    this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -329,6 +377,26 @@ export class World {
       });
   }
 
+  private performBathroom(role: CharacterId, item: BathFixture, current: () => boolean): boolean {
+    const { center, approach } = BATH_FIXTURES[item];
+    return this.walkTo(role, approach, () => {
+      if (!current()) return;
+      const actor = this.actors[role];
+      if (item === 'toilet' || item === 'bathtub') {
+        const toilet = item === 'toilet';
+        actor.setFurniturePose('sit',
+          new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
+          toilet ? Math.PI / 2 : Math.PI);
+        actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
+      } else {
+        const shower = item === 'shower';
+        const target = new THREE.Vector3(center.x + (shower ? .62 : 0), 1.03, center.z + (shower ? 0 : .09));
+        actor.faceTowards(target);
+        actor.playDomesticActivity(shower ? 'shower' : 'wash', shower ? undefined : target);
+      }
+    });
+  }
+
   startTimedAction(role: CharacterId, command: TimedCommand): boolean {
     if (this.household && this.household.world.places[role] !== this.place) return true;
     this.closeStorage(role);
@@ -356,6 +424,8 @@ export class World {
     const current = () => sequence === this.taskSequence[role];
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
+      if (Object.hasOwn(BATH_ACTIONS, command.actionId))
+        return this.performBathroom(role, BATH_ACTIONS[command.actionId as keyof typeof BATH_ACTIONS], current);
       if (command.actionId in KITCHEN_ACTIONS) {
         const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
         const work = KITCHEN_WORK[motion];
@@ -562,8 +632,8 @@ export class World {
   }
 
   private frameShadows(home: boolean): void {
-    const offset = home ? 3.0 : 0;
-    const bounds = home ? 10.65 : 8.5;
+    const offset = home ? 1.8 : 0;
+    const bounds = home ? 12.3 : 8.5;
     this.sun.target.position.z = offset;
     this.sun.position.z = 5.5 + offset;
     const camera = this.sun.shadow.camera;
@@ -584,13 +654,13 @@ export class World {
   }
 
   private createHome(): void {
-    decorateHome(this.scene);
+    this.entryLeaf = decorateHome(this.scene);
     buildYard(this.scene);
     buildPersonalFurniture(this.scene);
     buildSoftRugs(this.scene);
     this.scene.add(furnitureContact());
     buildFurniture((id, furniture, point) => {
-      batchRigidParts(furniture);
+      batchRigidParts(furniture, true);
       this.register(id, furniture, point);
     });
     this.scene.add(this.extensions.group);
@@ -706,7 +776,7 @@ export class World {
     this.remote = place === 'home' ? null : createLocation(place);
     this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = new THREE.Fog(0xc0c7ad, 49, 75);
+    this.scene.fog = place === 'home' ? new THREE.Fog(0xc0c7ad, 64, 97) : new THREE.Fog(0xc0c7ad, 49, 75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -717,8 +787,9 @@ export class World {
     for (const meal of this.meals.values()) meal.visible = false;
     if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
     this.place = place;
+    this.controls.enablePan = place === 'home';
     this.frameShadows(place === 'home');
-    this.controls.maxDistance = 51;
+    this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -827,13 +898,12 @@ export class World {
   }
 
   private homeFrame(compact: boolean, band: ViewBand): Frame {
-    const home = this.place === 'home';
-    if (compact) return this.remote
-      ? portraitHomeFrame(this.camera.fov, this.camera.aspect, band, this.remote.horizontal, this.remote.vertical, [.24, .98, 1.10])
-      : portraitHomeFrame(this.camera.fov, this.camera.aspect, band);
+    if (this.place === 'home') return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
+      undefined, undefined, compact ? undefined : [.49, 1.28, 1.37]);
+    if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
+      this.remote.horizontal, this.remote.vertical, [.24, .98, 1.10]);
     const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
-    const target = home ? homeTarget : locationTarget;
-    return { position: homePosition.clone().multiplyScalar((home ? 1.06 : 1) + fit * 0.35).add(target), target: target.clone() };
+    return { position: homePosition.clone().multiplyScalar(1 + fit * .35).add(locationTarget), target: locationTarget.clone() };
   }
 
   refreshViewport(): void {
@@ -898,6 +968,14 @@ export class World {
       if (!actor.root.visible) continue;
       actor.update(dt);
       if (this.bags[id].visible) this.followBag(this.bags[id], actor);
+    }
+    if (this.place === 'home' && this.entryLeaf) {
+      const { x, z, width } = HOUSE_ENTRY;
+      const nearEntrance = (object: THREE.Object3D) => object.visible &&
+        Math.abs(object.position.x - x) < width / 2 + .25 && Math.abs(object.position.z - z) < 1.82;
+      const open = nearEntrance(this.actors.vlad.root) || nearEntrance(this.actors.alina.root) ||
+        nearEntrance(this.pets.verdell.root) || nearEntrance(this.pets.simba.root);
+      this.entryLeaf.position.x = THREE.MathUtils.damp(this.entryLeaf.position.x, x - (open ? width + .07 : 0), 14, dt);
     }
     for (const [role, prep] of this.preparations) {
       prep.remaining -= dt;

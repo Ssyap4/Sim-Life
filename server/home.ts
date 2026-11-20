@@ -8,7 +8,7 @@ import { petCarePoint } from './pets';
 import { evaluateTask } from './tasks';
 
 const selfCare: Record<Exclude<VitalNeed, 'hunger'>, ActionId> = {
-  energy: 'bedSleep', hygiene: 'kitchenWash', social: 'sofaCall', fun: 'sofaMovie', comfort: 'sofaRest',
+  energy: 'bedSleep', hygiene: 'bathShower', bladder: 'toiletUse', social: 'sofaCall', fun: 'sofaMovie', comfort: 'sofaRest',
 };
 const homeObstacles = placeObstacles('home');
 
