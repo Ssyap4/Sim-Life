@@ -30,6 +30,16 @@ export const PET_FOOD_MAX_REFILLS = 50;
 export const PET_AUTO_EAT_BELOW = 20;
 export const PET_EAT_SATIETY_GAIN = 36;
 
+// One shared, read-only classification for 3D signals, menus and any later
+// veterinarian/health feature. It does not introduce illnesses or penalties.
+export const PET_HUNGER_WARNING_BELOW = 35;
+export type PetHungerLevel = 'normal' | 'warning' | 'critical';
+export function petHungerLevel(satiety: number): PetHungerLevel {
+  if (satiety < PET_AUTO_EAT_BELOW) return 'critical';
+  if (satiety < PET_HUNGER_WARNING_BELOW) return 'warning';
+  return 'normal';
+}
+
 export const PETS = {
   verdell: {
     name: 'Верделл',

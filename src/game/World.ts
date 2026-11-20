@@ -12,7 +12,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
-import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petApproach, type PetId, type PetAction } from '../shared/pets';
+import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
@@ -996,6 +996,9 @@ export class World {
     const walker = state.world.dogWalker;
     dog.visible = walker ? place === 'park' && state.world.places[walker] === 'park' && !state.activeShifts[walker] : place === 'home';
     this.pets.simba.root.visible = place === 'home';
+    // Signals come from authoritative shared stats, so both players see the
+    // same warnings as the pet roams, sleeps or accompanies a dog walker.
+    for (const id of PET_IDS) this.pets[id].setHungerLevel(petHungerLevel(state.pets[id].satiety));
     if (!walker && previous?.world.dogWalker) this.petRoutines.delete('verdell');
     if (place === 'park' && walker && (changed || previous?.world.dogWalker !== walker)) {
       const point = state.pets.verdell.parkPosition ?? this.actors[walker].root.position;

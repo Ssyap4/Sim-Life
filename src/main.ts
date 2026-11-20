@@ -18,7 +18,7 @@ import { createMarketUI, showTakeoutChoices } from './marketUI';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
-import { PETS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, type PetId } from './shared/pets';
+import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
@@ -406,6 +406,13 @@ function render(reset = false): void {
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
+    const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
+    const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
+    petsBtn.textContent = '🐾 Питомцы' + (criticalPets.length ? ' ❗' + criticalPets.length
+      : hungryPets.length ? ' ⚠️' + hungryPets.length : '');
+    petsBtn.title = criticalPets.length ? 'Сильно голодны: ' + criticalPets.map(id => PETS[id].name).join(', ')
+      : hungryPets.length ? 'Проголодались: ' + hungryPets.map(id => PETS[id].name).join(', ')
+      : 'Уход за Верделлом и Симбой';
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       deliverySequence = null;
