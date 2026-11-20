@@ -11,6 +11,7 @@ import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
 import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
+  residentIdleEase, residentIdleTouchWeight,
   type ResidentIdleContext, type ResidentIdleGesture } from './ResidentIdle';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
@@ -712,76 +713,140 @@ export class Actor {
       }
     }
 
-    // A handful of inexpensive, noticeable rig poses. The weights keep
-    // returning to the same neutral pose used for walking and normal work.
+    // Every habit is a short choreographed sequence, not a frozen hand angle.
+    // All rotations are additive to the existing articulated rig and leave
+    // the foot contacts, navigation root, and server entirely untouched.
     const idleWeight = this.idleGesture ? residentIdleWeight(this.idleGestureTime) : 0;
-    let idleHeadYaw = 0, idleHeadRoll = 0, idleChestRoll = 0, idleEyeYaw = 0;
+    const idleTouch = this.idleGesture ? residentIdleTouchWeight(this.idleGestureTime) : 0;
+    let idleHeadYaw = 0, idleHeadRoll = 0, idleChestRoll = 0;
+    let idleChestYaw = 0, idleEyeYaw = 0, idleEyePitch = 0;
     if (idleWeight > 0) {
       const w = idleWeight;
       const phase = this.idleGestureTime;
       switch (this.idleGesture) {
-        case 'think':
-          // Vlad brings a hand to his chin and looks down thoughtfully.
-          rightY = THREE.MathUtils.lerp(rightY, 0.18, w);
-          rightZ = THREE.MathUtils.lerp(rightZ, 0.18, w);
-          gaze += 0.10 * w;
-          lean += 0.035 * w;
-          idleHeadRoll = 0.055 * w;
+        case 'think': {
+          // Vlad studies something for a beat. The right hand rests on the
+          // chin through a real wrist target; left hand relaxes near the waist.
+          const thought = residentIdleEase(phase, 0.7, 1.55);
+          leftY = THREE.MathUtils.lerp(leftY, -0.41, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.16, w);
+          rightY = THREE.MathUtils.lerp(rightY, 0.05, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.20, w);
+          gaze += (0.07 + 0.065 * thought) * w;
+          idleHeadYaw = 0.07 * w;
+          idleHeadRoll = 0.035 * w;
+          idleChestYaw = -0.028 * w;
+          lean += 0.024 * w;
+          idleEyePitch += 0.055 * w;
+          expression = THREE.MathUtils.lerp(expression, 0.025, w);
           break;
+        }
         case 'fixHair': {
-          // Alina briefly smooths her hair back, rather than endlessly waving.
-          const sweep = 0.5 + 0.5 * Math.sin(phase * 3.0);
-          leftY = THREE.MathUtils.lerp(leftY, 0.20 + 0.085 * sweep, w);
-          leftZ = THREE.MathUtils.lerp(leftZ, 0.15 + 0.045 * sweep, w);
-          idleHeadRoll = -0.085 * w;
-          idleHeadYaw = -0.11 * w;
+          // Alina brushes the side strands back from her temple. Separate
+          // reaching and sweeping phases are handled by wrist IK below.
+          const sweep = residentIdleEase(phase, 1.08, 2.68);
+          leftY = THREE.MathUtils.lerp(leftY, 0.09 + 0.12 * sweep, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.13, w);
+          rightY = THREE.MathUtils.lerp(rightY, -0.50, w * .32);
+          idleHeadRoll = -0.065 * w;
+          idleHeadYaw = (-0.055 - 0.035 * sweep) * w;
+          idleChestYaw = 0.029 * w;
+          gaze -= 0.025 * w;
           expression += 0.065 * w;
           break;
         }
-        case 'lookAround':
-          // Curious glances to either side, not rotation of navigation.
-          idleHeadYaw = 0.36 * Math.sin(phase * 1.25 - 0.70) * w;
-          idleHeadRoll = 0.045 * Math.sin(phase * 1.55) * w;
-          idleEyeYaw = idleHeadYaw * 0.25;
-          gaze -= 0.027 * w;
+        case 'lookAround': {
+          // Eyes lead, then head and shoulders follow. A genuine left-right
+          // scan with two held glances rather than an endless sine loop.
+          const scan = 0.39 * residentIdleEase(phase, 0.42, 1.35)
+            - 0.71 * residentIdleEase(phase, 1.46, 2.57)
+            + 0.32 * residentIdleEase(phase, 2.70, 3.44);
+          const eyes = 0.43 * residentIdleEase(phase, 0.22, 1.09)
+            - 0.76 * residentIdleEase(phase, 1.29, 2.32)
+            + 0.33 * residentIdleEase(phase, 2.52, 3.26);
+          idleHeadYaw = scan * w;
+          idleEyeYaw = eyes * w * 0.32;
+          idleChestYaw = scan * w * 0.22;
+          idleHeadRoll = 0.035 * scan * w;
+          gaze -= 0.018 * w;
           break;
-        case 'adjustSleeve':
-          rightY = THREE.MathUtils.lerp(rightY, -0.14, w);
-          rightZ = THREE.MathUtils.lerp(rightZ, 0.27 + 0.035 * Math.sin(phase * 4.7), w);
-          armSpread = THREE.MathUtils.lerp(armSpread, 0.035, w);
-          gaze += 0.075 * w;
-          idleHeadYaw = -0.12 * w;
+        }
+        case 'adjustSleeve': {
+          // One forearm is lifted into view; the other reaches the actual
+          // opposite sleeve for two small tugs. No large, waving motion.
+          const tug = Math.sin(Math.PI * 2 * residentIdleEase(phase, 1.20, 2.68)) ** 2;
+          leftY = THREE.MathUtils.lerp(leftY, -0.23, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.37, w);
+          rightY = THREE.MathUtils.lerp(rightY, -0.15 + 0.021 * tug, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.33 + 0.018 * tug, w);
+          armSpread = THREE.MathUtils.lerp(armSpread, 0.06, w);
+          idleHeadYaw = -0.17 * w;
+          gaze += 0.13 * w;
+          idleEyePitch += 0.055 * w;
+          idleChestYaw = -0.042 * w;
           break;
-        case 'shiftWeight':
-          // Keep feet and root where they are; gently relax the upper body.
-          idleChestRoll = 0.055 * Math.sin(phase * 1.1 + 0.3) * w;
-          idleHeadRoll = -idleChestRoll * 0.65;
-          leftY = THREE.MathUtils.lerp(leftY, -0.46, w * 0.46);
-          rightY = THREE.MathUtils.lerp(rightY, -0.51, w * 0.46);
+        }
+        case 'shiftWeight': {
+          // Feet remain planted. A relaxed hip/shoulder counterbalance makes
+          // a living silhouette without the old squatting gait.
+          const shift = Math.sin(Math.PI * residentIdleEase(phase, 0.35, 3.35));
+          const side = this.id === 'vlad' ? 1 : -1;
+          idleChestRoll = side * 0.072 * shift * w;
+          idleHeadRoll = -idleChestRoll * 0.64;
+          idleChestYaw = side * 0.041 * shift * w;
+          idleHeadYaw = -side * 0.045 * shift * w;
+          rightY = THREE.MathUtils.lerp(rightY, -0.45, w * .57);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.14, w * .57);
+          leftY = THREE.MathUtils.lerp(leftY, -0.50, w * .45);
+          lean -= 0.013 * shift * w;
           break;
-        case 'stretchNeck':
-          leftY = THREE.MathUtils.lerp(leftY, -0.33, w);
-          rightY = THREE.MathUtils.lerp(rightY, -0.33, w);
-          armSpread = THREE.MathUtils.lerp(armSpread, 0.085, w);
-          lean -= 0.052 * w;
-          gaze -= 0.085 * w;
-          idleHeadRoll = 0.13 * Math.sin(phase * 1.1) * w;
+        }
+        case 'stretchNeck': {
+          // Slow neck release from one shoulder to the other. Open chest,
+          // small shoulder movement, and a gentle exhale.
+          const release = 0.17 * residentIdleEase(phase, 0.55, 1.34)
+            - 0.34 * residentIdleEase(phase, 1.47, 2.48)
+            + 0.17 * residentIdleEase(phase, 2.72, 3.45);
+          idleHeadRoll = release * w;
+          idleHeadYaw = release * w * 0.22;
+          idleChestRoll = -release * w * 0.28;
+          leftY = THREE.MathUtils.lerp(leftY, -0.42, w);
+          rightY = THREE.MathUtils.lerp(rightY, -0.42, w);
+          armSpread = THREE.MathUtils.lerp(armSpread, 0.068, w);
+          gaze -= 0.075 * w;
+          lean -= 0.045 * w;
+          expression = THREE.MathUtils.lerp(expression, 0.12, w);
           break;
-        case 'noticePet':
-          // Just a glance. Petting and feeding remain explicit game actions.
-          idleHeadYaw = THREE.MathUtils.clamp(this.idleContext.petYaw ?? 0, -0.58, 0.58) * w;
-          idleEyeYaw = idleHeadYaw * 0.2;
+        }
+        case 'noticePet': {
+          // A real pet nearby catches the gaze. Mild head/chest rotation and
+          // a fond downward glance, never a fake petting/feed action.
+          const yaw = THREE.MathUtils.clamp(this.idleContext.petYaw ?? 0, -0.68, 0.68);
+          idleHeadYaw = yaw * 0.79 * w;
+          idleChestYaw = yaw * 0.21 * w;
+          idleEyeYaw = yaw * 0.21 * w;
+          idleEyePitch += 0.085 * w;
           gaze += 0.18 * w;
-          expression += 0.12 * w;
-          idleHeadRoll = 0.045 * w;
+          lean += 0.026 * w;
+          idleHeadRoll = (yaw >= 0 ? 1 : -1) * 0.027 * w;
+          expression += 0.14 * w;
           break;
-        case 'noticePartner':
-          // A small, friendly acknowledgment without an invented social reward.
-          idleHeadYaw = THREE.MathUtils.clamp(this.idleContext.partnerYaw ?? 0, -0.56, 0.56) * w;
-          idleEyeYaw = idleHeadYaw * 0.18;
-          gaze += 0.025 * Math.sin(phase * 2.8) * w;
-          expression += 0.20 * w;
+        }
+        case 'noticePartner': {
+          // A restrained friendly acknowledgement: eyes, half-smile and
+          // slight hand movement. This is not a server social interaction.
+          const yaw = THREE.MathUtils.clamp(this.idleContext.partnerYaw ?? 0, -0.65, 0.65);
+          idleHeadYaw = yaw * 0.76 * w;
+          idleChestYaw = yaw * 0.23 * w;
+          idleEyeYaw = yaw * 0.22 * w;
+          idleHeadRoll = -0.032 * w;
+          expression += 0.21 * w;
+          const nod = Math.sin(Math.PI * residentIdleEase(phase, 1.15, 2.52));
+          gaze += 0.038 * nod * w;
+          rightY = THREE.MathUtils.lerp(rightY, -0.43, w * 0.42);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.18 + .017 * nod, w * 0.52);
           break;
+        }
       }
     }
 
@@ -836,7 +901,8 @@ export class Actor {
       const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
         (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion) + idleEyeYaw;
       const eyePitch = asleep ? 0 : this.activity === 'cook' ? 0.07 :
-        this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) : 0.025 * Math.sin(t * 0.67);
+        this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) :
+        0.025 * Math.sin(t * 0.67) + idleEyePitch;
       data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),
         expression, eyeYaw, eyePitch);
     } else {
@@ -849,11 +915,13 @@ export class Actor {
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
       0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll, alpha);
-    data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031;
+    data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
+      (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.025, alpha);
-    data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y, motion * 0.055 * Math.cos(stridePhase), alpha);
+    data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
+      motion * 0.055 * Math.cos(stridePhase) + idleChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
       0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway + idleChestRoll, alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
@@ -898,6 +966,39 @@ export class Actor {
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);
       this.reach(hand, this.target, highFive);
       this.aimHand(hand, this.handDirection.copy(up), highFive);
+    }
+    // The old idle gestures only raised an elbow toward the face. Use
+    // the existing two-bone IK solver to put the wrist at a meaningful
+    // contact point, following the animated head/chest and their real scale.
+    // The same code works with lightweight fallback and Blender skin rigs.
+    if (idleTouch > 0.002 && this.idleGesture) {
+      let contactHand: 0 | 1 | null = null;
+      if (this.idleGesture === 'think') {
+        // Right fingertips near chin, safely in front of the face.
+        data.head.localToWorld(this.target.set(0.108, -0.151, 0.180));
+        contactHand = 1;
+      } else if (this.idleGesture === 'fixHair') {
+        // Left fingertips travel from cheek-side hair to the temple/crown.
+        const sweep = residentIdleEase(this.idleGestureTime, 1.1, 2.73);
+        data.head.localToWorld(this.target.set(-0.184 + 0.028 * sweep,
+          0.019 + 0.124 * sweep, 0.144 - 0.031 * sweep));
+        contactHand = 0;
+      } else if (this.idleGesture === 'adjustSleeve') {
+        // Contact above left elbow, in the local chest frame. The left arm
+        // was already brought forward by the pose pass above.
+        const tug = Math.sin(this.idleGestureTime * 8.3) ** 2;
+        data.chest.localToWorld(this.target.set(-0.183,
+          1.170 + .013 * tug, .195));
+        contactHand = 1;
+      }
+      if (contactHand !== null) {
+        const reachBlend = Math.min(1, idleTouch * alpha * 7.4);
+        this.reach(contactHand, this.target, reachBlend);
+        this.aimHand(contactHand,
+          this.handDirection.set(contactHand === 0 ? -0.18 : 0.11,
+            -0.18, -1).applyAxisAngle(up, this.root.rotation.y),
+          Math.min(1, idleTouch * alpha * 4.3));
+      }
     }
     if (counter) {
       for (const i of [0, 1] as const) {
