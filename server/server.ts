@@ -19,6 +19,8 @@ import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { advanceLife } from './life';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
+import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
+import { recoverSleep } from './timeControl';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
 import { sampleWalk, type WalkRoute } from '../src/game/navigation';
@@ -57,6 +59,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
   let state: GameState = files.load();
+  // Interrupted sleep sessions do not keep earning energy after a server restart.
+  for (const id of ['vlad', 'alina'] as const)
+    if (state.characters[id].pose === 'sleep') state.characters[id].pose = 'idle';
   if (state.world.dogWalker) {
     state.world.dogWalker = null;
     setDogParkPosition(state);
@@ -74,9 +79,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const scale = options.taskTimeScale ?? 1;
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
+  const sleepers = new Map<CharacterId, SleepMode>();
+  const shiftVotes = new Set<CharacterId>();
+  const timeStatus = (): TimeStatus => ({
+    multiplier: timeMultiplier(online(), state.activeShifts, sleepers, shiftVotes),
+    shiftVotes: [...shiftVotes],
+    sleepers: Object.fromEntries(sleepers) as TimeStatus['sleepers'],
+  });
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
   };
+  const announceTime = () => all({ type: 'time_status', status: timeStatus() });
   const leisureRoute = (role: CharacterId, now: number) => {
     const task = leisure.get(role)!;
     return sampleWalk(task.route, Math.max(0, Math.min(task.until, now) - task.startedAt) / 1000 * 1.8);
@@ -107,17 +120,39 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     all({ type: 'home_leisure', roles, activity: null, routes });
   };
+  const stopSleep = (role: CharacterId): void => {
+    if (!sleepers.has(role)) return;
+    accountTime();
+    if (state.characters[role].pose === 'sleep') {
+      const next = structuredClone(state);
+      next.characters[role].pose = 'idle';
+      next.revision++;
+      try { files.save(next); state = next; }
+      catch (error) { console.error('Could not save wake-up:', error); return; }
+      all({ type: 'snapshot', state });
+    }
+    sleepers.delete(role);
+    announceTime();
+  };
   let lastLifeTick = Date.now();
   let minuteCarry = 0;
-  const liveGameTime = () => clockMinutes(state.clock) + minuteCarry + (Date.now() - lastLifeTick) / 1000 * GAME_MINUTES_PER_REAL_SECOND;
+  /** Charge elapsed real time at the OLD rate before any player changes the rate. */
+  const accountTime = (): void => {
+    const now = Date.now();
+    const elapsed = Math.min(10_000, Math.max(0, now - lastLifeTick));
+    lastLifeTick = now;
+    if (active.size) minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
+    else minuteCarry = 0;
+  };
+  const liveGameTime = () => clockMinutes(state.clock) + minuteCarry +
+    (Date.now() - lastLifeTick) / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
   // Only the authoritative server moves the clock. With nobody online the
   // household is paused; reconnects never drain the absent player's needs.
   const lifeTicker = setInterval(() => {
     const now = Date.now();
-    const elapsed = Math.min(10_000, Math.max(0, now - lastLifeTick));
-    lastLifeTick = now;
-    if (!active.size) { minuteCarry = 0; return; }
-    minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND;
+    const speedBefore = timeStatus().multiplier;
+    accountTime();
+    if (!active.size) return;
     const gameMinutes = Math.floor(minuteCarry);
     if (gameMinutes < 1) return;
     minuteCarry -= gameMinutes;
@@ -130,21 +165,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    for (const role of finishedSleeping) sleepers.delete(role);
+    if (next.completed.length) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
+    if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
     if (arrived) all({ type: 'delivery_arrived' });
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     const available: CharacterId[] = [];
     for (const [role, socket] of active) {
-      if (state.world.places[role] !== 'home' || running.has(role) || state.activeShifts[role] || storageOpen.has(role) ||
+      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || state.activeShifts[role] || storageOpen.has(role) ||
           now - (lastIntent.get(role) ?? now) < 18_000) continue;
       const command = now - (lastAutoCare.get(role) ?? 0) >= 70_000 && urgentHomeAction(state, role);
       const plan = command && planTask(command);
@@ -356,15 +395,64 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         role = requested;
         if (active.size === 0) { lastLifeTick = Date.now(); minuteCarry = 0; }
+        else accountTime();
         active.set(role, socket);
         lastIntent.set(role, Date.now());
         packet(socket, { type: 'ready', role, state, online: online() });
         if (state.world.places[role] === 'home') sendLeisure(socket);
+        announceTime();
         if (deviceToken && message.type === 'auth') packet(socket, { type: 'device_token', role, token: deviceToken });
         all({ type: 'online', online: online() });
         return;
       }
 
+      if (message.type === 'shift_speed') {
+        if (typeof message.enabled !== 'boolean') {
+          packet(socket, { type: 'error', reason: 'Неверный режим скорости' }); return;
+        }
+        if (!Object.values(state.activeShifts).some(Boolean)) {
+          packet(socket, { type: 'error', reason: 'Сейчас нет активной подработки' }); return;
+        }
+        accountTime();
+        if (message.enabled) shiftVotes.add(role); else shiftVotes.delete(role);
+        announceTime();
+        return;
+      }
+      if (message.type === 'sleep_start') {
+        if (message.mode !== 'full' && message.mode !== 'half') {
+          packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
+        }
+        if (state.world.places[role] !== 'home' || state.activeShifts[role] ||
+            (running.has(role) && !running.get(role)?.automatic)) {
+          packet(socket, { type: 'error', reason: 'Для сна нужно находиться дома и закончить текущее дело' }); return;
+        }
+        const mode = message.mode as SleepMode;
+        if (state.characters[role].energy >= sleepTarget(mode)) {
+          packet(socket, { type: 'error', reason: 'Энергия уже достигла выбранной отметки' }); return;
+        }
+        closeStorage(role);
+        stopLeisure(role);
+        if (running.get(role)?.automatic) stopTask(role, 'Время спать');
+        const next = structuredClone(state);
+        Object.assign(next.characters[role], points.bed, { pose: 'sleep' });
+        next.revision++;
+        try { files.save(next); }
+        catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить начало сна' }); return; }
+        accountTime();
+        state = next;
+        sleepers.set(role, mode);
+        shiftVotes.delete(role);
+        lastIntent.set(role, Date.now());
+        all({ type: 'snapshot', state });
+        announceTime();
+        return;
+      }
+      if (message.type === 'sleep_stop') {
+        if (!sleepers.has(role)) { packet(socket, { type: 'error', reason: 'Персонаж не спит' }); return; }
+        stopSleep(role);
+        lastIntent.set(role, Date.now());
+        return;
+      }
       if (message.type === 'forget_device') {
         try { if (deviceToken) devices.revoke(deviceToken); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось забыть устройство' }); return; }
@@ -387,6 +475,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         return;
       }
+      // Walking, starting work, using a station or any other manual action wakes the sleeper.
+      stopSleep(role);
       lastIntent.set(role, Date.now());
       closeStorage(role);
       stopLeisure(role);
@@ -397,6 +487,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
         state=result.state;
+        shiftVotes.clear();
+        announceTime();
         all({type:'job_event',role,outcome:'left_early',message:result.message});
         all({type:'snapshot',state});
         return;
@@ -430,6 +522,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить начало смены'});return;}
         state=result.state;
+        shiftVotes.clear();
+        announceTime();
         all({type:'job_event',role,outcome:'started',message:result.message});
         all({type:'snapshot',state});
         return;
@@ -532,7 +626,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         closeStorage(role);
         stopLeisure(role);
         stopTask(role, names[role] + ': действие отменено из-за отключения');
+        accountTime();
         active.delete(role);
+        shiftVotes.delete(role);
+        stopSleep(role);
+        announceTime();
         if (state.world.dogWalker === role) {
           const home = structuredClone(state);
           home.world.dogWalker = null;

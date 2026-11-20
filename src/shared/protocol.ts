@@ -119,6 +119,9 @@ export type ClientPacket = WorldCommand
   | { type: 'job_start'; job: import('./jobs').JobId }
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
+  | { type: 'shift_speed'; enabled: boolean }
+  | { type: 'sleep_start'; mode: import('./timeControl').SleepMode }
+  | { type: 'sleep_stop' }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId }
@@ -127,6 +130,7 @@ export type ClientPacket = WorldCommand
   | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
+  | { type: 'time_status'; status: import('./timeControl').TimeStatus }
   | { type: 'storage_event'; role: CharacterId; station?: string }
   | { type: 'home_leisure'; roles: CharacterId[]; activity: HomeLeisure | null; routes: Partial<Record<CharacterId, WalkRoute>> }
   | { type: 'device_token'; role: CharacterId; token: string }

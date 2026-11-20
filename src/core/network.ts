@@ -4,6 +4,7 @@ import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, Soci
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { BasketLine } from '../shared/market';
 import type { JobId } from '../shared/jobs';
+import type { SleepMode, TimeStatus } from '../shared/timeControl';
 import type { PetId, PetAction } from '../shared/pets';
 import type { HomeLeisure } from '../shared/home';
 import type { WalkRoute } from '../game/navigation';
@@ -12,6 +13,7 @@ export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
   onOnline(online: CharacterId[]): void;
+  onTimeStatus(status: TimeStatus): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
   onStoreEvent(role: CharacterId, message: string): void;
@@ -72,6 +74,9 @@ export class LiveConnection {
 
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
+  setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
+  startSleep(mode: SleepMode): boolean {return this.sendAuthenticated({type:'sleep_start',mode});}
+  stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}
 
   checkout(lines: BasketLine[]): boolean {
     return this.sendAuthenticated({type:'checkout',lines});
@@ -165,6 +170,8 @@ export class LiveConnection {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {
         this.callbacks.onOnline(packet.online);
+      } else if (packet.type === 'time_status' && this.authorized) {
+        this.callbacks.onTimeStatus(packet.status);
       } else if (packet.type === 'action' && this.authorized) {
         this.callbacks.onAction(packet.role, packet.actionId, packet.message);
       } else if (packet.type === 'food_event' && this.authorized) {
