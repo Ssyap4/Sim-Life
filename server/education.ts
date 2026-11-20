@@ -85,7 +85,8 @@ export function studyMinutes(profile: EducationProfile, material: StudyMaterial)
 }
 
 export function saveBookMinutes(state: GameState, role: CharacterId, material: StudyMaterial, minutes: number): void {
-  if ((material.channel !== 'book' && material.channel !== 'academy') || minutes < 1) return;
+  // Longer study sessions can be resumed after interruption without earning XP twice.
+  if (!['book', 'academy', 'tv', 'practice'].includes(material.channel) || minutes < 1) return;
   const profile = profileOf(state, role);
   const record = profile.studied[material.id] ??= { minutes: 0, completions: 0 };
   record.minutes = Math.max(record.minutes, Math.min(material.minutes - 1, Math.floor(minutes)));
@@ -213,14 +214,17 @@ export function practiceXP(state: GameState, role: CharacterId, id: string, skil
   label: string, base: number, limit: number): void {
   const profile = profileOf(state, role);
   const level = skillRank(profile.xp[skill]).level;
-  if (level >= limit) return;
+  if (level >= 20) return;
   const key = 'life:' + id;
   const record = profile.studied[key] ??= { minutes: 0, completions: 0 };
-  const factor = repeatFactor(record.completions);
-  if (!factor) return;
-  record.completions++;
+  // Everyday practice never suddenly stops working after three repetitions or
+  // a particular rank. Familiar tasks become far less useful than new lessons.
+  const repetition = Math.max(.08, repeatFactor(record.completions));
+  const difficulty = level < limit ? 1 : Math.max(.12, (20 - level) / 20);
+  record.completions = Math.min(9999, record.completions + 1);
   const now = gameMinutes(state.clock);
-  grant(profile, skill, Math.round(base * factor * (1 + talent(role, skill) / 100)), label, now);
+  grant(profile, skill, Math.max(1, Math.round(base * repetition * difficulty *
+    (1 + talent(role, skill) / 100))), label, now);
   achievements(profile, now);
 }
 

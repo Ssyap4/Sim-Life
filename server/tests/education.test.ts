@@ -69,6 +69,10 @@ function simulate(skill: SkillId, strategy: 'free' | 'mixed' | 'paid' | 'practic
 }
 test('Progression simulation records active study minutes and ruble costs', () => {
   const results = Object.fromEntries((['free','mixed','paid','practice'] as const).map(key => [key, simulate('logic', key)]));
+  assert.ok(results.free.minutes >= 3000, 'Mastering one skill must take sustained free study, not minutes');
+  assert.ok(results.paid.minutes >= 1200, 'Even paid learning must not grant instant mastery');
+  assert.ok(results.paid.minutes < results.free.minutes * .7, 'Paid study must save meaningful time');
+  assert.ok(results.practice.minutes > results.free.minutes, 'Practical-only learning should take longer');
   console.log('EDUCATION_BALANCE ' + JSON.stringify(results));
 });
 
@@ -158,7 +162,9 @@ test('Older saves preserve money and legacy skill while restoring books, module 
     completeStudy(restored, 'vlad', program, 480);
     assert.deepEqual(profile.programs, ['tablica']);
     for (let i = 0; i < 8; i++) awardActivity(restored, 'alina', { type: 'act', actionId: 'bedStretch' }, 'Зарядка');
-    assert.equal(restored.education.characters.alina.studied['life:action:bedStretch'].completions, 3);
+    assert.equal(restored.education.characters.alina.studied['life:action:bedStretch'].completions, 8);
+    assert.ok(restored.education.characters.alina.xp.fitness > 0,
+      'Everyday practice still gains a little experience after repeated actions');
     files.save(restored);
     assert.deepEqual(files.load().education, restored.education);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -237,7 +243,8 @@ test('Two live players resume a book and submit a real academy exercise with sep
     assert.notEqual(correct, undefined);
     alina.send({ type: 'education_answer', taskId: quiz.taskId, choice: correct });
     assert.ok((await alina.take('education_feedback')).correct);
-    now += 2500;
+    // Scale the fake-clock jump to the actual curriculum duration, not a fixed short lesson.
+    now += Math.ceil(Math.max(book.minutes, exercise.minutes) / .5 * .06 * 1000) + 1000;
     await vlad.take('task_ended', p => p.taskId === resumed.taskId && p.outcome === 'completed');
     await alina.take('task_ended', p => p.taskId === quiz.taskId && p.outcome === 'completed');
     const saved = files.load();

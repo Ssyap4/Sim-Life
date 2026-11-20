@@ -72,6 +72,11 @@ const series = ['Загадки разума', 'Мастерская идей', 
 const authors = ['Ирина Лаврова', 'Нина Белова', 'Ольга Романова', 'Евгений Лисин', 'Мария Ветрова',
   'Андрей Косов', 'Вера Сомова', 'Эльвира Орлова', 'Антон Полев'];
 const xp = [69, 158, 285, 480, 750];
+// Study time is measured in GAME minutes (one game minute lasts two real seconds).
+// Keep a long-term 20-level journey without hard daily XP limits: paid content is
+// substantially more efficient, while independent free paths remain available.
+const pacedMinutes = (channel: LearningChannel, base: number, price: number) =>
+  Math.round(base * (channel === 'center' ? 2.5 : channel === 'exam' ? 2 : price ? 8 : 12));
 const materials: StudyMaterial[] = [];
 
 for (const [index, skill] of SKILL_IDS.entries()) {
@@ -81,7 +86,7 @@ for (const [index, skill] of SKILL_IDS.entries()) {
     const question = skill + ':' + tier;
     const entry = (channel: LearningChannel, title: string, minutes: number, points: number, price = 0,
       details: Partial<StudyMaterial> = {}) => materials.push({
-      ...base, channel, title, minutes, xp: Math.round(points * xp[tier]), price,
+      ...base, channel, title, minutes: pacedMinutes(channel, minutes, price), xp: Math.round(points * xp[tier]), price,
       id: channel + ':' + question + (price && channel !== 'center' ? ':plus' : ''), ...details,
     });
     entry('tv', series[index] + ' · ' + topic, 8 + tier * 2, .78, 0, { series: series[index] });
@@ -101,7 +106,7 @@ for (const [index, skill] of SKILL_IDS.entries()) {
   }
   materials.push({
     id: 'exam:' + skill, title: 'Аттестация · ' + SKILLS[skill][1], description: 'Реши учебный кейс и подтверди владение основами.',
-    channel: 'exam', skill, min: 8, max: 20, minutes: 12, xp: 0, price: 1150,
+    channel: 'exam', skill, min: 8, max: 20, minutes: pacedMinutes('exam', 12, 1150), xp: 0, price: 1150,
     station: 'classroom', question: skill + ':2', certificate: skill,
   });
 }
@@ -119,10 +124,10 @@ export const PROGRAMS: Record<string, { name: string; description: string; requi
 for (const [program, spec] of Object.entries(PROGRAMS)) {
   const skill = Object.keys(spec.requirement.skills!)[0] as SkillId;
   materials.push({ id: 'program:' + program, title: spec.name, description: spec.description,
-    channel: 'academy', skill, min: 4, max: 8, minutes: 16, xp: 110, price: 0, question: skill + ':1', program });
+    channel: 'academy', skill, min: 4, max: 8, minutes: pacedMinutes('academy', 16, 0), xp: 110, price: 0, question: skill + ':1', program });
   materials.push({ id: 'program:' + program + ':guided', title: spec.name + ' · практикум с примерами',
     description: spec.description + ' Разбор готового примера помогает быстрее пройти итоговое упражнение.',
-    channel: 'academy', skill, min: 4, max: 8, minutes: 11, xp: 150, price: 2700, question: skill + ':1', program });
+    channel: 'academy', skill, min: 4, max: 8, minutes: pacedMinutes('academy', 11, 2700), xp: 150, price: 2700, question: skill + ':1', program });
 }
 export const MATERIALS: readonly StudyMaterial[] = materials;
 export const MATERIAL_BY_ID: ReadonlyMap<string, StudyMaterial> = new Map(materials.map(item => [item.id, item]));
