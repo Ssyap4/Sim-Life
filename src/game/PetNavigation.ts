@@ -35,9 +35,11 @@ export function planPetRoute(from: FloorPoint, to: FloorPoint,
  */
 export function petTemporaryDetour(from: FloorPoint, destination: FloorPoint,
   blockers: readonly FloorPoint[], geometry: ReturnType<typeof petNavigationGeometry>,
-  bodyRadius = 0.50): WalkRoute | null {
-  const dynamic = blockers.filter(b => Math.hypot(b.x - from.x, b.z - from.z) > bodyRadius + 0.02)
-    .map(b => ({
+  bodyRadius = 0.85): WalkRoute | null {
+  // Never silently exclude a blocker already within clearance. Doing so
+  // planned a new straight line through the same body and retriggered jitter.
+  // If the temporary obstacle contains the start, return null and yield.
+  const dynamic = blockers.map(b => ({
       minX: b.x - bodyRadius, maxX: b.x + bodyRadius,
       minZ: b.z - bodyRadius, maxZ: b.z + bodyRadius,
     }));

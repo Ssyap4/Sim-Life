@@ -3,7 +3,6 @@ export interface FloorRect { minX: number; maxX: number; minZ: number; maxZ: num
 
 const ROOM: FloorRect = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 const CELL = 0.32;
-const STEP = 0.12;
 
 export interface WalkRoute { from: FloorPoint; path: FloorPoint[] }
 
@@ -35,11 +34,30 @@ export function pointIsClear(point: FloorPoint, obstacles: readonly FloorRect[],
 }
 
 export function segmentIsClear(a: FloorPoint, b: FloorPoint, obstacles: readonly FloorRect[], room: FloorRect = ROOM): boolean {
-  const distance = Math.hypot(a.x - b.x, a.z - b.z);
-  const steps = Math.max(1, Math.ceil(distance / STEP));
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    if (!pointIsClear({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t }, obstacles, room)) return false;
+  if (!pointIsClear(a, obstacles, room) || !pointIsClear(b, obstacles, room)) return false;
+  const dx = b.x - a.x, dz = b.z - a.z;
+  // Exact continuous 2D segment/AABB intersection. The old .12m sampling
+  // silently missed narrow corner crossings between sample points, so a
+  // route could pass a planning check yet be blocked by frame-by-frame steps.
+  // This is also cheaper than sampling dozens of points for long routes.
+  for (const o of obstacles) {
+    let enter = 0, exit = 1;
+    if (Math.abs(dx) < 1e-12) {
+      if (a.x < o.minX || a.x > o.maxX) continue;
+    } else {
+      const t0 = (o.minX - a.x) / dx, t1 = (o.maxX - a.x) / dx;
+      enter = Math.max(enter, Math.min(t0, t1));
+      exit = Math.min(exit, Math.max(t0, t1));
+      if (enter > exit) continue;
+    }
+    if (Math.abs(dz) < 1e-12) {
+      if (a.z < o.minZ || a.z > o.maxZ) continue;
+    } else {
+      const t0 = (o.minZ - a.z) / dz, t1 = (o.maxZ - a.z) / dz;
+      enter = Math.max(enter, Math.min(t0, t1));
+      exit = Math.min(exit, Math.max(t0, t1));
+    }
+    if (enter <= exit && enter <= 1 && exit >= 0) return false;
   }
   return true;
 }

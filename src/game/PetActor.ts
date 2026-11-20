@@ -4,7 +4,7 @@ import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { nearestClearPoint, pointIsClear } from './navigation';
-import { petTemporaryDetour } from './PetNavigation';
+import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
 import { PET_IDLE_SECONDS, choosePetIdle, petIdleWeight,
   type PetIdleContext, type PetIdleGesture } from './PetIdle';
@@ -28,6 +28,7 @@ export class PetActor {
   private stuckFor = 0;
   private lastProgressGap = Infinity;
   private rerouteCooldown = 0;
+  private yieldingTo: FloorPoint | null = null;
   private readonly hungerMarker = petHungerSprite();
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
@@ -92,6 +93,7 @@ export class PetActor {
     this.stuckFor = 0;
     this.lastProgressGap = Infinity;
     this.rerouteCooldown = 0;
+    this.yieldingTo = null;
   }
 
   stop(): void {
@@ -102,11 +104,39 @@ export class PetActor {
     this.stuckFor = 0;
     this.lastProgressGap = Infinity;
     this.rerouteCooldown = 0;
+    this.yieldingTo = null;
   }
 
   update(dt: number, travel = 0, pace = 0,
-    traffic?: { blockers: readonly FloorPoint[]; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
+    traffic?: { blockers: readonly FloorPoint[]; otherPet?: FloorPoint; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
     this.rerouteCooldown = Math.max(0, this.rerouteCooldown - dt);
+    // A person can physically close the courtyard doorway. Waiting without
+    // walking in place is preferable to repeatedly rubbing along the walls.
+    // Resume as soon as that *particular* blocker moves away.
+    let waiting = !!this.yieldingTo && !!traffic &&
+      traffic.blockers.some(b => Math.hypot(
+        b.x - this.yieldingTo!.x, b.z - this.yieldingTo!.z) < .26);
+    if (!waiting) this.yieldingTo = null;
+    // Two pets sometimes mutually wait when both had to stop for a human.
+    // Once the person leaves, let the dog repath from his *current* spot
+    // rather than following an obsolete corner waypoint. Simba keeps her
+    // own safe distance until Verdell actually moves out of the way.
+    if (waiting && this.id === 'verdell' && traffic?.otherPet &&
+      this.yieldingTo && this.route.length &&
+      Math.hypot(traffic.otherPet.x - this.yieldingTo.x,
+        traffic.otherPet.z - this.yieldingTo.z) < .26 &&
+      !traffic.blockers.some(b => b !== traffic.otherPet &&
+        Math.hypot(b.x - this.root.position.x, b.z - this.root.position.z) < 1.8)) {
+      const goal = this.route[this.route.length - 1];
+      const fresh = planPetRoute(this.root.position, goal, traffic);
+      if (fresh?.path.length) {
+        this.route = fresh.path.map(p => new THREE.Vector3(p.x, 0, p.z));
+        this.yieldingTo = null;
+        this.lastProgressGap = Infinity;
+        this.stuckFor = 0;
+        waiting = false;
+      }
+    }
     // Old saves can place a pet a few centimetres inside a newly widened
     // collider. Escape once to the nearest clear tile, not in an endless
     // series of tiny oscillations through the wall.
@@ -124,7 +154,7 @@ export class PetActor {
       const distance = Math.hypot(dx, dz);
       const step = Math.min(distance, dt * PET_SPEED[this.id]);
       let traveled = 0;
-      if (distance > .001) {
+      if (distance > .001 && !waiting) {
         const next = traffic
           ? petTrafficStep(this.root.position, target, traffic.blockers,
               traffic.obstacles, traffic.floor, step, PET_PET_CLEARANCE)
@@ -144,7 +174,7 @@ export class PetActor {
       }
       const remaining = Math.hypot(target.x - this.root.position.x,
         target.z - this.root.position.z);
-      if (traffic && distance > .04) {
+      if (traffic && distance > .04 && !waiting) {
         // Progress is measured toward the actual waypoint, not the distance
         // of sideways shuffling, which previously caused indefinite twitching.
         // Checkpoint distance rather than one frame's microstep: a pet
@@ -163,6 +193,17 @@ export class PetActor {
             traffic.blockers, traffic);
           if (detour && detour.path.length) {
             this.route = detour.path.map(point => new THREE.Vector3(point.x, 0, point.z));
+          } else {
+            // A genuine temporary blockage: remember the closest obstructing
+            // body and stand calmly instead of oscillating until it leaves.
+            let best = 1.85;
+            for (const body of traffic.blockers) {
+              const gap = Math.hypot(body.x - this.root.position.x, body.z - this.root.position.z);
+              if (gap < best) {
+                best = gap;
+                this.yieldingTo = { x: body.x, z: body.z };
+              }
+            }
           }
         }
       }

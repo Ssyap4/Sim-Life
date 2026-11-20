@@ -1362,10 +1362,10 @@ export class World {
       // The dog and cat use the *visible* coordinates of each other, plus
       // the people nearby, rather than waiting for the next server snapshot.
       dog.update(dt, this.dogTravel, pace, {
-        ...geometry, blockers: [cat.root.position, ...people],
+        ...geometry, blockers: [cat.root.position, ...people], otherPet: cat.root.position,
       });
       cat.update(dt, 0, 0, {
-        ...geometry, blockers: [dog.root.position, ...people],
+        ...geometry, blockers: [dog.root.position, ...people], otherPet: dog.root.position,
       });
       let dogPosition: Point = { x: dog.root.position.x, z: dog.root.position.z };
       let catPosition: Point = { x: cat.root.position.x, z: cat.root.position.z };
