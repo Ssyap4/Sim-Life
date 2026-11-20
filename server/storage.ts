@@ -9,6 +9,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFil
 import { join } from 'node:path';
 import { initialState, points, type CharacterId, type CharacterState, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
+import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
@@ -40,6 +41,12 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
       !Number.isSafeInteger(state.clock.minute) || state.clock.minute < 0 ||
       state.clock.minute >= 1440)) return false;
+  if (state.coffeeDaily !== undefined && (!state.coffeeDaily ||
+    !(['vlad', 'alina'] as const).every(role => {
+      const record = state.coffeeDaily?.[role];
+      return record && Number.isSafeInteger(record.day) && record.day >= 0 &&
+        Number.isSafeInteger(record.cups) && record.cups >= 0 && record.cups <= COFFEE_CUPS_PER_DAY;
+    }))) return false;
   const pantry = state.pantry as Record<string, unknown>;
   const meals = state.meals as Record<string, unknown> | undefined;
   if (!Number.isSafeInteger(pantry.eggs) || Number(pantry.eggs) < 0 ||
@@ -216,6 +223,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
+        coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),
           simba: restorePet('simba', data.pets?.simba),

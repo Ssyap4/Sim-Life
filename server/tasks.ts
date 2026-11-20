@@ -6,6 +6,9 @@ import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import { BATH_ACTIONS } from '../src/shared/home';
+import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
+import { GROCERIES } from '../src/shared/food';
+import { brewInstantCoffee } from './coffee';
 import { applyAction } from './logic';
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
@@ -73,6 +76,12 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
           own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
+  if (command.type === 'brew_coffee') {
+    if (typeof command.blend !== 'string' || !INSTANT_COFFEE.some(id => id === command.blend)) return null;
+    const blend = command.blend as InstantCoffeeId;
+    return { command: { type: 'brew_coffee', blend }, label: '☕ Завариваем ' + GROCERIES[blend].name,
+      durationMs: 12_000, resource: 'kitchen' };
+  }
   if (command.type === 'cook' || command.type === 'eat') {
     const id = command.recipe;
     if (typeof id !== 'string' || !own(RECIPES, id)) return null;
@@ -135,5 +144,6 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);
+  if (command.type === 'brew_coffee') return brewInstantCoffee(state, role, command.blend);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

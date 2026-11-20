@@ -19,6 +19,8 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
   let message: string;
   if (command.type === 'buy') {
     if (!owns(GROCERIES, command.item)) return { ok: false, reason: 'Нет такого продукта' };
+    // Keep old unbranded coffee usable, but only the named brands are sold now.
+    if (command.item === 'coffee') return { ok: false, reason: 'Этот сорт снят с продажи — выбери Nescafé Gold или Egoiste' };
     const id: IngredientId = command.item;
     const product = GROCERIES[id];
     if (state.money < product.price) return { ok: false, reason: 'Недостаточно денег на покупку' };

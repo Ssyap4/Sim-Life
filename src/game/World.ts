@@ -529,6 +529,15 @@ export class World {
     }
     const sequence = ++this.taskSequence[role];
     const current = () => sequence === this.taskSequence[role];
+    if (command.type === 'brew_coffee') {
+      const work = KITCHEN_WORK.coffee;
+      return this.walkTo(role, work.position, () => {
+        if (!current()) return;
+        const target = new THREE.Vector3().copy(work.target);
+        this.actors[role].faceTowards(target);
+        this.actors[role].playDomesticActivity('coffee', target);
+      });
+    }
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
       if (command.actionId in KITCHEN_ACTIONS) {

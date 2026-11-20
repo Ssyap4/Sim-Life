@@ -27,7 +27,12 @@ export const GROCERIES = {
   cucumber:{ name:'Огурцы · 500 г', emoji:'🥒', price:170, quantity:4, unit:'шт.', category:'vegetables' },
   sourCream:{ name:'Сметана · 300 г', emoji:'🥛', price:135, quantity:4, unit:'порц.', category:'dairy' },
   tea:     { name:'Чай · 25 пакетиков', emoji:'🍵', price:160, quantity:25, unit:'пак.', category:'pantry' },
-  coffee:  { name:'Кофе · 100 г', emoji:'☕', price:390, quantity:20, unit:'порц.', category:'pantry' },
+  coffee:  { name:'Кофе (старые запасы) · 100 г', emoji:'☕', price:390, quantity:20, unit:'порц.', category:'pantry' },
+  coffeeNescafeGold: { name:'Nescafé Gold · 15 порций', emoji:'☕', price:480, quantity:15, unit:'порц.', category:'pantry' },
+  coffeeEgoiste: { name:'Egoiste · 25 порций', emoji:'☕', price:860, quantity:25, unit:'порц.', category:'pantry' },
+  beansJardin: { name:'Jardin Espresso Di Milano · зерно 500 г', emoji:'🫘', price:2200, quantity:30, unit:'порц.', category:'pantry' },
+  beansLavazza: { name:'Lavazza Qualità Oro · зерно 500 г', emoji:'🫘', price:2450, quantity:30, unit:'порц.', category:'pantry' },
+  beansBushido: { name:'Bushido Red Katana · зерно 500 г', emoji:'🫘', price:2700, quantity:30, unit:'порц.', category:'pantry' },
 } as const;
 export type IngredientId = keyof typeof GROCERIES;
 export type Pantry = Record<IngredientId, number>;

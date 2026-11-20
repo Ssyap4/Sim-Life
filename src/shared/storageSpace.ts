@@ -31,7 +31,12 @@ export const GROCERY_DETAILS: Record<IngredientId,{area:StorageArea;description:
   cucumber:{area:'fridge',description:'Хрустящие огурцы для салатов и свежих закусок.'},
   sourCream:{area:'fridge',description:'Сметана для домашних блюд и фруктового салата.'},
   tea:{area:'cupboard',description:'Пакетированный чай для уютного вечера дома.'},
-  coffee:{area:'cupboard',description:'Молотый кофе для бодрого утра.'},
+  coffee:{area:'cupboard',description:'Старый запас кофе сохранён после обновления. Подходит для растворимой кофеварки.'},
+  coffeeNescafeGold:{area:'cupboard',description:'Растворимый Nescafé Gold. 15 чашек, по одной порции на приготовление.'},
+  coffeeEgoiste:{area:'cupboard',description:'Растворимый Egoiste. 25 чашек, по одной порции на приготовление.'},
+  beansJardin:{area:'cupboard',description:'Кофе в зёрнах для будущих кофемашин. Сейчас можно купить и хранить, но не сварить.'},
+  beansLavazza:{area:'cupboard',description:'Зерновой кофе для будущих кофемашин. Подходит для любых напитков после покупки техники.'},
+  beansBushido:{area:'cupboard',description:'Премиальные зёрна для будущих кофемашин. Сейчас напитки из зёрен недоступны.'},
 };
 export const TAKEOUT_DESCRIPTIONS: Record<TakeoutId,string> = {
   shawarma:'Горячая шаурма с соусом: быстро утоляет голод, но дома готовить дешевле.',
@@ -71,6 +76,7 @@ export const HOME_OBJECT_DETAILS = {
   bed:'Двуспальная кровать для сна и отдыха. Персонажи могут занимать разные места.',
   desk:'Домашнее рабочее место для учёбы, компьютерных игр, заметок и планирования.',
   kitchen:'Кухня — готовь блюда из реальных семейных запасов. Готовка расходует ингредиенты и занимает место в холодильнике.',
+  coffeeMaker:'Простая кофеварка у чайника: растворимый Nescafé Gold или Egoiste. Одна чашка = 1 порция, +10% бодрости, не больше 3 чашек за игровые сутки для каждого.' ,
   tv:'Телевизор для совместных передач, музыки и домашнего досуга.',
   table:'Общий стол для еды. Здесь можно съесть приготовленные порции и доставку.',
   toilet:'Восстанавливает потребность «Нужда».',

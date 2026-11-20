@@ -3,6 +3,7 @@ import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
+import type { InstantCoffeeId } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
@@ -81,6 +82,8 @@ export class LiveConnection {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId });
   }
+
+  brewCoffee(blend: InstantCoffeeId): boolean {return this.sendAuthenticated({type:'brew_coffee',blend});}
 
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}

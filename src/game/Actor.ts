@@ -11,7 +11,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands';
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
 const stancePortion = 0.60;
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
@@ -428,6 +428,14 @@ export class Actor {
           leftZ = 0.36; rightZ = 0.43;
           crouch = 0.055;
           lean = 0.15;
+          break;
+        case 'coffee':
+          leftY = -.32 + .045 * Math.sin(a * 2.8);
+          rightY = -.15 + .085 * Math.sin(a * 3.4);
+          leftZ = .31;
+          rightZ = .29 + .045 * Math.cos(a * 3.4);
+          gaze = .18;
+          lean = .10;
           break;
         case 'tea':
           leftY = -0.34;
