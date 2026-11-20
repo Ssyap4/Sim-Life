@@ -61,7 +61,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.9 · ЖИВОЙ ДОМ · ТЕСТ</div>
+      <div class="version">0.9 · ЖИВОЙ ДОМ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
