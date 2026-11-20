@@ -358,6 +358,18 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 }
 .pet-tab.selected { background: #f3e7d7; color: #795d47; border-color: #cdae93; }
 .pet-note { margin: 0 3px 2px; font-size: 11px; line-height: 1.5; color: #7b8776; }
+.pet-wish { padding: 11px 12px; border: 1px solid #eadfcd; border-radius: 13px;
+  background: #fff9ed; color: #685e4f; display: grid; gap: 5px; }
+.pet-wish strong { font-size: 12px; line-height: 1.4; }
+.pet-wish p { font-size: 11px; line-height: 1.55; margin: 0; }
+.pet-wish small { color: #887f6e; font-size: 10px; line-height: 1.45; }
+.pet-wish-urgent { border-color: #eab4a0; background: #fff3e9; }
+.pet-wish-preview { width: 100%; text-align: left; cursor: pointer; font: inherit; }
+.pet-wish-preview span { font-size: 11px; line-height: 1.55; }
+.pet-wish-preview:focus-visible { outline: 2px solid #b28b72; outline-offset: 2px; }
+.pet-phone-card p { white-space: pre-line; line-height: 1.55; }
+.pet-phone-card small { display: block; margin-top: 8px; font-size: 10px; color: #8e8976; }
+.pet-phone-urgent { border-color: #eab4a0; }
 .pet-status {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px; background: #f8f5ec; border-radius: 13px; padding: 10px;

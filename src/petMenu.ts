@@ -2,6 +2,7 @@ import {
   PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petHungerLevel, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
+import { petWish } from './shared/petWishes';
 
 /** Small touch-friendly family panel driven by persistent server state. */
 export function renderPetChoices(
@@ -25,7 +26,26 @@ export function renderPetChoices(
     tabs.appendChild(button);
   }
   container.appendChild(tabs);
-  if (!selected) return;
+  if (!selected) {
+    // First tap on the Pets panel shows both personalities immediately;
+    // opening individual stats/actions remains optional.
+    for (const id of PET_IDS) {
+      const wish = petWish(state, id);
+      const overview = document.createElement('button');
+      overview.type = 'button';
+      overview.className = 'pet-wish pet-wish-preview' + (wish.urgent ? ' pet-wish-urgent' : '');
+      const title = document.createElement('strong');
+      title.textContent = PETS[id].emoji + ' ' + PETS[id].name + ' · ' + wish.title;
+      const phrase = document.createElement('span');
+      phrase.textContent = wish.message;
+      const tip = document.createElement('small');
+      tip.textContent = 'Подробнее о питомце и его потребностях';
+      overview.append(title, phrase, tip);
+      overview.addEventListener('click', () => choose(id));
+      container.appendChild(overview);
+    }
+    return;
+  }
   const pet = PETS[selected];
   const stats = state.pets[selected];
   const description = document.createElement('p');
@@ -33,6 +53,17 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const wish = petWish(state, selected);
+  const thoughts = document.createElement('section');
+  thoughts.className = 'pet-wish' + (wish.urgent ? ' pet-wish-urgent' : '');
+  const title = document.createElement('strong');
+  title.textContent = '💭 Что хочет ' + pet.name + '? · ' + wish.title;
+  const phrase = document.createElement('p');
+  phrase.textContent = wish.message;
+  const tip = document.createElement('small');
+  tip.textContent = 'Подсказка: ' + wish.advice;
+  thoughts.append(title, phrase, tip);
+  container.appendChild(thoughts);
   const hungerLevel = petHungerLevel(stats.satiety);
   if (hungerLevel !== 'normal') {
     const hungry = document.createElement('p');

@@ -1291,6 +1291,23 @@ export class World {
         pace = Math.min(1, distance * 2.3);
       }
     }
+    if (this.household) {
+      for (const id of PET_IDS) {
+        const pet = this.household.pets[id];
+        const nearby = this.place === 'home' && (['vlad', 'alina'] as const).some(role => {
+          const resident = this.actors[role];
+          return resident.root.visible && !this.sleepingOffline.has(role) &&
+            this.household?.world.places[role] === 'home' &&
+            !this.household.activeShifts[role] && this.household.characters[role].pose !== 'sleep' &&
+            Math.hypot(resident.root.position.x - this.pets[id].root.position.x,
+              resident.root.position.z - this.pets[id].root.position.z) < 1.9;
+        });
+        this.pets[id].setAmbient({
+          satiety: pet.satiety, energy: pet.energy, happiness: pet.happiness,
+          bond: pet.bond, bowl: this.household.petBowls[id], personNearby: nearby,
+        });
+      }
+    }
     if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
     if (this.pets.simba.root.visible) this.pets.simba.update(dt);
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {

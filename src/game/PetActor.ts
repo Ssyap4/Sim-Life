@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
+import { PET_IDLE_SECONDS, choosePetIdle, petIdleWeight,
+  type PetIdleContext, type PetIdleGesture } from './PetIdle';
 
 export class PetActor {
   readonly root = new THREE.Group();
@@ -21,12 +23,20 @@ export class PetActor {
   private settled = 0;
   private readonly hungerMarker = petHungerSprite();
   private hungerLevel: PetHungerLevel = 'normal';
+  private ambient: PetIdleContext = {
+    satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
+  };
+  private idleGesture: PetIdleGesture | null = null;
+  private idleTime = 0;
+  private idleCooldown: number;
+  private idleTurn = 0;
 
   constructor(readonly id: PetId) {
     const { x, z } = PETS[id].home;
     this.root.position.set(x, 0, z);
     this.root.add(this.body);
     const dog = id === 'verdell';
+    this.idleCooldown = dog ? 3.5 : 5;
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
     this.body.add(this.head, this.tail);
     this.root.scale.setScalar(dog ? verdellScale : simbaScale);
@@ -53,13 +63,21 @@ export class PetActor {
     this.hungerMarker.material.needsUpdate = true;
   }
 
+  setAmbient(context: PetIdleContext): void { this.ambient = context; }
+
+  currentIdleGesture(): PetIdleGesture | null { return this.idleGesture; }
+
   react(action: PetAction): void {
     this.stop();
+    this.idleGesture = null;
+    this.idleTime = 0;
     this.reaction = action;
     this.reactionTime = 0;
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number): void {
+    this.idleGesture = null;
+    this.idleTime = 0;
     this.route = route;
     this.routine = routine;
     this.facing = facing;
@@ -104,6 +122,34 @@ export class PetActor {
         ? 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(this.clock * 4.2)) : 1;
     }
     this.reactionTime += dt;
+    // Cosmetic personality gestures only when nothing meaningful is happening.
+    // Server-owned routes, feeding, sleep, toilet and player interactions win.
+    const canIdle = !this.route.length && !this.routine && !this.reaction && pace < .08;
+    if (!canIdle) {
+      this.idleGesture = null;
+      this.idleTime = 0;
+      this.idleCooldown = Math.max(this.idleCooldown, 4.5);
+    } else if (this.idleGesture) {
+      this.idleTime += dt;
+      if (this.idleTime >= PET_IDLE_SECONDS) {
+        this.idleGesture = null;
+        this.idleTime = 0;
+        this.idleCooldown = (this.id === 'verdell' ? 9 : 13) + (this.idleTurn % 4) * 2.2;
+      }
+    } else {
+      this.idleCooldown -= dt;
+      if (this.idleCooldown <= 0) {
+        this.idleGesture = choosePetIdle(this.id, this.ambient, this.idleTurn++);
+        this.idleTime = 0;
+      }
+    }
+    const idleWeight = this.idleGesture ? petIdleWeight(this.idleTime) : 0;
+    const greeting = this.idleGesture === 'greet' ? idleWeight : 0;
+    const grooming = this.idleGesture === 'groom' ? idleWeight : 0;
+    const stretching = this.idleGesture === 'stretch' ? idleWeight : 0;
+    const sniffing = this.idleGesture === 'sniff' ? idleWeight : 0;
+    const watching = this.idleGesture === 'observe' ? idleWeight : 0;
+    const foodLook = this.idleGesture === 'hungryLook' ? idleWeight : 0;
     const dog = this.id === 'verdell';
     const t = this.clock + (dog ? 0 : 1.75);
     const r = this.reactionTime;
@@ -121,29 +167,38 @@ export class PetActor {
     const lift = Math.max(0, playBeat) * playful;
     const stretch = dog ? 0 : 0.66 * attention + 0.53 * playful - 0.30 * eating;
     if (this.rig.back?.morphTargetInfluences) {
-      this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch;
+      this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
     }
     this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045;
-    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15;
-    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13;
+    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15
+      + greeting * Math.sin(t * 7.5) * .013 - stretching * (dog ? .027 : .016);
+    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
+      + greeting * .022 * Math.sin(t * 6.5);
     this.body.rotation.x = -.13 * toilet;
-    this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention);
-    this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073);
+    this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
+      + stretching * .018;
+    this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
+      - sniffing * .065 - grooming * .034 - stretching * .035;
     this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053);
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
-        - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful), smooth);
+        - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
+        + sniffing * .37 + grooming * .27 - stretching * .17
+        + foodLook * .14 + greeting * -.075, smooth);
     this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y,
       (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 +
-        attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful), smooth);
+        attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
+        + watching * .24 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10, smooth);
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
-      (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14), smooth);
+      (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14)
+      + greeting * .12 + grooming * -.16 + watching * .07, smooth);
     this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12));
     this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful : 1.7 + 2.2 * playful)) % (2 * Math.PI);
     const flick = Math.sin(this.tailPhase);
     this.tail.rotation.y = dog
-      ? (0.09 + 0.47 * weight) * flick
-      : (0.12 + 0.37 * playful) * flick + 0.038 * Math.sin(t * 3.5) - attention * 0.13;
+      ? (0.09 + 0.47 * weight + greeting * .62) * flick
+      : (0.12 + 0.37 * playful + watching * .16) * flick + 0.038 * Math.sin(t * 3.5)
+        - attention * 0.13 + grooming * .07 * Math.sin(t * 5);
     this.tail.rotation.x = dog ? 0.025 * pulse : 0.09 * pulse - attention * 0.10;
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
@@ -152,7 +207,8 @@ export class PetActor {
         blink * (1 - (dog ? 0.22 : 0.50) * attention) * (1 - .91 * sleeping), smooth);
       const ear = this.rig.ears[i];
       const flick = Math.max(0, Math.sin(t * 1.19 + i * 2)) ** 12;
-      ear.rotation.x = flick * (dog ? 0.055 : 0.20) + attention * 0.11;
+      ear.rotation.x = flick * (dog ? 0.055 : 0.20) + attention * 0.11
+        + watching * .14 + greeting * .07;
       ear.rotation.y = (i === 0 ? 1 : -1) * flick * (dog ? 0.06 : 0.24);
     }
     for (let i = 0; i < this.paws.length; i++) {
@@ -160,9 +216,12 @@ export class PetActor {
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
       paw.rotation.x = pawLift * playful + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
-        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31);
+        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31)
+        + (dog ? 0 : i === 0 ? -.69 * grooming * (0.75 + .25 * Math.sin(t * 8)) : 0)
+        - (front ? .17 : -.07) * stretching;
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
-        (dog ? 0 : .018 * playful * (front ? 1 : 0));
+        (dog ? 0 : .018 * playful * (front ? 1 : 0))
+        + (!dog && i === 0 ? grooming * .085 : 0);
     }
   }
 }

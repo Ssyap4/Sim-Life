@@ -5,15 +5,17 @@ import { JOBS } from './shared/jobs';
 import { clockAt, clockLabel, gameDate, NEED_INFO, VITAL_NEEDS, type GameClock } from './shared/life';
 import { PLACES } from './shared/locations';
 import { PETS, PET_IDS } from './shared/pets';
+import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'delivery' | 'jobs' | 'calendar' | 'family' | BillingApp;
+type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
-  delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],family:['❤️','Семья'],
+  delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
+  family:['❤️','Семья'],pets:['🐾','Питомцы'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
@@ -83,6 +85,23 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       });
       info.replaceChildren(block('Семейный бюджет',formatRub(state.money)),...family,...pets);
     }
+    if (app==='pets') {
+      const cards=PET_IDS.map(id => {
+        const pet=state.pets[id];
+        const wish=petWish(state,id);
+        const card=block(PETS[id].emoji+' '+PETS[id].name+' · '+wish.title,
+          wish.message+'\n\nПодсказка: '+wish.advice);
+        card.classList.add('pet-phone-card');
+        if (wish.urgent) card.classList.add('pet-phone-urgent');
+        const stats=document.createElement('small');
+        stats.textContent='Сытость '+Math.round(pet.satiety)+'% · Энергия '+Math.round(pet.energy)+
+          '% · Настроение '+Math.round(pet.happiness)+'% · Миска '+state.petBowls[id]+'/3';
+        card.append(stats);
+        return card;
+      });
+      info.replaceChildren(block('💭 О чём думают питомцы?',
+        'Это примерное настроение по их потребностям и привычкам. Тексты меняются со временем.'),...cards);
+    }
     refreshClock(view.clock);
   }
 
@@ -104,7 +123,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='calendar'&&next!=='family'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);
