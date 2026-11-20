@@ -21,9 +21,9 @@ const themes: Record<Program, [string,string,string,string]> = {
   concert: ['#32294e','#805877','#e9a290','Живой концерт'],
 };
 
-export function homeBench(kind: 'yardBench' | 'spareSeat') {
+export function homeBench() {
   const bench = new THREE.Group();
-  const {x,z} = HOME_PLACEMENTS[kind];
+  const {x,z} = HOME_PLACEMENTS.yardBench;
   bench.position.set(x,0,z);
   const plank = (px: number,y: number,pz: number,w: number,h: number,d: number,color: number) => {
     const mesh = new THREE.Mesh(cube,finish(color,'wood'));
@@ -47,6 +47,7 @@ export class HomeEffects {
   private readonly screen: THREE.Mesh;
   private readonly shower: THREE.LineSegments;
   private readonly foam: THREE.InstancedMesh;
+  private readonly handWater: THREE.LineSegments;
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
 
@@ -91,7 +92,14 @@ export class HomeEffects {
     const bath = BATH_FIXTURES.bathtub.center;
     this.foam.position.set(bath.x,0,bath.z);
     this.foam.visible = false;
-    scene.add(this.screen,this.shower,this.foam);
+    const sink = BATH_FIXTURES.wcBasin.center;
+    this.handWater = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-.011, .115, -.018), new THREE.Vector3(-.008, .004, .021),
+      new THREE.Vector3(.003, .115, -.017), new THREE.Vector3(.008, 0, .024),
+    ]), new THREE.LineBasicMaterial({ color: 0xb6e6ed, transparent: true, opacity: .82 }));
+    this.handWater.position.set(sink.x, .983, sink.z + .025);
+    this.handWater.visible = false;
+    scene.add(this.screen,this.shower,this.foam,this.handWater);
   }
 
   television(id: string, program?: Program) {
@@ -100,14 +108,15 @@ export class HomeEffects {
     this.lastScreen = -1;
   }
 
-  water(station: 'shower' | 'bathtub', active: boolean) {
+  water(station: 'shower' | 'bathtub' | 'wcBasin', active: boolean) {
     if(station === 'shower') this.shower.visible = active;
+    else if (station === 'wcBasin') this.handWater.visible = active;
     else this.foam.visible = active;
   }
 
   reset() {
     this.media.clear();
-    this.screen.visible = this.shower.visible = this.foam.visible = false;
+    this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
   }
 
   update(seconds: number) {

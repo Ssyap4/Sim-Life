@@ -7,6 +7,7 @@ import {
 import type { CharacterId, GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
 import { findRoute, nearestClearPoint, pointIsClear } from '../src/game/navigation';
+import { unoccupiedDestination } from '../src/game/residentCollision';
 import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
 
@@ -55,9 +56,12 @@ export const worldMessages = new Set([
   'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
-export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>): Result {
+export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>, neighborOnline = false): Result {
   if (source.activeShifts[role]) return fail('Сначала закончи смену');
   const place = source.world.places[role];
+  const neighbor = role === 'vlad' ? 'alina' : 'vlad';
+  const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
+    !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
   if (command.type === 'travel') {
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
@@ -78,7 +82,13 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
     }
-    Object.assign(next.characters[role], spawn(command.place, role), { pose: 'idle' });
+    const spawnPoint = spawn(command.place, role);
+    const other = neighborAt(command.place);
+    const arrival = other
+      ? unoccupiedDestination(spawnPoint, other, placeObstacles(command.place), floorFor(command.place))
+      : spawnPoint;
+    if (!arrival) return fail('Вход занят вторым игроком');
+    Object.assign(next.characters[role], arrival, { pose: 'idle' });
     if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
     return done(next, command.place === 'home' && source.world.bags[role] > 0
@@ -91,14 +101,17 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.type === 'approach' && !station) return fail('Здесь нет такого объекта');
     if (!station && (typeof command.x !== 'number' || typeof command.z !== 'number' ||
       !Number.isFinite(command.x) || !Number.isFinite(command.z))) return fail('Сюда нельзя пройти');
-    const target = station ? approachFor(station, role)
+    const requested = station ? approachFor(station, role)
       : { x: Math.round(Number(command.x) * 100) / 100, z: Math.round(Number(command.z) * 100) / 100 };
     const obstacles = placeObstacles(place);
     const floor = floorFor(place);
+    const other = neighborAt(place);
+    const target = other && pointIsClear(requested, obstacles, floor)
+      ? unoccupiedDestination(requested, other, obstacles, floor) : requested;
     const origin = nearestClearPoint(source.characters[role], obstacles, floor);
-    const path = origin && pointIsClear(target, obstacles, floor)
+    const path = origin && target && pointIsClear(target, obstacles, floor)
       ? findRoute(origin, target, obstacles, floor) : null;
-    if (!path) return fail('Сюда нельзя пройти');
+    if (!path || !target) return fail('Сюда нельзя пройти');
     const next = structuredClone(source);
     Object.assign(next.characters[role], target, { pose: 'idle' });
     if (next.world.dogWalker === role) setDogParkPosition(next);

@@ -5,13 +5,14 @@ import { buildCharacterArt, type CharacterModel, type CharacterRig } from './Cha
 import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
 import { finish, orb } from './ArtKit';
+import type { FloorPoint } from './navigation';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch';
-const strideLength = 1.02;
-const stancePortion = 0.54;
+type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
+export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands';
+const stancePortion = 0.60;
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
 const up = THREE.Object3D.DEFAULT_UP;
@@ -54,7 +55,12 @@ export class Actor {
   private closingBook = 0;
   private reaction = 0;
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
-  clearProps(): void { this.carryingBook = false; this.closingBook = 0; this.props.hideBook(); this.props.brush.visible = false; }
+  clearProps(): void {
+    this.carryingBook = false;
+    this.closingBook = 0;
+    this.props.hideBook();
+    this.props.brush.visible = this.props.tongs.visible = false;
+  }
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
 
   private readonly poseOffset = new THREE.Vector3();
@@ -71,6 +77,8 @@ export class Actor {
   private readonly rotationBasis = new THREE.Matrix4();
   private readonly aimRotation = new THREE.Quaternion();
   private readonly parentRotation = new THREE.Quaternion();
+  private readonly walkStep = new THREE.Vector3();
+  bodyPosition(target: THREE.Vector3): THREE.Vector3 { return this.figure.getWorldPosition(target); }
 
   constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);
@@ -136,6 +144,7 @@ export class Actor {
     this.heart.visible = false;
     this.spoon.visible = false;
     this.props.brush.visible = false;
+    this.props.tongs.visible = false;
   }
 
   /** Pose the visible character on the furniture while the navigation root
@@ -166,6 +175,7 @@ export class Actor {
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
     this.carryingBook = false;
     this.props.brush.visible = false;
+    this.props.tongs.visible = false;
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
@@ -191,7 +201,7 @@ export class Actor {
     this.heart.visible = kind === 'hug';
   }
 
-  private advance(dt: number): number {
+  private advance(dt: number, steer?: Steering): number {
     let budget = dt * HOME_WALK_SPEED;
     let traveled = 0;
     let heading = this.root.rotation.y;
@@ -200,15 +210,21 @@ export class Actor {
       const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
       const distance = Math.hypot(dx, dz);
       const travel = Math.min(distance, budget);
-      if (distance > 0.001) heading = Math.atan2(dx, dz);
+      if (distance > .001) heading = Math.atan2(dx, dz);
       budget -= travel;
-      traveled += travel;
-      if (travel < distance) {
-        this.root.position.x += dx / distance * travel;
-        this.root.position.z += dz / distance * travel;
+      const intended = travel === distance ? target : this.walkStep.copy(this.root.position).lerp(target, travel / distance);
+      const next = steer ? steer(this.root.position, intended) : intended;
+      if (next !== intended) {
+        const sidestepX = next.x - this.root.position.x, sidestepZ = next.z - this.root.position.z;
+        const sidestep = Math.hypot(sidestepX, sidestepZ);
+        traveled += sidestep;
+        if (sidestep > .001) heading = Math.atan2(sidestepX, sidestepZ);
+        this.root.position.set(next.x, 0, next.z);
         break;
       }
-      this.root.position.copy(target);
+      traveled += travel;
+      this.root.position.copy(intended);
+      if (travel < distance) break;
       this.waypoints.shift();
     }
     if (traveled > 0) {
@@ -272,14 +288,15 @@ export class Actor {
     this.spoon.quaternion.slerp(rotation, amount);
   }
 
-  update(dt: number): void {
+  update(dt: number, steer?: Steering): void {
     this.clock += dt;
     this.gestureTime += dt;
     this.activityTime += dt;
-    const traveled = this.advance(dt);
+    const traveled = this.advance(dt, steer);
     const walking = this.waypoints.length > 0 && traveled > 0;
     const alpha = 1 - Math.exp(-dt * 11);
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend, walking ? 1 : 0, alpha);
+    const strideLength = this.id === 'vlad' ? 1.43 : 1.31;
     this.gait = (this.gait + traveled / strideLength) % 1;
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
@@ -301,7 +318,7 @@ export class Actor {
     const settling = this.waypoints.length === 1 && next
       ? THREE.MathUtils.smoothstep(this.root.position.distanceTo(next), 0.02, 0.45) : 1;
     const speedBob = 0.010 * (1 - Math.cos(stridePhase * 2));
-    const stanceDrop = motion * (0.066 - speedBob);
+    const stanceDrop = motion * (.116 - speedBob);
     const data = this.rig;
     const armA = this.leftArm, armB = this.rightArm;
     let leftY = -data.upperArm - data.lowerArm + 0.018;
@@ -309,6 +326,10 @@ export class Actor {
     let leftZ = -0.22 * Math.cos(stridePhase - 0.18) * motion * (0.38 + 0.62 * settling);
     let rightZ = -leftZ;
     let armSpread = -0.074 - motion * 0.009 * Math.sin(stridePhase);
+    if (this.carryingBook && this.activity !== 'read') {
+      rightY = -.38;
+      rightZ = .23;
+    }
     let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
     if (asleep) {
       leftY = -0.51;
@@ -366,6 +387,15 @@ export class Actor {
           this.props.brush.visible = true;
           break;
         }
+        case 'washHands':
+          lean = .24;
+          crouch = .08;
+          gaze = .28;
+          break;
+        case 'grill':
+          lean = .16;
+          gaze = .18;
+          break;
         case 'watch':
           gaze = -.05 + Math.sin(a*1.22)*.047;
           lean = -.07;
@@ -505,6 +535,8 @@ export class Actor {
     }
 
     this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
+    this.props.tongs.visible = this.activity === 'grill';
+    if (this.props.tongs.visible) this.props.grip(a);
     this.spoon.rotation.y = this.activity === 'cook' ? 0.31 * Math.sin(a * 5) : 0.02;
     this.spoon.rotation.x = this.activity === 'cook' ? 0.56 + 0.10 * Math.cos(a * 5) : 0.31;
     this.crouchBlend = THREE.MathUtils.lerp(this.crouchBlend, crouch, alpha);
@@ -538,12 +570,12 @@ export class Actor {
         const phase = (this.gait + i * 0.5) % 1;
         const swing = phase > stancePortion;
         const travel = swing ? (phase - stancePortion) / (1 - stancePortion) : phase / stancePortion;
-        const lift = swing ? Math.sin(travel * Math.PI) ** 1.6 * 0.113 : 0;
+        const lift = swing ? Math.sin(travel * Math.PI) ** 1.55 * .126 : 0;
         const step = swing ? THREE.MathUtils.smoothstep(travel, 0, 1) * 2 - 1 : 1 - 2 * travel;
         // The stance ankle compensates for the body bob. Only the swing
         // phase lifts the sole off the floor and pitches it into the step.
         const y = -data.thighLength - data.shinLength + stanceDrop + motion * lift + this.crouchBlend;
-        toePitch = swing ? -0.19 * motion * Math.sin(travel * Math.PI * 2) : 0;
+        toePitch = swing ? -.23 * motion * Math.sin(travel * Math.PI * 2) : 0;
         const z = step * motion * strideLength * stancePortion / 2 + 0.08 * this.crouchBlend;
         const legBlend = THREE.MathUtils.lerp(alpha, 1, motion);
         this.bend(upper, knee, data.thighLength, data.shinLength, y, z, 1, legBlend);
@@ -621,9 +653,19 @@ export class Actor {
     if (counter) {
       for (const i of [0, 1] as const) {
         this.target.copy(counter);
-        this.target.x += (i ? -.12 : .12) + .075 * Math.sin(a * (this.activity === 'tidy' ? 4 : 6) + i);
-        this.target.y += .025 * Math.sin(a * 6 + i * 2);
-        this.target.z += .045 * Math.cos(a * 4 + i);
+        if (this.activity === 'washHands') {
+          this.target.x += (i ? -.044 : .044) + .025 * Math.sin(a * 7 + i * Math.PI);
+          this.target.y += .019 * Math.cos(a * 7 + i * Math.PI);
+          this.target.z += .038 * Math.sin(a * 5);
+        } else if (this.activity === 'grill') {
+          this.target.x += i ? .23 * Math.sin(a * 1.9) : -.23;
+          this.target.y += i ? .07 + .08 * Math.max(0, Math.sin(a * 3.4)) : .04;
+          this.target.z += i ? .08 : .22;
+        } else {
+          this.target.x += (i ? -.12 : .12) + .075 * Math.sin(a * (this.activity === 'tidy' ? 4 : 6) + i);
+          this.target.y += .025 * Math.sin(a * 6 + i * 2);
+          this.target.z += .045 * Math.cos(a * 4 + i);
+        }
         this.reach(i, this.target, alpha);
       }
     }

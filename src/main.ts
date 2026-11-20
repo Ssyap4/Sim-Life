@@ -764,7 +764,7 @@ function openActions(item: ItemId): void {
   about.textContent=HOME_OBJECT_DETAILS[item];
   actionsEl.appendChild(about);
 
-  if (state && (item === 'delivery' || item === 'kitchen' || item === 'table')) {
+  if (state && (item === 'delivery' || item === 'kitchen' || item === 'table' || item === 'grill' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = net.food(type, id);
       if (sent) {

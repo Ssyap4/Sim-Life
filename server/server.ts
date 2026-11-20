@@ -595,7 +595,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         const from = state.characters[role];
-        const result = applyWorld(state, role, message);
+        const result = applyWorld(state, role, message, active.has(otherRole(role)));
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }

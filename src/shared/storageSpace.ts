@@ -59,6 +59,10 @@ export const RECIPE_DESCRIPTIONS: Record<RecipeId,string> = {
   homemadePizza:'Замеси основу и запеки пиццу с колбасой, сыром и томатами.',
   fruitSalad:'Смешай свежие фрукты со сметаной — лёгкий десерт.',
   pastaCheese:'Свари макароны и смешай их с маслом и сыром.',
+  grillChicken:'Подрумянь курицу с луком на шампурах.',
+  grillSteak:'Обжарь говядину на горячей решётке.',
+  grillVegetables:'Запеки помидоры, морковь и лук на гриле.',
+  grillBurgers:'Поджарь котлеты и собери бургеры с сыром и томатом.',
 };
 export const HOME_OBJECT_DETAILS = {
   bookcase: 'Выбери произведение и почитай в свободном уютном месте.',
@@ -73,6 +77,9 @@ export const HOME_OBJECT_DETAILS = {
   shower:'Восстанавливает гигиену.',
   bathtub:'Дольше душа. Восстанавливает гигиену и комфорт.',
   basin:'Короткое умывание для гигиены.',
+  wcBasin:'Компактная раковина для мытья рук.',
+  grill:'Приготовь барбекю из семейных запасов.',
+  yardTable:'Здесь подаются готовые блюда с гриля.',
   delivery:'Магазин продуктов, готовых блюд и корма для питомцев. Покупки проверяются общим семейным бюджетом.',
 } as const;
 export function storageUsage(s:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock}):{fridge:number;cupboard:number} {

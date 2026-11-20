@@ -46,7 +46,7 @@ test('Both library approaches and all reading seats are navigable inside the hom
   const obstacles=placeObstacles('home');
   for(const role of ['vlad','alina'] as const) {
     assert.ok(findRoute(spawn('home',role),LIBRARY_APPROACH,obstacles,HOME_FLOOR));
-    for(const id of ['sofa','officeChair','table','yardBench','spareSeat'] as const) {
+    for(const id of ['sofa','officeChair','table','yardBench','yardTable'] as const) {
       const {approach}=homeSeat(id,role);
       assert.ok(pointIsClear(approach,obstacles,HOME_FLOOR),role+' '+id);
       assert.ok(findRoute(LIBRARY_APPROACH,approach,obstacles,HOME_FLOOR),role+' '+id);

@@ -1,4 +1,4 @@
-import type { WalkRoute } from '../game/navigation';
+import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
 export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush';
@@ -58,8 +58,15 @@ export const PETS = {
 export const PET_ROAM = [
   { x: -3.0, z: 3.43 }, { x: -6.30, z: -3.81 }, { x: -.62, z: 2.40 },
   { x: .84, z: -.56 }, { x: .48, z: 4.45 }, { x: 1.20, z: 2.58 }, { x: 7.72, z: -3.80 },
-  { x: -2.64, z: 7.52 }, { x: -3.82, z: 9.63 }, { x: -.96, z: 10.53 }, { x: 1.37, z: 8.88 },
+  { x: -2.64, z: 8.08 }, { x: -3.82, z: 9.63 }, { x: -.96, z: 10.53 }, { x: 1.37, z: 8.88 },
 ] as const;
+
+export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[], floor: FloorRect) {
+  for (const [dx, dz] of [[0, .74], [-.74, 0], [.74, 0], [0, -.74]]) {
+    const target = { x: position.x + dx, z: position.z + dz };
+    if (segmentIsClear(position, target, obstacles, floor)) return target;
+  }
+}
 
 export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target'>) {
   const pet = PETS[id];

@@ -2,7 +2,7 @@ import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import { BATH_ACTIONS } from '../src/shared/home';
@@ -27,7 +27,7 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
   toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
-  bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath,
+  bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath, wcWash: 6,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
@@ -68,19 +68,21 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'desk' || action.item === 'kitchen' || action.item === 'officeChair' ||
-        own(BATH_ACTIONS, id) ? action.item : null,
+      resource: action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
+        : action.item === 'desk' || action.item === 'kitchen' || action.item === 'officeChair' ||
+          own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
   if (command.type === 'cook' || command.type === 'eat') {
     const id = command.recipe;
     if (typeof id !== 'string' || !own(RECIPES, id)) return null;
     const recipe = id as RecipeId;
+    const grill = isGrillRecipe(recipe);
     return {
       command: { type: command.type, recipe },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
-      durationMs: command.type === 'cook' ? 12_000 : 7_000,
-      resource: command.type === 'cook' ? 'kitchen' : null,
+      durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : 7_000,
+      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
     };
   }
   if (command.type === 'eat_takeout') {

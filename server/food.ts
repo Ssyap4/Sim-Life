@@ -1,4 +1,5 @@
-import { GROCERIES, RECIPES, TAKEOUT, ingredientList, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { homeSeat } from '../src/shared/home';
 import { addLedger } from '../src/shared/economy';
 import { storageCanFit } from '../src/shared/storageSpace';
 import { names, points, type CharacterId, type GameState } from '../src/shared/protocol';
@@ -46,7 +47,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     actor.energy = Math.max(0, actor.energy - 4);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);
-    Object.assign(actor, { ...points.kitchen, pose: 'work' as const });
+    Object.assign(actor, isGrillRecipe(id) ? { ...points.grill, pose: 'idle' } : { ...points.kitchen, pose: 'work' });
     message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции';
   } else {
     if (!owns(RECIPES, command.recipe)) return { ok: false, reason: 'Неизвестное блюдо' };
@@ -57,7 +58,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     actor.mood = Math.min(100, actor.mood + meal.mood);
     actor.comfort = Math.min(100, actor.comfort + 4);
-    Object.assign(actor, { ...points.table, pose: 'sit' as const });
+    Object.assign(actor, { ...(isGrillRecipe(id) ? homeSeat('yardTable', role).approach : points.table), pose: 'sit' as const });
     message = names[role] + ': поел(а) ' + meal.name;
   }
   state.revision += 1;

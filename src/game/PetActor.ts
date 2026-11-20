@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine } from '../shared/pets';
-import { buildPetArt, verdellScale } from './PetArt';
+import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 
 export class PetActor {
   readonly root = new THREE.Group();
@@ -26,10 +26,10 @@ export class PetActor {
     const dog = id === 'verdell';
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
     this.body.add(this.head, this.tail);
-    if (dog) this.root.scale.setScalar(verdellScale);
-    else this.head.scale.set(.90, .97, 1);
+    this.root.scale.setScalar(dog ? verdellScale : simbaScale);
+    if (!dog) this.head.scale.set(.90, .97, 1);
     this.head.position.set(0, dog ? .728 : .542, dog ? .241 : .405);
-    this.tail.position.set(0, dog ? .458 : .433, dog ? -.454 : -.567);
+    this.tail.position.set(0, dog ? .523 : .433, dog ? -.454 : -.567);
     this.root.rotation.y = dog ? 0.20 : 0.21;
   }
 
@@ -136,7 +136,8 @@ export class PetActor {
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
       paw.rotation.x = pawLift * playful + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
         sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31);
-      paw.position.y = (dog ? 0.225 : front ? 0.245 : 0.27) + (dog ? 0 : 0.018 * playful * (front ? 1 : 0));
+      paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
+        (dog ? 0 : .018 * playful * (front ? 1 : 0));
     }
   }
 }

@@ -95,6 +95,9 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
     case 'toiletUse':
       change(state, role, 'bladder', 100);
       message = name + ': нужда восстановлена'; break;
+    case 'wcWash':
+      change(state, role, 'hygiene', 12);
+      message = name + ': руки вымыты'; break;
     case 'bathShower':
       change(state, role, 'hygiene', 75);
       message = name + ': освежился после душа'; break;

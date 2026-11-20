@@ -120,7 +120,21 @@ function basin(root: THREE.Group): void {
   part(root, [.104, .154, .10], [.46, .906, -.12], C.clay);
 }
 
-const builders = { toilet, shower, bathtub, basin };
+function wcBasin(root: THREE.Group): void {
+  part(root, [.65, .34, .12], [0, .73, -.206], 0x819d92, 'wood');
+  part(root, [.35, .13, .246], [0, .83, .017], 0xb1c7b9, 'ceramic', orb);
+  part(root, [.355, .094, .243], [0, .886, .017], porcelain, 'ceramic', orb);
+  part(root, [.254, .019, .170], [0, .966, .059], glaze, 'ceramic', orb);
+  part(root, [.027, .009, .027], [0, .989, .058], chrome, 'metal', drum);
+  tap(root, 0, .923, -.17);
+  part(root, [.11, .04, .078], [.246, .958, -.056], 0xd3a07c);
+  const mirror = part(root, [.242, .284, .046], [0, 1.52, -.237], C.oat, 'wood', orb);
+  mirror.rotation.z = .035;
+  part(root, [.208, .241, .019], [0, 1.52, -.199], 0xb1c8bf, 'metal', orb);
+  part(root, [.056, .17, .038], [.273, .726, .04], C.paper);
+}
+
+const builders = { toilet, shower, bathtub, basin, wcBasin };
 
 export function buildBathFixture(id: BathFixture): THREE.Group {
   const root = new THREE.Group();

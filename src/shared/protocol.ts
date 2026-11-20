@@ -5,7 +5,7 @@ import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
-import { BATH_FIXTURES, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
+import { BATH_FIXTURES, GRILL_WORK, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
 import type { BookId, Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
 import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
@@ -13,7 +13,7 @@ export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
-export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair';
+export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable';
 export type SocialKind = 'hug' | 'highFive';
 export const SOCIAL_LABELS: Record<SocialKind, string> = {
   hug: 'Обняться', highFive: 'Дать пять',
@@ -65,6 +65,7 @@ export const itemNames: Record<ItemId, string> = {
   officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
   kitchen: 'Кухня', tv: 'Телевизор', table: 'Обеденный стол',
+  grill: 'Дворовый гриль', yardTable: 'Стол во дворе', wcBasin: 'Раковина в туалете',
   delivery: 'Магазин и доставка',
   toilet: 'Туалет', shower: 'Душевая', bathtub: 'Ванна', basin: 'Раковина в ванной',
 };
@@ -75,10 +76,11 @@ export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number 
   bed: { x: HOME_PLACEMENTS.bed.x, z: HOME_PLACEMENTS.bed.z + 1.95 },
   desk: { x: HOME_PLACEMENTS.desk.x, z: HOME_PLACEMENTS.desk.z + 2.04 },
   kitchen: KITCHEN_WORK.stove.position,
+  grill: GRILL_WORK.position, yardTable: homeSeat('yardTable', 'vlad').approach,
   tv: { x: HOME_PLACEMENTS.tv.x + 1.53, z: HOME_PLACEMENTS.tv.z + .63 },
   table: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.14 },
   toilet: BATH_FIXTURES.toilet.approach, shower: BATH_FIXTURES.shower.approach,
-  bathtub: BATH_FIXTURES.bathtub.approach, basin: BATH_FIXTURES.basin.approach,
+  bathtub: BATH_FIXTURES.bathtub.approach, basin: BATH_FIXTURES.basin.approach, wcBasin: BATH_FIXTURES.wcBasin.approach,
 };
 
 export interface ActionDefinition {
@@ -113,6 +115,7 @@ export const ACTIONS = {
   tableTalk: { label: '💬 Пообщаться в переписке', item: 'table', pose: 'sit' },
   tablePlan: { label: '📒 Спланировать день', item: 'table', pose: 'sit' },
   toiletUse: { label: '🚽 Воспользоваться туалетом', item: 'toilet', pose: 'idle' },
+  wcWash: { label: 'Помыть руки', item: 'wcBasin', pose: 'idle' },
   bathShower: { label: '🚿 Принять душ', item: 'shower', pose: 'idle' },
   bathSoak: { label: '🛁 Принять ванну', item: 'bathtub', pose: 'idle' },
   bathTeeth: { label: '🪥 Почистить зубы', item: 'basin', pose: 'idle' },

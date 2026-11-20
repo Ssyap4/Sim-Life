@@ -53,14 +53,14 @@ export const HOME_PLACEMENTS = {
   tv: { x: -2.39, z: -.38 },
   table: { x: 2.39, z: -2.22 },
   vanity: { x: -8.70, z: -2.86 },
-  lamp: { x: -3.81, z: 3.31 },
   fridge: { x: 3.72, z: COUNTER.z - .26 },
   bedroomLampLeft: { x: -8.84, z: -6.70 },
   bedroomLampRight: { x: -5.12, z: -6.70 },
   bookcase: { x: 8.97, z: -4.49 },
   officeChair: { x: 6.47, z: -2.84 },
   yardBench: { x: -3.23, z: 10.24 },
-  spareSeat: { x: -8.29, z: .12 },
+  grill: { x: -4.72, z: 6.49 },
+  yardTable: { x: -2.68, z: 6.43 },
 } as const;
 
 export const BATH_FIXTURES = {
@@ -68,20 +68,21 @@ export const BATH_FIXTURES = {
   shower: { center: { x: 8.36, z: .50 }, approach: { x: 8.08, z: .55 } },
   bathtub: { center: { x: 8.32, z: 3.72 }, approach: { x: 7.21, z: 3.72 } },
   basin: { center: { x: 5.98, z: -.44 }, approach: { x: 5.98, z: .59 } },
+  wcBasin: { center: { x: -6.28, z: 2.39 }, approach: { x: -6.28, z: 2.99 } },
 } as const;
 
 export const LIBRARY_APPROACH = { x: 8.12, z: -4.48 };
 export const HOME_WALK_SPEED = 1.8;
 
-export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./protocol').CharacterId) {
+export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./protocol').CharacterId, layout?: HomeLayout) {
   const first = role === 'vlad';
-  const p = HOME_PLACEMENTS[id];
+  const p = id === 'yardBench' ? HOME_PLACEMENTS.yardBench : furniturePosition(id, layout);
   const seat = {
     sofa: [first ? -.50 : .50, first ? .057 : .106, -.27, Math.PI, first ? -.50 : .50, -1.01],
     officeChair: [.14, first ? -.24 : -.19, 0, Math.PI / 2, 1.02, 0],
     table: [first ? .99 : -.99, first ? -.27 : -.22, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
     yardBench: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
-    spareSeat: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
+    yardTable: [first ? -.57 : .57, first ? -.27 : -.22, .72, Math.PI, first ? -.57 : .57, 1.42],
   }[id];
   const [x,y,z,yaw,approachX,approachZ] = seat;
   return { position: {x:p.x+x,y,z:p.z+z}, yaw, approach: {x:p.x+approachX,z:p.z+approachZ} };
@@ -95,28 +96,49 @@ export function homeFootprint(center: { x: number; z: number },
     minZ: center.z + minZ, maxZ: center.z + maxZ };
 }
 
+const movableBounds = {
+  sofa: [-1.34, 1.34, -.53621, .60],
+  bed: [-1.34, 1.34, -1.38, 1.35],
+  desk: [-1.125, 1.125, -.49, 1.46],
+  tv: [-.96, .96, -.275, .284],
+  table: [-1.36, 1.36, -.62, .62],
+  bookcase: [-.44, .44, -1.02, 1.02],
+  officeChair: [-.56, .52, -.64, .64],
+  grill: [-.60, .60, -.45, .47],
+  yardTable: [-.98, .98, -.46, 1.01],
+} as const;
+export type HomeFurnitureId = keyof typeof movableBounds;
+export type HomeLayout = Partial<Record<HomeFurnitureId, { x: number; z: number }>>;
+
+/** Shared layout input for furniture roots and walkable footprints. */
+export function furniturePosition(id: HomeFurnitureId, layout?: HomeLayout) {
+  return layout?.[id] ?? HOME_PLACEMENTS[id];
+}
+
+export function furnitureBounds(id: HomeFurnitureId, layout?: HomeLayout) {
+  const [minX, maxX, minZ, maxZ] = movableBounds[id];
+  return homeFootprint(furniturePosition(id, layout), minX, maxX, minZ, maxZ);
+}
+
+const defaultFurnitureBounds = Object.fromEntries(
+  (Object.keys(movableBounds) as HomeFurnitureId[]).map(id => [id, furnitureBounds(id)]),
+) as Record<HomeFurnitureId, FloorRect>;
+
 export const HOME_FURNITURE = {
-  sofa: homeFootprint(HOME_PLACEMENTS.sofa, -1.34, 1.34, -.53621, .60),
-  bed: homeFootprint(HOME_PLACEMENTS.bed, -1.34, 1.34, -1.38, 1.35),
+  ...defaultFurnitureBounds,
   kitchen: homeFootprint(COUNTER, -2.195, 2.21, -.575, .49),
-  desk: homeFootprint(HOME_PLACEMENTS.desk, -1.125, 1.125, -.49, 1.46),
-  tv: homeFootprint(HOME_PLACEMENTS.tv, -.96, .96, -.275, .284),
-  table: homeFootprint(HOME_PLACEMENTS.table, -1.36, 1.36, -.62, .62),
   toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),
   bathtub: homeFootprint(BATH_FIXTURES.bathtub.center, -.67, .67, -1.08, 1.08),
-  bookcase: homeFootprint(HOME_PLACEMENTS.bookcase, -.44, .44, -1.02, 1.02),
-  officeChair: homeFootprint(HOME_PLACEMENTS.officeChair, -.56, .52, -.64, .64),
   basin: homeFootprint(BATH_FIXTURES.basin.center, -.63, .63, -.32, .36),
+  wcBasin: homeFootprint(BATH_FIXTURES.wcBasin.center, -.40, .40, -.27, .32),
 };
 
 const shower = BATH_FIXTURES.shower.center;
 export const HOME_DECOR = [
   homeFootprint(HOME_PLACEMENTS.vanity, -.51, 1.14, -.90, .90),
-  homeFootprint(HOME_PLACEMENTS.lamp, -.36, .36, -.36, .36),
   homeFootprint(HOME_PLACEMENTS.bedroomLampLeft, -.34, .34, -.38, .38),
   homeFootprint(HOME_PLACEMENTS.bedroomLampRight, -.35, .35, -.38, .38),
   homeFootprint(HOME_PLACEMENTS.yardBench, -.96, .96, -.36, .36),
-  homeFootprint(HOME_PLACEMENTS.spareSeat, -.96, .96, -.36, .36),
   // The shower tray is walkable. Its glazing forms a U with the entrance facing west.
   homeFootprint(shower, -.73, .77, -.91, -.54),
   homeFootprint(shower, -.72, .77, .54, .91),
@@ -125,8 +147,6 @@ export const HOME_DECOR = [
 
 export const HOME_YARD = {
   gate: { x: HOUSE_ENTRY.x, z: 12.06, width: 1.46 },
-  grill: { x: -4.72, z: 6.49 },
-  sideTable: { x: -3.42, z: 6.49 },
   parking: { x: 3.85, z: 8.87 },
   planter: { x: -5.73, z: 9.80 },
 };
@@ -139,8 +159,6 @@ export const HOME_STRUCTURE_OBSTACLES = [
   // The wider house has wings on either side of the existing, narrower courtyard.
   { minX: HOME_FLOOR.minX, maxX: -5.62, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
   { minX: 5.62, maxX: HOME_FLOOR.maxX, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
-  homeFootprint(HOME_YARD.grill, -.69, .69, -.62, .62),
-  homeFootprint(HOME_YARD.sideTable, -.67, .67, -.55, .55),
   homeFootprint(HOME_YARD.parking, -.99, .99, -2.79, -2.25),
   homeFootprint(HOME_YARD.planter, -.45, .50, -2.11, 2.11),
 ];
@@ -161,7 +179,9 @@ export const KITCHEN_ACTIONS = {
 } as const;
 
 export const BATH_ACTIONS = {
-  toiletUse: 'toilet', bathShower: 'shower', bathSoak: 'bathtub', bathFoam: 'bathtub', bathWash: 'basin', bathTeeth: 'basin',
+  toiletUse: 'toilet', wcWash: 'wcBasin', bathShower: 'shower', bathSoak: 'bathtub', bathFoam: 'bathtub', bathWash: 'basin', bathTeeth: 'basin',
 } as const;
+export const GRILL_WORK = { position: { x: HOME_PLACEMENTS.grill.x, z: HOME_PLACEMENTS.grill.z + .75 },
+  target: { x: HOME_PLACEMENTS.grill.x, y: .93, z: HOME_PLACEMENTS.grill.z + .12 } };
 export type BathFixture = keyof typeof BATH_FIXTURES;
 export type HomeLeisure = 'tv' | 'computer' | 'verdell' | 'simba' | 'chat';

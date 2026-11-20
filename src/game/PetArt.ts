@@ -12,7 +12,8 @@ const soot = new THREE.Color(0x28252b);
 const silver = new THREE.Color(0x635d65);
 const charcoal = 0x322d34;
 
-export const verdellScale = .76;
+export const verdellScale = .68;
+export const simbaScale = .86;
 
 type PetRig = {
   ears: THREE.Group[];
@@ -34,7 +35,7 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
   const result: THREE.Group[] = [];
   for (const side of [-1, 1]) for (const back of [false, true]) {
     const pivot = new THREE.Group();
-    const base = dog ? 0.225 : back ? 0.27 : 0.245;
+    const base = dog ? (back ? .268 : .225) : back ? .27 : .245;
     const end = dog ? 0.074 : 0.045;
     const toes = dog ? .102 : .082;
     const leg = loft([
@@ -108,7 +109,8 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
     const taper = Math.sin(Math.PI * THREE.MathUtils.smoothstep(y, 0.14, 0.94));
     const ridge = (0.5 + 0.5 * Math.cos(a * 10 + y * 4 + Math.sin(a * 3) * 1.1)) ** 3;
     const fold = taper * (0.55 + 0.45 * chest) * (ridge * 0.030 + Math.sin(a * 17 - y * 29) * 0.008);
-    return [x + Math.sin(a) * fold, y - ridge * taper * 0.024, z + Math.cos(a) * fold];
+    const rump = THREE.MathUtils.smoothstep(-z, .04, .48) * .085;
+    return [x + Math.sin(a) * fold, y + rump - ridge * taper * .024, z + Math.cos(a) * fold];
   }, (color, a, y) => {
     const ridge = (0.5 + 0.5 * Math.cos(a * 10 + y * 4 + Math.sin(a * 3) * 1.1)) ** 3;
     const front = Math.max(0, Math.cos(a));
