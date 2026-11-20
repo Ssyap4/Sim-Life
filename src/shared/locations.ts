@@ -156,4 +156,4 @@ export type WorldCommand =
   | { type: 'dog_leash' }
   | { type: 'local_activity'; action: LocalActivity; station: string };
 
-export const clockMinutes = ({ day, minute }: { day: number; minute: number }) => (day - 1) * 1440 + minute;
+export { gameMinutes as clockMinutes } from './life';

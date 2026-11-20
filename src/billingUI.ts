@@ -1,13 +1,13 @@
 import { formatRub } from './shared/economy';
-import { clockLabel } from './shared/life';
+import { clockAt, clockLabel } from './shared/life';
 import { clockMinutes } from './shared/locations';
 import type { GameState } from './shared/protocol';
-import { BILLING_PERIOD, SERVICES, SERVICE_IDS, serviceAvailable,
+import { BILLING_PERIOD, SERVICES, SERVICE_IDS, serviceAvailable, upcomingPayments,
   type Bill, type ServiceCommand, type ServiceId } from './shared/services';
 
 export type BillingApp = 'finance' | 'subscriptions' | 'utilities' | 'internet' | 'mobile';
 const subscriptions = SERVICE_IDS.filter(id => SERVICES[id].category === 'subscription');
-const dateLabel = (minute: number) => clockLabel({ day: Math.floor(minute / 1440) + 1, minute: minute % 1440 });
+const dateLabel = (minute: number) => clockLabel(clockAt(minute));
 const rubRange = (min: number, max: number) => min === max ? formatRub(min) : formatRub(min) + ' – ' + formatRub(max);
 function tariff(id: ServiceId) {
   const service = SERVICES[id];
@@ -51,8 +51,11 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
           status.nextDue > now + BILLING_PERIOD) continue;
       const service = SERVICES[id];
       const cycles = 1 + Math.floor((now + BILLING_PERIOD - status.nextDue) / service.period);
-      minimum += (service.price ?? service.range[0]) * cycles;
-      maximum += (service.price ?? service.range[1]) * cycles;
+      const quote = id === 'utilities' ? state.billing.utilityQuote : undefined;
+      const amount = quote?.due === status.nextDue ? quote.amount : undefined;
+      const remaining = cycles - (amount === undefined ? 0 : 1);
+      minimum += (amount ?? 0) + (service.price ?? service.range[0]) * remaining;
+      maximum += (amount ?? 0) + (service.price ?? service.range[1]) * remaining;
     }
     const debt = state.billing.bills.reduce((total, bill) => total + (bill.paidAt === null ? bill.amount : 0), 0);
     const active = subscriptions.filter(id => serviceAvailable(state.billing, id, now)).length;
@@ -75,7 +78,15 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
         (entry.kind === 'income' ? '+' : '−') + formatRub(entry.amount),
         entry.kind === 'income' ? 'market-positive' : 'billing-amount'));
     }
-    return [hero, journal];
+    const upcoming = upcomingPayments(state.billing, now);
+    if (!upcoming.length) return [hero, journal];
+    const reminders = node('section', 'billing-journal billing-upcoming');
+    reminders.append(node('h3', '', 'Платежи в ближайший игровой день'));
+    for (const { id, due, amount } of upcoming) {
+      const { icon, name } = SERVICES[id];
+      reminders.append(expenseRow(icon + ' ' + name, dateLabel(due), amount === null ? tariff(id) : formatRub(amount)));
+    }
+    return [hero, reminders, journal];
   }
 
   function service(state: GameState, id: ServiceId, now: number) {
@@ -90,7 +101,7 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
       node('span', active ? 'billing-status active' : 'billing-status',
         unpaid.length ? 'Ожидает оплаты' : active ? 'Активна' : status.enabled ? 'Истекла' : 'Не подключена'));
     card.append(head, node('strong', 'billing-tariff', tariff(id) + ' / ' + definition.period / 1440 + ' игровых дней'));
-    if (id === 'utilities') card.append(node('p', '', 'Сумма каждого начисления определяется в день выставления счёта.'));
+    if (id === 'utilities') card.append(node('p', '', 'Точная сумма начисления появляется за игровой день до оплаты.'));
     if (id === 'mobile') card.append(node('p', '', 'Семейный тариф для доставки, звонков и переписки.'));
     if (id === 'internet') card.append(node('p', '', 'Подключение для домашнего компьютера и платного ТВ.'));
     if (status.paidUntil !== null && active) {
@@ -98,8 +109,11 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
       card.append(node('p', '', 'Оплачено до ' + dateLabel(status.paidUntil) +
         ' · осталось ' + Math.floor(hours / 24) + ' д. ' + hours % 24 + ' ч.'));
     }
-    if (status.autoRenew && status.nextDue !== null)
-      card.append(node('p', '', 'Следующий платёж · ' + dateLabel(status.nextDue)));
+    if (status.autoRenew && status.nextDue !== null) {
+      const quote = id === 'utilities' ? state.billing.utilityQuote : undefined;
+      card.append(node('p', '', 'Следующий платёж · ' + dateLabel(status.nextDue) +
+        (quote?.due === status.nextDue ? ' · ' + formatRub(quote.amount) : '')));
+    }
     if (unpaid.length) {
       const total = unpaid.reduce((sum,bill) => sum + bill.amount, 0);
       card.append(node('p', 'billing-debt', 'Задолженность ' + formatRub(total)));
@@ -135,7 +149,7 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
 
   function renderPage(state: GameState, page: BillingApp) {
     const now = clockMinutes(state.clock);
-    const signature = JSON.stringify([page, Math.floor(now / 60), state.money, state.billing.services, state.billing.bills.length, state.ledger.at(-1)?.id,
+    const signature = JSON.stringify([page, Math.floor(now / 60), state.money, state.billing.services, state.billing.utilityQuote, state.billing.bills.length, state.ledger.at(-1)?.id,
       visibleHistory, currentMessages]);
     if (signature === previous) return;
     previous = signature;

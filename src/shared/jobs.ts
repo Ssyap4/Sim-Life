@@ -1,5 +1,5 @@
-import { GAME_MINUTES_PER_REAL_SECOND, type GameClock } from './life';
-export const totalGameMinutes = (clock: GameClock): number => (clock.day-1)*1440+clock.minute;
+import { GAME_MINUTES_PER_REAL_SECOND, gameMinutes as totalGameMinutes, type GameClock } from './life';
+export { totalGameMinutes };
 export interface ShiftAssignment {
   job: JobId;
   hours: number;

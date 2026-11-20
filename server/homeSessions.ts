@@ -32,7 +32,7 @@ type Hooks = {
   timeScale: number;
 };
 const obstacles = placeObstacles('home');
-const readingSeats: HomeSeat[] = HOME_SEATS.filter(seat => seat !== 'spareSeat');
+const readingSeats: HomeSeat[] = HOME_SEATS.filter(seat => seat !== 'spareSeat' && seat !== 'officeChair');
 const length = (route: WalkRoute) => route.path.reduce((sum, point, i) => {
   const from = route.path[i - 1] ?? route.from;
   return sum + Math.hypot(point.x - from.x, point.z - from.z);
@@ -52,7 +52,7 @@ const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'y
 export function usesHomeSession(command: TimedCommand): boolean {
   return isEntertainment(command) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
-      ['sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan'].includes(command.actionId));
+      ['sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
 }
 
 export function createHomeSessions(hooks: Hooks) {
@@ -85,17 +85,16 @@ export function createHomeSessions(hooks: Hooks) {
       const pickup = walk(from, LIBRARY_APPROACH);
       if (!pickup) return null;
       const index = Math.floor(Math.random() * readingSeats.length);
-      const order = [...readingSeats.slice(index), ...readingSeats.slice(0,index), 'spareSeat' as const];
+      const order = command.seat ? [command.seat] : [...readingSeats.slice(index), ...readingSeats.slice(0,index), 'spareSeat' as const];
       for (const station of order) {
-        // Each resident has their own spot on every seat. All activity modes
-        // reserve the resident for the entire route and their own seat identity.
         const route = walk(pickup.path.at(-1) ?? pickup.from, homeSeat(station, role).approach);
         if (route) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
           pickup: pickup.path.length, pickupMs: 720, station };
       }
       return null;
     }
-    const station = command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
+    const station = command.type === 'act' && command.actionId === 'officeChairSit' ? 'officeChair'
+      : command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
     const route = walk(from, homeSeat(station, role).approach);
     if (!route) return null;
     const program = command.type === 'free_tv' ? 'broadcast' : command.type === 'movie' ? command.genre
@@ -124,7 +123,8 @@ export function createHomeSessions(hooks: Hooks) {
       const result = evaluateTask(next, role, session.plan.command, session.participants.length === 2);
       if (!result.ok) { end(session, 'failed', result.reason); return; }
       const route = packet.home!.route;
-      const seated = HOME_SEATS.some(seat => seat === packet.home!.station);
+      const seat = packet.home!.station;
+      const seated = seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
       Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from, { pose: seated ? 'sit' : 'idle' });
       next = result.state;
       results.push(result);

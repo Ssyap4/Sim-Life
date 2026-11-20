@@ -1,21 +1,24 @@
 import { taskAccessError } from './shared/serviceAccess';
 import { PLACES, stationById } from './shared/locations';
+import { formatRub } from './shared/economy';
+import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
 import { needChips, needFeedback } from './needsFeedback';
-import type { NeedEffects } from './shared/homeLife';
+import { readingSkillLabel, type NeedEffects } from './shared/homeLife';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
+import { GameClockDisplay } from './core/gameClock';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
 import { createMarketUI, showTakeoutChoices } from './marketUI';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
 import { PETS, type PetId } from './shared/pets';
-import { clockLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
+import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names, SOCIAL_LABELS,
@@ -28,6 +31,11 @@ let online: CharacterId[] = [];
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
 let toastTimer: number | undefined;
+let paymentNoticeTimer: number | undefined;
+const shownPayments = new Map<ServiceId, number>();
+const displayClock = new GameClockDisplay();
+let previousClockMinute = -1;
+let previousClockSpeed: TimeStatus['multiplier'] = 1;
 interface TaskView {
   taskId: number;
   label: string;
@@ -35,6 +43,7 @@ interface TaskView {
   effects?: NeedEffects;
   durationMs: number;
   automatic?: boolean;
+  reading: boolean;
 }
 const tasks = new Map<CharacterId, TaskView>();
 let world: World;
@@ -54,7 +63,7 @@ app.innerHTML = `
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
-      <span id="life-clock">☀️ День 1 · 08:00</span>
+      <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small></span>
       <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
       <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
     </div>
@@ -88,6 +97,9 @@ app.innerHTML = `
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
   <div id="message" class="message" aria-live="polite"></div>
+  <aside id="payment-notice" class="payment-notice" hidden>
+    <span role="status"></span><button type="button">К платежам</button>
+  </aside>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
@@ -138,6 +150,7 @@ const taskPanelEl = document.querySelector<HTMLDivElement>('#task-panel')!;
 const timePanelEl = document.querySelector<HTMLDivElement>('#time-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
+const paymentNotice = document.querySelector<HTMLElement>('#payment-notice')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
@@ -150,6 +163,8 @@ const rememberDevice = document.querySelector<HTMLInputElement>('#remember-devic
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
 const jobsOverlay=document.querySelector<HTMLElement>('#jobs-overlay')!;
 const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
+const clockTime = clockEl.querySelector<HTMLElement>('[data-game-time]')!;
+const clockSeason = clockEl.querySelector<HTMLElement>('[data-game-season]')!;
 const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
 const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
 const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
@@ -210,6 +225,20 @@ function notify(message: string): void {
   toastTimer = window.setTimeout(() => messageEl.classList.remove('show'), 3600);
 }
 
+function showUpcomingPayments(household: GameState): void {
+  const fresh = upcomingPayments(household.billing, gameMinutes(household.clock))
+    .filter(payment => payment.amount !== null && shownPayments.get(payment.id) !== payment.due);
+  const first = fresh[0];
+  if (!first) return;
+  for (const { id, due } of fresh) shownPayments.set(id, due);
+  paymentNotice.querySelector('span')!.textContent = fresh.length === 1 && first.amount !== null
+    ? 'В течение игрового дня · ' + SERVICES[first.id].name + ' · ' + formatRub(first.amount)
+    : 'В течение игрового дня · платежей: ' + fresh.length;
+  paymentNotice.hidden = false;
+  window.clearTimeout(paymentNoticeTimer);
+  paymentNoticeTimer = window.setTimeout(() => { paymentNotice.hidden = true; }, 9000);
+}
+
 function drawTaskPanel(): void {
   taskPanelEl.replaceChildren();
   taskPanelEl.hidden = tasks.size === 0;
@@ -229,7 +258,17 @@ function drawTaskPanel(): void {
     const fill = document.createElement('i');
     track.appendChild(fill);
     box.append(top, track);
-    if (task.effects) box.append(needChips(task.effects,false));
+    if (task.effects) {
+      const chips = needChips(task.effects,false);
+      if (task.reading) {
+        const preview = document.createElement('span');
+        preview.className = 'reading-preview';
+        preview.textContent = readingSkillLabel() + ' · будущий навык';
+        preview.hidden = task.since === null;
+        chips.append(preview);
+      }
+      box.append(chips);
+    }
     if (role === active) {
       const cancel = document.createElement('button');
       cancel.type = 'button';
@@ -254,9 +293,14 @@ function updateTaskProgress(): void {
       Math.min(100, elapsed / task.durationMs * 100) + '%';
     card.querySelector<HTMLElement>('.task-seconds')!.textContent =
       task.since === null ? 'Подходит' : Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
+    const preview = card.querySelector<HTMLElement>('.reading-preview');
+    if (preview) preview.hidden = task.since === null;
   }
 }
-window.setInterval(() => { if (tasks.size) updateTaskProgress(); }, 150);
+window.setInterval(() => {
+  if (tasks.size) updateTaskProgress();
+  renderClock();
+}, 150);
 
 function renderNeeds(): void {
   if (!state || needsPanelEl.hidden) return;
@@ -326,6 +370,24 @@ function renderTimePanel(): void {
   timePanelEl.append(status,track,note,wake);
 }
 
+function renderClock(): void {
+  if (!state) return;
+  const minute = Math.floor(displayClock.read(performance.now()));
+  const speed = timeStatus.multiplier;
+  if (minute === previousClockMinute && speed === previousClockSpeed) return;
+  previousClockMinute = minute;
+  previousClockSpeed = speed;
+  const clock = clockAt(minute);
+  const date = gameDate(clock.day);
+  const icon = { night: '🌙', morning: '☀️', day: '☀️', evening: '🌇' }[dayPhase(clock)];
+  const time = icon + ' ' + date.day + ' ' + date.monthName + ' · ' + timeLabel(clock);
+  const season = date.season + ' · год ' + date.year +
+    (speed > 1 ? ' · ×' + speed.toLocaleString('ru-RU') : '');
+  if (clockTime.textContent !== time) clockTime.textContent = time;
+  if (clockSeason.textContent !== season) clockSeason.textContent = season;
+  phone.refreshClock(clock);
+}
+
 function render(reset = false): void {
   if (!state) return;
   if (active && world) {
@@ -349,9 +411,8 @@ function render(reset = false): void {
       marketUI.acknowledge();
     }
   }
-  clockEl.textContent = (state.clock.minute < 360 || state.clock.minute >= 1320 ? '🌙 ' :
-    state.clock.minute >= 1080 ? '🌇 ' : '☀️ ') + clockLabel(state.clock);
-  if (timeStatus.multiplier > 1) clockEl.textContent += ' · ×' + timeStatus.multiplier;
+  renderClock();
+  showUpcomingPayments(state);
   const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
   needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
@@ -414,6 +475,9 @@ function signOut(): void {
   phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
+  shownPayments.clear();
+  paymentNotice.hidden = true;
+  window.clearTimeout(paymentNoticeTimer);
   invites.close();
   feedback.clear();
   locationUI.reset();
@@ -422,11 +486,16 @@ function signOut(): void {
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
   enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
-  () => state && active ? {state,role:active,online,time:timeStatus} : null,
+  () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
   () => {marketUI.close();jobsUI.close();},command=>net.service(command));
+paymentNotice.querySelector('button')!.addEventListener('click', () => {
+  paymentNotice.hidden = true;
+  actionsEl.hidden = true;
+  phone.open('finance');
+});
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre),
-  () => state, where => phone.open(where));
+  () => state, () => active, where => phone.open(where));
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
@@ -434,6 +503,7 @@ const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
     state = household;
+    displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
     timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
     tasks.clear();
@@ -474,6 +544,11 @@ const net = new LiveConnection({
     render();
     if (state) jobsUI.refresh(state);
   },
+  onClock(sample) {
+    displayClock.sync(sample, performance.now());
+    renderClock();
+  },
+  onDisconnect() { displayClock.pause(performance.now()); },
   onWorldPath(role, place, path, station) {
     if (!active || world.place !== place) return;
     const target = stationById(place, station);
@@ -485,9 +560,10 @@ const net = new LiveConnection({
     if (role === active) notify(message);
   },
   onBillingEvent(messages) {
-    phone.billingMessages(messages);
-    const display = messages.length > 2 ? messages[0] + ' · ещё ' + (messages.length - 1) + ' в телефоне' : messages.join(' · ');
-    notify(display);
+    const updates = messages.filter(message => !message.includes(PAYMENT_REMINDER_PREFIX));
+    if (!updates.length) return;
+    phone.billingMessages(updates);
+    notify(updates.length > 2 ? updates[0] + ' · ещё ' + (updates.length - 1) + ' в телефоне' : updates.join(' · '));
   },
   onDeliveryArrived() {
     notify('Доставка у двери дома');
@@ -522,7 +598,8 @@ const net = new LiveConnection({
     else world.closeStorage(role);
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
-    tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now() });
+    tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now(),
+      reading: command.type === 'read_book' });
     drawTaskPanel();
     const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
@@ -738,10 +815,10 @@ function openActions(item: ItemId): void {
     }
   }
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
-  if (item==='sofa') {
+  if (item==='sofa'||item==='officeChair') {
     const books=document.createElement('button');
     books.type='button'; books.className='action-button'; books.textContent='📚 Выбрать книгу';
-    books.addEventListener('click',entertainmentMenu.library);
+    books.addEventListener('click', () => entertainmentMenu.library(item === 'officeChair' ? 'officeChair' : undefined));
     actionsEl.append(books);
   }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {

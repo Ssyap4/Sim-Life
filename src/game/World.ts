@@ -557,7 +557,7 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
-    if (home && ['basin','bathtub','shower','toilet'].includes(home.station)) this.actors[role].setPose('idle');
+    if (home && ['basin','bathtub','shower','toilet','officeChair'].includes(home.station)) this.actors[role].setPose('idle');
   }
 
   cancelTimedAction(role: CharacterId): void {

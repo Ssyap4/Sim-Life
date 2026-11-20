@@ -2,6 +2,29 @@
 export const GAME_MINUTES_PER_REAL_SECOND = 0.5; // One game day takes 48 real minutes.
 export const INITIAL_CLOCK = { day: 1, minute: 8 * 60 };
 export interface GameClock { day: number; minute: number }
+export const MINUTES_PER_DAY = 1440;
+export const CLOCK_SYNC_MS = 2000;
+export interface ClockSample { minutes: number; multiplier: 1 | 1.5 | 2 | 3 }
+
+const calendarStart = Date.UTC(2001, 2, 1);
+const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const seasons = ['Зима', 'Весна', 'Лето', 'Осень'] as const;
+
+export const gameMinutes = ({ day, minute }: GameClock) => (day - 1) * MINUTES_PER_DAY + minute;
+export function clockAt(minutes: number): GameClock {
+  return { day: Math.floor(minutes / MINUTES_PER_DAY) + 1, minute: Math.floor(minutes % MINUTES_PER_DAY) };
+}
+
+/** Game day 1 is March 1 of year 1. UTC keeps the calendar independent of device time zones. */
+export function gameDate(day: number) {
+  const date = new Date(calendarStart + (day - 1) * 86_400_000);
+  const month = date.getUTCMonth();
+  return {
+    day: date.getUTCDate(), month: month + 1, monthName: months[month],
+    year: date.getUTCFullYear() - 2000, season: seasons[Math.floor(((month + 1) % 12) / 3)],
+  };
+}
 
 export const INITIAL_DAILY_NEEDS = {
   hygiene: 82, social: 75, fun: 72, comfort: 80, bladder: 86,
@@ -23,11 +46,14 @@ export const NEED_INFO: Record<VitalNeed, { label: string; emoji: string; hint: 
   comfort: { label: 'Комфорт', emoji: '🏡', hint: 'Отдохни и наведи уют' },
 };
 
-export function clockLabel(clock: GameClock): string {
+export function timeLabel(clock: GameClock): string {
   const hours = Math.floor(clock.minute / 60);
   const minutes = Math.floor(clock.minute % 60);
-  return 'День ' + clock.day + ' · ' + String(hours).padStart(2, '0') +
-    ':' + String(minutes).padStart(2, '0');
+  return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+}
+export function clockLabel(clock: GameClock): string {
+  const date = gameDate(clock.day);
+  return date.day + ' ' + date.monthName + ', год ' + date.year + ' · ' + timeLabel(clock);
 }
 export function dayPhase(clock: GameClock): 'night' | 'morning' | 'day' | 'evening' {
   const hour = clock.minute / 60;

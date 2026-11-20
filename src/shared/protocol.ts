@@ -4,16 +4,16 @@ import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, type PetFamily, type PetFoodStock } from './pets';
-import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, type GameClock } from './life';
-import { BATH_FIXTURES, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, type BathFixture, type HomeLeisure } from './home';
-import type { Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
+import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
+import { BATH_FIXTURES, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
+import type { BookId, Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
 import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
-export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase';
+export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair';
 export type SocialKind = 'hug' | 'highFive';
 export const SOCIAL_LABELS: Record<SocialKind, string> = {
   hug: 'Обняться', highFive: 'Дать пять',
@@ -55,12 +55,14 @@ export interface GameState {
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
   petFood: PetFoodStock;
+  readBooks: Record<CharacterId, BookId[]>;
   characters: Record<CharacterId, CharacterState>;
 }
 
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };
 export const itemNames: Record<ItemId, string> = {
   bookcase: '📚 Домашняя библиотека',
+  officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
   kitchen: 'Кухня', tv: 'Телевизор', table: 'Обеденный стол',
   delivery: 'Магазин и доставка',
@@ -68,6 +70,7 @@ export const itemNames: Record<ItemId, string> = {
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
   bookcase: LIBRARY_APPROACH,
+  officeChair: homeSeat('officeChair', 'vlad').approach,
   sofa: { x: HOME_PLACEMENTS.sofa.x, z: HOME_PLACEMENTS.sofa.z - 1.10 },
   bed: { x: HOME_PLACEMENTS.bed.x, z: HOME_PLACEMENTS.bed.z + 1.95 },
   desk: { x: HOME_PLACEMENTS.desk.x, z: HOME_PLACEMENTS.desk.z + 2.04 },
@@ -90,6 +93,7 @@ export const ACTIONS = {
   sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },
   sofaMusic: { label: '🎵 Послушать музыку', item: 'sofa', pose: 'sit' },
   sofaCall: { label: '📱 Позвонить близким', item: 'sofa', pose: 'sit' },
+  officeChairSit: { label: 'Посидеть в кресле', item: 'officeChair', pose: 'sit' },
   bedSleep: { label: '🌙 Поспать', item: 'bed', pose: 'sleep' },
   bedNap: { label: '😴 Вздремнуть', item: 'bed', pose: 'sleep' },
   bedMake: { label: '🛏️ Заправить кровать', item: 'bed', pose: 'idle' },
@@ -149,6 +153,7 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand
 
 export type ServerPacket =
   | { type: 'time_status'; status: import('./timeControl').TimeStatus }
+  | { type: 'clock_sync'; sample: ClockSample }
   | { type: 'storage_event'; role: CharacterId; station?: string }
   | { type: 'home_leisure'; roles: CharacterId[]; activity: HomeLeisure | null; routes: Partial<Record<CharacterId, WalkRoute>> }
   | { type: 'device_token'; role: CharacterId; token: string }
@@ -176,9 +181,10 @@ export type ServerPacket =
 export function initialState(): GameState {
   return {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
-    billing: initialServices((INITIAL_CLOCK.day - 1) * 1440 + INITIAL_CLOCK.minute),
+    billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
+    readBooks: { vlad: [], alina: [] },
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },

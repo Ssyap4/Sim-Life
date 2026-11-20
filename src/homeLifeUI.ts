@@ -1,8 +1,9 @@
 import { serviceAvailable } from './shared/services';
 import { clockMinutes } from './shared/locations';
 import { taskAccessError } from './shared/serviceAccess';
-import type { GameState } from './shared/protocol';
-import { BOOKS, GENRES, HOME_SECONDS, type Entertainment, type Genre } from './shared/homeLife';
+import type { BookId, Entertainment, Genre } from './shared/homeLife';
+import type { CharacterId, GameState } from './shared/protocol';
+import { BOOKS, GENRES, HOME_SECONDS } from './shared/homeLife';
 
 function button(label: string, click: () => void, className = 'action-button') {
   const element = document.createElement('button');
@@ -15,7 +16,7 @@ function button(label: string, click: () => void, className = 'action-button') {
 
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean,
-  read: () => GameState | null, payments: (where: 'internet' | 'subscriptions') => void) {
+  read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
   const permitted = (command: Entertainment) => {
     const state = read();
@@ -59,11 +60,13 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
       root.append(button('📺 Смотреть обычные телеканалы · ' + HOME_SECONDS.freeTv + ' с',
         () => send(submit({type:'free_tv'}))),button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
         () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
-        button('🎬 Смотреть фильм',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
+        button('🎬 Смотреть Netflix',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
     },
     genres,
-    library() {
-      heading('📚 Домашняя библиотека');
+    library(seat?: 'officeChair') {
+      heading(seat ? '📚 Почитать в кресле' : '📚 Домашняя библиотека');
+      const role = active();
+      const completed = new Set(role ? read()?.readBooks?.[role] : []);
       const shelf = document.createElement('div');
       shelf.className = 'library-list';
       for(const [id,[title,author,genre,seconds,color]] of Object.entries(BOOKS)) {
@@ -78,10 +81,18 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
         const reward=document.createElement('small');
         reward.textContent=seconds+' с · 🎲 +60 · 🏡 +10';
         reward.title='Досуг +60, комфорт +10';
-        const read = button('Читать',() => send(submit({type:'read_book',book:id as keyof typeof BOOKS})));
-        read.setAttribute('aria-label','Читать: '+title);
+        const book = id as BookId;
+        const finished = completed.has(book);
+        const open = button(finished ? 'Перечитать' : 'Читать',() => send(submit({type:'read_book',book,seat})));
+        open.setAttribute('aria-label',open.textContent + ': '+title);
         text.append(name,authorLine,reward);
-        entry.append(text,read);
+        if (finished) {
+          const badge = document.createElement('small');
+          badge.className = 'book-read';
+          badge.textContent = '✓ Прочитано';
+          text.append(badge);
+        }
+        entry.append(text,open);
         shelf.append(entry);
       }
       root.append(shelf);

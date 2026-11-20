@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
-import { BILLING_PERIOD, SERVICE_MESSAGES, serviceAvailable } from '../../src/shared/services';
+import { BILLING_PERIOD, SERVICE_MESSAGES, UTILITY_RANGE, initialServices, serviceAvailable, upcomingPayments } from '../../src/shared/services';
+import { clockAt } from '../../src/shared/life';
 import { clockMinutes, stationById, approachFor } from '../../src/shared/locations';
 import { applyServiceCommand, settleFamilyServices } from '../services';
 import { applyWorld } from '../locations';
@@ -102,6 +103,37 @@ test('Reminder and rejection are emitted once per deadline', () => {
   moveClock(state,day);
   assert.equal(settleFamilyServices(state,false).filter(m=>m.includes('недостаточно')).length,3);
   assert.deepEqual(settleFamilyServices(state,true),[]);
+});
+
+test('One-day reminders include fixed prices and lock the utility amount across reload', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-utility-quote-'));
+  try {
+    const files = openServerFiles(dir);
+    const state = connect(connect(initialState(), 'netflix'), 'youtube');
+    state.money = 0;
+    moveClock(state, BILLING_PERIOD - day - 1);
+    assert.deepEqual(settleFamilyServices(state, false), []);
+    assert.equal(state.billing.utilityQuote, undefined);
+    moveClock(state, 1);
+    const reminders = settleFamilyServices(state, false);
+    assert.equal(reminders.length, 5);
+    assert.ok(reminders.every(message => message.includes('11 марта') && message.includes('₽')));
+    const quote = state.billing.utilityQuote as GameState['billing']['utilityQuote'];
+    assert.ok(quote && quote.amount >= UTILITY_RANGE[0] && quote.amount <= UTILITY_RANGE[1]);
+    assert.equal(state.billing.bills.length, 2, 'the quote is not an invoice');
+    assert.deepEqual(upcomingPayments(state.billing, time(state)).map(p => p.amount), [quote.amount, 1200, 1000, 1500, 1300]);
+    files.save(state);
+    const reloaded = files.load();
+    assert.deepEqual(reloaded.billing.utilityQuote, quote);
+    assert.deepEqual(settleFamilyServices(reloaded, false), []);
+    moveClock(reloaded, day);
+    settleFamilyServices(reloaded, false);
+    assert.equal(reloaded.billing.utilityQuote, undefined);
+    const bill = reloaded.billing.bills.find(row => row.service === 'utilities');
+    assert.equal(bill?.amount, quote.amount);
+    assert.equal(bill?.issuedAt, quote.due);
+    assert.equal(bill.paidAt, null);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('An old save at midnight keeps all progress and credentials and migrates once', () => {
@@ -205,6 +237,44 @@ async function player(port: number, role: CharacterId, code: string) {
   const ready=await take('ready');
   return {socket,send,take,ready};
 }
+
+test('Both players receive live clock samples during a movie before the next saved tick', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sim-life-clock-wire-'));
+  const files = openServerFiles(dir);
+  let now = 0;
+  const initial = initialState();
+  initial.clock = { day: 92, minute: 1439 };
+  initial.billing = initialServices(time(initial));
+  files.save(connect(initial, 'netflix'));
+  const server = await startServer({ port: 0, dataDir: dir, lifeClock: { now: () => now, tickMs: 60_000 } });
+  try {
+    const vlad = await player(server.port, 'vlad', files.access.vlad);
+    const alina = await player(server.port, 'alina', files.access.alina);
+    await Promise.all([vlad.take('clock_sync'), alina.take('clock_sync')]);
+    vlad.send({ type: 'movie', genre: 'comedy' });
+    await vlad.take('task_started');
+    now = 6000;
+    const [v, a] = await Promise.all([vlad, alina].map(resident =>
+      resident.take('clock_sync', p => p.sample.minutes === time(initial) + 3)));
+    assert.deepEqual(v, a);
+    assert.deepEqual(clockAt(v.sample.minutes), { day: 93, minute: 2 });
+    assert.deepEqual(files.load().clock, initial.clock);
+
+    for (const { socket } of [vlad, alina]) {
+      const closed = once(socket, 'close');
+      socket.close();
+      await closed;
+    }
+    now += 20_000;
+    const returned = await player(server.port, 'vlad', files.access.vlad);
+    const { sample } = await returned.take('clock_sync');
+    assert.equal(sample.minutes, v.sample.minutes, 'disconnect persists elapsed minutes and pauses the empty house');
+    returned.socket.close();
+  } finally {
+    await server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 async function household(seed: GameState, profile: { taskTimeScale?:number } = {}) {
   const dir=mkdtempSync(join(tmpdir(),'sim-life-billing-live-'));

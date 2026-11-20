@@ -13,6 +13,7 @@ import { LEDGER_LIMIT } from '../src/shared/economy';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, PET_IDS, PET_ROAM, PET_ROUTINES, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
+import { BOOKS } from '../src/shared/homeLife';
 
 export interface ServerFiles {
   dataDir: string;
@@ -29,6 +30,12 @@ const isValidState = (value: unknown): value is GameState => {
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
+  const readBooks = state.readBooks;
+  if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
+    const books = readBooks[role];
+    return Array.isArray(books) && books.length <= Object.keys(BOOKS).length &&
+      new Set(books).size === books.length && books.every(id => typeof id === 'string' && Object.hasOwn(BOOKS, id));
+  }))) return false;
   // A clock was added to existing version-2 households; never reset old saves.
   if (state.clock !== undefined && (!Number.isSafeInteger(state.clock.day) || state.clock.day < 1 ||
       !Number.isSafeInteger(state.clock.minute) || state.clock.minute < 0 ||
@@ -208,6 +215,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ledger: [...(data.ledger ?? [])],
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
+        readBooks: data.readBooks ?? { vlad: [], alina: [] },
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),
           simba: restorePet('simba', data.pets?.simba),

@@ -297,7 +297,7 @@ test('A declined invitation starts no action; disconnect cancels both accepted v
   } finally {await clean(ctx);}
 });
 
-test('All twelve books reach the shelf and a physical seat before completion', async () => {
+test('Every book reaches the shelf and a physical seat before completion', async () => {
   const {BOOKS}=await import('../../src/shared/homeLife');
   const {LIBRARY_APPROACH}=await import('../../src/shared/home');
   const ctx=await setup(.003);
@@ -312,15 +312,53 @@ test('All twelve books reach the shelf and a physical seat before completion', a
       assert.equal(task.durationMs,record[3]*3);
       assert.deepEqual(task.effects,{fun:60,comfort:10});
       assert.deepEqual(task.home.route.path[task.home.pickup-1],LIBRARY_APPROACH);
-      assert.ok(['sofa','officeSofa','table','yardBench','spareSeat'].includes(task.home.station));
+      assert.ok(['sofa','table','yardBench','spareSeat'].includes(task.home.station));
       await playing;
       await ended;
     }
     const state=openServerFiles(ctx.dir).load();
     assert.equal(state.characters.vlad.fun,100);
     assert.equal(state.characters.vlad.comfort,100);
-    assert.equal(state.revision,12);
+    assert.deepEqual(state.readBooks, { vlad: Object.keys(BOOKS), alina: [] });
+    assert.equal(state.characters.vlad.skill,0);
     assert.equal(state.money,10000);
     assert.equal(state.pantry.eggs,4);
   } finally {await clean(ctx);}
+});
+
+test('Reading in the chair is exclusive, and only completion marks a book for its reader', async () => {
+  const ctx = await setup(.02);
+  try {
+    const start = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'vlad');
+    const read = { type: 'read_book', book: 'prince', seat: 'officeChair' };
+    send(ctx.vlad, read);
+    const task = await start;
+    assert.ok(task.type === 'task_started' && task.home?.station === 'officeChair');
+    const denied = waitFor(ctx.alina, p => p.type === 'error');
+    send(ctx.alina, { type: 'act', actionId: 'officeChairSit' });
+    const error = await denied;
+    assert.ok(error.type === 'error' && /занято/.test(error.reason));
+    const canceled = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.outcome === 'cancelled');
+    send(ctx.vlad, { type: 'cancel_task', taskId: task.taskId });
+    await canceled;
+    assert.deepEqual(openServerFiles(ctx.dir).load().readBooks, { vlad: [], alina: [] });
+
+    const sitting = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');
+    const stood = waitFor(ctx.alina, p => p.type === 'task_ended' && p.outcome === 'completed');
+    send(ctx.alina, { type: 'act', actionId: 'officeChairSit' });
+    const seat = await sitting;
+    assert.ok(seat.type === 'task_started' && seat.home?.station === 'officeChair');
+    await stood;
+
+    for (let n = 0; n < 2; n++) {
+      const synced = waitFor(ctx.alina, p => p.type === 'snapshot' && p.state.readBooks.vlad.includes('prince'));
+      const done = waitFor(ctx.vlad, p => p.type === 'task_ended' && p.outcome === 'completed');
+      send(ctx.vlad, read);
+      await Promise.all([synced, done]);
+    }
+    const restored = openServerFiles(ctx.dir).load();
+    assert.deepEqual(restored.readBooks, { vlad: ['prince'], alina: [] });
+    assert.equal(restored.characters.vlad.skill, 0);
+    assert.equal(restored.characters.vlad.pose, 'idle');
+  } finally { await clean(ctx); }
 });

@@ -21,6 +21,7 @@ export type EvaluatedTask = { ok: true; state: GameState; message: string } | { 
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
   sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
+  officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
@@ -44,9 +45,10 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
       durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
   }
   if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {
+    if (command.seat !== undefined && command.seat !== 'officeChair') return null;
     const book = command.book as BookId;
-    return { command: { type: 'read_book', book }, label: '📖 ' + BOOKS[book][0],
-      durationMs: BOOKS[book][3] * 1000, resource: null };
+    return { command: { type: 'read_book', book, ...(command.seat ? { seat: command.seat } : {}) },
+      label: '📖 ' + BOOKS[book][0], durationMs: BOOKS[book][3] * 1000, resource: command.seat ?? null };
   }
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
@@ -66,7 +68,8 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'desk' || action.item === 'kitchen' || own(BATH_ACTIONS, id) ? action.item : null,
+      resource: action.item === 'desk' || action.item === 'kitchen' || action.item === 'officeChair' ||
+        own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
   if (command.type === 'cook' || command.type === 'eat') {
@@ -123,6 +126,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }
+    if (command.type === 'read_book' && !next.readBooks[role].includes(command.book)) next.readBooks[role].push(command.book);
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
   }
