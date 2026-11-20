@@ -1,0 +1,24 @@
+name: Preview – resident idle gestures
+on:
+  push:
+    branches:
+      - feat/resident-idle-habits-010
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out preview branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Test all gameplay systems
+        run: npm test
+      - name: Verify production build
+        run: npm run build
