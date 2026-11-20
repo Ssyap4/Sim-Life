@@ -6,6 +6,7 @@ import type { BasketLine } from '../shared/market';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
 import type { PetId, PetAction } from '../shared/pets';
+import type { Entertainment, Genre, HomePresentation, NeedEffects } from '../shared/homeLife';
 import type { HomeLeisure } from '../shared/home';
 import type { WalkRoute } from '../game/navigation';
 
@@ -19,10 +20,14 @@ export interface ConnectionCallbacks {
   onStoreEvent(role: CharacterId, message: string): void;
   onJobEvent(role: CharacterId, outcome:'started'|'finished'|'left_early', message:string):void;
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
-  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean): void;
+  onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean, home?: HomePresentation, effects?: NeedEffects): void;
+  onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
+  onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void;
+  onMovieOffer(inviteId: number, from: CharacterId, genre: Genre): void;
+  onMovieOfferClosed(inviteId: number, message: string): void;
   onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
   onStorageEvent(role: CharacterId, station?: string): void;
-  onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string): void;
+  onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string, effects?: NeedEffects): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onError(message: string): void;
   onStatus(status: string): void;
@@ -85,6 +90,11 @@ export class LiveConnection {
   eatTakeout(item: TakeoutId): boolean {
     return this.sendAuthenticated({type:'eat_takeout',item});
   }
+
+  entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
+  inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}
+  answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
+  withdrawMovie(inviteId: number): boolean {return this.sendAuthenticated({type:'movie_withdraw',inviteId});}
 
   cancelTask(taskId: number): boolean {
     return this.sendAuthenticated({ type: 'cancel_task', taskId });
@@ -183,13 +193,21 @@ export class LiveConnection {
       } else if (packet.type === 'pet_event' && this.authorized) {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'task_started' && this.authorized) {
-        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command, packet.automatic);
+        this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command, packet.automatic, packet.home, packet.effects);
+      } else if (packet.type === 'task_active' && this.authorized) {
+        this.callbacks.onTaskActive(packet.role,packet.taskId,packet.elapsedMs);
+      } else if (packet.type === 'need_gain' && this.authorized) {
+        this.callbacks.onNeedGain(packet.role,packet.label,packet.effects);
+      } else if (packet.type === 'movie_offer' && this.authorized) {
+        this.callbacks.onMovieOffer(packet.inviteId,packet.from,packet.genre);
+      } else if (packet.type === 'movie_offer_closed' && this.authorized) {
+        this.callbacks.onMovieOfferClosed(packet.inviteId,packet.message);
       } else if (packet.type === 'home_leisure' && this.authorized) {
         this.callbacks.onHomeLeisure(packet.roles, packet.activity, packet.routes);
       } else if (packet.type === 'storage_event' && this.authorized) {
         this.callbacks.onStorageEvent(packet.role, packet.station);
       } else if (packet.type === 'task_ended' && this.authorized) {
-        this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message);
+        this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message, packet.effects);
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {

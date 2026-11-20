@@ -3,6 +3,7 @@ import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
+import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { applyAction } from './logic';
 import { applyFoodAction, applyTakeoutMeal } from './food';
@@ -23,7 +24,8 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
-  toiletUse: 5, bathShower: 9, bathSoak: 15, bathWash: 5,
+  toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
+  bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
@@ -31,6 +33,18 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if (command.type === 'youtube') return { command: { type: 'youtube' }, label: '▶️ Смотрим YouTube',
+    durationMs: HOME_SECONDS.youtube * 1000, resource: 'tv' };
+  if (command.type === 'movie' && typeof command.genre === 'string' && own(GENRES, command.genre)) {
+    const genre = command.genre as Genre;
+    return { command: { type: 'movie', genre }, label: '🎬 Фильм · ' + GENRES[genre],
+      durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
+  }
+  if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {
+    const book = command.book as BookId;
+    return { command: { type: 'read_book', book }, label: '📖 ' + BOOKS[book][0],
+      durationMs: BOOKS[book][3] * 1000, resource: null };
+  }
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
@@ -40,6 +54,9 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'act') {
     const id = command.actionId;
     if (typeof id !== 'string' || !own(ACTIONS, id)) return null;
+    // Older clients can still submit the former sofa menu commands.
+    if (id === 'sofaMovie') return planTask({type:'movie',genre:'comedy'});
+    if (id === 'sofaRead') return planTask({type:'read_book',book:'prince'});
     const actionId = id as ActionId;
     const action = ACTIONS[actionId];
     return {
@@ -81,11 +98,27 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   return null;
 }
 
-export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand): EvaluatedTask {
+export function entertainmentReward(command: Entertainment, together = false): NeedEffects {
+  if (command.type === 'read_book') return READING_REWARD;
+  if (command.type === 'youtube') return { fun: 20, comfort: 10 };
+  return together ? { fun: 100, social: 100, comfort: 15 } : { fun: 100, comfort: 15 };
+}
+
+export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
   if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);
   if (state.world.places[role] !== 'home') return { ok: false, reason: 'Это действие доступно дома' };
   if (command.type === 'pet_action' && command.pet === 'verdell' && state.world.dogWalker)
     return { ok: false, reason: 'Верделл сейчас в парке' };
+  if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book') {
+    const next = structuredClone(state);
+    const needs = next.characters[role];
+    for (const [key, amount] of Object.entries(entertainmentReward(command, together))) {
+      const need = key as keyof NeedEffects;
+      needs[need] = Math.min(100, needs[need] + amount);
+    }
+    next.revision++;
+    return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
+  }
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);

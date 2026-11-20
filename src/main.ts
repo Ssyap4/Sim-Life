@@ -1,4 +1,8 @@
 import { PLACES, stationById } from './shared/locations';
+import { homeLifeMenu, movieInvite } from './homeLifeUI';
+import { createPhone } from './phoneUI';
+import { needChips, needFeedback } from './needsFeedback';
+import type { NeedEffects } from './shared/homeLife';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
@@ -17,8 +21,6 @@ import {
   type ActionId, type CharacterId, type GameState, type ItemId,
 } from './shared/protocol';
 
-const shortPlaces = { home: 'Дом', street: 'Квартал', market: 'Магазин', cafe: 'Кафе', park: 'Парк' } as const;
-
 let state: GameState | null = null;
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
@@ -28,7 +30,8 @@ let toastTimer: number | undefined;
 interface TaskView {
   taskId: number;
   label: string;
-  since: number;
+  since: number | null;
+  effects?: NeedEffects;
   durationMs: number;
   automatic?: boolean;
 }
@@ -46,13 +49,13 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.4 · ЖИВОЙ РАЙОН</div>
+      <div class="version">0.5 · ДОМАШНЯЯ ЖИЗНЬ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
       <span id="life-clock">☀️ День 1 · 08:00</span>
       <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
-      <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span><span class="map-current"> Дом</span></button>
+      <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
     </div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
@@ -84,18 +87,20 @@ app.innerHTML = `
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
   <div id="message" class="message" aria-live="polite"></div>
+  <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
+  <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
     <div id="actions" class="actions" hidden></div>
     <div id="location-panel" class="actions location-panel" hidden></div>
+    <div id="need-gain" class="need-gain" aria-live="polite"></div>
     <div id="task-panel" class="task-panel" hidden aria-live="polite"></div>
     <div id="time-panel" class="task-panel time-panel" hidden aria-live="polite"></div>
     <div class="bottom-bar">
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
-        <button id="market-btn" class="market-btn" type="button" disabled>🛍️ Доставка</button>
-        <button id="jobs-btn" class="market-btn jobs-btn" type="button" disabled>🧰 Подработки</button>
+        <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
       <div class="tip">
@@ -135,15 +140,13 @@ const messageEl = document.querySelector<HTMLDivElement>('#message')!;
 const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
-const marketBtn = document.querySelector<HTMLButtonElement>('#market-btn')!;
+const phoneBtn = document.querySelector<HTMLButtonElement>('#phone-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
-const mapCurrent = document.querySelector<HTMLElement>('.map-current')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
 const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
 const transition = document.querySelector<HTMLElement>('#world-transition')!;
 const rememberDevice = document.querySelector<HTMLInputElement>('#remember-device')!;
 const petsBtn = document.querySelector<HTMLButtonElement>('#pets-btn')!;
-const jobsBtn = document.querySelector<HTMLButtonElement>('#jobs-btn')!;
 const jobsOverlay=document.querySelector<HTMLElement>('#jobs-overlay')!;
 const clockEl = document.querySelector<HTMLElement>('#life-clock')!;
 const needsPanelEl = document.querySelector<HTMLElement>('#needs-panel')!;
@@ -188,8 +191,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     actionsEl.hidden = true;
     toggleNeeds(false);
-    marketUI.close();
-    jobsUI.close();
+    phone.close();
     locationUI.closeMap();
     if (world) locationUI.close();
   }
@@ -226,6 +228,7 @@ function drawTaskPanel(): void {
     const fill = document.createElement('i');
     track.appendChild(fill);
     box.append(top, track);
+    if (task.effects) box.append(needChips(task.effects,false));
     if (role === active) {
       const cancel = document.createElement('button');
       cancel.type = 'button';
@@ -245,11 +248,11 @@ function updateTaskProgress(): void {
   for (const [role, task] of tasks) {
     const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
     if (!card) continue;
-    const elapsed = Math.min(performance.now() - task.since, task.durationMs);
+    const elapsed = task.since === null ? 0 : Math.min(performance.now() - task.since, task.durationMs);
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
       Math.min(100, elapsed / task.durationMs * 100) + '%';
     card.querySelector<HTMLElement>('.task-seconds')!.textContent =
-      Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
+      task.since === null ? 'Подходит' : Math.max(0, Math.ceil((task.durationMs - elapsed) / 1000)) + ' с';
   }
 }
 window.setInterval(() => { if (tasks.size) updateTaskProgress(); }, 150);
@@ -309,12 +312,17 @@ function renderTimePanel(): void {
   const note = document.createElement('small');
   note.textContent = online.length > 1 && Object.keys(timeStatus.sleepers).length < online.length
     ? 'Ускорение начнётся, когда второй игрок тоже уснёт.' : 'Сон прервётся автоматически при достижении цели.';
+  const track = document.createElement('progress');
+  track.className = 'sleep-progress';
+  track.max = mode === 'full' ? 100 : 50;
+  track.value = state.characters[active].energy;
+  track.setAttribute('aria-label','Восстановление энергии');
   const wake = document.createElement('button');
   wake.type = 'button';
   wake.className = 'action-button';
   wake.textContent = 'Проснуться сейчас';
   wake.addEventListener('click', () => net.stopSleep());
-  timePanelEl.append(status, note, wake);
+  timePanelEl.append(status,track,note,wake);
 }
 
 function render(reset = false): void {
@@ -323,8 +331,7 @@ function render(reset = false): void {
     const place = state.world.places[active];
     if (world.place !== place) {
       actionsEl.hidden = true;
-      marketUI.close();
-      jobsUI.close();
+      phone.close();
       focusModel(null);
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
@@ -333,7 +340,6 @@ function render(reset = false): void {
     }
     world.syncHousehold(state, active, reset, online);
     locationUI.refresh(state, active);
-    mapCurrent.textContent = ' ' + shortPlaces[place];
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
@@ -350,6 +356,7 @@ function render(reset = false): void {
   needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
+  phone.refresh();
   renderNeeds();
   renderTimePanel();
   document.querySelector<HTMLElement>('#money')!.textContent =
@@ -403,15 +410,24 @@ function signOut(): void {
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
-  marketBtn.disabled = jobsBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
   actionsEl.hidden = true;
-  marketUI.close();
-  jobsUI.close();
+  phone.close();
+  invites.close();
+  feedback.clear();
   locationUI.reset();
   showStatus('Выбери персонажа и введи личный код');
 }
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
   enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
+const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
+  () => state && active ? {state,role:active,online,time:timeStatus} : null,
+  household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
+  () => {marketUI.close();jobsUI.close();});
+const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre));
+const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
+  (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
+const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const net = new LiveConnection({
   onReady(role, household, players) {
     active = role;
@@ -421,12 +437,10 @@ const net = new LiveConnection({
     tasks.clear();
     drawTaskPanel();
     toggleNeeds(false);
-    marketUI.close();
-    jobsUI.close();
+    phone.close();
     authEl.hidden = true;
     mapBtn.disabled = false;
-    marketBtn.disabled = false;
-    jobsBtn.disabled = false;
+    phoneBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
     world.setActive(role);
@@ -500,22 +514,36 @@ const net = new LiveConnection({
     if (station) world.openStorage(station, role);
     else world.closeStorage(role);
   },
-  onTaskStarted(role, taskId, label, durationMs, command, automatic) {
-    tasks.set(role, { taskId, label, durationMs, automatic, since: performance.now() });
+  onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
+    tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now() });
     drawTaskPanel();
-    const animated = world.startTimedAction(role, command);
+    const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated) notify('Действие началось на сервере, путь анимации пока недоступен');
   },
-  onTaskEnded(role, taskId, outcome, message) {
+  onTaskActive(role,taskId,elapsedMs) {
+    const task=tasks.get(role);
+    if(task?.taskId!==taskId) return;
+    task.since=performance.now()-elapsedMs;
+    world.activateHomeTask(role);
+    updateTaskProgress();
+  },
+  onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
+  onMovieOffer(inviteId,from,genre) { invites.show(inviteId,names[from],genre,from===active); },
+  onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
+  onTaskEnded(role, taskId, outcome, message, effects) {
     const previous = tasks.get(role);
     if (previous?.taskId === taskId) {
-      if (outcome === 'completed') world.finishTimedAction(role);
+      if (outcome === 'completed') {
+        world.finishTimedAction(role);
+        feedback.show(role,previous.label,effects);
+        statusEl.textContent=message;
+      }
       tasks.delete(role);
       drawTaskPanel();
     }
     if (outcome !== 'completed') {
-      world.cancelTimedAction(role);
+      if (previous?.taskId === taskId) world.cancelTimedAction(role);
       if (previous?.automatic) return;
       statusEl.textContent = message;
       notify(message);
@@ -534,8 +562,7 @@ const net = new LiveConnection({
       authEl.hidden = false;
       active = null;
       mapBtn.disabled = true;
-      marketBtn.disabled = true;
-      jobsBtn.disabled = true;
+      phoneBtn.disabled = true;
       petsBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
@@ -550,6 +577,8 @@ const net = new LiveConnection({
       tasks.clear();
       drawTaskPanel();
       deliverySequence = null;
+      invites.close();
+      feedback.clear();
       locationUI.reject();
       locationUI.close();
       locationUI.closeMap();
@@ -639,9 +668,10 @@ function openActions(item: ItemId): void {
   }
   if(item==='delivery' && state) {
     actionsEl.hidden=true;
-    marketUI.open(state);
+    phone.open('delivery');
     return;
   }
+  if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
   const about=document.createElement('p');
@@ -699,9 +729,16 @@ function openActions(item: ItemId): void {
       actionsEl.append(wake);
     }
   }
+  if (item==='tv'||item==='sofa') entertainmentMenu.television();
+  if (item==='sofa') {
+    const books=document.createElement('button');
+    books.type='button'; books.className='action-button'; books.textContent='📚 Выбрать книгу';
+    books.addEventListener('click',entertainmentMenu.library);
+    actionsEl.append(books);
+  }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
-    if (actionId === 'bedSleep' || actionId === 'bedNap') continue;
+    if (['bedSleep','bedNap','sofaMovie','sofaRead'].includes(actionId)) continue;
     if ('role' in definition && definition.role !== active) continue;
     const button = document.createElement('button');
     button.type = 'button';
@@ -776,9 +813,14 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       });
     });
-    mapBtn.addEventListener('click', () => { actionsEl.hidden = true; marketUI.close(); jobsUI.close(); locationUI.openMap(); });
-    marketBtn.addEventListener('click', () => { if(state) {actionsEl.hidden=true;locationUI.close();locationUI.closeMap();jobsUI.close();marketUI.open(state);} });
-    jobsBtn.addEventListener('click',()=>{if(state && active){actionsEl.hidden=true;locationUI.close();locationUI.closeMap();marketUI.close();jobsUI.open(state,active);}});
+    mapBtn.addEventListener('click', () => { actionsEl.hidden = true; phone.close(); locationUI.openMap(); });
+    phoneBtn.addEventListener('click', () => {
+      actionsEl.hidden = true;
+      toggleNeeds(false);
+      locationUI.close();
+      locationUI.closeMap();
+      phone.open();
+    });
     petsBtn.addEventListener('click', () => openPetActions());
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {

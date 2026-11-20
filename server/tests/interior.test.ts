@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { batchRigidParts } from '../../src/game/ArtKit';
 import { EAST_WALL, HOME_FLOOR, HOME_FURNITURE, HOME_DOORS, KITCHEN_WORK } from '../../src/shared/home';
 import { placeObstacles, spawn } from '../../src/shared/locations';
-import { buildFurniture } from '../../src/game/InteriorArt';
+import { buildFurniture, buildPersonalFurniture } from '../../src/game/InteriorArt';
 import { findRoute, nearestClearPoint, pointIsClear, segmentIsClear, type FloorRect } from '../../src/game/navigation';
 import { PETS, PET_IDS } from '../../src/shared/pets';
 import { points, SOCIAL_SPOTS } from '../../src/shared/protocol';
@@ -15,12 +15,14 @@ test('both players can reach every interaction around the assembled interior', (
   const counts = { meshes: 0, shadows: 0 };
   const sharedGeometries = new Set<THREE.BufferGeometry>();
 
-  buildFurniture((id, root, point) => {
+  const register: Parameters<typeof buildFurniture>[0] = (id, root, point) => {
     assert.deepEqual(point, points[id], id + ' approach must match server coordinates');
     furnished.set(id, point);
-    root.traverse((object) => {
+    // The library is already batched with the room decor before registration.
+    if (id !== 'bookcase') root.traverse((object) => {
       if (object instanceof THREE.Mesh) sharedGeometries.add(object.geometry);
     });
+    else assert.ok(root.children.length <= 4, 'the library should stay batched');
     batchRigidParts(root);
     root.updateMatrixWorld(true);
     if (id !== 'shower') {
@@ -34,7 +36,9 @@ test('both players can reach every interaction around the assembled interior', (
       counts.meshes++;
       if (object.castShadow) counts.shadows++;
     });
-  });
+  };
+  buildFurniture(register);
+  buildPersonalFurniture(new THREE.Scene(), library => register('bookcase',library,points.bookcase));
   assert.deepEqual([...furnished.keys()].sort(), Object.keys(points).sort());
 
   const destinations = new Map(furnished);

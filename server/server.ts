@@ -13,10 +13,12 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
-import { BATH_ACTIONS, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
+import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
+import { createHomeSessions, usesHomeSession } from './homeSessions';
+import { gains } from './needs';
 import { advanceLife } from './life';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
@@ -72,6 +74,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
+  const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
   const running = new Map<CharacterId, RunningTask>();
@@ -134,6 +137,28 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     sleepers.delete(role);
     announceTime();
   };
+  const homeTasks = createHomeSessions({
+    state: () => state, save(next) { files.save(next); state = next; },
+    all, send: packet, socket: role => active.get(role),
+    busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role]),
+    prepare(role, tv) {
+      if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
+      closeStorage(role);
+      stopLeisure(role);
+      const walk = walkingHome.get(role);
+      if (walk) {
+        const distance = (Date.now()-walk.started)/1000*HOME_WALK_SPEED;
+        Object.assign(state.characters[role],sampleWalk(walk.route,distance).from,{pose:'idle'});
+        walkingHome.delete(role);
+      }
+      lastIntent.set(role, Date.now());
+    },
+    nextId: () => ++nextTaskId, timeScale: scale,
+  });
+  const needsEvent = (role: CharacterId, label: string, before: GameState, after: GameState) => {
+    const effects = gains(before, after, role);
+    if (Object.keys(effects).length) all({ type: 'need_gain', role, label, effects });
+  };
   let lastLifeTick = Date.now();
   let minuteCarry = 0;
   /** Charge elapsed real time at the OLD rate before any player changes the rate. */
@@ -165,6 +190,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
@@ -172,6 +198,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return; }
+    if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
     for (const role of finishedSleeping) sleepers.delete(role);
     if (next.completed.length) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
@@ -183,7 +210,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     const available: CharacterId[] = [];
     for (const [role, socket] of active) {
-      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || state.activeShifts[role] || storageOpen.has(role) ||
+      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || homeTasks.busy(role) || state.activeShifts[role] || storageOpen.has(role) ||
           now - (lastIntent.get(role) ?? now) < 18_000) continue;
       const command = now - (lastAutoCare.get(role) ?? 0) >= 70_000 && urgentHomeAction(state, role);
       const plan = command && planTask(command);
@@ -200,6 +227,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!state.world.dogWalker) options.push('verdell');
     if (available.length === 2) options.push('chat', 'chat');
     const choices = options.filter(activity => ![...leisure.values()].some(current => current.activity === activity) &&
+      !(activity === 'tv' && homeTasks.reserved('tv')) &&
       ![...running.values()].some(task => task.plan.resource === (activity === 'computer' ? 'desk' : 'pet:' + activity)));
     const activity = choices[Math.floor(Math.random() * choices.length)];
     if (!activity) return;
@@ -220,6 +248,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }, 10_000);
   lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
+    if (homeTasks.cancel(role, reason)) return;
     const task = running.get(role);
     if (!task) return;
     clearTimeout(task.timer);
@@ -227,10 +256,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
   const beginTask = (role: CharacterId, socket: WebSocket, plan: TaskPlan, automatic = false): void => {
-    if (state.activeShifts[role] || running.has(role)) {
+    if (usesHomeSession(plan.command)) {
+      homeTasks.start([role], plan, socket, automatic);
+      return;
+    }
+    if (state.activeShifts[role] || running.has(role) || homeTasks.busy(role)) {
       packet(socket, { type: 'error', reason: 'Персонаж занят. Сначала заверши или отмени текущее действие' });
       return;
     }
+    walkingHome.delete(role);
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
     if (occupied && (automatic || !occupied.automatic)) {
       packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
@@ -283,23 +317,24 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: 'Не удалось сохранить результат' });
         return;
       }
+      const effects = gains(state,result.state,role);
       state = result.state;
       lastAction.set(role, Date.now());
-      all({ type: 'task_ended', role, taskId: id, outcome: 'completed', message: result.message });
+      all({ type: 'task_ended', role, taskId: id, outcome: 'completed', message: result.message, effects });
       if (plan.command.type === 'local_activity') {
         all({ type: 'world_event', role, message: result.message });
       } else if (plan.command.type === 'act') {
         all({ type: 'action', role, actionId: plan.command.actionId, message: result.message });
       } else if (plan.command.type === 'pet_action') {
         all({ type: 'pet_event', role, pet: plan.command.pet, action: plan.command.action, message: result.message });
-      } else {
+      } else if (plan.command.type === 'cook' || plan.command.type === 'eat' || plan.command.type === 'eat_takeout') {
         all({ type: 'food_event', role, action: plan.command.type === 'eat_takeout' ? 'eat' : plan.command.type, message: result.message });
       }
       all({ type: 'snapshot', state });
     }, durationMs);
     running.set(role, { id, role, plan, timer, automatic });
     all({ type: 'task_started', role, taskId: id, label: plan.label,
-      durationMs, command: plan.command, automatic });
+      durationMs, command: plan.command, automatic, effects: gains(state,validation.state,role) });
   };
   const httpServer = createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -402,7 +437,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         active.set(role, socket);
         lastIntent.set(role, Date.now());
         packet(socket, { type: 'ready', role, state, online: online() });
-        if (state.world.places[role] === 'home') sendLeisure(socket);
+        if (state.world.places[role] === 'home') { sendLeisure(socket); homeTasks.replay(socket); }
         announceTime();
         if (deviceToken && message.type === 'auth') packet(socket, { type: 'device_token', role, token: deviceToken });
         all({ type: 'online', online: online() });
@@ -426,7 +461,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
         }
         if (state.world.places[role] !== 'home' || state.activeShifts[role] ||
-            (running.has(role) && !running.get(role)?.automatic)) {
+            (running.has(role) && !running.get(role)?.automatic) || (homeTasks.busy(role) && !homeTasks.automatic(role))) {
           packet(socket, { type: 'error', reason: 'Для сна нужно находиться дома и закончить текущее дело' }); return;
         }
         const mode = message.mode as SleepMode;
@@ -435,7 +470,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         closeStorage(role);
         stopLeisure(role);
-        if (running.get(role)?.automatic) stopTask(role, 'Время спать');
+        if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Время спать');
         const next = structuredClone(state);
         Object.assign(next.characters[role], points.bed, { pose: 'sleep' });
         next.revision++;
@@ -468,8 +503,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role, Date.now());
         return;
       }
+      if (message.type === 'movie_invite' || message.type === 'movie_reply' || message.type === 'movie_withdraw') {
+        homeTasks.invitation(role, socket, message);
+        return;
+      }
       if (message.type === 'cancel_task') {
         lastIntent.set(role, Date.now());
+        if (typeof message.taskId === 'number' && homeTasks.cancel(role, names[role] + ': занятие прервано', message.taskId)) return;
         const current = running.get(role);
         if (!current || message.taskId !== current.id) {
           packet(socket, { type: 'error', reason: 'Это действие уже завершено или не существует' });
@@ -483,7 +523,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       lastIntent.set(role, Date.now());
       closeStorage(role);
       stopLeisure(role);
-      if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
+      if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Управление возвращено игроку');
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
         const result=leaveShiftEarly(state,role);
@@ -496,19 +536,24 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({type:'snapshot',state});
         return;
       }
-      if (running.has(role)) {
+      if (running.has(role) || homeTasks.busy(role)) {
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
+        const from = state.characters[role];
         const result = applyWorld(state, role, message);
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
         state = result.state;
         all({ type: 'snapshot', state });
-        if (message.type === 'travel' && state.world.places[role] === 'home') sendLeisure(socket);
+        if (message.type === 'travel') walkingHome.delete(role);
+        if (message.type === 'travel' && state.world.places[role] === 'home') { sendLeisure(socket); homeTasks.replay(socket); }
         if (result.path) {
+          if (state.world.places[role] === 'home') walkingHome.set(role,{
+            route:{from:{x:from.x,z:from.z},path:result.path},started:Date.now(),
+          });
           if (state.world.places[role] === 'home' && (result.station === 'fridge' || result.station === 'cupboard')) {
             storageOpen.set(role, result.station);
           }
@@ -550,7 +595,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket, { type: 'error', reason: 'Сначала встретьтесь в одной локации' });
           return;
         }
-        if ((running.has(partner) && !running.get(partner)?.automatic) || state.activeShifts[partner]) {
+        if ((running.has(partner) && !running.get(partner)?.automatic) || homeTasks.busy(partner) || state.activeShifts[partner]) {
           packet(socket, { type: 'error', reason: names[partner] + ' занят(а) другим действием' });
           return;
         }
@@ -559,6 +604,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket, { type: 'error', reason: 'Подожди немного до следующего совместного действия' });
           return;
         }
+        const before = state;
         const next = applySocial(state, message.kind);
         if (next.world.dogWalker) setDogParkPosition(next);
         try { files.save(next); }
@@ -573,13 +619,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(partner, now);
         lastSocial.set(role, now);
         lastSocial.set(partner, now);
+        for (const actor of [role,partner]) needsEvent(actor,SOCIAL_LABELS[message.kind],before,next);
         all({ type: 'social_start', kind: message.kind,
           message: 'Влад и Алина: ' + SOCIAL_LABELS[message.kind].toLowerCase() + ' ❤️' });
         all({ type: 'snapshot', state });
         return;
       }
 
-      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' ||
+      if (message.type === 'local_activity' || message.type === 'act' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
@@ -626,9 +673,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     });
     socket.on('close', () => {
       if (role && active.get(role) === socket) {
+        walkingHome.delete(role);
         closeStorage(role);
         stopLeisure(role);
         stopTask(role, names[role] + ': действие отменено из-за отключения');
+        homeTasks.closeInvite('Игрок отключился');
         accountTime();
         active.delete(role);
         shiftVotes.delete(role);
@@ -662,6 +711,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     async close(): Promise<void> {
       for (const task of running.values()) clearTimeout(task.timer);
       running.clear();
+      homeTasks.dispose();
       clearInterval(heartbeat);
       clearInterval(lifeTicker);
       for (const socket of wss.clients) socket.terminate();
