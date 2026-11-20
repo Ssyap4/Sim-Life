@@ -147,7 +147,7 @@ export function createHomeSessions(hooks: Hooks) {
     const command = session.plan.command;
     if (command.type === 'act' && command.actionId === 'toiletUse') {
       const { role, socket } = session.participants[0];
-      start([role], planTask({ type: 'act', actionId: 'wcWash' })!, socket);
+      start([role], planTask({ type: 'act', actionId: 'wcWash' })!, socket, true);
     }
   }
 

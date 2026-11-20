@@ -200,7 +200,7 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
       assert.ok(finish.type === 'task_ended' && finish.outcome === 'completed');
 
     const [vSnapshot, aSnapshot, handWash] = await Promise.all([a, b, wash]);
-    assert.ok(handWash.type === 'task_started' && handWash.home);
+    assert.ok(handWash.type === 'task_started' && handWash.home && handWash.automatic === true);
     assert.deepEqual(handWash.home.route.from, points.toilet);
     assert.deepEqual(handWash.home.route.path.at(-1), points.wcBasin);
     assert.deepEqual(vSnapshot, aSnapshot);

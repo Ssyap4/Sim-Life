@@ -265,6 +265,16 @@ test('Both players receive live clock samples during a movie before the next sav
       socket.close();
       await closed;
     }
+    // A client-side close event can arrive before the server processes its close
+    // callback. Wait until the household is actually offline before jumping time.
+    let offline = false;
+    for (let attempt = 0; attempt < 350; attempt++) {
+      const health = await fetch(`http://127.0.0.1:${server.port}/health`);
+      offline = (await health.json() as { online: number }).online === 0;
+      if (offline) break;
+      await new Promise(resolve => setTimeout(resolve, 8));
+    }
+    assert.ok(offline, 'server processed both disconnects');
     now += 20_000;
     const returned = await player(server.port, 'vlad', files.access.vlad);
     const { sample } = await returned.take('clock_sync');

@@ -573,7 +573,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       lastIntent.set(role, Date.now());
       closeStorage(role);
       stopLeisure(role);
-      if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Управление возвращено игроку');
+      if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
+      if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
         accountTime();
