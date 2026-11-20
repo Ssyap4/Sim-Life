@@ -78,7 +78,7 @@ export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./prot
   const p = HOME_PLACEMENTS[id];
   const seat = {
     sofa: [first ? -.50 : .50, first ? .057 : .106, -.27, Math.PI, first ? -.50 : .50, -1.01],
-    officeChair: [-.10, first ? -.24 : -.19, 0, Math.PI / 2, 1.02, 0],
+    officeChair: [.14, first ? -.24 : -.19, 0, Math.PI / 2, 1.02, 0],
     table: [first ? .99 : -.99, first ? -.27 : -.22, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
     yardBench: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],
     spareSeat: [first ? -.49 : .49, first ? -.24 : -.19, 0, 0, first ? -.49 : .49, .82],

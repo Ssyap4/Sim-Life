@@ -113,9 +113,9 @@ function makeOfficeChair(): THREE.Group {
     const leg = part(chair, [.075, .26, .078], [x, .136, z], C.woodDark, 'soft', true, 'wood');
     leg.rotation.z = Math.sign(x) * .12;
   }
-  part(chair, [1.12, .115, .92], [0, .278, .014], C.woodDark, 'soft', true, 'wood');
-  part(chair, [1.20, .225, .99], [0, .405, .01], 0x935947, cushionGeometry, true);
-  part(chair, [.87, .154, .81], [0, .527, .055], fabric, cushionGeometry, true);
+  part(chair, [1.12, .115, .83], [0, .278, -.031], C.woodDark, 'soft', true, 'wood');
+  part(chair, [1.20, .225, .86], [0, .405, -.035], 0x935947, cushionGeometry, true);
+  part(chair, [.87, .154, .73], [0, .527, .030], fabric, cushionGeometry, true);
   const back = part(chair, [1.14, .82, .246], [0, .88, -.374], fabric, cushionGeometry, true);
   back.rotation.x = -.11;
   const padding = part(chair, [.83, .61, .156], [0, .92, -.259], 0xc5886d, cushionGeometry, true);

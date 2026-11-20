@@ -433,6 +433,7 @@ export class Actor {
           leftY = -.23;
           rightY = -.23 + .079*Math.sin(Math.PI*THREE.MathUtils.smoothstep(a%10.5,8.15,9.10));
           leftZ = rightZ = .36;
+          armSpread = .31;
           gaze = .26+.034*Math.sin(a*1.3);
           break;
         case 'phone':
