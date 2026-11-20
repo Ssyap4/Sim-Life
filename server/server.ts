@@ -16,12 +16,14 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
-import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, type HomeLeisure } from '../src/shared/home';
+import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
+  type HomeLeisure } from '../src/shared/home';
 import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { createHomeSessions, usesHomeSession } from './homeSessions';
 import { gains } from './needs';
+import { dirtyDishStops } from '../src/shared/dirtyDishes';
 import { advanceLife } from './life';
 import { expireReadyFood, readyFoodName } from '../src/shared/readyFood';
 import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
@@ -340,14 +342,26 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
-        : plan.command.type === 'cook' ? points.kitchen : points.table;
+        : plan.command.type === 'cook' ? points.kitchen
+        : homeSeat('table', role).approach;
     const position = state.characters[role];
     const travelBudgetMs = Math.round(Math.hypot(position.x - destination.x,
       position.z - destination.z) * 1200 + 4200);
     const cookBudget = plan.command.type === 'cook' ? 19_000 : 0;
+    // Dishwashing makes an actual collection trip past the dirty tables and
+    // back to the kitchen. Never end the timer before the actor reaches sink.
+    const dishStops = plan.command.type === 'act' && plan.command.actionId === 'kitchenDishes'
+      ? dirtyDishStops(state.dirtyDishes, role) : [];
+    const dishPath = [position, ...dishStops, KITCHEN_WORK.dishes.position];
+    const dishDistance = dishPath.slice(1).reduce((sum, p, index) => {
+      const prev = dishPath[index];
+      return sum + Math.hypot(p.x - prev.x, p.z - prev.z);
+    }, 0);
+    const dishBudget = dishStops.length
+      ? Math.round(dishDistance / HOME_WALK_SPEED * 1000 + dishStops.length * 1500 + 8500) : 0;
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
     const duration = personalCare ? plan.durationMs + travelBudgetMs
-      : Math.max(plan.durationMs, travelBudgetMs, cookBudget);
+      : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
     const timer = setTimeout(() => {

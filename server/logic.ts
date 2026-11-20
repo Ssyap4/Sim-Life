@@ -3,6 +3,7 @@ import {
   type GameState, type Needs,
 } from '../src/shared/protocol';
 import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
+import { dishCount, EMPTY_DIRTY_DISHES } from '../src/shared/dirtyDishes';
 
 export type ActionResult =
   | { ok: true; message: string; state: GameState }
@@ -84,6 +85,15 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
     case 'kitchenWash':
       change(state, role, 'hygiene', 30); change(state, role, 'mood', 3);
       message = name + ': умывание у раковины'; break;
+    case 'kitchenDishes': {
+      const count = dishCount(state.dirtyDishes);
+      if (!count) return { ok: false, reason: 'Грязной посуды пока нет' };
+      state.dirtyDishes = { ...EMPTY_DIRTY_DISHES };
+      change(state, role, 'comfort', Math.min(12, count * 3));
+      change(state, role, 'energy', -2);
+      message = name + ': вымыта посуда — ' + count + ' шт.';
+      break;
+    }
     case 'kitchenTidy':
       change(state, role, 'comfort', 16); change(state, role, 'hygiene', 4);
       change(state, role, 'energy', -4);

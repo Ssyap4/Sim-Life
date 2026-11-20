@@ -59,8 +59,10 @@ test('Both pets walk out to the lawn on shared persistent routes', () => {
       assert.ok(routine && routine.route.from.z < HOUSE_ENTRY.z);
       const lawn = sampleWalk(routine.route, 100).from;
       assert.ok(lawn.z > HOUSE_ENTRY.z);
-      assert.deepEqual(lawn, PET_ROAM.at(-1));
+      // They both reach the lawn, without claiming the very same patch.
+      assert.deepEqual(lawn, PET_ROAM[routine.target]);
     }
+    assert.notEqual(restored.pets.verdell.routine?.target, restored.pets.simba.routine?.target);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

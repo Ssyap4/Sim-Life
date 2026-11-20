@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
+import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
+import type { FloorPoint, FloorRect } from './navigation';
+import { PET_IDLE_SECONDS, choosePetIdle, petIdleWeight,
+  type PetIdleContext, type PetIdleGesture } from './PetIdle';
 
 export class PetActor {
   readonly root = new THREE.Group();
@@ -21,12 +25,20 @@ export class PetActor {
   private settled = 0;
   private readonly hungerMarker = petHungerSprite();
   private hungerLevel: PetHungerLevel = 'normal';
+  private ambient: PetIdleContext = {
+    satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
+  };
+  private idleGesture: PetIdleGesture | null = null;
+  private idleTime = 0;
+  private idleCooldown: number;
+  private idleTurn = 0;
 
   constructor(readonly id: PetId) {
     const { x, z } = PETS[id].home;
     this.root.position.set(x, 0, z);
     this.root.add(this.body);
     const dog = id === 'verdell';
+    this.idleCooldown = dog ? 3.5 : 5;
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
     this.body.add(this.head, this.tail);
     this.root.scale.setScalar(dog ? verdellScale : simbaScale);
@@ -53,13 +65,21 @@ export class PetActor {
     this.hungerMarker.material.needsUpdate = true;
   }
 
+  setAmbient(context: PetIdleContext): void { this.ambient = context; }
+
+  currentIdleGesture(): PetIdleGesture | null { return this.idleGesture; }
+
   react(action: PetAction): void {
     this.stop();
+    this.idleGesture = null;
+    this.idleTime = 0;
     this.reaction = action;
     this.reactionTime = 0;
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number): void {
+    this.idleGesture = null;
+    this.idleTime = 0;
     this.route = route;
     this.routine = routine;
     this.facing = facing;
@@ -73,22 +93,39 @@ export class PetActor {
     this.settled = 0;
   }
 
-  update(dt: number, travel = 0, pace = 0): void {
+  update(dt: number, travel = 0, pace = 0,
+    traffic?: { blockers: readonly FloorPoint[]; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
     if (this.route.length) {
       const target = this.route[0];
       const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
       const distance = Math.hypot(dx, dz);
       const step = Math.min(distance, dt * PET_SPEED[this.id]);
+      let traveled = 0;
       if (distance > .001) {
-        const yaw = Math.atan2(dx, dz);
-        const delta = Math.atan2(Math.sin(yaw - this.root.rotation.y), Math.cos(yaw - this.root.rotation.y));
-        this.root.rotation.y += delta * (1 - Math.exp(-dt * 13));
-        this.root.position.x += dx * step / distance;
-        this.root.position.z += dz * step / distance;
-        this.distance += step;
-        pace = .76;
+        const next = traffic
+          ? petTrafficStep(this.root.position, target, traffic.blockers,
+              traffic.obstacles, traffic.floor, step, PET_PET_CLEARANCE)
+          : { x: this.root.position.x + dx * step / distance,
+              z: this.root.position.z + dz * step / distance };
+        const motionX = next.x - this.root.position.x;
+        const motionZ = next.z - this.root.position.z;
+        traveled = Math.hypot(motionX, motionZ);
+        if (traveled > .0001) {
+          const yaw = Math.atan2(motionX, motionZ);
+          const delta = Math.atan2(Math.sin(yaw - this.root.rotation.y), Math.cos(yaw - this.root.rotation.y));
+          this.root.rotation.y += delta * (1 - Math.exp(-dt * 13));
+          this.root.position.set(next.x, 0, next.z);
+          this.distance += traveled;
+          pace = .76;
+        }
       }
-      if (distance - step < .012) this.route.shift();
+      if (Math.hypot(target.x - this.root.position.x, target.z - this.root.position.z) < .012) {
+        this.route.shift();
+        // Most idle moments happen at the destination of a real roaming
+        // route. Give these short pauses a chance to show their personality.
+        if (!this.route.length && this.routine === 'wander')
+          this.idleCooldown = Math.min(this.idleCooldown, .65);
+      }
     } else if (this.routine) {
       this.settled += dt;
       if (this.facing !== undefined) {
@@ -104,7 +141,40 @@ export class PetActor {
         ? 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(this.clock * 4.2)) : 1;
     }
     this.reactionTime += dt;
+    // Cosmetic personality gestures only when nothing meaningful is happening.
+    // Server-owned routes, feeding, sleep, toilet and player interactions win.
+    const canIdle = !this.route.length &&
+      (this.routine === null || this.routine === 'wander') && !this.reaction && pace < .08;
+    if (!canIdle) {
+      this.idleGesture = null;
+      this.idleTime = 0;
+      this.idleCooldown = Math.max(this.idleCooldown, 2.0);
+    } else if (this.idleGesture) {
+      this.idleTime += dt;
+      if (this.idleTime >= PET_IDLE_SECONDS) {
+        this.idleGesture = null;
+        this.idleTime = 0;
+        this.idleCooldown = (this.id === 'verdell' ? 3.4 : 4.5) + (this.idleTurn % 3) * 1.1;
+      }
+    } else {
+      this.idleCooldown -= dt;
+      if (this.idleCooldown <= 0) {
+        this.idleGesture = choosePetIdle(this.id, this.ambient, this.idleTurn++);
+        this.idleTime = 0;
+      }
+    }
+    const idleWeight = this.idleGesture ? petIdleWeight(this.idleTime) : 0;
+    const greeting = this.idleGesture === 'greet' ? idleWeight : 0;
+    const grooming = this.idleGesture === 'groom' ? idleWeight : 0;
+    const stretching = this.idleGesture === 'stretch' ? idleWeight : 0;
+    const sniffing = this.idleGesture === 'sniff' ? idleWeight : 0;
+    const watching = this.idleGesture === 'observe' ? idleWeight : 0;
+    const foodLook = this.idleGesture === 'hungryLook' ? idleWeight : 0;
+    const tiredHungry = this.ambient.bowl === 0 && this.ambient.satiety < 35
+      ? (35 - this.ambient.satiety) / 35 : 0;
     const dog = this.id === 'verdell';
+    const catInterest = !dog && this.ambient.personNearby && this.routine !== 'sleep' &&
+      this.routine !== 'eat' && this.routine !== 'toilet' ? .22 : 0;
     const t = this.clock + (dog ? 0 : 1.75);
     const r = this.reactionTime;
     if (r > 2.75) this.reaction = null;
@@ -121,30 +191,46 @@ export class PetActor {
     const lift = Math.max(0, playBeat) * playful;
     const stretch = dog ? 0 : 0.66 * attention + 0.53 * playful - 0.30 * eating;
     if (this.rig.back?.morphTargetInfluences) {
-      this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch;
+      this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
     }
     this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045;
-    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15;
-    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13;
-    this.body.rotation.x = -.13 * toilet;
-    this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention);
-    this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073);
+    this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15
+      + greeting * Math.max(0, Math.sin(t * 7.5)) * .044 - stretching * (dog ? .027 : .032)
+      - tiredHungry * .024 + foodLook * .017 * Math.sin(t * 6);
+    this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
+      + greeting * .022 * Math.sin(t * 6.5);
+    this.body.rotation.x = -.13 * toilet + (dog ? -.10 : .11) * stretching
+      + greeting * .085;
+    this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
+      + stretching * (dog ? .055 : .09);
+    this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
+      - sniffing * .065 - grooming * .034 - stretching * .035;
     this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053);
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
-        - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful), smooth);
+        - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
+        + sniffing * .43 + grooming * .35 - stretching * .24
+        + foodLook * .37 + greeting * -.15 + tiredHungry * .12, smooth);
     this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y,
       (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 +
-        attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful), smooth);
+        attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
+        + watching * .24 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
+        + catInterest * Math.sin(t * 1.25), smooth);
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
-      (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14), smooth);
+      (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14)
+      + greeting * .12 + grooming * -.16 + watching * .07, smooth);
     this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12));
-    this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful : 1.7 + 2.2 * playful)) % (2 * Math.PI);
+    const ownerWag = dog && this.ambient.personNearby && this.ambient.satiety >= 25 &&
+      this.routine !== 'sleep' && this.routine !== 'eat' && this.routine !== 'toilet' ? .48 : 0;
+    this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful + 4 * ownerWag
+      : 1.7 + 2.2 * playful)) % (2 * Math.PI);
     const flick = Math.sin(this.tailPhase);
     this.tail.rotation.y = dog
-      ? (0.09 + 0.47 * weight) * flick
-      : (0.12 + 0.37 * playful) * flick + 0.038 * Math.sin(t * 3.5) - attention * 0.13;
-    this.tail.rotation.x = dog ? 0.025 * pulse : 0.09 * pulse - attention * 0.10;
+      ? (0.09 + 0.47 * weight + greeting * .74 + ownerWag) * flick
+      : (0.12 + 0.37 * playful + watching * .16 + catInterest) * flick + 0.038 * Math.sin(t * 3.5)
+        - attention * 0.13 + grooming * .07 * Math.sin(t * 5);
+    this.tail.rotation.x = dog ? 0.025 * pulse - foodLook * .22 - tiredHungry * .11
+      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08;
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
     for (let i = 0; i < 2; i++) {
@@ -152,7 +238,8 @@ export class PetActor {
         blink * (1 - (dog ? 0.22 : 0.50) * attention) * (1 - .91 * sleeping), smooth);
       const ear = this.rig.ears[i];
       const flick = Math.max(0, Math.sin(t * 1.19 + i * 2)) ** 12;
-      ear.rotation.x = flick * (dog ? 0.055 : 0.20) + attention * 0.11;
+      ear.rotation.x = flick * (dog ? 0.055 : 0.20) + attention * 0.11
+        + watching * .14 + greeting * .07;
       ear.rotation.y = (i === 0 ? 1 : -1) * flick * (dog ? 0.06 : 0.24);
     }
     for (let i = 0; i < this.paws.length; i++) {
@@ -160,9 +247,21 @@ export class PetActor {
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
       paw.rotation.x = pawLift * playful + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
-        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31);
+        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31)
+        + (dog ? front && i === 0 ? -.42 * foodLook * (0.6 + .4 * Math.sin(t * 6))
+          + greeting * -.23 * (0.5 + .5 * Math.sin(t * 9)) : 0
+          : i === 0 ? -1.25 * grooming * (0.87 + .13 * Math.sin(t * 8)) : 0)
+        - (front ? .30 : -.10) * stretching;
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
-        (dog ? 0 : .018 * playful * (front ? 1 : 0));
+        (dog ? 0 : .018 * playful * (front ? 1 : 0))
+        + (!dog && i === 0 ? grooming * .36 : 0)
+        + (dog && i === 0 ? foodLook * .18 * (0.5 + .5 * Math.sin(t * 6))
+          + greeting * .09 * (0.5 + .5 * Math.sin(t * 9)) : 0);
+      // A lifted paw reaches the cat's face, rather than twitching on the floor.
+      paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
+        (!dog && i === 0 ? grooming * .10 : 0);
+      paw.position.x = (i < 2 ? -1 : 1) * (dog ? .16 : front ? .094 : .109) +
+        (!dog && i === 0 ? grooming * .04 : 0);
     }
   }
 }

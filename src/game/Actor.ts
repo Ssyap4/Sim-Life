@@ -4,15 +4,18 @@ import type { PetAction } from '../shared/pets';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
-import { finish, orb } from './ArtKit';
+import { drum, finish, orb } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
+import { mealGesture } from './MealGesture';
+import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
+  type NeedReaction, type ReactionNeeds } from './NeedReactions';
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
 const up = THREE.Object3D.DEFAULT_UP;
@@ -41,6 +44,7 @@ export class Actor {
   private gaitBlend = 0;
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
+  private readonly dirtyPlate: THREE.Mesh;
   private readonly selectionRing: THREE.Mesh;
   private readonly heart: THREE.Mesh;
   private waypoints: THREE.Vector3[] = [];
@@ -54,11 +58,22 @@ export class Actor {
   private carryingBook = false;
   private closingBook = 0;
   private reaction = 0;
+  private needs: ReactionNeeds | null = null;
+  private needReaction: NeedReaction | null = null;
+  private needReactionTime = 0;
+  private needReactionCooldown: number;
+  private needReactionTurn = 0;
+
+  /** Latest server-authoritative needs, used only to animate idle body language. */
+  setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
+  carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
+  hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
+    this.dirtyPlate.visible = false;
     this.props.brush.visible = this.props.tongs.visible = false;
   }
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
@@ -82,6 +97,7 @@ export class Actor {
 
   constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);
+    this.needReactionCooldown = id === 'vlad' ? 5.5 : 8.0;
     this.root.add(this.figure);
     const vlad = id === 'vlad';
     const asset = model?.(this.figure);
@@ -107,6 +123,11 @@ export class Actor {
     this.spoon.rotation.x = 0.31;
     this.spoon.visible = false;
     this.rig.wrists[1].add(this.spoon);
+    this.dirtyPlate = new THREE.Mesh(drum, finish(0xeee2ce, 'ceramic'));
+    this.dirtyPlate.scale.set(.12, .013, .12);
+    this.dirtyPlate.position.set(0, -.055, .02);
+    this.dirtyPlate.visible = false;
+    this.rig.wrists[1].add(this.dirtyPlate);
 
     const ringMat = new THREE.MeshBasicMaterial({
       color: vlad ? 0x6da38c : 0xe2a188, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
@@ -128,7 +149,9 @@ export class Actor {
   select(value: boolean): void { this.selectionRing.visible = value; }
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
+    const carryingDishes = this.dirtyPlate.visible;
     this.setPose('idle');
+    if (carryingDishes) this.dirtyPlate.visible = true;
     // Furniture poses offset only the rendered body from its navigation root.
     // If that offset eases away *during* a new walk, the visible person can
     // pass straight through a neighbor although their navigation roots don't.
@@ -149,6 +172,7 @@ export class Actor {
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
+    this.dirtyPlate.visible = false;
     this.props.brush.visible = false;
     this.props.tongs.visible = false;
   }
@@ -163,6 +187,8 @@ export class Actor {
     this.poseOffset.copy(local);
     this.keys = keys;
   }
+
+  eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 
   playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3): void {
     // World has already placed the actor at the visual station.
@@ -185,6 +211,7 @@ export class Actor {
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
+    this.dirtyPlate.visible = false;
   }
 
   playPetActivity(kind: Exclude<PetAction, 'buyFood'>): void {
@@ -314,6 +341,34 @@ export class Actor {
     let gaze = asleep ? 0.04 : this.pose === 'work' ? 0.16 : this.activity === 'cook' ? 0.22 : care ? 0.33 : 0;
     const stridePhase = this.gait * Math.PI * 2;
     const motion = this.gaitBlend;
+    // Idle-only, cosmetic reactions. Never steal control, stop a route or move
+    // the navigation root. Reset immediately for every gameplay animation.
+    const canReact = this.pose === 'idle' && !this.activity && !this.gesture &&
+      !this.carryingBook && this.closingBook <= 0 && !this.waypoints.length &&
+      traveled < 0.0001 && motion < 0.08;
+    if (!canReact) {
+      this.needReaction = null;
+      this.needReactionTime = 0;
+      this.needReactionCooldown = Math.max(this.needReactionCooldown, 4);
+    } else if (this.needReaction && !reactionAllowed(this.needs, this.needReaction)) {
+      this.needReaction = null;
+      this.needReactionTime = 0;
+      this.needReactionCooldown = 2.5;
+    } else if (this.needReaction) {
+      this.needReactionTime += dt;
+      if (this.needReactionTime >= NEED_REACTION_DURATION) {
+        this.needReaction = null;
+        this.needReactionCooldown = 15 + (this.needReactionTurn % 3) * 3.5 +
+          (this.id === 'alina' ? 2.5 : 0);
+      }
+    } else {
+      this.needReactionCooldown -= dt;
+      if (this.needReactionCooldown <= 0) {
+        this.needReaction = pickNeedReaction(this.needs, this.needReactionTurn++);
+        this.needReactionTime = 0;
+        if (!this.needReaction) this.needReactionCooldown = 2.5;
+      }
+    }
     const next = this.waypoints[0];
     const turn = next ? THREE.MathUtils.euclideanModulo(
       Math.atan2(next.x - this.root.position.x, next.z - this.root.position.z) - this.root.rotation.y + Math.PI,
@@ -371,14 +426,27 @@ export class Actor {
           rightZ = 0.43 + Math.cos(a * 5) * 0.053;
           break;
         case 'eat': {
-          const swallow = a % 2.21;
-          bite = THREE.MathUtils.smoothstep(swallow, 0.19, 0.92) *
-            (1 - THREE.MathUtils.smoothstep(swallow, 1.12, 1.70));
-          rightY = THREE.MathUtils.lerp(-0.37, 0.14, bite);
-          rightZ = THREE.MathUtils.lerp(0.41, 0.13, bite);
-          gaze = 0.11 + bite * 0.15;
+          // Pick up a portion, bring it to the mouth, chew and rest between bites.
+          // Each resident eats at a slightly different rhythm.
+          const meal = mealGesture(a, this.id);
+          bite = meal.lift;
+          rightY = THREE.MathUtils.lerp(-0.40, 0.145, bite);
+          rightZ = THREE.MathUtils.lerp(0.36, 0.12, bite);
+          leftY = -0.43 + meal.settle * 0.025;
+          leftZ = 0.30 + meal.settle * 0.018;
+          gaze = .15 + .11 * bite - .035 * meal.chew + meal.glance;
+          lean = .045 + .013 * meal.chew;
+          expression = .065 + meal.chew * .095;
           break;
         }
+        case 'dishes':
+          // Both hands rinse the carried plate over the sink.
+          leftY = -.11 + .04 * Math.sin(a * 4);
+          rightY = -.09 - .04 * Math.sin(a * 4);
+          leftZ = rightZ = .35;
+          lean = .15;
+          gaze = .22;
+          break;
         case 'wash':
           leftY = -0.07 + 0.048 * Math.sin(a * 4.3);
           rightY = -0.08 - 0.048 * Math.sin(a * 4.3);
@@ -549,6 +617,60 @@ export class Actor {
       if (g >= 3.1) this.setPose('idle');
     }
 
+    // Reuse the exact same lightweight articulated rig used by cooking and
+    // talking: a few soft arm/head targets, no new meshes or animation files.
+    const needWeight = this.needReaction ? needReactionWeight(this.needReactionTime) : 0;
+    let restlessSway = 0;
+    if (needWeight > 0) {
+      const w = needWeight;
+      switch (this.needReaction) {
+        case 'yawn': {
+          // Vlad covers a yawn with his right hand; Alina with her left.
+          if (this.id === 'vlad') {
+            rightY = THREE.MathUtils.lerp(rightY, 0.24, w);
+            rightZ = THREE.MathUtils.lerp(rightZ, 0.18, w);
+          } else {
+            leftY = THREE.MathUtils.lerp(leftY, 0.22, w);
+            leftZ = THREE.MathUtils.lerp(leftZ, 0.19, w);
+          }
+          gaze = THREE.MathUtils.lerp(gaze, -0.11, w);
+          lean -= 0.045 * w;
+          expression = THREE.MathUtils.lerp(expression, 0.025, w);
+          break;
+        }
+        case 'hunger':
+          // One hand on the stomach, a brief forward glance.
+          rightY = THREE.MathUtils.lerp(rightY, -0.47, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.21, w);
+          leftY = THREE.MathUtils.lerp(leftY, -0.55, w);
+          gaze += 0.14 * w;
+          lean += 0.055 * w;
+          expression = THREE.MathUtils.lerp(expression, 0.018, w);
+          break;
+        case 'bladder':
+          // Restless weight shifts, without crouching or shifting navigation.
+          restlessSway = 0.034 * Math.sin(this.needReactionTime * 5.2) * w;
+          leftY = THREE.MathUtils.lerp(leftY, -0.43, w);
+          rightY = THREE.MathUtils.lerp(rightY, -0.40, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.16, w);
+          rightZ = THREE.MathUtils.lerp(rightZ, 0.19, w);
+          gaze += 0.09 * w;
+          break;
+        case 'hygiene':
+          // Brush an imaginary speck from a shoulder or sleeve.
+          leftY = THREE.MathUtils.lerp(leftY, -0.06, w);
+          leftZ = THREE.MathUtils.lerp(leftZ, 0.27, w);
+          gaze += 0.12 * w;
+          break;
+        case 'lowMood':
+          // Quiet sigh and drooping head; no gameplay penalties.
+          gaze += 0.17 * w;
+          lean += 0.065 * w;
+          expression = THREE.MathUtils.lerp(expression, 0.01, w);
+          break;
+      }
+    }
+
     this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
     this.props.tongs.visible = this.activity === 'grill';
     if (this.props.tongs.visible) this.props.grip(a);
@@ -601,7 +723,8 @@ export class Actor {
         (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion);
       const eyePitch = asleep ? 0 : this.activity === 'cook' ? 0.07 :
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) : 0.025 * Math.sin(t * 0.67);
-      data.animateFace(dt, asleep, expression, eyeYaw, eyePitch);
+      data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),
+        expression, eyeYaw, eyePitch);
     } else {
       const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
@@ -610,13 +733,15 @@ export class Actor {
     const look = 0.20 * idleLook + lead;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
-    data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z, 0.018 * Math.sin(t * 0.73), alpha);
+    data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
+      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031;
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.025, alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y, motion * 0.055 * Math.cos(stridePhase), alpha);
-    data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z, 0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase), alpha);
+    data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
+      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway, alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
     data.chest.position.y = (1 - Math.cos(data.chest.rotation.x)) * data.waistY + 0.006 * breath;
 
@@ -625,7 +750,7 @@ export class Actor {
     // Close the visual gap during a hug while the path endpoints stay fixed.
     this.figure.position.z += embrace;
     this.figure.position.y -= stanceDrop + this.crouchBlend;
-    this.figure.position.x += motion * 0.011 * Math.sin(stridePhase);
+    this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
       const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
@@ -663,7 +788,11 @@ export class Actor {
     if (counter) {
       for (const i of [0, 1] as const) {
         this.target.copy(counter);
-        if (this.activity === 'washHands') {
+        if (this.activity === 'dishes') {
+          this.target.x += (i ? -.07 : .07) + .035 * Math.sin(a * 4.5 + i * Math.PI);
+          this.target.y += .02 * Math.cos(a * 5 + i * Math.PI);
+          this.target.z += .045 * Math.sin(a * 3.4);
+        } else if (this.activity === 'washHands') {
           this.target.x += (i ? -.044 : .044) + .025 * Math.sin(a * 7 + i * Math.PI);
           this.target.y += .019 * Math.cos(a * 7 + i * Math.PI);
           this.target.z += .038 * Math.sin(a * 5);

@@ -61,6 +61,18 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     else if (pet.energy <= 63) kind = 'sleep';
     let target = Math.floor(random() * PET_ROAM.length);
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
+    // Two pets must not reserve the exact same roaming destination.
+    // Keep real feeding/sleep/toilet destinations unchanged.
+    const otherId = id === 'verdell' ? 'simba' : 'verdell';
+    const other = state.pets[otherId].routine;
+    if (kind === 'wander' && other?.kind === 'wander' && other.target === target) {
+      // The last four roam points are on the lawn. If both wanted the lawn,
+      // keep them outside but at different destinations.
+      const lawnStart = PET_ROAM.length - 4;
+      target = target >= lawnStart
+        ? lawnStart + (target - lawnStart + 2) % 4
+        : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
+    }
     const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
     const route = planWalk(pet.position, petDestination(id, { kind, target }), homeObstacles, HOME_FLOOR);
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;

@@ -28,7 +28,7 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
-  kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8,
+  kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8, kitchenDishes: 10,
   toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
   bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath, wcWash: 6,
   watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,

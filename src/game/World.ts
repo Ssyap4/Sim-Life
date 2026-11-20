@@ -10,8 +10,11 @@ import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
+import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
+import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
@@ -23,7 +26,7 @@ import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
-import { residentStep, unoccupiedDestination } from './residentCollision';
+import { RESIDENT_CLEARANCE, residentStepAroundBodies, unoccupiedDestination } from './residentCollision';
 
 type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
@@ -97,6 +100,8 @@ export class World {
   private socialSequence = 0;
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
+  private readonly dishTasks = new Set<CharacterId>();
+  private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
   private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
@@ -154,6 +159,7 @@ export class World {
 
     this.createLights();
     this.createHome();
+    this.createDirtyDishes();
     // Reuse the existing low-poly bags on the dining table, not in the hands at home.
     for (const [index, bag] of this.shoppingBags.entries()) {
       const offsets = [[-.39, .15], [.39, .15], [0, -.20]];
@@ -393,17 +399,25 @@ export class World {
   }
 
   performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
-    return this.perform(id, action === 'cook' ? 'kitchen' : 'table',
-      action === 'cook' ? 'idle' : 'sit', () => {
+    if (action === 'cook') {
+      return this.perform(id, 'kitchen', 'idle', () => {
         if (!current()) return;
         const actor = this.actors[id];
-        if (action === 'cook') {
-          actor.faceTowards(cookingPan);
-        }
-        if (action === 'eat') this.showMeal(id, HOME_PLACEMENTS.table.x + (id === 'vlad' ? .40 : -.40),
-          DINING_TOP + .014, HOME_PLACEMENTS.table.z);
-        actor.playActivity(action, action === 'cook' ? cookingPan : undefined);
+        actor.faceTowards(cookingPan);
+        actor.playActivity('cook', cookingPan);
       });
+    }
+    // Use each person's *own* seat and approach. The old shared table marker
+    // placed two co-op players at the same navigation position.
+    const seat = homeSeat('table', id);
+    return this.walkTo(id, seat.approach, () => {
+      if (!current()) return;
+      const actor = this.actors[id];
+      actor.setFurniturePose('sit', new THREE.Vector3().copy(seat.position), seat.yaw);
+      const plateX = seat.position.x + (id === 'vlad' ? -.59 : .59);
+      this.showMeal(id, plateX, DINING_TOP + .014, seat.position.z);
+      actor.playActivity('eat');
+    });
   }
 
   private bathroomPose(role: CharacterId, item: BathFixture, command: TimedCommand): void {
@@ -542,6 +556,37 @@ export class World {
     }
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
+      if (command.actionId === 'kitchenDishes') {
+        // One errand collects plates at the used tables, then brings them to
+        // the kitchen sink. Both players see the same server-backed counters.
+        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role) : [];
+        if (!stops.length) return false;
+        const actor = this.actors[role];
+        const sink = KITCHEN_WORK.dishes;
+        const visit = (index: number): boolean => {
+          if (!current()) return false;
+          if (index >= stops.length) {
+            return this.walkTo(role, sink.position, () => {
+              if (!current()) return;
+              const target = new THREE.Vector3().copy(sink.target);
+              actor.faceTowards(target);
+              actor.playDomesticActivity('dishes', target);
+            });
+          }
+          return this.walkTo(role, stops[index], () => {
+            if (!current()) return;
+            actor.playDomesticActivity('reach');
+            this.preparations.set(role, { remaining: .8, next: () => {
+              if (!current()) return;
+              actor.carryDirtyPlate();
+              visit(index + 1);
+            } });
+          });
+        };
+        const started = visit(0);
+        if (started) this.dishTasks.add(role);
+        return started;
+      }
       if (command.actionId in KITCHEN_ACTIONS) {
         const motion = KITCHEN_ACTIONS[command.actionId as keyof typeof KITCHEN_ACTIONS];
         const work = KITCHEN_WORK[motion];
@@ -595,6 +640,7 @@ export class World {
 
   finishTimedAction(role: CharacterId): void {
     this.preparations.delete(role);
+    const dishes = this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
     this.closeStorage(role);
@@ -602,12 +648,14 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
+    if (dishes) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
       this.actors[role].setPose('idle');
   }
 
   cancelTimedAction(role: CharacterId): void {
     this.preparations.delete(role);
+    this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
     this.closeStorage(role);
@@ -797,6 +845,33 @@ export class World {
     this.createPetBowls();
   }
 
+  /** Dirty plates are lightweight, shared visual props. The authoritative
+   * counts live on the server and survive reloading the household. */
+  private createDirtyDishes(): void {
+    const plateMaterial = finish(0xd6c4ac, 'ceramic');
+    const crumbsMaterial = finish(0x8a664c, 'wood');
+    for (const station of ['table', 'yardTable'] as const) {
+      const place = HOME_PLACEMENTS[station];
+      for (let index = 0; index < 6; index++) {
+        // Three places along the far tabletop edge, then a little stack
+        // directly above the first three. A meal can still use either seat.
+        const mesh = new THREE.Mesh(drum, plateMaterial);
+        mesh.scale.set(.132, .022, .132);
+        mesh.position.set(place.x + (index % 3 - 1) * .34,
+          DINING_TOP + .02 + Math.floor(index / 3) * .042,
+          place.z + (station === 'table' ? -.37 : .36));
+        // A tiny brown residue distinguishes these from ready-to-eat plates.
+        const residue = new THREE.Mesh(softCube, crumbsMaterial);
+        residue.scale.set(.26, .14, .19);
+        residue.position.set(.12, .65, -.08);
+        mesh.add(residue);
+        mesh.visible = false;
+        this.homeScene.add(mesh);
+        this.dirtyVisuals[station].push(mesh);
+      }
+    }
+  }
+
   /** The original ceramic bowls remain in the batched room geometry. Add only
    * two generous touch targets and six tiny food pieces that reflect server state. */
   private createPetBowls(): void {
@@ -836,10 +911,25 @@ export class World {
   }
 
   private steerPast(other: CharacterId, from: Point, target: Point): Point {
+    const bodies: { position: Point; clearance: number }[] = [];
     const neighbor = this.actors[other];
-    if (!neighbor.root.visible) return target;
-    const body = neighbor.bodyPosition(this.otherBody);
-    return residentStep(from, target, body, this.currentObstacles(), floorFor(this.place));
+    if (neighbor.root.visible && !this.sleepingOffline.has(other)) {
+      const body = neighbor.bodyPosition(this.otherBody);
+      bodies.push({ position: { x: body.x, z: body.z }, clearance: RESIDENT_CLEARANCE });
+    }
+    // People choose a side-step around a pet, never push the pet away.
+    // Sweep against both animals and the other resident simultaneously, so
+    // avoiding Simba cannot steer the player through Verdell (or Alina).
+    if (this.place === 'home') for (const id of PET_IDS) {
+      const pet = this.pets[id].root;
+      if (pet.visible) bodies.push({
+        position: { x: pet.position.x, z: pet.position.z },
+        clearance: PET_PERSON_CLEARANCE,
+      });
+    }
+    return bodies.length
+      ? residentStepAroundBodies(from, target, bodies, this.currentObstacles(), floorFor(this.place))
+      : target;
   }
 
   private sitAt(role: CharacterId, station: Station): void {
@@ -852,8 +942,12 @@ export class World {
   private showMeal(role: CharacterId, x: number, y: number, z: number, grilled?: RecipeId): void {
     const meal = this.meals.get(role)!;
     meal.position.set(x, y, z);
-    meal.getObjectByName('Indoor serving')!.visible = !grilled;
+    // Reused plates reset for every serving, including after a cancelled meal.
+    const indoor = meal.getObjectByName('Indoor serving')!;
+    indoor.scale.set(.22, .072, .20);
+    indoor.visible = !grilled;
     const food = meal.getObjectByName('Grilled serving')!;
+    food.scale.setScalar(1);
     food.visible = grilled !== undefined;
     if (grilled) selectGrilledFood(food, grilled);
     meal.visible = true;
@@ -955,6 +1049,7 @@ export class World {
     this.homeEffects.reset();
     this.grillCooking = false;
     this.homeTasks.clear();
+    this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
     this.controls.enablePan = place === 'home' || place === 'street' || place === 'market';
@@ -975,6 +1070,8 @@ export class World {
     if (changed) this.switchPlace(place);
     this.setTimeOfDay(state.clock.minute);
     for (const id of ['vlad', 'alina'] as const) {
+      // Both clients animate from the same authoritative household needs.
+      this.actors[id].setNeeds(state.characters[id]);
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
       const sleep = offline && place === 'home' && !state.activeShifts[id];
@@ -1010,6 +1107,11 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
+      for (const station of ['table', 'yardTable'] as const) {
+        this.dirtyVisuals[station].forEach((plate, index) => {
+          plate.visible = index < state.dirtyDishes[station];
+        });
+      }
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
       this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
@@ -1148,6 +1250,15 @@ export class World {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
       actor.update(dt, this.steering[id]);
+      // The ceramic plate stays while its food gets smaller with each bite.
+      // Inventory is only consumed by the server after the timed task finishes.
+      const elapsed = actor.eatingElapsed();
+      const plate = this.meals.get(id)!;
+      if (plate.visible && elapsed !== null) {
+        const scale = mealServingScale(elapsed);
+        plate.getObjectByName('Indoor serving')!.scale.set(.22 * scale, .072 * scale, .20 * scale);
+        plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
+      }
       if (this.bags[id].visible) this.followBag(this.bags[id], actor);
     }
     if (this.place === 'home') {
@@ -1196,8 +1307,55 @@ export class World {
         pace = Math.min(1, distance * 2.3);
       }
     }
-    if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
-    if (this.pets.simba.root.visible) this.pets.simba.update(dt);
+    if (this.household) {
+      for (const id of PET_IDS) {
+        const pet = this.household.pets[id];
+        const nearby = this.place === 'home' && (['vlad', 'alina'] as const).some(role => {
+          const resident = this.actors[role];
+          return resident.root.visible && !this.sleepingOffline.has(role) &&
+            this.household?.world.places[role] === 'home' &&
+            !this.household.activeShifts[role] && this.household.characters[role].pose !== 'sleep' &&
+            Math.hypot(resident.root.position.x - this.pets[id].root.position.x,
+              resident.root.position.z - this.pets[id].root.position.z) < 2.8;
+        });
+        this.pets[id].setAmbient({
+          satiety: pet.satiety, energy: pet.energy, happiness: pet.happiness,
+          bond: pet.bond, bowl: this.household.petBowls[id], personNearby: nearby,
+        });
+      }
+    }
+    const cat = this.pets.simba;
+    const petTraffic = this.place === 'home' && dog.root.visible && cat.root.visible;
+    if (petTraffic) {
+      const people = (['vlad', 'alina'] as const).filter(role =>
+        this.actors[role].root.visible && !this.sleepingOffline.has(role) &&
+        this.household?.characters[role].pose !== 'sleep').map(role => {
+        const body = this.actors[role].bodyPosition(this.otherBody);
+        return { x: body.x, z: body.z };
+      });
+      const geometry = { obstacles: this.obstacles, floor: HOME_FLOOR };
+      // The dog and cat use the *visible* coordinates of each other, plus
+      // the people nearby, rather than waiting for the next server snapshot.
+      dog.update(dt, this.dogTravel, pace, {
+        ...geometry, blockers: [cat.root.position, ...people],
+      });
+      cat.update(dt, 0, 0, {
+        ...geometry, blockers: [dog.root.position, ...people],
+      });
+      let dogPosition: Point = { x: dog.root.position.x, z: dog.root.position.z };
+      let catPosition: Point = { x: cat.root.position.x, z: cat.root.position.z };
+      // Pets separate from one another only. We intentionally do NOT move
+      // an idle pet when a human comes near: the human's steering above
+      // yields first. That prevents a running player from shoving animals
+      // across the yard, away from bowls, or out of an intended routine.
+      [dogPosition, catPosition] = separatePetBodies(
+        dogPosition, catPosition, this.obstacles, HOME_FLOOR);
+      dog.root.position.set(dogPosition.x, 0, dogPosition.z);
+      cat.root.position.set(catPosition.x, 0, catPosition.z);
+    } else {
+      if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
+      if (cat.root.visible) cat.update(dt);
+    }
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
       const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
       door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);

@@ -3,6 +3,7 @@ import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
 import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee';
 import type { ReadyFoodBatch } from './readyFood';
+import { EMPTY_DIRTY_DISHES, type DirtyDishes } from './dirtyDishes';
 import type { LedgerEntry } from './economy';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type PetFoodStock, type PetBowlStock } from './pets';
@@ -53,6 +54,7 @@ export interface GameState {
   meals: CookedMeals;
   takeout: TakeoutStock;
   readyFood: ReadyFoodBatch[];
+  dirtyDishes: DirtyDishes;
   ledger: LedgerEntry[];
   shiftDays: Record<CharacterId, number>;
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
@@ -113,6 +115,7 @@ export const ACTIONS = {
   alinaConsult: { label: '📋 Тренировка общения с клиентами', item: 'desk', pose: 'work', role: 'alina' },
   kitchenWash: { label: '🫧 Умыться у раковины', item: 'kitchen', pose: 'idle' },
   kitchenTidy: { label: '🧽 Убрать кухню', item: 'kitchen', pose: 'idle' },
+  kitchenDishes: { label: '🫧 Помыть грязную посуду', item: 'kitchen', pose: 'idle' },
   kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
   watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'sit' },
   tvMusic: { label: '🎶 Послушать концерт', item: 'tv', pose: 'sit' },
@@ -194,7 +197,8 @@ export function initialState(): GameState {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
-    takeout: { ...EMPTY_TAKEOUT }, readyFood: [], ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
+    takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
+    ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(),
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     characters: {
