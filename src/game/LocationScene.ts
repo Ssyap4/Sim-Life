@@ -4,6 +4,7 @@ import { STATIONS, type PlaceId, type Station } from '../shared/locations';
 import { locationGeometry } from './LocationArt';
 import { buildPlaza, plazaEntrance } from './PlazaArt';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
+import { buildEducationCenter, educationStation } from './EducationArt';
 
 const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry]);
 const accents = [0xc38367, 0xd4a560, 0x759785, 0x8e9eb5, 0xe1cc9d, 0x9b625a];
@@ -133,7 +134,8 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
-  } else if (!plaza) {
+  } else if (place === 'education') buildEducationCenter(floor, resources);
+  else if (!plaza) {
     shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (outdoor) {
@@ -193,11 +195,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     batchRigidParts(coffee);
     sign(floor, 'ТЁПЛЫЙ УГОЛ', 2.18, -4.89, 3.02, C.paper, textures, materials);
   }
-  batchRigidParts(floor, place === 'market' || place === 'street');
+  batchRigidParts(floor, place === 'market' || place === 'street' || place === 'education');
   for (const station of STATIONS[place]) {
     const custom = place === 'street' && station.action.kind === 'door'
       ? plazaEntrance(station, resources)
-      : place === 'market' ? marketStation(station, resources) : null;
+      : place === 'market' ? marketStation(station, resources)
+        : place === 'education' ? educationStation(station, resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);

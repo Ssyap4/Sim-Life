@@ -16,7 +16,8 @@ function button(label: string, click: () => void, className = 'action-button') {
 
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean,
-  read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void) {
+  read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void,
+  education: (view: 'book' | 'tv') => void) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
   const permitted = (command: Entertainment) => {
     const state = read();
@@ -57,6 +58,7 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   };
   return {
     television() {
+      root.append(button('🎓 Образовательные передачи и курсы', () => education('tv')));
       root.append(button('📺 Смотреть обычные телеканалы · ' + HOME_SECONDS.freeTv + ' с',
         () => send(submit({type:'free_tv'}))),button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
         () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
@@ -65,6 +67,7 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     genres,
     library(seat?: 'officeChair') {
       heading(seat ? '📚 Почитать в кресле' : '📚 Домашняя библиотека');
+      root.append(button('🎓 Учебные книги', () => education('book')));
       const role = active();
       const completed = new Set(role ? read()?.readBooks?.[role] : []);
       const shelf = document.createElement('div');

@@ -170,6 +170,14 @@ export function plazaEntrance(station: Station, resources: LocationResources) {
   if(station.id==='street-home') townhouse(group,resources);
   else if(station.id==='street-market') storefront(group,resources);
   else if(station.id==='street-cafe') cafeFront(group,resources);
+  else if(station.id==='street-education') {
+    group.rotation.y = Math.PI / 2;
+    trim(group, [2.58, 2.51, .87], [0, 1.28, -.49], 0x9fb7b1);
+    trim(group, [2.72, .18, 1.00], [0, 2.57, -.46], 0x527378);
+    entrance(group, 0x496e68, 1.77, .91);
+    for (const x of [-.85, .85]) archWindow(group, x, 1.29, .02, .40, .81, warmStone);
+    lettering(group, resources, [0, 2.17, .057], 2.18, .36, 'ПОТЕНЦИАЛ', ['#365c5b','#f5e1b9']);
+  }
   else parkGate(group,resources);
   batchRigidParts(group,true);
   return group;

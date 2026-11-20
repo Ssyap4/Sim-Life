@@ -1,3 +1,4 @@
+import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
@@ -38,6 +39,12 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if (command.type === 'study' && typeof command.material === 'string') {
+    const material = MATERIAL_BY_ID.get(command.material);
+    if (!material) return null;
+    const resource = material.channel === 'academy' ? 'desk' : material.channel === 'tv' ? 'tv' : null;
+    return { command: { type: 'study', material: material.id }, label: material.title, durationMs: material.minutes * 2000, resource };
+  }
   if (command.type === 'free_tv') return { command: { type: 'free_tv' }, label: '📺 Обычные телеканалы',
     durationMs: HOME_SECONDS.freeTv * 1000, resource: 'tv' };
   if (command.type === 'youtube') return { command: { type: 'youtube' }, label: '▶️ Смотрим YouTube',
@@ -124,6 +131,7 @@ export function entertainmentReward(command: Entertainment, together = false): N
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+  if (command.type === 'study') return { ok: false, reason: 'Для обучения нужна учебная сессия' };
   const denial = taskAccessError(state, command);
   if (denial) return { ok: false, reason: denial };
   if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);

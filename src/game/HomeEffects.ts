@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { BATH_FIXTURES, HOME_PLACEMENTS } from '../shared/home';
 import type { Program } from '../shared/homeLife';
 import { GENRES } from '../shared/homeLife';
+import { SKILL_IDS, SKILLS } from '../shared/education';
+import { MATERIAL_BY_ID } from '../shared/educationCatalog';
 
 const themes: Record<Program, [string,string,string,string]> = {
+  lesson: ['#365d59','#638980','#eddcb5','Учебное телевидение'],
   horror: ['#111725','#334151','#dde4ba','Лунная тропа'],
   drama: ['#553a42','#8c6861','#efad7c','Последний разговор'],
   crime: ['#121f39','#384e66','#e8bb77','Улики в городе'],
@@ -30,6 +33,7 @@ export class HomeEffects {
   private readonly handWater: THREE.LineSegments;
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
+  private lesson?: string;
 
   constructor(scene: THREE.Scene) {
     this.canvas.width = 256;
@@ -82,7 +86,8 @@ export class HomeEffects {
     scene.add(this.screen,this.shower,this.foam,this.handWater);
   }
 
-  television(id: string, program?: Program) {
+  television(id: string, program?: Program, lesson?: string) {
+    if (lesson) this.lesson = lesson;
     if(program) this.media.set(id,program); else this.media.delete(id);
     this.screen.visible = this.media.size > 0;
     this.lastScreen = -1;
@@ -113,6 +118,32 @@ export class HomeEffects {
 
   private draw(program: Program, t: number) {
     const c = this.context;
+    if (program === 'lesson') {
+      const item = this.lesson && MATERIAL_BY_ID.get(this.lesson);
+      const index = item ? SKILL_IDS.indexOf(item.skill) : 0;
+      const colors = ['#315b58','#83576e','#93684d','#315a78','#587760','#635c7c','#955944','#677d4e','#53586a'];
+      c.fillStyle = colors[index]; c.fillRect(0, 0, 256, 144);
+      c.fillStyle = '#f1e4c5'; c.font = 'bold 13px system-ui';
+      c.fillText(item ? SKILLS[item.skill][1].toUpperCase() : 'УЧЕБНОЕ ТВ', 15, 25, 226);
+      if (index % 3 === 0) {
+        for (let i = 0; i < 5; i++) {
+          const height = 23 + i * 8 + Math.sin(t * 1.6 + i) * 5;
+          c.fillRect(26 + i * 45, 104 - height, 26, height);
+        }
+      } else if (index % 3 === 1) {
+        for (let i = 0; i < 4; i++) {
+          c.beginPath(); c.arc(42 + 54 * i, 74, 13 + Math.sin(t * 1.8 + i) * 5, 0, Math.PI * 2); c.fill();
+        }
+      } else {
+        for (let i = 0; i < 3; i++) {
+          c.strokeStyle = '#f1e4c5'; c.strokeRect(24 + i * 74, 57, 55, 43);
+          c.fillRect(33 + i * 74, 79, 20 + 10 * Math.sin(t * 1.4 + i), 4);
+        }
+      }
+      c.font = '12px system-ui';
+      c.fillText(item ? item.title : themes.lesson[3], 15, 126, 227);
+      return;
+    }
     if (program === 'broadcast') {
       this.drawBroadcast(t);
       return;

@@ -9,6 +9,7 @@ export const PLACES = {
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
+  education: { name: 'Центр «Потенциал»', icon: '🎓', detail: 'Аудитория, компьютерный класс и мастерская' },
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
@@ -19,6 +20,7 @@ export function isPlace(value: unknown): value is PlaceId {
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
   if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
+  if (place === 'education') return { x: role === 'vlad' ? .47 : 1.38, z: 3.94 };
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
@@ -28,6 +30,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 type SiteAction =
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
+  | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
   | { kind: 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'unpack' };
 
 export interface Station {
@@ -67,6 +70,8 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     door('street-cafe', 'Кафе', 'cafe', 4.10, -3.95),
     door('street-park', 'В парк', 'park', 4.55, 1.39),
     site('street-bench', 'Скамья у клумбы', -3.90, 0.28, 1.74, 0.63, { kind: 'rest' }),
+    site('street-education', 'Потенциал', -6.38, -2.30, .22, 2.36, { kind: 'door', destination: 'education' },
+      { approach: { x: -5.35, z: -2.30 } }),
   ],
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
@@ -93,9 +98,18 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false }),
     door('park-exit', 'Выход на улицу', 'street', -2.75, 4.60, true),
   ],
+  education: [
+    site('reception', 'Ресепшен', -3.65, 1.45, 2.00, .76, { kind: 'education', room: 'reception' }),
+    site('classroom', 'Аудитория', -3.36, -2.25, 2.72, .98, { kind: 'education', room: 'classroom' }),
+    site('lab', 'Компьютерный класс', 0, -2.25, 2.54, .98, { kind: 'education', room: 'lab' }),
+    site('workshop', 'Практическая зона', 3.53, -2.25, 2.62, .98, { kind: 'education', room: 'workshop' }),
+    door('education-exit', 'На площадь', 'street', -2.55, 4.60, true),
+  ],
 };
 export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find(station => station.id === id);
 export function approachFor(station: Station, role: CharacterId): Point {
+  if (station.action.kind === 'education' && station.action.room !== 'reception')
+    return { x: station.approach.x + (role === 'vlad' ? -.63 : .63), z: station.approach.z + .35 };
   if (station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
@@ -111,6 +125,10 @@ export function placeObstacles(place: PlaceId) {
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
   if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
+  if (place === 'education') obstacles.push(
+    { minX: -4.45, maxX: -2.85, minZ: .43, maxZ: 1.10 },
+    { minX: 1.46, maxX: 2.14, minZ: -3.98, maxZ: -3.30 },
+  );
   return obstacles;
 }
 

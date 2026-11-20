@@ -1,4 +1,5 @@
 import type { ServiceCommand } from '../shared/services';
+import type { EducationCommand } from '../shared/education';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
@@ -19,6 +20,9 @@ export interface ConnectionCallbacks {
   onOnline(online: CharacterId[]): void;
   onTimeStatus(status: TimeStatus): void;
   onClock(sample: ClockSample): void;
+  onStudyProgress(role: CharacterId, taskId: number, elapsed: number, total: number): void;
+  onEducationFeedback(taskId: number, correct: boolean, message: string, question?: string): void;
+  onEducationNotice(message: string): void;
   onDisconnect(): void;
   onAction(role: CharacterId, actionId: ActionId, message: string): void;
   onFoodEvent(role: CharacterId, action: 'buy' | 'cook' | 'eat', message: string): void;
@@ -101,6 +105,7 @@ export class LiveConnection {
   }
 
   service(command: ServiceCommand): boolean {return this.sendAuthenticated(command);}
+  education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
   inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
@@ -194,6 +199,12 @@ export class LiveConnection {
         this.callbacks.onOnline(packet.online);
       } else if (packet.type === 'time_status' && this.authorized) {
         this.callbacks.onTimeStatus(packet.status);
+      } else if (packet.type === 'study_progress' && this.authorized) {
+        this.callbacks.onStudyProgress(packet.role, packet.taskId, packet.elapsed, packet.total);
+      } else if (packet.type === 'education_feedback' && this.authorized) {
+        this.callbacks.onEducationFeedback(packet.taskId, packet.correct, packet.message, packet.question);
+      } else if (packet.type === 'education_notice' && this.authorized) {
+        this.callbacks.onEducationNotice(packet.message);
       } else if (packet.type === 'clock_sync' && this.authorized) {
         this.callbacks.onClock(packet.sample);
       } else if (packet.type === 'action' && this.authorized) {

@@ -1,3 +1,4 @@
+import { initialEducation, type EducationCommand, type EducationState } from './education';
 import { initialServices, type FamilyServices, type ServiceCommand } from './services';
 import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
@@ -62,6 +63,7 @@ export interface GameState {
   petFood: PetFoodStock;
   petBowls: PetBowlStock;
   readBooks: Record<CharacterId, BookId[]>;
+  education: EducationState;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
 }
@@ -133,6 +135,7 @@ export const ACTIONS = {
 export type ActionId = keyof typeof ACTIONS;
 
 export type TimedCommand = Entertainment
+  | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'act'; actionId: ActionId }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
@@ -140,7 +143,7 @@ export type TimedCommand = Entertainment
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket = WorldCommand | Entertainment | ServiceCommand
+export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | EducationCommand
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -165,6 +168,9 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand
   | { type: 'cancel_task'; taskId: number };
 
 export type ServerPacket =
+  | { type: 'study_progress'; role: CharacterId; taskId: number; elapsed: number; total: number }
+  | { type: 'education_feedback'; taskId: number; correct: boolean; message: string; question?: string }
+  | { type: 'education_notice'; role: CharacterId; message: string }
   | { type: 'time_status'; status: import('./timeControl').TimeStatus }
   | { type: 'clock_sync'; sample: ClockSample }
   | { type: 'storage_event'; role: CharacterId; station?: string }
@@ -199,7 +205,7 @@ export function initialState(): GameState {
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
     ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
-    readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(),
+    readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(),
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },

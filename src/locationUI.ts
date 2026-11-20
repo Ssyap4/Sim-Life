@@ -24,7 +24,8 @@ function button(label: string, click: () => void, disabled = false) {
 }
 
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
-  send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void) {
+  send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
+  openEducation: (room: string, exam?: boolean) => void) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -233,6 +234,11 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         option.dataset.menuItem = item;
         options.append(option);
       }
+    } else if (station.action.kind === 'education') {
+      const room = station.action.room;
+      options.append(button(room === 'reception' ? 'Расписание и запись' : 'Занятия в этом зале', () => openEducation(room)));
+      if (room === 'reception' || room === 'classroom')
+        options.append(button('Квалификационные экзамены', () => openEducation('classroom', true)));
     } else if (kind === 'dine') {
       options.append(local(place.world.cafe[role]?.pickedUp ? 'Сесть и поесть' : 'Сесть и отдохнуть', 'dine'));
     } else if (kind === 'rest') options.append(local('Сесть на скамью', 'rest'));

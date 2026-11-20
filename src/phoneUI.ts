@@ -1,4 +1,6 @@
 import { createBillingUI, type BillingApp } from './billingUI';
+import { createEducationUI, educationAppointments, type EducationView } from './educationUI';
+import type { EducationCommand } from './shared/education';
 import type { ServiceCommand } from './shared/services';
 import { formatRub } from './shared/economy';
 import { JOBS } from './shared/jobs';
@@ -9,20 +11,21 @@ import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | BillingApp;
+type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
-  family:['❤️','Семья'],pets:['🐾','Питомцы'],
+  family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
 export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTMLElement,
   read: () => View | null, openDelivery: (state: GameState) => void,
   openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
-  sendService: (command: ServiceCommand) => boolean) {
+  sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
+  travelToCenter: () => boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -35,6 +38,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const grid=root.querySelector<HTMLElement>('.phone-grid')!;
   const info=root.querySelector<HTMLElement>('.phone-info')!;
   const billing = createBillingUI(info, sendService);
+  const education = createEducationUI(info, sendEducation, () => close(), travelToCenter);
   const back=root.querySelector<HTMLButtonElement>('[data-phone-back]')!;
   const closeButton=root.querySelector<HTMLButtonElement>('[data-phone-close]')!;
   const owner=root.querySelector<HTMLElement>('[data-phone-owner]')!;
@@ -60,6 +64,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.dataset.owner=role;
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
+    if (app === 'education') education.render(state, role);
     if (app==='calendar') {
       const shift=state.activeShifts[role];
       const end=shift?.endsAt;
@@ -69,7 +74,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       info.replaceChildren(
         today,
         block('🧰 Подработка',shift ? JOBS[shift.job].name+' · окончание '+ending : 'Активной смены нет'),
-        block('⏱ Скорость общего времени','×'+time.multiplier.toLocaleString('ru-RU')));
+        block('⏱ Скорость общего времени','×'+time.multiplier.toLocaleString('ru-RU')),
+        ...educationAppointments(state, role).slice(0, 8).map(item =>
+          block('🎓 '+item.title, 'Занятие '+item.lesson+' · '+clockLabel(clockAt(item.at)))));
     }
     if (app==='family') {
       const family=(['vlad','alina'] as const).map(id => {
@@ -115,15 +122,16 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     }
   }
 
-  function show(next: App | null) {
+  function show(next: App | null, educationView?: EducationView, room?: string) {
     const view=read();
     if (!view) return;
     closeApps();
     app=next;
+    if (next === 'education') education.open(educationView, room);
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='education'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);
@@ -151,5 +159,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
   return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+    openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
+    educationMessage(message: string) {
+      if (app !== 'education' || root.hidden) return false;
+      education.feedback(message); refresh(); return true;
+    },
     billingMessages(messages: string[]) { billing.setMessages(messages); refresh(); } };
 }

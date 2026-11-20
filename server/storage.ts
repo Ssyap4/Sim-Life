@@ -19,6 +19,7 @@ import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, P
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { BOOKS } from '../src/shared/homeLife';
+import { migrateEducation, validEducation } from './education';
 
 export interface ServerFiles {
   dataDir: string;
@@ -34,6 +35,7 @@ const isValidState = (value: unknown): value is GameState => {
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
+  if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   const readBooks = state.readBooks;
   if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
@@ -82,7 +84,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
@@ -245,6 +247,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
+        education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),

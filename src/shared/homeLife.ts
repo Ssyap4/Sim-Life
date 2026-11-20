@@ -8,7 +8,7 @@ export const GENRES = {
 } as const;
 export type Genre = keyof typeof GENRES;
 export const YOUTUBE = ['pets', 'vlog', 'travel', 'tech', 'cooking'] as const;
-export type Program = Genre | (typeof YOUTUBE)[number] | 'broadcast' | 'concert';
+export type Program = Genre | (typeof YOUTUBE)[number] | 'broadcast' | 'concert' | 'lesson';
 
 export const BOOKS = {
   master: ['Мастер и Маргарита', 'Михаил Булгаков', 'Мистический роман', 120, '#7d4749'],
@@ -47,6 +47,8 @@ export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture | 'grill';
+  station: HomeSeat | BathFixture | 'grill' | 'studyDesk' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  lesson?: string;
+  question?: string;
 };
