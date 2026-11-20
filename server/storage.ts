@@ -1,7 +1,7 @@
 import { initialServices } from '../src/shared/services';
 import { validBilling } from './services';
 import { validWorld } from './locations';
-import { WORLD_FLOOR, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
+import { floorFor, clockMinutes, initialWorld, placeObstacles, spawn, type PlaceId } from '../src/shared/locations';
 import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { randomBytes } from 'node:crypto';
@@ -84,10 +84,10 @@ const isValidState = (value: unknown): value is GameState => {
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined, home = true) => {
-    const { minX, maxX, minZ, maxZ } = home ? HOME_FLOOR : WORLD_FLOOR;
+  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
+    const { minX, maxX, minZ, maxZ } = floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
-      p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (home ? maxZ : 5);
+      p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (place === 'home' ? maxZ : Math.max(maxZ, 5));
   };
   if (petData !== undefined && (!petData || !PET_IDS.every((id) => {
     const pet = petData[id];
@@ -95,7 +95,7 @@ const isValidState = (value: unknown): value is GameState => {
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, false)) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
@@ -112,7 +112,7 @@ const isValidState = (value: unknown): value is GameState => {
     ) && (['hygiene', 'social', 'fun', 'comfort', 'bladder'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && point(p, !state.world || state.world.places[role] === 'home') &&
+    ) && point(p, state.world?.places[role] ?? 'home') &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
@@ -128,6 +128,11 @@ const previousSeats = [
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
+  if (place === 'street' || place === 'market') {
+    // Preserve saved positions except where a newly added solid occupies them.
+    const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
+    return { ...resident, x: point.x, z: point.z };
+  }
   if (place !== 'home') return resident;
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);

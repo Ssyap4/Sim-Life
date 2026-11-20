@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { STATIONS, type PlaceId, type Station } from '../shared/locations';
-import { MARKET_PRODUCTS } from '../shared/market';
+import { locationGeometry } from './LocationArt';
+import { buildPlaza, plazaEntrance } from './PlazaArt';
+import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 
-const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane]);
+const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry]);
 const accents = [0xc38367, 0xd4a560, 0x759785, 0x8e9eb5, 0xe1cc9d, 0x9b625a];
 function shape(parent: THREE.Object3D, size: XYZ, pos: XYZ, color: number,
   geometry: THREE.BufferGeometry = softCube, shadow = false): THREE.Mesh {
@@ -32,35 +34,9 @@ function bench(parent: THREE.Group, width: number) {
   }
   for (const y of [.72, .92]) shape(parent, [width, .12, .075], [0, y, -.23], C.oak);
 }
-function rack(parent: THREE.Group, station: Station) {
-  if (station.action.kind !== 'shelf') return;
-  const isCold = station.id === 'dairy' || station.id === 'meat';
-  const color = isCold ? 0x75a3a5 : 0xc29365;
-  const depth = station.depth;
-  shape(parent, [station.width, .14, depth], [0, .12, 0], C.darkWood);
-  shape(parent, [station.width, 1.58, .12], [0, .92, -.26], isCold ? 0xc2d3c8 : 0xb88a68, cube);
-  for (const x of [-.89, .89]) shape(parent, [.075, 1.6, depth], [x, .91, 0], color);
-  const products = MARKET_PRODUCTS.filter(p => station.id === 'drinks'
-    ? p.stockKey === 'tea' || p.stockKey === 'coffee' : station.action.kind === 'shelf' && station.action.categories.includes(p.category));
-  for (let row = 0; row < 3; row++) {
-    const y = .34 + row * .49;
-    shape(parent, [station.width, .073, depth], [0, y, 0], color);
-    for (let i = 0; i < 7; i++) {
-      const product = products[(row * 7 + i) % products.length];
-      const height = product?.category === 'meat' ? .096 : [.27, .19, .22][(row + i) % 3];
-      const x = -.72 + i * .237;
-      const useOrb = product?.category === 'fruit' || product?.category === 'vegetables';
-      shape(parent, useOrb ? [.086, .095, .08] : [.175, height, .22],
-        [x, y + .050 + (useOrb ? .09 : height / 2), .079],
-        accents[(i + row * 3) % accents.length], useOrb ? orb : softCube);
-      if (!useOrb) shape(parent, [.121, height * .44, .012], [x, y + .056 + height / 2, .196], C.paper, cube);
-    }
-  }
-  shape(parent, [station.width, .12, depth], [0, 1.68, 0], color, softCube, true);
-}
-function facade(parent: THREE.Group, color: number, open: boolean) {
+function facade(parent: THREE.Group, color: number) {
   shape(parent, [1.21, 2.24, .24], [0, 1.12, 0], C.walnut);
-  shape(parent, [.97, 1.99, .14], [0, 1.04, .14], open ? 0x536d65 : color);
+  shape(parent, [.97, 1.99, .14], [0, 1.04, .14], color);
   for (const x of [-.24, .24]) shape(parent, [.41, .71, .035], [x, 1.44, .216], 0x91afb3);
   shape(parent, [.07, .18, .07], [.34, .96, .244], C.brass, cube);
   shape(parent, [1.3, .07, .48], [0, .025, .19], C.oat);
@@ -102,16 +78,13 @@ function packageBox(group: THREE.Group, x: number, z: number, color: number): TH
   return bag;
 }
 
-function buildStation(station: Station, place: PlaceId, textures: THREE.Texture[], materials: THREE.Material[]) {
+function buildStation(station: Station, textures: THREE.Texture[], materials: THREE.Material[]) {
   const root = new THREE.Group();
   root.position.set(station.center.x, 0, station.center.z);
   const kind = station.action.kind;
-  if (kind === 'shelf') {
-    rack(root, station);
-    sign(root, station.name, 1.84, .33, 1.65, C.paper, textures, materials);
-  } else if (kind === 'door') {
+  if (kind === 'door') {
     if (station.center.z > 4) root.rotation.y = Math.PI;
-    facade(root, C.pine, place === 'street');
+    facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
   } else if (kind === 'dine') {
     shape(root, [.61, .13, .61], [0, .93, -.27], C.oak, drum, true);
@@ -126,7 +99,7 @@ function buildStation(station: Station, place: PlaceId, textures: THREE.Texture[
     shape(root, [.072, .087, .059], [.13, 1.22, -.29], C.coral, orb);
   } else if (kind === 'rest') {
     bench(root, station.width);
-  } else if (kind === 'terminal' || kind === 'pickup' || kind === 'checkout') {
+  } else if (kind === 'terminal' || kind === 'pickup') {
     shape(root, [station.width, .94, station.depth], [0, .47, 0], kind === 'pickup' ? C.clay : C.pine, softCube, true);
     shape(root, [station.width + .04, .10, station.depth + .03], [0, .98, 0], C.oat);
     shape(root, [.46, .29, .085], [-.24, 1.15, -.16], C.ink);
@@ -152,41 +125,30 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const materials: THREE.Material[] = [];
   const stations = new Map<string, THREE.Group>();
   const bulbs: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
-  const outdoor = place === 'street' || place === 'park';
+  const outdoor = place === 'park';
   const floor = new THREE.Group();
   root.add(floor);
-  shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
-  shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : place === 'market' ? 0xcacac0 : 0xc69b6c, cube);
-  if (outdoor) {
-    for (const [x, z, w, d] of [
-      [0, 3.75, 12, 1.36], [0, 0.37, 12, 1.28], [-2.68, 0, 1.35, 8.1], [2.52, 0, 1.30, 8.1],
-    ]) shape(floor, [w, .026, d], [x, .014, z], place === 'park' ? 0xd6c1a0 : 0xc6beb0, cube);
-  } else {
-    const seamColor = place === 'market' ? 0xb2afa2 : 0xaf8257;
-    for (let i = -5; i <= 5; i++) shape(floor, [.018, .006, 10], [i, .005, 0], seamColor, cube);
-    for (let i = -4; i <= 4; i++) shape(floor, [12, .006, .017], [0, .005, i], seamColor, cube);
-    shape(floor, [12.2, 2.91, .19], [0, 1.46, -5.01], place === 'cafe' ? 0xd3b89b : 0xbbcec3, cube);
-    shape(floor, [.19, 2.91, 10.1], [-6.05, 1.46, 0], place === 'cafe' ? 0x9fac88 : 0xa4b8b1, cube);
-    for (const y of [.25, .78, 2.86]) {
-      shape(floor, [12.2, .13, .23], [0, y, -4.95], C.paper);
-      shape(floor, [.23, .13, 10.1], [-5.99, y, 0], C.paper);
-    }
-  }
-  if (place === 'street') {
-    for (let i = 0; i < 3; i++) {
-      const x = [-3.88, .11, 4.10][i];
-      shape(floor, [3.4, 2.85, .81], [x, 1.43, -4.66], [0xdaaf84, 0xa6baa3, 0xd8b5a8][i], softCube, true);
-      shape(floor, [3.67, .28, 1.03], [x, 2.96, -4.62], [0x9a6155, 0x537b66, 0x9b6957][i]);
-      if (i > 0) {
-        for (let stripe = 0; stripe < 8; stripe++) {
-          const awning = shape(floor, [.27, .065, .49], [x - .945 + stripe * .27, 2.29, -3.95],
-            stripe % 2 ? C.paper : i === 1 ? C.pine : C.coral);
-          awning.rotation.x = .22;
-        }
-      }
-      for (const dx of [-1.16, 1.16]) {
-        shape(floor, [.59, 1.1, .08], [x + dx, 1.75, -4.21], C.paper);
-        shape(floor, [.48, .92, .055], [x + dx, 1.75, -4.15], C.sky);
+  const resources = { textures, materials };
+  const plaza = place === 'street' ? buildPlaza(floor, resources) : null;
+  if (place === 'market') {
+    buildMarket(floor, resources);
+    root.add(marketCashier(resources));
+  } else if (!plaza) {
+    shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
+    shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
+    if (outdoor) {
+      for (const [x, z, w, d] of [
+        [0, 3.75, 12, 1.36], [0, 0.37, 12, 1.28], [-2.68, 0, 1.35, 8.1], [2.52, 0, 1.30, 8.1],
+      ]) shape(floor, [w, .026, d], [x, .014, z], 0xd6c1a0, cube);
+    } else {
+      const seamColor = 0xaf8257;
+      for (let i = -5; i <= 5; i++) shape(floor, [.018, .006, 10], [i, .005, 0], seamColor, cube);
+      for (let i = -4; i <= 4; i++) shape(floor, [12, .006, .017], [0, .005, i], seamColor, cube);
+      shape(floor, [12.2, 2.91, .19], [0, 1.46, -5.01], place === 'cafe' ? 0xd3b89b : 0xbbcec3, cube);
+      shape(floor, [.19, 2.91, 10.1], [-6.05, 1.46, 0], place === 'cafe' ? 0x9fac88 : 0xa4b8b1, cube);
+      for (const y of [.25, .78, 2.86]) {
+        shape(floor, [12.2, .13, .23], [0, y, -4.95], C.paper);
+        shape(floor, [.23, .13, 10.1], [-5.99, y, 0], C.paper);
       }
     }
   }
@@ -231,9 +193,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     batchRigidParts(coffee);
     sign(floor, 'ТЁПЛЫЙ УГОЛ', 2.18, -4.89, 3.02, C.paper, textures, materials);
   }
-  batchRigidParts(floor);
+  batchRigidParts(floor, place === 'market' || place === 'street');
   for (const station of STATIONS[place]) {
-    const group = buildStation(station, place, textures, materials);
+    const custom = place === 'street' && station.action.kind === 'door'
+      ? plazaEntrance(station, resources)
+      : place === 'market' ? marketStation(station, resources) : null;
+    const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);
   }
@@ -243,14 +208,19 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
+  const horizontal = plaza?.boundary ?? (place === 'market' ? marketOutline
+    : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station))));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
+    animate: plaza?.animate,
     setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
-      root.traverse(mesh => { if (mesh instanceof THREE.Mesh && !shared.has(mesh.geometry)) geometries.add(mesh.geometry); });
+      root.traverse(object => {
+        if ((object instanceof THREE.Mesh || object instanceof THREE.LineSegments) && !shared.has(object.geometry))
+          geometries.add(object.geometry);
+      });
       for (const geometry of geometries) geometry.dispose();
       for (const map of textures) map.dispose();
       for (const material of materials) material.dispose();

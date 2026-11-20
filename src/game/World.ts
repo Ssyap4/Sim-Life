@@ -872,7 +872,7 @@ export class World {
     this.homeTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
-    this.controls.enablePan = place === 'home';
+    this.controls.enablePan = place === 'home' || place === 'street' || place === 'market';
     this.frameShadows(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;
@@ -985,6 +985,9 @@ export class World {
   private homeFrame(compact: boolean, band: ViewBand): Frame {
     if (this.place === 'home') return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
       undefined, undefined, compact ? undefined : [.49, 1.28, 1.37]);
+    if (this.remote && (this.place === 'market' || this.place === 'street'))
+      return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
+        this.remote.horizontal, this.remote.vertical, this.place === 'street' ? [.13,.89,1.0] : [.14,1.09,1.0]);
     if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
       this.remote.horizontal, this.remote.vertical, [.24, .98, 1.10]);
     const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
@@ -1130,6 +1133,7 @@ export class World {
     }
     this.controls.update();
     if (this.place === 'home') this.homeEffects.update(now/1000);
+    this.remote?.animate?.(now / 1000);
     this.renderer.render(this.scene, this.camera);
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };
