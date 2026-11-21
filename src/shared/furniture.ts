@@ -1,6 +1,7 @@
 import type { FloorRect } from '../game/navigation';
 
 export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor';
+export type FurnitureStyle = 'scandi' | 'cozy' | 'industrial' | 'classic' | 'designer';
 export type FurnitureShape = 'sofa' | 'corner' | 'armchair' | 'ottoman' | 'bench' |
   'bed' | 'daybed' | 'wardrobe' | 'dresser' | 'shelves' | 'sideboard' |
   'table' | 'desk' | 'chair' | 'stool' | 'nightstand' | 'lamp' | 'plant' | 'rug' | 'mirror';
@@ -28,6 +29,32 @@ export const FURNITURE_FINISHES: Record<FurnitureFinish,{name:string;main:number
   midnight:{name:'Тёмно-синий',main:0x394e67,light:0x8599a9,dark:0x263344,fabric:0x536d86},
 };
 export const FINISH_IDS = Object.keys(FURNITURE_FINISHES) as FurnitureFinish[];
+export const FURNITURE_STYLES:Record<FurnitureStyle,string> = {
+  scandi:'Сканди и минимализм',
+  cozy:'Мягкий и уютный',
+  industrial:'Лофт и металл',
+  classic:'Классика и винтаж',
+  designer:'Современный дизайнерский',
+};
+const STYLE_SKUS:Record<Exclude<FurnitureStyle,'scandi'>,ReadonlySet<string>> = {
+  cozy:new Set(['sofa-nord','sofa-arc','sofa-micro','chair-cloud','pouf-joy','bench-mori',
+    'bed-day','bed-storage','sideboard','table-family','chair-padded',
+    'lamp-sphere','lamp-tripod','rug-weave','rug-large','plant-ficus','plant-monstera']),
+  industrial:new Set(['sofa-modular','daybed-iron','dresser-industrial','shelf-asym',
+    'table-industrial','table-glass','desk-large','chair-industrial','lamp-industrial']),
+  classic:new Set(['sofa-chester','chair-wing','bed-aurora','bed-rattan',
+    'wardrobe-vintage','wardrobe-wide','dresser-rattan','sideboard-glass',
+    'chair-bistro','lamp-paper','mirror-window']),
+  designer:new Set(['sofa-futon','chair-nest','chair-wicker','pouf-drum',
+    'bed-canopy','bed-platform','wardrobe-sliding','shelf-ladder',
+    'table-oval','table-coffee','desk-corner','desk-hutch',
+    'stool-round','lamp-arc','lamp-double','plant-palm','rug-round','mirror-round']),
+};
+export function furnitureStyle(sku:string):FurnitureStyle {
+  for(const [style,skus] of Object.entries(STYLE_SKUS) as [FurnitureStyle,ReadonlySet<string>][])
+    if(skus.has(sku))return style;
+  return 'scandi';
+}
 const product = (id:string,name:string,category:FurnitureCategory,shape:FurnitureShape,
   price:number,width:number,depth:number,height:number,emoji:string,description:string,
   walkable=false):FurnitureProduct =>
@@ -72,6 +99,43 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('rug-large','Ковёр «Уют»','decor','rug',11900,2.7,2.0,.035,'🧶','Большой мягкий ковёр; не блокирует перемещение.',true),
   product('mirror-arch','Напольное зеркало «Арка»','decor','mirror',7900,.65,.23,1.83,'🪞','Зеркало в тонкой высокой раме.'),
   product('mirror-wide','Зеркало «Свет»','decor','mirror',11500,.95,.24,1.73,'🪞','Широкое вертикальное зеркало.'),
+  // Additional design families. Every SKU has a distinct lightweight 3D construction.
+  product('sofa-chester','Диван «Вельвет»','seating','sofa',52900,2.43,.99,.91,'🛋️','Винтажный диван с закруглёнными подлокотниками и пуговицами.'),
+  product('sofa-modular','Диван «Модуль»','seating','corner',64900,3.08,1.71,.78,'🛋️','Современный угловой диван из крупных низких модулей.'),
+  product('sofa-futon','Диван «Футон»','seating','sofa',23900,2.12,.91,.73,'🛋️','Низкий диван с открытой деревянной рамой.'),
+  product('chair-wicker','Кресло «Ротанг»','seating','armchair',16900,.91,.85,.97,'🪑','Плетёное кресло с воздушной спинкой и подушкой.'),
+  product('chair-wing','Кресло «Крыло»','seating','armchair',25900,1.04,1.01,1.25,'🪑','Высокая спинка с боковыми крыльями для чтения.'),
+  product('pouf-drum','Пуф «Барабан»','seating','ottoman',5900,.66,.66,.44,'🟠','Круглый цилиндрический пуф с вертикальной прострочкой.'),
+  product('bed-canopy','Кровать «Балдахин»','sleep','bed',67900,1.89,2.17,2.10,'🛏️','Четыре высокие стойки и лёгкая рама над кроватью.'),
+  product('bed-platform','Кровать «Парящая»','sleep','bed',47900,1.81,2.14,.64,'🛏️','Низкая широкая платформа со скрытой опорой.'),
+  product('bed-rattan','Кровать «Эко»','sleep','bed',39900,1.66,2.11,1.04,'🛏️','Плетёное закруглённое изголовье и деревянная рама.'),
+  product('daybed-iron','Кушетка «Лофт»','sleep','daybed',22500,1.98,.96,.92,'🛏️','Металлическая кушетка с решётчатой боковой спинкой.'),
+  product('bed-storage','Кровать «Секрет»','sleep','bed',51500,1.77,2.13,.89,'🛏️','Кровать-подиум с выдвижными ящиками в основании.'),
+  product('wardrobe-sliding','Шкаф «Слайд»','storage','wardrobe',42900,2.12,.65,2.30,'🚪','Крупные раздвижные панели на направляющих.'),
+  product('wardrobe-vintage','Шкаф «Прованс»','storage','wardrobe',34500,1.72,.64,2.13,'🚪','Классический шкаф с карнизом и фигурными фасадами.'),
+  product('dresser-industrial','Комод «Сталь»','storage','dresser',21500,1.26,.50,.89,'🗄️','Графичные металлические стойки и открытые полки.'),
+  product('dresser-rattan','Комод «Канва»','storage','dresser',17900,1.06,.49,.94,'🗄️','Комод с плетёными вставками на фасадах.'),
+  product('shelf-ladder','Стеллаж «Лестница»','storage','shelves',11900,.92,.46,1.92,'📚','Открытый стеллаж с сужающимися кверху полками.'),
+  product('shelf-asym','Стеллаж «Геометрия»','storage','shelves',18900,1.62,.41,1.86,'📚','Асимметричная модульная сетка открытых ниш.'),
+  product('sideboard-glass','Витрина «Стекло»','storage','sideboard',33500,1.29,.49,1.45,'🗄️','Витрина со стеклянными дверцами и полками.'),
+  product('table-oval','Стол «Овал»','tables','table',22900,1.84,.94,.76,'🍽️','Овальная столешница на двух широких опорах.'),
+  product('table-industrial','Стол «Фабрика»','tables','table',19900,1.78,.87,.78,'🍽️','Деревянный верх на чёрных стальных козлах.'),
+  product('table-glass','Стол «Кристалл»','tables','table',29500,1.55,.86,.76,'🍽️','Стеклянная столешница и перекрещенные опоры.'),
+  product('desk-corner','Угловой стол «Поворот»','tables','desk',27900,1.72,1.29,.76,'💻','Г-образный компьютерный стол с широким крылом.'),
+  product('desk-hutch','Стол «Мастерская»','tables','desk',25500,1.48,.69,1.64,'💻','Рабочий стол с высоким настольным органайзером.'),
+  product('chair-industrial','Стул «Металл»','tables','chair',5900,.52,.54,.89,'🪑','Лаконичный стальной стул с тонкой спинкой.'),
+  product('chair-bistro','Стул «Бистро»','tables','chair',7400,.49,.55,.91,'🪑','Классический стул с круглой плетёной спинкой.'),
+  product('stool-round','Табурет «Кафе»','tables','stool',3600,.43,.43,.60,'🪑','Круглый высокий табурет на четырёх ножках.'),
+  product('lamp-arc','Торшер «Дуга»','lighting','lamp',13900,1.06,.51,1.91,'💡','Изогнутая стойка с большим нависающим абажуром.'),
+  product('lamp-industrial','Торшер «Завод»','lighting','lamp',9100,.45,.45,1.65,'💡','Металлический конусный плафон с направленным светом.'),
+  product('lamp-paper','Светильник «Фонарик»','lighting','lamp',7500,.43,.43,1.46,'💡','Высокий светильник с бумажными округлыми секциями.'),
+  product('lamp-double','Торшер «Дуэт»','lighting','lamp',12500,.57,.46,1.78,'💡','Два абажура на разной высоте одной стойки.'),
+  product('plant-palm','Пальма в кашпо','decor','plant',6300,.91,.83,1.77,'🪴','Высокая пальма с длинными веерными листьями.'),
+  product('plant-cactus','Кактус «Пустыня»','decor','plant',2300,.49,.49,.91,'🌵','Разветвлённый кактус с округлыми боковыми побегами.'),
+  product('plant-rubber','Фикус каучуконосный','decor','plant',4700,.64,.60,1.51,'🪴','Выразительные крупные плотные листья вдоль ствола.'),
+  product('rug-round','Ковёр «Солнце»','decor','rug',6900,1.64,1.64,.035,'🧶','Круглый ковёр с концентрическими полосами.',true),
+  product('mirror-round','Зеркало «Луна»','decor','mirror',8500,1.05,.19,1.29,'🪞','Круглое зеркало на лаконичной напольной стойке.'),
+  product('mirror-window','Зеркало «Окно»','decor','mirror',14500,1.01,.24,1.92,'🪞','Арочное зеркало с металлическими перемычками.'),
 ] as const;
 export const FURNITURE_BY_ID = new Map(FURNITURE_CATALOG.map(item=>[item.id,item]));
 export const FURNITURE_DELIVERY = {

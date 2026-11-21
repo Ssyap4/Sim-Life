@@ -62,6 +62,9 @@ async function processJobs(){
         renderer.render(scene,camera);
         const data=renderer.domElement.toDataURL('image/webp',.86);
         cache.set(key,data);
+        // Eight finishes × 75 products could accumulate hundreds of base64 images.
+        // Re-render rarely used colours rather than retaining an unbounded GPU-era cache.
+        if(cache.size>140)cache.delete(cache.keys().next().value!);
         job.resolve(data);
         scene.remove(model);
         releaseModel(model);

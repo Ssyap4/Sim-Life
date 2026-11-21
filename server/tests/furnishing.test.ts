@@ -161,7 +161,7 @@ test('old 0.14 households migrate to empty furnishings without resetting progres
   }finally{rmSync(folder,{recursive:true,force:true});}
 });
 
-test('all 39 light 3D furniture models fit their advertised collision footprints and height',()=>{
+test('all 75 light 3D furniture models fit their advertised collision footprints and height',()=>{
   for(const info of FURNITURE_CATALOG){
     const model=buildFurnishingModel(info.id,'slate');
     model.updateMatrixWorld(true);
