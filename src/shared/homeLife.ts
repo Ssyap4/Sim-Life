@@ -1,3 +1,4 @@
+import type { PairPresentation } from './socialLife';
 import type { WalkRoute } from '../game/navigation';
 import type { BathFixture } from './home';
 import type { Needs } from './protocol';
@@ -47,8 +48,9 @@ export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture | 'grill' | 'studyDesk' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
+  station: HomeSeat | BathFixture | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
   lesson?: string;
   question?: string;
+  pair?: PairPresentation;
 };

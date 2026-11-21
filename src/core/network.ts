@@ -1,3 +1,4 @@
+import type { SocialCommand, SocialOffer } from '../shared/socialLife';
 import type { ServiceCommand } from '../shared/services';
 import type { EducationCommand } from '../shared/education';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
@@ -38,6 +39,8 @@ export interface ConnectionCallbacks {
   onStorageEvent(role: CharacterId, station?: string): void;
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string, effects?: NeedEffects): void;
   onSocialStart(kind: SocialKind, message: string): void;
+  onSocialOffer(offer:SocialOffer):void;
+  onSocialClosed(id:number,message:string,reply?:string):void;
   onError(message: string): void;
   onStatus(status: string): void;
   onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
@@ -128,6 +131,7 @@ export class LiveConnection {
     this.stop();
   }
 
+  social(command:SocialCommand):boolean {return this.sendAuthenticated(command);}
   offerSocial(kind: SocialKind): boolean { return this.sendAuthenticated({ type: 'social_offer', kind }); }
   isReady(): boolean { return this.authorized; }
 
@@ -236,6 +240,10 @@ export class LiveConnection {
         this.callbacks.onStorageEvent(packet.role, packet.station);
       } else if (packet.type === 'task_ended' && this.authorized) {
         this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message, packet.effects);
+      } else if(packet.type==='social_pending'&&this.authorized) {
+        this.callbacks.onSocialOffer(packet.offer);
+      } else if(packet.type==='social_closed'&&this.authorized) {
+        this.callbacks.onSocialClosed(packet.inviteId,packet.message,packet.reply);
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {

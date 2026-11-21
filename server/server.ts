@@ -1,5 +1,5 @@
 import { applyServiceCommand, settleFamilyServices } from './services';
-import { applyEducation, awardActivity, practiceXP } from './education';
+import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
@@ -11,7 +11,7 @@ import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
-  ACTIONS, points, names, SOCIAL_LABELS, type CharacterId, type GameState, type ServerPacket,
+  ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
@@ -19,7 +19,7 @@ import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from '.
 import { planLeisure, urgentHomeAction } from './home';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
-import { applySocial, otherRole, SOCIAL_COOLDOWN_MS } from './social';
+import { otherRole } from './social';
 import { openServerFiles } from './storage';
 import { planTask, evaluateTask, type TaskPlan } from './tasks';
 import { createHomeSessions, usesHomeSession } from './homeSessions';
@@ -42,6 +42,7 @@ export interface ServerOptions {
   distDir?: string;
   /** For fast deterministic integration tests; production defaults to real time. */
   taskTimeScale?: number;
+  socialTtlMs?: number;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
 }
@@ -86,7 +87,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }
   const active = new Map<CharacterId, WebSocket>();
   const lastAction = new Map<CharacterId, number>();
-  const lastSocial = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
@@ -162,6 +162,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all, send: packet, socket: role => active.get(role),
     busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role] || state.careers.residents[role].shift),
     gameTime: () => liveGameTime(),
+    pausePet: pet => {
+      if(state.pets[pet].routine){
+        pausePetRoutine(state,pet,liveGameTime());
+        all({type:'snapshot',state});
+      }
+    }, socialTtlMs:options.socialTtlMs,
     resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource),
     prepare(role, tv) {
       if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
@@ -227,6 +233,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
+    for(const pet of ['simba','verdell'] as const) if(homeTasks.reserved('pet:'+pet))occupiedPets.add(pet);
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
@@ -247,6 +254,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
     if (arrived) all({ type: 'delivery_arrived' });
+    homeTasks.recheckAccess();
     if (billingMessages.length) {
       all({ type: 'billing_event', messages: billingMessages });
       homeTasks.recheckAccess();
@@ -281,13 +289,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const options: HomeLeisure[] = ['tv', 'computer', 'simba'];
     if (!serviceAvailable(state.billing, 'internet', clockMinutes(state.clock))) options.splice(options.indexOf('computer'), 1);
     if (!state.world.dogWalker) options.push('verdell');
-    if (available.length === 2) options.push('chat', 'chat');
     const choices = options.filter(activity => ![...leisure.values()].some(current => current.activity === activity) &&
-      !(activity === 'tv' && homeTasks.reserved('tv')) &&
+      !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity) &&
       ![...running.values()].some(task => task.plan.resource === (activity === 'computer' ? 'desk' : 'pet:' + activity)));
     const activity = choices[Math.floor(Math.random() * choices.length)];
     if (!activity) return;
-    const roles = activity === 'chat' ? available : [available[Math.floor(Math.random() * available.length)]];
+    const roles = [available[Math.floor(Math.random() * available.length)]];
     const routes: Partial<Record<CharacterId, WalkRoute>> = {};
     if (activity === 'verdell' || activity === 'simba') {
       pausePetRoutine(state, activity, liveGameTime());
@@ -322,7 +329,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     walkingHome.delete(role);
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
-    if (plan.resource && homeTasks.reserved(plan.resource)) {
+    if ((plan.resource && homeTasks.reserved(plan.resource)) || (plan.command.type==='local_activity'&&
+        plan.command.action==='unpack'&&homeTasks.reserved('shopping'))) {
       if (!automatic) packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
       return;
     }
@@ -575,6 +583,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         socket.close(1000, 'Signed out');
         return;
       }
+      if (typeof message.type==='string'&&['social_propose','social_reply','social_withdraw','social_finish'].includes(message.type)) {
+        homeTasks.social(role,socket,message); return;
+      }
+      if (message.type==='social_offer') {
+        homeTasks.social(role,socket,{type:'social_propose',action:message.kind==='hug'?'softHug':message.kind});return;
+      }
       if (message.type === 'close_storage') {
         closeStorage(role);
         lastIntent.set(role, Date.now());
@@ -725,53 +739,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (state.activeShifts[role]) {
         packet(socket,{type:'error',reason:'Ты сейчас на подработке. Дождись окончания или прерви смену'});
-        return;
-      }
-
-      if (message.type === 'social_offer') {
-        if (message.kind !== 'hug' && message.kind !== 'highFive') {
-          packet(socket, { type: 'error', reason: 'Неизвестное совместное действие' });
-          return;
-        }
-        const partner = otherRole(role);
-        if (!active.has(partner)) {
-          packet(socket, { type: 'error', reason: names[partner] + ' пока не в игре' });
-          return;
-        }
-        if (state.world.places[partner] !== state.world.places[role]) {
-          packet(socket, { type: 'error', reason: 'Сначала встретьтесь в одной локации' });
-          return;
-        }
-        if ((running.has(partner) && !running.get(partner)?.automatic) || homeTasks.busy(partner) || state.activeShifts[partner] || state.careers.residents[partner].shift) {
-          packet(socket, { type: 'error', reason: names[partner] + ' занят(а) другим действием' });
-          return;
-        }
-        const now = Date.now();
-        if (now - Math.max(lastSocial.get(role) ?? 0, lastSocial.get(partner) ?? 0) < SOCIAL_COOLDOWN_MS) {
-          packet(socket, { type: 'error', reason: 'Подожди немного до следующего совместного действия' });
-          return;
-        }
-        const before = state;
-        const next = applySocial(state, message.kind);
-        for (const actor of [role, partner])
-          practiceXP(next, actor, 'social:' + message.kind, 'communication', SOCIAL_LABELS[message.kind], 5, 5);
-        if (next.world.dogWalker) setDogParkPosition(next);
-        try { files.save(next); }
-        catch (error) {
-          console.error('Failed to persist social action:', error);
-          packet(socket, { type: 'error', reason: 'Не удалось сохранить совместное действие' });
-          return;
-        }
-        state = next;
-        stopLeisure(partner);
-        if (running.get(partner)?.automatic) stopTask(partner, 'Началось совместное действие');
-        lastIntent.set(partner, now);
-        lastSocial.set(role, now);
-        lastSocial.set(partner, now);
-        for (const actor of [role,partner]) needsEvent(actor,SOCIAL_LABELS[message.kind],before,next);
-        all({ type: 'social_start', kind: message.kind,
-          message: 'Влад и Алина: ' + SOCIAL_LABELS[message.kind].toLowerCase() + ' ❤️' });
-        all({ type: 'snapshot', state });
         return;
       }
 

@@ -7,7 +7,7 @@ import { ACTIONS, initialState, points } from '../../src/shared/protocol';
 import { dayPhase, clockLabel, INITIAL_DAILY_NEEDS } from '../../src/shared/life';
 import { advanceLife } from '../life';
 import { applyAction } from '../logic';
-import { applySocial } from '../social';
+import { completeTogether, pairScenes } from '../society';
 import { openServerFiles } from '../storage';
 
 test('Clock passes midnight and only online residents lose needs', () => {
@@ -85,7 +85,12 @@ test('Every daily-life activity has a meaningful benefit while retaining the old
 
 test('Hug restores both people social comfort and mood', () => {
   const start = initialState();
-  const hugged = applySocial(start, 'hug');
+  const command = { type:'together',action:'softHug' } as const;
+  const paths=pairScenes(start,'vlad',command);
+  assert.ok(paths);
+  const result=completeTogether(start,'vlad',command,['vlad','alina'],0,paths);
+  if(!result.ok)assert.fail(result.reason);
+  const hugged=result.state;
   for (const id of ['vlad', 'alina'] as const) {
     assert.ok(hugged.characters[id].social > start.characters[id].social);
     assert.ok(hugged.characters[id].comfort > start.characters[id].comfort);

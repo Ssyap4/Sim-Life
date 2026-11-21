@@ -1,3 +1,5 @@
+import { initialRelationship } from '../src/shared/socialLife';
+import { validRelationship } from './society';
 import { initialServices } from '../src/shared/services';
 import { validBilling } from './services';
 import { validWorld } from './locations';
@@ -37,6 +39,7 @@ const isValidState = (value: unknown): value is GameState => {
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
+  if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.careers !== undefined && !validCareers(state.careers)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
@@ -252,6 +255,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         careers: data.careers ?? initialCareers(),
+        relationship: data.relationship ?? initialRelationship(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell),

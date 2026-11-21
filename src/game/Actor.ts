@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
+import type { PairMotion } from '../shared/socialLife';
 import type { PetAction } from '../shared/pets';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED } from '../shared/home';
@@ -55,6 +56,7 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
+  private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
   private readonly props: ReturnType<typeof activityProps>;
@@ -71,6 +73,9 @@ export class Actor {
   private idleGestureTime = 0;
   private idleCooldown: number;
   private idleTurn = 0;
+  private arrivalUntil = -1;
+  private greeting = false;
+  private nextGreeting = 0;
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
@@ -80,6 +85,9 @@ export class Actor {
     this.idleContext.partnerYaw = partnerYaw;
   }
   currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
+  noticePartnerArrival():void {
+    if(this.clock>=this.nextGreeting)this.arrivalUntil=this.clock+4;
+  }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
@@ -182,6 +190,7 @@ export class Actor {
     this.callback = null;
     this.pose = pose;
     this.gesture = null;
+    this.partnerGesture = null;
     this.activity = null;
     this.idleGesture = null;
     this.idleGestureTime = 0;
@@ -222,6 +231,9 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.partnerGesture=null;
+    this.gesture=null;
+    this.heart.visible=false;
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
     this.carryingBook = false;
     this.props.brush.visible = false;
@@ -250,6 +262,11 @@ export class Actor {
     this.gestureTarget = target;
     this.gestureTime = 0;
     this.heart.visible = kind === 'hug';
+  }
+
+  playPartnerGesture(motion:PairMotion,leads:boolean,target?:THREE.Vector3):void {
+    this.partnerGesture={motion,leads,target,time:0};
+    this.idleGesture=null;
   }
 
   private advance(dt: number, steer?: Steering): number {
@@ -343,6 +360,7 @@ export class Actor {
     this.clock += dt;
     this.gestureTime += dt;
     this.activityTime += dt;
+    if(this.partnerGesture)this.partnerGesture.time+=dt;
     const traveled = this.advance(dt, steer);
     const walking = this.waypoints.length > 0 && traveled > 0;
     const alpha = 1 - Math.exp(-dt * 11);
@@ -361,7 +379,7 @@ export class Actor {
     const motion = this.gaitBlend;
     // Idle-only, cosmetic reactions. Never steal control, stop a route or move
     // the navigation root. Reset immediately for every gameplay animation.
-    const canReact = this.pose === 'idle' && !this.activity && !this.gesture &&
+    const canReact = this.pose === 'idle' && !this.activity && !this.gesture && !this.partnerGesture &&
       !this.carryingBook && this.closingBook <= 0 && !this.waypoints.length &&
       traveled < 0.0001 && motion < 0.08;
     if (!canReact) {
@@ -394,19 +412,27 @@ export class Actor {
       !pickNeedReaction(this.needs, 0);
     if (!canIdle || (this.idleGesture && !residentIdleAllowed(this.idleGesture, this.idleContext))) {
       this.idleGesture = null;
+      this.greeting=false;
       this.idleGestureTime = 0;
       this.idleCooldown = Math.max(this.idleCooldown, canReact ? 3 : 4);
     } else if (this.idleGesture) {
       this.idleGestureTime += dt;
       if (this.idleGestureTime >= RESIDENT_IDLE_SECONDS) {
         this.idleGesture = null;
+        this.greeting=false;
         this.idleGestureTime = 0;
         this.idleCooldown = 7.5 + (this.idleTurn % 3) * 1.8 +
           (this.id === 'alina' ? 1.3 : 0);
       }
     } else {
       this.idleCooldown -= dt;
-      if (this.idleCooldown <= 0) {
+      if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)){
+        this.idleGesture='noticePartner';
+        this.idleGestureTime=0;
+        this.greeting=true;
+        this.arrivalUntil=-1;
+        this.nextGreeting=this.clock+65;
+      }else if (this.idleCooldown <= 0) {
         this.idleGesture = chooseResidentIdle(this.id, this.idleContext, this.idleTurn++);
         this.idleGestureTime = 0;
       }
@@ -659,6 +685,60 @@ export class Actor {
       if (g >= 3.1) this.setPose('idle');
     }
 
+    const pair=this.partnerGesture;
+    let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0;
+    if(pair){
+      const sec=pair.time;
+      const rise=THREE.MathUtils.smoothstep(sec,.12,.78);
+      const contact=rise*(1-THREE.MathUtils.smoothstep(sec,2.2,3.9));
+      switch(pair.motion){
+        case 'hug':case 'closeHug': {
+          const weight=pair.motion==='closeHug'?rise*(1-THREE.MathUtils.smoothstep(sec,3.15,4.25)):contact;
+          leftY=rightY=-.54+.47*weight; leftZ=rightZ=.39*weight;
+          armSpread+=.39*weight; embrace=weight*.12; lean=.18*weight;
+          partnerForward=.085*weight;
+          expression=.13+.45*weight; partnerHead=(pair.leads?-.11:.14)*weight;
+          break;
+        }
+        case 'kiss':case 'cheek':
+          lean+=(pair.motion==='kiss'?.23:pair.leads?.19:.045)*contact;
+          partnerForward=(pair.motion==='kiss'?.128:pair.leads?.154:.055)*contact;
+          partnerHead=(pair.motion==='cheek'?.21:.17)*(pair.leads?-1:1)*contact;
+          gaze+=(pair.leads?-.075:.055)*contact; expression+=.28*rise;
+          leftY+=.07*contact; rightY+=.11*contact;
+          break;
+        case 'hands':case 'slowDance':
+          partnerReach=rise; rightY+=.18*rise; leftY+=.12*rise; expression+=.24*rise;
+          partnerRoll=pair.motion==='slowDance'?Math.sin(sec*1.6)*.095*rise:.03*rise; gaze-=.025*rise;
+          break;
+        case 'hair':case 'shoulder':
+          partnerReach=pair.leads?contact:0;
+          if(pair.leads) { rightY+=.43*contact; rightZ+=.22*contact; lean+=.06*contact; }
+          else partnerHead=.10*contact;
+          expression+=.20*rise; break;
+        case 'cuddle':
+          partnerRoll=(this.id==='vlad'?.15:-.15)*rise;
+          partnerHead=partnerRoll*.5;
+          lean-=.055*rise; expression+=.29*rise; break;
+        case 'dance':
+          partnerRoll=Math.sin(sec*3.6)*.16*rise; crouch+=.055*(1+Math.cos(sec*4.2))*rise;
+          leftY+=.36*(.60+.4*Math.sin(sec*3.6))*rise; rightY+=.36*(.60-.4*Math.sin(sec*3.6))*rise;
+          leftZ+=.20*rise;rightZ+=.22*rise;expression+=.45*rise;break;
+        case 'laugh':
+          lean+=.11*Math.max(0,Math.sin(sec*5))*rise; partnerRoll=.06*Math.sin(sec*4)*rise;
+          rightY+=.20*rise; expression+=.64*rise; break;
+        default: {
+          const speaking=pair.leads?sec%8<3.4:sec%8>=3.4;
+          const breadth=pair.motion==='explain'?.28:pair.motion==='listen'?.10:.18;
+          if(speaking){
+            rightY+=breadth*(.55+.45*Math.sin(sec*3.4))*rise;
+            rightZ+=breadth*rise;leftY+=breadth*.48*Math.sin(sec*2.47)*rise;
+          }else gaze+=.07*Math.max(0,Math.sin(sec*2.4))*rise;
+          partnerHead=.048*Math.sin(sec*1.72)*rise;expression+=.17*rise;
+        }
+      }
+    }
+
     // Reuse the exact same lightweight articulated rig used by cooking and
     // talking: a few soft arm/head targets, no new meshes or animation files.
     const needWeight = this.needReaction ? needReactionWeight(this.needReactionTime) : 0;
@@ -845,6 +925,11 @@ export class Actor {
           gaze += 0.038 * nod * w;
           rightY = THREE.MathUtils.lerp(rightY, -0.43, w * 0.42);
           rightZ = THREE.MathUtils.lerp(rightZ, 0.18 + .017 * nod, w * 0.52);
+          if(this.greeting){
+            const wave=residentIdleEase(phase,.35,.9)*(1-residentIdleEase(phase,1.9,2.8));
+            rightY+=.37*wave;
+            rightZ+=(.15+.09*Math.sin(phase*10))*wave;
+          }
           break;
         }
       }
@@ -914,7 +999,7 @@ export class Actor {
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
-      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll, alpha);
+      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
@@ -923,7 +1008,7 @@ export class Actor {
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
       motion * 0.055 * Math.cos(stridePhase) + idleChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
-      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway + idleChestRoll, alpha);
+      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway + idleChestRoll + partnerRoll, alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
     data.chest.position.y = (1 - Math.cos(data.chest.rotation.x)) * data.waistY + 0.006 * breath;
 
@@ -933,6 +1018,7 @@ export class Actor {
     this.figure.position.z += embrace;
     this.figure.position.y -= stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15;
+    this.figure.position.z += partnerForward;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
       const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
@@ -966,6 +1052,10 @@ export class Actor {
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);
       this.reach(hand, this.target, highFive);
       this.aimHand(hand, this.handDirection.copy(up), highFive);
+    } else if(pair?.target&&partnerReach>0.002) {
+      const hand=pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
+      this.reach(hand,this.target.copy(pair.target),Math.min(1,alpha*4*partnerReach));
+      this.aimHand(hand,this.handDirection.set(0,-.55,-.3),alpha*partnerReach);
     }
     // The old idle gestures only raised an elbow toward the face. Use
     // the existing two-bone IK solver to put the wrist at a meaningful
