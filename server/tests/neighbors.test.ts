@@ -93,13 +93,15 @@ test('sidewalks, wing and all 14 articulated NPCs remain lightweight and noninte
     assert.equal(person.userData.interactable, undefined);
   }
   assert.equal(shown, 7);
-  assert.ok(activeMeshes < 85, 'animated crowd should have a small draw-call budget');
+  assert.ok(activeMeshes <= 90, 'articulated crowd must stay at or below 90 visible meshes: ' + activeMeshes);
 });
 
 test('idling NPCs genuinely pause rather than sliding while using their phone', () => {
   let stop: number | undefined;
   for (let minute = 12 * 60; minute < 14 * 60; minute += .1) {
     if (neighborPose(3, minute).visible && neighborPose(3, minute + .2).visible &&
+        neighborPose(3, minute).gestureBlend > .999 &&
+        neighborPose(3, minute + .2).gestureBlend > .999 &&
         neighborPose(3, minute).action !== 'walk' &&
         neighborPose(3, minute + .2).action !== 'walk') {
       stop = minute; break;
@@ -188,4 +190,142 @@ test('desktop neighborhood overview frames moved sidewalks without shrinking mob
     assert.ok(Math.abs(projected.x)<.97, 'sidewalk horizontal overview');
     assert.ok(projected.z<1, 'sidewalk must be in front of far plane');
   }
+});
+
+test('new neighbor joints animate walking without squatting or sinking into the ground', () => {
+  const crowd = new NeighborPeople();
+  let samples=0, raisedKnee=false, tiltedHead=false, blinkSeen=false;
+  for(let minute=720; minute<782; minute+=.26) {
+    crowd.update(minute);
+    for(let index=0; index<NEIGHBORS.length; index++) {
+      const pose=neighborPose(index,minute);
+      if(!pose.visible || pose.opacity<.85)continue;
+      const root=crowd.group.children[index];
+      const head=root.getObjectByName('neighbor-head') as THREE.Group;
+      const leftKnee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
+      const rightKnee=root.getObjectByName('neighbor-rightKnee') as THREE.Group;
+      const leftFoot=root.getObjectByName('neighbor-leftFoot') as THREE.Group;
+      const rightFoot=root.getObjectByName('neighbor-rightFoot') as THREE.Group;
+      const eyelids=root.getObjectByName('neighbor-eyelids') as THREE.Mesh;
+      assert.ok(head && leftKnee && rightKnee && leftFoot && rightFoot && eyelids);
+      if(pose.gestureBlend<.01) {
+        raisedKnee ||= Math.max(leftKnee.rotation.x,rightKnee.rotation.x)>.12;
+        for(const foot of [leftFoot,rightFoot]) {
+          root.updateMatrixWorld(true);
+          const world=new THREE.Vector3();
+          foot.getWorldPosition(world);
+          assert.ok(world.y>-.04, 'foot joint must not sink below floor: '+world.y);
+          assert.ok(world.y<.35, 'walking must not lift the leg excessively');
+        }
+      }
+      tiltedHead ||= Math.abs(head.rotation.y)>.035;
+      blinkSeen ||= eyelids.visible;
+      assert.ok(Math.abs(head.rotation.x)<.27 && Math.abs(head.rotation.y)<.40);
+      samples++;
+    }
+  }
+  assert.ok(samples>40 && raisedKnee && tiltedHead && blinkSeen);
+});
+
+test('all visual gestures are readable and deterministic across two clients', () => {
+  const crowd=new NeighborPeople();
+  const actions=['chat','phone','wave','look','adjust','stretch'] as const;
+  for(const action of actions) {
+    let found:{minute:number;index:number}|undefined;
+    for(let minute=540;minute<1320 && !found;minute+=.18) {
+      for(let index=0;index<NEIGHBORS.length;index++) {
+        const pose=neighborPose(index,minute);
+        if(pose.visible && pose.opacity>.75 && pose.action===action && pose.gestureBlend>.96) {
+          found={minute,index};break;
+        }
+      }
+    }
+    assert.ok(found,action+' must be observable in daytime');
+    const {minute,index}=found;
+    crowd.update(minute);
+    const root=crowd.group.children[index];
+    const head=root.getObjectByName('neighbor-head') as THREE.Group;
+    const leftArm=root.getObjectByName('neighbor-leftArm') as THREE.Group;
+    const rightArm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
+    const leftElbow=root.getObjectByName('neighbor-leftElbow') as THREE.Group;
+    const rightElbow=root.getObjectByName('neighbor-rightElbow') as THREE.Group;
+    assert.ok(head && leftArm && rightArm && leftElbow && rightElbow);
+    if(action==='wave')assert.ok(rightArm.rotation.z< -1.4);
+    if(action==='stretch')assert.ok(leftArm.rotation.z>.8 && rightArm.rotation.z<-.8);
+    if(action==='phone')assert.ok(rightElbow.rotation.x<-.75 && head.rotation.x>.08);
+    if(action==='adjust')assert.ok(leftElbow.rotation.x<-.65);
+    if(action==='chat')assert.ok(Math.abs(rightElbow.rotation.x)>.18);
+    if(action==='look')assert.ok(Math.abs(head.rotation.y)<.4);
+    const first=new THREE.Vector3(rightArm.rotation.x,rightArm.rotation.y,rightArm.rotation.z);
+    crowd.update(minute);
+    const second=new THREE.Vector3(rightArm.rotation.x,rightArm.rotation.y,rightArm.rotation.z);
+    assert.deepEqual(first.toArray(),second.toArray(),'animation must be deterministic');
+  }
+});
+
+test('arm and leg gestures blend across starts and stops without one-frame snapping', () => {
+  const crowd=new NeighborPeople();
+  const gameFrame=GAME_MINUTES_PER_REAL_SECOND/60;
+  let pairs=0;
+  for(const index of [0,2,3,4,5,6]) {
+    for(let minute=630;minute<820;minute+=gameFrame*2) {
+      const now=neighborPose(index,minute);
+      const next=neighborPose(index,minute+gameFrame);
+      if(!now.visible || !next.visible || now.opacity<.75 || next.opacity<.75)continue;
+      const root=crowd.group.children[index];
+      crowd.update(minute);
+      const arm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
+      const knee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
+      const head=root.getObjectByName('neighbor-head') as THREE.Group;
+      const before=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
+      crowd.update(minute+gameFrame);
+      const after=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
+      const delta=Math.max(...before.map((v,i)=>Math.abs(v-after[i])));
+      assert.ok(delta<.24, 'visible one-frame joint snap: '+delta.toFixed(3));
+      pairs++;
+    }
+  }
+  assert.ok(pairs>200,'transition samples must cover enough visible frames');
+});
+
+test('oncoming neighbors use separate lanes and never overlap on a simulated full day', () => {
+  let closest=Infinity,checked=0;
+  for(let minute=0;minute<1440;minute+=.25) {
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
+    for(let i=0;i<poses.length;i++) for(let j=i+1;j<poses.length;j++) {
+      if(poses[i].opacity<.60 || poses[j].opacity<.60)continue;
+      const distance=Math.hypot(poses[i].x-poses[j].x,poses[i].z-poses[j].z);
+      closest=Math.min(closest,distance);
+      assert.ok(distance>.57,NEIGHBORS[i].name+' and '+NEIGHBORS[j].name+' intersected');
+      checked++;
+    }
+  }
+  assert.ok(checked>300 && closest<2,'must actually test nearby oncoming traffic');
+});
+
+test('pedestrians fade independently instead of changing shared apartment materials', () => {
+  const crowd=new NeighborPeople();
+  let picked:number|undefined,personA=-1,personB=-1;
+  for(let minute=540;minute<1100 && picked===undefined;minute+=.2) {
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
+    for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++) {
+      if(poses[i].opacity>.08 && poses[i].opacity<.66 && poses[j].opacity>.98) {
+        picked=minute;personA=i;personB=j;break;
+      }
+      if(picked!==undefined)break;
+    }
+  }
+  assert.ok(picked!==undefined,'must find two different fade phases');
+  crowd.update(picked);
+  const material=(index:number) => {
+    let first:THREE.MeshStandardMaterial|undefined;
+    crowd.group.children[index].traverse(obj=>{
+      if(!first&&obj instanceof THREE.Mesh&&obj.visible)first=obj.material as THREE.MeshStandardMaterial;
+    });
+    return first!;
+  };
+  const a=material(personA),c=material(personB);
+  assert.notEqual(a,c);
+  assert.ok(a.opacity<.67 && a.transparent && a.depthWrite===false);
+  assert.ok(c.opacity>.98 && !c.transparent && c.depthWrite===true);
 });

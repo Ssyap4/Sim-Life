@@ -7,7 +7,10 @@ interface NeighborRig {
   root: THREE.Group;
   leftArm: THREE.Group; rightArm: THREE.Group;
   leftLeg: THREE.Group; rightLeg: THREE.Group;
-  torso: THREE.Group; phone: THREE.Mesh;
+  torso: THREE.Group; head: THREE.Group; eyelids: THREE.Mesh; phone: THREE.Mesh;
+  leftElbow: THREE.Group; rightElbow: THREE.Group;
+  leftKnee: THREE.Group; rightKnee: THREE.Group;
+  leftFoot: THREE.Group; rightFoot: THREE.Group;
   materials: THREE.MeshStandardMaterial[];
 }
 
@@ -118,40 +121,76 @@ function resident(index:number):NeighborRig {
   dressTorso(torso,p);
   const neck=piece(torso,drum,p.skin,[.105,.15,.105],[0,1.51,0]);
   neck.rotation.x=.1;
-  piece(torso,orb,p.skin,[.225,.268,.225],[0,1.69,.012]);
-  makeHair(torso,p);
+  // Head pivots at the neck. Visuals retain their original facial positions
+  // in a counter-translated group so rig proportions do not change.
+  const head=new THREE.Group();
+  head.name='neighbor-head';
+  head.position.set(0,1.575,0);
+  torso.add(head);
+  const headVisual=new THREE.Group();
+  headVisual.position.y=-1.575;
+  head.add(headVisual);
+  piece(headVisual,orb,p.skin,[.225,.268,.225],[0,1.69,.012]);
+  makeHair(headVisual,p);
   for(const x of [-.080,.080])
-    piece(torso,orb,0x302d2b,[.019,.023,.013],[x,1.704,.223]);
-  piece(torso,orb,p.skin,[.032,.035,.046],[0,1.63,.243]);
-  piece(torso,softCube,0x8b5850,[.057,.010,.008],[0,1.557,.22]);
+    piece(headVisual,orb,0x302d2b,[.019,.023,.013],[x,1.704,.223]);
+  piece(headVisual,orb,p.skin,[.032,.035,.046],[0,1.63,.243]);
+  piece(headVisual,softCube,0x8b5850,[.057,.010,.008],[0,1.557,.22]);
+  batchRigidParts(headVisual,true);
+  // A movable skin-colored lid covers both eyes for brief natural blinks.
+  const eyelids=piece(headVisual,softCube,p.skin,[.232,.002,.022],[0,1.705,.245]);
+  eyelids.name='neighbor-eyelids';
+  eyelids.visible=false;
 
   const limbs={
     leftArm:new THREE.Group(),rightArm:new THREE.Group(),
     leftLeg:new THREE.Group(),rightLeg:new THREE.Group(),
   };
-  for(const [side,key] of [[-1,'leftArm'],[1,'rightArm']] as const) {
-    const arm=limbs[key];
+  const elbows={ leftElbow:new THREE.Group(),rightElbow:new THREE.Group() };
+  const knees={ leftKnee:new THREE.Group(),rightKnee:new THREE.Group() };
+  const feet={ leftFoot:new THREE.Group(),rightFoot:new THREE.Group() };
+  for(const [side,key,joint] of [
+    [-1,'leftArm','leftElbow'],[1,'rightArm','rightElbow']
+  ] as const) {
+    const arm=limbs[key], elbow=elbows[joint];
+    arm.name='neighbor-'+key;
     arm.position.set(side*.333,1.40,0);
-    piece(arm,softCube,p.clothes,[.16,p.outfit==='coat'?.44:.38,.19],[0,-.18,0]);
-    piece(arm,orb,p.skin,[.085,.10,.095],[0,-.43,.02]);
+    piece(arm,softCube,p.clothes,[.163,.345,.189],[0,-.155,0]);
+    elbow.name='neighbor-'+joint;
+    elbow.position.set(0,-.30,0);
+    piece(elbow,softCube,p.clothes,[.147,.265,.175],[0,-.114,0]);
+    piece(elbow,orb,p.skin,[.085,.10,.095],[0,-.263,.017]);
+    arm.add(elbow);
     torso.add(arm);
   }
   if(p.accessory==='tote') {
-    // Fabric shopping bag swings naturally with its owner's walking arm.
-    piece(limbs.leftArm,softCube,p.accent,[.27,.29,.095],[-.065,-.65,.095]);
+    // Fabric shopping bag follows the swinging hand without clipping the torso.
+    piece(elbows.leftElbow,softCube,p.accent,[.27,.29,.095],[-.065,-.44,.095]);
     for(const x of [-.16,.03])
-      piece(limbs.leftArm,softCube,0x755d4f,[.035,.22,.045],[x,-.44,.095]);
+      piece(elbows.leftElbow,softCube,0x755d4f,[.035,.22,.045],[x,-.252,.095]);
   }
-  for(const [side,key] of [[-1,'leftLeg'],[1,'rightLeg']] as const) {
-    const leg=limbs[key];
+  for(const [side,key,joint,footKey] of [
+    [-1,'leftLeg','leftKnee','leftFoot'],[1,'rightLeg','rightKnee','rightFoot']
+  ] as const) {
+    const leg=limbs[key], knee=knees[joint], foot=feet[footKey];
+    leg.name='neighbor-'+key;
     leg.position.set(side*.15,.76,0);
-    piece(leg,softCube,p.trousers,[.18,.55,.205],[0,-.265,0]);
-    piece(leg,softCube,index%2?0x353537:0x675447,[.20,.10,.34],[0,-.565,.074]);
+    piece(leg,softCube,p.trousers,[.178,.39,.20],[0,-.18,0]);
+    knee.name='neighbor-'+joint;
+    knee.position.set(0,-.36,0);
+    piece(knee,softCube,p.trousers,[.164,.345,.19],[0,-.157,0]);
+    foot.name='neighbor-'+footKey;
+    foot.position.set(0,-.335,0);
+    piece(foot,softCube,index%2?0x353537:0x675447,[.197,.10,.335],[0,-.035,.081]);
+    knee.add(foot);
+    leg.add(knee);
     root.add(leg);
   }
   for(const limb of Object.values(limbs))batchRigidParts(limb,true);
+  for(const elbow of Object.values(elbows))batchRigidParts(elbow,true);
+  for(const knee of Object.values(knees))batchRigidParts(knee,true);
   batchRigidParts(torso,true);
-  const phone=piece(limbs.rightArm,cube,0x3a474c,[.095,.165,.022],[0,-.46,.07]);
+  const phone=piece(elbows.rightElbow,cube,0x3a474c,[.095,.165,.022],[0,-.275,.095]);
   phone.visible=false;
 
   // ArtKit.finish caches globally shared materials. Clone them ONCE for this
@@ -166,7 +205,7 @@ function resident(index:number):NeighborRig {
     if(!local) { local=original.clone(); copies.set(original,local); materials.push(local); }
     child.material=local;
   });
-  return {root,torso,phone,materials,...limbs};
+  return {root,torso,head,eyelids,phone,materials,...limbs,...elbows,...knees,...feet};
 }
 
 function setFade(rig:NeighborRig,alpha:number):void {
@@ -202,33 +241,113 @@ export class NeighborPeople {
       rig.root.position.set(pose.x,.03,pose.z);
       rig.root.rotation.y=pose.yaw;
       setFade(rig,pose.opacity);
-      this.animateRig(rig,pose.action,seconds,i);
+      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i);
     }
   }
 
-  private animateRig(rig:NeighborRig,action:NeighborAction,t:number,index:number):void {
-    const stride=action==='walk'?.40:.04;
-    const cadence=t*(5.8+index%3*.24)+index*.7;
-    const wave=Math.sin(cadence);
-    rig.leftLeg.rotation.x=wave*stride;
-    rig.rightLeg.rotation.x=-wave*stride;
-    rig.leftArm.rotation.x=-wave*stride*.65;
-    rig.rightArm.rotation.x=wave*stride*.65;
-    rig.leftArm.rotation.z=-.04;
-    rig.rightArm.rotation.z=.04;
-    rig.torso.position.y=action==='walk'?Math.abs(wave)*.019:Math.sin(t*1.2+index)*.009;
-    rig.torso.rotation.z=Math.sin(t*.63+index)*.015;
-    rig.phone.visible=action==='phone';
+  private animateRig(rig:NeighborRig,action:NeighborAction,blend:number,t:number,index:number):void {
+    // A smaller stride plus knee flex and ankle roll replaces the old rigid,
+    // marching legs. Every angle is computed from the shared game clock.
+    const profile=NEIGHBORS[index];
+    const walking=1-blend;
+    const phase=t*(5.35+.42*profile.speed)+index*1.37;
+    const leftStep=Math.sin(phase);
+    const rightStep=-leftStep;
+    const sway=Math.sin(phase*.5);
+    const leftHip=-leftStep*.27*walking;
+    const rightHip=-rightStep*.27*walking;
+    const leftBend=Math.max(0,leftStep)*.40*walking;
+    const rightBend=Math.max(0,rightStep)*.40*walking;
+
+    rig.leftLeg.rotation.x=leftHip;
+    rig.rightLeg.rotation.x=rightHip;
+    rig.leftKnee.rotation.x=leftBend;
+    rig.rightKnee.rotation.x=rightBend;
+    rig.leftFoot.rotation.x=-leftBend*.65-leftHip*.28;
+    rig.rightFoot.rotation.x=-rightBend*.65-rightHip*.28;
+
+    // Small spinal counter-rotation and breathing prevent a rigid full-body
+    // shuffle while keeping the avatar vertical and the feet near the ground.
+    rig.torso.position.y=Math.abs(leftStep)*.012*walking+
+      Math.sin(t*1.65+index*.7)*.004;
+    rig.torso.rotation.x=-.014*walking+Math.sin(t*.9+index)*.008;
+    rig.torso.rotation.z=sway*.015*walking+Math.sin(t*.55+index)*.006;
+    rig.torso.rotation.y=Math.sin(phase)*.018*walking;
+
+    const leftSwing=leftStep*.17*walking;
+    const rightSwing=rightStep*.17*walking;
+    let lx=leftSwing,rx=rightSwing,lz=.045,rz=-.045;
+    let le=.045,re=.045,lez=0,rez=0;
+    let headX=Math.sin(t*.69+index)*.018;
+    let headY=Math.sin(t*.44+index*.91)*.052;
+    let headZ=Math.sin(t*.62+index)*.014;
+
+    // Distinct, readable actions with nonexaggerated hand/head coordination.
+    // All changes enter and exit through the deterministic gesture envelope.
     if(action==='phone') {
-      rig.rightArm.rotation.x=-1.09;
-      rig.rightArm.rotation.z=-.30;
-    } else if(action==='chat'||action==='wave') {
-      rig.rightArm.rotation.z=-.48+Math.sin(t*4+index)*.25;
-      rig.rightArm.rotation.x=-.53;
-      rig.leftArm.rotation.x=Math.sin(t*2+index)*.15;
+      rx=THREE.MathUtils.lerp(rx,-.70,blend);
+      rz=THREE.MathUtils.lerp(rz,-.22,blend);
+      re=THREE.MathUtils.lerp(re,-1.10,blend);
+      lx=THREE.MathUtils.lerp(lx,-.44+Math.sin(t*3.1+index)*.055,blend);
+      le=THREE.MathUtils.lerp(le,-.68,blend);
+      headX=THREE.MathUtils.lerp(headX,.18,blend);
+      headY=THREE.MathUtils.lerp(headY,-.10,blend);
+    } else if(action==='chat') {
+      const talk=Math.sin(t*2.7+index*1.65);
+      rx=THREE.MathUtils.lerp(rx,-.24-.16*talk,blend);
+      re=THREE.MathUtils.lerp(re,-.43-.22*Math.max(0,talk),blend);
+      lx=THREE.MathUtils.lerp(lx,-.16+.11*talk,blend);
+      le=THREE.MathUtils.lerp(le,-.28,blend);
+      rz=THREE.MathUtils.lerp(rz,-.16-.10*Math.sin(t*.97+index),blend);
+      headX=THREE.MathUtils.lerp(headX,.055*Math.sin(t*2.1+index),blend);
+      headY=THREE.MathUtils.lerp(headY,.09*Math.sin(t*.8+index),blend);
+    } else if(action==='wave') {
+      rx=THREE.MathUtils.lerp(rx,-.10,blend);
+      rz=THREE.MathUtils.lerp(rz,-2.04,blend);
+      re=THREE.MathUtils.lerp(re,-.30,blend);
+      rez=THREE.MathUtils.lerp(rez,-.20+Math.sin(t*5.1)*.22,blend);
+      headY=THREE.MathUtils.lerp(headY,-.10,blend);
+      headZ=THREE.MathUtils.lerp(headZ,.045,blend);
     } else if(action==='look') {
-      rig.leftArm.rotation.x=-.15;
-      rig.rightArm.rotation.x=.12;
+      headY=THREE.MathUtils.lerp(headY,Math.sin(t*.76+index)*.33,blend);
+      headX=THREE.MathUtils.lerp(headX,-.035,blend);
+      lx=THREE.MathUtils.lerp(lx,-.12,blend);
+      rx=THREE.MathUtils.lerp(rx,.08,blend);
+    } else if(action==='adjust') {
+      // One hand touches the opposite sleeve, as if fixing a cuff.
+      lx=THREE.MathUtils.lerp(lx,-.42,blend);
+      lz=THREE.MathUtils.lerp(lz,.44,blend);
+      le=THREE.MathUtils.lerp(le,-.98+Math.sin(t*4)*.055,blend);
+      rx=THREE.MathUtils.lerp(rx,-.20,blend);
+      re=THREE.MathUtils.lerp(re,-.20,blend);
+      headX=THREE.MathUtils.lerp(headX,.11,blend);
+      headY=THREE.MathUtils.lerp(headY,.17,blend);
+    } else if(action==='stretch') {
+      // Brief shoulder stretch, deliberately subtler than a workout animation.
+      lz=THREE.MathUtils.lerp(lz,1.15,blend);
+      rz=THREE.MathUtils.lerp(rz,-1.15,blend);
+      lx=THREE.MathUtils.lerp(lx,-.14,blend);
+      rx=THREE.MathUtils.lerp(rx,-.14,blend);
+      le=THREE.MathUtils.lerp(le,-.18,blend);
+      re=THREE.MathUtils.lerp(re,-.18,blend);
+      headX=THREE.MathUtils.lerp(headX,-.09,blend);
+      headZ=THREE.MathUtils.lerp(headZ,.055,blend);
+      rig.torso.rotation.x-=blend*.025;
     }
+
+    rig.leftArm.rotation.set(lx,0,lz);
+    rig.rightArm.rotation.set(rx,0,rz);
+    rig.leftElbow.rotation.set(le,0,lez);
+    rig.rightElbow.rotation.set(re,0,rez);
+    rig.head.rotation.set(headX,headY,headZ);
+    rig.phone.visible=action==='phone'&&blend>.10;
+
+    // A quick eyelid closure once every few seconds. No new geometries or
+    // textures are allocated per frame.
+    const blinkPeriod=3.45+(index%4)*.56;
+    const blinkPhase=THREE.MathUtils.euclideanModulo(t+index*.87,blinkPeriod);
+    const blink=blinkPhase<.155 ? Math.sin(Math.PI*blinkPhase/.155) : 0;
+    rig.eyelids.visible=blink>.035;
+    rig.eyelids.scale.y=Math.max(.0005,.071*blink);
   }
 }

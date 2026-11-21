@@ -1,6 +1,6 @@
 import { GAME_MINUTES_PER_REAL_SECOND } from './life';
 
-export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave';
+export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';
 export type OutfitStyle = 'hoodie' | 'jacket' | 'coat' | 'sweater' | 'dress' | 'shirt' | 'vest' | 'overalls';
 export type AccessoryStyle = 'none' | 'backpack' | 'tote';
@@ -8,6 +8,8 @@ export interface NeighborPose {
   x: number; z: number; yaw: number; action: NeighborAction; visible: boolean;
   /** Deterministic fade as a resident enters/leaves the public sidewalk. */
   opacity: number;
+  /** 0 walking, 1 fully settled in a gesture; blends at both ends. */
+  gestureBlend: number;
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;
@@ -84,7 +86,7 @@ function pathPosition(fraction:number, reverse:boolean, lane:number) {
  * No reversing/teleporting is ever visible to a player. */
 export function neighborPose(index: number, gameMinute: number): NeighborPose {
   const person = NEIGHBORS[index];
-  const hidden: NeighborPose = { x:0,z:0,yaw:0,action:'look',visible:false,opacity:0 };
+  const hidden: NeighborPose = { x:0,z:0,yaw:0,action:'look',visible:false,opacity:0,gestureBlend:0 };
   if (!person || !Number.isFinite(gameMinute)) return hidden;
   const slot = index % NEIGHBOR_SLOT_COUNT;
   const seconds = gameMinute / GAME_MINUTES_PER_REAL_SECOND;
@@ -107,7 +109,10 @@ export function neighborPose(index: number, gameMinute: number): NeighborPose {
   const movingTime = paired ? 88 : 91;
   const fraction = clamp01((phase - lost) / movingTime);
   const reverse = slot === 1 || (slot > 1 && (slot + cycle) % 2 === 1);
-  const lane = paired ? 0 : ((slot % 3) - 1) * .28;
+  // Both directions keep their own physical side of the 1.8m pavement.
+  // pathPosition reverses its tangent for oncoming residents, so a positive
+  // lane offset separates them; per-slot variation avoids marching rows.
+  const lane = paired ? .30 : .47 + ((slot % 3) - 1) * .075;
   const pose = pathPosition(fraction,reverse,lane);
   if (paired) {
     const nearMeeting = smooth((fraction-.41)/.09) * (1 - smooth((fraction-.5)/.09));
@@ -116,8 +121,13 @@ export function neighborPose(index: number, gameMinute: number): NeighborPose {
   }
   const travelFade = smooth(Math.min(fraction,1-fraction) * NEIGHBOR_ROUTE_LENGTH / NEIGHBOR_FADE_METERS);
   const opacity = travelFade * schedule;
-  const action:NeighborAction = paired ? phase >= 44 && phase < 56 ? 'chat' : 'walk'
-    : phase >= 29 && phase < 34 ? slot % 2 ? 'phone' : 'look'
-    : phase >= 65 && phase < 69 ? slot % 2 ? 'wave' : 'phone' : 'walk';
-  return {...pose, action, opacity, visible: opacity > .001};
+  const chatBlend = paired ? smooth((phase - 42.4)/1.6) * (1 - smooth((phase - 55.2)/2.2)) : 0;
+  const firstBlend = !paired ? smooth((phase - 27.5)/1.5) * (1 - smooth((phase - 33.2)/2.5)) : 0;
+  const secondBlend = !paired ? smooth((phase - 63.5)/1.5) * (1 - smooth((phase - 68.2)/2.4)) : 0;
+  const gestureBlend = Math.max(chatBlend,firstBlend,secondBlend);
+  const action:NeighborAction = paired ? phase >= 42.4 && phase < 57.4 ? 'chat' : 'walk'
+    : phase >= 27.5 && phase < 35.7 ? (slot % 3 === 0 ? 'adjust' : slot % 3 === 1 ? 'phone' : 'look')
+    : phase >= 63.5 && phase < 70.6 ? (slot % 4 === 0 ? 'stretch' : slot % 4 === 1 ? 'wave' :
+      slot % 4 === 2 ? 'phone' : 'adjust') : 'walk';
+  return {...pose, action, opacity, gestureBlend, visible: opacity > .001};
 }
