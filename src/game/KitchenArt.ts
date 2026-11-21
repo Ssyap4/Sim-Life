@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { softCube, orb, drum, batchRigidParts } from './ArtKit';
 import { KITCHEN_WORK } from '../shared/home';
 import { selectIndoorDish } from './MealArt';
+import { kitchenMove } from './CookingChoreography';
 import type { RecipeId } from '../shared/food';
 
 /** Small reusable effects anchored to the EXISTING cooker. No extra textures. */
@@ -24,16 +25,22 @@ export function buildCookingStation(scene: THREE.Scene) {
   const base=new THREE.Mesh(softCube,wood);
   base.scale.set(.34,.024,.235);
   board.add(base);
+  const diced=new THREE.Group();
   for(let i=0;i<6;i++) {
-    const diced=new THREE.Mesh(softCube,i%3?vegetable:leaf);
-    diced.scale.set(.033,.020,.035);
-    diced.position.set(-.10+(i%3)*.078,.024,Math.floor(i/3)*.075-.035);
-    board.add(diced);
+    const piece=new THREE.Mesh(softCube,i%3?vegetable:leaf);
+    piece.scale.set(.033,.020,.035);
+    piece.position.set(-.10+(i%3)*.078,.024,Math.floor(i/3)*.075-.035);
+    diced.add(piece);
   }
-  // Stand facing the northern cooker: the resident's right-hand IK target
-  // falls to the negative world X side of the skillet.
-  board.position.set(pan.x-.30,1.088,pan.z+.10);
-  batchRigidParts(board,true);
+  batchRigidParts(diced,true);
+  board.add(diced);
+  const dough=new THREE.Mesh(orb,new THREE.MeshStandardMaterial({color:0xe6c992,roughness:1}));
+  dough.scale.set(.121,.018,.087);
+  dough.position.y=.025;
+  board.add(dough);
+  // Put the relevant ingredient *under the hand's actual IK target*. Egg
+  // recipes use the pan directly, pastry uses dough, salads use chopped food.
+  board.position.set(pan.x-.23,1.088,pan.z+.10);
   root.add(board);
   const steam=new THREE.Group();
   const puffs:THREE.Mesh[]=[];
@@ -51,7 +58,13 @@ export function buildCookingStation(scene: THREE.Scene) {
   scene.add(root);
   return {
     root, board, steam, puffs,
-    recipe(id:RecipeId){selectIndoorDish(cookingFood,id);},
+    recipe(id:RecipeId){
+      selectIndoorDish(cookingFood,id);
+      const preparation=kitchenMove(id,0);
+      board.visible=preparation!=='whisk';
+      diced.visible=preparation==='chop';
+      dough.visible=preparation==='knead';
+    },
     update(seconds:number){
       const cycle=Math.max(0,seconds);
       for(let i=0;i<puffs.length;i++){
