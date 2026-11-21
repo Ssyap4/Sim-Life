@@ -222,8 +222,8 @@ test('The grill is exclusive and produces shared portions served at the yard tab
     assert.ok(rejected.type === 'error' && /Не хватает/.test(rejected.reason));
 
     const supplies = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.pantry.chicken > 0);
-    // Chicken kebab requires only chicken and onion, not sunflower oil.
-    send(ctx.vlad, { type: 'checkout', lines: ['chicken', 'onion']
+    // Chicken kebab requires chicken, onion, charcoal and lighter fluid; not sunflower oil.
+    send(ctx.vlad, { type: 'checkout', lines: ['chicken', 'onion', 'charcoal', 'lighterFluid']
       .map(item => ({ id: 'grocery:' + item, quantity: 1 })) });
     await supplies;
     const start = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'vlad');
@@ -241,6 +241,8 @@ test('The grill is exclusive and produces shared portions served at the yard tab
     assert.ok(ready.type === 'snapshot');
     assert.equal(ready.state.pantry.chicken, before.pantry.chicken - 2);
     assert.equal(ready.state.pantry.oil, before.pantry.oil);
+    assert.equal(ready.state.pantry.charcoal, before.pantry.charcoal - 1);
+    assert.equal(ready.state.pantry.lighterFluid, before.pantry.lighterFluid - 1);
     assert.equal(ready.state.money, before.money);
 
     const eating = waitFor(ctx.vlad, p => p.type === 'task_started' && p.role === 'alina');

@@ -5,10 +5,12 @@ import { recipeAvailability } from '../../src/shared/recipeAvailability';
 import { applyFoodAction } from '../food';
 import { diningLocation } from '../../src/shared/furnitureUse';
 
-test('Grill menu accepts bought chicken and onion with no oil',()=>{
+test('Grill menu accepts chicken and onion without oil, when both fuels are present',()=>{
   const state=initialState();
   state.pantry.chicken=5;
   state.pantry.onion=8;
+  state.pantry.charcoal=5;
+  state.pantry.lighterFluid=10;
   state.pantry.oil=0;
   assert.equal(recipeAvailability(state,'vlad','grillChicken').available,true);
   const cooked=applyFoodAction(state,'vlad',{type:'cook',recipe:'grillChicken'});
@@ -19,6 +21,8 @@ test('Missing ingredient, low energy and full refrigerator have specific reasons
   const state=initialState();
   state.pantry.chicken=2;
   state.pantry.onion=1;
+  state.pantry.charcoal=5;
+  state.pantry.lighterFluid=10;
   state.pantry.oil=0;
   state.pantry.chicken=0;
   const missing=recipeAvailability(state,'vlad','grillChicken');
