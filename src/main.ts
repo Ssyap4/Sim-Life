@@ -2,7 +2,7 @@ import { createSocialOffer, showSocialMenu } from './socialUI';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
-import { FURNITURE_ACTIONS, furnitureActionList, type FurnitureUseAction } from './shared/furnitureUse';
+import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
 import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
@@ -1016,7 +1016,7 @@ function openPurchasedFurnitureActions(id:number):void{
   if(isSleepBed(item)){openPurchasedBedActions(id);return;}
   const info=FURNITURE_BY_ID.get(item.sku);
   if(!info)return;
-  const supported=furnitureActionList(item);
+  const supported=availableFurnitureActions(state,active,item);
   if(!supported.length){furnishing.selectPlaced(id);return;}
   furnishing.close();
   showActionMenu(info.emoji+' '+info.name);

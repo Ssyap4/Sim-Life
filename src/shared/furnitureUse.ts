@@ -58,6 +58,19 @@ export function furnitureActionList(item:PlacedFurniture):FurnitureUseAction[]{
   const all=Object.keys(FURNITURE_ACTIONS) as FurnitureUseAction[];
   return all.filter(action=>canFurniturePerform(item,action));
 }
+
+/** The menu must not advertise commands the server would reject for this
+ * resident or when the only bookcase has already been sold. The server remains
+ * authoritative if a client sends an old/stale command. */
+export function availableFurnitureActions(state:GameState,role:CharacterId,
+  item:PlacedFurniture):FurnitureUseAction[]{
+  const hasBookshelf=!state.furnishing.soldFixtures?.includes('bookcase')||
+    state.furnishing.placed.some(placed=>FURNITURE_BY_ID.get(placed.sku)?.shape==='shelves');
+  return furnitureActionList(item).filter(action=>
+    !(role==='vlad'&&['alinaStudy','alinaConsult'].includes(action))&&
+    !(role==='alina'&&['vladOrder','vladStudy'].includes(action))&&
+    (action!=='read_book'||hasBookshelf));
+}
 export function furnitureSource(state:GameState,id:unknown,action:FurnitureUseAction):
   {ok:true;item:PlacedFurniture}|{ok:false;reason:string}{
   if(typeof id!=='number'||!Number.isSafeInteger(id)||id<1)
