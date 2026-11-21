@@ -139,4 +139,31 @@ test('Both hands reach the keyboard and the two high-five palms share a target',
   const palm = (actor: Actor, name: string) =>
     actor.root.getObjectByName(name)!.localToWorld(new THREE.Vector3(0, -0.062, 0));
   assert.ok(palm(vlad, 'rightWrist').distanceTo(palm(alina, 'leftWrist')) < 0.035);
+  // The coordinated contact should persist beyond the first second, rather
+  // than leaving both arms lowered for most of the social action.
+  settle(vlad, 1.0);
+  settle(alina, 1.0);
+  assert.ok(palm(vlad, 'rightWrist').distanceTo(palm(alina, 'leftWrist')) < 0.055,
+    'high-five palms must still be together 1.5s into the action');
+});
+
+
+test('A grooming brush follows the right wrist during visible repeated pet-care strokes and clears on cancel', () => {
+  const actor = new Actor('vlad',[0,0]);
+  const pet = new THREE.Vector3(.02,.48,.58);
+  actor.faceTowards(pet);
+  actor.playPetActivity('brush',pet);
+  settle(actor,.9);
+  const brush = actor.root.getObjectByName('Pet grooming brush');
+  assert.ok(brush?.visible,'The grooming prop must actually be visible');
+  assert.equal(brush.children.filter(child=>child instanceof THREE.Mesh).length,2,
+    'The grooming brush should use two meshes/draw calls on mobile');
+  const atStart = brush.getWorldPosition(new THREE.Vector3());
+  settle(actor,.24);
+  const atNext = brush.getWorldPosition(new THREE.Vector3());
+  assert.ok(atStart.distanceTo(atNext) > .008,'Brushing must move the held brush, not freeze beside the animal');
+  assert.deepEqual(actor.root.position.toArray(),[0,0,0],'Pet care never moves the navigation root');
+  actor.finishActivity();
+  settle(actor,.08);
+  assert.equal(brush.visible,false,'Grooming brush must disappear after the action ends');
 });

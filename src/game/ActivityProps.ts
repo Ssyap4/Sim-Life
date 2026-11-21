@@ -41,6 +41,21 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   brush.position.set(0,-.039,.020);
   brush.rotation.x = -.34;
   brush.visible=false;
+  // A separate, lightweight grooming brush: the teeth-cleaning toothbrush
+  // cannot convincingly stand in for brushing Simba or Verdell.
+  const groomingBrush = new THREE.Group();
+  groomingBrush.name = 'Pet grooming brush';
+  const wood = material(0xae7b4e);
+  part(groomingBrush, wood, [.031,.024,.174], [0,0,.055]);
+  part(groomingBrush, wood, [.097,.032,.102], [0,.006,.153]);
+  for (const x of [-.027,0,.027]) for (const z of [-.031,0,.031])
+    part(groomingBrush,bristles,[.012,.028,.017],[x,.034,.153+z]);
+  // Merge the wooden pieces and nine bristle tufts into two draw calls.
+  batchRigidParts(groomingBrush);
+  groomingBrush.position.set(0,-.043,.036);
+  groomingBrush.rotation.x = -.20;
+  groomingBrush.visible=false;
+  wrists[1].add(groomingBrush);
   const tongs = new THREE.Group();
   tongs.position.set(0, -.090, .043);
   const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
@@ -49,6 +64,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   const left=new THREE.Vector3(),right=new THREE.Vector3();
   return {
     brush,
+    groomingBrush,
     tongs,
     grip(time: number) {
       const opening = .07 + .075 * (1 + Math.sin(time * 4));

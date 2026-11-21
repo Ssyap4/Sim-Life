@@ -1,3 +1,5 @@
+import { renderRelationship } from './socialUI';
+import type { SocialGroup } from './shared/socialLife';
 import { createBillingUI, type BillingApp } from './billingUI';
 import { createEducationUI, educationAppointments, type EducationView } from './educationUI';
 import { createCareerUI } from './careerUI';
@@ -14,14 +16,14 @@ import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | BillingApp;
+type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
   family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
-  career:['💼','Работа и карьера'],
+  career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
@@ -29,7 +31,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   read: () => View | null, openDelivery: (state: GameState) => void,
   openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
-  travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean) {
+  travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
+  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined}) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -74,6 +77,11 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if (app === 'relationship') {
+      const scroll=info.scrollTop;
+      renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current());
+      info.scrollTop=scroll;
+    }
     if (app==='calendar') {
       const shift=state.activeShifts[role];
       const end=shift?.endsAt;
@@ -146,7 +154,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='relationship'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);
@@ -174,6 +182,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
   return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+    refreshRelationship() { if(app==='relationship')refresh(); },
     openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
     educationMessage(message: string) {
       if (app !== 'education' || root.hidden) return false;

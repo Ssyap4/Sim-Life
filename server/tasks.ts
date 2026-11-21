@@ -131,6 +131,7 @@ export function entertainmentReward(command: Entertainment, together = false): N
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+  if (command.type === 'together') return { ok: false, reason: 'Требуется согласованное приглашение' };
   if (command.type === 'study') return { ok: false, reason: 'Для обучения нужна учебная сессия' };
   const denial = taskAccessError(state, command);
   if (denial) return { ok: false, reason: denial };

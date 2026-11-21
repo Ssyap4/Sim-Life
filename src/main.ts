@@ -1,3 +1,5 @@
+import { createSocialOffer, showSocialMenu } from './socialUI';
+import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
@@ -30,7 +32,7 @@ import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerL
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus, SleepMode } from './shared/timeControl';
 import {
-  ACTIONS, itemNames, names, SOCIAL_LABELS,
+  ACTIONS, itemNames, names,
   type ActionId, type CharacterId, type GameState, type ItemId,
 } from './shared/protocol';
 
@@ -55,6 +57,8 @@ interface TaskView {
   material?: StudyMaterial;
   studyProgress?: { elapsed: number; total: number };
   question?: string;
+  paired?: SocialIntent;
+  isCooking?:boolean;
   answer?: { correct: boolean; message: string };
 }
 const tasks = new Map<CharacterId, TaskView>();
@@ -71,7 +75,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.12 · КАРЬЕРА</div>
+      <div class="version">0.13 · МЫ ВМЕСТЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -112,6 +116,7 @@ app.innerHTML = `
   <aside id="payment-notice" class="payment-notice" hidden>
     <span role="status"></span><button type="button">К платежам</button>
   </aside>
+  <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
@@ -305,6 +310,13 @@ function drawTaskPanel(): void {
         if (net.cancelTask(task.taskId)) cancel.disabled = true;
       });
       box.append(cancel);
+      if(task.paired&&['eat','takeout','cafeMeal'].includes(task.paired.action)){
+        const finish=document.createElement('button');
+        finish.type='button';finish.className='social-button';finish.dataset.socialFinish='';
+        finish.textContent='Закончить свою порцию';
+        finish.addEventListener('click',()=>net.social({type:'social_finish',taskId:task.taskId}));
+        box.append(finish);
+      }
     }
     taskPanelEl.append(box);
   }
@@ -316,6 +328,8 @@ function updateTaskProgress(): void {
     const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
     if (!card) continue;
     const elapsed = task.since === null ? 0 : Math.min(performance.now() - task.since, task.durationMs);
+    const finish=card.querySelector<HTMLButtonElement>('[data-social-finish]');
+    if(finish)finish.disabled=elapsed/task.durationMs<.72;
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
       (task.material ? (task.studyProgress ? task.studyProgress.elapsed / task.studyProgress.total * 100 : 0)
         : Math.min(100, elapsed / task.durationMs * 100)) + '%';
@@ -517,6 +531,7 @@ function signOut(): void {
   paymentNotice.hidden = true;
   window.clearTimeout(paymentNoticeTimer);
   invites.close();
+  socialInvite.clear();
   feedback.clear();
   locationUI.reset();
   showStatus('Выбери персонажа и введи личный код');
@@ -527,7 +542,15 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
   () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
-  () => net.world({ type: 'travel', place: 'education' }),command=>net.career(command),enabled=>net.setShiftSpeed(enabled));
+  () => net.world({ type: 'travel', place: 'education' }),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
+    suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
+    offer(){phone.close();socialInvite.unfold();},
+    pending:()=>socialInvite.pending,
+    current(){
+      const task=active&&tasks.get(active);
+      if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
+    },
+  });
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
@@ -539,8 +562,9 @@ paymentNotice.querySelector('button')!.addEventListener('click', () => {
   actionsEl.hidden = true;
   phone.open('finance');
 });
-const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.inviteMovie(genre),
+const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.social({type:'social_propose',action:'film',item:genre}),
   () => state, () => active, where => phone.open(where), openEducation);
+const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command));
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
@@ -598,7 +622,12 @@ const net = new LiveConnection({
     displayClock.sync(sample, performance.now());
     renderClock();
   },
-  onDisconnect() { displayClock.pause(performance.now()); },
+  onDisconnect() {
+    displayClock.pause(performance.now());
+    socialInvite.clear();
+    for(const [role,task] of tasks)if(task.paired){world.cancelTimedAction(role);tasks.delete(role);}
+    drawTaskPanel();
+  },
   onWorldPath(role, place, path, station) {
     if (!active || world.place !== place) return;
     const target = stationById(place, station);
@@ -652,7 +681,8 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now(),
-      question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      paired: command.type==='together'?command:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+    if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
     const animated = world.startTimedAction(role, command, home);
@@ -664,6 +694,7 @@ const net = new LiveConnection({
     if(task?.taskId!==taskId) return;
     task.since=performance.now()-elapsedMs;
     world.activateHomeTask(role);
+    if(role===active&&task.paired)phone.refreshRelationship();
     if (task.material) drawTaskPanel(); else updateTaskProgress();
   },
   onStudyProgress(role, taskId, elapsed, total) {
@@ -693,6 +724,7 @@ const net = new LiveConnection({
       }
       tasks.delete(role);
       drawTaskPanel();
+      if(role===active&&previous.paired)phone.refreshRelationship();
     }
     if (outcome !== 'completed') {
       if (previous?.taskId === taskId) world.cancelTimedAction(role);
@@ -700,6 +732,16 @@ const net = new LiveConnection({
       statusEl.textContent = message;
       notify(message);
     }
+  },
+  onSocialOffer(offer){
+    if(!active)return;
+    socialInvite.set(offer,active);
+    phone.refresh();
+  },
+  onSocialClosed(id,message,reply){
+    socialInvite.clear(id);
+    notify(reply?'«'+reply+'»':message);
+    phone.refresh();
   },
   onSocialStart(kind, message) {
     actionsEl.hidden = true;
@@ -732,6 +774,8 @@ const net = new LiveConnection({
       drawTaskPanel();
       deliverySequence = null;
       invites.close();
+      socialInvite.clear();
+      phone.refreshRelationship();
       feedback.clear();
       locationUI.reject();
       locationUI.close();
@@ -760,35 +804,20 @@ function showActionMenu(title: string): void {
   actionsEl.scrollTop = 0;
 }
 
-function openSocialActions(target: CharacterId): void {
-  if (!active || !net.isReady()) { notify('Сначала войди в дом'); return; }
-  if (target === active) return;
+function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:string):void{
+  if(!active||!state||!net.isReady()){notify('Сначала войди в дом');return;}
+  if(target===active)return;
   locationUI.close();
-  if (state && state.world.places[active] !== state.world.places[target]) {
-    notify(names[target] + ' · ' + PLACES[state.world.places[target]].name);
-    return;
+  showActionMenu('♡ Вместе с '+names[target]);
+  const busy=tasks.has(active)||tasks.has(target)?'Кто-то сейчас занят другим действием':undefined;
+  if(online.includes(target)&&!tasks.has(active)&&tasks.get(target)?.isCooking){
+    const join=document.createElement('button');
+    join.type='button';join.className='action-button';join.dataset.socialJoin='';
+    join.textContent='Предложить помощь с готовкой';
+    join.addEventListener('click',()=>{if(net.social({type:'social_propose',action:'joinCook'}))actionsEl.hidden=true;});
+    actionsEl.append(join);
   }
-  showActionMenu('❤️ Вместе с ' + names[target]);
-  if (!online.includes(target)) {
-    const note = document.createElement('p');
-    note.className = 'social-hint';
-    note.textContent = names[target] + ' пока не в сети. Можно предложить действие, когда вы оба в доме.';
-    actionsEl.appendChild(note);
-    return;
-  }
-  for (const kind of ['hug', 'highFive'] as const) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'action-button';
-    button.textContent = (kind === 'hug' ? '🤗 ' : '🙌 ') + SOCIAL_LABELS[kind];
-    button.addEventListener('click', () => {
-      if (net.offerSocial(kind)) {
-        actionsEl.hidden = true;
-        statusEl.textContent = 'Совместное действие…';
-      }
-    });
-    actionsEl.appendChild(button);
-  }
+  showSocialMenu(actionsEl,state,active,online.includes(target),busy,command=>net.social(command),group,action);
 }
 
 function openPetActions(pet: PetId | null = null): void {
@@ -873,6 +902,17 @@ function openActions(item: ItemId): void {
     actionsEl.appendChild(note);
   }
 
+  if(active&&['kitchen','table','yardTable','grill','sofa','tv','bookcase'].includes(item)){
+    const together=document.createElement('button');
+    together.type='button';together.className='action-button';
+    together.textContent='♡ Предложить сделать вместе';
+    together.addEventListener('click',()=>{
+      if(!active)return;
+      const id=item==='kitchen'?'cook':item==='grill'?'grill':item==='table'||item==='yardTable'?'eat':item==='sofa'?'sofaTalk':item==='tv'?'tv':'read';
+      openSocialActions(otherPerson(active),item==='sofa'?'care':item==='tv'?'fun':'home',id);
+    });
+    actionsEl.append(together);
+  }
   if (state && (item === 'delivery' || item === 'kitchen' || item === 'table' || item === 'grill' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = net.food(type, id);
