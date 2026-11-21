@@ -88,7 +88,7 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('chair-dining','Стул «Клён»','tables','chair',3900,.47,.54,.87,'🪑','Лёгкий обеденный стул со спинкой.'),
   product('chair-padded','Стул «Мягкий»','tables','chair',6100,.52,.55,.88,'🪑','Стул с тканевой подушкой.'),
   product('stool-basic','Табурет «Пик»','tables','stool',2100,.39,.39,.49,'🪑','Небольшой деревянный табурет.'),
-  product('nightstand','Прикроватная тумба «Сон»','tables','nightstand',4900,.44,.40,.52,'🗄️','Маленькая тумба рядом с кроватью.'),
+  product('nightstand','Прикроватная тумба «Сон»','storage','nightstand',4900,.44,.40,.52,'🗄️','Маленькая тумба рядом с кроватью.'),
   product('floor-lamp','Торшер «Тёплый свет»','lighting','lamp',7900,.39,.39,1.69,'💡','Напольный светильник с конусным плафоном.'),
   product('lamp-sphere','Светильник «Шар»','lighting','lamp',11500,.34,.34,1.48,'💡','Мягкий шарообразный плафон.'),
   product('lamp-tripod','Торшер «Тренога»','lighting','lamp',9300,.48,.48,1.73,'💡','Тонкие деревянные ножки, тканевый абажур.'),
@@ -138,6 +138,57 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('mirror-window','Зеркало «Окно»','decor','mirror',14500,1.01,.24,1.92,'🪞','Арочное зеркало с металлическими перемычками.'),
 ] as const;
 export const FURNITURE_BY_ID = new Map(FURNITURE_CATALOG.map(item=>[item.id,item]));
+
+// Display order only. Never reorder the persisted catalogue IDs or household data.
+// All old and newly introduced products share one intuitive furniture-type grouping.
+export type FurnitureDisplayGroup = Exclude<FurnitureShape,'corner'>;
+export const FURNITURE_DISPLAY_GROUPS: readonly FurnitureDisplayGroup[] = [
+  'sofa','armchair','ottoman','bench',
+  'bed','daybed',
+  'wardrobe','dresser','nightstand','sideboard','shelves',
+  'table','desk','chair','stool',
+  'lamp',
+  'plant','rug','mirror',
+];
+export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
+  sofa:'Диваны и угловые диваны',
+  armchair:'Кресла',
+  ottoman:'Пуфы',
+  bench:'Банкетки',
+  bed:'Кровати',
+  daybed:'Кушетки',
+  wardrobe:'Шкафы и гардеробы',
+  dresser:'Комоды',
+  nightstand:'Прикроватные тумбы',
+  sideboard:'Тумбы и витрины',
+  shelves:'Стеллажи',
+  table:'Обеденные и журнальные столы',
+  desk:'Письменные и компьютерные столы',
+  chair:'Стулья',
+  stool:'Табуреты',
+  lamp:'Светильники и торшеры',
+  plant:'Растения',
+  rug:'Ковры',
+  mirror:'Зеркала',
+};
+const furnitureGroupRank = new Map(FURNITURE_DISPLAY_GROUPS.map((group,index)=>[group,index]));
+export function furnitureDisplayGroup(product:Pick<FurnitureProduct,'shape'>):FurnitureDisplayGroup {
+  return product.shape==='corner'?'sofa':product.shape;
+}
+export function compareFurnitureProducts(a:FurnitureProduct,b:FurnitureProduct):number {
+  const groupA=furnitureDisplayGroup(a),groupB=furnitureDisplayGroup(b);
+  return (furnitureGroupRank.get(groupA)??999)-(furnitureGroupRank.get(groupB)??999) ||
+    a.name.localeCompare(b.name,'ru') || a.id.localeCompare(b.id);
+}
+export const SORTED_FURNITURE_CATALOG:readonly FurnitureProduct[] =
+  [...FURNITURE_CATALOG].sort(compareFurnitureProducts);
+export function compareFurnitureSkus(skuA:string,skuB:string):number {
+  const a=FURNITURE_BY_ID.get(skuA),b=FURNITURE_BY_ID.get(skuB);
+  if(a&&b)return compareFurnitureProducts(a,b);
+  if(a)return -1;
+  if(b)return 1;
+  return skuA.localeCompare(skuB);
+}
 export const FURNITURE_DELIVERY = {
   regular:{fee:390,minutes:45,label:'Обычная'},
   express:{fee:990,minutes:15,label:'Быстрая'},

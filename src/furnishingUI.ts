@@ -1,5 +1,7 @@
 import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_CATEGORIES,
-  FURNITURE_STYLES, furnitureStyle, type FurnitureStyle,
+  FURNITURE_STYLES, furnitureStyle, FURNITURE_GROUP_LABELS,
+  SORTED_FURNITURE_CATALOG, furnitureDisplayGroup, compareFurnitureSkus,
+  type FurnitureStyle,
   FURNITURE_FINISHES, FINISH_IDS, FURNITURE_DELIVERY, type FurnitureCategory,
   type FurnitureFinish, type FurnitureInstance, type PlacedFurniture, type Rotation,
   type FurnishingCommand } from './shared/furniture';
@@ -153,12 +155,26 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       }
     },{root:body,rootMargin:'220px'});
     const query=search.trim().toLocaleLowerCase('ru-RU');
-    const matching=FURNITURE_CATALOG.filter(info=>
+    const matching=SORTED_FURNITURE_CATALOG.filter(info=>
       (category==='all'||category===info.category)&&
       (style==='all'||furnitureStyle(info.id)===style)&&
       (!query||(info.name+' '+info.description+' '+FURNITURE_CATEGORIES[info.category]).toLocaleLowerCase('ru-RU').includes(query)));
     if(!matching.length){list.append(node('p','furnish-empty','Ничего не найдено. Попробуй другое название.'));return;}
+    const groupTotals=new Map<string,number>();
     for(const info of matching){
+      const group=furnitureDisplayGroup(info);
+      groupTotals.set(group,(groupTotals.get(group)??0)+1);
+    }
+    let lastGroup='';
+    for(const info of matching){
+      const group=furnitureDisplayGroup(info);
+      if(group!==lastGroup){
+        const heading=node('h3','furnish-group-title',
+          FURNITURE_GROUP_LABELS[group]+' · '+groupTotals.get(group));
+        heading.dataset.furnitureGroup=group;
+        list.append(heading);
+        lastGroup=group;
+      }
       const card=node('article','furnish-card','');
       const image=node('div','furnish-card-icon',info.emoji);
       image.style.background='#'+FURNITURE_FINISHES[finish].light.toString(16).padStart(6,'0');
@@ -228,8 +244,19 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         'На складе пусто. Распакованные заказы появятся здесь.'));
       return;
     }
-    for(const item of items){
+    // Stored and installed objects follow the same grouping as the shop.
+    // Sort a copy: the server-owned arrays and item IDs are never mutated.
+    const sorted=[...items].sort((a,b)=>compareFurnitureSkus(a.sku,b.sku)||a.id-b.id);
+    let lastGroup='';
+    for(const item of sorted){
       const info=FURNITURE_BY_ID.get(item.sku)!;
+      const group=furnitureDisplayGroup(info);
+      if(group!==lastGroup){
+        const heading=node('h3','furnish-group-title',FURNITURE_GROUP_LABELS[group]);
+        heading.dataset.furnitureGroup=group;
+        body.append(heading);
+        lastGroup=group;
+      }
       const row=node('article','furnish-line','');
       row.dataset.furnitureId=String(item.id);
       row.append(node('strong','',info.emoji+' '+info.name),

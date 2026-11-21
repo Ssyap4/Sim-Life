@@ -49,3 +49,51 @@ test('the distinct designs are not identical copies of an old base mesh',()=>{
       'structural models must differ within '+items.join(', '));
   }
 });
+
+import {
+  SORTED_FURNITURE_CATALOG,FURNITURE_DISPLAY_GROUPS,FURNITURE_GROUP_LABELS,
+  furnitureDisplayGroup,compareFurnitureProducts,compareFurnitureSkus,
+} from '../../src/shared/furniture';
+
+test('old and new models are interleaved by furniture type, never appended as separate batches',()=>{
+  assert.equal(SORTED_FURNITURE_CATALOG.length,75);
+  assert.deepEqual(
+    new Set(SORTED_FURNITURE_CATALOG.map(x=>x.id)),
+    new Set(FURNITURE_CATALOG.map(x=>x.id))
+  );
+  assert.notEqual(SORTED_FURNITURE_CATALOG,FURNITURE_CATALOG);
+  const order=new Map(FURNITURE_DISPLAY_GROUPS.map((group,i)=>[group,i]));
+  let lastRank=-1;
+  let lastItem=undefined as (typeof FURNITURE_CATALOG)[number]|undefined;
+  for(const item of SORTED_FURNITURE_CATALOG){
+    const group=furnitureDisplayGroup(item);
+    const rank=order.get(group);
+    assert.notEqual(rank,undefined,'Unexpected group '+group);
+    assert.ok(FURNITURE_GROUP_LABELS[group].length>0,group);
+    assert.ok(rank!>=lastRank,item.id+' appears after a later group');
+    if(lastItem&&furnitureDisplayGroup(lastItem)===group)
+      assert.ok(compareFurnitureProducts(lastItem,item)<=0,'Names not sorted: '+item.name);
+    lastRank=rank!;
+    lastItem=item;
+  }
+  const old=new Set(FURNITURE_CATALOG.slice(0,39).map(x=>x.id));
+  const newOnes=new Set(FURNITURE_CATALOG.slice(39).map(x=>x.id));
+  for(const group of ['sofa','bed','wardrobe','table','lamp','plant']){
+    const items=SORTED_FURNITURE_CATALOG.filter(x=>furnitureDisplayGroup(x)===group);
+    assert.ok(items.some(x=>old.has(x.id)),group+' has no original item');
+    assert.ok(items.some(x=>newOnes.has(x.id)),group+' has no new item');
+  }
+  assert.equal(FURNITURE_CATALOG.find(x=>x.id==='nightstand')?.category,'storage');
+});
+
+test('sorting also applies to stored/installed items without modifying saved arrays',()=>{
+  const skus=['mirror-window','sofa-chester','bed-aurora','sofa-luna','bed-canopy','table-round','sofa-arc'];
+  const copy=skus.slice();
+  const arranged=[...skus].sort(compareFurnitureSkus);
+  assert.deepEqual(skus,copy);
+  assert.deepEqual(arranged.slice(0,3),['sofa-arc','sofa-chester','sofa-luna'].sort(compareFurnitureSkus));
+  const filtered=SORTED_FURNITURE_CATALOG.filter(x=>
+    x.category==='tables'||x.category==='sleep');
+  for(let i=1;i<filtered.length;i++)
+    assert.ok(compareFurnitureProducts(filtered[i-1],filtered[i])<=0);
+});
