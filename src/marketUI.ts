@@ -36,6 +36,7 @@ export function createMarketUI(
   root: HTMLElement,
   sendCheckout: (lines: BasketLine[]) => boolean,
   openMobile: () => void,
+  onClose?: () => void,
 ): { open: (household: GameState) => void; refresh: (household: GameState) => void;
      close: () => void; acknowledge: () => void } {
   let state: GameState | null = null;
@@ -64,7 +65,7 @@ export function createMarketUI(
     };
     return fits('fridge') || fits('table');
   }
-  const close = () => { root.hidden = true; root.replaceChildren(); };
+  const close = () => { root.hidden = true; root.replaceChildren(); onClose?.(); };
   function redraw(): void {
     if (!state || root.hidden) return;
     const oldScroll = root.querySelector<HTMLElement>('.market-scroll')?.scrollTop ?? 0;

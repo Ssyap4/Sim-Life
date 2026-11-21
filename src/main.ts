@@ -26,6 +26,7 @@ import { GameClockDisplay } from './core/gameClock';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
 import { showCoffeeChoices } from './coffeeUI';
 import { createMarketUI, showTakeoutChoices } from './marketUI';
+import type { BasketLine } from './shared/market';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
 import { renderPetChoices } from './petMenu';
@@ -462,6 +463,7 @@ function render(reset = false): void {
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       deliverySequence = null;
       marketUI.acknowledge();
+      computer.acknowledgeOrder();
     }
   }
   renderClock();
@@ -507,13 +509,14 @@ function showStatus(text: string): void {
   authStatusEl.textContent = text;
 }
 let deliverySequence: number | null = null;
-const marketUI = createMarketUI(marketOverlay, (lines) => {
+const orderDelivery = (lines: BasketLine[]) => {
   if (!state || !active || deliverySequence !== null) return false;
   const sequence = state.world.sequence[active];
   if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
   deliverySequence = sequence;
   return true;
-}, () => phone.open('mobile'));
+};
+const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'));
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room));
@@ -574,7 +577,8 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
   travel: () => net.world({type:'travel',place:'education'}),
-  phone: app => { computer.close(); phone.open(app); },
+  service: command => net.service(command),
+  checkout: lines => orderDelivery(lines),
 });
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
@@ -683,7 +687,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onStoreEvent(role,message) {
-    if(role===active) marketUI.acknowledge();
+    if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();}
     statusEl.textContent=message;
     notify(message);
   },
@@ -734,7 +738,7 @@ const net = new LiveConnection({
     task.question = question;
     drawTaskPanel();
   },
-  onEducationNotice(message) { if (!phone.educationMessage(message)) notify(message); },
+  onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
   onMovieOffer(inviteId,from,genre) { invites.show(inviteId,names[from],genre,from===active); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
@@ -774,7 +778,8 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
-    if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
+    if(computer.visible) computer.billingMessages([reason]);
+    else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
     deliverySequence = null;
     locationUI.reject();

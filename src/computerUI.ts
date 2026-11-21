@@ -1,4 +1,8 @@
 import { createCareerUI } from './careerUI';
+import { createBillingUI, type BillingApp } from './billingUI';
+import { createMarketUI } from './marketUI';
+import type { BasketLine } from './shared/market';
+import type { ServiceCommand } from './shared/services';
 import { createEducationUI, type EducationView } from './educationUI';
 import { MATERIAL_BY_ID } from './shared/educationCatalog';
 import { serviceAvailable } from './shared/services';
@@ -12,7 +16,8 @@ import type { ComputerDevice } from './shared/computer';
 import type { ActionId, CharacterId, GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type ComputerApp = 'career' | 'study' | 'browser' | 'games' | 'video' | 'mail' | 'notes';
+type ComputerApp = 'career' | 'study' | 'browser' | 'shop' | BillingApp | 'games' | 'video' | 'mail' | 'notes';
+const billingApps = new Set<ComputerApp>(['finance','internet','mobile','utilities','subscriptions']);
 type GameFilter = 'all'|'favorites'|GameGenre;
 type View = { state: GameState; role: CharacterId; time: TimeStatus };
 type Callbacks = {
@@ -26,12 +31,15 @@ type Callbacks = {
   education(command: EducationCommand): boolean;
   vote(enabled: boolean): boolean;
   travel(): boolean;
-  phone(app: 'internet' | 'finance' | 'delivery'): void;
+  service(command: ServiceCommand): boolean;
+  checkout(lines: BasketLine[]): boolean;
 };
 const apps: ReadonlyArray<[ComputerApp, string, string, string]> = [
   ['career','💼','Работа','Смены, задачи и зарплата'],
   ['study','🎓','Обучение','Курсы и навыки'],
-  ['browser','🌐','Интернет','Сервисы и покупки'],
+  ['browser','🌐','Интернет','Сайты и онлайн-сервисы'],
+  ['shop','🛍️','Покупки','Доставка и семейные запасы'],
+  ['finance','💳','Финансы','Бюджет и платежи'],
   ['games','🎮','Игры','12 игр · 4 жанра'],
   ['video','▶️','Видео','Ролики и каналы'],
   ['mail','✉️','Почта','Рабочие сообщения'],
@@ -88,6 +96,10 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const userLabel = root.querySelector<HTMLElement>('[data-computer-user]')!;
   const session = root.querySelector<HTMLElement>('[data-computer-session]')!;
   const closeButton = root.querySelector<HTMLButtonElement>('[data-computer-close]')!;
+  const billing = createBillingUI(content,callbacks.service);
+  const shopRoot = section('section','market-overlay computer-market-root');
+  shopRoot.hidden = true;
+  const shop = createMarketUI(shopRoot,callbacks.checkout,()=>show('mobile'),()=>show('browser'));
   let device: ComputerDevice = 'desktop';
   let app: ComputerApp | null = null;
   let filter: GameFilter = 'all';
@@ -125,7 +137,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     if(app==='games')return {mode:'game',role,game:selectedGame};
     if(app==='video')return {mode:'video',role,clip:selectedClip};
     return {mode:app==='career'?role==='vlad'?'code':'hair':
-      app==='study'?'study':app==='browser'?'browser':app==='mail'?'mail':
+      app==='study'?'study':app==='browser'||app==='shop'||billingApps.has(app as ComputerApp)?'browser':app==='mail'?'mail':
         app==='notes'?'notes':'idle',role};
   };
   const preview=()=>{const view=currentView();if(view)callbacks.preview(device,currentScene(view.role));};
@@ -163,6 +175,11 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
       content.scrollTop=0;
       if(next==='career'||next==='mail')career.open();
       if(next==='study')education.open('academy');
+      if(next==='shop') {
+        const view=currentView();
+        if(view){content.append(shopRoot);shop.open(view.state);}
+      }
+      if(billingApps.has(next))billing.reset();
       if(next==='games') {
         filter='all';
         const v=currentView();
@@ -329,6 +346,8 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
       return;
     }
     if(app==='study'){education.render(state,role);return;}
+    if(app==='shop'){shop.refresh(state);return;}
+    if(billingApps.has(app as ComputerApp)){billing.renderPage(state,app as BillingApp);return;}
     if(app==='games'){renderGames();return;}
     if(app==='video'){renderVideo();return;}
     if(!app)return;
@@ -339,9 +358,12 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
         ? 'Домашний интернет подключён. Сервисы доступны обоим персонажам.'
         : 'Домашний интернет отключён. Онлайн-занятия и удалённая работа требуют подключения.');
       content.append(
-        button('🌐 Управление интернетом',()=>callbacks.phone('internet'),'Оплата и состояние подключения'),
-        button('🛍️ Онлайн-покупки',()=>callbacks.phone('delivery'),'Заказ из семейного каталога'),
-        button('💳 Финансы семьи',()=>callbacks.phone('finance'),'Бюджет и платежи'),
+        button('🌐 Интернет и подключение',()=>show('internet'),'Состояние домашнего интернета, тариф и счета'),
+        button('🛍️ Онлайн-покупки',()=>show('shop'),'Каталог, доставка, продукты и семейные запасы'),
+        button('💳 Финансы семьи',()=>show('finance'),'Бюджет, история операций и предстоящие платежи'),
+        button('📺 Подписки',()=>show('subscriptions'),'Каналы и онлайн-сервисы'),
+        button('🏠 Коммунальные платежи',()=>show('utilities'),'ЖКХ и задолженности'),
+        button('📱 Мобильная связь',()=>show('mobile'),'Тариф для доставки и звонков'),
       );
     }
     if(app==='notes'){
@@ -372,6 +394,9 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
       root.hidden=false;show(null);closeButton.focus();
     },
     close,refresh,
+    acknowledgeOrder(){if(app==='shop')shop.acknowledge();},
+    billingMessages(messages:string[]){if(app && billingApps.has(app)){billing.setMessages(messages);refresh();}},
+    educationMessage(message:string){if(app!=='study'||root.hidden)return false;education.feedback(message);refresh();return true;},
     get visible(){return !root.hidden;},
   };
 }
