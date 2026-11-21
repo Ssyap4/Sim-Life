@@ -1,0 +1,71 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { RECIPES, ingredientList, isGrillRecipe } from '../../src/shared/food';
+import { basketPrice } from '../../src/shared/market';
+import { DELIVERY_FEE, approachFor, stationById } from '../../src/shared/locations';
+import { clockAt } from '../../src/shared/life';
+import { initialState } from '../../src/shared/protocol';
+import { applyFoodAction } from '../food';
+import { applyWorld } from '../locations';
+
+test('Chicken skewers need only chicken and onion; the grill produces three portions without oil', () => {
+  assert.equal(isGrillRecipe('grillChicken'), true);
+  assert.deepEqual(ingredientList('grillChicken'), [['chicken', 2], ['onion', 1]]);
+  const state = initialState();
+  state.pantry.chicken = 2;
+  state.pantry.onion = 1;
+  state.pantry.oil = 0;
+  const cooked = applyFoodAction(state, 'vlad', { type: 'cook', recipe: 'grillChicken' });
+  assert.ok(cooked.ok, !cooked.ok ? cooked.reason : '');
+  if (!cooked.ok) return;
+  assert.equal(cooked.state.pantry.chicken, 0);
+  assert.equal(cooked.state.pantry.onion, 0);
+  assert.equal(cooked.state.pantry.oil, 0);
+  assert.equal(cooked.state.meals.grillChicken, RECIPES.grillChicken.servings);
+  assert.equal(cooked.state.readyFood.find(b => b.item === 'grillChicken')?.portions, 3);
+  assert.equal(state.meals.grillChicken, 0, 'The caller state is unchanged');
+});
+
+test('Delivery receipt itemizes the 149 RUB fee; delivered chicken and onion can be grilled', () => {
+  const state = initialState();
+  const lines = [{ id:'grocery:chicken', quantity:1 }, { id:'grocery:onion', quantity:1 }];
+  const goods = basketPrice(lines);
+  const total = goods + DELIVERY_FEE;
+  assert.equal(goods, 510);
+  assert.equal(DELIVERY_FEE, 149);
+  const ordered = applyWorld(state, 'alina', { type:'delivery_order', sequence:0, lines });
+  assert.ok(ordered.ok, !ordered.ok ? ordered.reason : '');
+  if (!ordered.ok) return;
+  assert.equal(ordered.state.money, state.money - total);
+  assert.equal(ordered.state.world.deliveries[0]?.cost, total);
+  assert.equal(ordered.state.ledger.at(-1)?.amount, total);
+  assert.match(ordered.state.ledger.at(-1)?.label ?? '', /товары 510 ₽ \+ доставка 149 ₽/);
+  assert.match(ordered.message, /товары 510 ₽ \+ доставка 149 ₽ = 659 ₽/);
+  const parcel = ordered.state.world.deliveries[0];
+  const ready = structuredClone(ordered.state);
+  ready.clock = clockAt(parcel.readyAt + 1);
+  Object.assign(ready.characters.vlad, approachFor(stationById('home', 'parcel')!, 'vlad'));
+  const claimed = applyWorld(ready, 'vlad', { type:'delivery_claim', id:parcel.id });
+  assert.ok(claimed.ok, !claimed.ok ? claimed.reason : '');
+  if (!claimed.ok) return;
+  assert.equal(claimed.state.money, ordered.state.money, 'Claim does not charge again');
+  assert.equal(claimed.state.pantry.chicken, 5);
+  assert.equal(claimed.state.pantry.onion, 8);
+  assert.equal(claimed.state.pantry.oil, 0);
+  const cooked = applyFoodAction(claimed.state, 'alina', { type:'cook', recipe:'grillChicken' });
+  assert.ok(cooked.ok, !cooked.ok ? cooked.reason : '');
+  if (!cooked.ok) return;
+  assert.equal(cooked.state.pantry.chicken, 3);
+  assert.equal(cooked.state.pantry.onion, 7);
+  assert.equal(cooked.state.meals.grillChicken, 3);
+});
+
+test('Missing chicken or onion still prevents cooking without spending ingredients', () => {
+  const state = initialState();
+  state.pantry.chicken = 2;
+  state.pantry.onion = 0;
+  const result = applyFoodAction(state, 'vlad', {type:'cook', recipe:'grillChicken'});
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.reason, /Лук/);
+  assert.equal(state.pantry.chicken, 2);
+});

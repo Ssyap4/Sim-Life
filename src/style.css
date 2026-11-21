@@ -549,6 +549,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .market-summary { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .market-summary strong { font-size:12px; }
 .market-summary small { font-size:10px; color:#789079; }
+.market-summary .market-delivery-line { color:#47674e; font-weight:800; }
 .market-order { min-height:44px; border:0; background:#648b6e; color:white; font-weight:900; font-size:12px; padding:9px 14px; border-radius:11px; flex-shrink:0; }
 .market-order:disabled { opacity:.45; }
 .market-subtitle { font-size:13px; margin:14px 0 8px; color:#526d57; }

@@ -41,13 +41,21 @@ export function showFoodChoices(
   } else if (location === 'kitchen' || location === 'grill') {
     for (const [id, recipe] of Object.entries(RECIPES) as Array<[RecipeId, (typeof RECIPES)[RecipeId]]>) {
       if (isGrillRecipe(id) !== (location === 'grill')) continue;
-      const needed = ingredientList(id).map(([ingredient, quantity]) =>
-        GROCERIES[ingredient].emoji + quantity + (state.pantry[ingredient] < quantity ? ' ❗' : ''),
+      const ingredients = ingredientList(id);
+      const needed = ingredients.map(([ingredient, quantity]) =>
+        GROCERIES[ingredient].emoji + ' ' + GROCERIES[ingredient].name.split(' · ')[0] +
+        ' ×' + quantity + (state.pantry[ingredient] < quantity ? ' ❗ (есть ' + state.pantry[ingredient] + ')' : ''),
       ).join(' · ');
-      const available = ingredientList(id).every(([ingredient, qty]) => state.pantry[ingredient] >= qty);
+      const missing = ingredients.filter(([ingredient, qty]) => state.pantry[ingredient] < qty);
+      const available = missing.length === 0;
+      const limitReached = state.meals[id] + recipe.servings > 30;
+      const reason = missing.length ? 'Не хватает: ' + missing.map(([ingredient, qty]) =>
+        GROCERIES[ingredient].name.split(' · ')[0] + ' ×' + (qty - state.pantry[ingredient])).join(', ') + '. ' :
+        limitReached ? 'Запас готового блюда заполнен (максимум 30 порций). ' : '';
       entry(container, recipe.emoji + ' ' + recipe.name,
-        RECIPE_DESCRIPTIONS[id]+' · '+needed + ' · '+recipe.servings+' порц. · ~'+recipePortionCost(id)+' ₽/порция',
-        !available || state.meals[id] + recipe.servings > 30,
+        reason + RECIPE_DESCRIPTIONS[id] + ' · Ингредиенты: ' + needed +
+        ' · ' + recipe.servings + ' порц. · ~' + recipePortionCost(id) + ' ₽/порция',
+        !available || limitReached,
         () => submit('cook', id));
     }
   } else {
