@@ -10,6 +10,8 @@ import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee
 import type { ReadyFoodBatch } from './readyFood';
 import { EMPTY_DIRTY_DISHES, type DirtyDishes } from './dirtyDishes';
 import type { LedgerEntry } from './economy';
+import { emptyFurnishing, type FurnishingState } from './furniture';
+import type { FurnishingCommand } from './furniture';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type PetFoodStock, type PetBowlStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
@@ -54,6 +56,7 @@ export interface GameState {
   clock: GameClock;
   world: WorldState;
   money: number;
+  furnishing: FurnishingState;
   billing: FamilyServices;
   pantry: Pantry;
   meals: CookedMeals;
@@ -152,7 +155,7 @@ export type TimedCommand = Entertainment | SocialIntent
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | EducationCommand | CareerCommand | SocialCommand
+export type ClientPacket = FurnishingCommand | WorldCommand | Entertainment | ServiceCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -215,6 +218,7 @@ export type ServerPacket =
 export function initialState(): GameState {
   return {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
+    furnishing: emptyFurnishing(),
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },

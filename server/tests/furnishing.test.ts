@@ -1,0 +1,159 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import { initialState } from '../../src/shared/protocol';
+import { applyFurnishing } from '../furnishing';
+import { openServerFiles } from '../storage';
+import { FURNITURE_CATALOG, FURNITURE_FINISHES, emptyFurnishing,
+  furnitureFootprint, furnishingObstacles, isValidFurnishing } from '../../src/shared/furniture';
+import { placeObstacles, spawn } from '../../src/shared/locations';
+import { HOME_FLOOR } from '../../src/shared/home';
+import { findRoute, pointIsClear } from '../../src/game/navigation';
+import { PET_IDS, PETS } from '../../src/shared/pets';
+import { petNavigationGeometry } from '../../src/game/PetNavigation';
+
+function orderSmall(){
+  const initial=initialState();
+  const bought=applyFurnishing(initial,'vlad',
+    {type:'furniture_order',sku:'plant-mini',finish:'sage',shipping:'express',quantity:1},100);
+  assert.ok(bought.ok,'furniture order must succeed');
+  return bought.state;
+}
+function unbox(){
+  const bought=orderSmall();
+  const unpacked=applyFurnishing(bought,'alina',{type:'furniture_unbox',id:1},115);
+  assert.ok(unpacked.ok,'Alina can unpack Vlad order');
+  return unpacked.state;
+}
+test('catalog has distinct light models and 8 colorways',()=>{
+  assert.ok(FURNITURE_CATALOG.length>=35);
+  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.id)).size,FURNITURE_CATALOG.length);
+  assert.equal(Object.keys(FURNITURE_FINISHES).length,8);
+  assert.ok(new Set(FURNITURE_CATALOG.map(item=>item.shape)).size>=16);
+  assert.ok(FURNITURE_CATALOG.every(item=>item.price>=500&&item.width>0&&item.depth>0));
+});
+test('atomic purchase charges rubles once and prevents stale duplicate money loss',()=>{
+  const state=initialState();
+  const order={type:'furniture_order' as const,sku:'plant-mini',finish:'sage' as const,
+    shipping:'express' as const,quantity:2};
+  const result=applyFurnishing(state,'vlad',order,110);
+  assert.ok(result.ok);
+  assert.equal(result.state.money,state.money-1200*2-990);
+  assert.equal(result.state.furnishing.orders.length,2);
+  assert.equal(result.state.furnishing.nextId,3);
+  assert.equal(result.state.ledger.at(-1)?.category,'furniture');
+  assert.equal(state.money,10000,'source remains unchanged');
+  assert.equal(applyFurnishing(result.state,'vlad',{type:'furniture_unbox',id:1},110).ok,false);
+  const invalid=applyFurnishing(state,'vlad',{...order,quantity:100},110);
+  assert.equal(invalid.ok,false);
+  const tooExpensive=applyFurnishing(state,'vlad',{...order,sku:'sofa-arc'},110);
+  assert.equal(tooExpensive.ok,false);
+});
+test('delivered item can be unboxed by partner but never twice',()=>{
+  const state=orderSmall();
+  assert.equal(applyFurnishing(state,'alina',{type:'furniture_unbox',id:1},114).ok,false);
+  const done=applyFurnishing(state,'alina',{type:'furniture_unbox',id:1},115);
+  assert.ok(done.ok);
+  assert.equal(done.state.furnishing.orders.length,0);
+  assert.equal(done.state.furnishing.stored.length,1);
+  assert.equal(applyFurnishing(done.state,'vlad',{type:'furniture_unbox',id:1},115).ok,false);
+});
+test('server validates legal placement and forbids blocking doors, fixtures, existing furniture and actors',()=>{
+  const ready=unbox();
+  const good=applyFurnishing(ready,'alina',
+    {type:'furniture_place',id:1,x:13.5,z:-5.5,rotation:0},125);
+  assert.ok(good.ok,'free wing corner should be usable');
+  assert.equal(good.state.furnishing.placed.length,1);
+  assert.equal(good.state.furnishing.stored.length,0);
+  const doorway=applyFurnishing(ready,'vlad',
+    {type:'furniture_place',id:1,x:12.5,z:-3.6,rotation:0},125);
+  assert.equal(doorway.ok,false);
+  const staticSofa=applyFurnishing(ready,'vlad',
+    {type:'furniture_place',id:1,x:-2.36,z:2.02,rotation:0},125);
+  assert.equal(staticSofa.ok,false);
+  const player=applyFurnishing(ready,'vlad',
+    {type:'furniture_place',id:1,x:.5,z:3.5,rotation:0},125);
+  assert.equal(player.ok,false);
+  const outside=applyFurnishing(ready,'vlad',
+    {type:'furniture_place',id:1,x:22,z:-18,rotation:0},125);
+  assert.equal(outside.ok,false);
+});
+test('after placement all old paths, room entrances and mandatory pet waypoints stay reachable',()=>{
+  const ready=unbox();
+  const placed=applyFurnishing(ready,'vlad',
+    {type:'furniture_place',id:1,x:13.5,z:-5.5,rotation:1},125);
+  assert.ok(placed.ok);
+  const obstacles=placeObstacles('home',placed.state.furnishing);
+  const baseline=placeObstacles('home');
+  for(const p of [spawn('home','vlad'),spawn('home','alina'),
+    {x:12.4,z:-5.5},{x:12.5,z:-1.6},{x:12.5,z:2.4},
+    {x:1.48,z:3.92},{x:-7.13,z:3.59},{x:8.08,z:.55},
+    {x:6.47,z:-2.84}]) {
+    if(!pointIsClear(p,baseline,HOME_FLOOR)||
+      !findRoute({x:0,z:1.4},p,baseline,HOME_FLOOR))continue;
+    assert.ok(pointIsClear(p,obstacles,HOME_FLOOR));
+    assert.ok(findRoute({x:0,z:1.4},p,obstacles,HOME_FLOOR),'must remain reachable');
+  }
+  for(const id of PET_IDS) {
+    const geo=petNavigationGeometry(obstacles,HOME_FLOOR);
+    const p=PETS[id].home;
+    assert.ok(pointIsClear(p,geo.obstacles,geo.floor));
+  }
+});
+test('can rotate and move safely, store, sell, with no duplication',()=>{
+  const starting=unbox();
+  const first=applyFurnishing(starting,'vlad',
+    {type:'furniture_place',id:1,x:13.5,z:-5.5,rotation:0},120);
+  assert.ok(first.ok);
+  const moved=applyFurnishing(first.state,'alina',
+    {type:'furniture_move',id:1,x:13.48,z:-5.5,rotation:1},121);
+  assert.ok(moved.ok);
+  assert.equal(moved.state.furnishing.placed[0].rotation,1);
+  const store=applyFurnishing(moved.state,'alina',{type:'furniture_store',id:1},122);
+  assert.ok(store.ok);
+  assert.equal(store.state.furnishing.stored.length,1);
+  assert.equal(store.state.furnishing.placed.length,0);
+  const sold=applyFurnishing(store.state,'vlad',{type:'furniture_sell',id:1},123);
+  assert.ok(sold.ok);
+  assert.equal(sold.state.money,store.state.money+660);
+  assert.equal(sold.state.furnishing.stored.length,0);
+  assert.equal(sold.state.furnishing.placed.length,0);
+  assert.equal(applyFurnishing(sold.state,'vlad',{type:'furniture_sell',id:1},124).ok,false);
+});
+test('rotated footprints, walkable carpets and metadata survive validation',()=>{
+  const state=unbox();
+  const model={id:1,sku:'plant-mini',finish:'sage' as const,x:12,z:-5,rotation:1 as const};
+  assert.notEqual(furnitureFootprint(model).minX,0);
+  assert.equal(furnishingObstacles({placed:[model]}).length,1);
+  assert.equal(furnishingObstacles({placed:[{...model,sku:'rug-weave'}]}).length,0);
+  assert.ok(isValidFurnishing(state.furnishing));
+  const bad=structuredClone(state.furnishing);
+  bad.orders.push({id:1,sku:'unknown',finish:'sage',readyAt:1,shipping:'regular'});
+  assert.equal(isValidFurnishing(bad),false);
+});
+test('old 0.14 households migrate to empty furnishings without resetting progress',()=>{
+  const folder=mkdtempSync(join(tmpdir(),'sim-life-furniture-'));
+  try{
+    const state=initialState();
+    state.money=185357;
+    state.characters.vlad.skill=64;
+    state.pets.simba.bond=63;
+    // Emulate old 0.14 JSON lacking the new furnishing field.
+    const json=structuredClone(state) as unknown as Record<string,unknown>;
+    delete json.furnishing;
+    writeFileSync(join(folder,'household.json'),JSON.stringify(json));
+    const files=openServerFiles(folder);
+    const loaded=files.load();
+    assert.equal(loaded.money,185357);
+    assert.equal(loaded.characters.vlad.skill,64);
+    assert.equal(loaded.pets.simba.bond,63);
+    assert.deepEqual(loaded.furnishing,emptyFurnishing());
+    files.save(loaded);
+    const again=openServerFiles(folder).load();
+    assert.equal(again.money,185357);
+    assert.deepEqual(again.furnishing,loaded.furnishing);
+    assert.equal(JSON.parse(readFileSync(join(folder,'household.pre-furnishing.json'),'utf8')).money,185357);
+  }finally{rmSync(folder,{recursive:true,force:true});}
+});

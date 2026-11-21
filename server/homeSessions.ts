@@ -48,7 +48,7 @@ type Hooks = {
   pausePet?(pet:PetId):void;
   socialTtlMs?:number;
 };
-const obstacles = placeObstacles('home');
+
 const readingSeats: HomeSeat[] = HOME_SEATS.filter(seat => seat !== 'officeChair');
 const length = (route: WalkRoute) => route.path.reduce((sum, point, i) => {
   const from = route.path[i - 1] ?? route.from;
@@ -109,7 +109,8 @@ export function createHomeSessions(hooks: Hooks) {
   function presentation(role: CharacterId, command: TimedCommand): HomePresentation | null {
     const { x, z } = hooks.state().characters[role];
     const from = { x, z };
-    const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) => planWalk(origin, to, obstacles, HOME_FLOOR);
+    const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
+      planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_FLOOR);
     if (command.type === 'study') {
       const material = MATERIAL_BY_ID.get(command.material)!;
       if (material.station) {

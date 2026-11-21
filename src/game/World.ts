@@ -16,7 +16,6 @@ import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacl
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
-import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
@@ -30,11 +29,13 @@ import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproac
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
-import { batchRigidParts } from './ArtKit';
+import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
+import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
+import type { FurnitureFinish, PlacedFurniture, Rotation } from '../shared/furniture';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -117,7 +118,14 @@ export class World {
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
-  private readonly petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
+  private petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
+  private furnishedGeometryKey = '';
+  private furnishingModels=new Map<number,THREE.Group>();
+  private furnishingVisualKey='';
+  private furnishingGhost:THREE.Group|null=null;
+  private furnishingPlaceCallback:((x:number,z:number)=>void)|null=null;
+  private furnishingItemCallback:((id:number)=>void)|null=null;
+  private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
@@ -1075,10 +1083,89 @@ export class World {
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
     this.createPetBowls();
+    this.createFurnitureParcels();
   }
 
   /** Dirty plates are lightweight, shared visual props. The authoritative
    * counts live on the server and survive reloading the household. */
+  private createFurnitureParcels():void {
+    this.furnishingParcels.name='Доставленные коробки мебели';
+    for(let i=0;i<4;i++){
+      const box=new THREE.Mesh(cube,finish([0xc79a69,0xb99064,0xdeb88e,0xc49a6c][i],'wood'));
+      box.scale.set(.65+i%2*.12,.38+i%3*.11,.58);
+      box.position.set(3.40+(i%2)*.72,.21+i%3*.045,5.85+Math.floor(i/2)*.68);
+      this.furnishingParcels.add(box);
+      const tape=new THREE.Mesh(cube,finish(0xe9d5a9,'fabric'));
+      tape.scale.set(.07,.012,.60);
+      tape.position.set(0,.51,0);box.add(tape);
+    }
+    this.furnishingParcels.visible=false;
+    this.homeScene.add(this.furnishingParcels);
+  }
+
+  private renderOwnedFurniture(placed:readonly PlacedFurniture[]):void {
+    const signature=JSON.stringify(placed);
+    if(signature===this.furnishingVisualKey)return;
+    this.furnishingVisualKey=signature;
+    for(const model of this.furnishingModels.values()){
+      model.traverse(part=>{
+        const at=this.interactiveMeshes.indexOf(part);
+        if(at!==-1)this.interactiveMeshes.splice(at,1);
+      });
+      model.removeFromParent();
+      model.traverse(part=>{
+        if(part instanceof THREE.Mesh&&!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
+          part.geometry.dispose();
+      });
+    }
+    this.furnishingModels.clear();
+    for(const item of placed){
+      const model=buildFurnishingModel(item.sku,item.finish);
+      model.position.set(item.x,.01,item.z);
+      model.rotation.y=item.rotation*Math.PI/2;
+      model.userData.furnitureId=item.id;
+      model.traverse(part=>{
+        if(part instanceof THREE.Mesh){
+          part.userData.furnitureId=item.id;
+          this.interactiveMeshes.push(part);
+        }
+      });
+      this.homeScene.add(model);
+      this.furnishingModels.set(item.id,model);
+    }
+  }
+
+  setFurnishingPick(onTarget:(x:number,z:number)=>void,onItem:(id:number)=>void):void {
+    this.furnishingPlaceCallback=onTarget;
+    this.furnishingItemCallback=onItem;
+  }
+
+  beginFurnishingPlacement(sku:string,finish:FurnitureFinish,rotation:Rotation):void {
+    this.endFurnishingPlacement();
+    this.furnishingGhost=createPlacementGhost(sku,finish);
+    this.furnishingGhost.position.set(12.6,.04,-1.75);
+    this.furnishingGhost.rotation.y=rotation*Math.PI/2;
+    this.homeScene.add(this.furnishingGhost);
+  }
+
+  turnFurnishingPlacement(rotation:Rotation):void {
+    if(this.furnishingGhost)this.furnishingGhost.rotation.y=rotation*Math.PI/2;
+  }
+
+  endFurnishingPlacement():void {
+    if(!this.furnishingGhost)return;
+    const ghost=this.furnishingGhost;
+    ghost.removeFromParent();
+    ghost.traverse(part=>{
+      if(part instanceof THREE.Mesh){
+        if(!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
+          part.geometry.dispose();
+        (part.material as THREE.Material).dispose();
+      }
+    });
+    this.furnishingGhost=null;
+  }
+
   private createDirtyDishes(): void {
     const plateMaterial = finish(0xd6c4ac, 'ceramic');
     const crumbsMaterial = finish(0x8a664c, 'wood');
@@ -1335,6 +1422,12 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    const furnishingKey = JSON.stringify(state.furnishing?.placed ?? []);
+    if(furnishingKey!==this.furnishedGeometryKey){
+      this.furnishedGeometryKey=furnishingKey;
+      this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
+      this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
+    }
     const minute = gameMinutes(state.clock);
     // House NPCs share the server clock, without persisting visual-only traffic.
     if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
@@ -1400,6 +1493,11 @@ export class World {
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
       this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
+      this.renderOwnedFurniture(state.furnishing.placed);
+      this.furnishingParcels.children.forEach((model,index)=>{
+        model.visible=index<state.furnishing.orders.filter(item=>item.readyAt<=clockMinutes(state.clock)).length;
+      });
+      this.furnishingParcels.visible=state.furnishing.orders.some(item=>item.readyAt<=clockMinutes(state.clock));
       this.updateHomePets(state);
       if (this.served) this.served.visible = (Object.keys(state.meals) as RecipeId[])
         .some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
@@ -1450,6 +1548,22 @@ export class World {
       }
       return true;
     });
+    if(this.place==='home'&&this.furnishingGhost){
+      const point=this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);
+      if(point){
+        const x=Math.round(point.x*100)/100,z=Math.round(point.z*100)/100;
+        if(x>=HOME_FLOOR.minX&&x<=HOME_FLOOR.maxX&&z>=HOME_FLOOR.minZ&&z<=HOME_FLOOR.maxZ){
+          this.furnishingGhost.position.set(x,.04,z);
+          this.furnishingPlaceCallback?.(x,z);
+        }
+      }
+      return;
+    }
+    const furnitureId:unknown=hit?.object.userData.furnitureId;
+    if(this.place==='home'&&typeof furnitureId==='number'){
+      this.furnishingItemCallback?.(furnitureId);
+      return;
+    }
     const station: unknown = hit?.object.userData.station;
     if (typeof station === 'string') { this.navigation?.station(station); return; }
     const id: unknown = hit?.object.userData.interactable;

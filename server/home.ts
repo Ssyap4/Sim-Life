@@ -10,13 +10,13 @@ import { evaluateTask } from './tasks';
 const selfCare: Record<Exclude<VitalNeed, 'hunger'>, ActionId> = {
   energy: 'bedSleep', hygiene: 'bathShower', bladder: 'toiletUse', social: 'sofaCall', fun: 'watchTv', comfort: 'sofaRest',
 };
-const homeObstacles = placeObstacles('home');
+
 
 export function planLeisure(state: GameState, role: CharacterId, activity: HomeLeisure) {
   const target = activity === 'chat' ? meeting('home', role)
     : activity === 'tv' ? points.sofa : activity === 'computer' ? points.desk
       : petCarePoint(state, activity);
-  return target && planWalk(state.characters[role], target, homeObstacles, HOME_FLOOR);
+  return target && planWalk(state.characters[role], target, placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
 
 export function urgentHomeAction(state: GameState, role: CharacterId): TimedCommand | undefined {

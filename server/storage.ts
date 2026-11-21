@@ -25,6 +25,7 @@ import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
 import { initialCareers } from '../src/shared/careers';
 import { initialComputerLibrary, validComputerLibrary } from '../src/shared/computerGames';
+import { emptyFurnishing, isValidFurnishing } from '../src/shared/furniture';
 
 export interface ServerFiles {
   dataDir: string;
@@ -44,6 +45,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.careers !== undefined && !validCareers(state.careers)) return false;
   if (state.computerLibrary !== undefined && !validComputerLibrary(state.computerLibrary)) return false;
+  if (state.furnishing !== undefined && !isValidFurnishing(state.furnishing)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   const readBooks = state.readBooks;
   if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
@@ -92,7 +94,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services','education'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education','furniture'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
@@ -258,6 +260,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         careers: data.careers ?? initialCareers(),
         computerLibrary: data.computerLibrary ?? initialComputerLibrary(),
+        furnishing: data.furnishing ?? emptyFurnishing(),
         relationship: data.relationship ?? initialRelationship(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
@@ -271,6 +274,10 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Merely reopening the file must never reset the countdown.
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
+      if (data.furnishing === undefined) {
+        const backup = join(dataDir, 'household.pre-furnishing.json');
+        if (!existsSync(backup)) copyFileSync(statePath, backup);
+      }
       if (data.billing === undefined) {
         // Keep the original household even after later rotating backups.
         const backup = join(dataDir, 'household.pre-billing.json');
@@ -279,6 +286,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
+          data.furnishing === undefined ||
           data.dirtyDishes === undefined || data.computerLibrary === undefined || migratedFood || recoveredCareer)
         this.save(household);
       return household;

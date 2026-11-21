@@ -8,6 +8,8 @@ import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } f
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
 import { createComputerUI } from './computerUI';
+import { createFurnishingUI } from './furnishingUI';
+import './furnishing.css';
 import { needChips, needFeedback } from './needsFeedback';
 import type { NeedEffects } from './shared/homeLife';
 import type { StudyMaterial } from './shared/education';
@@ -43,6 +45,7 @@ let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
+let localPreviewNoCodes=false;
 let toastTimer: number | undefined;
 let paymentNoticeTimer: number | undefined;
 const shownPayments = new Map<ServiceId, number>();
@@ -77,7 +80,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.14 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.15 · МЫ ВМЕСТЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -122,6 +125,8 @@ app.innerHTML = `
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="computer-overlay" class="computer-overlay" hidden></section>
+  <section id="furnishing-overlay" class="furnish-overlay" hidden></section>
+  <section id="furnishing-placement" class="furnish-placement" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
@@ -135,6 +140,7 @@ app.innerHTML = `
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
         <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
+        <button id="furniture-btn" class="market-btn" type="button" disabled>🛋️ Мебель</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
       <div class="tip">
@@ -176,6 +182,7 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const phoneBtn = document.querySelector<HTMLButtonElement>('#phone-btn')!;
+const furnitureBtn = document.querySelector<HTMLButtonElement>('#furniture-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
 const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
@@ -230,6 +237,7 @@ document.addEventListener('keydown', (event) => {
     toggleNeeds(false);
     phone.close();
     computer.close();
+    furnishing.close();
     locationUI.closeMap();
     if (world) locationUI.close();
   }
@@ -442,6 +450,7 @@ function render(reset = false): void {
       actionsEl.hidden = true;
       phone.close();
       computer.close();
+      furnishing.close();
       focusModel(null);
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
@@ -452,6 +461,7 @@ function render(reset = false): void {
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
+    furnitureBtn.disabled = place !== 'home';
     const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
     const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
     petsBtn.textContent = '🐾 Питомцы' + (criticalPets.length ? ' ❗' + criticalPets.length
@@ -475,6 +485,8 @@ function render(reset = false): void {
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
   computer.refresh();
+  furnishing.refresh();
+  furnishing.acknowledge(state);
   careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
@@ -531,10 +543,11 @@ function signOut(): void {
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
-  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
   computer.close();
+  furnishing.close();
   careerHUD.render(null,null);
   shownPayments.clear();
   paymentNotice.hidden = true;
@@ -559,7 +572,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  });
+  },()=>furnishing.open());
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
@@ -579,6 +592,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   travel: () => net.world({type:'travel',place:'education'}),
   service: command => net.service(command),
   checkout: lines => orderDelivery(lines),
+  furnishing:()=>furnishing.open(),
 });
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
@@ -610,6 +624,7 @@ const net = new LiveConnection({
     authEl.hidden = true;
     mapBtn.disabled = false;
     phoneBtn.disabled = false;
+    furnitureBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
     world.setActive(role);
@@ -649,6 +664,7 @@ const net = new LiveConnection({
   onClock(sample) {
     displayClock.sync(sample, performance.now());
     renderClock();
+    furnishing.tick();
   },
   onDisconnect() {
     displayClock.pause(performance.now());
@@ -778,6 +794,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    furnishing.reject(reason);
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
@@ -789,6 +806,7 @@ const net = new LiveConnection({
       mapBtn.disabled = true;
       phoneBtn.disabled = true;
       petsBtn.disabled = true;
+      furnitureBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else {
@@ -814,6 +832,20 @@ const net = new LiveConnection({
     statusEl.textContent = text;
   },
 });
+const furnishing=createFurnishingUI(
+  document.querySelector<HTMLElement>('#furnishing-overlay')!,
+  document.querySelector<HTMLElement>('#furnishing-placement')!,{
+    read:()=>state,
+    minute:()=>displayClock.read(performance.now()),
+    send:command=>net.furnishing(command),
+    start:(item,rotation)=>{
+      actionsEl.hidden=true;
+      world.beginFurnishingPlacement(item.sku,item.finish,rotation);
+    },
+    rotate:rotation=>world.turnFurnishingPlacement(rotation),
+    cancel:()=>world.endFurnishingPlacement(),
+    message:notify,
+  });
 
 function showActionMenu(title: string): void {
   locationUI.closeMap();
@@ -1115,6 +1147,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       },
     });
+    world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>furnishing.selectPlaced(id));
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
       useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {
@@ -1142,6 +1175,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       phone.open();
     });
     petsBtn.addEventListener('click', () => openPetActions());
+    furnitureBtn.addEventListener('click',()=>{
+      actionsEl.hidden=true;phone.close();computer.close();furnishing.open();
+    });
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {
         selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
@@ -1153,7 +1189,22 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
     showStatus('Выбери персонажа и введи личный код');
-    const remembered = trustedDevice();
+    try{
+      const health=await fetch('/health',{cache:'no-store'});
+      if(health.ok){
+        const config=await health.json() as {testNoCodes?:boolean};
+        localPreviewNoCodes=config.testNoCodes===true;
+        if(localPreviewNoCodes){
+          accessInput.required=false;
+          document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;
+          accessInput.hidden=true;
+          document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
+          document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
+          authStatusEl.textContent='Тестовая локальная версия: выбери персонажа и входи без кода';
+        }
+      }
+    }catch{}
+    const remembered = localPreviewNoCodes?null:trustedDevice();
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {
     console.error(error);
@@ -1164,8 +1215,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
 document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!world) return;
-  const code = accessInput.value.trim();
-  if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
+  const code = localPreviewNoCodes?'TEST-LOCAL-NO-CODES':accessInput.value.trim();
+  if (!localPreviewNoCodes && code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
   net.login(selectedRole, code, rememberDevice.checked);
 });
 void initializeWorld(app);

@@ -98,7 +98,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const spawnPoint = spawn(command.place, role);
     const other = neighborAt(command.place);
     const arrival = other
-      ? unoccupiedDestination(spawnPoint, other, placeObstacles(command.place), floorFor(command.place))
+      ? unoccupiedDestination(spawnPoint, other, placeObstacles(command.place,source.furnishing), floorFor(command.place))
       : spawnPoint;
     if (!arrival) return fail('Вход занят вторым игроком');
     Object.assign(next.characters[role], arrival, { pose: 'idle' });
@@ -116,7 +116,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       !Number.isFinite(command.x) || !Number.isFinite(command.z))) return fail('Сюда нельзя пройти');
     const requested = station ? approachFor(station, role)
       : { x: Math.round(Number(command.x) * 100) / 100, z: Math.round(Number(command.z) * 100) / 100 };
-    const obstacles = placeObstacles(place);
+    const obstacles = placeObstacles(place,source.furnishing);
     const floor = floorFor(place);
     const other = neighborAt(place);
     const target = other && pointIsClear(requested, obstacles, floor)

@@ -16,12 +16,12 @@ import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | BillingApp;
+type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
-  delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
+  furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
   family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
 };
@@ -32,7 +32,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
-  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined}) {
+  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
+  openFurnishing:()=>void) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -145,6 +146,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   }
 
   function show(next: App | null, educationView?: EducationView, room?: string, materialId?: string) {
+    if(next==='furnishing'){close();openFurnishing();return;}
     const view=read();
     if (!view) return;
     closeApps();

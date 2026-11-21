@@ -7,6 +7,7 @@ import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, Soci
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { InstantCoffeeId } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
+import type { FurnishingCommand } from '../shared/furniture';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
 import type { PetId, PetAction } from '../shared/pets';
@@ -123,6 +124,7 @@ export class LiveConnection {
   }
 
   world(command: WorldCommand): boolean { return this.sendAuthenticated(command); }
+  furnishing(command:FurnishingCommand):boolean{return this.sendAuthenticated(command);}
   career(command: import('../shared/careers').CareerCommand): boolean { return this.sendAuthenticated(command); }
   playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice):boolean {
     return this.sendAuthenticated({type:'play_game',game,device});

@@ -1,4 +1,5 @@
 import { CASHIER_OBSTACLE, PLAZA_FLOOR, PLAZA_OBSTACLES } from './locationLayout';
+import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
@@ -151,7 +152,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
-export function placeObstacles(place: PlaceId) {
+export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
   const obstacles = STATIONS[place].flatMap(({ blocks, center, width, depth }) => blocks ? [{
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
@@ -159,6 +160,7 @@ export function placeObstacles(place: PlaceId) {
   if (place === 'home') obstacles.push(...HOME_DECOR, ...HOME_STRUCTURE_OBSTACLES, ...Object.values(HOME_FURNITURE).map(bounds => ({
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
+  if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
   if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);

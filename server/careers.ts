@@ -328,7 +328,7 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     const station = stationById(place, atDesk(shift));
     if (!station) return fail('Рабочее место сейчас недоступно');
     const target = shift.mode === 'remote' && device === 'desktop' ? points.desk : station.approach;
-    const obstacles = placeObstacles(place), floor = floorFor(place);
+    const obstacles = placeObstacles(place,state.furnishing), floor = floorFor(place);
     const actor = state.characters[role], partnerRole = role === 'vlad' ? 'alina' : 'vlad';
     const partner = partnerOnline && state.world.places[partnerRole] === place ? state.characters[partnerRole] : undefined;
     const destination = partner ? unoccupiedDestination(target,partner,obstacles,floor) : target;

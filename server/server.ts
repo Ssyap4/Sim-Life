@@ -16,6 +16,7 @@ import {
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
+import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
@@ -44,6 +45,8 @@ export interface ServerOptions {
   /** For fast deterministic integration tests; production defaults to real time. */
   taskTimeScale?: number;
   socialTtlMs?: number;
+  /** Localhost-only, separate-save convenience mode for private previews. */
+  testNoCodes?:boolean;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
 }
@@ -68,6 +71,10 @@ const packet = (socket: WebSocket, value: ServerPacket): void => {
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const port = options.port ?? 3101;
+  const previewNoCodes=options.testNoCodes===true && options.host==='127.0.0.1' &&
+    port!==3111 && options.dataDir!==undefined &&
+    resolve(options.dataDir)!==resolve('server-data') &&
+    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
   const host = options.host ?? '127.0.0.1';
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
@@ -434,7 +441,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
     if (pathname === '/health') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, version: 2, online: online().length }));
+      res.end(JSON.stringify({ ok: true, version: 2, online: online().length,
+        testNoCodes:previewNoCodes }));
       return;
     }
     if (pathname.includes('\\') || pathname.includes('\0')) {
@@ -502,7 +510,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const requested = message.role;
         const valid = message.type === 'resume'
           ? devices.verify(requested, message.token)
-          : typeof message.code === 'string' && sameCode(message.code, files.access[requested]);
+          : typeof message.code === 'string' &&
+            (previewNoCodes&&message.code==='TEST-LOCAL-NO-CODES'||sameCode(message.code, files.access[requested]));
         if (!valid) {
           invalidLogins++;
           packet(socket, { type: 'error', reason: message.type === 'resume'
@@ -711,6 +720,36 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (running.has(role) || homeTasks.busy(role)) {
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
+        return;
+      }
+      if (typeof message.type==='string' && [
+        'furniture_order','furniture_unbox','furniture_place',
+        'furniture_move','furniture_store','furniture_sell',
+      ].includes(message.type)) {
+        // Spatial changes must never interrupt a pre-existing chore, walk,
+        // sleep or the partner's scripted scene.
+        const spatial=message.type==='furniture_place'||message.type==='furniture_move';
+        if (spatial && (running.size>0 || leisure.size>0 || homeTasks.busy('vlad') || homeTasks.busy('alina') ||
+          sleepers.size>0 || [...walkingHome.values()].some(walk=>{
+            const distance=(Date.now()-walk.started)/1000*HOME_WALK_SPEED;
+            const total=walk.route.path.reduce((sum,point,index)=>{
+              const from=walk.route.path[index-1]??walk.route.from;
+              return sum+Math.hypot(point.x-from.x,point.z-from.z);
+            },0);
+            return distance<total;
+          }))) {
+          packet(socket,{type:'error',reason:'Дождись завершения прогулки или действия перед перестановкой'});
+          return;
+        }
+        const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
+          Math.floor(liveGameTime()));
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}
+        catch{packet(socket,{type:'error',reason:'Не удалось сохранить мебель'});return;}
+        state=result.state;
+        lastIntent.set(role,Date.now());
+        all({type:'snapshot',state});
+        all({type:'store_event',role,message:result.message});
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
