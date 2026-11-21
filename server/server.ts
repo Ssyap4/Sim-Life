@@ -358,7 +358,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       ? approachFor(stationById(state.world.places[role], plan.command.station)!, role)
       : plan.command.type === 'act' ? plan.command.actionId in KITCHEN_ACTIONS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
-        : points[ACTIONS[plan.command.actionId].item]
+        : plan.command.computer === 'laptop' && ACTIONS[plan.command.actionId].item === 'desk'
+          ? stationById('home','career-laptop')!.approach : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen

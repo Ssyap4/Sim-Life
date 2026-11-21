@@ -7,6 +7,8 @@ import { promotionNeeds } from '../src/shared/careerPromotion';
 import { missingKnowledge, skillRank } from '../src/shared/education';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { floorFor, HOME_LAPTOP, placeObstacles, spawn, stationById, type Point } from '../src/shared/locations';
+import { computerDevice } from '../src/shared/computer';
+import { points } from '../src/shared/protocol';
 import { HOME_WALK_SPEED } from '../src/shared/home';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import type { GameState, CharacterId } from '../src/shared/protocol';
@@ -288,7 +290,7 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     if (now < window.start || now > window.end - 60) return fail('Приходи в рабочее окно, до конца должно остаться минимум 60 минут');
     if (state.characters[role].energy < 20 || state.characters[role].hunger < 15) return fail('Перед сменой нужны еда и отдых');
     if (window.mode === 'remote' && (state.world.places[role] !== 'home' || !serviceAvailable(state.billing,'internet',now)))
-      return fail('Для удалённой смены нужны домашний ноутбук и действующий интернет');
+      return fail('Для удалённой смены нужно находиться дома и иметь действующий интернет');
     owner.shift = { id:state.careers.nextId++, career:id, mode:window.mode, day:window.day, startedAt:now, regularEnd:window.end,
       endsAt:window.end, late:Math.max(0,now-window.start), overtime:false, completed:0, missed:0, score:0, nextTaskAt:now };
     owner.lastDay = p.lastDay = window.day;
@@ -320,12 +322,16 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
   const event = WORK_EVENT_BY_ID.get(task.event)!;
   if (command.type === 'career_approach' && task.phase === 'new') {
     const place = state.world.places[role];
+    if (command.device !== undefined && (!computerDevice(command.device) || shift.mode !== 'remote'))
+      return fail('Неверное рабочее устройство');
+    const device = computerDevice(command.device) ? command.device : 'laptop';
     const station = stationById(place, atDesk(shift));
     if (!station) return fail('Рабочее место сейчас недоступно');
+    const target = shift.mode === 'remote' && device === 'desktop' ? points.desk : station.approach;
     const obstacles = placeObstacles(place), floor = floorFor(place);
     const actor = state.characters[role], partnerRole = role === 'vlad' ? 'alina' : 'vlad';
     const partner = partnerOnline && state.world.places[partnerRole] === place ? state.characters[partnerRole] : undefined;
-    const destination = partner ? unoccupiedDestination(station.approach,partner,obstacles,floor) : station.approach;
+    const destination = partner ? unoccupiedDestination(target,partner,obstacles,floor) : target;
     const origin = nearestClearPoint(actor,obstacles,floor);
     const path = origin && destination ? findRoute(origin,destination,obstacles,floor) : null;
     if (!path || !destination) return fail('Освободи подход к рабочему месту');
@@ -334,6 +340,7 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     task.readyAt = now + Math.ceil(meters / HOME_WALK_SPEED * GAME_MINUTES_PER_REAL_SECOND);
     task.phase = meters < .05 ? 'ready' : 'walking';
     if (task.phase === 'ready') shift.station = event.station;
+    if (shift.mode === 'remote') shift.homeDevice = device;
     Object.assign(actor,destination,{pose:'idle'});
     return done('Подход к рабочему месту',path);
   }

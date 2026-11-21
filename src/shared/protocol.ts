@@ -141,7 +141,7 @@ export type ActionId = keyof typeof ACTIONS;
 export type TimedCommand = Entertainment | SocialIntent
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
-  | { type: 'act'; actionId: ActionId }
+  | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
@@ -154,7 +154,7 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | Educa
   | { type: 'resume'; role: CharacterId; token: string }
   | { type: 'forget_device' }
   | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
-  | { type: 'act'; actionId: ActionId }
+  | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
   | { type: 'job_start'; job: import('./jobs').JobId }

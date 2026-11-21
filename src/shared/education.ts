@@ -69,7 +69,7 @@ export function initialEducation(): EducationState {
 export type EducationCommand =
   | { type: 'education_buy' | 'education_cancel' | 'education_reschedule' | 'education_goal'; id: string; slot?: number }
   | { type: 'education_answer'; taskId: number; choice: number }
-  | { type: 'study'; material: string };
+  | { type: 'study'; material: string; computer?: import('./computer').ComputerDevice };
 
 export const REPEAT_FACTORS: readonly number[] = [1, .30, .10];
 export const repeatFactor = (completions: number) => REPEAT_FACTORS[completions] ?? 0;

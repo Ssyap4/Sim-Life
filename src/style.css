@@ -1080,3 +1080,63 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .relationship-event { display: grid; gap: 5px; }
 .relationship-event small { color: #677b6c; font-size: 10px; }
 [data-social-finish] { grid-column: 1 / -1; width: 100%; }
+
+/* Character-aware computer shell; both home devices share one lightweight DOM UI. */
+.computer-overlay {
+  position: absolute; inset: 0; z-index: 11; display: grid; place-items: center;
+  background: rgba(14, 22, 34, .76); padding: max(10px,env(safe-area-inset-top)) 12px max(10px,env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+.computer-case {
+  --os-accent: #7bc7d6; width: min(890px, 100%); height: min(650px, 88dvh);
+  min-height: 340px; display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid #819ab1; border-radius: 19px;
+  color: #eaf5ff; background: linear-gradient(145deg,#132743,#203b5b 60%,#162c44);
+  box-shadow: 0 20px 70px #050e19b3;
+}
+.computer-overlay[data-owner="alina"] .computer-case { --os-accent: #ffc2ce; background: linear-gradient(145deg,#322944,#433750 60%,#29263f); }
+.computer-topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 16px; background: #081a2c99; border-bottom: 1px solid #ffffff25; }
+.computer-brand { display: flex; align-items: center; gap: 9px; }
+.computer-logo { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #ffffff1c; color: var(--os-accent); font-size: 26px; }
+.computer-brand strong, .computer-title strong { display: block; font-size: 14px; }
+.computer-brand small, .computer-title small { display: block; font-size: 11px; color: #afc4da; }
+.computer-title { text-align: right; margin-left: auto; }
+.computer-topbar button { width: 40px; height: 40px; border: 1px solid #ffffff35; border-radius: 10px; color: #f8faff; background: #ffffff14; font-size: 26px; line-height: 1; }
+.computer-topbar button:hover, .computer-action:hover, .computer-window-head button:hover { background: #ffffff30; }
+.computer-desktop { min-height: 0; flex: 1; position: relative; display: flex; padding: clamp(12px,3vw,24px); overflow: hidden; }
+.computer-apps { width: 100%; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: clamp(8px,2vw,17px); align-content: start; overflow: auto; scrollbar-width: thin; padding: 3px; }
+.computer-action { display: flex; flex-direction: column; justify-content: center; text-align: left; gap: 4px; min-height: 63px; padding: 12px 14px; background: #ffffff17; border: 1px solid #ffffff29; border-radius: 13px; color: #f0f7ff; }
+.computer-action strong { font-size: 14px; font-weight: 800; }
+.computer-action small { color: #c2d5e9; font-size: 11px; line-height: 1.45; }
+.computer-icon { min-height: 106px; background: #ffffff13; }
+.computer-icon strong { font-size: 17px; }
+.computer-taskbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 17px; background: #081627bf; border-top: 1px solid #ffffff20; font-size: 11px; color: #c2d8eb; }
+.computer-taskbar span:last-child { color: var(--os-accent); }
+.computer-window { display: flex; flex-direction: column; width: 100%; min-height: 0; overflow: hidden; border: 1px solid #ffffff20; border-radius: 13px; background: #eff4fa; color: #253c52; }
+.computer-window-head { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 9px 11px; background: #18314c; color: #f5faff; }
+.computer-window-head strong { font-size: 15px; }
+.computer-window-head button { border: 1px solid #ffffff32; border-radius: 8px; background: #ffffff17; color: #fff; padding: 8px 11px; font-size: 12px; }
+.computer-window-body { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 14px; color: #2e4357; scrollbar-width: thin; }
+.computer-window-body h3 { margin: 0 0 8px; }
+.computer-hint { margin: 0 0 15px; line-height: 1.5; font-size: 13px; }
+.computer-window-body > .computer-action { width: 100%; margin-top: 9px; color: #253e57; background: #fff; border-color: #c5d3e0; }
+.computer-window-body > .computer-action small { color: #697d91; }
+.computer-window-body > .computer-action:hover { background: #e5f0fa; }
+.computer-window-body .career-phone, .computer-window-body .education-panel { width: 100%; max-width: none; background: transparent; color: #2e4357; }
+.computer-window-body .career-card, .computer-window-body .education-card { color: #334954; }
+.computer-window-body .career-tabs, .computer-window-body .education-tabs { position: sticky; top: -14px; z-index: 1; background: #eff4fa; }
+@media (max-width: 600px) {
+  .computer-overlay { padding: max(4px,env(safe-area-inset-top)) 4px max(4px,env(safe-area-inset-bottom)); }
+  .computer-case { width: 100%; height: 96dvh; min-height: 0; border-radius: 13px; }
+  .computer-topbar { padding: 6px 9px; }
+  .computer-title { display: none; }
+  .computer-desktop { padding: 9px; }
+  .computer-apps { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .computer-icon { min-height: 86px; padding: 8px; }
+  .computer-icon strong { font-size: 14px; }
+  .computer-icon small { font-size: 10px; }
+  .computer-window-body { padding: 8px; }
+  .computer-window-body .career-tabs, .computer-window-body .education-tabs { top: -8px; }
+  .computer-window-head { padding: 6px 8px; }
+  .computer-window-head button { min-height: 40px; }
+}

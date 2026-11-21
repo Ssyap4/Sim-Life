@@ -1,4 +1,5 @@
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
+import { computerDevice, computerResource } from '../src/shared/computer';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
@@ -42,8 +43,11 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'study' && typeof command.material === 'string') {
     const material = MATERIAL_BY_ID.get(command.material);
     if (!material) return null;
-    const resource = material.channel === 'academy' ? 'desk' : material.channel === 'tv' ? 'tv' : null;
-    return { command: { type: 'study', material: material.id }, label: material.title, durationMs: material.minutes * 2000, resource };
+    if (command.computer !== undefined && (material.channel !== 'academy' || !computerDevice(command.computer))) return null;
+    const computer = computerDevice(command.computer) ? command.computer : undefined;
+    const resource = material.channel === 'academy' ? computerResource(computer ?? 'desktop') : material.channel === 'tv' ? 'tv' : null;
+    return { command: { type: 'study', material: material.id, ...(computer ? { computer } : {}) },
+      label: material.title, durationMs: material.minutes * 2000, resource };
   }
   if (command.type === 'free_tv') return { command: { type: 'free_tv' }, label: '📺 Обычные телеканалы',
     durationMs: HOME_SECONDS.freeTv * 1000, resource: 'tv' };
@@ -75,11 +79,13 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (id === 'sofaRead') return planTask({type:'read_book',book:'prince'});
     const actionId = id as ActionId;
     const action = ACTIONS[actionId];
+    if (command.computer !== undefined && (action.item !== 'desk' || !computerDevice(command.computer))) return null;
+    const computer = computerDevice(command.computer) ? command.computer : undefined;
     return {
-      command: { type: 'act', actionId }, label: action.label,
+      command: { type: 'act', actionId, ...(computer ? { computer } : {}) }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
       resource: action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
-        : action.item === 'desk' || action.item === 'kitchen' || action.item === 'officeChair' ||
+        : action.item === 'desk' ? computerResource(computer ?? 'desktop') : action.item === 'kitchen' || action.item === 'officeChair' ||
           own(BATH_ACTIONS, id) ? action.item : null,
     };
   }

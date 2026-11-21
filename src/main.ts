@@ -7,6 +7,7 @@ import { dishCount } from './shared/dirtyDishes';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { createPhone } from './phoneUI';
+import { createComputerUI } from './computerUI';
 import { needChips, needFeedback } from './needsFeedback';
 import type { NeedEffects } from './shared/homeLife';
 import type { StudyMaterial } from './shared/education';
@@ -119,6 +120,7 @@ app.innerHTML = `
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
+  <section id="computer-overlay" class="computer-overlay" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
@@ -226,6 +228,7 @@ document.addEventListener('keydown', (event) => {
     actionsEl.hidden = true;
     toggleNeeds(false);
     phone.close();
+    computer.close();
     locationUI.closeMap();
     if (world) locationUI.close();
   }
@@ -437,6 +440,7 @@ function render(reset = false): void {
     if (world.place !== place) {
       actionsEl.hidden = true;
       phone.close();
+      computer.close();
       focusModel(null);
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
@@ -468,6 +472,7 @@ function render(reset = false): void {
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
+  computer.refresh();
   careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
@@ -526,6 +531,7 @@ function signOut(): void {
   phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
+  computer.close();
   careerHUD.render(null,null);
   shownPayments.clear();
   paymentNotice.hidden = true;
@@ -552,6 +558,20 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     },
   });
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
+const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
+  read: () => active && state ? { state, role:active, time:timeStatus } : null,
+  act: (actionId,device) => {
+    if (!state || !active) return false;
+    const denial = taskAccessError(state,{type:'act',actionId,computer:device});
+    if (denial) { notify(denial); return false; }
+    return net.perform(actionId,device);
+  },
+  career: command => net.career(command),
+  education: command => net.education(command),
+  vote: enabled => net.setShiftSpeed(enabled),
+  travel: () => net.world({type:'travel',place:'education'}),
+  phone: app => { computer.close(); phone.open(app); },
+});
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
   locationUI.close();
@@ -879,6 +899,7 @@ function openActions(item: ItemId): void {
     notify('Сначала войди в дом');
     return;
   }
+  if (item === 'desk') { computer.open('desktop'); return; }
   if(item==='delivery' && state) {
     actionsEl.hidden=true;
     phone.open('delivery');
@@ -972,12 +993,12 @@ function openActions(item: ItemId): void {
     }
   }
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
-  if (item==='desk' || item==='table') {
+  if (item === 'table') {
     const study = document.createElement('button');
     study.type = 'button';
     study.className = 'action-button';
-    study.textContent = item === 'desk' ? '🎓 Академия знаний' : '🎓 Учебная практика';
-    study.addEventListener('click', () => openEducation(item === 'desk' ? 'academy' : 'practice'));
+    study.textContent = '🎓 Учебная практика';
+    study.addEventListener('click', () => openEducation('practice'));
     actionsEl.append(study);
   }
   if (item==='sofa'||item==='officeChair') {
@@ -1045,6 +1066,10 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         if (!active) return;
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
+        if (world.place === 'home' && id === HOME_LAPTOP) {
+          computer.open('laptop');
+          return;
+        }
         if (stationById(world.place,id)?.action.kind==='career') {
           const shift=state?.careers.residents[active].shift;
           const task=shift?.task;
@@ -1087,6 +1112,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     mapBtn.addEventListener('click', () => { actionsEl.hidden = true; phone.close(); locationUI.openMap(); });
     phoneBtn.addEventListener('click', () => {
       actionsEl.hidden = true;
+      computer.close();
       toggleNeeds(false);
       locationUI.close();
       locationUI.closeMap();

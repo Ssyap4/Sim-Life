@@ -373,6 +373,15 @@ export class World {
     }
   }
 
+  private laptopPose(role: CharacterId): void {
+    const site = stationById('home', HOME_LAPTOP)!;
+    const actor = this.actors[role];
+    const { x, z } = site.center;
+    const keys = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+    actor.setFurniturePose('work',new THREE.Vector3(x,role==='alina'?-.23:-.28,z+.64),Math.PI,keys);
+    actor.playDomesticActivity('games');
+  }
+
   private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
     const actor = this.actors[id];
     const vlad = id === 'vlad';
@@ -484,6 +493,7 @@ export class World {
         actor.playDomesticActivity(station === 'lab' ? 'games' : 'journal');
         return;
       }
+      if (station === 'studyLaptop') { this.laptopPose(role); return; }
       if (station === 'studyDesk') {
         this.applyFurniturePose(role, 'desk', 'work');
         actor.playDomesticActivity('games');
@@ -764,6 +774,14 @@ export class World {
           const target = new THREE.Vector3().copy(work.target);
           this.actors[role].faceTowards(target);
           this.actors[role].playDomesticActivity(motion, target);
+        });
+      }
+      if (def.item === 'desk' && command.computer === 'laptop') {
+        return this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,() => {
+          if (!current()) return;
+          this.laptopPose(role);
+          const motion = DOMESTIC_MOTIONS[command.actionId];
+          if (motion) this.actors[role].playDomesticActivity(motion);
         });
       }
       return this.perform(role, def.item, def.pose, () => {
@@ -1236,12 +1254,18 @@ export class World {
   }
 
   private showCareerStation(id: CharacterId, shift: CareerShift): void {
+    if (shift.mode === 'remote' && shift.homeDevice === 'desktop') {
+      this.applyFurniturePose(id,'desk','work');
+      this.actors[id].playDomesticActivity('games');
+      return;
+    }
     const key = shift.mode === 'remote' ? HOME_LAPTOP : shift.station;
     const site = stationById(this.place,key);
     if (!site || !shift.station) return;
     const actor = this.actors[id];
     const {x,z} = site.center;
-    if (key === HOME_LAPTOP || shift.station === 'desk') {
+    if (key === HOME_LAPTOP) this.laptopPose(id);
+    else if (shift.station === 'desk') {
       const keyboard = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
       actor.setFurniturePose('work',new THREE.Vector3(x,id==='alina'?-.23:-.28,z+.64),Math.PI,keyboard);
       actor.playDomesticActivity('games');

@@ -1,3 +1,4 @@
+import type { ComputerDevice } from './shared/computer';
 import { CAREERS, CAREER_IDS, CLINIC_MODULES, DETAIL_SERVICES, nextCareerShift, shiftWindow, dayOf,
   type CareerCommand, type CareerProgress } from './shared/careers';
 import { CAREER_STORIES, WORK_CHECKS, WORK_EVENT_BY_ID } from './shared/careerCatalog';
@@ -39,7 +40,7 @@ function orderCards(parent: HTMLElement, progress: CareerProgress) {
       formatRub(order.agreed) + ' · ' + (order.delivered ? 'Выдано, оценка ' + order.loyalty + '%' : 'Готовность ' + at(order.readyAt))));
   }
 }
-function taskCard(state: GameState, role: CharacterId, send: Submit) {
+function taskCard(state: GameState, role: CharacterId, send: Submit, device: ComputerDevice = 'laptop') {
   const shift = state.careers.residents[role].shift!;
   const spec = CAREERS[shift.career], task = shift.task, now = gameMinutes(state.clock);
   const event = task && WORK_EVENT_BY_ID.get(task.event);
@@ -55,7 +56,7 @@ function taskCard(state: GameState, role: CharacterId, send: Submit) {
       (entry ? entry.outcome >= 0 ? ' · прошлый результат принят' : ' · требуется дополнительная сверка' : '')));
   }
   if (task.phase === 'new') {
-    const action = button('Подойти · ' + (shift.mode === 'remote' ? 'Ноутбук Алины' : spec.stations[event.station]),
+    const action = button('Подойти · ' + (shift.mode === 'remote' ? (device === 'laptop' ? 'Ноутбук Алины' : 'ПК Влада') : spec.stations[event.station]),
       () => send({type:'career_approach',nonce:task.nonce}));
     action.dataset.careerApproach = '';
     card.append(action);
@@ -115,7 +116,7 @@ export function createCareerHUD(root: HTMLElement, send: Submit, open: () => voi
 }
 
 export function createCareerUI(root: HTMLElement, send: Submit, education: (materialId: string) => void,
-  close: () => void, vote: (enabled: boolean) => boolean) {
+  close: () => void, vote: (enabled: boolean) => boolean, device: () => ComputerDevice = () => 'laptop') {
   const labels = { job:'Работа', vacancies:'Вакансии', inbox:'Письма', pay:'Зарплата' };
   let page: keyof typeof labels = 'job';
   let prior = '', confirmed = '';
@@ -205,7 +206,7 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
         const current = block(shift.mode === 'remote' ? 'Алина работает из дома' : 'Смена идёт',
           'До '+hour(shift.endsAt)+' · поручений выполнено '+shift.completed+' · пропущено '+shift.missed+
           (shift.completed ? ' · качество работы '+Math.round(shift.score/shift.completed)+'%' : ''));
-        current.append(button('Открыть рабочее поручение',close),
+        current.append(taskCard(state,role,send,device()),button('Закрыть рабочее окно',close),
           button('Взять дополнительный час',()=>send({type:'career_overtime'}),
             shift.overtime || now<shift.regularEnd-90 || now>=shift.regularEnd || p.reputation<55),
           confirm('leave','Уйти досрочно',{type:'career_leave'}));

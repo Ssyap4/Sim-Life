@@ -113,7 +113,7 @@ export interface CareerTask {
 export interface CareerShift {
   id: number; career: CareerId; mode: CareerMode; day: number; startedAt: number; endsAt: number; regularEnd: number;
   late: number; overtime: boolean; completed: number; missed: number; score: number; nextTaskAt: number;
-  station?: WorkStation; task?: CareerTask;
+  station?: WorkStation; homeDevice?: import('./computer').ComputerDevice; task?: CareerTask;
 }
 export interface CareerResident {
   contract: { career: CareerId; hiredAt: number } | null;
@@ -131,6 +131,6 @@ export function initialCareers(): CareersState {
 export type CareerCommand =
   | { type: 'career_hire'; career: CareerId }
   | { type: 'career_resign' | 'career_start' | 'career_leave' | 'career_overtime' | 'career_promote' }
-  | { type: 'career_approach'; nonce: number }
+  | { type: 'career_approach'; nonce: number; device?: import('./computer').ComputerDevice }
   | { type: 'career_choose'; nonce: number; choice: number }
   | { type: 'career_verify'; nonce: number; choice: number; step: number };

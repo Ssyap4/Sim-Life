@@ -48,7 +48,7 @@ export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
+  station: HomeSeat | BathFixture | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
   lesson?: string;
   question?: string;

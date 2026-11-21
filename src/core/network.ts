@@ -77,12 +77,12 @@ export class LiveConnection {
     this.open();
   }
 
-  perform(actionId: ActionId): boolean {
+  perform(actionId: ActionId, computer?: import('../shared/computer').ComputerDevice): boolean {
     if (!this.authorized || this.socket?.readyState !== WebSocket.OPEN) {
       this.callbacks.onError('Нет соединения с сервером');
       return false;
     }
-    this.send({ type: 'act', actionId });
+    this.send({ type: 'act', actionId, ...(computer ? { computer } : {}) });
     return true;
   }
 

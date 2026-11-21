@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_FLOOR, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe } from '../src/shared/food';
 import { GENRES, HOME_SEATS, YOUTUBE, type Genre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
-import { approachFor, floorFor, placeObstacles, stationById } from '../src/shared/locations';
+import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
 import { points, type CharacterId, type GameState, type ServerPacket, type TimedCommand } from '../src/shared/protocol';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import type { StudyMaterial } from '../src/shared/education';
@@ -129,6 +129,10 @@ export function createHomeSessions(hooks: Hooks) {
         return route && { route, station: 'sofa', program: 'lesson', lesson: material.id };
       }
       if (material.channel === 'academy') {
+        if (command.computer === 'laptop') {
+          const route = walk(from, stationById('home',HOME_LAPTOP)!.approach);
+          return route && { route, station: 'studyLaptop' };
+        }
         const route = walk(from, points.desk);
         return route && { route, station: 'studyDesk' };
       }
