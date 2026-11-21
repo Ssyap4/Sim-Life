@@ -9,7 +9,8 @@ import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 import { applyFurnishing } from '../furnishing';
 import { openServerFiles } from '../storage';
 import { pairScenes } from '../society';
-import { FURNITURE_CATALOG, FURNITURE_FINISHES, emptyFurnishing,
+import { taskAccessError } from '../../src/shared/serviceAccess';
+import { FURNITURE_CATALOG, FURNITURE_FINISHES, FURNITURE_BY_ID, STATIC_FURNITURE, STATIC_FURNITURE_IDS, emptyFurnishing,
   furnitureFootprint, furnishingObstacles, isValidFurnishing } from '../../src/shared/furniture';
 import { placeObstacles, spawn } from '../../src/shared/locations';
 import { HOME_FLOOR } from '../../src/shared/home';
@@ -125,6 +126,80 @@ test('can rotate and move safely, store, sell, with no duplication',()=>{
   assert.equal(sold.state.furnishing.placed.length,0);
   assert.equal(applyFurnishing(sold.state,'vlad',{type:'furniture_sell',id:1},124).ok,false);
 });
+
+test('starter furnishings can be sold once without touching fixed cabinets, appliances or other family data',()=>{
+  const original=initialState();
+  const baselineMoney=original.money;
+  assert.equal(STATIC_FURNITURE_IDS.length,11);
+  for(const forbidden of ['kitchen','tv','toilet','bathtub','shower','vanity','coffeeMaker','kettle'])
+    assert.ok(!Object.hasOwn(STATIC_FURNITURE,forbidden),forbidden+' must remain a fixed fixture');
+  const sold=applyFurnishing(original,'alina',{type:'furniture_sell_static',fixture:'sofa'},101);
+  assert.ok(sold.ok);
+  const resale=Math.floor(FURNITURE_BY_ID.get(STATIC_FURNITURE.sofa.sku)!.price*.55);
+  assert.equal(sold.state.money,baselineMoney+resale);
+  assert.deepEqual(sold.state.furnishing.soldFixtures,['sofa']);
+  assert.equal(sold.state.furnishing.nextId,original.furnishing.nextId);
+  assert.equal(sold.state.characters.vlad.energy,original.characters.vlad.energy);
+  assert.equal(sold.state.pets.simba.bond,original.pets.simba.bond);
+  assert.equal(sold.state.ledger.at(-1)?.category,'furniture');
+  assert.deepEqual(original.furnishing.soldFixtures,[]);
+  assert.equal(applyFurnishing(sold.state,'vlad',{type:'furniture_sell_static',fixture:'sofa'},102).ok,false);
+  assert.equal(applyFurnishing(sold.state,'alina',
+    {type:'furniture_sell_static',fixture:'kitchen' as 'sofa'},103).ok,false);
+  assert.equal(applyFurnishing(sold.state,'alina',
+    {type:'furniture_sell_static',fixture:'unknown' as 'sofa'},103).ok,false);
+  assert.equal(sold.state.money,baselineMoney+resale,'invalid transactions must never change money');
+  assert.ok(taskAccessError(sold.state,{type:'act',actionId:'sofaRest'}));
+  assert.equal(taskAccessError(sold.state,{type:'act',actionId:'tableRest'}),undefined);
+});
+
+test('selling starter furniture frees its original floor and permits replacing it with purchased furniture',()=>{
+  const original=initialState();
+  const before=placeObstacles('home',original.furnishing);
+  assert.equal(pointIsClear({x:-2.36,z:2.02},before,HOME_FLOOR),false);
+  const cleared=applyFurnishing(original,'vlad',{type:'furniture_sell_static',fixture:'sofa'},200);
+  assert.ok(cleared.ok);
+  const after=placeObstacles('home',cleared.state.furnishing);
+  assert.ok(pointIsClear({x:-2.36,z:2.02},after,HOME_FLOOR));
+  const order=applyFurnishing(cleared.state,'vlad',
+    {type:'furniture_order',sku:'plant-mini',finish:'sage',shipping:'express',quantity:1},210);
+  assert.ok(order.ok);
+  const unboxed=applyFurnishing(order.state,'alina',{type:'furniture_unbox',id:1},225);
+  assert.ok(unboxed.ok);
+  const placed=applyFurnishing(unboxed.state,'vlad',
+    {type:'furniture_place',id:1,x:-2.36,z:2.02,rotation:0},225);
+  assert.ok(placed.ok,'old sofa space should accept newly bought furniture');
+});
+
+test('selling one starter item remains saved after restart, while older 0.15 saves migrate with a backup',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-starter-furniture-'));
+  try{
+    const source=initialState();
+    source.money=73214;
+    source.characters.alina.skill=83;
+    source.pets.verdell.bond=57;
+    const legacy=structuredClone(source);
+    delete legacy.furnishing.soldFixtures;
+    writeFileSync(join(dir,'household.json'),JSON.stringify(legacy));
+    const files=openServerFiles(dir);
+    const migrated=files.load();
+    assert.deepEqual(migrated.furnishing.soldFixtures,[]);
+    assert.equal(migrated.money,73214);
+    assert.equal(JSON.parse(readFileSync(join(dir,'household.pre-static-sale.json'),'utf8')).money,73214);
+    const sold=applyFurnishing(migrated,'vlad',{type:'furniture_sell_static',fixture:'nightstandLeft'},230);
+    assert.ok(sold.ok);
+    files.save(sold.state);
+    const restored=openServerFiles(dir).load();
+    assert.deepEqual(restored.furnishing.soldFixtures,['nightstandLeft']);
+    assert.equal(restored.money,sold.state.money);
+    assert.equal(restored.characters.alina.skill,83);
+    assert.equal(restored.pets.verdell.bond,57);
+    assert.equal(pointIsClear({x:-8.84,z:-6.70},placeObstacles('home',restored.furnishing),HOME_FLOOR),true);
+    assert.equal(applyFurnishing(restored,'alina',
+      {type:'furniture_sell_static',fixture:'nightstandLeft'},240).ok,false);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
 test('rotated footprints, walkable carpets and metadata survive validation',()=>{
   const state=unbox();
   const model={id:1,sku:'plant-mini',finish:'sage' as const,x:12,z:-5,rotation:1 as const};

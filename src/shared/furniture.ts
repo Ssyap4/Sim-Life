@@ -200,7 +200,29 @@ export type FurnishingCommand =
   | { type:'furniture_place'; id:number; x:number; z:number; rotation:Rotation }
   | { type:'furniture_move'; id:number; x:number; z:number; rotation:Rotation }
   | { type:'furniture_store'; id:number }
-  | { type:'furniture_sell'; id:number };
+  | { type:'furniture_sell'; id:number }
+  | { type:'furniture_sell_static'; fixture:StaticFurnitureId };
+/** Existing starter furniture, independent from purchased inventory.
+ * Only these explicit movable pieces may be sold; built-in cabinets,
+ * sanitary fixtures, appliances and structural elements stay permanent. */
+export const STATIC_FURNITURE = {
+  sofa: {sku:'sofa-nord',label:'Диван в гостиной'},
+  bed: {sku:'bed-aurora',label:'Двуспальная кровать'},
+  table: {sku:'table-family',label:'Обеденный стол со стульями'},
+  officeChair: {sku:'chair-padded',label:'Кресло в кабинете'},
+  desk: {sku:'desk-large',label:'Рабочий стол с компьютером'},
+  bookcase: {sku:'shelf-wide',label:'Книжный стеллаж'},
+  nightstandLeft: {sku:'nightstand',label:'Прикроватная тумба слева'},
+  nightstandRight: {sku:'nightstand',label:'Прикроватная тумба справа'},
+  rugLiving: {sku:'rug-large',label:'Ковёр в гостиной'},
+  rugWork: {sku:'rug-weave',label:'Ковёр в кабинете'},
+  rugSleep: {sku:'rug-large',label:'Ковёр в спальне'},
+} as const;
+export type StaticFurnitureId=keyof typeof STATIC_FURNITURE;
+export const STATIC_FURNITURE_IDS=Object.keys(STATIC_FURNITURE) as StaticFurnitureId[];
+export const isStaticFurnitureId=(id:unknown):id is StaticFurnitureId=>
+  typeof id==='string'&&Object.hasOwn(STATIC_FURNITURE,id);
+
 export interface FurnitureInstance { id:number; sku:string; finish:FurnitureFinish }
 export interface PlacedFurniture extends FurnitureInstance {
   x:number;z:number;rotation:Rotation;
@@ -213,8 +235,10 @@ export interface FurnishingState {
   orders:FurnitureOrder[];
   stored:FurnitureInstance[];
   placed:PlacedFurniture[];
+  /** Permanent tombstones for sold starter models, synced across both players. */
+  soldFixtures?:StaticFurnitureId[];
 }
-export const emptyFurnishing = ():FurnishingState => ({nextId:1,orders:[],stored:[],placed:[]});
+export const emptyFurnishing = ():FurnishingState => ({nextId:1,orders:[],stored:[],placed:[],soldFixtures:[]});
 export function furnitureFootprint(item:PlacedFurniture,clearance=0):FloorRect {
   const info=FURNITURE_BY_ID.get(item.sku)!;
   const rotated=item.rotation%2===1;
@@ -232,6 +256,10 @@ export function isValidFurnishing(raw:unknown):raw is FurnishingState {
   if(!Number.isSafeInteger(state.nextId)||state.nextId!<1||state.nextId!>1000000||
      !Array.isArray(state.orders)||!Array.isArray(state.stored)||!Array.isArray(state.placed)||
      state.orders.length+state.stored.length+state.placed.length>10000)return false;
+  if(state.soldFixtures!==undefined && (!Array.isArray(state.soldFixtures)||
+     state.soldFixtures.length>STATIC_FURNITURE_IDS.length||
+     new Set(state.soldFixtures).size!==state.soldFixtures.length||
+     !state.soldFixtures.every(isStaticFurnitureId)))return false;
   const all=[...state.orders,...state.stored,...state.placed];
   const ids=new Set<number>();
   return all.every(item=>{

@@ -1,4 +1,5 @@
 import { FURNITURE_BY_ID, FURNITURE_DELIVERY, FURNITURE_FINISHES,
+  STATIC_FURNITURE, isStaticFurnitureId,
   type FurnishingCommand, type Rotation } from '../src/shared/furniture';
 import { checkFurniturePlacement } from '../src/shared/furnishingPlacement';
 import { addLedger } from '../src/shared/economy';
@@ -35,6 +36,17 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     next.revision++;
     return {ok:true,state:next,message:'Заказ оформлен: '+info.name+' ×'+command.quantity+
       '. Доставка через '+shipping.minutes+' игровых минут'};
+  }
+  if(command.type==='furniture_sell_static') {
+    if(!isStaticFurnitureId(command.fixture))return fail('Этот предмет не продаётся');
+    if(home.soldFixtures?.includes(command.fixture))return fail('Этот предмет уже продан');
+    const info=STATIC_FURNITURE[command.fixture];
+    const proceeds=Math.floor(FURNITURE_BY_ID.get(info.sku)!.price*.55);
+    home.soldFixtures=[...(home.soldFixtures??[]),command.fixture];
+    next.money+=proceeds;
+    addLedger(next,role,'income','furniture',proceeds,'Продажа: '+info.label);
+    next.revision++;
+    return {ok:true,state:next,message:'Продано: '+info.label+' — +'+proceeds.toLocaleString('ru-RU')+' ₽'};
   }
   if(!Number.isSafeInteger(command.id)||command.id<1)return fail('Неверный номер предмета');
   const order=home.orders.find(item=>item.id===command.id);

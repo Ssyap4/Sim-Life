@@ -555,6 +555,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'sleep_start') {
+        if(state.furnishing.soldFixtures?.includes('bed')){
+          packet(socket,{type:'error',reason:'Кровать продана — сон пока недоступен'});return;
+        }
         if (message.mode !== 'full' && message.mode !== 'half') {
           packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
         }
@@ -698,7 +701,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (typeof message.type==='string' && [
         'furniture_order','furniture_unbox','furniture_place',
-        'furniture_move','furniture_store','furniture_sell',
+        'furniture_move','furniture_store','furniture_sell','furniture_sell_static',
       ].includes(message.type)) {
         // A store command must never wake or cancel a resident.
         if (running.has(role) || homeTasks.busy(role) || sleepers.has(role)) {
@@ -707,7 +710,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         // Spatial changes must never interrupt a pre-existing chore, walk,
         // sleep or the partner's scripted scene.
-        const spatial=message.type==='furniture_place'||message.type==='furniture_move';
+        const spatial=message.type==='furniture_place'||message.type==='furniture_move'||message.type==='furniture_sell_static';
         if (spatial && (running.size>0 || leisure.size>0 || homeTasks.busy('vlad') || homeTasks.busy('alina') ||
           sleepers.size>0 || [...walkingHome.values()].some(walk=>{
             const distance=(Date.now()-walk.started)/1000*HOME_WALK_SPEED;

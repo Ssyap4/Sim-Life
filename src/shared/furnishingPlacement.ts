@@ -18,10 +18,16 @@ const intersects=(a:FloorRect,b:FloorRect)=>
 const contains=(a:FloorRect,p:FloorPoint,extra=0)=>
   p.x>a.minX-extra&&p.x<a.maxX+extra&&p.z>a.minZ-extra&&p.z<a.maxZ+extra;
 const center:FloorPoint={x:0,z:1.4};
-const walkObstacles=placeObstacles('home');
+const walkObstacles=(state:GameState)=>placeObstacles('home',state.furnishing);
 // Separate actual physical geometry from navigation's actor-expanded walls.
-const fixedPhysical:readonly FloorRect[]=[
-  ...HOME_WALLS, ...HOME_DECOR, ...Object.values(HOME_FURNITURE),
+const fixedPhysical=(state:GameState):FloorRect[]=>[
+  ...HOME_WALLS,
+  ...HOME_DECOR.filter((_,index)=>
+    !((index===1&&state.furnishing.soldFixtures?.includes('nightstandLeft'))||
+      (index===2&&state.furnishing.soldFixtures?.includes('nightstandRight')))),
+  ...Object.entries(HOME_FURNITURE)
+    .filter(([id])=>!state.furnishing.soldFixtures?.includes(id as import('./furniture').StaticFurnitureId))
+    .map(([,bounds])=>bounds),
 ];
 const reservedDoors:readonly FloorRect[]=[
   ...Object.values(HOME_DOORS).map(({x,z,width})=>({
@@ -51,30 +57,19 @@ const requiredTargets:FloorPoint[]=[
   {x:10.4,z:-2.24},{x:13.0,z:-3.6},{x:13.0,z:.88},
 ];
 type ReachRoute={point:FloorPoint;route:FloorPoint[]};
-let staticRoutes:readonly ReachRoute[]|null=null;
-const mandatoryRoutes=()=>{
-  if(!staticRoutes){
-    const routes:ReachRoute[]=[];
-    for(const p of requiredTargets){
-      if(!pointIsClear(p,walkObstacles,HOME_FLOOR))continue;
-      const route=findRoute(center,p,walkObstacles,HOME_FLOOR);
-      if(route)routes.push({point:p,route});
-    }
-    staticRoutes=routes;
-  }
-  return staticRoutes;
-};
 const routeCache=new Map<string,readonly ReachRoute[]>();
-function preservedRoutes(others:readonly PlacedFurniture[]){
-  if(!others.length)return mandatoryRoutes();
-  const key=JSON.stringify(others);
+function preservedRoutes(others:readonly PlacedFurniture[],state:GameState){
+  const key=JSON.stringify([state.furnishing.soldFixtures??[],others]);
   const cached=routeCache.get(key);
   if(cached)return cached;
-  const obstacles=[...walkObstacles,...furnishingObstacles({placed:[...others]})];
-  const found=mandatoryRoutes().flatMap(({point})=>{
-    const route=findRoute(center,point,obstacles,HOME_FLOOR);
-    return route?[{point,route}]:[];
-  });
+  const baseline=walkObstacles(state);
+  const obstacles=[...baseline,...furnishingObstacles({placed:[...others]})];
+  const found:ReachRoute[]=[];
+  for(const p of requiredTargets){
+    if(!pointIsClear(p,baseline,HOME_FLOOR))continue;
+    const route=findRoute(center,p,obstacles,HOME_FLOOR);
+    if(route)found.push({point:p,route});
+  }
   if(routeCache.size>5)routeCache.clear();
   routeCache.set(key,found);
   return found;
@@ -119,7 +114,7 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   if(!insideWalls(physical))return deny('Предмет выходит за стену или границу комнаты');
   if(reservedDoors.some(door=>intersects(physical,door)))
     return deny('Нельзя перекрывать дверь или проход между комнатами');
-  if(fixedPhysical.some(obstacle=>intersects(physical,obstacle)))
+  if(fixedPhysical(state).some(obstacle=>intersects(physical,obstacle)))
     return deny('Здесь стена, встроенная мебель или сантехника');
   if(!product.walkable && others.some(other=>
       !FURNITURE_BY_ID.get(other.sku)?.walkable&&
@@ -141,12 +136,12 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
       (i>0&&!segmentIsClear(path[i-1],p,blocking,HOME_FLOOR)));
   }))return deny('Здесь проходит текущий маршрут питомца');
   const changed=[...others,candidate];
-  const obstacles=[...walkObstacles,...furnishingObstacles({placed:changed})];
+  const obstacles=[...walkObstacles(state),...furnishingObstacles({placed:changed})];
   const dynamicBlocking=furnitureFootprint(candidate,.30);
   // An existing route remains valid if the new object is nowhere along it.
   // A* is only needed for a route that actually crosses the new footprint.
   // This keeps the live preview responsive even with many targets.
-  for(const {point,route} of preservedRoutes(others)){
+  for(const {point,route} of preservedRoutes(others,state)){
     if(!crossesExistingRoute(center,route,dynamicBlocking))continue;
     if(!pointIsClear(point,obstacles,HOME_FLOOR)||
       findRoute(center,point,obstacles,HOME_FLOOR)===null)
@@ -155,7 +150,7 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // Pets are mostly on the old side of the house. Do not run a full pet
   // pathfinding simulation for furniture located far from all their paths.
   const oldPet=petNavigationGeometry(
-    [...walkObstacles,...furnishingObstacles({placed:[...others]})],HOME_FLOOR);
+    [...walkObstacles(state),...furnishingObstacles({placed:[...others]})],HOME_FLOOR);
   const impacted: Array<{from:FloorPoint;dest:FloorPoint}>=[];
   for(const id of PET_IDS){
     const from=state.pets[id].position;

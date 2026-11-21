@@ -1,6 +1,7 @@
 import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_CATEGORIES,
   FURNITURE_STYLES, furnitureStyle, FURNITURE_GROUP_LABELS,
   SORTED_FURNITURE_CATALOG, furnitureDisplayGroup, compareFurnitureSkus,
+  STATIC_FURNITURE, STATIC_FURNITURE_IDS,
   type FurnitureStyle,
   FURNITURE_FINISHES, FINISH_IDS, FURNITURE_DELIVERY, type FurnitureCategory,
   type FurnitureFinish, type FurnitureInstance, type PlacedFurniture, type Rotation,
@@ -73,7 +74,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     tabs.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tab===tab)));
     const {orders,stored,placed}=state.furnishing;
     const ready=orders.filter(item=>item.readyAt<=callbacks.minute()).length;
-    const counts={catalog:FURNITURE_CATALOG.length,delivery:orders.length,storage:stored.length,placed:placed.length};
+    const starterCount=STATIC_FURNITURE_IDS.filter(id=>!state.furnishing.soldFixtures?.includes(id)).length;
+    const counts={catalog:FURNITURE_CATALOG.length,delivery:orders.length,storage:stored.length,placed:placed.length+starterCount};
     tabs.forEach(button=>{
       const t=button.dataset.tab as Tab;
       button.textContent=({catalog:'🛍️ Каталог',delivery:'📦 Доставка',storage:'🗄️ Склад',placed:'🏠 Установлено'}[t])+' · '+counts[t];
@@ -238,7 +240,9 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   }
   function renderItems(items:readonly (FurnitureInstance|PlacedFurniture)[],isPlaced:boolean){
     body.replaceChildren();
-    if(!items.length){
+    const state=callbacks.read();
+    const starters=isPlaced ? STATIC_FURNITURE_IDS.filter(id=>!state?.furnishing.soldFixtures?.includes(id)) : [];
+    if(!items.length&&!starters.length){
       body.append(node('p','furnish-empty',isPlaced?
         'В доме пока нет новой мебели. Распакуй посылку и установи предмет.':
         'На складе пусто. Распакованные заказы появятся здесь.'));
@@ -246,10 +250,13 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     }
     // Stored and installed objects follow the same grouping as the shop.
     // Sort a copy: the server-owned arrays and item IDs are never mutated.
-    const sorted=[...items].sort((a,b)=>compareFurnitureSkus(a.sku,b.sku)||a.id-b.id);
+    const sorted=[
+      ...items.map(item=>({sku:item.sku,order:item.id,item})),
+      ...starters.map(fixture=>({sku:STATIC_FURNITURE[fixture].sku,order:0,fixture})),
+    ].sort((a,b)=>compareFurnitureSkus(a.sku,b.sku)||a.order-b.order);
     let lastGroup='';
-    for(const item of sorted){
-      const info=FURNITURE_BY_ID.get(item.sku)!;
+    for(const entry of sorted){
+      const info=FURNITURE_BY_ID.get(entry.sku)!;
       const group=furnitureDisplayGroup(info);
       if(group!==lastGroup){
         const heading=node('h3','furnish-group-title',FURNITURE_GROUP_LABELS[group]);
@@ -258,6 +265,30 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         lastGroup=group;
       }
       const row=node('article','furnish-line','');
+      if('fixture'in entry && entry.fixture){
+        const fixture=entry.fixture;
+        const detail=STATIC_FURNITURE[fixture];
+        const proceeds=Math.floor(info.price*.55);
+        row.dataset.staticFurniture=fixture;
+        row.append(node('strong','',info.emoji+' '+detail.label),
+          node('small','','Уже была в доме • стартовая мебель'));
+        if(['desk','sofa','bed','table','officeChair','bookcase'].includes(fixture))
+          row.append(node('small','',
+            'Важно: особые действия со стартовой мебелью пока не переносятся на новые предметы из каталога.'+
+            (fixture==='desk'?' Вместе со столом исчезнет встроенный стационарный ПК; ноутбук останется.':'')));
+        const choices=node('div','furnish-line-buttons','');
+        choices.append(button('Продать за '+formatRub(proceeds),()=>{
+          if(confirm('Продать '+detail.label+' за '+formatRub(proceeds)+
+            '? Предмет исчезнет из дома, а деньги поступят на общий счёт.'+
+            (['desk','sofa','bed','table','officeChair','bookcase'].includes(fixture)
+              ? '\nВнимание: его игровые действия пока не переходят на купленные аналоги.':'')))
+            callbacks.send({type:'furniture_sell_static',fixture});
+        },'furnish-button furnish-sell'));
+        row.append(choices);body.append(row);
+        continue;
+      }
+      if(!('item'in entry))continue;
+      const item=entry.item;
       row.dataset.furnitureId=String(item.id);
       row.append(node('strong','',info.emoji+' '+info.name),
         node('small','',FURNITURE_FINISHES[item.finish].name+' · '+info.width+' × '+info.depth+' м'));

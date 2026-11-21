@@ -230,7 +230,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
-      const savedFurnishing = data.furnishing ?? emptyFurnishing();
+      const savedFurnishing = {...(data.furnishing ?? emptyFurnishing()),
+        soldFixtures:data.furnishing?.soldFixtures ?? []};
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const household: GameState = {
@@ -279,6 +280,10 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Merely reopening the file must never reset the countdown.
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
+      if(data.furnishing?.soldFixtures===undefined){
+        const backup=join(dataDir,'household.pre-static-sale.json');
+        if(!existsSync(backup))copyFileSync(statePath,backup);
+      }
       if (data.furnishing === undefined) {
         const backup = join(dataDir, 'household.pre-furnishing.json');
         if (!existsSync(backup)) copyFileSync(statePath, backup);
@@ -291,7 +296,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
-          data.furnishing === undefined ||
+          data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
           data.dirtyDishes === undefined || data.computerLibrary === undefined || migratedFood || recoveredCareer)
         this.save(household);
       return household;

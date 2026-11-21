@@ -35,7 +35,7 @@ import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFra
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
-import { FURNITURE_BY_ID, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
+import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -121,6 +121,7 @@ export class World {
   private petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
   private furnishedGeometryKey = '';
   private furnishingModels=new Map<number,THREE.Group>();
+  private staticFixtureModels=new Map<StaticFurnitureId,THREE.Group>();
   private furnishingVisualKey='';
   private furnishingGhost:THREE.Group|null=null;
   private furnishingPlaceCallback:((x:number,z:number)=>{x:number;z:number}|null)|null=null;
@@ -1060,6 +1061,7 @@ export class World {
 
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
+    if(isStaticFurnitureId(id))this.staticFixtureModels.set(id,group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {
@@ -1079,8 +1081,9 @@ export class World {
     this.register('grill', this.yard.grill, points.grill);
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
-      new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)));
-    buildSoftRugs(this.scene);
+      new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)),
+      (id,model)=>this.staticFixtureModels.set(id,model));
+    buildSoftRugs(this.scene,(id,model)=>this.staticFixtureModels.set(id,model));
     this.scene.add(furnitureContact());
     let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {
@@ -1499,7 +1502,7 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
-    const furnishingKey = JSON.stringify(state.furnishing?.placed ?? []);
+    const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
@@ -1564,17 +1567,22 @@ export class World {
     if (place === 'home') {
       for (const station of ['table', 'yardTable'] as const) {
         this.dirtyVisuals[station].forEach((plate, index) => {
-          plate.visible = index < state.dirtyDishes[station];
+          plate.visible = (station!=='table'||!state.furnishing.soldFixtures?.includes('table'))&&index < state.dirtyDishes[station];
         });
       }
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
-      this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
+      this.shoppingBags.forEach((bag, index) => {
+        bag.visible = index < state.world.tableBags;
+        bag.position.y = state.furnishing.soldFixtures?.includes('table') ? .07 : DINING_TOP + .015;
+      });
+      for(const [id,model] of this.staticFixtureModels)
+        model.visible=!state.furnishing.soldFixtures?.includes(id);
       this.renderOwnedFurniture(state.furnishing.placed);
       this.updateFurnitureDeliveryTime(clockMinutes(state.clock));
       this.updateHomePets(state);
-      if (this.served) this.served.visible = (Object.keys(state.meals) as RecipeId[])
-        .some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
+      if (this.served) this.served.visible = !state.furnishing.soldFixtures?.includes('table') &&
+        (Object.keys(state.meals) as RecipeId[]).some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
       const counts = { fridge: 0, cupboard: 0 };
       for (const [name, amount] of Object.entries(state.pantry)) {
