@@ -32,7 +32,7 @@ import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId,
 import { decorateHome } from './HomeStyling';
 import { batchRigidParts } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
-import { portraitHomeFrame, renderProfile } from './HomeFrame';
+import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
@@ -1464,7 +1464,8 @@ export class World {
 
   private homeFrame(compact: boolean, band: ViewBand): Frame {
     if (this.place === 'home') return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
-      undefined, undefined, compact ? undefined : [.49, 1.28, 1.37]);
+      compact ? undefined : neighborhoodOutline, undefined,
+      compact ? undefined : [.49, 1.28, 1.37]);
     if (this.remote && (this.place === 'market' || this.place === 'street'))
       return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
         this.remote.horizontal, this.remote.vertical, this.place === 'street' ? [.13,.89,1.0] : [.14,1.09,1.0]);

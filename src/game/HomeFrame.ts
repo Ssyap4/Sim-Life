@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HOUSE, HOUSE_WING, HOME_YARD } from '../shared/home';
+import { NEIGHBOR_PATH } from '../shared/neighbors';
 import type { ViewBand } from './InspectionFrame';
 
 type Vertex = readonly [number, number, number];
@@ -19,6 +20,15 @@ export const playOutline: readonly Vertex[] = [-1, 1].flatMap(side => {
   const edge = side < 0 ? HOUSE.minX : HOUSE_WING.maxX;
   return [[edge, 3.20, rear], [edge, 0, front], [side * 6.05, .66, yardFront]];
 });
+
+/** Extended desktop overview: reserve land and all three public walkways
+ * fit the viewport. On portrait phones we keep the tighter home framing. */
+export const neighborhoodOutline: readonly Vertex[] = [
+  [NEIGHBOR_PATH[0].x-1.2, 0, NEIGHBOR_PATH[0].z+1.1],
+  [NEIGHBOR_PATH[3].x+1.2, 0, NEIGHBOR_PATH[3].z+1.1],
+  [NEIGHBOR_PATH[1].x-1.2, 0, NEIGHBOR_PATH[1].z-1.2],
+  [NEIGHBOR_PATH[2].x+1.2, 0, NEIGHBOR_PATH[2].z-1.2],
+];
 
 export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
   horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline,

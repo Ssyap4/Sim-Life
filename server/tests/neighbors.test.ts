@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { NEIGHBORS, neighborPose } from '../../src/shared/neighbors';
+import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, NEIGHBOR_TRIP_SECONDS, NEIGHBOR_SLOT_COUNT, neighborPose } from '../../src/shared/neighbors';
 import { HOUSE, HOUSE_WING, HOME_FLOOR, HOME_PLACEMENTS, KITCHEN_WORK } from '../../src/shared/home';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { NeighborPeople } from '../../src/game/NeighborPeople';
+import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame';
+import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
@@ -64,8 +66,8 @@ test('neighbors are distinct, deterministic, safe outside the private property a
 
 test('two residents meet, face each other and talk before resuming their paths', () => {
   // Day one, 08:30: the paired wanderers meet on the public rear sidewalk.
-  const a = neighborPose(0, 510);
-  const b = neighborPose(1, 510);
+  const a = neighborPose(0, 525);
+  const b = neighborPose(1, 525);
   assert.equal(a.action, 'chat');
   assert.equal(b.action, 'chat');
   assert.equal(a.visible, true);
@@ -96,8 +98,9 @@ test('sidewalks, wing and all 14 articulated NPCs remain lightweight and noninte
 
 test('idling NPCs genuinely pause rather than sliding while using their phone', () => {
   let stop: number | undefined;
-  for (let minute = 12 * 60; minute < 13 * 60; minute += .1) {
-    if (neighborPose(3, minute).action !== 'walk' &&
+  for (let minute = 12 * 60; minute < 14 * 60; minute += .1) {
+    if (neighborPose(3, minute).visible && neighborPose(3, minute + .2).visible &&
+        neighborPose(3, minute).action !== 'walk' &&
         neighborPose(3, minute + .2).action !== 'walk') {
       stop = minute; break;
     }
@@ -106,4 +109,83 @@ test('idling NPCs genuinely pause rather than sliding while using their phone', 
   const before = neighborPose(3, stop);
   const after = neighborPose(3, stop + .2);
   assert.ok(Math.hypot(before.x - after.x, before.z - after.z) < .0001);
+});
+
+test('public paths and all neighboring props leave a generous expansion reserve', () => {
+  const [west,rearWest,rearEast,east] = NEIGHBOR_PATH;
+  assert.ok(HOUSE.minX-west.x >= 7.5, 'west future expansion reserve');
+  assert.ok(east.x-HOUSE_WING.maxX >= 7.5, 'east future expansion reserve');
+  assert.ok(HOUSE.minZ-rearWest.z >= 7.5, 'rear future expansion reserve');
+  assert.equal(west.x,rearWest.x);
+  assert.equal(rearWest.z,rearEast.z);
+  assert.equal(rearEast.x,east.x);
+  assert.ok(NEIGHBOR_ROUTE_LENGTH > 80);
+  const scene = new THREE.Scene();
+  buildNeighborhood(scene);
+  const box = new THREE.Box3().setFromObject(scene);
+  assert.ok(box.min.x < west.x - 2 && box.max.x > east.x + 2);
+  assert.ok(box.min.z < rearWest.z - 7);
+});
+
+test('every pedestrian completes one way only, fades at the ends and is replaced by a different profile', () => {
+  assert.equal(NEIGHBORS.length, NEIGHBOR_SLOT_COUNT * 2);
+  const offset = 2 * 13.9;
+  const sample = (index:number, cycle:number, second:number) =>
+    neighborPose(index, (cycle*NEIGHBOR_TRIP_SECONDS + second - offset) *
+      GAME_MINUTES_PER_REAL_SECOND);
+  const firstEarly = sample(2,14,2);
+  const firstMiddle = sample(2,14,50);
+  const firstLate = sample(2,14,98);
+  const firstGone = sample(2,14,99.9);
+  const secondEarly = sample(9,15,2);
+  const secondMiddle = sample(9,15,50);
+  assert.ok(firstEarly.opacity > 0 && firstEarly.opacity < 1);
+  assert.ok(firstMiddle.opacity > .99);
+  assert.ok(firstLate.opacity > 0 && firstLate.opacity < 1);
+  assert.ok(firstGone.opacity < firstLate.opacity);
+  assert.equal(sample(9,14,50).visible,false,'replacement must wait offstage');
+  assert.equal(sample(2,15,50).visible,false,'old profile must remain offstage');
+  assert.ok(secondEarly.opacity > 0 && secondEarly.opacity < 1);
+  assert.ok(secondMiddle.opacity > .99);
+  assert.notEqual(NEIGHBORS[2].name,NEIGHBORS[9].name);
+  // One-way travel: no sudden reverse at an endpoint.
+  assert.ok(Math.hypot(firstEarly.x-firstMiddle.x,firstEarly.z-firstMiddle.z) > 20);
+  assert.ok(Math.hypot(secondEarly.x-secondMiddle.x,secondEarly.z-secondMiddle.z) > 20);
+});
+
+test('hair, coats, skirts and accessories are genuinely different geometric styles', () => {
+  assert.ok(new Set(NEIGHBORS.map(p=>p.hairStyle)).size >= 9);
+  assert.ok(new Set(NEIGHBORS.map(p=>p.outfit)).size >= 7);
+  assert.ok(new Set(NEIGHBORS.map(p=>p.accessory)).size >= 3);
+  const crowd = new NeighborPeople();
+  const meshCount = crowd.group.children.map(root=>{
+    let count=0;
+    root.traverse(obj=>{if(obj instanceof THREE.Mesh)count++;});
+    return count;
+  });
+  assert.ok(Math.max(...meshCount) - Math.min(...meshCount) <= 4,
+    'variety should not blow up rig draw calls');
+  // Alpha must not leak through the globally cached material to other NPCs.
+  const getMaterial = (index:number) => {
+    let material:THREE.Material|undefined;
+    crowd.group.children[index].traverse(obj=>{
+      if(!material && obj instanceof THREE.Mesh)material=obj.material as THREE.Material;
+    });
+    return material;
+  };
+  assert.notEqual(getMaterial(2),getMaterial(9));
+});
+
+test('desktop neighborhood overview frames moved sidewalks without shrinking mobile home view', () => {
+  const frame = portraitHomeFrame(46,1440/900,{top:.08,bottom:.9},
+    neighborhoodOutline,undefined,[.49,1.28,1.37]);
+  const camera = new THREE.PerspectiveCamera(46,1440/900,.1,200);
+  camera.position.copy(frame.position);
+  camera.lookAt(frame.target);
+  camera.updateMatrixWorld();
+  for(const point of NEIGHBOR_PATH) {
+    const projected=new THREE.Vector3(point.x,0,point.z).project(camera);
+    assert.ok(Math.abs(projected.x)<.97, 'sidewalk horizontal overview');
+    assert.ok(projected.z<1, 'sidewalk must be in front of far plane');
+  }
 });
