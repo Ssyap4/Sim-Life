@@ -77,7 +77,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.13 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.14 · МЫ ВМЕСТЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -921,6 +921,20 @@ function openActions(item: ItemId): void {
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];
   actionsEl.appendChild(about);
+  if (item === 'kettle') {
+    const tea = document.createElement('button');
+    tea.type = 'button';
+    tea.className = 'action-button';
+    tea.textContent = ACTIONS.kitchenTea.label;
+    tea.addEventListener('click', () => {
+      if (net.perform('kitchenTea')) {
+        actionsEl.hidden = true;
+        statusEl.textContent = '🍵 Завариваем чай…';
+      }
+    });
+    actionsEl.append(tea);
+    return;
+  }
   if (state && (item === 'table' || item === 'yardTable' || item === 'kitchen')) {
     const quantity = item === 'table' ? state.dirtyDishes.table
       : item === 'yardTable' ? state.dirtyDishes.yardTable : dishCount(state.dirtyDishes);

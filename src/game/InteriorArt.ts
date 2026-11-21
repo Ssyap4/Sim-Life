@@ -206,11 +206,24 @@ function makeKitchen(): THREE.Group {
     part(kitchen, [0.70, 0.35, 0.30], [x, 1.79, -0.28], C.linen, 'soft', false, 'wood');
     part(kitchen, [0.26, 0.025, 0.021], [x, 1.70, -0.105], C.brass, 'soft', false, 'metal');
   }
-  const kettle = oval(kitchen, [0.18, 0.195, 0.154], [-1.69, 1.19, 0.15], C.terracotta);
-  kettle.castShadow = true;
-  ring(kitchen, 0.085, [-1.68, 1.37, 0.14], C.woodDark);
-  oval(kitchen, [0.135, 0.047, 0.065], [-1.53, 1.22, 0.17], C.terracotta).rotation.z = 0.43;
   return kitchen;
+}
+
+// A separate pickable model, instead of the former kettle geometry buried
+// inside the shared kitchen raycast target.
+function makeKettle(): THREE.Group {
+  const { x, z } = HOME_PLACEMENTS.kettle;
+  const kettle = group(x, z);
+  oval(kettle, [.18,.195,.154], [0,1.19,0], C.terracotta).castShadow = true;
+  ring(kettle, .085, [0,1.37,0], C.woodDark);
+  oval(kettle, [.135,.047,.065], [.16,1.22,.02], C.terracotta).rotation.z = .43;
+  // Transparent oversized fingertip target, separated from the coffee brewer.
+  const hit = new THREE.Mesh(drum,
+    new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.007,depthWrite:false}));
+  hit.scale.set(.30,.37,.30);
+  hit.position.set(0,1.26,0);
+  kettle.add(hit);
+  return kettle;
 }
 
 function makeDesk(): THREE.Group {
@@ -312,7 +325,6 @@ function makeCoffeeMaker(): THREE.Group {
   part(maker, [.15, .025, .115], [0, 1.410, -.029], C.terracotta, 'soft');
   round(maker, .019, .015, [.075, 1.324, .15], C.moss, 'metal');
   part(maker, [.105, .095, .09], [0, 1.169, .103], C.cream, 'soft', false, 'ceramic');
-  oval(maker, [.035, .035, .015], [.075, 1.192, .103], C.cream);
   part(maker, [.035, .034, .074], [0, 1.264, .108], C.graphite, 'square', false, 'metal');
   return maker;
 }
@@ -322,6 +334,7 @@ export function buildFurniture(register: Register): void {
   register('officeChair', makeOfficeChair(), points.officeChair);
   register('bed', makeBed(), points.bed);
   register('kitchen', makeKitchen(), points.kitchen);
+  register('kettle', makeKettle(), points.kettle);
   register('coffeeMaker', makeCoffeeMaker(), points.coffeeMaker);
   register('desk', makeDesk(), points.desk);
   register('tv', makeTv(), points.tv);

@@ -21,7 +21,7 @@ export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
-export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker';
+export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker' | 'kettle';
 export type SocialKind = 'hug' | 'highFive';
 export const SOCIAL_LABELS: Record<SocialKind, string> = {
   hug: 'Обняться', highFive: 'Дать пять',
@@ -80,7 +80,7 @@ export const itemNames: Record<ItemId, string> = {
   bookcase: '📚 Домашняя библиотека',
   officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
-  kitchen: 'Кухня', coffeeMaker: '☕ Кофеварка', tv: 'Телевизор', table: 'Обеденный стол',
+  kitchen: 'Кухня', kettle: '🍵 Чайник', coffeeMaker: '☕ Кофеварка', tv: 'Телевизор', table: 'Обеденный стол',
   grill: 'Дворовый гриль', yardTable: 'Стол во дворе', wcBasin: 'Раковина в туалете',
   delivery: 'Магазин и доставка',
   toilet: 'Туалет', shower: 'Душевая', bathtub: 'Ванна', basin: 'Раковина в ванной',
@@ -91,7 +91,7 @@ export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number 
   sofa: { x: HOME_PLACEMENTS.sofa.x, z: HOME_PLACEMENTS.sofa.z - 1.10 },
   bed: { x: HOME_PLACEMENTS.bed.x, z: HOME_PLACEMENTS.bed.z + 1.95 },
   desk: { x: HOME_PLACEMENTS.desk.x, z: HOME_PLACEMENTS.desk.z + 2.04 },
-  kitchen: KITCHEN_WORK.stove.position, coffeeMaker: KITCHEN_WORK.coffee.position,
+  kitchen: KITCHEN_WORK.stove.position, kettle: KITCHEN_WORK.tea.position, coffeeMaker: KITCHEN_WORK.coffee.position,
   grill: GRILL_WORK.position, yardTable: homeSeat('yardTable', 'vlad').approach,
   tv: { x: HOME_PLACEMENTS.tv.x + 1.53, z: HOME_PLACEMENTS.tv.z + .63 },
   table: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.14 },
