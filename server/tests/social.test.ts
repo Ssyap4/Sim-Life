@@ -17,6 +17,7 @@ import { RESIDENT_CLEARANCE } from '../../src/game/residentCollision';
 import { floorFor, placeObstacles, spawn } from '../../src/shared/locations';
 import { addRelationship, completeTogether, pairScenes } from '../society';
 import { startServer } from '../server';
+import { createHomeSessions } from '../homeSessions';
 import { openServerFiles } from '../storage';
 
 const residents=['vlad','alina'] as const;
@@ -362,4 +363,41 @@ test('A legacy version-2 household persists the new relationship field on its fi
     assert.equal(persisted.money,before.money);
     assert.deepEqual(files.load().relationship,loaded.relationship);
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('An unreachable pair scene never interrupts leisure or pauses a pet before its route is validated',()=>{
+  const state=sample();
+  state.pets.simba.position={x:9000,z:9000};
+  const sockets={
+    vlad:{readyState:WebSocket.OPEN} as WebSocket,
+    alina:{readyState:WebSocket.OPEN} as WebSocket,
+  };
+  const packets:ServerPacket[]=[];
+  let preparations=0,petPauses=0,taskIds=0;
+  const sessions=createHomeSessions({
+    state:()=>state,
+    save:()=>{throw new Error('Unreachable action must not save')},
+    all:event=>packets.push(event),
+    send:(_socket,event)=>packets.push(event),
+    socket:role=>sockets[role],
+    busy:()=>false,
+    prepare:()=>{preparations++},
+    nextId:()=>++taskIds,
+    timeScale:1,
+    gameTime:()=>gameMinutes(state.clock),
+    resourceBusy:()=>false,
+    pausePet:()=>{petPauses++},
+  });
+  try{
+    sessions.social('vlad',sockets.vlad,{type:'social_propose',action:'petPet',item:'simba'});
+    const invitation=packets.find((packet):packet is Extract<ServerPacket,{type:'social_pending'}>=>packet.type==='social_pending');
+    assert.ok(invitation,'The invitation is allowed before attempting a route');
+    sessions.social('alina',sockets.alina,{type:'social_reply',inviteId:invitation.offer.id,choice:0});
+    assert.ok(packets.some(packet=>packet.type==='social_closed'&&packet.phase==='interrupted'));
+    assert.equal(preparations,0,'No resident activity should be stopped');
+    assert.equal(petPauses,0,'No pet routine should be interrupted');
+    assert.equal(sessions.busy('vlad'),false);
+    assert.equal(sessions.busy('alina'),false);
+  }finally{sessions.dispose();}
 });

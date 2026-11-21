@@ -660,10 +660,12 @@ export class Actor {
     let highFive = 0;
     const g = this.gestureTime;
     if (this.gesture) {
-      const duration = this.gesture === 'hug' ? 2.45 : 1.4;
+      // A high-five must remain visible long enough for both people to meet palms.
+      // The earlier 1.4s envelope ended before much of the 5s co-op action.
+      const duration = this.gesture === 'hug' ? 2.45 : 2.5;
       const progress = g / duration;
-      const reach = THREE.MathUtils.smoothstep(progress, 0, 0.31) *
-        (1 - THREE.MathUtils.smoothstep(progress, this.gesture === 'hug' ? 0.63 : 0.44, 1));
+      const reach = THREE.MathUtils.smoothstep(progress, 0, this.gesture === 'hug' ? 0.31 : 0.18) *
+        (1 - THREE.MathUtils.smoothstep(progress, this.gesture === 'hug' ? 0.63 : 0.68, 1));
       if (this.gesture === 'hug') {
         expression = 0.11 + 0.72 * reach;
         gaze = 0.030 * reach;

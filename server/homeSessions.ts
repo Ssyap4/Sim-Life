@@ -259,6 +259,12 @@ export function createHomeSessions(hooks: Hooks) {
     if (roles.some(role => !available(role) || !material && !cooperation && hooks.state().world.places[role] !== 'home')) {
       if (!automatic) error(initiator, 'Для занятия нужно быть свободным и находиться в нужной локации'); return;
     }
+    // Reject impossible pair routes before touching ongoing leisure or pet routines.
+    // A failed invitation must leave both residents and their animals undisturbed.
+    if (cooperation && command.type === 'together' && !pairScenes(hooks.state(), cooperation.from, command)) {
+      error(initiator, 'Не удалось найти два свободных подхода');
+      return;
+    }
     const profile = hooks.state().education.characters[roles[0]];
     const study = material && { material, start: 0, previous: profile.studied[material.id]?.minutes ?? 0,
       minutes: studyMinutes(profile, material),
@@ -267,10 +273,6 @@ export function createHomeSessions(hooks: Hooks) {
     const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs) * hooks.timeScale));
     const participants: Participant[] = [];
     for(const role of roles) hooks.prepare(role,resource==='tv');
-    if(cooperation&&command.type==='together'){
-      const pet=socialPet(command);
-      if(pet)hooks.pausePet?.(pet);
-    }
     const pair=command.type==='together'&&cooperation?pairScenes(hooks.state(),cooperation.from,command):undefined;
     if(cooperation&&!pair){error(initiator,'Не удалось найти два свободных подхода');return;}
     for (const role of roles) {
@@ -291,6 +293,11 @@ export function createHomeSessions(hooks: Hooks) {
           durationMs: duration, home, effects, automatic } });
     }
     if (occupant) cancel(occupant.participants[0].role,'Место освободилось для игрока');
+    // Pause a pet only after both routes and all participant checks are valid.
+    if (cooperation && command.type === 'together') {
+      const pet = socialPet(command);
+      if (pet) hooks.pausePet?.(pet);
+    }
     const travel = Math.max(0,...participants.map(p => p.arriveMs));
     const session: Session = { plan: { ...plan, resource }, participants, started: Date.now(), activeAt: null, study, cooperation,
       duration, timer: setTimeout(() => {

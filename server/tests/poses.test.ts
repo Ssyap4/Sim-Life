@@ -139,4 +139,10 @@ test('Both hands reach the keyboard and the two high-five palms share a target',
   const palm = (actor: Actor, name: string) =>
     actor.root.getObjectByName(name)!.localToWorld(new THREE.Vector3(0, -0.062, 0));
   assert.ok(palm(vlad, 'rightWrist').distanceTo(palm(alina, 'leftWrist')) < 0.035);
+  // The coordinated contact should persist beyond the first second, rather
+  // than leaving both arms lowered for most of the social action.
+  settle(vlad, 1.0);
+  settle(alina, 1.0);
+  assert.ok(palm(vlad, 'rightWrist').distanceTo(palm(alina, 'leftWrist')) < 0.055,
+    'high-five palms must still be together 1.5s into the action');
 });
