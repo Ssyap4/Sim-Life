@@ -1057,7 +1057,7 @@ function openPurchasedFurnitureActions(id:number):void{
       const ok=net.food(type,recipe,type==='eat'?id:undefined);
       if(ok)actionsEl.hidden=true;
       return ok;
-    });
+    }, active!);
     showTakeoutChoices(actionsEl,state,product=>{
       const ok=net.eatTakeout(product,id);
       if(ok)actionsEl.hidden=true;
@@ -1142,7 +1142,7 @@ function openActions(item: ItemId): void {
         statusEl.textContent = 'Обрабатываем действие…';
       }
       return sent;
-    });
+    }, active);
   }
 
   if ((item === 'kitchen' || item === 'coffeeMaker') && state && active) {

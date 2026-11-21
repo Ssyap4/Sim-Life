@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PairMotion } from '../shared/socialLife';
 import type { PetAction } from '../shared/pets';
+import type { RecipeId, TakeoutId } from '../shared/food';
+import { kitchenMove, grillMove, helperChop, mealUtensil } from './CookingChoreography';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
@@ -19,9 +21,9 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
-  'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea',
+  'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
 const handAxis = new THREE.Vector3(0, -1, 0);
 const forwardAxis = new THREE.Vector3(0, 0, 1);
@@ -62,6 +64,8 @@ export class Actor {
   private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
+  private cookingRecipe: RecipeId | undefined;
+  private diningDish: RecipeId | TakeoutId | undefined;
   private readonly props: ReturnType<typeof activityProps>;
   private carryingBook = false;
   private closingBook = 0;
@@ -99,7 +103,9 @@ export class Actor {
     this.closingBook = 0;
     this.props.hideBook();
     this.dirtyPlate.visible = false;
-    this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = false;
+    this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.fork.visible = false;
+    this.cookingRecipe = undefined;
+    this.diningDish = undefined;
     this.petContact = undefined;
   }
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
@@ -197,6 +203,8 @@ export class Actor {
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
+    this.cookingRecipe = undefined;
+    this.diningDish = undefined;
     this.idleGesture = null;
     this.idleGestureTime = 0;
     this.idleCooldown = Math.max(this.idleCooldown, 4);
@@ -208,6 +216,8 @@ export class Actor {
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
+    this.props.knife.visible = false;
+    this.props.fork.visible = false;
   }
 
   /** Pose the visible character on the furniture while the navigation root
@@ -233,16 +243,20 @@ export class Actor {
   isWalking(): boolean { return this.waypoints.length > 0; }
   eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 
-  playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3): void {
+  playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3, recipe?: RecipeId|TakeoutId): void {
     // World has already placed the actor at the visual station.
     this.activity = kind;
-    this.pan = pan;
+    this.pan = pan?.clone();
+    this.cookingRecipe = kind === 'cook' ? recipe as RecipeId : undefined;
+    this.diningDish = kind === 'eat' ? recipe : undefined;
     this.activityTime = 0;
   }
 
-  playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3): void {
+  playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
     this.activity = kind;
-    this.pan = target;
+    this.pan = target?.clone();
+    this.cookingRecipe = kind === 'grill' || kind === 'prep' ? recipe : undefined;
+    this.diningDish = undefined;
     this.activityTime = 0;
   }
 
@@ -255,6 +269,10 @@ export class Actor {
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
+    this.props.knife.visible = false;
+    this.props.fork.visible = false;
+    this.cookingRecipe = undefined;
+    this.diningDish = undefined;
     this.petContact = undefined;
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
@@ -513,13 +531,23 @@ export class Actor {
     let crouch = 0;
     let bite = 0;
     const a = this.activityTime;
+    const kitchenStep = this.activity === 'cook' ? kitchenMove(this.cookingRecipe,a) : undefined;
+    const barbecueStep = this.activity === 'grill' ? grillMove(this.cookingRecipe,a) : undefined;
     if (this.activity) {
       switch (this.activity) {
         case 'cook':
-          leftY = -0.24;
-          rightY = -0.218 + Math.sin(a * 5) * 0.032;
-          leftZ = 0.36;
-          rightZ = 0.43 + Math.cos(a * 5) * 0.053;
+          leftY = -.24;
+          rightY = -.218 + Math.sin(a * (kitchenStep==='chop'?7:4.2))*.032;
+          leftZ = .36;
+          rightZ = .43 + Math.cos(a*4.2)*.053;
+          lean = kitchenStep==='knead'?.17:.13;
+          gaze = .20;
+          break;
+        case 'prep':
+          leftY = -.24;
+          rightY = -.19 + Math.sin(a*6.0)*.045;
+          leftZ=.33; rightZ=.41;
+          lean=.14; gaze=.20;
           break;
         case 'eat': {
           // Pick up a portion, bring it to the mouth, chew and rest between bites.
@@ -707,9 +735,12 @@ export class Actor {
       // A high-five must remain visible long enough for both people to meet palms.
       // The earlier 1.4s envelope ended before much of the 5s co-op action.
       const duration = 5; // matched to the full cooperative server action
-      const progress = g / duration;
-      const reach = THREE.MathUtils.smoothstep(progress, .04, this.gesture === 'hug' ? .22 : .16) *
-        (1 - THREE.MathUtils.smoothstep(progress, this.gesture === 'hug' ? .65 : .59, .84));
+      // The high-five reaches full palm contact in the first half second,
+      // then holds it for the joint action; normalizing across five seconds
+      // used to delay the touch until after the other arm had already passed.
+      const reach = this.gesture === 'hug'
+        ? THREE.MathUtils.smoothstep(g,.12,.65) * (1-THREE.MathUtils.smoothstep(g,3.35,4.35))
+        : THREE.MathUtils.smoothstep(g,.07,.28) * (1-THREE.MathUtils.smoothstep(g,4.05,4.75));
       if (this.gesture === 'hug') {
         expression = 0.11 + 0.72 * reach;
         gaze = 0.030 * reach;
@@ -987,7 +1018,13 @@ export class Actor {
       }
     }
 
-    this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
+    const eatingWith = mealUtensil(this.diningDish);
+    this.spoon.visible = (this.activity === 'cook' &&
+      (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
+      (this.activity === 'eat' && eatingWith === 'spoon');
+    this.props.fork.visible = this.activity === 'eat' && eatingWith === 'fork';
+    this.props.knife.visible = (this.activity === 'cook' && kitchenStep === 'chop') ||
+      (this.activity === 'prep' && helperChop(a));
     this.props.groomingBrush.visible = this.activity === 'brush';
     this.props.tongs.visible = this.activity === 'grill';
     if (this.props.tongs.visible) this.props.grip(a);
@@ -1000,7 +1037,9 @@ export class Actor {
     }
     this.crouchBlend = THREE.MathUtils.lerp(this.crouchBlend, crouch, alpha);
     const armZ = this.activity === 'cook' ? -0.11 + Math.sin(a * 5) * 0.15 : armSpread;
-    const typing = this.pose === 'work' && this.keys;
+    // Keep keyboard IK in the base work pose (including remote career rigs),
+    // but do not type while explicitly reading or writing a paper journal.
+    const typing = this.pose === 'work' && (this.activity === 'games' || this.activity === null) && this.keys;
     const stirring = this.activity === 'cook' && this.pan;
     // Face-level actions (teeth, phone, reach) must not be mistaken for
     // two-handed counter work just because World supplied a focus point.
@@ -1095,27 +1134,50 @@ export class Actor {
           .applyAxisAngle(up, this.root.rotation.y), alpha);
       }
     } else if (stirring) {
-      // Keep both hands on the *actual* pan when the resident faces a stove
-      // from a different side. The spoon tip circles just above its surface;
-      // the supporting hand stays clear of the hot center.
-      const stirPhase = a * 3.7;
-      this.reach(0, this.stationTarget(stirring, -.19, .105, -.13), alpha);
-      this.aimHand(0, this.handDirection.set(0, -.5, -1)
-        .applyAxisAngle(up, this.root.rotation.y), alpha);
-      this.reach(1, this.stationTarget(stirring,
-        .055 * Math.cos(stirPhase), .135 + .013 * Math.sin(stirPhase * 2),
-        -.12 + .045 * Math.sin(stirPhase)), alpha);
-      this.aimHand(1, this.handDirection.set(0, -.32, -1)
-        .applyAxisAngle(up, this.root.rotation.y), alpha);
-      this.aimSpoon(this.stationTarget(stirring,
-        .060 * Math.cos(stirPhase), .030, .046 * Math.sin(stirPhase)), alpha);
+      // Alternate preparation, pan work and plating by recipe rather than
+      // endlessly stirring. Motions use the same two-bone IK and light props.
+      const phase = a*(kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
+      if (kitchenStep==='chop') {
+        this.reach(0,this.stationTarget(stirring,.20,.115,-.09),alpha);
+        this.reach(1,this.stationTarget(stirring,
+          .23,.15+.045*(1+Math.sin(phase)),-.08+.020*Math.cos(phase)),alpha);
+      } else if(kitchenStep==='knead') {
+        this.reach(0,this.stationTarget(stirring,-.085+.055*Math.sin(phase),.13,-.11+.038*Math.cos(phase)),alpha);
+        this.reach(1,this.stationTarget(stirring,.085-.055*Math.sin(phase),.13,-.11-.038*Math.cos(phase)),alpha);
+      } else if(kitchenStep==='flip') {
+        const lift=Math.max(0,Math.sin(phase*1.8));
+        this.reach(0,this.stationTarget(stirring,-.18,.12,-.11),alpha);
+        this.reach(1,this.stationTarget(stirring,.035+.048*Math.sin(phase),.16+.11*lift,-.13+.055*Math.cos(phase)),alpha);
+      } else if(kitchenStep==='plate') {
+        const serve=Math.sin(Math.min(1,Math.max(0,(a-9.6)/2.4))*Math.PI);
+        this.reach(0,this.stationTarget(stirring,-.17,.13,-.12),alpha);
+        this.reach(1,this.stationTarget(stirring,.17+.14*serve,.14+.07*serve,-.1),alpha);
+      } else {
+        this.reach(0,this.stationTarget(stirring,-.19,.105,-.13),alpha);
+        this.reach(1,this.stationTarget(stirring,
+          .055*Math.cos(phase),.135+.013*Math.sin(phase*2),-.12+.045*Math.sin(phase)),alpha);
+      }
+      for(const i of [0,1] as const)
+        this.aimHand(i,this.handDirection.set(0,-.48,-1)
+          .applyAxisAngle(up,this.root.rotation.y),alpha);
+      if(this.spoon.visible)
+        this.aimSpoon(this.stationTarget(stirring,
+          .060*Math.cos(phase),.030,.046*Math.sin(phase)),alpha);
     } else if (bite > 0) {
       data.head.localToWorld(this.target.set(0.022, -0.133, 0.151));
       this.handDirection.set(0.066, -0.114, 0.175).applyAxisAngle(up, this.root.rotation.y);
       this.target.add(this.handDirection);
       this.reach(1, this.target, bite);
       this.aimHand(1, this.handDirection.set(0, -0.21, 1).applyAxisAngle(up, this.root.rotation.y), bite);
-      this.aimSpoon(data.head.localToWorld(this.target.set(0, -0.134, 0.158)), bite);
+      if(this.spoon.visible)this.aimSpoon(data.head.localToWorld(this.target.set(0, -0.134, 0.158)), bite);
+    } else if (this.activity==='eat' && this.pan) {
+      // Between mouthfuls, the right hand actually collects the next bite
+      // from the resident's own plate; the left hand rests near its rim.
+      this.reach(0,this.stationTarget(this.pan,-.11,.09,-.035),alpha);
+      this.reach(1,this.stationTarget(this.pan,
+        .015+.035*Math.sin(a*2.5),.10+.012*Math.sin(a*5.2),-.03),alpha);
+      this.aimHand(1,this.handDirection.set(0,-.5,-1)
+        .applyAxisAngle(up,this.root.rotation.y),alpha);
     } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet')) {
       // Follow the actual animal's saved position; strokes travel across the
       // coat rather than moving a hand in place beside the standing resident.
@@ -1202,11 +1264,25 @@ export class Actor {
             y = .14 + .012 * Math.cos(a * 6 + i * Math.PI);
             z = -.12 + .018 * Math.sin(a * 4);
             break;
-          case 'grill':
-            x = i ? .08 + .12 * Math.sin(a * 1.85) : -.20;
-            y = i ? .16 + .055 * Math.max(0, Math.sin(a * 3.3)) : .11;
-            z = i ? -.09 : -.18;
+          case 'grill': {
+            const turn = barbecueStep==='turn';
+            const toss = barbecueStep==='toss';
+            const assembling = barbecueStep==='assemble';
+            const plating = barbecueStep==='plate';
+            const swing = a*(turn?2.7:toss?3.8:2.3);
+            x = i ? (assembling?.04:plating?.26:.08)+
+              (turn?.07:toss?.13:.09)*Math.sin(swing) : -.18;
+            y = i ? .14+(plating?.09:assembling?.04:.075)*Math.max(0,Math.sin(swing*1.5)) : .11;
+            z = i ? -.09+(turn?.08:.025)*Math.cos(swing) : -.18;
             break;
+          }
+          case 'prep': {
+            const chop=helperChop(a);
+            x=i?.13+.028*Math.sin(a*4):-.11;
+            y=i?(chop?.135+.05*(1+Math.sin(a*7)):.13):.115;
+            z=i?-.09+.016*Math.cos(a*4):-.10;
+            break;
+          }
           case 'coffee':
             x = i ? .04 + .034 * Math.sin(a * 3.1) : -.18;
             y = i ? .11 + .035 * Math.max(0, Math.sin(a * 3.1)) : .16;

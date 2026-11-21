@@ -1,4 +1,6 @@
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
+import { recipeAvailability } from './shared/recipeAvailability';
+import type { CharacterId } from './shared/protocol';
 import type { GameState } from './shared/protocol';
 import { RECIPE_DESCRIPTIONS } from './shared/storageSpace';
 
@@ -23,6 +25,7 @@ export function showFoodChoices(
   location: 'delivery' | 'kitchen' | 'table' | 'grill' | 'yardTable',
   state: GameState,
   submit: (type: FoodCommand, id: IngredientId | RecipeId) => boolean,
+  role: CharacterId,
 ): void {
   const heading = document.createElement('div');
   heading.className = 'food-section-heading';
@@ -46,16 +49,12 @@ export function showFoodChoices(
         GROCERIES[ingredient].emoji + ' ' + GROCERIES[ingredient].name.split(' · ')[0] +
         ' ×' + quantity + (state.pantry[ingredient] < quantity ? ' ❗ (есть ' + state.pantry[ingredient] + ')' : ''),
       ).join(' · ');
-      const missing = ingredients.filter(([ingredient, qty]) => state.pantry[ingredient] < qty);
-      const available = missing.length === 0;
-      const limitReached = state.meals[id] + recipe.servings > 30;
-      const reason = missing.length ? 'Не хватает: ' + missing.map(([ingredient, qty]) =>
-        GROCERIES[ingredient].name.split(' · ')[0] + ' ×' + (qty - state.pantry[ingredient])).join(', ') + '. ' :
-        limitReached ? 'Запас готового блюда заполнен (максимум 30 порций). ' : '';
+      const availability=recipeAvailability(state,role,id);
+      const reason=availability.available?'':availability.reason+'. ';
       entry(container, recipe.emoji + ' ' + recipe.name,
         reason + RECIPE_DESCRIPTIONS[id] + ' · Ингредиенты: ' + needed +
         ' · ' + recipe.servings + ' порц. · ~' + recipePortionCost(id) + ' ₽/порция',
-        !available || limitReached,
+        !availability.available,
         () => submit('cook', id));
     }
   } else {
