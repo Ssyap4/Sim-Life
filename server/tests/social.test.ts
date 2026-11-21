@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -344,4 +344,22 @@ test('A live disconnect leaves active gifts unspent, and restart migrates old da
       await back.take('error');
     }finally{await server.close();}
   }finally{await f.close();}
+});
+
+
+test('A legacy version-2 household persists the new relationship field on its first load',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-relationship-migration-'));
+  try{
+    const files=openServerFiles(dir);
+    const before=sample();
+    const {relationship: _oldRelationship,...legacy}=before;
+    writeFileSync(join(dir,'household.json'),JSON.stringify(legacy));
+    const loaded=files.load();
+    const persisted=JSON.parse(readFileSync(join(dir,'household.json'),'utf8')) as GameState;
+    assert.deepEqual(persisted.relationship,{memories:[],recent:[]});
+    assert.deepEqual(loaded.relationship,persisted.relationship);
+    assert.deepEqual(persisted.pantry,before.pantry);
+    assert.equal(persisted.money,before.money);
+    assert.deepEqual(files.load().relationship,loaded.relationship);
+  }finally{rmSync(dir,{recursive:true,force:true});}
 });

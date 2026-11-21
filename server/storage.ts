@@ -275,7 +275,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       }
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
-      if (data.billing === undefined || data.readyFood === undefined || data.petBowls === undefined ||
+      if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
           data.dirtyDishes === undefined || migratedFood || recoveredCareer)
         this.save(household);
       return household;
