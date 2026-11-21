@@ -1,4 +1,5 @@
 import { applyServiceCommand, settleFamilyServices } from './services';
+import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
@@ -360,6 +361,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
         : plan.command.computer === 'laptop' && ACTIONS[plan.command.actionId].item === 'desk'
           ? stationById('home','career-laptop')!.approach : points[ACTIONS[plan.command.actionId].item]
+      : plan.command.type === 'play_game' || plan.command.type === 'computer_video'
+        ? plan.command.device === 'laptop' ? stationById('home','career-laptop')!.approach : points.desk
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen
@@ -627,6 +630,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket,{type:'error',reason:'Заверши рабочую смену через приложение «Работа и карьера»'});
         return;
       }
+      if (message.type === 'computer_favorite') {
+        const result=changeComputerFavorite(state,role,message.game,message.enabled);
+        if (!result.ok) {packet(socket,{type:'error',reason:result.reason});return;}
+        if (result.state!==state) {
+          try {files.save(result.state);} catch {packet(socket,{type:'error',reason:'Не удалось сохранить избранное'});return;}
+          state=result.state;
+          all({type:'snapshot',state});
+        }
+        lastIntent.set(role,Date.now());
+        return;
+      }
       if (message.type === 'education_answer') {
         homeTasks.answer(role, socket, message.taskId, message.choice);
         return;
@@ -743,7 +757,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

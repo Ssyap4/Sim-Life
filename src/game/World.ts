@@ -1,4 +1,8 @@
 import { HomeEffects } from './HomeEffects';
+import { HomeComputerScreens } from './HomeComputerScreens';
+import type { ComputerScene } from './ComputerScreenArt';
+import type { ComputerDevice } from '../shared/computer';
+import { GAME_BY_ID } from '../shared/computerGames';
 import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
@@ -113,6 +117,7 @@ export class World {
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
+  private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
   private readonly dishTasks = new Set<CharacterId>();
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
@@ -701,7 +706,13 @@ export class World {
     if (this.household && this.household.world.places[role] !== this.place) return true;
     this.closeStorage(role);
     if(command.type==='together')return home?.pair?this.startPair(role,command.action,home):false;
-    if (home) return this.startHomeTask(role,command,home);
+    if(home) {
+      if(command.type==='study' && (home.station==='studyDesk'||home.station==='studyLaptop')) {
+        const device=home.station==='studyLaptop'?'laptop':'desktop';
+        this.computerScreens.task(role,device,{mode:'study',role});
+      }
+      return this.startHomeTask(role,command,home);
+    }
     if (command.type === 'local_activity') {
       const station = stationById(this.place, command.station);
       if (!station) return false;
@@ -724,6 +735,22 @@ export class World {
     }
     const sequence = ++this.taskSequence[role];
     const current = () => sequence === this.taskSequence[role];
+    if (command.type === 'play_game' || command.type === 'computer_video') {
+      const device=command.device,scene:ComputerScene=command.type==='play_game'
+        ? {mode:'game',role,game:command.game}
+        : {mode:'video',role,clip:command.clip};
+      this.computerScreens.task(role,device,scene);
+      const begin=()=>{
+        if(!current())return;
+        if(device==='laptop')this.laptopPose(role);
+        else this.applyFurniturePose(role,'desk','work');
+        if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
+        else this.actors[role].playDomesticActivity('read');
+      };
+      return device==='laptop'
+        ? this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,begin)
+        : this.perform(role,'desk','work',begin);
+    }
     if (command.type === 'brew_coffee') {
       const work = KITCHEN_WORK.coffee;
       return this.walkTo(role, work.position, () => {
@@ -735,6 +762,12 @@ export class World {
     }
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
+      if (def.item==='desk') {
+        const mode:ComputerScene['mode']=command.actionId==='deskGames'?'game':
+          command.actionId==='deskJournal'?'notes':
+          role==='vlad'?'code':'hair';
+        this.computerScreens.task(role,command.computer??'desktop',{mode,role,...(mode==='game'?{game:GAME_BY_ID.keys().next().value}: {})});
+      }
       if (command.actionId === 'kitchenDishes') {
         // One errand collects plates at the used tables, then brings them to
         // the kitchen sink. Both players see the same server-backed counters.
@@ -826,6 +859,7 @@ export class World {
   }
 
   finishTimedAction(role: CharacterId): void {
+    this.computerScreens.endTask(role);
     this.preparations.delete(role);
     const dishes = this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
@@ -842,6 +876,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
+    this.computerScreens.endTask(role);
     this.preparations.delete(role);
     this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
@@ -1021,10 +1056,13 @@ export class World {
       new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)));
     buildSoftRugs(this.scene);
     this.scene.add(furnitureContact());
+    let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture, true);
+      if(id==='desk')desktop=furniture;
       this.register(id, furniture, point);
     });
+    this.computerScreens=new HomeComputerScreens(desktop!,this.extensions.stations.get(HOME_LAPTOP)!);
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
     this.createPetBowls();
@@ -1182,6 +1220,10 @@ export class World {
   openStorage(id: string, role = this.localRole): void { this.openDoors.set(role, id); }
   closeStorage(role = this.localRole): void { this.openDoors.delete(role); }
 
+  previewComputer(device:ComputerDevice,scene:ComputerScene|null):void {
+    this.computerScreens.preview(device,scene);
+  }
+
   setCart(count: number): void {
     if (!this.cart) {
       this.cart = carryingBag();
@@ -1240,6 +1282,7 @@ export class World {
     this.homeEffects.reset();
     this.grillCooking = false;
     this.homeTasks.clear();
+    this.computerScreens.resetPreviews();
     this.pairStages.clear();
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
@@ -1291,6 +1334,8 @@ export class World {
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
       const work = state.careers.residents[id].shift;
+      this.computerScreens.career(id,place==='home' && state.world.places[id]==='home' && work?.mode==='remote'
+        ? work.homeDevice??'laptop':null);
       const previousWork = previous?.careers.residents[id].shift;
       const sleep = offline && place === 'home' && !state.activeShifts[id] && !work;
       const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
@@ -1636,7 +1681,10 @@ export class World {
       }
     }
     this.controls.update();
-    if (this.place === 'home') this.homeEffects.update(now/1000);
+    if (this.place === 'home') {
+      this.homeEffects.update(now/1000);
+      this.computerScreens.update(now/1000);
+    }
     this.remote?.animate?.(now / 1000);
     this.renderer.render(this.scene, this.camera);
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);

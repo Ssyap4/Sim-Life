@@ -1,5 +1,7 @@
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { computerDevice, computerResource } from '../src/shared/computer';
+import { GAME_BY_ID, VIDEO_CLIPS, isVideoClipId } from '../src/shared/computerGames';
+import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
@@ -40,6 +42,16 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if (command.type==='play_game' && typeof command.game==='string' && computerDevice(command.device)) {
+    const game=GAME_BY_ID.get(command.game);
+    return game ? {command:{type:'play_game',game:game.id,device:command.device},
+      label:'🎮 '+game.title,durationMs:game.duration*1000,resource:computerResource(command.device)} : null;
+  }
+  if (command.type==='computer_video' && isVideoClipId(command.clip) && computerDevice(command.device)) {
+    const clip=VIDEO_CLIPS[command.clip];
+    return {command:{type:'computer_video',clip:command.clip,device:command.device},
+      label:'▶ '+clip.title,durationMs:clip.duration*1000,resource:computerResource(command.device)};
+  }
   if (command.type === 'study' && typeof command.material === 'string') {
     const material = MATERIAL_BY_ID.get(command.material);
     if (!material) return null;
@@ -139,6 +151,8 @@ export function entertainmentReward(command: Entertainment, together = false): N
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
   if (command.type === 'together') return { ok: false, reason: 'Требуется согласованное приглашение' };
   if (command.type === 'study') return { ok: false, reason: 'Для обучения нужна учебная сессия' };
+  if (command.type === 'play_game') return completeComputerGame(state,role,command.game,command.device);
+  if (command.type === 'computer_video') return completeComputerVideo(state,role,command.clip,command.device);
   const denial = taskAccessError(state, command);
   if (denial) return { ok: false, reason: denial };
   if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);

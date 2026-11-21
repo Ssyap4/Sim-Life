@@ -24,6 +24,7 @@ import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
 import { initialCareers } from '../src/shared/careers';
+import { initialComputerLibrary, validComputerLibrary } from '../src/shared/computerGames';
 
 export interface ServerFiles {
   dataDir: string;
@@ -42,6 +43,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.careers !== undefined && !validCareers(state.careers)) return false;
+  if (state.computerLibrary !== undefined && !validComputerLibrary(state.computerLibrary)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   const readBooks = state.readBooks;
   if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
@@ -255,6 +257,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         careers: data.careers ?? initialCareers(),
+        computerLibrary: data.computerLibrary ?? initialComputerLibrary(),
         relationship: data.relationship ?? initialRelationship(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
@@ -276,7 +279,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
-          data.dirtyDishes === undefined || migratedFood || recoveredCareer)
+          data.dirtyDishes === undefined || data.computerLibrary === undefined || migratedFood || recoveredCareer)
         this.save(household);
       return household;
     },

@@ -1,6 +1,8 @@
 import { initialRelationship, type Relationship, type SocialCommand, type SocialIntent, type SocialOffer, type SocialPhase } from './socialLife';
 import { initialEducation, type EducationCommand, type EducationState } from './education';
 import { initialCareers, type CareerCommand, type CareersState } from './careers';
+import { initialComputerLibrary, type ComputerLibrary, type ComputerGameId, type VideoClipId } from './computerGames';
+import type { ComputerDevice } from './computer';
 import { initialServices, type FamilyServices, type ServiceCommand } from './services';
 import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
@@ -67,6 +69,7 @@ export interface GameState {
   readBooks: Record<CharacterId, BookId[]>;
   education: EducationState;
   careers: CareersState;
+  computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
@@ -142,6 +145,8 @@ export type TimedCommand = Entertainment | SocialIntent
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
+  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice }
+  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
@@ -155,6 +160,9 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | Educa
   | { type: 'forget_device' }
   | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
+  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice }
+  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice }
+  | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
   | { type: 'job_start'; job: import('./jobs').JobId }
@@ -211,7 +219,8 @@ export function initialState(): GameState {
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
     ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
-    readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(), relationship: initialRelationship(),
+    readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
+    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(),
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },

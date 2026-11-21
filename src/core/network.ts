@@ -124,6 +124,15 @@ export class LiveConnection {
 
   world(command: WorldCommand): boolean { return this.sendAuthenticated(command); }
   career(command: import('../shared/careers').CareerCommand): boolean { return this.sendAuthenticated(command); }
+  playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice):boolean {
+    return this.sendAuthenticated({type:'play_game',game,device});
+  }
+  favoriteGame(game: import('../shared/computerGames').ComputerGameId,enabled:boolean):boolean {
+    return this.sendAuthenticated({type:'computer_favorite',game,enabled});
+  }
+  playComputerVideo(clip:import('../shared/computerGames').VideoClipId,device:import('../shared/computer').ComputerDevice):boolean {
+    return this.sendAuthenticated({type:'computer_video',clip,device});
+  }
 
   forgetDevice(): void {
     storeTrust(null);

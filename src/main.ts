@@ -566,6 +566,10 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
     if (denial) { notify(denial); return false; }
     return net.perform(actionId,device);
   },
+  playGame: (game,device) => net.playGame(game,device),
+  favorite: (game,enabled) => net.favoriteGame(game,enabled),
+  watchVideo: (clip,device) => net.playComputerVideo(clip,device),
+  preview: (device,scene) => world.previewComputer(device,scene),
   career: command => net.career(command),
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
