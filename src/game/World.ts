@@ -770,14 +770,10 @@ export class World {
       case 'highFive':
         actor.playGesture('highFive',actor.root.position.clone().lerp(partner.root.position,.5).setY(1.59));break;
       case 'hands':case 'slowDance':
-        actor.playPartnerGesture(pair.motion,leads,
-          actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20),
-          partner.root.position);break;
+        actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
-        actor.playPartnerGesture(pair.motion,leads,
-          actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27),
-          partner.root.position);break;
-      default:actor.playPartnerGesture(pair.motion,leads,undefined,partner.root.position);
+        actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
+      default:actor.playPartnerGesture(pair.motion,leads);
     }
   }
 

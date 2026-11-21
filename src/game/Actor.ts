@@ -59,7 +59,7 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
-  private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; time:number; clearance:number }|null=null;
+  private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
   private readonly props: ReturnType<typeof activityProps>;
@@ -283,13 +283,8 @@ export class Actor {
     this.heart.visible = kind === 'hug';
   }
 
-  playPartnerGesture(motion:PairMotion, leads:boolean, target?:THREE.Vector3, partnerPosition?:THREE.Vector3):void {
-    // Close-up gestures never displace either server navigation root. Limit
-    // the visual step toward a partner to the actual gap between their rigs.
-    const clearance = partnerPosition
-      ? Math.max(0, (this.root.position.distanceTo(partnerPosition) - .54) * .5)
-      : Infinity;
-    this.partnerGesture={motion,leads,target,time:0,clearance};
+  playPartnerGesture(motion:PairMotion,leads:boolean,target?:THREE.Vector3):void {
+    this.partnerGesture={motion,leads,target,time:0};
     this.idleGesture=null;
   }
 
@@ -1080,11 +1075,11 @@ export class Actor {
 
     this.figureBase.lerp(this.poseOffset, 1 - Math.exp(-dt * 8));
     this.figure.position.copy(this.figureBase);
-    // Approach without letting both visual bodies overlap. Path and saved
-    // server positions stay fixed, and the available gap is shared in half.
-    this.figure.position.z += Math.min(embrace + partnerForward, pair?.clearance ?? Infinity);
+    // Close the visual gap during a hug while the path endpoints stay fixed.
+    this.figure.position.z += embrace;
     this.figure.position.y -= stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15;
+    this.figure.position.z += partnerForward;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
       const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
