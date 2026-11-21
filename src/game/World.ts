@@ -30,7 +30,8 @@ import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
-import { RESIDENT_CLEARANCE, residentStepAroundBodies, unoccupiedDestination } from './residentCollision';
+import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
+import { residentTraffic, resetResidentTraffic, smoothResidentTrafficStep, type TrafficBody } from './ResidentFlow';
 
 type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
@@ -122,9 +123,11 @@ export class World {
   private grillCooking = false;
   private readonly otherBody = new THREE.Vector3();
   private readonly bowlFood: Record<PetId, THREE.Mesh[]> = { verdell: [], simba: [] };
+  private readonly collisionFlow = { vlad: residentTraffic(), alina: residentTraffic() };
+  private movementDt = 1 / 60;
   private readonly steering = {
-    vlad: (from: Point, target: Point) => this.steerPast('alina', from, target),
-    alina: (from: Point, target: Point) => this.steerPast('vlad', from, target),
+    vlad: (from: Point, target: Point) => this.steerPast('vlad','alina', from, target),
+    alina: (from: Point, target: Point) => this.steerPast('alina','vlad', from, target),
   };
   private followSubject: THREE.Object3D | null = null;
   private readonly followPoint = new THREE.Vector3();
@@ -1074,12 +1077,12 @@ export class World {
     return this.place === 'home' ? this.obstacles : this.externalObstacles;
   }
 
-  private steerPast(other: CharacterId, from: Point, target: Point): Point {
-    const bodies: { position: Point; clearance: number }[] = [];
+  private steerPast(role:CharacterId,other: CharacterId, from: Point, target: Point): Point {
+    const bodies: TrafficBody[] = [];
     const neighbor = this.actors[other];
     if (neighbor.root.visible && !this.sleepingOffline.has(other)) {
       const body = neighbor.bodyPosition(this.otherBody);
-      bodies.push({ position: { x: body.x, z: body.z }, clearance: RESIDENT_CLEARANCE });
+      bodies.push({ position: { x: body.x, z: body.z }, clearance: RESIDENT_CLEARANCE, person:true, moving:neighbor.isWalking() });
     }
     // People choose a side-step around a pet, never push the pet away.
     // Sweep against both animals and the other resident simultaneously, so
@@ -1091,9 +1094,15 @@ export class World {
         clearance: PET_PERSON_CLEARANCE,
       });
     }
-    return bodies.length
-      ? residentStepAroundBodies(from, target, bodies, this.currentObstacles(), floorFor(this.place))
-      : target;
+    const actor = this.actors[role];
+    const dx=target.x-from.x,dz=target.z-from.z;
+    const otherDirection={x:Math.sin(neighbor.root.rotation.y),z:Math.cos(neighbor.root.rotation.y)};
+    const dist=Math.hypot(neighbor.root.position.x-from.x,neighbor.root.position.z-from.z);
+    const opposed=dx*otherDirection.x+dz*otherDirection.z < -.35*Math.hypot(dx,dz);
+    const approaching=dx*(neighbor.root.position.x-from.x)+dz*(neighbor.root.position.z-from.z) > 0;
+    const yieldToOncoming=role==='vlad'&&actor.isWalking()&&neighbor.isWalking()&&dist<1.15&&opposed&&approaching;
+    return smoothResidentTrafficStep(from,target,bodies,this.currentObstacles(),floorFor(this.place),
+      this.collisionFlow[role],this.movementDt,yieldToOncoming);
   }
 
   private sitAt(role: CharacterId, station: Station): void {
@@ -1441,6 +1450,7 @@ export class World {
     // jump when returning from a suspended tab.
     const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
     this.lastFrame = now;
+    this.movementDt=dt;
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
@@ -1463,6 +1473,7 @@ export class World {
         }
       }
       actor.setIdleSurroundings(petYaw, partnerYaw);
+      if (!actor.isWalking()) resetResidentTraffic(this.collisionFlow[id]);
       actor.update(dt, this.steering[id]);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.

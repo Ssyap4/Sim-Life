@@ -218,6 +218,7 @@ export class Actor {
     this.keys = keys;
   }
 
+  isWalking(): boolean { return this.waypoints.length > 0; }
   eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 
   playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3): void {
