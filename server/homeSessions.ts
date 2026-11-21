@@ -1,4 +1,6 @@
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
+import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_FLOOR, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe } from '../src/shared/food';
@@ -48,7 +50,7 @@ type Hooks = {
   pausePet?(pet:PetId):void;
   socialTtlMs?:number;
 };
-const obstacles = placeObstacles('home');
+
 const readingSeats: HomeSeat[] = HOME_SEATS.filter(seat => seat !== 'officeChair');
 const length = (route: WalkRoute) => route.path.reduce((sum, point, i) => {
   const from = route.path[i - 1] ?? route.from;
@@ -67,7 +69,7 @@ function sampled(home: HomePresentation, elapsed: number) {
 const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv';
 
 export function usesHomeSession(command: TimedCommand): boolean {
-  return command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
+  return command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
       ['sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
@@ -109,7 +111,20 @@ export function createHomeSessions(hooks: Hooks) {
   function presentation(role: CharacterId, command: TimedCommand): HomePresentation | null {
     const { x, z } = hooks.state().characters[role];
     const from = { x, z };
-    const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) => planWalk(origin, to, obstacles, HOME_FLOOR);
+    const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
+      planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_FLOOR);
+    if(command.type==='furniture_use'){
+      if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
+      const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
+      if(!choice)return null;
+      const seated=['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
+        'tablePlan','youtube','movie','free_tv'].includes(command.action)||
+        (command.action==='read_book'&&FURNITURE_BY_ID.get(choice.item.sku)?.shape!=='shelves');
+      return {route:choice.route,station:'furniture',furnitureId:choice.item.id,
+        furniturePose:choice.pose,furnitureSeat:seated,
+        program:command.action==='movie'?command.genre:command.action==='youtube'?'vlog':
+          command.action==='free_tv'?'broadcast':undefined};
+    }
     if (command.type === 'study') {
       const material = MATERIAL_BY_ID.get(command.material)!;
       if (material.station) {
@@ -118,6 +133,14 @@ export function createHomeSessions(hooks: Hooks) {
         return route && { route, station: material.station };
       }
       if (material.channel === 'book') {
+        if(hooks.state().furnishing.soldFixtures?.includes('bookcase')){
+          const shelfId=hooks.state().furnishing.placed.find(item=>
+            FURNITURE_BY_ID.get(item.sku)?.shape==='shelves')?.id;
+          const shelf=shelfId!==undefined?
+            furnitureUseLocation(hooks.state(),role,shelfId,'read_book'):null;
+          return shelf&&{station:'furniture',route:shelf.route,furnitureId:shelfId,
+            furniturePose:shelf.pose,furnitureSeat:false};
+        }
         const pickup = walk(from, LIBRARY_APPROACH);
         const station = 'table';
         const seat = pickup && walk(pickup.path.at(-1) ?? pickup.from, homeSeat(station, role).approach);
@@ -125,6 +148,14 @@ export function createHomeSessions(hooks: Hooks) {
           pickup: pickup.path.length, pickupMs: 720 };
       }
       if (material.channel === 'tv') {
+        if(hooks.state().furnishing.soldFixtures?.includes('sofa')){
+          const sofaId=hooks.state().furnishing.placed.find(item=>
+            ['sofa','corner'].includes(FURNITURE_BY_ID.get(item.sku)?.shape??''))?.id;
+          const sofa=sofaId!==undefined?
+            furnitureUseLocation(hooks.state(),role,sofaId,'free_tv'):null;
+          return sofa&&{station:'furniture',route:sofa.route,furnitureId:sofaId,
+            furniturePose:sofa.pose,furnitureSeat:true,program:'lesson',lesson:material.id};
+        }
         const route = walk(from, homeSeat('sofa', role).approach);
         return route && { route, station: 'sofa', program: 'lesson', lesson: material.id };
       }
@@ -132,6 +163,14 @@ export function createHomeSessions(hooks: Hooks) {
         if (command.computer === 'laptop') {
           const route = walk(from, stationById('home',HOME_LAPTOP)!.approach);
           return route && { route, station: 'studyLaptop' };
+        }
+        if(hooks.state().furnishing.soldFixtures?.includes('desk')){
+          const deskId=hooks.state().furnishing.placed.find(item=>
+            FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+          const desk=deskId!==undefined?
+            furnitureUseLocation(hooks.state(),role,deskId,'deskJournal'):null;
+          return desk&&{route:desk.route,station:'studyDesk',furnitureId:deskId,
+            furniturePose:desk.pose};
         }
         const route = walk(from, points.desk);
         return route && { route, station: 'studyDesk' };
@@ -160,6 +199,14 @@ export function createHomeSessions(hooks: Hooks) {
       return route && { route, station };
     }
     if (command.type === 'read_book') {
+      if(hooks.state().furnishing.soldFixtures?.includes('bookcase')){
+        const shelfId=hooks.state().furnishing.placed.find(item=>
+          FURNITURE_BY_ID.get(item.sku)?.shape==='shelves')?.id;
+        const shelf=shelfId!==undefined?
+          furnitureUseLocation(hooks.state(),role,shelfId,'read_book'):null;
+        return shelf&&{station:'furniture',route:shelf.route,furnitureId:shelfId,
+          furniturePose:shelf.pose,furnitureSeat:false};
+      }
       const pickup = walk(from, LIBRARY_APPROACH);
       if (!pickup) return null;
       const index = Math.floor(Math.random() * readingSeats.length);
@@ -170,6 +217,17 @@ export function createHomeSessions(hooks: Hooks) {
           pickup: pickup.path.length, pickupMs: 720, station };
       }
       return null;
+    }
+    if((command.type==='movie'||command.type==='youtube'||command.type==='free_tv')&&
+      hooks.state().furnishing.soldFixtures?.includes('sofa')){
+      const sofaId=hooks.state().furnishing.placed.find(item=>
+        ['sofa','corner'].includes(FURNITURE_BY_ID.get(item.sku)?.shape??''))?.id;
+      const sofa=sofaId!==undefined?
+        furnitureUseLocation(hooks.state(),role,sofaId,'free_tv'):null;
+      return sofa&&{station:'furniture',route:sofa.route,furnitureId:sofaId,
+        furniturePose:sofa.pose,furnitureSeat:true,
+        program:command.type==='movie'?command.genre:
+          command.type==='youtube'?'vlog':'broadcast'};
     }
     const station = command.type === 'act' && command.actionId === 'officeChairSit' ? 'officeChair'
       : command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
@@ -208,8 +266,10 @@ export function createHomeSessions(hooks: Hooks) {
       if (!result.ok) { end(session, 'failed', result.reason); return; }
       const route = packet.home!.route;
       const seat = packet.home!.station;
-      const seated = seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
-      Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from, { pose: seated ? 'sit' : 'idle' });
+      const seated = seat==='furniture' ? packet.home!.furnitureSeat===true:
+        seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
+      Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from,
+        { pose: seated ? 'sit' : 'idle' });
       if (!session.study && !packet.automatic) awardActivity(result.state, role, session.plan.command, session.plan.label);
       next = result.state;
       results.push(result);

@@ -10,6 +10,9 @@ import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee
 import type { ReadyFoodBatch } from './readyFood';
 import { EMPTY_DIRTY_DISHES, type DirtyDishes } from './dirtyDishes';
 import type { LedgerEntry } from './economy';
+import { emptyFurnishing, type FurnishingState } from './furniture';
+import type { FurnishingCommand } from './furniture';
+import type { FurnitureUseCommand } from './furnitureUse';
 import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type PetFoodStock, type PetBowlStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
@@ -47,6 +50,10 @@ export interface CharacterState extends Needs {
   x: number;
   z: number;
   pose: Pose;
+  /** Installed bed currently used for sleep; absent for older households. */
+  sleepingOn?: import('./bedSleep').SleepBedId;
+  /** Keeps the chosen half/full sleep goal through a server restart. */
+  sleepMode?: import('./timeControl').SleepMode;
 }
 export interface GameState {
   version: 2;
@@ -54,6 +61,7 @@ export interface GameState {
   clock: GameClock;
   world: WorldState;
   money: number;
+  furnishing: FurnishingState;
   billing: FamilyServices;
   pantry: Pantry;
   meals: CookedMeals;
@@ -141,18 +149,18 @@ export const ACTIONS = {
 } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
-export type TimedCommand = Entertainment | SocialIntent
+export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
-  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice }
-  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice }
-  | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId }
-  | { type: 'eat_takeout'; item: import('./food').TakeoutId }
+  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
+  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
+  | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | EducationCommand | CareerCommand | SocialCommand
+export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -160,8 +168,8 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | Educa
   | { type: 'forget_device' }
   | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
-  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice }
-  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice }
+  | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
+  | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
@@ -169,12 +177,12 @@ export type ClientPacket = WorldCommand | Entertainment | ServiceCommand | Educa
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
   | { type: 'shift_speed'; enabled: boolean }
-  | { type: 'sleep_start'; mode: import('./timeControl').SleepMode }
+  | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }
   | { type: 'sleep_stop' }
-  | { type: 'eat_takeout'; item: import('./food').TakeoutId }
+  | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
   | { type: 'cook'; recipe: import('./food').RecipeId }
-  | { type: 'eat'; recipe: import('./food').RecipeId }
+  | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
   | { type: 'social_offer'; kind: SocialKind }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
   | { type: 'cancel_task'; taskId: number };
@@ -215,6 +223,7 @@ export type ServerPacket =
 export function initialState(): GameState {
   return {
     version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
+    furnishing: emptyFurnishing(),
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },

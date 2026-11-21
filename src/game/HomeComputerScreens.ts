@@ -13,8 +13,12 @@ export class HomeComputerScreens {
   private readonly tasks = new Map<CharacterId,{device:ComputerDevice;scene:ComputerScene}>();
   private readonly careers = new Map<CharacterId,{device:ComputerDevice;scene:ComputerScene}>();
   private readonly previews: Partial<Record<ComputerDevice, ComputerScene>> = {};
+  private readonly initialDesktop:THREE.Group;
+  private desktopPanel!:THREE.Mesh;
+  private monitorStand:THREE.Group|null=null;
 
   constructor(desktop:THREE.Group,laptop:THREE.Group) {
+    this.initialDesktop=desktop;
     const add=(parent:THREE.Group,device:ComputerDevice):Screen=>{
       const canvas=document.createElement('canvas');
       canvas.width=256;canvas.height=144;
@@ -31,13 +35,47 @@ export class HomeComputerScreens {
         // Follow the same lid tilt as CareerArt; remain just in front of its static screen.
         mesh.position.set(0,1.059,-.008);
         mesh.rotation.x=-.2;
-      } else mesh.position.set(0,1.52,-.211);
+      } else {
+        mesh.position.set(0,1.52,-.211);
+        this.desktopPanel=mesh;
+      }
       mesh.renderOrder=5;
       mesh.castShadow=false;mesh.receiveShadow=false;
       parent.add(mesh);
       return {canvas,ctx,texture,lastFrame:-1,lastMode:''};
     };
     this.screens={desktop:add(desktop,'desktop'),laptop:add(laptop,'laptop')};
+  }
+
+  /** Reattach the SAME working desktop screen to a replacement desk.
+   * It keeps the old texture and 8fps budget; no second simulated PC is spawned. */
+  hostDesktop(desk:THREE.Group|null):void{
+    if(!desk){
+      this.monitorStand?.removeFromParent();
+      this.initialDesktop.add(this.desktopPanel);
+      this.desktopPanel.position.set(0,1.52,-.211);
+      return;
+    }
+    if(!this.monitorStand){
+      const stand=new THREE.Group();
+      const shell=new THREE.Mesh(new THREE.BoxGeometry(1.10,.73,.085),
+        new THREE.MeshStandardMaterial({color:0x303b42,roughness:.68}));
+      shell.position.set(0,1.255,-.15);
+      const pillar=new THREE.Mesh(new THREE.BoxGeometry(.075,.27,.08),
+        new THREE.MeshStandardMaterial({color:0x53616b,roughness:.71}));
+      pillar.position.set(0,.905,-.15);
+      const base=new THREE.Mesh(new THREE.BoxGeometry(.34,.035,.22),
+        new THREE.MeshStandardMaterial({color:0x36414a}));
+      base.position.set(0,.77,-.15);
+      const keyboard=new THREE.Mesh(new THREE.BoxGeometry(.64,.025,.23),
+        new THREE.MeshStandardMaterial({color:0xb8bcb7,roughness:.78}));
+      keyboard.position.set(0,.775,.19);
+      stand.add(shell,pillar,base,keyboard);
+      this.monitorStand=stand;
+    }
+    desk.add(this.monitorStand);
+    this.monitorStand.add(this.desktopPanel);
+    this.desktopPanel.position.set(0,1.255,-.103);
   }
 
   private current(device:ComputerDevice):ComputerScene {

@@ -54,8 +54,8 @@ export function socialDuration(a:SocialActivity,command:SocialIntent){
 }
 export const socialPet=(command:SocialIntent)=>petActions[command.action]&&command.action!=='petFeed'?command.item as PetId:undefined;
 
-function twoSpots(place:PlaceId,origins:Record<CharacterId,Point>,gap:number,target?:Point){
-  const obstacles=placeObstacles(place),floor=floorFor(place);
+function twoSpots(state:GameState,place:PlaceId,origins:Record<CharacterId,Point>,gap:number,target?:Point){
+  const obstacles=placeObstacles(place,state.furnishing),floor=floorFor(place);
   const midpoint={x:(origins.vlad.x+origins.alina.x)/2,z:(origins.vlad.z+origins.alina.z)/2};
   const centers=target ? [
     ...[.77,1.02,1.22,1.52].flatMap(distance=>[0,Math.PI/2,Math.PI,Math.PI*1.5,.6,2.2,3.8,5.4].map(a=>
@@ -82,7 +82,7 @@ function walkStops(place:PlaceId,role:CharacterId) {
 
 export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent):Record<CharacterId,HomePresentation>|null {
   const a=SOCIAL_BY_ID.get(command.action)!;
-  const place=state.world.places[from],obstacles=placeObstacles(place),floor=floorFor(place);
+  const place=state.world.places[from],obstacles=placeObstacles(place,state.furnishing),floor=floorFor(place);
   const to=otherPerson(from),p=command.item;
   const walk=(src:Point,destination:Point)=>planWalk(src,destination,obstacles,floor);
   const chain=(src:Point,stops:Point[])=>{
@@ -112,7 +112,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   }
   if(a.object==='dishes'){
     work[from]={motion:'wash',destination:KITCHEN_WORK.dishes.position,target:KITCHEN_WORK.dishes.target};
-    work[to]={motion:'serve',destination:prep.position,target:prep.target,stops:dirtyDishStops(state.dirtyDishes,to)};
+    work[to]={motion:'serve',destination:prep.position,target:prep.target,stops:dirtyDishStops(state.dirtyDishes,to,state)};
   }
   if(a.object==='unpack'){
     work[from]={motion:'unpack',destination:table(from),target:HOME_PLACEMENTS.table};
@@ -133,7 +133,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const pet=petActions[a.id]?p as PetId:undefined;
   const petTarget=pet?(a.object==='petFeed'?PETS[pet].bowl:state.pets[pet].position):undefined;
   const contact=['kiss','cheek','hug','closeHug','hands','hair','shoulder','highFive','slowDance'].includes(a.motion);
-  const spot=petTarget||(!a.object&&!seated)?twoSpots(place,origins,
+  const spot=petTarget||(!a.object&&!seated)?twoSpots(state,place,origins,
     contact?RESIDENT_CLEARANCE+.05:1.10,petTarget):undefined;
   const result:Partial<Record<CharacterId,HomePresentation>>={};
   const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?'cafe-left':null;

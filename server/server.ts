@@ -16,6 +16,7 @@ import {
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
+import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { planLeisure, urgentHomeAction } from './home';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
@@ -30,6 +31,7 @@ import { advanceLife } from './life';
 import { expireReadyFood, readyFoodName } from '../src/shared/readyFood';
 import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
+import { selectSleepBed } from '../src/shared/bedSleep';
 import { recoverSleep } from './timeControl';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
@@ -44,6 +46,8 @@ export interface ServerOptions {
   /** For fast deterministic integration tests; production defaults to real time. */
   taskTimeScale?: number;
   socialTtlMs?: number;
+  /** Localhost-only, separate-save convenience mode for private previews. */
+  testNoCodes?:boolean;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
 }
@@ -68,6 +72,10 @@ const packet = (socket: WebSocket, value: ServerPacket): void => {
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const port = options.port ?? 3101;
+  const previewNoCodes=options.testNoCodes===true && options.host==='127.0.0.1' &&
+    port!==3111 && options.dataDir!==undefined &&
+    resolve(options.dataDir)!==resolve('server-data') &&
+    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
   const host = options.host ?? '127.0.0.1';
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
@@ -79,9 +87,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state.revision++;
     files.save(state);
   }
-  // Interrupted sleep sessions do not keep earning energy after a server restart.
-  for (const id of ['vlad', 'alina'] as const)
-    if (state.characters[id].pose === 'sleep') state.characters[id].pose = 'idle';
+  // Sleepers are recovered from their saved bed and target below. No energy
+  // is awarded while the server is offline; sleep resumes when players return.
   if (state.world.dogWalker) {
     state.world.dogWalker = null;
     setDogParkPosition(state);
@@ -100,6 +107,26 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
+  // Active sleep was already persisted in the household. Resume it when the
+  // server restarts instead of leaving a permanently sleeping visual with
+  // no wake-up action or recovery timer.
+  let repairedSleep=false;
+  for(const resident of ['vlad','alina'] as const){
+    const sleeper=state.characters[resident];
+    if(sleeper.pose!=='sleep'||state.world.places[resident]!=='home')continue;
+    const chosen=selectSleepBed(state,resident,
+      typeof sleeper.sleepingOn==='number'?sleeper.sleepingOn:undefined);
+    if(chosen.ok){
+      sleeper.sleepingOn=chosen.bed.id;
+      sleepers.set(resident,sleeper.sleepMode==='half'?'half':'full');
+    }else{
+      sleeper.pose='idle';
+      delete sleeper.sleepingOn;
+      delete sleeper.sleepMode;
+      repairedSleep=true;
+    }
+  }
+  if(repairedSleep){state.revision++;files.save(state);}
   const shiftVotes = new Set<CharacterId>();
   const timeStatus = (): TimeStatus => ({
     multiplier: timeMultiplier(online(), { vlad: state.activeShifts.vlad || state.careers.residents.vlad.shift,
@@ -150,6 +177,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (state.characters[role].pose === 'sleep') {
       const next = structuredClone(state);
       next.characters[role].pose = 'idle';
+      delete next.characters[role].sleepingOn;
+      delete next.characters[role].sleepMode;
       next.revision++;
       try { files.save(next); state = next; }
       catch (error) { console.error('Could not save wake-up:', error); return; }
@@ -434,7 +463,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
     if (pathname === '/health') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, version: 2, online: online().length }));
+      res.end(JSON.stringify({ ok: true, version: 2, online: online().length,
+        testNoCodes:previewNoCodes }));
       return;
     }
     if (pathname.includes('\\') || pathname.includes('\0')) {
@@ -502,7 +532,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const requested = message.role;
         const valid = message.type === 'resume'
           ? devices.verify(requested, message.token)
-          : typeof message.code === 'string' && sameCode(message.code, files.access[requested]);
+          : typeof message.code === 'string' &&
+            (previewNoCodes&&message.code==='TEST-LOCAL-NO-CODES'||sameCode(message.code, files.access[requested]));
         if (!valid) {
           invalidLogins++;
           packet(socket, { type: 'error', reason: message.type === 'resume'
@@ -557,11 +588,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (state.characters[role].energy >= sleepTarget(mode)) {
           packet(socket, { type: 'error', reason: 'Энергия уже достигла выбранной отметки' }); return;
         }
+        const requestedBed=message.furnitureId===undefined?undefined:
+          typeof message.furnitureId==='number'?message.furnitureId:NaN;
+        const chosen=selectSleepBed(state,role,requestedBed);
+        if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
         closeStorage(role);
         stopLeisure(role);
         if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Время спать');
         const next = structuredClone(state);
-        Object.assign(next.characters[role], points.bed, { pose: 'sleep' });
+        Object.assign(next.characters[role],chosen.bed.approach,
+          {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode:mode});
         next.revision++;
         try { files.save(next); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить начало сна' }); return; }
@@ -687,6 +723,49 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         return;
       }
+      if (typeof message.type==='string' && [
+        'furniture_order','furniture_unbox','furniture_place',
+        'furniture_move','furniture_store','furniture_sell','furniture_sell_static',
+      ].includes(message.type)) {
+        // A store command must never wake or cancel a resident.
+        if (running.has(role) || homeTasks.busy(role) || sleepers.has(role)) {
+          packet(socket,{type:'error',reason:'Сначала заверши занятие или сон'});
+          return;
+        }
+        // Spatial changes must never interrupt a pre-existing chore, walk,
+        // sleep or the partner's scripted scene.
+        const spatial=message.type==='furniture_place'||message.type==='furniture_move'||message.type==='furniture_sell_static';
+        if (spatial && (running.size>0 || leisure.size>0 || homeTasks.busy('vlad') || homeTasks.busy('alina') ||
+          sleepers.size>0 || [...walkingHome.values()].some(walk=>{
+            const distance=(Date.now()-walk.started)/1000*HOME_WALK_SPEED;
+            const total=walk.route.path.reduce((sum,point,index)=>{
+              const from=walk.route.path[index-1]??walk.route.from;
+              return sum+Math.hypot(point.x-from.x,point.z-from.z);
+            },0);
+            return distance<total;
+          }))) {
+          packet(socket,{type:'error',reason:'Дождись завершения прогулки или действия перед перестановкой'});
+          return;
+        }
+        if(['furniture_move','furniture_store','furniture_sell'].includes(String(message.type))&&
+          typeof message.id==='number'&&(
+            homeTasks.reserved('furniture:'+message.id)||
+            [...running.values()].some(task=>
+              'furnitureId' in task.plan.command && task.plan.command.furnitureId===message.id))){
+          packet(socket,{type:'error',reason:'Сначала дождись окончания действия на этой мебели'});
+          return;
+        }
+        const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
+          Math.floor(liveGameTime()));
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}
+        catch{packet(socket,{type:'error',reason:'Не удалось сохранить мебель'});return;}
+        state=result.state;
+        lastIntent.set(role,Date.now());
+        all({type:'snapshot',state});
+        all({type:'store_event',role,message:result.message});
+        return;
+      }
       // Walking, starting work, using a station or any other manual action wakes the sleeper.
       stopSleep(role);
       lastIntent.set(role, Date.now());
@@ -757,7 +836,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

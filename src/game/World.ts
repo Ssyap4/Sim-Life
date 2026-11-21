@@ -16,11 +16,11 @@ import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacl
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
-import { cube, drum, finish, softCube } from './ArtKit';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
+import { diningSurface, tabletopPoint } from '../shared/diningSurface';
 import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
@@ -30,11 +30,15 @@ import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproac
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
-import { batchRigidParts } from './ArtKit';
+import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
+import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
+import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
+import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
+import { diningLocation, furnitureUseLocation } from '../shared/furnitureUse';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -88,7 +92,6 @@ export class World {
   private readonly subjectMeshes: THREE.Object3D[] = [];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
-  private readonly shoppingBags = [carryingBag(), carryingBag(), carryingBag()];
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
   private readonly meals = new Map<CharacterId, THREE.Group>();
@@ -117,7 +120,19 @@ export class World {
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
-  private readonly petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
+  private petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
+  private furnishedGeometryKey = '';
+  private furnishingModels=new Map<number,THREE.Group>();
+  private staticFixtureModels=new Map<StaticFurnitureId,THREE.Group>();
+  private furnishingVisualKey='';
+  private furnishingGhost:THREE.Group|null=null;
+  private furnishingPlaceCallback:((x:number,z:number)=>{x:number;z:number}|null)|null=null;
+  private furnishingFootprint:THREE.Mesh|null=null;
+  private furnishingOutline:THREE.LineSegments|null=null;
+  private furnishingGhostMaterials:THREE.MeshStandardMaterial[]=[];
+  private lastFurnitureHover=0;
+  private furnishingItemCallback:((id:number)=>void)|null=null;
+  private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
@@ -186,16 +201,6 @@ export class World {
     this.createLights();
     this.createHome();
     this.createDirtyDishes();
-    // Reuse the existing low-poly bags on the dining table, not in the hands at home.
-    for (const [index, bag] of this.shoppingBags.entries()) {
-      const offsets = [[-.39, .15], [.39, .15], [0, -.20]];
-      const [x, z] = offsets[index];
-      bag.position.set(HOME_PLACEMENTS.table.x + x, DINING_TOP + .015, HOME_PLACEMENTS.table.z + z);
-      bag.scale.setScalar(.92);
-      bag.visible = false;
-      this.homeScene.add(bag);
-      this.trackStation(this.stationMeshes, 'shopping-table', bag);
-    }
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
@@ -276,6 +281,11 @@ export class World {
           return;
         }
       }
+      if(!point && this.furnishingGhost && event.pointerType==='mouse' &&
+          performance.now()-this.lastFurnitureHover>125){
+        this.lastFurnitureHover=performance.now();
+        this.previewFurnitureAt(event.clientX,event.clientY);
+      }
       if (!point) return;
       if (touches.size === 2) {
         const [first, second] = touches.values();
@@ -345,7 +355,8 @@ export class World {
     this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
   }
 
-  restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
+  restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work',
+    selectedBed?:SleepBedId): void {
     const obstacles = this.currentObstacles(), floor = floorFor(this.place);
     let safe = nearestClearPoint({ x, z }, obstacles, floor);
     const other = this.actors[id === 'vlad' ? 'alina' : 'vlad'];
@@ -362,6 +373,16 @@ export class World {
       if (pose === 'sit' && seat) this.sitAt(id, seat);
       else this.actors[id].setPose('idle');
       return;
+    }
+    if(pose==='sleep'&&this.household){
+      const character=this.household.characters[id];
+      const sleepingOn:SleepBedId=selectedBed??character.sleepingOn??'starter';
+      const bed=bedPose(this.household,id,sleepingOn);
+      if(bed){
+        this.actors[id].setFurniturePose('sleep',
+          new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+        return;
+      }
     }
     const seat = pose === 'sit' && HOME_SEATS.map(seatId => homeSeat(seatId,id))
       .find(({approach}) => Math.hypot(approach.x-x,approach.z-z)<.20);
@@ -424,16 +445,24 @@ export class World {
 
   /** Client-only presentation. Sleep ownership and recovery remain server-authoritative. */
   showSleep(id: CharacterId, sleeping: boolean): void {
-    if (this.place !== 'home') return;
-    if (sleeping) {
-      if (!this.perform(id, 'bed', 'sleep', () => {}))
-        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
-    } else {
-      this.restoreCharacter(id, points.bed.x, points.bed.z, 'idle');
+    if(this.place!=='home'||!this.household)return;
+    const resident=this.household.characters[id];
+    if(sleeping){
+      const bed=bedPose(this.household,id,resident.sleepingOn??'starter');
+      if(!bed){this.actors[id].setPose('idle');return;}
+      const arrived=()=>this.actors[id].setFurniturePose('sleep',
+        new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+      if(!this.walkTo(id,{x:resident.x,z:resident.z},arrived))
+        this.restoreCharacter(id,resident.x,resident.z,'sleep');
+    }else{
+      // The navigation root remains at the bed's accessible edge throughout sleep.
+      const root=this.actors[id].root.position;
+      this.restoreCharacter(id,root.x,root.z,'idle');
     }
   }
 
-  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
+  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true,
+    furnitureId?:number): boolean {
     if (action === 'cook') {
       return this.perform(id, 'kitchen', 'idle', () => {
         if (!current()) return;
@@ -444,6 +473,24 @@ export class World {
     }
     // Use each person's *own* seat and approach. The old shared table marker
     // placed two co-op players at the same navigation position.
+    const bought=this.household&&diningLocation(this.household,id,furnitureId);
+    if(bought){
+      const place=bought.route.path.at(-1)??bought.route.from;
+      return this.walkTo(id,place,()=>{
+        if(!current())return;
+        const actor=this.actors[id],pose=bought.pose;
+        if(bought.seated)actor.setFurniturePose('sit',
+          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        else {
+          actor.setPose('idle');
+          actor.faceTowards(new THREE.Vector3(bought.item.x,0,bought.item.z));
+        }
+        this.showMeal(id,bought.item.x,FURNITURE_BY_ID.get(bought.item.sku)!.height+.014,bought.item.z);
+        actor.playActivity('eat');
+      });
+    }
+    if(furnitureId!==undefined||this.household?.furnishing.soldFixtures?.includes('table'))
+      return false;
     const seat = homeSeat('table', id);
     return this.walkTo(id, seat.approach, () => {
       if (!current()) return;
@@ -505,7 +552,10 @@ export class World {
       }
       if (station === 'studyLaptop') { this.laptopPose(role); return; }
       if (station === 'studyDesk') {
-        this.applyFurniturePose(role, 'desk', 'work');
+        const target=home.furniturePose;
+        if(target)actor.setFurniturePose('work',
+          new THREE.Vector3(target.x,target.y,target.z),target.yaw);
+        else this.applyFurniturePose(role,'desk','work');
         actor.playDomesticActivity('games');
         return;
       }
@@ -524,6 +574,28 @@ export class World {
       }
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
+        return;
+      }
+      if(station==='furniture'){
+        const pose=home.furniturePose;
+        if(!pose)return;
+        if(home.furnitureSeat){
+          actor.setFurniturePose('sit',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        }else if(command.type==='furniture_use'&&
+          ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
+          actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
+        if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
+        if(command.type==='furniture_use'){
+          if(command.action==='read_book')actor.playDomesticActivity('read');
+          else if(['deskJournal','tablePlan'].includes(command.action))actor.playDomesticActivity('journal');
+          else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
+            actor.playDomesticActivity('games');
+          else if(command.action==='tidy')actor.playDomesticActivity('tidy');
+          else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
+          else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
+        }
+        if(program)actor.watch(program==='horror'?-1:program==='comedy'?1:0);
         return;
       }
       const seat = homeSeat(station,role);
@@ -712,6 +784,12 @@ export class World {
     this.closeStorage(role);
     if(command.type==='together')return home?.pair?this.startPair(role,command.action,home):false;
     if(home) {
+      if(command.type==='furniture_use'&&
+        ['deskGames','deskJournal','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
+        const mode:ComputerScene['mode']=command.action==='deskGames'?'game':
+          command.action==='deskJournal'?'notes':role==='vlad'?'code':'hair';
+        this.computerScreens.task(role,'desktop',{mode,role});
+      }
       if(command.type==='study' && (home.station==='studyDesk'||home.station==='studyLaptop')) {
         const device=home.station==='studyLaptop'?'laptop':'desktop';
         this.computerScreens.task(role,device,{mode:'study',role});
@@ -752,6 +830,22 @@ export class World {
         if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
         else this.actors[role].playDomesticActivity('read');
       };
+      if(device==='desktop'&&this.household&&
+        (command.furnitureId!==undefined||this.household.furnishing.soldFixtures?.includes('desk'))){
+        const deskId=command.furnitureId??this.household.furnishing.placed.find(item=>
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+        const place=deskId!==undefined?furnitureUseLocation(this.household,role,deskId,'deskGames'):null;
+        if(!place)return false;
+        const destination=place.route.path.at(-1)??place.route.from;
+        return this.walkTo(role,destination,()=>{
+          if(!current())return;
+          const pose=place.pose;
+          this.actors[role].setFurniturePose('work',
+            new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+          if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
+          else this.actors[role].playDomesticActivity('read');
+        });
+      }
       return device==='laptop'
         ? this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,begin)
         : this.perform(role,'desk','work',begin);
@@ -776,7 +870,7 @@ export class World {
       if (command.actionId === 'kitchenDishes') {
         // One errand collects plates at the used tables, then brings them to
         // the kitchen sink. Both players see the same server-backed counters.
-        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role) : [];
+        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role,this.household) : [];
         if (!stops.length) return false;
         const actor = this.actors[role];
         const sink = KITCHEN_WORK.dishes;
@@ -829,9 +923,9 @@ export class World {
       });
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
-    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
+    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current,command.furnitureId);
     if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
-    return command.type === 'eat' && this.performFood(role, command.type, current);
+    return command.type === 'eat' && this.performFood(role, command.type, current,command.furnitureId);
   }
 
   private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
@@ -1043,6 +1137,7 @@ export class World {
 
   private register(id: ItemId, group: THREE.Group, point: Point): void {
     this.scene.add(group);
+    if(isStaticFurnitureId(id))this.staticFixtureModels.set(id,group);
     this.itemPoints.set(id, new THREE.Vector3(point.x, 0, point.z));
     group.traverse((part) => {
       if (part instanceof THREE.Mesh) {
@@ -1062,8 +1157,9 @@ export class World {
     this.register('grill', this.yard.grill, points.grill);
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
-      new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)));
-    buildSoftRugs(this.scene);
+      new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)),
+      (id,model)=>this.staticFixtureModels.set(id,model));
+    buildSoftRugs(this.scene,(id,model)=>this.staticFixtureModels.set(id,model));
     this.scene.add(furnitureContact());
     let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {
@@ -1075,10 +1171,171 @@ export class World {
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
     this.createPetBowls();
+    this.createFurnitureParcels();
   }
 
   /** Dirty plates are lightweight, shared visual props. The authoritative
    * counts live on the server and survive reloading the household. */
+  updateFurnitureDeliveryTime(nowMinute:number):void {
+    if(!this.household||this.place!=='home')return;
+    const count=this.household.furnishing.orders.filter(item=>item.readyAt<=nowMinute).length;
+    this.furnishingParcels.visible=count>0;
+    this.furnishingParcels.children.forEach((model,index)=>{model.visible=index<count;});
+  }
+
+  private createFurnitureParcels():void {
+    this.furnishingParcels.name='Доставленные коробки мебели';
+    for(let i=0;i<4;i++){
+      const box=new THREE.Mesh(cube,finish([0xc79a69,0xb99064,0xdeb88e,0xc49a6c][i],'wood'));
+      box.scale.set(.65+i%2*.12,.38+i%3*.11,.58);
+      box.position.set(3.40+(i%2)*.72,.21+i%3*.045,5.85+Math.floor(i/2)*.68);
+      this.furnishingParcels.add(box);
+      const tape=new THREE.Mesh(cube,finish(0xe9d5a9,'fabric'));
+      tape.scale.set(.07,.012,.60);
+      tape.position.set(0,.51,0);box.add(tape);
+    }
+    this.furnishingParcels.visible=false;
+    this.homeScene.add(this.furnishingParcels);
+  }
+
+  private renderOwnedFurniture(placed:readonly PlacedFurniture[]):void {
+    const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false]);
+    if(signature===this.furnishingVisualKey)return;
+    this.furnishingVisualKey=signature;
+    this.computerScreens.hostDesktop(null);
+    for(const model of this.furnishingModels.values()){
+      model.traverse(part=>{
+        const at=this.interactiveMeshes.indexOf(part);
+        if(at!==-1)this.interactiveMeshes.splice(at,1);
+      });
+      model.removeFromParent();
+      model.traverse(part=>{
+        if(part instanceof THREE.Mesh&&!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
+          part.geometry.dispose();
+      });
+    }
+    this.furnishingModels.clear();
+    for(const item of placed){
+      const model=buildFurnishingModel(item.sku,item.finish);
+      model.position.set(item.x,.01,item.z);
+      model.rotation.y=item.rotation*Math.PI/2;
+      model.userData.furnitureId=item.id;
+      model.traverse(part=>{
+        if(part instanceof THREE.Mesh){
+          part.userData.furnitureId=item.id;
+          this.interactiveMeshes.push(part);
+        }
+      });
+      this.homeScene.add(model);
+      this.furnishingModels.set(item.id,model);
+    }
+    if(this.household?.furnishing.soldFixtures?.includes('desk')){
+      const replacement=placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+      if(replacement)this.computerScreens.hostDesktop(this.furnishingModels.get(replacement.id)!);
+    }
+  }
+
+  focusDesktopFurniture(id:number):void{
+    if(!this.household?.furnishing.soldFixtures?.includes('desk'))return;
+    const item=this.household.furnishing.placed.find(entry=>entry.id===id);
+    if(item&&FURNITURE_BY_ID.get(item.sku)?.shape==='desk'){
+      const model=this.furnishingModels.get(id);
+      if(model)this.computerScreens.hostDesktop(model);
+    }
+  }
+
+  setFurnishingPick(onTarget:(x:number,z:number)=>{x:number;z:number}|null,onItem:(id:number)=>void):void {
+    this.furnishingPlaceCallback=onTarget;
+    this.furnishingItemCallback=onItem;
+  }
+
+  beginFurnishingPlacement(sku:string,finish:FurnitureFinish,rotation:Rotation):void {
+    this.endFurnishingPlacement();
+    this.furnishingGhost=createPlacementGhost(sku,finish);
+    this.furnishingGhost.rotation.y=rotation*Math.PI/2;
+    const info=FURNITURE_BY_ID.get(sku)!;
+    const sizeW=info.width+.065,sizeD=info.depth+.065;
+    this.furnishingFootprint=new THREE.Mesh(new THREE.PlaneGeometry(sizeW,sizeD),
+      new THREE.MeshBasicMaterial({color:0x66ad78,transparent:true,opacity:.25,
+        depthWrite:false,side:THREE.DoubleSide}));
+    this.furnishingFootprint.rotation.x=-Math.PI/2;
+    this.furnishingFootprint.position.y=.018;
+    this.furnishingFootprint.renderOrder=2;
+    this.furnishingGhost.add(this.furnishingFootprint);
+    this.furnishingOutline=new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.PlaneGeometry(sizeW,sizeD)),
+      new THREE.LineBasicMaterial({color:0x268f51,transparent:true,opacity:.95}));
+    this.furnishingOutline.rotation.x=-Math.PI/2;
+    this.furnishingOutline.position.y=.023;
+    this.furnishingGhost.add(this.furnishingOutline);
+    this.furnishingGhostMaterials=[];
+    this.furnishingGhost.traverse(obj=>{
+      if(obj instanceof THREE.Mesh && obj!==this.furnishingFootprint)
+        this.furnishingGhostMaterials.push(obj.material as THREE.MeshStandardMaterial);
+    });
+    this.homeScene.add(this.furnishingGhost);
+    this.setFurnishingValidity(false);
+    // Start with a meaningful home-room location instead of a ghost floating
+    // above the center of the house. The same callback updates the UI.
+    const target=this.furnishingPlaceCallback?.(13.45,-5.65);
+    if(target)this.furnishingGhost.position.set(target.x,.04,target.z);
+  }
+
+  turnFurnishingPlacement(rotation:Rotation):void {
+    const ghost=this.furnishingGhost;
+    if(!ghost)return;
+    ghost.rotation.y=rotation*Math.PI/2;
+    const newTarget=this.furnishingPlaceCallback?.(ghost.position.x,ghost.position.z);
+    if(newTarget)ghost.position.set(newTarget.x,.04,newTarget.z);
+  }
+
+  setFurnishingValidity(valid:boolean):void {
+    const tint=valid?0x36be73:0xe45555;
+    if(this.furnishingFootprint){
+      (this.furnishingFootprint.material as THREE.MeshBasicMaterial).color.setHex(tint);
+    }
+    if(this.furnishingOutline){
+      (this.furnishingOutline.material as THREE.LineBasicMaterial).color.setHex(tint);
+    }
+    for(const material of this.furnishingGhostMaterials)
+      material.emissive.setHex(tint).multiplyScalar(.20);
+  }
+
+  private previewFurnitureAt(clientX:number,clientY:number):void {
+    if(this.place!=='home'||!this.furnishingGhost)return;
+    const bounds=this.canvas.getBoundingClientRect();
+    const x=(clientX-bounds.left)/bounds.width*2-1;
+    const y=-(clientY-bounds.top)/bounds.height*2+1;
+    this.raycaster.setFromCamera(new THREE.Vector2(x,y),this.camera);
+    const point=this.raycaster.ray.intersectPlane(
+      new THREE.Plane(new THREE.Vector3(0,1,0),0),this.vector);
+    if(!point)return;
+    const selected=this.furnishingPlaceCallback?.(
+      Math.round(point.x*100)/100,Math.round(point.z*100)/100);
+    if(selected)this.furnishingGhost.position.set(selected.x,.04,selected.z);
+  }
+
+  endFurnishingPlacement():void {
+    if(!this.furnishingGhost)return;
+    const ghost=this.furnishingGhost;
+    ghost.removeFromParent();
+    ghost.traverse(part=>{
+      if(part instanceof THREE.LineSegments){
+        part.geometry.dispose();
+        (part.material as THREE.Material).dispose();
+      }
+      if(part instanceof THREE.Mesh){
+        if(!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
+          part.geometry.dispose();
+        (part.material as THREE.Material).dispose();
+      }
+    });
+    this.furnishingGhost=null;
+    this.furnishingFootprint=null;
+    this.furnishingOutline=null;
+    this.furnishingGhostMaterials=[];
+  }
+
   private createDirtyDishes(): void {
     const plateMaterial = finish(0xd6c4ac, 'ceramic');
     const crumbsMaterial = finish(0x8a664c, 'wood');
@@ -1307,7 +1564,15 @@ export class World {
 
   private showCareerStation(id: CharacterId, shift: CareerShift): void {
     if (shift.mode === 'remote' && shift.homeDevice === 'desktop') {
-      this.applyFurniturePose(id,'desk','work');
+      if(this.household?.furnishing.soldFixtures?.includes('desk')){
+        const desk=this.household.furnishing.placed.find(item=>
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+        const target=desk&&furnitureUseLocation(this.household,id,desk.id,'deskJournal');
+        if(!target)return;
+        const pose=target.pose;
+        this.actors[id].setFurniturePose('work',
+          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+      }else this.applyFurniturePose(id,'desk','work');
       this.actors[id].playDomesticActivity('games');
       return;
     }
@@ -1335,6 +1600,12 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
+    if(furnishingKey!==this.furnishedGeometryKey){
+      this.furnishedGeometryKey=furnishingKey;
+      this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
+      this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
+    }
     const minute = gameMinutes(state.clock);
     // House NPCs share the server clock, without persisting visual-only traffic.
     if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
@@ -1356,7 +1627,11 @@ export class World {
       if (away || sleep) this.closeStorage(id);
       if (sleep && (!wasSleeping || reset || changed)) {
         this.sleepingOffline.add(id);
-        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
+        const resident=state.characters[id];
+        const bed=selectSleepBed(state,id,typeof resident.sleepingOn==='number'?resident.sleepingOn:undefined);
+        if(bed.ok)this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,
+          'sleep',bed.bed.id);
+        else this.restoreCharacter(id,resident.x,resident.z,'idle');
       } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
@@ -1392,17 +1667,31 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
-      for (const station of ['table', 'yardTable'] as const) {
-        this.dirtyVisuals[station].forEach((plate, index) => {
-          plate.visible = index < state.dirtyDishes[station];
+      const top=diningSurface(state);
+      for (const station of ['table','yardTable'] as const) {
+        this.dirtyVisuals[station].forEach((plate,index)=>{
+          if(station==='table'){
+            const step=top.kind==='counter'?.18:Math.min(.34,top.width*.23);
+            const point=tabletopPoint(top,(index%3-1)*step,
+              top.kind==='counter'?0:-Math.min(.37,top.depth*.32));
+            plate.position.set(point.x,top.height+.02+Math.floor(index/3)*.042,point.z);
+          }
+          plate.visible=index<state.dirtyDishes[station];
         });
       }
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
-      this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
+      for(const [id,model] of this.staticFixtureModels)
+        model.visible=!state.furnishing.soldFixtures?.includes(id);
+      this.renderOwnedFurniture(state.furnishing.placed);
+      this.updateFurnitureDeliveryTime(clockMinutes(state.clock));
       this.updateHomePets(state);
-      if (this.served) this.served.visible = (Object.keys(state.meals) as RecipeId[])
-        .some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
+      if(this.served){
+        const platePos=tabletopPoint(top,0,top.kind==='counter'?.08:-Math.min(.28,top.depth*.25));
+        this.served.position.set(platePos.x,top.height+.014,platePos.z);
+        this.served.visible=(Object.keys(state.meals) as RecipeId[])
+          .some(recipe=>!isGrillRecipe(recipe)&&state.meals[recipe]>0);
+      }
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
       const counts = { fridge: 0, cupboard: 0 };
       for (const [name, amount] of Object.entries(state.pantry)) {
@@ -1450,6 +1739,15 @@ export class World {
       }
       return true;
     });
+    if(this.place==='home'&&this.furnishingGhost){
+      this.previewFurnitureAt(clientX,clientY);
+      return;
+    }
+    const furnitureId:unknown=hit?.object.userData.furnitureId;
+    if(this.place==='home'&&typeof furnitureId==='number'){
+      this.furnishingItemCallback?.(furnitureId);
+      return;
+    }
     const station: unknown = hit?.object.userData.station;
     if (typeof station === 'string') { this.navigation?.station(station); return; }
     const id: unknown = hit?.object.userData.interactable;

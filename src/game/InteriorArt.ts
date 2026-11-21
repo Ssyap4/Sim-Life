@@ -344,7 +344,9 @@ export function buildFurniture(register: Register): void {
   }
 }
 
-export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (model: THREE.Group) => void): void {
+export function buildPersonalFurniture(scene: THREE.Scene,
+  registerLibrary: (model: THREE.Group) => void,
+  registerFixture?: (id:'nightstandLeft'|'nightstandRight',model:THREE.Group)=>void): void {
   const vanity = group(HOME_PLACEMENTS.vanity.x, HOME_PLACEMENTS.vanity.z);
   vanity.rotation.y = Math.PI / 2;
   part(vanity, [1.33, .11, .63], [0, .86, 0], C.woodLight, 'soft', true, 'wood');
@@ -396,6 +398,7 @@ export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (mod
     part(nightstand, [1, 1, 1], [0, .99, -.065], C.linen, bedsideShade);
     batchRigidParts(nightstand, true);
     scene.add(nightstand);
+    registerFixture?.(index===0?'nightstandLeft':'nightstandRight',nightstand);
   }
   for (const furniture of [vanity, bookcase]) {
     batchRigidParts(furniture, true);
@@ -403,15 +406,19 @@ export function buildPersonalFurniture(scene: THREE.Scene, registerLibrary: (mod
   }
 }
 
-export function buildSoftRugs(scene: THREE.Scene): void {
+export function buildSoftRugs(scene: THREE.Scene,
+  registerFixture:(id:'rugLiving'|'rugWork'|'rugSleep',model:THREE.Group)=>void): void {
   const rugs = [
     { style: 'living', x: HOME_PLACEMENTS.sofa.x, z: .98, width: 3.72, depth: 3.39, edge: C.terracotta },
     { style: 'work', x: HOME_PLACEMENTS.desk.x, z: -5.83, width: 2.68, depth: 2.79, edge: C.moss },
     { style: 'sleep', x: HOME_PLACEMENTS.bed.x, z: -5.27, width: 4.15, depth: 3.31, edge: C.oat },
   ] as const;
   for (const {style, x, z, width, depth, edge} of rugs) {
-    part(scene, [width, 0.022, depth], [x, 0.011, z], edge);
-    const textile = panel(scene, [x, 0.024, z], [width - 0.07, depth - 0.07], wovenRug(style), edge);
+    const model=new THREE.Group();
+    part(model, [width, 0.022, depth], [x, 0.011, z], edge);
+    const textile = panel(model, [x, 0.024, z], [width - 0.07, depth - 0.07], wovenRug(style), edge);
     textile.rotation.x = -Math.PI / 2;
+    scene.add(model);
+    registerFixture(style==='living'?'rugLiving':style==='work'?'rugWork':'rugSleep',model);
   }
 }

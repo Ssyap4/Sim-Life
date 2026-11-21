@@ -48,8 +48,11 @@ export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
+  station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  furnitureId?:number;
+  furniturePose?:{x:number;y:number;z:number;yaw:number};
+  furnitureSeat?:boolean;
   lesson?: string;
   question?: string;
   pair?: PairPresentation;

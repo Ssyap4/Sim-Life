@@ -214,13 +214,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           send({ type: 'delivery_claim', id: order.id }), order.readyAt > now));
         options.append(row);
       }
-    } else if (kind === 'unpack') {
-      const count = place.world.tableBags;
-      options.append(element('small', '', count ? 'На столе пакетов: ' + count + '. Продукты уже учтены в семейных запасах.' : 'На столе нет покупок.'));
-      if (count) options.append(local('Разложить покупки', 'unpack'));
-      const readyOnTable = readyFoodTableUsage(place);
-      if (readyOnTable) options.append(element('small', '', '🍽️ Готовая еда на столе: ' + readyOnTable +
-        '/' + TABLE_READY_CAPACITY + ' порций. Убери в холодильник через его меню, пока еда свежая.'));
     } else if (kind === 'terminal' || kind === 'pickup') {
       const order = place.world.cafe[role];
       if (order) {

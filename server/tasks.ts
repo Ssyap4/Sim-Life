@@ -3,6 +3,10 @@ import { computerDevice, computerResource } from '../src/shared/computer';
 import { GAME_BY_ID, VIDEO_CLIPS, isVideoClipId } from '../src/shared/computerGames';
 import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
+import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import { clockMinutes } from '../src/shared/locations';
+import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
@@ -42,14 +46,31 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if(command.type==='furniture_use'){
+    if(!Number.isSafeInteger(command.furnitureId)||typeof command.action!=='string'||
+      !Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
+    const action=command.action as FurnitureUseCommand['action'];
+    if(action==='read_book' && (typeof command.book!=='string'||!Object.hasOwn(BOOKS,command.book)))return null;
+    if(action==='movie' && (typeof command.genre!=='string'||!Object.hasOwn(GENRES,command.genre)))return null;
+    const normalized:FurnitureUseCommand={type:'furniture_use',furnitureId:command.furnitureId as number,action,
+      ...(action==='read_book'?{book:command.book as import('../src/shared/homeLife').BookId}:{}),
+      ...(action==='movie'?{genre:command.genre as import('../src/shared/homeLife').Genre}:{})};
+    const secs=Object.hasOwn(ACTION_SECONDS,action)?ACTION_SECONDS[action as ActionId]:
+      action==='movie'?HOME_SECONDS.movie:action==='youtube'?HOME_SECONDS.youtube:
+      action==='free_tv'?HOME_SECONDS.freeTv:action==='read_book'?BOOKS[normalized.book!][3]:8;
+    return {command:normalized,label:FURNITURE_ACTIONS[action],durationMs:secs*1000,
+      resource:'furniture:'+normalized.furnitureId};
+  }
   if (command.type==='play_game' && typeof command.game==='string' && computerDevice(command.device)) {
     const game=GAME_BY_ID.get(command.game);
-    return game ? {command:{type:'play_game',game:game.id,device:command.device},
+    return game ? {command:{type:'play_game',game:game.id,device:command.device,
+      ...(typeof command.furnitureId==='number'?{furnitureId:command.furnitureId}:{})},
       label:'🎮 '+game.title,durationMs:game.duration*1000,resource:computerResource(command.device)} : null;
   }
   if (command.type==='computer_video' && isVideoClipId(command.clip) && computerDevice(command.device)) {
     const clip=VIDEO_CLIPS[command.clip];
-    return {command:{type:'computer_video',clip:command.clip,device:command.device},
+    return {command:{type:'computer_video',clip:command.clip,device:command.device,
+      ...(typeof command.furnitureId==='number'?{furnitureId:command.furnitureId}:{})},
       label:'▶ '+clip.title,durationMs:clip.duration*1000,resource:computerResource(command.device)};
   }
   if (command.type === 'study' && typeof command.material === 'string') {
@@ -113,7 +134,9 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     const recipe = id as RecipeId;
     const grill = isGrillRecipe(recipe);
     return {
-      command: { type: command.type, recipe },
+      command: { type: command.type, recipe,
+        ...(command.type==='eat'&&typeof command.furnitureId==='number'?
+          {furnitureId:command.furnitureId}:{}) },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
       durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : 7_000,
       resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
@@ -122,7 +145,8 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'eat_takeout') {
     const item=command.item;
     if (typeof item !== 'string' || !own(TAKEOUT,item)) return null;
-    return {command:{type:'eat_takeout',item:item as TakeoutId},
+    return {command:{type:'eat_takeout',item:item as TakeoutId,
+      ...(typeof command.furnitureId==='number'?{furnitureId:command.furnitureId}:{})},
       label:'🍽️ Едим: '+TAKEOUT[item as TakeoutId].name, durationMs:7_000,resource:null};
   }
   if (command.type === 'pet_action') {
@@ -151,8 +175,73 @@ export function entertainmentReward(command: Entertainment, together = false): N
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
   if (command.type === 'together') return { ok: false, reason: 'Требуется согласованное приглашение' };
   if (command.type === 'study') return { ok: false, reason: 'Для обучения нужна учебная сессия' };
-  if (command.type === 'play_game') return completeComputerGame(state,role,command.game,command.device);
-  if (command.type === 'computer_video') return completeComputerVideo(state,role,command.clip,command.device);
+  if(command.type==='furniture_use'){
+    const selected=furnitureSource(state,command.furnitureId,command.action);
+    if(!selected.ok)return selected;
+    if(state.world.places[role]!=='home')return {ok:false,reason:'Мебель находится дома'};
+    const position=furnitureUseLocation(state,role,command.furnitureId,command.action);
+    if(!position)return {ok:false,reason:'Не получается безопасно подойти к мебели'};
+    const {action}=command;
+    if(action==='read_book'&&state.furnishing.soldFixtures?.includes('bookcase')&&
+      !state.furnishing.placed.some(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='shelves'))
+      return {ok:false,reason:'Для чтения сначала установи книжный стеллаж'};
+    if(['youtube','movie','free_tv'].includes(action)){
+      const denial=action==='free_tv'?undefined:mediaAccessError(state.billing,
+        action==='youtube'?'youtube':'netflix',clockMinutes(state.clock));
+      if(denial)return {ok:false,reason:denial};
+    }
+    if(action==='sofaCall' && !serviceAvailable(state.billing,'mobile',clockMinutes(state.clock)))
+      return {ok:false,reason:SERVICE_MESSAGES.mobile};
+    if(['deskGames','vladStudy','alinaStudy','vladOrder','alinaConsult'].includes(action)&&
+      !serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))
+      return {ok:false,reason:SERVICE_MESSAGES.computer};
+    if(['vladOrder','vladStudy'].includes(action)&&role!=='vlad'||
+      ['alinaStudy','alinaConsult'].includes(action)&&role!=='alina')
+      return {ok:false,reason:'Это действие доступно другому персонажу'};
+    const result=Object.hasOwn(ACTIONS,action)
+      ?applyAction(state,role,action)
+      :(()=>{
+        const next=structuredClone(state);
+        const resident=next.characters[role];
+        const reward=action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
+          action==='read_book'?{type:'read_book',book:command.book!}:
+          action==='movie'?{type:'movie',genre:command.genre!}:
+          action==='youtube'?{type:'youtube'}:{type:'free_tv'});
+        for(const [key,amount]of Object.entries(reward)){
+          const field=key as keyof typeof reward & keyof typeof resident;
+          const change=Number(amount);
+          if(Number.isFinite(change))resident[field]=Math.min(100,Math.max(0,resident[field]+change));
+        }
+        if(action==='read_book'&&!next.readBooks[role].includes(command.book!))
+          next.readBooks[role].push(command.book!);
+        next.revision++;
+        return {ok:true as const,state:next,message:FURNITURE_ACTIONS[action]+' — выполнено'};
+      })();
+    if(!result.ok)return result;
+    const destination=position.route.path.at(-1)??position.route.from;
+    Object.assign(result.state.characters[role],destination,{
+      pose:['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',
+        'youtube','movie','free_tv'].includes(action)||
+        (action==='read_book'&&FURNITURE_BY_ID.get(selected.item.sku)?.shape!=='shelves')?'sit':'idle'});
+    return result;
+  }
+  if (command.type === 'play_game'||command.type==='computer_video'){
+    const purchased=command.device==='desktop'&&
+      (command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('desk'));
+    const deskId=command.furnitureId??state.furnishing.placed.find(item=>
+      FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+    const location=purchased&&deskId!==undefined?
+      furnitureUseLocation(state,role,deskId,'deskGames'):null;
+    if(purchased&&!location)return {ok:false,reason:'Установи рабочий стол для стационарного компьютера'};
+    const result=command.type==='play_game'?
+      completeComputerGame(state,role,command.game,command.device):
+      completeComputerVideo(state,role,command.clip,command.device);
+    if(result.ok&&location){
+      const destination=location.route.path.at(-1)??location.route.from;
+      Object.assign(result.state.characters[role],destination,{pose:'work'});
+    }
+    return result;
+  }
   const denial = taskAccessError(state, command);
   if (denial) return { ok: false, reason: denial };
   if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);
@@ -172,7 +261,19 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   }
   if (command.type === 'act') return applyAction(state, role, command.actionId);
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
-  if (command.type === 'eat_takeout') return applyTakeoutMeal(state, role, command.item);
+  if (command.type==='eat'||command.type==='eat_takeout'){
+    const purchased=command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('table');
+    const location=purchased?diningLocation(state,role,command.furnitureId):null;
+    if(purchased&&!location)return {ok:false,reason:'Поставь обеденный стол, к которому можно подойти'};
+    const result=command.type==='eat_takeout'?
+      applyTakeoutMeal(state,role,command.item):
+      applyFoodAction(state,role,{type:'eat',recipe:command.recipe});
+    if(result.ok&&location){
+      const destination=location.route.path.at(-1)??location.route.from;
+      Object.assign(result.state.characters[role],destination,{pose:location.seated?'sit':'idle'});
+    }
+    return result;
+  }
   if (command.type === 'brew_coffee') return brewInstantCoffee(state, role, command.blend);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

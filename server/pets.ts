@@ -15,12 +15,11 @@ export type PetResult =
   | { ok: false; reason: string };
 
 const clamp = (number: number): number => Math.max(0, Math.min(100, number));
-const homeObstacles = placeObstacles('home');
-const petGeometry = petNavigationGeometry(homeObstacles, HOME_FLOOR);
+
 
 export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
   return petApproach(action === 'feed' ? PETS[id].bowl : state.pets[id].position,
-    homeObstacles, HOME_FLOOR);
+    placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
 
 export function pausePetRoutine(state: GameState, id: PetId, now: number): void {
@@ -76,7 +75,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
-    const route = planPetRoute(pet.position, petDestination(id, { kind, target }), petGeometry);
+    const route = planPetRoute(pet.position, petDestination(id, { kind, target }),
+      petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;
   }
 }

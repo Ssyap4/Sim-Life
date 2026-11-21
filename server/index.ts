@@ -8,7 +8,8 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
   process.exit(1);
 }
 const dataDir = resolve(process.env.SIM_LIFE_DATA_DIR || 'server-data');
-startServer({ port, host, dataDir, distDir: resolve('dist') })
+startServer({ port, host, dataDir, distDir: resolve('dist'),
+  testNoCodes:process.env.SIM_LIFE_TEST_NO_CODES==='1' })
   .then((server) => {
     console.log('🏡 Sim-Life server: http://127.0.0.1:' + server.port);
     console.log('Invite codes (private): ' + resolve(dataDir, 'access.json'));

@@ -16,7 +16,7 @@ import type { ComputerDevice } from './shared/computer';
 import type { ActionId, CharacterId, GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type ComputerApp = 'career' | 'study' | 'browser' | 'shop' | BillingApp | 'games' | 'video' | 'mail' | 'notes';
+type ComputerApp = 'furnishing' | 'career' | 'study' | 'browser' | 'shop' | BillingApp | 'games' | 'video' | 'mail' | 'notes';
 const billingApps = new Set<ComputerApp>(['finance','internet','mobile','utilities','subscriptions']);
 type GameFilter = 'all'|'favorites'|GameGenre;
 type View = { state: GameState; role: CharacterId; time: TimeStatus };
@@ -33,12 +33,14 @@ type Callbacks = {
   travel(): boolean;
   service(command: ServiceCommand): boolean;
   checkout(lines: BasketLine[]): boolean;
+  furnishing():void;
 };
 const apps: ReadonlyArray<[ComputerApp, string, string, string]> = [
   ['career','💼','Работа','Смены, задачи и зарплата'],
   ['study','🎓','Обучение','Курсы и навыки'],
   ['browser','🌐','Интернет','Сайты и онлайн-сервисы'],
   ['shop','🛍️','Покупки','Доставка и семейные запасы'],
+  ['furnishing','🛋️','Мебель','Каталог, доставка и расстановка'],
   ['finance','💳','Финансы','Бюджет и платежи'],
   ['games','🎮','Игры','12 игр · 4 жанра'],
   ['video','▶️','Видео','Ролики и каналы'],
@@ -166,6 +168,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     content.append(heading,hint);
   }
   function show(next:ComputerApp|null) {
+    if(next==='furnishing'){close();callbacks.furnishing();return;}
     stopPreview();
     app=next;windowEl.hidden=next===null;desktop.hidden=next!==null;
     content.replaceChildren();

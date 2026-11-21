@@ -1,4 +1,5 @@
-import type { CharacterId } from './protocol';
+import type { CharacterId, GameState } from './protocol';
+import { dishPickupPoint } from './diningSurface';
 import { homeSeat } from './home';
 
 export type DishStation = 'table' | 'yardTable';
@@ -23,7 +24,9 @@ export function addDirtyDish(dishes: DirtyDishes, station: DishStation): void {
 }
 
 /** Order keeps the trip short, with the kitchen sink always last. */
-export function dirtyDishStops(dishes: DirtyDishes, role: CharacterId): { x: number; z: number }[] {
+export function dirtyDishStops(dishes: DirtyDishes, role: CharacterId,
+  state?:GameState): { x: number; z: number }[] {
   return DISH_STATIONS.filter(station => dishes[station] > 0)
-    .map(station => homeSeat(station, role).approach);
+    .map(station => station==='table'&&state?dishPickupPoint(state,role):
+      homeSeat(station,role).approach);
 }

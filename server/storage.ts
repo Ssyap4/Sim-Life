@@ -25,6 +25,7 @@ import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
 import { initialCareers } from '../src/shared/careers';
 import { initialComputerLibrary, validComputerLibrary } from '../src/shared/computerGames';
+import { emptyFurnishing, isValidFurnishing, type FurnishingState } from '../src/shared/furniture';
 
 export interface ServerFiles {
   dataDir: string;
@@ -44,6 +45,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.careers !== undefined && !validCareers(state.careers)) return false;
   if (state.computerLibrary !== undefined && !validComputerLibrary(state.computerLibrary)) return false;
+  if (state.furnishing !== undefined && !isValidFurnishing(state.furnishing)) return false;
   if (state.world !== undefined && !validWorld(state.world)) return false;
   const readBooks = state.readBooks;
   if (readBooks !== undefined && (!readBooks || !(['vlad', 'alina'] as const).every(role => {
@@ -92,7 +94,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services','education'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education','furniture'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
@@ -162,7 +164,8 @@ const previousSeats = [
   { item: 'table', pose: 'sit', x: 3.02, z: -.26 },
 ] as const;
 
-function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId): CharacterState {
+function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
+  furnishing: FurnishingState): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
   if (place === 'street' || place === 'market') {
     // Preserve saved positions except where a newly added solid occupies them.
@@ -173,25 +176,26 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
   const point = movedSeat ? points[movedSeat.item]
-    : nearestClearPoint(resident, homeObstacles, HOME_FLOOR) ?? spawn('home', role);
+    : nearestClearPoint(resident, placeObstacles('home', furnishing), HOME_FLOOR) ?? spawn('home', role);
   return { ...resident, x: point.x, z: point.z };
 }
 
-function restorePet(id: PetId, saved: PetState | undefined): PetState {
+function restorePet(id: PetId, saved: PetState | undefined,
+  safeHome = safePetHome): PetState {
   const pet = { ...INITIAL_PETS[id], ...saved };
   // Old positions or animation routes may now graze an enlarged pet collider,
   // or refer to a bowl/bench/roaming stop removed from the current layout.
   // Repair only the spatial data; never reset affection, hunger or food stock.
-  pet.position = nearestClearPoint(pet.position, safePetHome.obstacles, safePetHome.floor)
+  pet.position = nearestClearPoint(pet.position, safeHome.obstacles, safeHome.floor)
     ?? INITIAL_PETS[id].position;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const expected = petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
     if (Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
-      !pointIsClear(route.from, safePetHome.obstacles, safePetHome.floor) ||
+      !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||
       !route.path.every((point, index) =>
-        segmentIsClear(route.path[index - 1] ?? route.from, point, safePetHome.obstacles, safePetHome.floor))) {
+        segmentIsClear(route.path[index - 1] ?? route.from, point, safeHome.obstacles, safeHome.floor))) {
       delete pet.routine;
     }
   }
@@ -226,16 +230,18 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
+      const savedFurnishing = {...(data.furnishing ?? emptyFurnishing()),
+        soldFixtures:data.furnishing?.soldFixtures ?? []};
+      const restoredPetGeometry = petNavigationGeometry(
+        placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
           ...data.world,
-          // Older saves could leave a shopping bag in the hands of a resident at home.
-          // Convert those bags to shared packages on the table without changing stock.
-          tableBags: (data.world.tableBags ?? 0) +
-            (data.world.places.vlad === 'home' ? data.world.bags.vlad : 0) +
-            (data.world.places.alina === 'home' ? data.world.bags.alina : 0),
+          // Old staged bags had already been credited to pantry / ready food.
+          // Remove them without ever granting the same purchase twice.
+          tableBags: 0,
           bags: {
             vlad: data.world.places.vlad === 'home' ? 0 : data.world.bags.vlad,
             alina: data.world.places.alina === 'home' ? 0 : data.world.bags.alina,
@@ -243,8 +249,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
-          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home'),
-          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home'),
+          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing),
+          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing),
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
@@ -258,11 +264,12 @@ export function openServerFiles(dataDir: string): ServerFiles {
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         careers: data.careers ?? initialCareers(),
         computerLibrary: data.computerLibrary ?? initialComputerLibrary(),
+        furnishing: savedFurnishing,
         relationship: data.relationship ?? initialRelationship(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
-          verdell: restorePet('verdell', data.pets?.verdell),
-          simba: restorePet('simba', data.pets?.simba),
+          verdell: restorePet('verdell', data.pets?.verdell, restoredPetGeometry),
+          simba: restorePet('simba', data.pets?.simba, restoredPetGeometry),
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
         petBowls: { ...INITIAL_PET_BOWLS, ...data.petBowls },
@@ -271,6 +278,21 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Merely reopening the file must never reset the countdown.
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
+      const migratedBags = !!data.world && ((data.world.tableBags ?? 0) > 0 ||
+        (data.world.places.vlad === 'home' && data.world.bags.vlad > 0) ||
+        (data.world.places.alina === 'home' && data.world.bags.alina > 0));
+      if(migratedBags){
+        const backup=join(dataDir,'household.pre-auto-groceries.json');
+        if(!existsSync(backup))copyFileSync(statePath,backup);
+      }
+      if(data.furnishing?.soldFixtures===undefined){
+        const backup=join(dataDir,'household.pre-static-sale.json');
+        if(!existsSync(backup))copyFileSync(statePath,backup);
+      }
+      if (data.furnishing === undefined) {
+        const backup = join(dataDir, 'household.pre-furnishing.json');
+        if (!existsSync(backup)) copyFileSync(statePath, backup);
+      }
       if (data.billing === undefined) {
         // Keep the original household even after later rotating backups.
         const backup = join(dataDir, 'household.pre-billing.json');
@@ -279,7 +301,9 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Legacy supplies become refill units without losing already-owned food.
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
-          data.dirtyDishes === undefined || data.computerLibrary === undefined || migratedFood || recoveredCareer)
+          data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
+          data.dirtyDishes === undefined || data.computerLibrary === undefined ||
+          migratedFood || recoveredCareer || migratedBags)
         this.save(household);
       return household;
     },

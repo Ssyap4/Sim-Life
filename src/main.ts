@@ -1,13 +1,19 @@
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
+import { isSleepBed } from './shared/bedSleep';
+import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
+import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
+import { BOOKS, GENRES } from './shared/homeLife';
 import { createPhone } from './phoneUI';
 import { createComputerUI } from './computerUI';
+import { createFurnishingUI } from './furnishingUI';
+import './furnishing.css';
 import { needChips, needFeedback } from './needsFeedback';
 import type { NeedEffects } from './shared/homeLife';
 import type { StudyMaterial } from './shared/education';
@@ -32,17 +38,24 @@ import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY }
 import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
-import type { TimeStatus, SleepMode } from './shared/timeControl';
+import type { TimeStatus } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names,
   type ActionId, type CharacterId, type GameState, type ItemId,
 } from './shared/protocol';
 
 let state: GameState | null = null;
+let selectedDesktopFurnitureId:number|null=null;
+const installedDesktopId=():number|undefined=>{
+  if(!state?.furnishing.soldFixtures?.includes('desk'))return undefined;
+  const available=state.furnishing.placed.filter(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+  return available.find(item=>item.id===selectedDesktopFurnitureId)?.id??available[0]?.id;
+};
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
+let localPreviewNoCodes=false;
 let toastTimer: number | undefined;
 let paymentNoticeTimer: number | undefined;
 const shownPayments = new Map<ServiceId, number>();
@@ -77,7 +90,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.14 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.15 · МЫ ВМЕСТЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -122,6 +135,8 @@ app.innerHTML = `
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="computer-overlay" class="computer-overlay" hidden></section>
+  <section id="furnishing-overlay" class="furnish-overlay" hidden></section>
+  <section id="furnishing-placement" class="furnish-placement" hidden></section>
   <section id="market-overlay" class="market-overlay" hidden aria-label="Магазин и семейная экономика"></section>
   <section id="jobs-overlay" class="jobs-overlay" hidden aria-label="Биржа подработок"></section>
   <footer class="bottom-ui">
@@ -135,6 +150,7 @@ app.innerHTML = `
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
         <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
+        <button id="furniture-btn" class="market-btn" type="button" disabled>🛋️ Мебель</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
       <div class="tip">
@@ -176,6 +192,7 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const phoneBtn = document.querySelector<HTMLButtonElement>('#phone-btn')!;
+const furnitureBtn = document.querySelector<HTMLButtonElement>('#furniture-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
 const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
@@ -230,6 +247,7 @@ document.addEventListener('keydown', (event) => {
     toggleNeeds(false);
     phone.close();
     computer.close();
+    furnishing.close();
     locationUI.closeMap();
     if (world) locationUI.close();
   }
@@ -442,6 +460,7 @@ function render(reset = false): void {
       actionsEl.hidden = true;
       phone.close();
       computer.close();
+      furnishing.close();
       focusModel(null);
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
@@ -452,6 +471,7 @@ function render(reset = false): void {
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
+    furnitureBtn.disabled = place !== 'home';
     const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
     const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
     petsBtn.textContent = '🐾 Питомцы' + (criticalPets.length ? ' ❗' + criticalPets.length
@@ -475,6 +495,8 @@ function render(reset = false): void {
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
   computer.refresh();
+  furnishing.refresh();
+  furnishing.acknowledge(state);
   careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
@@ -531,10 +553,11 @@ function signOut(): void {
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
-  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
   computer.close();
+  furnishing.close();
   careerHUD.render(null,null);
   shownPayments.clear();
   paymentNotice.hidden = true;
@@ -559,19 +582,36 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  });
+  },()=>furnishing.open());
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
   act: (actionId,device) => {
     if (!state || !active) return false;
+    if(device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')){
+      const id=installedDesktopId();
+      if(id===undefined){notify('Сначала поставь новый письменный стол');return false;}
+      const item=state.furnishing.placed.find(row=>row.id===id);
+      if(!item||!furnitureActionList(item).includes(actionId as FurnitureUseAction))return false;
+      return net.furnitureUse({type:'furniture_use',furnitureId:id,action:actionId as FurnitureUseAction});
+    }
     const denial = taskAccessError(state,{type:'act',actionId,computer:device});
     if (denial) { notify(denial); return false; }
     return net.perform(actionId,device);
   },
-  playGame: (game,device) => net.playGame(game,device),
+  playGame: (game,device) => {
+    if(device==='desktop'&&state?.furnishing.soldFixtures?.includes('desk')&&installedDesktopId()===undefined){
+      notify('Сначала поставь новый письменный стол');return false;
+    }
+    return net.playGame(game,device,device==='desktop'?installedDesktopId():undefined);
+  },
   favorite: (game,enabled) => net.favoriteGame(game,enabled),
-  watchVideo: (clip,device) => net.playComputerVideo(clip,device),
+  watchVideo: (clip,device) => {
+    if(device==='desktop'&&state?.furnishing.soldFixtures?.includes('desk')&&installedDesktopId()===undefined){
+      notify('Сначала поставь новый письменный стол');return false;
+    }
+    return net.playComputerVideo(clip,device,device==='desktop'?installedDesktopId():undefined);
+  },
   preview: (device,scene) => world.previewComputer(device,scene),
   career: command => net.career(command),
   education: command => net.education(command),
@@ -579,6 +619,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   travel: () => net.world({type:'travel',place:'education'}),
   service: command => net.service(command),
   checkout: lines => orderDelivery(lines),
+  furnishing:()=>furnishing.open(),
 });
 function openEducation(view: EducationView, room?: string) {
   actionsEl.hidden = true;
@@ -598,6 +639,7 @@ const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const net = new LiveConnection({
   onReady(role, household, players) {
+    selectedDesktopFurnitureId=null;
     active = role;
     state = household;
     displayClock.reset(gameMinutes(household.clock), performance.now());
@@ -610,6 +652,7 @@ const net = new LiveConnection({
     authEl.hidden = true;
     mapBtn.disabled = false;
     phoneBtn.disabled = false;
+    furnitureBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
     world.setActive(role);
@@ -649,6 +692,8 @@ const net = new LiveConnection({
   onClock(sample) {
     displayClock.sync(sample, performance.now());
     renderClock();
+    furnishing.tick();
+    world.updateFurnitureDeliveryTime(displayClock.read(performance.now()));
   },
   onDisconnect() {
     displayClock.pause(performance.now());
@@ -778,6 +823,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    furnishing.reject(reason);
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
@@ -789,6 +835,7 @@ const net = new LiveConnection({
       mapBtn.disabled = true;
       phoneBtn.disabled = true;
       petsBtn.disabled = true;
+      furnitureBtn.disabled = true;
       actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else {
@@ -814,6 +861,23 @@ const net = new LiveConnection({
     statusEl.textContent = text;
   },
 });
+const furnishing=createFurnishingUI(
+  document.querySelector<HTMLElement>('#furnishing-overlay')!,
+  document.querySelector<HTMLElement>('#furnishing-placement')!,{
+    read:()=>state,
+    minute:()=>displayClock.read(performance.now()),
+    send:command=>net.furnishing(command),
+    start:(item,rotation)=>{
+      actionsEl.hidden=true;
+      world.beginFurnishingPlacement(item.sku,item.finish,rotation);
+    },
+    rotate:rotation=>world.turnFurnishingPlacement(rotation),
+    preview:valid=>world.setFurnishingValidity(valid),
+    cancel:()=>world.endFurnishingPlacement(),
+    message:notify,
+    useBed:id=>openPurchasedBedActions(id),
+    useFurniture:id=>openPurchasedFurnitureActions(id),
+  });
 
 function showActionMenu(title: string): void {
   locationUI.closeMap();
@@ -902,6 +966,119 @@ function openPetBowlActions(pet: PetId): void {
   actionsEl.append(refill);
 }
 
+function addBedSleepActions(furnitureId?:number):void{
+  if(!state||!active)return;
+  const sleeping=timeStatus.sleepers[active];
+  if(sleeping){
+    const wake=document.createElement('button');
+    wake.type='button';wake.className='action-button';wake.textContent='☀️ Проснуться';
+    wake.addEventListener('click',()=>{if(net.stopSleep())actionsEl.hidden=true;});
+    actionsEl.append(wake);
+    return;
+  }
+  for(const [mode,target,label] of [
+    ['full',100,'🌙 Спать до полного восстановления энергии'],
+    ['half',50,'💤 Немного поспать (до 50% энергии)'],
+  ] as const){
+    const button=document.createElement('button');
+    button.type='button';button.className='action-button';button.textContent=label;
+    button.disabled=state.characters[active].energy>=target;
+    button.addEventListener('click',()=>{
+      if(net.startSleep(mode,furnitureId))actionsEl.hidden=true;
+    });
+    actionsEl.append(button);
+  }
+}
+function openPurchasedBedActions(id:number):void{
+  if(!state||!active||!net.isReady())return;
+  const item=state.furnishing.placed.find(row=>row.id===id);
+  if(!item||!isSleepBed(item))return;
+  const info=FURNITURE_BY_ID.get(item.sku)!;
+  furnishing.close();
+  showActionMenu('🛏️ '+info.name);
+  const note=document.createElement('p');
+  note.className='food-empty';
+  note.textContent=info.width>=1.55&&info.shape==='bed'
+    ?'Двуспальная: Влад и Алина могут отдыхать одновременно.'
+    :'Одно спальное место: второй персонаж должен выбрать другую кровать.';
+  actionsEl.append(note);
+  addBedSleepActions(id);
+  const edit=document.createElement('button');
+  edit.type='button';edit.className='action-button';
+  edit.textContent='🛠️ Переместить или продать кровать';
+  edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
+  actionsEl.append(edit);
+}
+function openPurchasedFurnitureActions(id:number):void{
+  if(!state||!active||!net.isReady())return;
+  const item=state.furnishing.placed.find(row=>row.id===id);
+  if(!item)return;
+  if(isSleepBed(item)){openPurchasedBedActions(id);return;}
+  const info=FURNITURE_BY_ID.get(item.sku);
+  if(!info)return;
+  const supported=availableFurnitureActions(state,active,item);
+  if(!supported.length){furnishing.selectPlaced(id);return;}
+  furnishing.close();
+  showActionMenu(info.emoji+' '+info.name);
+  const detail=document.createElement('p');
+  detail.className='food-empty';
+  detail.textContent='Действия доступны на этом предмете в его текущем расположении.';
+  actionsEl.append(detail);
+  const send=(action:FurnitureUseAction,extra?:{book?:import('./shared/homeLife').BookId;genre?:import('./shared/homeLife').Genre})=>{
+    const ok=net.furnitureUse({type:'furniture_use',furnitureId:id,action,...extra});
+    if(ok)actionsEl.hidden=true;
+  };
+  const chooseMovie=()=>{
+    showActionMenu('🎬 Выбери жанр фильма');
+    for(const [genre,label] of Object.entries(GENRES) as [import('./shared/homeLife').Genre,string][]){
+      const b=document.createElement('button');
+      b.type='button';b.className='action-button';b.textContent=label;
+      b.addEventListener('click',()=>send('movie',{genre}));
+      actionsEl.append(b);
+    }
+  };
+  const chooseBook=()=>{
+    showActionMenu('📚 Выбери книгу');
+    for(const [book,details]of Object.entries(BOOKS) as [import('./shared/homeLife').BookId,readonly [string,string,string,number,string]][]){
+      const b=document.createElement('button');
+      b.type='button';b.className='action-button';b.textContent=details[0];
+      b.addEventListener('click',()=>send('read_book',{book}));
+      actionsEl.append(b);
+    }
+  };
+  for(const action of supported){
+    const b=document.createElement('button');
+    b.type='button';b.className='action-button';b.textContent=FURNITURE_ACTIONS[action];
+    b.addEventListener('click',()=>action==='movie'?chooseMovie():action==='read_book'?chooseBook():send(action));
+    actionsEl.append(b);
+  }
+  if(info.shape==='table'&&info.height>=.63){
+    showFoodChoices(actionsEl,'table',state,(type:FoodCommand,recipe)=>{
+      const ok=net.food(type,recipe,type==='eat'?id:undefined);
+      if(ok)actionsEl.hidden=true;
+      return ok;
+    });
+    showTakeoutChoices(actionsEl,state,product=>{
+      const ok=net.eatTakeout(product,id);
+      if(ok)actionsEl.hidden=true;
+      return ok;
+    });
+  }
+  if(info.shape==='desk'){
+    const pc=document.createElement('button');
+    pc.type='button';pc.className='action-button';pc.textContent='💻 Открыть стационарный компьютер';
+    pc.addEventListener('click',()=>{
+      selectedDesktopFurnitureId=id;
+      world.focusDesktopFurniture(id);
+      actionsEl.hidden=true;computer.open('desktop');
+    });
+    actionsEl.append(pc);
+  }
+  const edit=document.createElement('button');
+  edit.type='button';edit.className='action-button';edit.textContent='🛠️ Переместить, убрать или продать';
+  edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
+  actionsEl.append(edit);
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
@@ -982,39 +1159,9 @@ function openActions(item: ItemId): void {
       if(sent) actionsEl.hidden=true;
       return sent;
     });
-    if (state.world.tableBags > 0) {
-      const unpack = document.createElement('button');
-      unpack.className = 'action-button';
-      unpack.textContent = 'Разложить покупки · ' + state.world.tableBags + ' пак.';
-      unpack.addEventListener('click', () => {
-        if (net.world({ type: 'approach', place: 'home', station: 'shopping-table' })) actionsEl.hidden = true;
-      });
-      actionsEl.append(unpack);
-    }
+
   }
-  if (item === 'bed' && state && active) {
-    const sleeping = timeStatus.sleepers[active];
-    const sleepButton = (label: string, mode: SleepMode) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'action-button';
-      button.textContent = label;
-      button.disabled = state!.characters[active!].energy >= (mode === 'full' ? 100 : 50);
-      button.addEventListener('click', () => {
-        if (net.startSleep(mode)) actionsEl.hidden = true;
-      });
-      actionsEl.append(button);
-    };
-    if (!sleeping) {
-      sleepButton('🌙 Спать до упора · до 100% · ×2', 'full');
-      sleepButton('😴 Небольшой отдых · до 50% · ×3', 'half');
-    } else {
-      const wake = document.createElement('button');
-      wake.type = 'button'; wake.className = 'action-button'; wake.textContent = '☀️ Проснуться';
-      wake.addEventListener('click', () => { if (net.stopSleep()) actionsEl.hidden = true; });
-      actionsEl.append(wake);
-    }
-  }
+  if (item === 'bed' && state && active) addBedSleepActions();
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
   if (item === 'table') {
     const study = document.createElement('button');
@@ -1115,6 +1262,12 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       },
     });
+    world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
+      const model=state?.furnishing.placed.find(item=>item.id===id);
+      if(model&&isSleepBed(model))openPurchasedBedActions(id);
+      else if(model&&furnitureActionList(model).length)openPurchasedFurnitureActions(id);
+      else furnishing.selectPlaced(id);
+    });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
       useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {
@@ -1142,6 +1295,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       phone.open();
     });
     petsBtn.addEventListener('click', () => openPetActions());
+    furnitureBtn.addEventListener('click',()=>{
+      actionsEl.hidden=true;phone.close();computer.close();furnishing.open();
+    });
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {
         selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
@@ -1153,7 +1309,22 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
     showStatus('Выбери персонажа и введи личный код');
-    const remembered = trustedDevice();
+    try{
+      const health=await fetch('/health',{cache:'no-store'});
+      if(health.ok){
+        const config=await health.json() as {testNoCodes?:boolean};
+        localPreviewNoCodes=config.testNoCodes===true;
+        if(localPreviewNoCodes){
+          accessInput.required=false;
+          document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;
+          accessInput.hidden=true;
+          document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
+          document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
+          authStatusEl.textContent='Тестовая локальная версия: выбери персонажа и входи без кода';
+        }
+      }
+    }catch{}
+    const remembered = localPreviewNoCodes?null:trustedDevice();
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {
     console.error(error);
@@ -1164,8 +1335,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
 document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!world) return;
-  const code = accessInput.value.trim();
-  if (code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
+  const code = localPreviewNoCodes?'TEST-LOCAL-NO-CODES':accessInput.value.trim();
+  if (!localPreviewNoCodes && code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
   net.login(selectedRole, code, rememberDevice.checked);
 });
 void initializeWorld(app);

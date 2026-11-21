@@ -93,7 +93,7 @@ test('Old positions in new walls recover nearby and moved sleepers use the new b
     assert.ok(pointIsClear(state.characters.vlad, placeObstacles('home'), HOME_FLOOR));
     assert.ok(Math.abs(state.characters.vlad.x - EAST_WALL) < .6);
     assert.deepEqual({ x: state.characters.alina.x, z: state.characters.alina.z }, points.bed);
-    assert.deepEqual([state.money, state.world.tableBags, state.meals.omelette], [7411, 4, 4]);
+    assert.deepEqual([state.money, state.world.tableBags, state.meals.omelette], [7411, 0, 4]);
     assert.deepEqual(state.clock, legacy.clock);
 
     const { x, z } = HOME_DOORS.office;

@@ -7,6 +7,7 @@ import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, Soci
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { InstantCoffeeId } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
+import type { FurnishingCommand } from '../shared/furniture';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
 import type { PetId, PetAction } from '../shared/pets';
@@ -86,9 +87,14 @@ export class LiveConnection {
     return true;
   }
 
-  food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId): boolean {
+  furnitureUse(command:import('../shared/furnitureUse').FurnitureUseCommand):boolean {
+    return this.sendAuthenticated(command);
+  }
+
+  food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId,furnitureId?:number): boolean {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
-    return this.sendAuthenticated({ type, recipe: id as RecipeId });
+    return this.sendAuthenticated({ type, recipe: id as RecipeId,
+      ...(type==='eat'&&furnitureId!==undefined?{furnitureId}:{}) });
   }
 
   brewCoffee(blend: InstantCoffeeId): boolean {return this.sendAuthenticated({type:'brew_coffee',blend});}
@@ -96,15 +102,15 @@ export class LiveConnection {
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
   setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
-  startSleep(mode: SleepMode): boolean {return this.sendAuthenticated({type:'sleep_start',mode});}
+  startSleep(mode: SleepMode,furnitureId?:number): boolean {return this.sendAuthenticated({type:'sleep_start',mode,...(furnitureId===undefined?{}:{furnitureId})});}
   stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}
 
   checkout(lines: BasketLine[]): boolean {
     return this.sendAuthenticated({type:'checkout',lines});
   }
 
-  eatTakeout(item: TakeoutId): boolean {
-    return this.sendAuthenticated({type:'eat_takeout',item});
+  eatTakeout(item: TakeoutId,furnitureId?:number): boolean {
+    return this.sendAuthenticated({type:'eat_takeout',item,...(furnitureId===undefined?{}:{furnitureId})});
   }
 
   service(command: ServiceCommand): boolean {return this.sendAuthenticated(command);}
@@ -123,15 +129,16 @@ export class LiveConnection {
   }
 
   world(command: WorldCommand): boolean { return this.sendAuthenticated(command); }
+  furnishing(command:FurnishingCommand):boolean{return this.sendAuthenticated(command);}
   career(command: import('../shared/careers').CareerCommand): boolean { return this.sendAuthenticated(command); }
-  playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice):boolean {
-    return this.sendAuthenticated({type:'play_game',game,device});
+  playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice,furnitureId?:number):boolean {
+    return this.sendAuthenticated({type:'play_game',game,device,...(furnitureId===undefined?{}:{furnitureId})});
   }
   favoriteGame(game: import('../shared/computerGames').ComputerGameId,enabled:boolean):boolean {
     return this.sendAuthenticated({type:'computer_favorite',game,enabled});
   }
-  playComputerVideo(clip:import('../shared/computerGames').VideoClipId,device:import('../shared/computer').ComputerDevice):boolean {
-    return this.sendAuthenticated({type:'computer_video',clip,device});
+  playComputerVideo(clip:import('../shared/computerGames').VideoClipId,device:import('../shared/computer').ComputerDevice,furnitureId?:number):boolean {
+    return this.sendAuthenticated({type:'computer_video',clip,device,...(furnitureId===undefined?{}:{furnitureId})});
   }
 
   forgetDevice(): void {

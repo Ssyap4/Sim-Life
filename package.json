@@ -1,6 +1,6 @@
 {
   "name": "sim-life",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "test": "tsx --test server/tests/*.test.ts",
     "build": "npm run check && vite build",
     "start": "tsx server/index.ts",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "audit:furniture": "tsx scripts/auditFurniture.ts"
   },
   "dependencies": {
     "three": "^0.187.0",

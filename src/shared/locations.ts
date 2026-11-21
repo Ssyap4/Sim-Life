@@ -1,4 +1,5 @@
 import { CASHIER_OBSTACLE, PLAZA_FLOOR, PLAZA_OBSTACLES } from './locationLayout';
+import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
@@ -93,9 +94,6 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
     site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
     site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
-    site('shopping-table', 'Покупки на столе', HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z,
-      0.20, 0.20, { kind: 'unpack' }, { blocks: false,
-        approach: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.30 } }),
     door('home-exit', 'На улицу', 'street', HOME_YARD.gate.x, HOME_YARD.gate.z, true),
   ],
   street: [
@@ -151,14 +149,19 @@ export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
-export function placeObstacles(place: PlaceId) {
+export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
   const obstacles = STATIONS[place].flatMap(({ blocks, center, width, depth }) => blocks ? [{
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
   }] : []);
-  if (place === 'home') obstacles.push(...HOME_DECOR, ...HOME_STRUCTURE_OBSTACLES, ...Object.values(HOME_FURNITURE).map(bounds => ({
+  if (place === 'home') obstacles.push(...HOME_DECOR.filter((_,index)=>
+    !((index===1&&furnishing?.soldFixtures?.includes('nightstandLeft'))||
+      (index===2&&furnishing?.soldFixtures?.includes('nightstandRight')))),
+    ...HOME_STRUCTURE_OBSTACLES,
+    ...Object.entries(HOME_FURNITURE).filter(([id])=>!furnishing?.soldFixtures?.includes(id as import('./furniture').StaticFurnitureId)).map(([,bounds]) => ({
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
+  if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
   if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);

@@ -10,13 +10,15 @@ import { evaluateTask } from './tasks';
 const selfCare: Record<Exclude<VitalNeed, 'hunger'>, ActionId> = {
   energy: 'bedSleep', hygiene: 'bathShower', bladder: 'toiletUse', social: 'sofaCall', fun: 'watchTv', comfort: 'sofaRest',
 };
-const homeObstacles = placeObstacles('home');
+
 
 export function planLeisure(state: GameState, role: CharacterId, activity: HomeLeisure) {
+  if((activity==='tv'&&state.furnishing.soldFixtures?.includes('sofa'))||
+     (activity==='computer'&&state.furnishing.soldFixtures?.includes('desk')))return null;
   const target = activity === 'chat' ? meeting('home', role)
     : activity === 'tv' ? points.sofa : activity === 'computer' ? points.desk
       : petCarePoint(state, activity);
-  return target && planWalk(state.characters[role], target, homeObstacles, HOME_FLOOR);
+  return target && planWalk(state.characters[role], target, placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
 
 export function urgentHomeAction(state: GameState, role: CharacterId): TimedCommand | undefined {
@@ -24,7 +26,9 @@ export function urgentHomeAction(state: GameState, role: CharacterId): TimedComm
   const urgent = VITAL_NEEDS.filter(need => character[need] <= 8)
     .sort((first, second) => character[first] - character[second]);
   for (const need of urgent) {
-    if (need !== 'hunger') return { type: 'act', actionId: selfCare[need] };
+    if(need==='energy'&&state.furnishing.soldFixtures?.includes('bed'))continue;
+    if(need==='comfort'&&state.furnishing.soldFixtures?.includes('sofa'))continue;
+    if(need!=='hunger')return { type: 'act', actionId: selfCare[need] };
     const cooked = (Object.keys(RECIPES) as RecipeId[]).find(recipe => state.meals[recipe] > 0);
     if (cooked) return { type: 'eat', recipe: cooked };
     const takeout = (Object.keys(TAKEOUT) as TakeoutId[]).find(item => state.takeout[item] > 0);
