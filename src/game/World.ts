@@ -718,7 +718,17 @@ export class World {
         actor.playDomesticActivity('grill',new THREE.Vector3().copy(GRILL_WORK.target));
         if(pair.item)selectGrilledFood(this.yard.contents,pair.item as RecipeId);
         this.grillCooking=true;break;
-      case 'prep':actor.playDomesticActivity('tidy');break;
+      case 'prep': {
+        // During cooperative cooking the helper prepares ingredients at a
+        // separate counter (or the garden table), not in empty air beside
+        // the cook. Keep both residents at their server-assigned stations.
+        const prepTarget=pair.item&&isGrillRecipe(pair.item as RecipeId)
+          ? new THREE.Vector3(HOME_PLACEMENTS.yardTable.x,DINING_TOP+.045,HOME_PLACEMENTS.yardTable.z)
+          : new THREE.Vector3().copy(KITCHEN_WORK.wash.target);
+        actor.faceTowards(prepTarget);
+        actor.playDomesticActivity('tidy',prepTarget);
+        break;
+      }
       case 'wash':actor.playDomesticActivity('dishes',new THREE.Vector3().copy(KITCHEN_WORK.dishes.target));break;
       case 'serve':
         actor.carryDirtyPlate();
@@ -760,10 +770,14 @@ export class World {
       case 'highFive':
         actor.playGesture('highFive',actor.root.position.clone().lerp(partner.root.position,.5).setY(1.59));break;
       case 'hands':case 'slowDance':
-        actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
+        actor.playPartnerGesture(pair.motion,leads,
+          actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20),
+          partner.root.position);break;
       case 'hair':case 'shoulder':
-        actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
-      default:actor.playPartnerGesture(pair.motion,leads);
+        actor.playPartnerGesture(pair.motion,leads,
+          actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27),
+          partner.root.position);break;
+      default:actor.playPartnerGesture(pair.motion,leads,undefined,partner.root.position);
     }
   }
 
