@@ -469,11 +469,13 @@ export class Actor {
     }
     let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
     if (asleep) {
-      leftY = -0.51;
-      rightY = -0.44;
-      leftZ = 0.19;
-      rightZ = 0.26;
-      armSpread = -0.15;
+      // Relax the arms beside the torso. The old bent-chest pose rotated the
+      // hands straight up into the air when the whole rig reclined in bed.
+      leftY = -data.upperArm - data.lowerArm + 0.11;
+      rightY = -data.upperArm - data.lowerArm + 0.13;
+      leftZ = 0.04;
+      rightZ = 0.06;
+      armSpread = -0.11;
     }
     if (seated) {
       leftY = rightY = -0.44;

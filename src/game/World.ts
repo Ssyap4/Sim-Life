@@ -36,6 +36,7 @@ import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
+import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -363,7 +364,8 @@ export class World {
     this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
   }
 
-  restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
+  restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work',
+    selectedBed?:SleepBedId): void {
     const obstacles = this.currentObstacles(), floor = floorFor(this.place);
     let safe = nearestClearPoint({ x, z }, obstacles, floor);
     const other = this.actors[id === 'vlad' ? 'alina' : 'vlad'];
@@ -380,6 +382,16 @@ export class World {
       if (pose === 'sit' && seat) this.sitAt(id, seat);
       else this.actors[id].setPose('idle');
       return;
+    }
+    if(pose==='sleep'&&this.household){
+      const character=this.household.characters[id];
+      const sleepingOn:SleepBedId=selectedBed??character.sleepingOn??'starter';
+      const bed=bedPose(this.household,id,sleepingOn);
+      if(bed){
+        this.actors[id].setFurniturePose('sleep',
+          new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+        return;
+      }
     }
     const seat = pose === 'sit' && HOME_SEATS.map(seatId => homeSeat(seatId,id))
       .find(({approach}) => Math.hypot(approach.x-x,approach.z-z)<.20);
@@ -442,12 +454,19 @@ export class World {
 
   /** Client-only presentation. Sleep ownership and recovery remain server-authoritative. */
   showSleep(id: CharacterId, sleeping: boolean): void {
-    if (this.place !== 'home') return;
-    if (sleeping) {
-      if (!this.perform(id, 'bed', 'sleep', () => {}))
-        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
-    } else {
-      this.restoreCharacter(id, points.bed.x, points.bed.z, 'idle');
+    if(this.place!=='home'||!this.household)return;
+    const resident=this.household.characters[id];
+    if(sleeping){
+      const bed=bedPose(this.household,id,resident.sleepingOn??'starter');
+      if(!bed){this.actors[id].setPose('idle');return;}
+      const arrived=()=>this.actors[id].setFurniturePose('sleep',
+        new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+      if(!this.walkTo(id,{x:resident.x,z:resident.z},arrived))
+        this.restoreCharacter(id,resident.x,resident.z,'sleep');
+    }else{
+      // The navigation root remains at the bed's accessible edge throughout sleep.
+      const root=this.actors[id].root.position;
+      this.restoreCharacter(id,root.x,root.z,'idle');
     }
   }
 
@@ -1529,7 +1548,11 @@ export class World {
       if (away || sleep) this.closeStorage(id);
       if (sleep && (!wasSleeping || reset || changed)) {
         this.sleepingOffline.add(id);
-        this.restoreCharacter(id, points.bed.x, points.bed.z, 'sleep');
+        const resident=state.characters[id];
+        const bed=selectSleepBed(state,id,typeof resident.sleepingOn==='number'?resident.sleepingOn:undefined);
+        if(bed.ok)this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,
+          'sleep',bed.bed.id);
+        else this.restoreCharacter(id,resident.x,resident.z,'idle');
       } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);

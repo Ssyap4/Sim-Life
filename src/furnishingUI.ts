@@ -21,6 +21,8 @@ type Callbacks = {
   preview(valid:boolean):void;
   cancel():void;
   message(message:string):void;
+  /** Opens actual interactions of an installed bed, not inventory management. */
+  useBed(id:number):void;
 };
 
 export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbacks:Callbacks) {
@@ -272,7 +274,9 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         row.dataset.staticFurniture=fixture;
         row.append(node('strong','',info.emoji+' '+detail.label),
           node('small','','Уже была в доме • стартовая мебель'));
-        if(['desk','sofa','bed','table','officeChair','bookcase'].includes(fixture))
+        if(fixture==='bed')
+          row.append(node('small','','Купленные кровати поддерживают сон персонажей. После замены нажми на новую кровать и выбери «Спать».'));
+        if(['desk','sofa','table','officeChair','bookcase'].includes(fixture))
           row.append(node('small','',
             'Важно: особые действия со стартовой мебелью пока не переносятся на новые предметы из каталога.'+
             (fixture==='desk'?' Вместе со столом исчезнет встроенный стационарный ПК; ноутбук останется.':'')));
@@ -280,7 +284,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         choices.append(button('Продать за '+formatRub(proceeds),()=>{
           if(confirm('Продать '+detail.label+' за '+formatRub(proceeds)+
             '? Предмет исчезнет из дома, а деньги поступят на общий счёт.'+
-            (['desk','sofa','bed','table','officeChair','bookcase'].includes(fixture)
+            (['desk','sofa','table','officeChair','bookcase'].includes(fixture)
               ? '\nВнимание: его игровые действия пока не переходят на купленные аналоги.':'')))
             callbacks.send({type:'furniture_sell_static',fixture});
         },'furnish-button furnish-sell'));
@@ -298,6 +302,11 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       choices.append(button(isPlaced?'↔ Переставить':'↗ Разместить в доме',()=>{
         begin(item,'rotation'in item?item.rotation:0);
       }));
+      if(isPlaced && (info.shape==='bed'||info.shape==='daybed'))
+        choices.append(button('🌙 Спать на кровати',()=>{
+          root.hidden=true;
+          callbacks.useBed(item.id);
+        }));
       if(isPlaced)choices.append(button('📦 Убрать на склад',()=>{
         callbacks.send({type:'furniture_store',id:item.id});
       }));

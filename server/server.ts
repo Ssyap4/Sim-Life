@@ -31,6 +31,7 @@ import { advanceLife } from './life';
 import { expireReadyFood, readyFoodName } from '../src/shared/readyFood';
 import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
+import { selectSleepBed } from '../src/shared/bedSleep';
 import { recoverSleep } from './timeControl';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
@@ -86,9 +87,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state.revision++;
     files.save(state);
   }
-  // Interrupted sleep sessions do not keep earning energy after a server restart.
-  for (const id of ['vlad', 'alina'] as const)
-    if (state.characters[id].pose === 'sleep') state.characters[id].pose = 'idle';
+  // Sleepers are recovered from their saved bed and target below. No energy
+  // is awarded while the server is offline; sleep resumes when players return.
   if (state.world.dogWalker) {
     state.world.dogWalker = null;
     setDogParkPosition(state);
@@ -107,6 +107,26 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
+  // Active sleep was already persisted in the household. Resume it when the
+  // server restarts instead of leaving a permanently sleeping visual with
+  // no wake-up action or recovery timer.
+  let repairedSleep=false;
+  for(const resident of ['vlad','alina'] as const){
+    const sleeper=state.characters[resident];
+    if(sleeper.pose!=='sleep'||state.world.places[resident]!=='home')continue;
+    const chosen=selectSleepBed(state,resident,
+      typeof sleeper.sleepingOn==='number'?sleeper.sleepingOn:undefined);
+    if(chosen.ok){
+      sleeper.sleepingOn=chosen.bed.id;
+      sleepers.set(resident,sleeper.sleepMode==='half'?'half':'full');
+    }else{
+      sleeper.pose='idle';
+      delete sleeper.sleepingOn;
+      delete sleeper.sleepMode;
+      repairedSleep=true;
+    }
+  }
+  if(repairedSleep){state.revision++;files.save(state);}
   const shiftVotes = new Set<CharacterId>();
   const timeStatus = (): TimeStatus => ({
     multiplier: timeMultiplier(online(), { vlad: state.activeShifts.vlad || state.careers.residents.vlad.shift,
@@ -157,6 +177,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (state.characters[role].pose === 'sleep') {
       const next = structuredClone(state);
       next.characters[role].pose = 'idle';
+      delete next.characters[role].sleepingOn;
+      delete next.characters[role].sleepMode;
       next.revision++;
       try { files.save(next); state = next; }
       catch (error) { console.error('Could not save wake-up:', error); return; }
@@ -555,9 +577,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'sleep_start') {
-        if(state.furnishing.soldFixtures?.includes('bed')){
-          packet(socket,{type:'error',reason:'Кровать продана — сон пока недоступен'});return;
-        }
         if (message.mode !== 'full' && message.mode !== 'half') {
           packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
         }
@@ -569,11 +588,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (state.characters[role].energy >= sleepTarget(mode)) {
           packet(socket, { type: 'error', reason: 'Энергия уже достигла выбранной отметки' }); return;
         }
+        const requestedBed=message.furnitureId===undefined?undefined:
+          typeof message.furnitureId==='number'?message.furnitureId:NaN;
+        const chosen=selectSleepBed(state,role,requestedBed);
+        if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
         closeStorage(role);
         stopLeisure(role);
         if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Время спать');
         const next = structuredClone(state);
-        Object.assign(next.characters[role], points.bed, { pose: 'sleep' });
+        Object.assign(next.characters[role],chosen.bed.approach,
+          {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode:mode});
         next.revision++;
         try { files.save(next); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить начало сна' }); return; }

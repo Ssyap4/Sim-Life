@@ -52,6 +52,10 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   const order=home.orders.find(item=>item.id===command.id);
   const stored=home.stored.find(item=>item.id===command.id);
   const placed=home.placed.find(item=>item.id===command.id);
+  if(placed&&['furniture_move','furniture_store','furniture_sell'].includes(command.type)&&
+    (['vlad','alina'] as const).some(resident=>
+      source.characters[resident].pose==='sleep'&&source.characters[resident].sleepingOn===placed.id))
+    return fail('Сначала разбуди персонажа, спящего на этой кровати');
   if(command.type==='furniture_unbox') {
     if(!order)return fail('Этой посылки нет');
     if(order.readyAt>now)return fail('Посылка ещё в пути');

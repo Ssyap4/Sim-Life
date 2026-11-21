@@ -1,6 +1,8 @@
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
+import { isSleepBed } from './shared/bedSleep';
+import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
@@ -34,7 +36,7 @@ import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY }
 import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
-import type { TimeStatus, SleepMode } from './shared/timeControl';
+import type { TimeStatus } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names,
   type ActionId, type CharacterId, type GameState, type ItemId,
@@ -847,6 +849,7 @@ const furnishing=createFurnishingUI(
     preview:valid=>world.setFurnishingValidity(valid),
     cancel:()=>world.endFurnishingPlacement(),
     message:notify,
+    useBed:id=>openPurchasedBedActions(id),
   });
 
 function showActionMenu(title: string): void {
@@ -936,6 +939,49 @@ function openPetBowlActions(pet: PetId): void {
   actionsEl.append(refill);
 }
 
+function addBedSleepActions(furnitureId?:number):void{
+  if(!state||!active)return;
+  const sleeping=timeStatus.sleepers[active];
+  if(sleeping){
+    const wake=document.createElement('button');
+    wake.type='button';wake.className='action-button';wake.textContent='☀️ Проснуться';
+    wake.addEventListener('click',()=>{if(net.stopSleep())actionsEl.hidden=true;});
+    actionsEl.append(wake);
+    return;
+  }
+  for(const [mode,target,label] of [
+    ['full',100,'🌙 Спать до полного восстановления энергии'],
+    ['half',50,'💤 Немного поспать (до 50% энергии)'],
+  ] as const){
+    const button=document.createElement('button');
+    button.type='button';button.className='action-button';button.textContent=label;
+    button.disabled=state.characters[active].energy>=target;
+    button.addEventListener('click',()=>{
+      if(net.startSleep(mode,furnitureId))actionsEl.hidden=true;
+    });
+    actionsEl.append(button);
+  }
+}
+function openPurchasedBedActions(id:number):void{
+  if(!state||!active||!net.isReady())return;
+  const item=state.furnishing.placed.find(row=>row.id===id);
+  if(!item||!isSleepBed(item))return;
+  const info=FURNITURE_BY_ID.get(item.sku)!;
+  furnishing.close();
+  showActionMenu('🛏️ '+info.name);
+  const note=document.createElement('p');
+  note.className='food-empty';
+  note.textContent=info.width>=1.55&&info.shape==='bed'
+    ?'Двуспальная: Влад и Алина могут отдыхать одновременно.'
+    :'Одно спальное место: второй персонаж должен выбрать другую кровать.';
+  actionsEl.append(note);
+  addBedSleepActions(id);
+  const edit=document.createElement('button');
+  edit.type='button';edit.className='action-button';
+  edit.textContent='🛠️ Переместить или продать кровать';
+  edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
+  actionsEl.append(edit);
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
@@ -1026,29 +1072,7 @@ function openActions(item: ItemId): void {
       actionsEl.append(unpack);
     }
   }
-  if (item === 'bed' && state && active) {
-    const sleeping = timeStatus.sleepers[active];
-    const sleepButton = (label: string, mode: SleepMode) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'action-button';
-      button.textContent = label;
-      button.disabled = state!.characters[active!].energy >= (mode === 'full' ? 100 : 50);
-      button.addEventListener('click', () => {
-        if (net.startSleep(mode)) actionsEl.hidden = true;
-      });
-      actionsEl.append(button);
-    };
-    if (!sleeping) {
-      sleepButton('🌙 Спать до упора · до 100% · ×2', 'full');
-      sleepButton('😴 Небольшой отдых · до 50% · ×3', 'half');
-    } else {
-      const wake = document.createElement('button');
-      wake.type = 'button'; wake.className = 'action-button'; wake.textContent = '☀️ Проснуться';
-      wake.addEventListener('click', () => { if (net.stopSleep()) actionsEl.hidden = true; });
-      actionsEl.append(wake);
-    }
-  }
+  if (item === 'bed' && state && active) addBedSleepActions();
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
   if (item === 'table') {
     const study = document.createElement('button');
@@ -1149,7 +1173,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       },
     });
-    world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>furnishing.selectPlaced(id));
+    world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
+      const model=state?.furnishing.placed.find(item=>item.id===id);
+      if(model&&isSleepBed(model))openPurchasedBedActions(id);
+      else furnishing.selectPlaced(id);
+    });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
       useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {

@@ -49,6 +49,10 @@ export interface CharacterState extends Needs {
   x: number;
   z: number;
   pose: Pose;
+  /** Installed bed currently used for sleep; absent for older households. */
+  sleepingOn?: import('./bedSleep').SleepBedId;
+  /** Keeps the chosen half/full sleep goal through a server restart. */
+  sleepMode?: import('./timeControl').SleepMode;
 }
 export interface GameState {
   version: 2;
@@ -172,7 +176,7 @@ export type ClientPacket = FurnishingCommand | WorldCommand | Entertainment | Se
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
   | { type: 'shift_speed'; enabled: boolean }
-  | { type: 'sleep_start'; mode: import('./timeControl').SleepMode }
+  | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }
   | { type: 'sleep_stop' }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }

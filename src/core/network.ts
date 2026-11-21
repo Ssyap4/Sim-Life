@@ -97,7 +97,7 @@ export class LiveConnection {
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
   setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
-  startSleep(mode: SleepMode): boolean {return this.sendAuthenticated({type:'sleep_start',mode});}
+  startSleep(mode: SleepMode,furnitureId?:number): boolean {return this.sendAuthenticated({type:'sleep_start',mode,...(furnitureId===undefined?{}:{furnitureId})});}
   stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}
 
   checkout(lines: BasketLine[]): boolean {
