@@ -7,7 +7,15 @@ export const EAST_WALL = 4.95;
 export const BEDROOM_END = -1.35;
 export const WC_START = 2.00;
 export const OFFICE_END = -1.10;
-export const HOME_FLOOR = { minX: -9.18, maxX: 9.18, minZ: -7.28, maxZ: 11.70 };
+// The three future-purpose rooms form a self-contained east wing.
+// The original occupied floor plan and its furniture coordinates never move.
+export const HOUSE_WING = {
+  minX: HOUSE.maxX, maxX: 15.65, minZ: HOUSE.minZ, maxZ: HOUSE.maxZ,
+  connector: { z: -2.24, width: 1.90 },
+  crossWalls: [-3.60, .88] as const,
+  crossDoor: { x: 12.62, width: 1.86 },
+};
+export const HOME_FLOOR = { minX: -9.18, maxX: 15.34, minZ: -7.28, maxZ: 11.70 };
 
 const WALL_THICKNESS = .19;
 const ACTOR_CLEARANCE = .26;
@@ -36,6 +44,25 @@ export const HOME_WALLS: readonly FloorRect[] = [
       minX: x - WALL_THICKNESS / 2, maxX: x + WALL_THICKNESS / 2, minZ: mark, maxZ: edges[i + 1],
     }] : []);
   }),
+  // New eastern wing: a doorway from the existing office leads to the
+  // central landing, with two further internal doors into empty rooms.
+  ...[
+    [HOUSE.minZ, HOUSE_WING.connector.z - HOUSE_WING.connector.width / 2],
+    [HOUSE_WING.connector.z + HOUSE_WING.connector.width / 2, HOUSE.maxZ],
+  ].map(([minZ, maxZ]) => ({ minX: HOUSE.maxX - WALL_THICKNESS / 2,
+    maxX: HOUSE.maxX + WALL_THICKNESS / 2, minZ, maxZ })),
+  ...HOUSE_WING.crossWalls.flatMap(z => [
+    { minX: HOUSE_WING.minX, maxX: HOUSE_WING.crossDoor.x - HOUSE_WING.crossDoor.width / 2,
+      minZ: z - WALL_THICKNESS / 2, maxZ: z + WALL_THICKNESS / 2 },
+    { minX: HOUSE_WING.crossDoor.x + HOUSE_WING.crossDoor.width / 2, maxX: HOUSE_WING.maxX,
+      minZ: z - WALL_THICKNESS / 2, maxZ: z + WALL_THICKNESS / 2 },
+  ]),
+  { minX: HOUSE_WING.maxX - WALL_THICKNESS / 2, maxX: HOUSE_WING.maxX + WALL_THICKNESS / 2,
+    minZ: HOUSE.minZ, maxZ: HOUSE.maxZ },
+  { minX: HOUSE.maxX, maxX: HOUSE_WING.maxX, minZ: HOUSE.minZ - WALL_THICKNESS / 2,
+    maxZ: HOUSE.minZ + WALL_THICKNESS / 2 },
+  { minX: HOUSE.maxX, maxX: HOUSE_WING.maxX, minZ: HOUSE.maxZ - WALL_THICKNESS / 2,
+    maxZ: HOUSE.maxZ + WALL_THICKNESS / 2 },
   ...[
     { minX: HOUSE.minX, maxX: WEST_WALL, z: BEDROOM_END },
     { minX: HOUSE.minX, maxX: WEST_WALL, z: WC_START },
@@ -49,7 +76,8 @@ export const HOME_PLACEMENTS = {
   sofa: { x: -2.36, z: 2.02 },
   bed: { x: -6.97, z: -5.86 },
   kitchen: COUNTER,
-  coffeeMaker: { x: COUNTER.x - 1.56, z: COUNTER.z - .22 },
+  kettle: { x: COUNTER.x - 1.68, z: COUNTER.z + .16 },
+  coffeeMaker: { x: COUNTER.x + .40, z: COUNTER.z - .12 },
   desk: { x: 7.18, z: -6.72 },
   tv: { x: -2.39, z: -.38 },
   table: { x: 2.39, z: -2.22 },
@@ -126,6 +154,7 @@ const defaultFurnitureBounds = Object.fromEntries(
 export const HOME_FURNITURE = {
   ...defaultFurnitureBounds,
   kitchen: homeFootprint(COUNTER, -2.195, 2.21, -.575, .49),
+  kettle: homeFootprint(HOME_PLACEMENTS.kettle, -.31, .31, -.29, .29),
   coffeeMaker: homeFootprint(HOME_PLACEMENTS.coffeeMaker, -.21, .21, -.20, .19),
   toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),
   bathtub: homeFootprint(BATH_FIXTURES.bathtub.center, -.67, .67, -1.08, 1.08),
@@ -172,7 +201,7 @@ export const KITCHEN_WORK = {
   dishes: work(1.28, 1.09, .14),
   tidy: work(.37, 1.04, .29),
   tea: work(-1.68, 1.18, .16),
-  coffee: work(-1.56, 1.20, -.22),
+  coffee: work(.40, 1.20, -.12),
 } as const;
 
 export const KITCHEN_ACTIONS = {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
-import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL } from '../shared/home';
+import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL, HOUSE_WING } from '../shared/home';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
@@ -87,11 +87,17 @@ function roomPartitions(home: THREE.Group): void {
   for (const side of [-1, 1]) {
     const x = side * HOUSE.maxX;
     const height = side < 0 ? 1.22 : .54;
-    const depth = HOUSE.maxZ - HOUSE.minZ;
-    const z = (HOUSE.minZ + HOUSE.maxZ) / 2;
-    shape(home, cube, [.22, height, depth], [x, height / 2, z], C.limestone);
-    shape(home, cube, [.052, height * .53, depth - .20], [x - side * .126, height * .265, z], C.sage);
-    shape(home, cube, [.27, .07, depth], [x, height, z], C.walnut, 'wood');
+    const segments = side < 0 ? [[HOUSE.minZ, HOUSE.maxZ]] : [
+      [HOUSE.minZ, HOUSE_WING.connector.z - HOUSE_WING.connector.width / 2],
+      [HOUSE_WING.connector.z + HOUSE_WING.connector.width / 2, HOUSE.maxZ],
+    ];
+    for (const [minZ, maxZ] of segments) {
+      const span = maxZ - minZ;
+      const mid = (minZ + maxZ) / 2;
+      shape(home, cube, [.22, height, span], [x, height / 2, mid], C.limestone);
+      shape(home, cube, [.052, height * .53, Math.max(.1, span - .20)], [x - side * .126, height * .265, mid], C.sage);
+      shape(home, cube, [.27, .07, span], [x, height, mid], C.walnut, 'wood');
+    }
   }
   for (const [key, { x, z, width }] of Object.entries(HOME_DOORS)) {
     shape(home, cube, [.40, .024, width], [x, .018, z], C.oat, 'wood');

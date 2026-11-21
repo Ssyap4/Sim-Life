@@ -1,4 +1,7 @@
 import { HomeEffects } from './HomeEffects';
+import { buildHomeWing } from './HomeWing';
+import { buildNeighborhood } from './NeighborhoodArt';
+import { NeighborPeople } from './NeighborPeople';
 import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
@@ -33,7 +36,7 @@ import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
-import { dayPhase, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
+import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
 import { residentTraffic, resetResidentTraffic, smoothResidentTrafficStep, type TrafficBody } from './ResidentFlow';
 
@@ -78,6 +81,8 @@ export const objectNames = itemNames;
 export class World {
   scene = new THREE.Scene();
   private readonly homeScene = this.scene;
+  private readonly neighbors = new NeighborPeople();
+  private neighborMinute = 0;
   private entryLeaf?: THREE.Group;
   private readonly extensions = homeExtensions();
   private readonly subjectMeshes: THREE.Object3D[] = [];
@@ -171,7 +176,7 @@ export class World {
     this.controls.touches.ONE = THREE.TOUCH.PAN;
     this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     this.controls.enablePan = true;
-    this.controls.maxTargetRadius = 13;
+    this.controls.maxTargetRadius = 18;
     this.controls.minDistance = 10;
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minPolarAngle = 0.24;
@@ -1027,7 +1032,7 @@ export class World {
 
   private frameShadows(home: boolean): void {
     const offset = home ? 1.8 : 0;
-    const bounds = home ? 12.3 : 8.5;
+    const bounds = home ? 16.3 : 8.5;
     this.sun.target.position.z = offset;
     this.sun.position.z = 5.5 + offset;
     const camera = this.sun.shadow.camera;
@@ -1049,6 +1054,10 @@ export class World {
 
   private createHome(): void {
     this.entryLeaf = decorateHome(this.scene);
+    buildHomeWing(this.scene);
+    buildNeighborhood(this.scene);
+    this.scene.add(this.neighbors.group);
+    this.neighbors.group.visible = true;
     this.yard = buildYard(this.scene);
     this.register('grill', this.yard.grill, points.grill);
     this.register('yardTable', this.yard.table, points.yardTable);
@@ -1326,6 +1335,9 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    const minute = gameMinutes(state.clock);
+    // House NPCs share the server clock, without persisting visual-only traffic.
+    if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
     if (changed) this.switchPlace(place);
     this.setTimeOfDay(state.clock.minute);
     for (const id of ['vlad', 'alina'] as const) {
@@ -1520,6 +1532,10 @@ export class World {
     const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
     this.lastFrame = now;
     this.movementDt=dt;
+    if (this.place === 'home' && this.household) {
+      this.neighborMinute += dt * GAME_MINUTES_PER_REAL_SECOND;
+      this.neighbors.update(this.neighborMinute);
+    }
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
