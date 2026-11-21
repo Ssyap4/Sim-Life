@@ -1,5 +1,5 @@
 import {
-  activityItems, contextAvailable, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_GROUPS, socialRestriction, socialText,
+  activityItems, contextAvailable, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
 } from './shared/socialLife';
 import { clockAt, clockLabel, gameMinutes } from './shared/life';
@@ -25,6 +25,7 @@ const contextOrder=(a:SocialActivity,state:GameState,role:CharacterId)=>{
   if(a.object==='eat'&&[role,otherPerson(role)].some(id=>state.characters[id].hunger<54))return 0;
   if(a.object==='dishes'&&state.dirtyDishes.table+state.dirtyDishes.yardTable>0)return 0;
   if(a.object==='unpack'&&state.world.tableBags>0)return 0;
+  if(state.clock.minute>=17*60&&['evening','eveningTea','sofaTalk','film'].includes(a.id))return 0;
   return a.object?2:1;
 };
 
@@ -80,13 +81,15 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
   root.append(panel);
 }
 
-export function renderRelationship(root:HTMLElement,state:GameState,role:CharacterId,suggest:(group:SocialGroup,id?:string)=>void,onOffer:()=>void,offered:boolean){
+export function renderRelationship(root:HTMLElement,state:GameState,role:CharacterId,suggest:(group:SocialGroup,id?:string)=>void,
+  onOffer:()=>void,offered:boolean,current:string|undefined){
   const p=state.relationship, now=gameMinutes(state.clock);
   const pane=node('section','','relationship');
   const cover=node('header','','relationship-hero');
   cover.append(node('small','ДОМ, КОТОРЫЙ МЫ ДЕЛИМ'),node('h2','Влад и Алина'),
     node('p',p.lastTogether!==undefined&&now-p.lastTogether<=1440?'Сегодня уже нашли время друг для друга.':'Вместе можно прожить даже самый обычный день.'));
   pane.append(cover);
+  if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
   const available=SOCIAL_ACTIVITIES.filter(a=>!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
@@ -95,6 +98,15 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     suggestions.append(button(SOCIAL_GROUPS[a.group][0]+' '+a.title,()=>suggest(a.group,a.id)));
   }
   if(suggestions.childElementCount)pane.append(node('h3','Что сделать вместе'),suggestions);
+  const recent=node('ul','','relationship-recent');
+  const memories=new Set(p.memories.map(m=>m.at+'|'+m.action));
+  for(const e of p.recent.slice().reverse()){
+    if(memories.has(e.at+'|'+e.action))continue;
+    const activity=SOCIAL_BY_ID.get(e.action);
+    if(activity)recent.append(node('li',activity.title+' · '+clockLabel(clockAt(e.at))));
+    if(recent.childElementCount===3)break;
+  }
+  if(recent.childElementCount)pane.append(node('h3','Недавно вместе'),recent);
   pane.append(node('h3','Воспоминания'));
   if(!p.memories.length)pane.append(node('p','Первый совместный ужин, прогулка или другой особый момент появится здесь.'));
   for(const m of p.memories.slice().reverse()){

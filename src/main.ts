@@ -546,6 +546,10 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
     offer(){phone.close();socialInvite.unfold();},
     pending:()=>socialInvite.pending,
+    current(){
+      const task=active&&tasks.get(active);
+      if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
+    },
   });
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 function openEducation(view: EducationView, room?: string) {
@@ -690,6 +694,7 @@ const net = new LiveConnection({
     if(task?.taskId!==taskId) return;
     task.since=performance.now()-elapsedMs;
     world.activateHomeTask(role);
+    if(role===active&&task.paired)phone.refreshRelationship();
     if (task.material) drawTaskPanel(); else updateTaskProgress();
   },
   onStudyProgress(role, taskId, elapsed, total) {
@@ -719,6 +724,7 @@ const net = new LiveConnection({
       }
       tasks.delete(role);
       drawTaskPanel();
+      if(role===active&&previous.paired)phone.refreshRelationship();
     }
     if (outcome !== 'completed') {
       if (previous?.taskId === taskId) world.cancelTimedAction(role);
@@ -768,7 +774,8 @@ const net = new LiveConnection({
       drawTaskPanel();
       deliverySequence = null;
       invites.close();
-  socialInvite.clear();
+      socialInvite.clear();
+      phone.refreshRelationship();
       feedback.clear();
       locationUI.reject();
       locationUI.close();

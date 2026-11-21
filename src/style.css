@@ -1076,6 +1076,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .relationship-hero { display: grid; gap: 5px; border-radius: 12px; background: #466658; color: #fff7e8; padding: 13px; }
 .relationship-hero small { letter-spacing: .09em; font-size: 9px; }
 .relationship-suggestions { display: grid; gap: 5px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.relationship-recent { display: grid; gap: 5px; margin: 0; padding-left: 18px; }
 .relationship-event { display: grid; gap: 5px; }
 .relationship-event small { color: #677b6c; font-size: 10px; }
 [data-social-finish] { grid-column: 1 / -1; width: 100%; }

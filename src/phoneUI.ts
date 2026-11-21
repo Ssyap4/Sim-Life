@@ -32,7 +32,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
-  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean}) {
+  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined}) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -79,7 +79,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app === 'career') career.render(state,role,time);
     if (app === 'relationship') {
       const scroll=info.scrollTop;
-      renderRelationship(info,state,role,social.suggest,social.offer,social.pending());
+      renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current());
       info.scrollTop=scroll;
     }
     if (app==='calendar') {
@@ -182,6 +182,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
   return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+    refreshRelationship() { if(app==='relationship')refresh(); },
     openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
     educationMessage(message: string) {
       if (app !== 'education' || root.hidden) return false;
