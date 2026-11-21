@@ -61,6 +61,10 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   let finish:FurnitureFinish='oak';
   let quantity=1;
   let previewObserver:IntersectionObserver|null=null;
+  // Network snapshots arrive often, but an unchanged catalogue must retain
+  // its real DOM buttons, focus and lazy-loaded thumbnails. Recreating cards
+  // mid-click can drop taps on slower phones and older desktop machines.
+  let lastViewKey='';
   let draft:{item:FurnitureInstance|PlacedFurniture;rotation:Rotation;
     target:{x:number;z:number}|null;
     pending:{x:number;z:number;rotation:Rotation}|null;
@@ -87,6 +91,12 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     status.textContent='💳 Семейный бюджет: '+formatRub(state.money)+
       ' · 📦 '+ready+' посылок готовы · '+stored.length+' предметов на складе';
     if(root.hidden)return;
+    const viewKey=JSON.stringify(tab==='catalog'?['catalog',state.money]:
+      tab==='delivery'?['delivery',orders,Math.floor(callbacks.minute())]:
+      tab==='storage'?['storage',stored]:
+      ['placed',placed,state.furnishing.soldFixtures??[]]);
+    if(viewKey===lastViewKey)return;
+    lastViewKey=viewKey;
     const scroll=body.scrollTop;
     if(tab==='catalog')renderCatalog(state);
     else if(tab==='delivery')renderDeliveries(state);
