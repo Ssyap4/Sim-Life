@@ -25,7 +25,7 @@ import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
 import { initialCareers } from '../src/shared/careers';
 import { initialComputerLibrary, validComputerLibrary } from '../src/shared/computerGames';
-import { emptyFurnishing, isValidFurnishing } from '../src/shared/furniture';
+import { emptyFurnishing, isValidFurnishing, type FurnishingState } from '../src/shared/furniture';
 
 export interface ServerFiles {
   dataDir: string;
@@ -164,7 +164,8 @@ const previousSeats = [
   { item: 'table', pose: 'sit', x: 3.02, z: -.26 },
 ] as const;
 
-function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId): CharacterState {
+function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
+  furnishing: FurnishingState): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
   if (place === 'street' || place === 'market') {
     // Preserve saved positions except where a newly added solid occupies them.
@@ -175,25 +176,26 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
   const point = movedSeat ? points[movedSeat.item]
-    : nearestClearPoint(resident, homeObstacles, HOME_FLOOR) ?? spawn('home', role);
+    : nearestClearPoint(resident, placeObstacles('home', furnishing), HOME_FLOOR) ?? spawn('home', role);
   return { ...resident, x: point.x, z: point.z };
 }
 
-function restorePet(id: PetId, saved: PetState | undefined): PetState {
+function restorePet(id: PetId, saved: PetState | undefined,
+  safeHome = safePetHome): PetState {
   const pet = { ...INITIAL_PETS[id], ...saved };
   // Old positions or animation routes may now graze an enlarged pet collider,
   // or refer to a bowl/bench/roaming stop removed from the current layout.
   // Repair only the spatial data; never reset affection, hunger or food stock.
-  pet.position = nearestClearPoint(pet.position, safePetHome.obstacles, safePetHome.floor)
+  pet.position = nearestClearPoint(pet.position, safeHome.obstacles, safeHome.floor)
     ?? INITIAL_PETS[id].position;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const expected = petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
     if (Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
-      !pointIsClear(route.from, safePetHome.obstacles, safePetHome.floor) ||
+      !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||
       !route.path.every((point, index) =>
-        segmentIsClear(route.path[index - 1] ?? route.from, point, safePetHome.obstacles, safePetHome.floor))) {
+        segmentIsClear(route.path[index - 1] ?? route.from, point, safeHome.obstacles, safeHome.floor))) {
       delete pet.routine;
     }
   }
@@ -228,6 +230,9 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
+      const savedFurnishing = data.furnishing ?? emptyFurnishing();
+      const restoredPetGeometry = petNavigationGeometry(
+        placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
@@ -245,8 +250,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
-          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home'),
-          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home'),
+          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing),
+          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing),
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
@@ -260,12 +265,12 @@ export function openServerFiles(dataDir: string): ServerFiles {
         education: data.education ?? migrateEducation({ readBooks: data.readBooks ?? { vlad: [], alina: [] } }),
         careers: data.careers ?? initialCareers(),
         computerLibrary: data.computerLibrary ?? initialComputerLibrary(),
-        furnishing: data.furnishing ?? emptyFurnishing(),
+        furnishing: savedFurnishing,
         relationship: data.relationship ?? initialRelationship(),
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
-          verdell: restorePet('verdell', data.pets?.verdell),
-          simba: restorePet('simba', data.pets?.simba),
+          verdell: restorePet('verdell', data.pets?.verdell, restoredPetGeometry),
+          simba: restorePet('simba', data.pets?.simba, restoredPetGeometry),
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
         petBowls: { ...INITIAL_PET_BOWLS, ...data.petBowls },

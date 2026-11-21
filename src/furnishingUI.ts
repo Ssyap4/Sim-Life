@@ -48,7 +48,10 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   let search='';
   let finish:FurnitureFinish='oak';
   let quantity=1;
-  let draft:{item:FurnitureInstance|PlacedFurniture;rotation:Rotation;target:{x:number;z:number}|null;submitted:boolean}|null=null;
+  let draft:{item:FurnitureInstance|PlacedFurniture;rotation:Rotation;
+    target:{x:number;z:number}|null;
+    pending:{x:number;z:number;rotation:Rotation}|null;
+    submitted:boolean}|null=null;
   const node=(tag:keyof HTMLElementTagNameMap,cls:string,text:string)=>{
     const el=document.createElement(tag);el.className=cls;el.textContent=text;return el;
   };
@@ -78,6 +81,9 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     body.scrollTop=scroll;
   }
   function renderCatalog(state:GameState){
+    const focused=body.contains(document.activeElement) ?
+      (document.activeElement as HTMLElement).getAttribute('aria-label') : null;
+    const selection=focused==='Поиск мебели' ? (document.activeElement as HTMLInputElement).selectionStart : null;
     body.replaceChildren();
     const filters=node('div','furnish-filters','');
     const searchInput=document.createElement('input');
@@ -112,6 +118,13 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       node('p','furnish-instructions','Выбирай цвет, количество и тип доставки. Модели отличаются не только оттенком, но и конструкцией.'),
       list);
     renderCards(state);
+    if(focused){
+      const elements=Array.from(body.querySelectorAll<HTMLInputElement|HTMLSelectElement>('input,select'));
+      const restore=elements.find(element=>element.getAttribute('aria-label')===focused);
+      restore?.focus({preventScroll:true});
+      if(selection!==null&&restore instanceof HTMLInputElement)
+        restore.setSelectionRange(selection,selection);
+    }
   }
   function renderCards(state:GameState){
     const list=body.querySelector<HTMLElement>('[data-furnish-cards]');if(!list)return;
@@ -201,7 +214,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     }
   }
   function begin(item:FurnitureInstance|PlacedFurniture,rotation:Rotation){
-    draft={item,rotation,target:null,submitted:false};
+    draft={item,rotation,target:null,pending:null,submitted:false};
     root.hidden=true;
     controls.hidden=false;
     const info=FURNITURE_BY_ID.get(item.sku)!;
@@ -210,15 +223,16 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     apply.disabled=true;
     callbacks.start(item,rotation);
   }
-  function setTarget(x:number,z:number){
-    if(!draft)return;
+  function setTarget(x:number,z:number):boolean{
+    if(!draft||draft.submitted)return false;
     draft.target={x:Math.round(x*100)/100,z:Math.round(z*100)/100};
     placeHint.textContent='📍 Место: '+draft.target.x.toFixed(1)+
       ' / '+draft.target.z.toFixed(1)+' · поворот '+draft.rotation*90+'°';
     apply.disabled=false;
+    return true;
   }
   function turn(amount:number){
-    if(!draft)return;
+    if(!draft||draft.submitted)return;
     draft.rotation=((draft.rotation+amount+4)%4) as Rotation;
     callbacks.rotate(draft.rotation);
     if(draft.target)setTarget(draft.target.x,draft.target.z);
@@ -234,20 +248,20 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     const command:FurnishingCommand='rotation'in item
       ?{type:'furniture_move',id:item.id,x:target.x,z:target.z,rotation}
       :{type:'furniture_place',id:item.id,x:target.x,z:target.z,rotation};
-    if(callbacks.send(command)){draft.submitted=true;apply.disabled=true;
+    if(callbacks.send(command)){
+      draft.pending={...target,rotation};draft.submitted=true;apply.disabled=true;
       placeHint.textContent='Проверяем проходимость комнат и сохраняем расположение…';
     }
   }
   function acknowledge(state:GameState){
     if(!draft)return;
     const {item}=draft;
-    if(state.furnishing.placed.some(row=>row.id===item.id)&&
-      ('rotation' in item?
-        state.furnishing.placed.some(row=>row.id===item.id&&draft?.target&&
-          Math.abs(row.x-draft.target.x)<.01&&Math.abs(row.z-draft.target.z)<.01):
-        !state.furnishing.stored.some(row=>row.id===item.id))) {
-      cancel();
-    }
+    if(!draft.submitted||!draft.pending)return;
+    const submitted=draft.pending;
+    const placed=state.furnishing.placed.find(row=>row.id===item.id);
+    if(placed&&Math.abs(placed.x-submitted.x)<.01&&
+      Math.abs(placed.z-submitted.z)<.01&&placed.rotation===submitted.rotation&&
+      !state.furnishing.stored.some(row=>row.id===item.id))cancel();
   }
   controls.querySelector('[data-turn-left]')!.addEventListener('click',()=>turn(-1));
   controls.querySelector('[data-turn-right]')!.addEventListener('click',()=>turn(1));
@@ -275,7 +289,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       selected?.classList.add('furnish-selected');
       selected?.scrollIntoView({block:'nearest'});
     },
-    reject(reason:string){if(!draft)return;draft.submitted=false;
+    reject(reason:string){if(!draft)return;draft.submitted=false;draft.pending=null;
       apply.disabled=!draft.target;placeHint.textContent=reason;},
   };
 }

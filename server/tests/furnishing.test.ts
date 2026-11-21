@@ -4,13 +4,16 @@ import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import { initialState } from '../../src/shared/protocol';
+import * as THREE from 'three';
+import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 import { applyFurnishing } from '../furnishing';
 import { openServerFiles } from '../storage';
+import { pairScenes } from '../society';
 import { FURNITURE_CATALOG, FURNITURE_FINISHES, emptyFurnishing,
   furnitureFootprint, furnishingObstacles, isValidFurnishing } from '../../src/shared/furniture';
 import { placeObstacles, spawn } from '../../src/shared/locations';
 import { HOME_FLOOR } from '../../src/shared/home';
-import { findRoute, pointIsClear } from '../../src/game/navigation';
+import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
 import { PET_IDS, PETS } from '../../src/shared/pets';
 import { petNavigationGeometry } from '../../src/game/PetNavigation';
 
@@ -156,4 +159,67 @@ test('old 0.14 households migrate to empty furnishings without resetting progres
     assert.deepEqual(again.furnishing,loaded.furnishing);
     assert.equal(JSON.parse(readFileSync(join(folder,'household.pre-furnishing.json'),'utf8')).money,185357);
   }finally{rmSync(folder,{recursive:true,force:true});}
+});
+
+test('all 39 light 3D furniture models fit their advertised collision footprints and height',()=>{
+  for(const info of FURNITURE_CATALOG){
+    const model=buildFurnishingModel(info.id,'slate');
+    model.updateMatrixWorld(true);
+    const bounds=new THREE.Box3().setFromObject(model);
+    const eps=.012;
+    assert.ok(bounds.min.x>=-info.width/2-eps,info.id+': left edge');
+    assert.ok(bounds.max.x<=info.width/2+eps,info.id+': right edge');
+    assert.ok(bounds.min.z>=-info.depth/2-eps,info.id+': rear edge');
+    assert.ok(bounds.max.z<=info.depth/2+eps,info.id+': front edge');
+    assert.ok(bounds.min.y>=-.025,info.id+': floor penetration');
+    assert.ok(bounds.max.y<=info.height+eps,info.id+': height');
+    let count=0;
+    model.traverse(part=>{if(part instanceof THREE.Mesh)count++;});
+    assert.ok(count<=8,info.id+': too many separate draw calls ('+count+')');
+  }
+});
+test('restart restores characters and pets outside purchased furniture without changing their needs',()=>{
+  const folder=mkdtempSync(join(tmpdir(),'sim-life-furnished-restart-'));
+  try{
+    const sample=initialState();
+    sample.money=98765;
+    sample.furnishing.placed.push({
+      id:1,sku:'wardrobe-tall',finish:'walnut',rotation:0,x:13.1,z:-5.45,
+    });
+    sample.furnishing.nextId=2;
+    Object.assign(sample.characters.vlad,{x:13.1,z:-5.45,skill:77});
+    sample.pets.simba.position={x:13.1,z:-5.45};
+    sample.pets.simba.bond=56;
+    const files=openServerFiles(folder);
+    files.save(sample);
+    const restored=files.load();
+    const obstacles=placeObstacles('home',restored.furnishing);
+    assert.equal(restored.money,98765);
+    assert.equal(restored.characters.vlad.skill,77);
+    assert.equal(restored.pets.simba.bond,56);
+    assert.equal(restored.furnishing.placed.length,1);
+    assert.ok(pointIsClear(restored.characters.vlad,obstacles,HOME_FLOOR),
+      'a resident cannot respawn inside a wardrobe');
+    const petGeo=petNavigationGeometry(obstacles,HOME_FLOOR);
+    assert.ok(pointIsClear(restored.pets.simba.position,petGeo.obstacles,petGeo.floor),
+      'a pet cannot respawn inside a wardrobe');
+  }finally{rmSync(folder,{recursive:true,force:true});}
+});
+
+test('cooperative hugs and paths in furnished rooms route around purchased tables',()=>{
+  const state=initialState();
+  state.furnishing.nextId=2;
+  state.furnishing.placed=[{id:1,sku:'table-round',finish:'sage',x:13,z:-5.2,rotation:0}];
+  Object.assign(state.characters.vlad,{x:11.8,z:-5.5});
+  Object.assign(state.characters.alina,{x:14.3,z:-5.5});
+  const scene=pairScenes(state,'vlad',{type:'together',action:'softHug'});
+  assert.ok(scene,'social actions must remain available after decorating a room');
+  const obstacles=placeObstacles('home',state.furnishing);
+  for(const role of ['vlad','alina'] as const){
+    const routePoints: Array<{x:number;z:number}> = [scene[role].route.from,...scene[role].route.path];
+    assert.ok(routePoints.length>=2);
+    for(let i=1;i<routePoints.length;i++)
+      assert.ok(segmentIsClear(routePoints[i-1],routePoints[i],obstacles,HOME_FLOOR),
+        'social route crosses purchased furniture for '+role);
+  }
 });

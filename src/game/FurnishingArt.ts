@@ -184,6 +184,16 @@ function createBody(sku:string,finishId:FurnitureFinish):THREE.Group {
     }
   }
   batchRigidParts(root,true);
+  // Collision dimensions come from the shared catalog. Some decorative
+  // cushions, leaves or handles used to extend past those dimensions, which
+  // could make two legally placed objects visually overlap. Fit the entire
+  // procedural model inside its exact physical footprint and height.
+  const bounds=new THREE.Box3().setFromObject(root);
+  const maxX=Math.max(-bounds.min.x,bounds.max.x);
+  const maxZ=Math.max(-bounds.min.z,bounds.max.z);
+  if(maxX>0)root.scale.x=Math.min(1,w/(2*maxX));
+  if(maxZ>0)root.scale.z=Math.min(1,d/(2*maxZ));
+  if(bounds.max.y>0)root.scale.y=Math.min(1,h/bounds.max.y);
   return root;
 }
 

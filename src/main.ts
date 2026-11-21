@@ -665,6 +665,7 @@ const net = new LiveConnection({
     displayClock.sync(sample, performance.now());
     renderClock();
     furnishing.tick();
+    world.updateFurnitureDeliveryTime(displayClock.read(performance.now()));
   },
   onDisconnect() {
     displayClock.pause(performance.now());

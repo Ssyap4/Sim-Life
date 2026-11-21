@@ -123,7 +123,7 @@ export class World {
   private furnishingModels=new Map<number,THREE.Group>();
   private furnishingVisualKey='';
   private furnishingGhost:THREE.Group|null=null;
-  private furnishingPlaceCallback:((x:number,z:number)=>void)|null=null;
+  private furnishingPlaceCallback:((x:number,z:number)=>boolean)|null=null;
   private furnishingItemCallback:((id:number)=>void)|null=null;
   private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
@@ -1088,6 +1088,13 @@ export class World {
 
   /** Dirty plates are lightweight, shared visual props. The authoritative
    * counts live on the server and survive reloading the household. */
+  updateFurnitureDeliveryTime(nowMinute:number):void {
+    if(!this.household||this.place!=='home')return;
+    const count=this.household.furnishing.orders.filter(item=>item.readyAt<=nowMinute).length;
+    this.furnishingParcels.visible=count>0;
+    this.furnishingParcels.children.forEach((model,index)=>{model.visible=index<count;});
+  }
+
   private createFurnitureParcels():void {
     this.furnishingParcels.name='Доставленные коробки мебели';
     for(let i=0;i<4;i++){
@@ -1135,7 +1142,7 @@ export class World {
     }
   }
 
-  setFurnishingPick(onTarget:(x:number,z:number)=>void,onItem:(id:number)=>void):void {
+  setFurnishingPick(onTarget:(x:number,z:number)=>boolean,onItem:(id:number)=>void):void {
     this.furnishingPlaceCallback=onTarget;
     this.furnishingItemCallback=onItem;
   }
@@ -1494,10 +1501,7 @@ export class World {
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
       this.shoppingBags.forEach((bag, index) => { bag.visible = index < state.world.tableBags; });
       this.renderOwnedFurniture(state.furnishing.placed);
-      this.furnishingParcels.children.forEach((model,index)=>{
-        model.visible=index<state.furnishing.orders.filter(item=>item.readyAt<=clockMinutes(state.clock)).length;
-      });
-      this.furnishingParcels.visible=state.furnishing.orders.some(item=>item.readyAt<=clockMinutes(state.clock));
+      this.updateFurnitureDeliveryTime(clockMinutes(state.clock));
       this.updateHomePets(state);
       if (this.served) this.served.visible = (Object.keys(state.meals) as RecipeId[])
         .some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
@@ -1553,8 +1557,9 @@ export class World {
       if(point){
         const x=Math.round(point.x*100)/100,z=Math.round(point.z*100)/100;
         if(x>=HOME_FLOOR.minX&&x<=HOME_FLOOR.maxX&&z>=HOME_FLOOR.minZ&&z<=HOME_FLOOR.maxZ){
-          this.furnishingGhost.position.set(x,.04,z);
-          this.furnishingPlaceCallback?.(x,z);
+          // Ignore extra taps while an installation transaction is pending.
+          if(this.furnishingPlaceCallback?.(x,z)!==false)
+            this.furnishingGhost.position.set(x,.04,z);
         }
       }
       return;

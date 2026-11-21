@@ -696,36 +696,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         return;
       }
-      // Walking, starting work, using a station or any other manual action wakes the sleeper.
-      stopSleep(role);
-      lastIntent.set(role, Date.now());
-      closeStorage(role);
-      stopLeisure(role);
-      if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
-      if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
-      if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
-        // Legacy job_cancel messages are treated as early departure with fair partial pay.
-        accountTime();
-        const result=leaveShiftEarly(state,role);
-        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
-        const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
-        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
-        state=result.state;
-        shiftVotes.clear();
-        announceTime();
-        all({type:'job_event',role,outcome:'left_early',message:result.message});
-        all({type:'snapshot',state});
-        if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
-        return;
-      }
-      if (running.has(role) || homeTasks.busy(role)) {
-        packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
-        return;
-      }
       if (typeof message.type==='string' && [
         'furniture_order','furniture_unbox','furniture_place',
         'furniture_move','furniture_store','furniture_sell',
       ].includes(message.type)) {
+        // A store command must never wake or cancel a resident.
+        if (running.has(role) || homeTasks.busy(role) || sleepers.has(role)) {
+          packet(socket,{type:'error',reason:'Сначала заверши занятие или сон'});
+          return;
+        }
         // Spatial changes must never interrupt a pre-existing chore, walk,
         // sleep or the partner's scripted scene.
         const spatial=message.type==='furniture_place'||message.type==='furniture_move';
@@ -750,6 +729,32 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role,Date.now());
         all({type:'snapshot',state});
         all({type:'store_event',role,message:result.message});
+        return;
+      }
+      // Walking, starting work, using a station or any other manual action wakes the sleeper.
+      stopSleep(role);
+      lastIntent.set(role, Date.now());
+      closeStorage(role);
+      stopLeisure(role);
+      if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
+      if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
+      if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
+        // Legacy job_cancel messages are treated as early departure with fair partial pay.
+        accountTime();
+        const result=leaveShiftEarly(state,role);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить досрочный уход'});return;}
+        state=result.state;
+        shiftVotes.clear();
+        announceTime();
+        all({type:'job_event',role,outcome:'left_early',message:result.message});
+        all({type:'snapshot',state});
+        if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
+        return;
+      }
+      if (running.has(role) || homeTasks.busy(role)) {
+        packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
