@@ -1236,3 +1236,37 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
   .computer-market-root .market-adjust { min-width:35px; min-height:34px; }
   .computer-window-body .billing-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+/* Instant market finder, shared by the phone shop and the computer shop. */
+.market-search { display:grid; grid-template-columns:minmax(0,1fr) 38px; gap:7px; align-items:end; padding:10px; margin:0 0 6px;
+  border:1px solid #d6e5d8; border-radius:13px; background:#ecf3ec; }
+.market-search-label { grid-column:1/-1; color:#436953; font-weight:900; font-size:12px; line-height:1.2; }
+.market-search-input { width:100%; min-width:0; height:43px; font:inherit; font-size:15px;
+  border:1px solid #bfd2c0; border-radius:10px; background:#fffefa; color:#284b37;
+  padding:9px 12px; outline-offset:1px; }
+.market-search-input:focus-visible { outline:2px solid #58876a; border-color:#58876a; }
+.market-search-input::placeholder { color:#899a8b; font-size:13px; }
+.market-search-clear { height:43px; min-width:38px; border:1px solid #c5d8c9; border-radius:10px;
+  background:#fcfefa; font-size:23px; color:#527460; cursor:pointer; }
+.market-search-clear:disabled { opacity:.4; cursor:default; }
+.market-search-count { font-size:11px; font-weight:800; color:#597262; margin:4px 2px 8px; }
+.market-suggestions { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-bottom:3px; }
+.market-suggestions:empty { display:none; }
+.market-suggestions-label { font-size:10px; font-weight:800; color:#657c6a; }
+.market-search-suggestion { border:1px solid #c5d9c7; background:#fff; border-radius:99px;
+  padding:7px 10px; min-height:32px; color:#42704e; font-weight:800; font-size:10px; text-align:left; }
+.market-search-suggestion:hover { background:#dcebdc; }
+.market-search-empty { border:1px dashed #c7d9cb; border-radius:11px; padding:18px 10px; text-align:center; }
+.computer-market-root .market-search { background:#eaf2f7; border-color:#cfdee8; }
+.computer-market-root .market-search-label { color:#365f75; }
+.computer-market-root .market-search-input { border-color:#bfcedc; color:#264c61; background:#fff; }
+.computer-market-root .market-search-input:focus-visible { outline-color:#587f99; border-color:#587f99; }
+.computer-market-root .market-search-suggestion { color:#40697e; border-color:#c5d5df; }
+.computer-market-root .market-search-count { color:#587388; }
+@media(max-width:600px) {
+  .market-search { padding:8px; }
+  .market-search-input { font-size:16px; }
+  .market-search-suggestion { min-height:34px; padding:7px 9px; }
+}
+
+.market-search-input::-webkit-search-cancel-button { appearance:none; display:none; }

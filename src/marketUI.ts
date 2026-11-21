@@ -1,4 +1,5 @@
 import { serviceAvailable, SERVICE_MESSAGES } from './shared/services';
+import { findMarketProducts } from './marketSearch';
 import { clockMinutes } from './shared/locations';
 import { DELIVERY_FEE } from './shared/locations';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, recipePortionCost, type TakeoutId } from './shared/food';
@@ -42,6 +43,7 @@ export function createMarketUI(
   let state: GameState | null = null;
   let currentTab: Tab = 'shop';
   let category: Filter = 'all';
+  let searchQuery = '';
   const cart = new Map<string, number>();
   function cartFit(id?:string,delta=0):boolean {
     if(!state)return false;
@@ -69,6 +71,9 @@ export function createMarketUI(
   function redraw(): void {
     if (!state || root.hidden) return;
     const oldScroll = root.querySelector<HTMLElement>('.market-scroll')?.scrollTop ?? 0;
+    const activeSearch = root.querySelector<HTMLInputElement>('.market-search-input');
+    const keepFocus = document.activeElement === activeSearch;
+    const caret = keepFocus ? activeSearch?.selectionStart ?? searchQuery.length : 0;
     root.replaceChildren();
     const panel = el('div','market-card');
     panel.setAttribute('role','dialog');
@@ -95,10 +100,31 @@ export function createMarketUI(
       const filters = el('div','market-filters');
       const filtersArray: Array<[Filter,string]> = [['all','Все'],...Object.entries(MARKET_CATEGORIES) as Array<[MarketCategory,string]>];
       for (const [id,label] of filtersArray) {
-        filters.append(button(label,()=>{category=id;redraw();scroll.scrollTop=0;},
+        filters.append(button(label,()=>{category=id;searchQuery='';redraw();scroll.scrollTop=0;},
           'market-filter'+(category===id?' selected':'')));
       }
-      scroll.append(filters);
+      const searchBar = el('div','market-search');
+      const searchLabel = el('label','market-search-label','🔎 Быстрый поиск продуктов');
+      const input = el('input','market-search-input');
+      input.type = 'search';
+      input.name = 'product-search';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.placeholder = 'Молоко, хлеб, корм, пицца…';
+      input.value = searchQuery;
+      searchLabel.htmlFor = 'market-search-'+(root.id || 'store');
+      input.id = searchLabel.htmlFor;
+      const clear = button('×',()=>{
+        searchQuery='';input.value='';updateResults();input.focus({preventScroll:true});
+      },'market-search-clear',!searchQuery);
+      clear.setAttribute('aria-label','Очистить поиск');
+      searchBar.append(searchLabel,input,clear);
+      const suggestions = el('div','market-suggestions');
+      suggestions.setAttribute('aria-label','Быстрые варианты товаров');
+      const counter = el('p','market-search-count');
+      counter.setAttribute('role','status');
+      counter.setAttribute('aria-live','polite');
+      scroll.append(searchBar,suggestions,counter,filters);
       const caption = el('p','market-hint',
         'Продукты готовить дома выгоднее. Пицца и роллы доставляются готовыми и стоят заметно дороже.');
       scroll.append(caption);
@@ -107,13 +133,12 @@ export function createMarketUI(
         '🧊 Холодильник '+used.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ Полки '+used.cupboard+'/'+CUPBOARD_CAPACITY+
         ' · упаковка обычно занимает одну ячейку'));
       const grid = el('div','market-products');
-      for (const p of MARKET_PRODUCTS) {
-        if (category!=='all' && p.category!==category) continue;
+      const renderProduct = (p:MarketProduct) => {
         const line = el('div','market-product');
         line.append(el('div','market-product-icon',p.emoji));
         const description=el('div','market-description');
         description.append(el('strong','',p.name),
-          el('small','', '+'+p.quantity+' '+p.unit+' · дома: '+owned(state,p)));
+          el('small','', '+'+p.quantity+' '+p.unit+' · дома: '+owned(state!,p)));
         const about=p.kind==='grocery' ? GROCERY_DETAILS[p.stockKey as keyof typeof GROCERY_DETAILS]
           : p.kind==='takeout' ? null : null;
         const detail=p.kind==='grocery' ? about?.description
@@ -133,9 +158,47 @@ export function createMarketUI(
           button('+',()=>change(p.id,1),'market-adjust',
             amount>=10 || owned(state!,p)+(amount+1)*p.quantity>limit(p) || !cartFit(p.id,1)));
         line.append(description,stepper);
-        grid.append(line);
+        return line;
+      };
+      function updateResults() {
+        const found = searchQuery.trim()
+          ? findMarketProducts(searchQuery)
+          : MARKET_PRODUCTS.filter(p=>category==='all'||p.category===category);
+        grid.replaceChildren(...found.map(renderProduct));
+        counter.textContent=searchQuery.trim()
+          ? 'Найдено товаров: '+found.length+' · поиск по всем категориям'
+          : 'Товаров: '+found.length;
+        clear.disabled = !searchQuery;
+        suggestions.replaceChildren();
+        if (searchQuery.trim() && found.length) {
+          suggestions.append(el('span','market-suggestions-label','Быстрый выбор:'));
+          for (const product of found.slice(0,5)) {
+            suggestions.append(button(product.emoji+' '+product.name,()=>{
+              searchQuery=product.name;
+              input.value=searchQuery;
+              updateResults();
+              input.focus({preventScroll:true});
+            },'market-search-suggestion'));
+          }
+        }
+        scroll.querySelector('.market-search-empty')?.remove();
+        if (!found.length) {
+          grid.after(el('p','market-empty market-search-empty',
+            'По запросу «'+searchQuery+'» ничего не найдено. Попробуй другое название.'));
+        }
       }
+      input.addEventListener('input',()=>{
+        searchQuery=input.value;
+        if(searchQuery.trim()){
+          category='all';
+          filters.querySelectorAll<HTMLButtonElement>('.market-filter').forEach((tab,i)=>{
+            tab.classList.toggle('selected',i===0);
+          });
+        }
+        updateResults();
+      });
       scroll.append(grid);
+      updateResults();
       const selected=[...cart.entries()].map(([id,quantity])=>({id,quantity}));
       const total=basketPrice(selected)+(selected.length ? DELIVERY_FEE : 0);
       const storageOkay=cartFit();
@@ -241,6 +304,11 @@ export function createMarketUI(
     }
     root.append(panel);
     root.querySelector<HTMLElement>('.market-scroll')?.scrollTo({top:oldScroll});
+    if(keepFocus && currentTab==='shop'){
+      const field=root.querySelector<HTMLInputElement>('.market-search-input');
+      field?.focus({preventScroll:true});
+      field?.setSelectionRange(caret,caret);
+    }
   }
   function change(id: string, difference: number): void {
     const product=marketProduct(id);
@@ -253,7 +321,7 @@ export function createMarketUI(
     redraw();
   }
   return {
-    open(household) {state=household; root.hidden=false; redraw();},
+    open(household) {state=household; searchQuery=''; root.hidden=false; redraw();},
     refresh(household) {state=household;redraw();},
     close,
     acknowledge() {cart.clear(); redraw();},
