@@ -10,6 +10,7 @@ import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
 import { checkFurniturePlacement, suggestFurnitureSnap } from './shared/furnishingPlacement';
 import { furnitureThumbnail } from './game/FurnitureThumbnails';
+import { furnitureActionList } from './shared/furnitureUse';
 
 type Tab = 'catalog'|'delivery'|'storage'|'placed';
 type Callbacks = {
@@ -23,6 +24,7 @@ type Callbacks = {
   message(message:string):void;
   /** Opens actual interactions of an installed bed, not inventory management. */
   useBed(id:number):void;
+  useFurniture(id:number):void;
 };
 
 export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbacks:Callbacks) {
@@ -306,6 +308,11 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         choices.append(button('🌙 Спать на кровати',()=>{
           root.hidden=true;
           callbacks.useBed(item.id);
+        }));
+      if(isPlaced && 'rotation' in item && furnitureActionList(item).length)
+        choices.append(button('✋ Использовать',()=>{
+          root.hidden=true;
+          callbacks.useFurniture(item.id);
         }));
       if(isPlaced)choices.append(button('📦 Убрать на склад',()=>{
         callbacks.send({type:'furniture_store',id:item.id});

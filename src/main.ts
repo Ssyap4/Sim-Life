@@ -2,12 +2,14 @@ import { createSocialOffer, showSocialMenu } from './socialUI';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
+import { FURNITURE_ACTIONS, furnitureActionList, type FurnitureUseAction } from './shared/furnitureUse';
 import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
+import { BOOKS, GENRES } from './shared/homeLife';
 import { createPhone } from './phoneUI';
 import { createComputerUI } from './computerUI';
 import { createFurnishingUI } from './furnishingUI';
@@ -43,6 +45,12 @@ import {
 } from './shared/protocol';
 
 let state: GameState | null = null;
+let selectedDesktopFurnitureId:number|null=null;
+const installedDesktopId=():number|undefined=>{
+  if(!state?.furnishing.soldFixtures?.includes('desk'))return undefined;
+  const available=state.furnishing.placed.filter(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+  return available.find(item=>item.id===selectedDesktopFurnitureId)?.id??available[0]?.id;
+};
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
@@ -580,13 +588,30 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
   act: (actionId,device) => {
     if (!state || !active) return false;
+    if(device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')){
+      const id=installedDesktopId();
+      if(id===undefined){notify('Сначала поставь новый письменный стол');return false;}
+      const item=state.furnishing.placed.find(row=>row.id===id);
+      if(!item||!furnitureActionList(item).includes(actionId as FurnitureUseAction))return false;
+      return net.furnitureUse({type:'furniture_use',furnitureId:id,action:actionId as FurnitureUseAction});
+    }
     const denial = taskAccessError(state,{type:'act',actionId,computer:device});
     if (denial) { notify(denial); return false; }
     return net.perform(actionId,device);
   },
-  playGame: (game,device) => net.playGame(game,device),
+  playGame: (game,device) => {
+    if(device==='desktop'&&state?.furnishing.soldFixtures?.includes('desk')&&installedDesktopId()===undefined){
+      notify('Сначала поставь новый письменный стол');return false;
+    }
+    return net.playGame(game,device,device==='desktop'?installedDesktopId():undefined);
+  },
   favorite: (game,enabled) => net.favoriteGame(game,enabled),
-  watchVideo: (clip,device) => net.playComputerVideo(clip,device),
+  watchVideo: (clip,device) => {
+    if(device==='desktop'&&state?.furnishing.soldFixtures?.includes('desk')&&installedDesktopId()===undefined){
+      notify('Сначала поставь новый письменный стол');return false;
+    }
+    return net.playComputerVideo(clip,device,device==='desktop'?installedDesktopId():undefined);
+  },
   preview: (device,scene) => world.previewComputer(device,scene),
   career: command => net.career(command),
   education: command => net.education(command),
@@ -614,6 +639,7 @@ const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const net = new LiveConnection({
   onReady(role, household, players) {
+    selectedDesktopFurnitureId=null;
     active = role;
     state = household;
     displayClock.reset(gameMinutes(household.clock), performance.now());
@@ -850,6 +876,7 @@ const furnishing=createFurnishingUI(
     cancel:()=>world.endFurnishingPlacement(),
     message:notify,
     useBed:id=>openPurchasedBedActions(id),
+    useFurniture:id=>openPurchasedFurnitureActions(id),
   });
 
 function showActionMenu(title: string): void {
@@ -979,6 +1006,76 @@ function openPurchasedBedActions(id:number):void{
   const edit=document.createElement('button');
   edit.type='button';edit.className='action-button';
   edit.textContent='🛠️ Переместить или продать кровать';
+  edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
+  actionsEl.append(edit);
+}
+function openPurchasedFurnitureActions(id:number):void{
+  if(!state||!active||!net.isReady())return;
+  const item=state.furnishing.placed.find(row=>row.id===id);
+  if(!item)return;
+  if(isSleepBed(item)){openPurchasedBedActions(id);return;}
+  const info=FURNITURE_BY_ID.get(item.sku);
+  if(!info)return;
+  const supported=furnitureActionList(item);
+  if(!supported.length){furnishing.selectPlaced(id);return;}
+  furnishing.close();
+  showActionMenu(info.emoji+' '+info.name);
+  const detail=document.createElement('p');
+  detail.className='food-empty';
+  detail.textContent='Действия доступны на этом предмете в его текущем расположении.';
+  actionsEl.append(detail);
+  const send=(action:FurnitureUseAction,extra?:{book?:import('./shared/homeLife').BookId;genre?:import('./shared/homeLife').Genre})=>{
+    const ok=net.furnitureUse({type:'furniture_use',furnitureId:id,action,...extra});
+    if(ok)actionsEl.hidden=true;
+  };
+  const chooseMovie=()=>{
+    showActionMenu('🎬 Выбери жанр фильма');
+    for(const [genre,label] of Object.entries(GENRES) as [import('./shared/homeLife').Genre,string][]){
+      const b=document.createElement('button');
+      b.type='button';b.className='action-button';b.textContent=label;
+      b.addEventListener('click',()=>send('movie',{genre}));
+      actionsEl.append(b);
+    }
+  };
+  const chooseBook=()=>{
+    showActionMenu('📚 Выбери книгу');
+    for(const [book,details]of Object.entries(BOOKS) as [import('./shared/homeLife').BookId,readonly [string,string,string,number,string]][]){
+      const b=document.createElement('button');
+      b.type='button';b.className='action-button';b.textContent=details[0];
+      b.addEventListener('click',()=>send('read_book',{book}));
+      actionsEl.append(b);
+    }
+  };
+  for(const action of supported){
+    const b=document.createElement('button');
+    b.type='button';b.className='action-button';b.textContent=FURNITURE_ACTIONS[action];
+    b.addEventListener('click',()=>action==='movie'?chooseMovie():action==='read_book'?chooseBook():send(action));
+    actionsEl.append(b);
+  }
+  if(info.shape==='table'&&info.height>=.63){
+    showFoodChoices(actionsEl,'table',state,(type:FoodCommand,recipe)=>{
+      const ok=net.food(type,recipe,type==='eat'?id:undefined);
+      if(ok)actionsEl.hidden=true;
+      return ok;
+    });
+    showTakeoutChoices(actionsEl,state,product=>{
+      const ok=net.eatTakeout(product,id);
+      if(ok)actionsEl.hidden=true;
+      return ok;
+    });
+  }
+  if(info.shape==='desk'){
+    const pc=document.createElement('button');
+    pc.type='button';pc.className='action-button';pc.textContent='💻 Открыть стационарный компьютер';
+    pc.addEventListener('click',()=>{
+      selectedDesktopFurnitureId=id;
+      world.focusDesktopFurniture(id);
+      actionsEl.hidden=true;computer.open('desktop');
+    });
+    actionsEl.append(pc);
+  }
+  const edit=document.createElement('button');
+  edit.type='button';edit.className='action-button';edit.textContent='🛠️ Переместить, убрать или продать';
   edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
   actionsEl.append(edit);
 }
@@ -1176,6 +1273,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
       const model=state?.furnishing.placed.find(item=>item.id===id);
       if(model&&isSleepBed(model))openPurchasedBedActions(id);
+      else if(model&&furnitureActionList(model).length)openPurchasedFurnitureActions(id);
       else furnishing.selectPlaced(id);
     });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,

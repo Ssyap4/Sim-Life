@@ -37,6 +37,7 @@ import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './Interio
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
+import { diningLocation, furnitureUseLocation } from '../shared/furnitureUse';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -470,7 +471,8 @@ export class World {
     }
   }
 
-  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true): boolean {
+  performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true,
+    furnitureId?:number): boolean {
     if (action === 'cook') {
       return this.perform(id, 'kitchen', 'idle', () => {
         if (!current()) return;
@@ -481,6 +483,24 @@ export class World {
     }
     // Use each person's *own* seat and approach. The old shared table marker
     // placed two co-op players at the same navigation position.
+    const bought=this.household&&diningLocation(this.household,id,furnitureId);
+    if(bought){
+      const place=bought.route.path.at(-1)??bought.route.from;
+      return this.walkTo(id,place,()=>{
+        if(!current())return;
+        const actor=this.actors[id],pose=bought.pose;
+        if(bought.seated)actor.setFurniturePose('sit',
+          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        else {
+          actor.setPose('idle');
+          actor.faceTowards(new THREE.Vector3(bought.item.x,0,bought.item.z));
+        }
+        this.showMeal(id,bought.item.x,FURNITURE_BY_ID.get(bought.item.sku)!.height+.014,bought.item.z);
+        actor.playActivity('eat');
+      });
+    }
+    if(furnitureId!==undefined||this.household?.furnishing.soldFixtures?.includes('table'))
+      return false;
     const seat = homeSeat('table', id);
     return this.walkTo(id, seat.approach, () => {
       if (!current()) return;
@@ -542,7 +562,10 @@ export class World {
       }
       if (station === 'studyLaptop') { this.laptopPose(role); return; }
       if (station === 'studyDesk') {
-        this.applyFurniturePose(role, 'desk', 'work');
+        const target=home.furniturePose;
+        if(target)actor.setFurniturePose('work',
+          new THREE.Vector3(target.x,target.y,target.z),target.yaw);
+        else this.applyFurniturePose(role,'desk','work');
         actor.playDomesticActivity('games');
         return;
       }
@@ -561,6 +584,28 @@ export class World {
       }
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
+        return;
+      }
+      if(station==='furniture'){
+        const pose=home.furniturePose;
+        if(!pose)return;
+        if(home.furnitureSeat){
+          actor.setFurniturePose('sit',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        }else if(command.type==='furniture_use'&&
+          ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
+          actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+        }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
+        if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
+        if(command.type==='furniture_use'){
+          if(command.action==='read_book')actor.playDomesticActivity('read');
+          else if(['deskJournal','tablePlan'].includes(command.action))actor.playDomesticActivity('journal');
+          else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
+            actor.playDomesticActivity('games');
+          else if(command.action==='tidy')actor.playDomesticActivity('tidy');
+          else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
+          else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
+        }
+        if(program)actor.watch(program==='horror'?-1:program==='comedy'?1:0);
         return;
       }
       const seat = homeSeat(station,role);
@@ -749,6 +794,12 @@ export class World {
     this.closeStorage(role);
     if(command.type==='together')return home?.pair?this.startPair(role,command.action,home):false;
     if(home) {
+      if(command.type==='furniture_use'&&
+        ['deskGames','deskJournal','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
+        const mode:ComputerScene['mode']=command.action==='deskGames'?'game':
+          command.action==='deskJournal'?'notes':role==='vlad'?'code':'hair';
+        this.computerScreens.task(role,'desktop',{mode,role});
+      }
       if(command.type==='study' && (home.station==='studyDesk'||home.station==='studyLaptop')) {
         const device=home.station==='studyLaptop'?'laptop':'desktop';
         this.computerScreens.task(role,device,{mode:'study',role});
@@ -789,6 +840,22 @@ export class World {
         if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
         else this.actors[role].playDomesticActivity('read');
       };
+      if(device==='desktop'&&this.household&&
+        (command.furnitureId!==undefined||this.household.furnishing.soldFixtures?.includes('desk'))){
+        const deskId=command.furnitureId??this.household.furnishing.placed.find(item=>
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+        const place=deskId!==undefined?furnitureUseLocation(this.household,role,deskId,'deskGames'):null;
+        if(!place)return false;
+        const destination=place.route.path.at(-1)??place.route.from;
+        return this.walkTo(role,destination,()=>{
+          if(!current())return;
+          const pose=place.pose;
+          this.actors[role].setFurniturePose('work',
+            new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+          if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
+          else this.actors[role].playDomesticActivity('read');
+        });
+      }
       return device==='laptop'
         ? this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,begin)
         : this.perform(role,'desk','work',begin);
@@ -866,9 +933,9 @@ export class World {
       });
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
-    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current);
+    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current,command.furnitureId);
     if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
-    return command.type === 'eat' && this.performFood(role, command.type, current);
+    return command.type === 'eat' && this.performFood(role, command.type, current,command.furnitureId);
   }
 
   private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
@@ -1142,9 +1209,10 @@ export class World {
   }
 
   private renderOwnedFurniture(placed:readonly PlacedFurniture[]):void {
-    const signature=JSON.stringify(placed);
+    const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false]);
     if(signature===this.furnishingVisualKey)return;
     this.furnishingVisualKey=signature;
+    this.computerScreens.hostDesktop(null);
     for(const model of this.furnishingModels.values()){
       model.traverse(part=>{
         const at=this.interactiveMeshes.indexOf(part);
@@ -1170,6 +1238,19 @@ export class World {
       });
       this.homeScene.add(model);
       this.furnishingModels.set(item.id,model);
+    }
+    if(this.household?.furnishing.soldFixtures?.includes('desk')){
+      const replacement=placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+      if(replacement)this.computerScreens.hostDesktop(this.furnishingModels.get(replacement.id)!);
+    }
+  }
+
+  focusDesktopFurniture(id:number):void{
+    if(!this.household?.furnishing.soldFixtures?.includes('desk'))return;
+    const item=this.household.furnishing.placed.find(entry=>entry.id===id);
+    if(item&&FURNITURE_BY_ID.get(item.sku)?.shape==='desk'){
+      const model=this.furnishingModels.get(id);
+      if(model)this.computerScreens.hostDesktop(model);
     }
   }
 
@@ -1493,7 +1574,15 @@ export class World {
 
   private showCareerStation(id: CharacterId, shift: CareerShift): void {
     if (shift.mode === 'remote' && shift.homeDevice === 'desktop') {
-      this.applyFurniturePose(id,'desk','work');
+      if(this.household?.furnishing.soldFixtures?.includes('desk')){
+        const desk=this.household.furnishing.placed.find(item=>
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+        const target=desk&&furnitureUseLocation(this.household,id,desk.id,'deskJournal');
+        if(!target)return;
+        const pose=target.pose;
+        this.actors[id].setFurniturePose('work',
+          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+      }else this.applyFurniturePose(id,'desk','work');
       this.actors[id].playDomesticActivity('games');
       return;
     }

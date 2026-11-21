@@ -747,6 +747,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket,{type:'error',reason:'Дождись завершения прогулки или действия перед перестановкой'});
           return;
         }
+        if(['furniture_move','furniture_store','furniture_sell'].includes(String(message.type))&&
+          typeof message.id==='number'&&(
+            homeTasks.reserved('furniture:'+message.id)||
+            [...running.values()].some(task=>
+              'furnitureId' in task.plan.command && task.plan.command.furnitureId===message.id))){
+          packet(socket,{type:'error',reason:'Сначала дождись окончания действия на этой мебели'});
+          return;
+        }
         const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
           Math.floor(liveGameTime()));
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
@@ -828,7 +836,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
