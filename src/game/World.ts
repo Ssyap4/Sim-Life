@@ -35,7 +35,7 @@ import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFra
 import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
-import type { FurnitureFinish, PlacedFurniture, Rotation } from '../shared/furniture';
+import { FURNITURE_BY_ID, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -123,7 +123,11 @@ export class World {
   private furnishingModels=new Map<number,THREE.Group>();
   private furnishingVisualKey='';
   private furnishingGhost:THREE.Group|null=null;
-  private furnishingPlaceCallback:((x:number,z:number)=>boolean)|null=null;
+  private furnishingPlaceCallback:((x:number,z:number)=>{x:number;z:number}|null)|null=null;
+  private furnishingFootprint:THREE.Mesh|null=null;
+  private furnishingOutline:THREE.LineSegments|null=null;
+  private furnishingGhostMaterials:THREE.MeshStandardMaterial[]=[];
+  private lastFurnitureHover=0;
   private furnishingItemCallback:((id:number)=>void)|null=null;
   private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
@@ -283,6 +287,11 @@ export class World {
           event.stopPropagation();
           return;
         }
+      }
+      if(!point && this.furnishingGhost && event.pointerType==='mouse' &&
+          performance.now()-this.lastFurnitureHover>125){
+        this.lastFurnitureHover=performance.now();
+        this.previewFurnitureAt(event.clientX,event.clientY);
       }
       if (!point) return;
       if (touches.size === 2) {
@@ -1142,7 +1151,7 @@ export class World {
     }
   }
 
-  setFurnishingPick(onTarget:(x:number,z:number)=>boolean,onItem:(id:number)=>void):void {
+  setFurnishingPick(onTarget:(x:number,z:number)=>{x:number;z:number}|null,onItem:(id:number)=>void):void {
     this.furnishingPlaceCallback=onTarget;
     this.furnishingItemCallback=onItem;
   }
@@ -1150,13 +1159,67 @@ export class World {
   beginFurnishingPlacement(sku:string,finish:FurnitureFinish,rotation:Rotation):void {
     this.endFurnishingPlacement();
     this.furnishingGhost=createPlacementGhost(sku,finish);
-    this.furnishingGhost.position.set(12.6,.04,-1.75);
     this.furnishingGhost.rotation.y=rotation*Math.PI/2;
+    const info=FURNITURE_BY_ID.get(sku)!;
+    const sizeW=info.width+.065,sizeD=info.depth+.065;
+    this.furnishingFootprint=new THREE.Mesh(new THREE.PlaneGeometry(sizeW,sizeD),
+      new THREE.MeshBasicMaterial({color:0x66ad78,transparent:true,opacity:.25,
+        depthWrite:false,side:THREE.DoubleSide}));
+    this.furnishingFootprint.rotation.x=-Math.PI/2;
+    this.furnishingFootprint.position.y=.018;
+    this.furnishingFootprint.renderOrder=2;
+    this.furnishingGhost.add(this.furnishingFootprint);
+    this.furnishingOutline=new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.PlaneGeometry(sizeW,sizeD)),
+      new THREE.LineBasicMaterial({color:0x268f51,transparent:true,opacity:.95}));
+    this.furnishingOutline.rotation.x=-Math.PI/2;
+    this.furnishingOutline.position.y=.023;
+    this.furnishingGhost.add(this.furnishingOutline);
+    this.furnishingGhostMaterials=[];
+    this.furnishingGhost.traverse(obj=>{
+      if(obj instanceof THREE.Mesh && obj!==this.furnishingFootprint)
+        this.furnishingGhostMaterials.push(obj.material as THREE.MeshStandardMaterial);
+    });
     this.homeScene.add(this.furnishingGhost);
+    this.setFurnishingValidity(false);
+    // Start with a meaningful home-room location instead of a ghost floating
+    // above the center of the house. The same callback updates the UI.
+    const target=this.furnishingPlaceCallback?.(13.45,-5.65);
+    if(target)this.furnishingGhost.position.set(target.x,.04,target.z);
   }
 
   turnFurnishingPlacement(rotation:Rotation):void {
-    if(this.furnishingGhost)this.furnishingGhost.rotation.y=rotation*Math.PI/2;
+    const ghost=this.furnishingGhost;
+    if(!ghost)return;
+    ghost.rotation.y=rotation*Math.PI/2;
+    const newTarget=this.furnishingPlaceCallback?.(ghost.position.x,ghost.position.z);
+    if(newTarget)ghost.position.set(newTarget.x,.04,newTarget.z);
+  }
+
+  setFurnishingValidity(valid:boolean):void {
+    const tint=valid?0x36be73:0xe45555;
+    if(this.furnishingFootprint){
+      (this.furnishingFootprint.material as THREE.MeshBasicMaterial).color.setHex(tint);
+    }
+    if(this.furnishingOutline){
+      (this.furnishingOutline.material as THREE.LineBasicMaterial).color.setHex(tint);
+    }
+    for(const material of this.furnishingGhostMaterials)
+      material.emissive.setHex(tint).multiplyScalar(.20);
+  }
+
+  private previewFurnitureAt(clientX:number,clientY:number):void {
+    if(this.place!=='home'||!this.furnishingGhost)return;
+    const bounds=this.canvas.getBoundingClientRect();
+    const x=(clientX-bounds.left)/bounds.width*2-1;
+    const y=-(clientY-bounds.top)/bounds.height*2+1;
+    this.raycaster.setFromCamera(new THREE.Vector2(x,y),this.camera);
+    const point=this.raycaster.ray.intersectPlane(
+      new THREE.Plane(new THREE.Vector3(0,1,0),0),this.vector);
+    if(!point)return;
+    const selected=this.furnishingPlaceCallback?.(
+      Math.round(point.x*100)/100,Math.round(point.z*100)/100);
+    if(selected)this.furnishingGhost.position.set(selected.x,.04,selected.z);
   }
 
   endFurnishingPlacement():void {
@@ -1164,6 +1227,10 @@ export class World {
     const ghost=this.furnishingGhost;
     ghost.removeFromParent();
     ghost.traverse(part=>{
+      if(part instanceof THREE.LineSegments){
+        part.geometry.dispose();
+        (part.material as THREE.Material).dispose();
+      }
       if(part instanceof THREE.Mesh){
         if(!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
           part.geometry.dispose();
@@ -1171,6 +1238,9 @@ export class World {
       }
     });
     this.furnishingGhost=null;
+    this.furnishingFootprint=null;
+    this.furnishingOutline=null;
+    this.furnishingGhostMaterials=[];
   }
 
   private createDirtyDishes(): void {
@@ -1553,15 +1623,7 @@ export class World {
       return true;
     });
     if(this.place==='home'&&this.furnishingGhost){
-      const point=this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);
-      if(point){
-        const x=Math.round(point.x*100)/100,z=Math.round(point.z*100)/100;
-        if(x>=HOME_FLOOR.minX&&x<=HOME_FLOOR.maxX&&z>=HOME_FLOOR.minZ&&z<=HOME_FLOOR.maxZ){
-          // Ignore extra taps while an installation transaction is pending.
-          if(this.furnishingPlaceCallback?.(x,z)!==false)
-            this.furnishingGhost.position.set(x,.04,z);
-        }
-      }
+      this.previewFurnitureAt(clientX,clientY);
       return;
     }
     const furnitureId:unknown=hit?.object.userData.furnitureId;

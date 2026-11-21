@@ -4,6 +4,8 @@ import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_CATEGORIES,
   type FurnishingCommand } from './shared/furniture';
 import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
+import { checkFurniturePlacement, suggestFurnitureSnap } from './shared/furnishingPlacement';
+import { furnitureThumbnail } from './game/FurnitureThumbnails';
 
 type Tab = 'catalog'|'delivery'|'storage'|'placed';
 type Callbacks = {
@@ -12,6 +14,7 @@ type Callbacks = {
   send(command:FurnishingCommand):boolean;
   start(item:FurnitureInstance|PlacedFurniture,rotation:Rotation):void;
   rotate(rotation:Rotation):void;
+  preview(valid:boolean):void;
   cancel():void;
   message(message:string):void;
 };
@@ -30,7 +33,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   </section>`;
   controls.innerHTML=`<section class="furnish-placebox" role="group" aria-label="Размещение мебели">
     <strong data-place-title>Расстановка</strong>
-    <small data-place-hint>Тапни по полу, чтобы выбрать место.</small>
+    <small data-place-hint>🟢 Можно поставить · 🔴 Нельзя поставить. Выбери место на полу.</small>
     <div class="furnish-place-buttons">
       <button type="button" data-turn-left aria-label="Повернуть против часовой стрелки">↶ Повернуть</button>
       <button type="button" data-turn-right aria-label="Повернуть по часовой стрелке">Повернуть ↷</button>
@@ -136,8 +139,18 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     if(!matching.length){list.append(node('p','furnish-empty','Ничего не найдено. Попробуй другое название.'));return;}
     for(const info of matching){
       const card=node('article','furnish-card','');
-      const image=node('div','furnish-card-icon',info.emoji);image.style.background='#'+
-        FURNITURE_FINISHES[finish].light.toString(16).padStart(6,'0');
+      const image=node('div','furnish-card-icon',info.emoji);
+      image.style.background='#'+FURNITURE_FINISHES[finish].light.toString(16).padStart(6,'0');
+      image.setAttribute('aria-label','3D-превью: '+info.name);
+      const previewFinish=finish;
+      const picture=document.createElement('img');
+      picture.alt='3D-модель '+info.name+' · '+FURNITURE_FINISHES[previewFinish].name;
+      picture.loading='lazy';
+      furnitureThumbnail(info.id,previewFinish).then(uri=>{
+        if(!uri||!image.isConnected)return;
+        image.replaceChildren(picture);
+        picture.src=uri;
+      });
       const desc=node('div','furnish-card-copy','');
       desc.append(node('strong','',info.name),
         node('small','',info.description),
@@ -221,21 +234,34 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     placeTitle.textContent='↔ '+info.name+' · '+FURNITURE_FINISHES[item.finish].name;
     placeHint.textContent='Тапни по свободному полу, выбери место, затем нажми «Установить».';
     apply.disabled=true;
+    controls.dataset.valid='unknown';
     callbacks.start(item,rotation);
   }
-  function setTarget(x:number,z:number):boolean{
-    if(!draft||draft.submitted)return false;
-    draft.target={x:Math.round(x*100)/100,z:Math.round(z*100)/100};
-    placeHint.textContent='📍 Место: '+draft.target.x.toFixed(1)+
-      ' / '+draft.target.z.toFixed(1)+' · поворот '+draft.rotation*90+'°';
-    apply.disabled=false;
-    return true;
+  function setTarget(x:number,z:number):{x:number;z:number}|null{
+    if(!draft||draft.submitted)return null;
+    const state=callbacks.read();
+    if(!state)return null;
+    const original={...draft.item,x:Math.round(x*100)/100,z:Math.round(z*100)/100,
+      rotation:draft.rotation};
+    const snapped=suggestFurnitureSnap(original);
+    const snappedCheck=checkFurniturePlacement(state,snapped);
+    // Near a wall we use the magnet ONLY if the result is legal. The selected
+    // location remains exact and visible if the proposed snap would block a door.
+    const candidate=snappedCheck.valid?snapped:original;
+    const result=snappedCheck.valid?snappedCheck:checkFurniturePlacement(state,original);
+    draft.target={x:candidate.x,z:candidate.z};
+    callbacks.preview(result.valid);
+    controls.dataset.valid=String(result.valid);
+    placeHint.textContent=(result.valid?'🟢 ':'🔴 ')+result.reason+
+      ' · '+candidate.x.toFixed(2)+' / '+candidate.z.toFixed(2)+
+      ' · '+draft.rotation*90+'°';
+    apply.disabled=!result.valid;
+    return draft.target;
   }
   function turn(amount:number){
     if(!draft||draft.submitted)return;
     draft.rotation=((draft.rotation+amount+4)%4) as Rotation;
     callbacks.rotate(draft.rotation);
-    if(draft.target)setTarget(draft.target.x,draft.target.z);
   }
   function cancel(){
     if(draft)callbacks.cancel();
@@ -290,6 +316,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       selected?.scrollIntoView({block:'nearest'});
     },
     reject(reason:string){if(!draft)return;draft.submitted=false;draft.pending=null;
-      apply.disabled=!draft.target;placeHint.textContent=reason;},
+      apply.disabled=true;controls.dataset.valid='false';callbacks.preview(false);
+      placeHint.textContent='🔴 '+reason+' · Выбери новое место';},
   };
 }

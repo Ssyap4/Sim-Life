@@ -844,6 +844,7 @@ const furnishing=createFurnishingUI(
       world.beginFurnishingPlacement(item.sku,item.finish,rotation);
     },
     rotate:rotation=>world.turnFurnishingPlacement(rotation),
+    preview:valid=>world.setFurnishingValidity(valid),
     cancel:()=>world.endFurnishingPlacement(),
     message:notify,
   });
