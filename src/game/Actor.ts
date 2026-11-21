@@ -96,7 +96,8 @@ export class Actor {
     this.closingBook = 0;
     this.props.hideBook();
     this.dirtyPlate.visible = false;
-    this.props.brush.visible = this.props.tongs.visible = false;
+    this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = false;
+    this.petContact = undefined;
   }
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
 
@@ -104,6 +105,7 @@ export class Actor {
   private keys: HandTargets | undefined;
   private pan: THREE.Vector3 | undefined;
   private gestureTarget: THREE.Vector3 | undefined;
+  private petContact: THREE.Vector3 | undefined;
   private readonly target = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
   private readonly elbowAxis = new THREE.Vector3();
@@ -195,12 +197,13 @@ export class Actor {
     this.idleGesture = null;
     this.idleGestureTime = 0;
     this.idleCooldown = Math.max(this.idleCooldown, 4);
-    this.keys = this.pan = this.gestureTarget = undefined;
+    this.keys = this.pan = this.gestureTarget = this.petContact = undefined;
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
     this.props.brush.visible = false;
+    this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
   }
 
@@ -237,16 +240,19 @@ export class Actor {
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
     this.carryingBook = false;
     this.props.brush.visible = false;
+    this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
+    this.petContact = undefined;
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
   }
 
-  playPetActivity(kind: Exclude<PetAction, 'buyFood'>): void {
+  playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3): void {
     this.setPose('idle');
     this.activity = kind;
+    this.petContact = petContact?.clone();
     this.activityTime = 0;
   }
 
@@ -639,6 +645,20 @@ export class Actor {
           // The existing reusable keyboard IK animates both hands.
           expression = 0.20;
           break;
+        case 'brush': {
+          // Short, repeatable strokes, with the body leaning toward the pet.
+          // No navigation or physics movement: only bones and a held prop.
+          const stroke = Math.sin(a * 6.2);
+          crouch = .20;
+          lean = .38 + .016 * stroke;
+          gaze = .29;
+          leftY = -.31;
+          leftZ = .31;
+          rightY = -.19 + .045 * stroke;
+          rightZ = .40 + .055 * stroke;
+          expression = .17;
+          break;
+        }
         case 'play':
           expression = 0.42;
           leftY = -0.29 + Math.sin(a * 5) * 0.11;
@@ -938,6 +958,7 @@ export class Actor {
     }
 
     this.spoon.visible = this.activity === 'cook' || this.activity === 'eat';
+    this.props.groomingBrush.visible = this.activity === 'brush';
     this.props.tongs.visible = this.activity === 'grill';
     if (this.props.tongs.visible) this.props.grip(a);
     this.spoon.rotation.y = this.activity === 'cook' ? 0.31 * Math.sin(a * 5) : 0.02;
@@ -1049,6 +1070,18 @@ export class Actor {
       this.reach(1, this.target, bite);
       this.aimHand(1, this.handDirection.set(0, -0.21, 1).applyAxisAngle(up, this.root.rotation.y), bite);
       this.aimSpoon(data.head.localToWorld(this.target.set(0, -0.134, 0.158)), bite);
+    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet')) {
+      // Follow the actual animal's saved position; strokes travel across the
+      // coat rather than moving a hand in place beside the standing resident.
+      const brushing = this.activity === 'brush';
+      const stroke = Math.sin(a * (brushing ? 6.2 : 3.7));
+      const lateral = brushing ? .065 : .023;
+      this.target.copy(this.petContact);
+      this.target.x += lateral * stroke * Math.cos(this.root.rotation.y);
+      this.target.z -= lateral * stroke * Math.sin(this.root.rotation.y);
+      this.target.y += .018 * Math.sin(a * (brushing ? 4.3 : 2.9));
+      this.reach(1,this.target,Math.min(1,alpha * 2.8));
+      this.aimHand(1,this.handDirection.set(0,-1,-.25).applyAxisAngle(up,this.root.rotation.y),alpha);
     } else if (this.gestureTarget && highFive > 0) {
       const hand = this.id === 'vlad' ? 1 : 0;
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);

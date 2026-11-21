@@ -643,16 +643,21 @@ export class World {
       case 'feed':actor.playPetActivity('feed');break;
       case 'pet':{
         const action=stage.action==='petPlay'?'play':stage.action==='petBrush'?'brush':'pet';
+        const pet=pair.pet&&pair.pet in this.pets?this.pets[pair.pet as PetId]:undefined;
+        const petContact=pet?.root.position.clone().add(new THREE.Vector3(0,pair.pet==='verdell'?.49:.43,0));
         if(leads) {
-          actor.playPetActivity(action);
-          if(pair.pet&&pair.pet in this.pets)this.pets[pair.pet as PetId].react(action);
+          actor.playPetActivity(action,petContact);
+          pet?.react(action);
         } else {
+          // Two human players take turns; otherwise the helper stood motionless
+          // throughout the entire "brush together" action.
           actor.playPartnerGesture('listen',false);
-          if(stage.action!=='petBrush')this.preparations.set(role,{remaining:3.3,next:()=>{
+          this.preparations.set(role,{remaining:stage.action==='petBrush'?4.2:3.3,next:()=>{
             if(this.pairStages.get(role)!==stage)return;
             partner.finishActivity();
-            actor.playPetActivity(action);
-            if(pair.pet&&pair.pet in this.pets)this.pets[pair.pet as PetId].react(action);
+            if(stage.action==='petBrush')partner.playPartnerGesture('listen',true);
+            actor.playPetActivity(action,petContact);
+            pet?.react(action);
           }});
         }
         break;

@@ -261,8 +261,9 @@ export function createHomeSessions(hooks: Hooks) {
     }
     // Reject impossible pair routes before touching ongoing leisure or pet routines.
     // A failed invitation must leave both residents and their animals undisturbed.
-    if (cooperation && command.type === 'together' && !pairScenes(hooks.state(), cooperation.from, command)) {
-      error(initiator, 'Не удалось найти два свободных подхода');
+    let pair=command.type==='together'&&cooperation?pairScenes(hooks.state(),cooperation.from,command):undefined;
+    if(cooperation&&!pair){
+      error(initiator,'Не удалось найти два свободных подхода');
       return;
     }
     const profile = hooks.state().education.characters[roles[0]];
@@ -272,9 +273,18 @@ export function createHomeSessions(hooks: Hooks) {
         profile.studied[material.id]?.completions ?? 0), correct: 0, lastAnswer: 0 };
     const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs) * hooks.timeScale));
     const participants: Participant[] = [];
+    const beforePreparation=roles.map(role=>({x:hooks.state().characters[role].x,z:hooks.state().characters[role].z}));
     for(const role of roles) hooks.prepare(role,resource==='tv');
-    const pair=command.type==='together'&&cooperation?pairScenes(hooks.state(),cooperation.from,command):undefined;
-    if(cooperation&&!pair){error(initiator,'Не удалось найти два свободных подхода');return;}
+    // Stopping a manually ordered walk advances the resident to their actual
+    // position. A pair route planned before that must not start from a stale
+    // waypoint. Recompute only when one of those positions really changed.
+    if(cooperation&&command.type==='together'&&roles.some((role,i)=>{
+      const current=hooks.state().characters[role];
+      return current.x!==beforePreparation[i].x||current.z!==beforePreparation[i].z;
+    })){
+      pair=pairScenes(hooks.state(),cooperation.from,command)??undefined;
+      if(!pair){error(initiator,'Не удалось найти подход после остановки движения');return;}
+    }
     for (const role of roles) {
       const reason = material && studyDenial(hooks.state(), role, material, hooks.gameTime());
       if (reason) { error(initiator, reason); return; }

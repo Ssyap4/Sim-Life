@@ -401,3 +401,42 @@ test('An unreachable pair scene never interrupts leisure or pauses a pet before 
     assert.equal(sessions.busy('alina'),false);
   }finally{sessions.dispose();}
 });
+
+
+test('Accepting a joint invitation while walking uses the freshly stopped resident position',()=>{
+  const state=sample();
+  const command:SocialIntent={type:'together',action:'softHug'};
+  const original={x:state.characters.vlad.x,z:state.characters.vlad.z};
+  let stopped:{x:number;z:number}|undefined;
+  for(const [dx,dz] of [[.32,0],[-.32,0],[0,.32],[0,-.32],[.20,.20],[-.20,-.20]]){
+    const candidate={x:original.x+dx,z:original.z+dz};
+    Object.assign(state.characters.vlad,candidate);
+    if(pointIsClear(candidate,placeObstacles('home'),floorFor('home')) && pairScenes(state,'vlad',command)){
+      stopped=candidate;break;
+    }
+  }
+  assert.ok(stopped,'A nearby safe stopping point must exist for the test');
+  Object.assign(state.characters.vlad,original);
+  const sockets={vlad:{readyState:WebSocket.OPEN} as WebSocket,alina:{readyState:WebSocket.OPEN} as WebSocket};
+  const packets:ServerPacket[]=[];
+  let next=0;
+  const sessions=createHomeSessions({
+    state:()=>state,
+    save:()=>{},
+    all:p=>packets.push(p),send:(_socket,p)=>packets.push(p),
+    socket:role=>sockets[role],busy:()=>false,
+    prepare:role=>{if(role==='vlad')Object.assign(state.characters.vlad,stopped);},
+    nextId:()=>++next,timeScale:1,gameTime:()=>gameMinutes(state.clock),resourceBusy:()=>false,
+  });
+  try{
+    sessions.social('vlad',sockets.vlad,{type:'social_propose',action:'softHug'});
+    const invite=packets.find((p):p is Extract<ServerPacket,{type:'social_pending'}>=>p.type==='social_pending');
+    assert.ok(invite);
+    sessions.social('alina',sockets.alina,{type:'social_reply',inviteId:invite.offer.id,choice:0});
+    assert.ok(packets.some(p=>p.type==='social_closed'&&p.phase==='accepted'));
+    const began=packets.find((p):p is Extract<ServerPacket,{type:'task_started'}>=>p.type==='task_started'&&p.role==='vlad');
+    assert.ok(began?.home);
+    assert.deepEqual({x:began.home.route.from.x,z:began.home.route.from.z},stopped,
+      'The synchronized path must start where movement actually stopped');
+  }finally{sessions.dispose();}
+});
