@@ -239,11 +239,9 @@ export function openServerFiles(dataDir: string): ServerFiles {
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
           ...data.world,
-          // Older saves could leave a shopping bag in the hands of a resident at home.
-          // Convert those bags to shared packages on the table without changing stock.
-          tableBags: (data.world.tableBags ?? 0) +
-            (data.world.places.vlad === 'home' ? data.world.bags.vlad : 0) +
-            (data.world.places.alina === 'home' ? data.world.bags.alina : 0),
+          // Old staged bags had already been credited to pantry / ready food.
+          // Remove them without ever granting the same purchase twice.
+          tableBags: 0,
           bags: {
             vlad: data.world.places.vlad === 'home' ? 0 : data.world.bags.vlad,
             alina: data.world.places.alina === 'home' ? 0 : data.world.bags.alina,
@@ -280,6 +278,13 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Merely reopening the file must never reset the countdown.
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
+      const migratedBags = !!data.world && ((data.world.tableBags ?? 0) > 0 ||
+        (data.world.places.vlad === 'home' && data.world.bags.vlad > 0) ||
+        (data.world.places.alina === 'home' && data.world.bags.alina > 0));
+      if(migratedBags){
+        const backup=join(dataDir,'household.pre-auto-groceries.json');
+        if(!existsSync(backup))copyFileSync(statePath,backup);
+      }
       if(data.furnishing?.soldFixtures===undefined){
         const backup=join(dataDir,'household.pre-static-sale.json');
         if(!existsSync(backup))copyFileSync(statePath,backup);
@@ -297,7 +302,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
       // Empty bowls are introduced once, and the migration never repeats.
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
           data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
-          data.dirtyDishes === undefined || data.computerLibrary === undefined || migratedFood || recoveredCareer)
+          data.dirtyDishes === undefined || data.computerLibrary === undefined ||
+          migratedFood || recoveredCareer || migratedBags)
         this.save(household);
       return household;
     },

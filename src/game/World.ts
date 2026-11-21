@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
+import { diningSurface, tabletopPoint } from '../shared/diningSurface';
 import { mealServingScale } from './MealGesture';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
@@ -91,7 +92,6 @@ export class World {
   private readonly subjectMeshes: THREE.Object3D[] = [];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
-  private readonly shoppingBags = [carryingBag(), carryingBag(), carryingBag()];
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
   private readonly meals = new Map<CharacterId, THREE.Group>();
@@ -201,16 +201,6 @@ export class World {
     this.createLights();
     this.createHome();
     this.createDirtyDishes();
-    // Reuse the existing low-poly bags on the dining table, not in the hands at home.
-    for (const [index, bag] of this.shoppingBags.entries()) {
-      const offsets = [[-.39, .15], [.39, .15], [0, -.20]];
-      const [x, z] = offsets[index];
-      bag.position.set(HOME_PLACEMENTS.table.x + x, DINING_TOP + .015, HOME_PLACEMENTS.table.z + z);
-      bag.scale.setScalar(.92);
-      bag.visible = false;
-      this.homeScene.add(bag);
-      this.trackStation(this.stationMeshes, 'shopping-table', bag);
-    }
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
@@ -880,7 +870,7 @@ export class World {
       if (command.actionId === 'kitchenDishes') {
         // One errand collects plates at the used tables, then brings them to
         // the kitchen sink. Both players see the same server-backed counters.
-        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role) : [];
+        const stops = this.household ? dirtyDishStops(this.household.dirtyDishes, role,this.household) : [];
         if (!stops.length) return false;
         const actor = this.actors[role];
         const sink = KITCHEN_WORK.dishes;
@@ -1677,24 +1667,31 @@ export class World {
       if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
-      for (const station of ['table', 'yardTable'] as const) {
-        this.dirtyVisuals[station].forEach((plate, index) => {
-          plate.visible = (station!=='table'||!state.furnishing.soldFixtures?.includes('table'))&&index < state.dirtyDishes[station];
+      const top=diningSurface(state);
+      for (const station of ['table','yardTable'] as const) {
+        this.dirtyVisuals[station].forEach((plate,index)=>{
+          if(station==='table'){
+            const step=top.kind==='counter'?.18:Math.min(.34,top.width*.23);
+            const point=tabletopPoint(top,(index%3-1)*step,
+              top.kind==='counter'?0:-Math.min(.37,top.depth*.32));
+            plate.position.set(point.x,top.height+.02+Math.floor(index/3)*.042,point.z);
+          }
+          plate.visible=index<state.dirtyDishes[station];
         });
       }
       this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
       for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
-      this.shoppingBags.forEach((bag, index) => {
-        bag.visible = index < state.world.tableBags;
-        bag.position.y = state.furnishing.soldFixtures?.includes('table') ? .07 : DINING_TOP + .015;
-      });
       for(const [id,model] of this.staticFixtureModels)
         model.visible=!state.furnishing.soldFixtures?.includes(id);
       this.renderOwnedFurniture(state.furnishing.placed);
       this.updateFurnitureDeliveryTime(clockMinutes(state.clock));
       this.updateHomePets(state);
-      if (this.served) this.served.visible = !state.furnishing.soldFixtures?.includes('table') &&
-        (Object.keys(state.meals) as RecipeId[]).some(recipe => !isGrillRecipe(recipe) && state.meals[recipe] > 0);
+      if(this.served){
+        const platePos=tabletopPoint(top,0,top.kind==='counter'?.08:-Math.min(.28,top.depth*.25));
+        this.served.position.set(platePos.x,top.height+.014,platePos.z);
+        this.served.visible=(Object.keys(state.meals) as RecipeId[])
+          .some(recipe=>!isGrillRecipe(recipe)&&state.meals[recipe]>0);
+      }
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
       const counts = { fridge: 0, cupboard: 0 };
       for (const [name, amount] of Object.entries(state.pantry)) {

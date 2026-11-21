@@ -153,7 +153,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (name&&name!=='walk'&&name!=='parkRest'&&name!=='cafeMeal'&&place!=='home') return 'Это занятие доступно дома';
   if (name==='cafeMeal'&&!individual&&![from,to].every(role=>state.world.cafe[role]?.pickedUp)) return 'Сначала заберите оба заказа';
   if (name==='dishes'&&!state.dirtyDishes.table&&!state.dirtyDishes.yardTable) return 'Грязная посуда пока не накопилась';
-  if (name==='unpack'&&!state.world.tableBags) return 'На столе нет пакетов с покупками';
+  if (name==='unpack') return 'Покупки теперь автоматически раскладываются при возвращении домой';
   const now=gameMinutes(state.clock);
   if ((name==='film'||name==='youtube')&&!serviceAvailable(state.billing,'internet',now)) return 'Для просмотра нужен оплаченный интернет';
   if (name==='film'&&!serviceAvailable(state.billing,'netflix',now)) return 'Нужна подписка Netflix';

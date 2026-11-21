@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { applyWorld, localActivity } from '../locations';
@@ -165,79 +165,81 @@ test('Both residents can save in the yard and walk back through the house thresh
   }
 });
 
-test('A paid store basket changes the shared pantry once and unpacking never grants a second copy', () => {
-  const cart = { type: 'store_pay', sequence: 0, lines: [{ id: 'grocery:milk', quantity: 1 }] };
-  let state = initialState();
-  state.money = 2500; // Intentionally verify a low-budget case.
-  assert.equal(applyWorld(state, 'vlad', cart).ok, false);
-  state = travel(state, 'vlad', 'market');
-  assert.equal(state.world.places.alina, 'home');
-  assert.equal(applyWorld(state, 'vlad', cart).ok, false);
-  state = at(state, 'vlad', 'checkout');
-  const before = state.money;
-  state = send(state, 'vlad', cart);
-  assert.equal(state.money, before - GROCERIES.milk.price);
-  assert.equal(state.pantry.milk, GROCERIES.milk.quantity);
-  assert.equal(applyWorld(state, 'vlad', cart).ok, false);
-  assert.equal(applyWorld(state, 'vlad', { ...cart, sequence: 1, lines: [{ id: 'grocery:beef', quantity: 10 }] }).ok, false);
-  state = travel(state, 'vlad', 'home');
-  assert.equal(state.world.bags.vlad, 0, 'carried bag is put down on entering home');
-  assert.equal(state.world.tableBags, 1);
-  assert.equal(localActivity(state, 'vlad', 'unpack', 'parcel').ok, false, 'unpacking is at the table, not the door');
-  state = at(state, 'alina', 'shopping-table');
-  const unpacked = localActivity(state, 'alina', 'unpack', 'shopping-table');
-  assert.ok(unpacked.ok, 'either resident can unpack shared shopping');
-  assert.equal(unpacked.state.world.tableBags, 0);
-  assert.deepEqual(unpacked.state.pantry, state.pantry);
-  assert.equal(localActivity(unpacked.state, 'alina', 'unpack', 'shopping-table').ok, false);
+test('Paid store goods auto-store at home with no packets, table, duplicate grant or extra charge', () => {
+  const cart = { type: 'store_pay', sequence: 0, lines: [
+    { id: 'grocery:milk', quantity: 1 },{id:'grocery:bread',quantity:1},
+  ]};
+  let state=initialState();
+  state.furnishing.soldFixtures=['table'];
+  state.money=2500;
+  assert.equal(applyWorld(state,'vlad',cart).ok,false);
+  state=travel(state,'vlad','market');
+  assert.equal(applyWorld(state,'vlad',cart).ok,false);
+  state=at(state,'vlad','checkout');
+  const before=state.money;
+  state=send(state,'vlad',cart);
+  assert.equal(state.money,before-GROCERIES.milk.price-GROCERIES.bread.price);
+  assert.equal(state.pantry.milk,initialState().pantry.milk+GROCERIES.milk.quantity);
+  assert.equal(state.pantry.bread,initialState().pantry.bread+GROCERIES.bread.quantity);
+  assert.equal(state.world.bags.vlad,1,'one grocery bag carried from the checkout');
+  assert.equal(state.world.tableBags,0,'no groceries staged on dining table');
+  assert.equal(applyWorld(state,'vlad',cart).ok,false,'cannot pay same basket twice');
+  const groceries=structuredClone(state.pantry),cash=state.money;
+  state=travel(state,'vlad','home');
+  assert.equal(state.world.bags.vlad,0);
+  assert.equal(state.world.tableBags,0);
+  assert.deepEqual(state.pantry,groceries,'the fridge/cupboard stock was already paid for');
+  assert.equal(state.money,cash,'returning home never charges again');
+  assert.equal(applyWorld(state,'alina',{type:'approach',place:'home',
+    station:'shopping-table'}).ok,false,'the removed unpack waypoint is not interactable');
+  assert.equal(localActivity(state,'alina','unpack','shopping-table').ok,false);
 });
 
-test('Several trips leave shared shopping on the table until either resident unpacks', () => {
-  let state = initialState();
-  for (let n = 0; n < 2; n++) {
-    state = at(travel(state, 'vlad', 'market'), 'vlad', 'checkout');
-    state = send(state, 'vlad', { type: 'store_pay', sequence: n,
-      lines: [{ id: 'grocery:bread', quantity: 1 }] });
-    assert.equal(state.world.bags.vlad, 1);
-    state = travel(state, 'vlad', 'street');
-    assert.equal(state.world.bags.vlad, 1, 'bag remains carried outside home');
-    state = travel(state, 'vlad', 'home');
-    assert.equal(state.world.bags.vlad, 0);
-    assert.equal(state.world.tableBags, n + 1);
+test('Several store visits accumulate shared food but never leave table packets', () => {
+  let state=initialState();
+  state.furnishing.soldFixtures=['table'];
+  for(let n=0;n<2;n++){
+    state=at(travel(state,'vlad','market'),'vlad','checkout');
+    state=send(state,'vlad',{type:'store_pay',sequence:n,
+      lines:[{id:'grocery:bread',quantity:1}]});
+    assert.equal(state.world.bags.vlad,1);
+    state=travel(state,'vlad','street');
+    assert.equal(state.world.bags.vlad,1,'carry bag outside until reaching home');
+    state=travel(state,'vlad','home');
+    assert.equal(state.world.bags.vlad,0);
+    assert.equal(state.world.tableBags,0);
+    assert.equal(state.pantry.bread,initialState().pantry.bread+GROCERIES.bread.quantity*(n+1));
   }
-  const bread = state.pantry.bread;
-  const money = state.money;
-  state = at(state, 'alina', 'shopping-table');
-  const unpacked = localActivity(state, 'alina', 'unpack', 'shopping-table');
-  assert.ok(unpacked.ok);
-  assert.equal(unpacked.state.world.tableBags, 0);
-  assert.equal(unpacked.state.money, money);
-  assert.equal(unpacked.state.pantry.bread, bread);
+  assert.equal(localActivity(state,'alina','unpack','shopping-table').ok,false);
 });
 
-test('Earlier saves move stuck home bags to the table once, without losing stock', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sim-life-bag-migration-'));
-  try {
-    const files = openServerFiles(dir);
-    const legacy = initialState();
-    legacy.world.bags = { vlad: 2, alina: 1 };
-    legacy.world.places.alina = 'market';
-    legacy.pantry.milk = 5;
-    delete (legacy.world as Partial<typeof legacy.world>).tableBags;
-    writeFileSync(join(dir, 'household.json'), JSON.stringify(legacy));
-    const migrated = files.load();
-    assert.equal(migrated.world.bags.vlad, 0);
-    assert.equal(migrated.world.bags.alina, 1);
-    assert.equal(migrated.world.tableBags, 2);
-    assert.equal(migrated.pantry.milk, 5);
-    files.save(migrated);
-    const reloaded = files.load();
-    assert.equal(reloaded.world.tableBags, 2, 'migration is idempotent');
-    const back = travel(reloaded, 'alina', 'home');
-    assert.equal(back.world.tableBags, 3);
-    assert.equal(back.world.bags.alina, 0);
-    assert.equal(back.pantry.milk, 5);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+test('Older saves discard staged bag models but keep stock, away carriers and one-time backup', () => {
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-bag-migration-'));
+  try{
+    const files=openServerFiles(dir);
+    const legacy=initialState();
+    legacy.world.tableBags=3;
+    legacy.world.bags={vlad:2,alina:1};
+    legacy.world.places.alina='market';
+    legacy.pantry.milk=5;
+    legacy.money=5124;
+    writeFileSync(join(dir,'household.json'),JSON.stringify(legacy));
+    const migrated=files.load();
+    assert.deepEqual(migrated.world.bags,{vlad:0,alina:1});
+    assert.equal(migrated.world.tableBags,0);
+    assert.equal(migrated.pantry.milk,5);
+    assert.equal(migrated.money,5124);
+    const backup=join(dir,'household.pre-auto-groceries.json');
+    assert.ok(existsSync(backup),'a pre-migration backup must exist');
+    assert.equal(JSON.parse(readFileSync(backup,'utf-8')).world.tableBags,3);
+    const second=files.load();
+    assert.equal(second.world.tableBags,0,'migration idempotent');
+    const back=travel(second,'alina','home');
+    assert.deepEqual(back.world.bags,{vlad:0,alina:0});
+    assert.equal(back.world.tableBags,0);
+    assert.equal(back.pantry.milk,5);
+    assert.equal(back.money,5124);
+  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
 test('A paid delivery survives restart and a full fridge, then can be collected once', () => {

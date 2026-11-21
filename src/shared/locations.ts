@@ -94,9 +94,6 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
     site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
     site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
-    site('shopping-table', 'Покупки на столе', HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z,
-      0.20, 0.20, { kind: 'unpack' }, { blocks: false,
-        approach: { x: HOME_PLACEMENTS.table.x, z: HOME_PLACEMENTS.table.z + 1.30 } }),
     door('home-exit', 'На улицу', 'street', HOME_YARD.gate.x, HOME_YARD.gate.z, true),
   ],
   street: [

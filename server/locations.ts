@@ -87,9 +87,11 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
-    if (command.place === 'home' && next.world.bags[role] > 0) {
-      next.world.tableBags += next.world.bags[role];
+    if (command.place === 'home') {
+      // Checkout already wrote the goods to the family fridge/cupboard stock.
+      // Do not add them again: only remove the carried bag on arrival.
       next.world.bags[role] = 0;
+      next.world.tableBags = 0;
     }
     if (command.dog === true) {
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
@@ -105,7 +107,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
     return done(next, command.place === 'home' && source.world.bags[role] > 0
-      ? 'Дом · Покупки оставлены на обеденном столе' : PLACES[command.place].name);
+      ? 'Дом · Покупки убраны в холодильник и кухонные шкафчики' : PLACES[command.place].name);
   }
 
   if (command.type === 'walk' || command.type === 'approach') {
@@ -196,8 +198,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const grant = grantCart(source, freshLines, storage, order.readyAt);
     if (!grant.ok) return fail(grant.reason + '. Оплаченный заказ подождёт у двери');
     grant.state.world.deliveries = grant.state.world.deliveries.filter(d => d.id !== order.id);
-    grant.state.world.tableBags++;
-    return done(grant.state, 'Заказ получен. Пакет на обеденном столе' +
+    grant.state.world.tableBags = 0; // Goods were placed in fridge/cupboard by grantCart.
+    return done(grant.state, 'Заказ получен. Продукты убраны в холодильник и кухонные шкафчики' +
       (freshLines.some(line => marketProduct(line.id)?.kind === 'takeout')
         ? storage === 'fridge' ? ', готовая еда убрана в холодильник' : ', готовая еда оставлена на столе' : '') +
       (spoiled ? '. Испортившихся порций выброшено: ' + spoiled : ''));

@@ -129,3 +129,49 @@ test('Two supermarket checkouts cannot both spend the last rubles', async () => 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Groceries vanish on reaching home and both clients share stock without a dining table', async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-auto-grocery-network-'));
+  let server:RunningServer|null=null;
+  try{
+    const initial=initialState();
+    initial.furnishing.soldFixtures=['table'];
+    initial.money=10000;
+    const beforeMilk=initial.pantry.milk,beforeBread=initial.pantry.bread;
+    openServerFiles(dir).save(initial);
+    server=await startServer({port:0,dataDir:dir,taskTimeScale:.02});
+    const keys=JSON.parse(readFileSync(join(dir,'access.json'),'utf8'));
+    const vlad=await connection(server.port);
+    const alina=await connection(server.port);
+    vlad.send({type:'auth',role:'vlad',code:keys.vlad});
+    alina.send({type:'auth',role:'alina',code:keys.alina});
+    await vlad.next('ready');await alina.next('ready');
+    vlad.send({type:'travel',place:'market'});
+    await alina.next('snapshot',p=>p.state.world.places.vlad==='market');
+    vlad.send({type:'approach',place:'market',station:'checkout'});
+    await vlad.next('world_path',p=>p.station==='checkout');
+    vlad.send({type:'store_pay',sequence:0,
+      lines:[{id:'grocery:milk',quantity:1},{id:'grocery:bread',quantity:1}]});
+    const paid=await alina.next('snapshot',p=>p.state.world.bags.vlad===1);
+    const price=GROCERIES.milk.price+GROCERIES.bread.price;
+    assert.equal(paid.state.money,10000-price);
+    assert.equal(paid.state.pantry.milk,beforeMilk+GROCERIES.milk.quantity);
+    assert.equal(paid.state.pantry.bread,beforeBread+GROCERIES.bread.quantity);
+    assert.equal(paid.state.world.tableBags,0);
+    vlad.send({type:'travel',place:'home'});
+    const arrived=await alina.next('snapshot',p=>p.state.world.places.vlad==='home'&&p.state.world.bags.vlad===0);
+    assert.equal(arrived.state.world.tableBags,0);
+    assert.equal(arrived.state.money,paid.state.money,'no charge on return');
+    assert.deepEqual(arrived.state.pantry,paid.state.pantry,'no duplicate stock on return');
+    assert.equal(arrived.state.furnishing.soldFixtures?.includes('table'),true);
+    vlad.send({type:'approach',place:'home',station:'shopping-table'});
+    await vlad.next('error',p=>p.reason.includes('объект'));
+    await vlad.close();await alina.close();
+    await server.close();server=null;
+    const persisted=openServerFiles(dir).load();
+    assert.equal(persisted.world.tableBags,0);
+    assert.deepEqual(persisted.world.bags,{vlad:0,alina:0});
+    assert.equal(persisted.money,10000-price);
+    assert.equal(persisted.pantry.milk,beforeMilk+GROCERIES.milk.quantity);
+  }finally{await server?.close();rmSync(dir,{recursive:true,force:true});}
+});

@@ -112,7 +112,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   }
   if(a.object==='dishes'){
     work[from]={motion:'wash',destination:KITCHEN_WORK.dishes.position,target:KITCHEN_WORK.dishes.target};
-    work[to]={motion:'serve',destination:prep.position,target:prep.target,stops:dirtyDishStops(state.dirtyDishes,to)};
+    work[to]={motion:'serve',destination:prep.position,target:prep.target,stops:dirtyDishStops(state.dirtyDishes,to,state)};
   }
   if(a.object==='unpack'){
     work[from]={motion:'unpack',destination:table(from),target:HOME_PLACEMENTS.table};
