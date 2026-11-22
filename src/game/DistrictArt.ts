@@ -3,7 +3,7 @@ import { batchRigidParts, colors as C, cube, finish, plane, torus, type XYZ } fr
 import { lettering, painted, part, round, trim, type LocationResources } from './LocationArt';
 import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, HOME_WORLD_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
   DISTRICT_BEDS, DISTRICT_LAMPS, districtStation, districtYaw, sitePoint } from '../shared/district';
-import { buildDistrictFacade, distantDistrictFacade } from './DistrictBuildings';
+import { buildDistrictFacade, buildRoofBillboard, distantDistrictFacade } from './DistrictBuildings';
 import { buildDistrictPlants, districtPlantGeometry } from './DistrictPlants';
 import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { buildNeighborhood } from './NeighborhoodArt';
@@ -205,6 +205,8 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
     detail.position.set(0,0,0);detail.rotation.y=0;
     const model=distantDistrictFacade(site);model.visible=false;
     building.add(detail,model);
+    // Keep the rooftop nameboard readable independently of the facade LOD.
+    if(site.place!=='park')building.add(buildRoofBillboard(site,resources));
     root.add(building);
     return {id:districtStation(site.place),building,model,detail};
   });
