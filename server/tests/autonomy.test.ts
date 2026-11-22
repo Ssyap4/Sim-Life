@@ -355,3 +355,25 @@ test('Long-distance autonomous leisure lasts long enough to walk and perform the
   assert.ok(duration>26000,'A long trip needs walking time plus leisure time');
   assert.ok(duration>=30000/1.8+10000);
 });
+
+test('A completed manual walk no longer freezes needs autonomy forever',async()=>{
+  const seed=initialState();
+  seed.characters.vlad.bladder=12;
+  const ctx=await setup(seed,true,60);
+  try{
+    const ws=await ctx.join('vlad');
+    const walked=waitFor(ws,p=>p.type==='world_path'&&p.role==='vlad',2000);
+    send(ws,{type:'walk',place:'home',x:.5,z:4.1});
+    const path=await walked;
+    assert.equal(path.type,'world_path');
+    if(path.type!=='world_path')return;
+    assert.ok(path.path.length>0);
+    const changed=waitFor(ws,p=>p.type==='snapshot'&&p.state.autonomy.vlad==='needs',1000);
+    const resumed=waitFor(ws,p=>p.type==='task_started'&&p.role==='vlad'&&p.automatic===true,5000);
+    send(ws,{type:'autonomy_mode',mode:'needs'});
+    await changed;
+    const task=await resumed;
+    assert.equal(task.type,'task_started');
+    if(task.type==='task_started')assert.equal(task.command.type,'act');
+  }finally{await ctx.close();}
+});

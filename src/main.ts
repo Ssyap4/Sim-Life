@@ -18,7 +18,9 @@ import { createFurnishingUI } from './furnishingUI';
 import './furnishing.css';
 import { needChips, needFeedback } from './needsFeedback';
 import type { NeedEffects } from './shared/homeLife';
-import type { StudyMaterial } from './shared/education';
+import { skillRank, type StudyMaterial } from './shared/education';
+import { createSkillsPanel } from './skillsHUD';
+import './skillsHUD.css';
 import { MATERIAL_BY_ID, studyQuestion } from './shared/educationCatalog';
 import type { EducationView } from './educationUI';
 import { createCareerHUD } from './careerUI';
@@ -29,6 +31,8 @@ import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
 import './mobile-polish.css';
+import './queue-ui.css';
+import './minimal-hud.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -44,7 +48,7 @@ import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_
 import type { TimeStatus } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names,
-  type ActionId, type CharacterId, type GameState, type ItemId,
+  type ActionId, type CharacterId, type GameState, type ItemId, type QueuedTask,
 } from './shared/protocol';
 
 let state: GameState | null = null;
@@ -56,6 +60,7 @@ const installedDesktopId=():number|undefined=>{
 };
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
+const waitingTasks = new Map<CharacterId,QueuedTask[]>();
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
 let localPreviewNoCodes=false;
@@ -93,13 +98,14 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.18 · ЖИВОЙ ПРИГОРОД</div>
+      <div class="version">0.19 · ЖИВЫЕ ПРИВЫЧКИ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
       <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small></span>
       <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
       <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
+      <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><span aria-hidden="true">🐾</span><small class="pet-alert" hidden></small></button>
     </div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
@@ -124,6 +130,7 @@ app.innerHTML = `
       </div>
     </div>
   </header>
+  <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
@@ -154,8 +161,7 @@ app.innerHTML = `
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
         <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
-        <button id="furniture-btn" class="market-btn" type="button" disabled>🛋️ Мебель</button>
-        <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
+        <button id="skills-btn" class="market-btn" type="button" disabled>📊 Навыки <small>🍲 0 ур.</small></button>
       </div>
       <div class="tip">
         <span class="tip-icon">✦</span>
@@ -196,7 +202,7 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const phoneBtn = document.querySelector<HTMLButtonElement>('#phone-btn')!;
-const furnitureBtn = document.querySelector<HTMLButtonElement>('#furniture-btn')!;
+const skillsBtn = document.querySelector<HTMLButtonElement>('#skills-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
 const locationPanel = document.querySelector<HTMLElement>('#location-panel')!;
@@ -286,7 +292,7 @@ function showUpcomingPayments(household: GameState): void {
 
 function drawTaskPanel(): void {
   taskPanelEl.replaceChildren();
-  taskPanelEl.hidden = tasks.size === 0;
+  taskPanelEl.hidden = tasks.size === 0 && ![...waitingTasks.values()].some(rows=>rows.length);
   for (const [role, task] of tasks) {
     const box = document.createElement('div');
     box.className = 'running-task';
@@ -346,6 +352,37 @@ function drawTaskPanel(): void {
       }
     }
     taskPanelEl.append(box);
+  }
+  for(const [role, list] of waitingTasks){
+    if(!list.length)continue;
+    const section=document.createElement('div');
+    section.className='queued-task-list';
+    const caption=document.createElement('strong');
+    caption.textContent='📋 '+names[role]+' · до 3 действий';
+    section.append(caption);
+    for(const [index,task] of list.entries()){
+      const row=document.createElement('div');
+      row.className='queued-task-row';
+      const label=document.createElement('span');
+      label.textContent=(index+1+(tasks.has(role)||Boolean(timeStatus.sleepers[role])?2:1))+'. '+task.label;
+      row.append(label);
+      if(role===active){
+        const remove=document.createElement('button');
+        remove.type='button';remove.textContent='×';
+        remove.setAttribute('aria-label','Убрать из очереди: '+task.label);
+        remove.addEventListener('click',()=>{if(net.cancelQueuedTask(task.id))remove.disabled=true;});
+        row.append(remove);
+      }
+      section.append(row);
+    }
+    if(role===active){
+      const clear=document.createElement('button');
+      clear.type='button';clear.className='queue-clear';
+      clear.textContent='Очистить ожидание';
+      clear.addEventListener('click',()=>{if(net.clearTaskQueue())clear.disabled=true;});
+      section.append(clear);
+    }
+    taskPanelEl.append(section);
   }
   updateTaskProgress();
 }
@@ -505,6 +542,7 @@ function render(reset = false): void {
     if (world.place !== place) {
       actionsEl.hidden = true;
       phone.close();
+      skillsPanel.close();
       computer.close();
       furnishing.close();
       focusModel(null);
@@ -517,14 +555,17 @@ function render(reset = false): void {
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
-    furnitureBtn.disabled = place !== 'home';
     const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
     const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
-    petsBtn.textContent = '🐾 Питомцы' + (criticalPets.length ? ' ❗' + criticalPets.length
-      : hungryPets.length ? ' ⚠️' + hungryPets.length : '');
+    const concern = criticalPets.length ? criticalPets.length : hungryPets.length;
+    const alert = petsBtn.querySelector<HTMLElement>('.pet-alert')!;
+    alert.textContent = String(concern);
+    alert.hidden = concern === 0;
+    petsBtn.classList.toggle('pets-urgent', criticalPets.length > 0);
     petsBtn.title = criticalPets.length ? 'Сильно голодны: ' + criticalPets.map(id => PETS[id].name).join(', ')
       : hungryPets.length ? 'Проголодались: ' + hungryPets.map(id => PETS[id].name).join(', ')
       : 'Уход за Верделлом и Симбой';
+    petsBtn.setAttribute('aria-label', petsBtn.title);
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       deliverySequence = null;
@@ -541,12 +582,14 @@ function render(reset = false): void {
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
+  skillsPanel.refresh();
   computer.refresh();
   furnishing.refresh();
   furnishing.acknowledge(state);
   careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
+  if (active) skillsBtn.querySelector('small')!.textContent = '🍲 '+skillRank(state.education.characters[active].xp.cooking).level+' ур.';
   document.querySelector<HTMLElement>('#money')!.textContent =
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
@@ -596,12 +639,14 @@ function signOut(): void {
   active = null;
   state = null;
   tasks.clear();
+  waitingTasks.clear();
   drawTaskPanel();
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
   thoughts.reset();
-  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
+  phoneBtn.disabled = skillsBtn.disabled = petsBtn.disabled = mapBtn.disabled = true;
+  skillsPanel.close();
   actionsEl.hidden = true;
   phone.close();
   computer.close();
@@ -621,7 +666,22 @@ const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly
 const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-dock')!,
   ()=>state&&active?{state,role:active}:null,
   ()=>{toggleNeeds(false);locationUI.closeMap();},
-  ()=>phone.openAutonomyHistory());
+  ()=>phone.openAutonomyHistory(),
+  (role,command)=>{
+    if(!active||!state||active!==role||state.world.places[role]!=='home')return false;
+    if(command.type==='fridge'){
+      const station=stationById('home','fridge');
+      if(!station)return false;
+      locationUI.visit(station);return true;
+    }
+    if(command.type==='sleep_start')return net.startSleep(command.mode);
+    if(command.type==='act')return net.perform(command.actionId);
+    if(command.type==='furniture_use')return net.furnitureUse(command);
+    if(command.type==='cook'||command.type==='eat')return net.food(command.type,command.recipe);
+    if(command.type==='eat_takeout')return net.eatTakeout(command.item);
+    if(command.type==='pet_action')return net.petAction(command.pet,command.action);
+    return false;
+  });
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -635,6 +695,11 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
   },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts);
+const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
+  () => state && active ? {state, role:active} : null);
+skillsBtn.addEventListener('click',()=>{
+  toggleNeeds(false); actionsEl.hidden=true; phone.close(); computer.close(); skillsPanel.open();
+});
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
@@ -699,18 +764,20 @@ const net = new LiveConnection({
     online = players;
     timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
     tasks.clear();
+    waitingTasks.clear();
     drawTaskPanel();
     toggleNeeds(false);
     phone.close();
+    skillsPanel.close();
     authEl.hidden = true;
     mapBtn.disabled = false;
+    skillsBtn.disabled = false;
     phoneBtn.disabled = false;
-    furnitureBtn.disabled = false;
     petsBtn.disabled = false;
     actionsEl.hidden = true;
     world.setActive(role);
     render(true);
-    notify('Добро пожаловать, ' + names[role] + '! Это настоящий общий дом ♥');
+    notify('🏡 С возвращением, ' + names[role] + '!');
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
@@ -740,6 +807,7 @@ const net = new LiveConnection({
       }
     }
     render();
+    drawTaskPanel();
     if (state) jobsUI.refresh(state);
   },
   onClock(sample) {
@@ -751,6 +819,7 @@ const net = new LiveConnection({
   onDisconnect() {
     displayClock.pause(performance.now());
     socialInvite.clear();
+    waitingTasks.clear();
     for(const [role,task] of tasks)if(task.paired){world.cancelTimedAction(role);tasks.delete(role);}
     drawTaskPanel();
   },
@@ -814,6 +883,10 @@ const net = new LiveConnection({
     const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated && role === active) notify('Действие началось на сервере, путь анимации пока недоступен');
+  },
+  onTaskQueue(role, queued){
+    waitingTasks.set(role,queued);
+    drawTaskPanel();
   },
   onTaskActive(role,taskId,elapsedMs) {
     const task=tasks.get(role);
@@ -888,8 +961,7 @@ const net = new LiveConnection({
       mapBtn.disabled = true;
       phoneBtn.disabled = true;
       petsBtn.disabled = true;
-      furnitureBtn.disabled = true;
-      actionsEl.hidden = true;
+        actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else {
       notify(reason);
@@ -1332,6 +1404,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           } else if (!shift) phone.open('career');
           return;
         }
+        if(world.place==='home'&&id==='fridge'){
+          const fridge=stationById('home','fridge');
+          if(fridge)locationUI.visit(fridge);
+          return;
+        }
         net.world({ type: 'approach', place: world.place, station: id });
       },
       ground(x, z) {
@@ -1376,9 +1453,6 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       phone.open();
     });
     petsBtn.addEventListener('click', () => openPetActions());
-    furnitureBtn.addEventListener('click',()=>{
-      actionsEl.hidden=true;phone.close();computer.close();furnishing.open();
-    });
     document.querySelectorAll<HTMLButtonElement>('[data-role]').forEach((button) => {
       button.addEventListener('click', () => {
         selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';

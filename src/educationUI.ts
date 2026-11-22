@@ -49,7 +49,7 @@ export function educationAppointments(state: GameState, role: CharacterId) {
 
 export function createEducationUI(root: HTMLElement, submit: (command: EducationCommand) => boolean,
   close: () => void, travelToCenter: () => boolean) {
-  let page: EducationView = 'overview';
+  let page: EducationView = 'practice';
   let skill: SkillId = 'logic';
   let detail = false;
   let selectedRoom: string | undefined;
@@ -78,6 +78,7 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
     const tabs = node('nav', '', 'education-tabs');
     tabs.setAttribute('aria-label', 'Разделы образования');
     for (const [key, label] of Object.entries(views)) {
+      if (key === 'overview') continue; // Skill overview is now in the world HUD.
       const tab = button(tabNames[key as EducationView], () => change(key as EducationView));
       tab.setAttribute('aria-label', label);
       tab.dataset.educationTab = key;
@@ -281,8 +282,8 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
   }
   return {
     render,
-    open(view: EducationView = 'overview', room?: string, materialId?: string) {
-      page = view; detail = false; feedback = ''; previous = ''; selectedRoom = room;
+    open(view: EducationView = 'practice', room?: string, materialId?: string) {
+      page = view === 'overview' ? 'practice' : view; detail = false; feedback = ''; previous = ''; selectedRoom = room;
       requestedMaterial = materialId;
       const material = materialId && MATERIAL_BY_ID.get(materialId);
       if (material) skill = material.skill;

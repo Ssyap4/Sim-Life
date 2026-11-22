@@ -186,29 +186,9 @@ function petNooks(home: THREE.Group): void {
   }
 }
 
-function platformShadow(scene: THREE.Scene): void {
-  const map = paintedMap('platform-shadow', 128, 128, (ctx) => {
-    const ink = ctx.createRadialGradient(64, 64, 15, 64, 64, 64);
-    ink.addColorStop(0, '#3e302c66');
-    ink.addColorStop(0.72, '#3e302c3b');
-    ink.addColorStop(1, '#3e302c00');
-    ctx.fillStyle = ink;
-    ctx.fillRect(0, 0, 128, 128);
-  });
-  if (!map) return;
-  const shadow = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
-    map, transparent: true, depthWrite: false, toneMapped: false,
-  }));
-  shadow.position.set(-0.14, -0.634, 1.9);
-  shadow.scale.set(25.5, 26, 1);
-  shadow.rotation.x = -Math.PI / 2;
-  scene.add(shadow);
-}
-
 export function decorateHome(scene: THREE.Scene): THREE.Group {
   const home = new THREE.Group();
   shape(scene, cube, [90, .06, 90], [0, -.67, 0], 0xa5b8a5);
-  platformShadow(scene);
 
   const width = HOUSE.maxX - HOUSE.minX;
   const depth = HOUSE.maxZ - HOUSE.minZ;

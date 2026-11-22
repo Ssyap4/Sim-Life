@@ -90,14 +90,3 @@ export function paving(parent: THREE.Group, resources: LocationResources, width:
   parent.add(floor);
 }
 
-export function paintContactShade(ctx: CanvasRenderingContext2D, x: number, z: number, radiusX: number, radiusZ: number) {
-  ctx.save();
-  ctx.translate(x, z);
-  ctx.scale(radiusX, radiusZ);
-  const shade = ctx.createRadialGradient(0, 0, .18, 0, 0, 1);
-  shade.addColorStop(0, 'rgba(62,48,33,.31)');
-  shade.addColorStop(1, 'rgba(62,48,33,0)');
-  ctx.fillStyle = shade;
-  ctx.fillRect(-1, -1, 2, 2);
-  ctx.restore();
-}

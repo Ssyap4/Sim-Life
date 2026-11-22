@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initialState } from '../../src/shared/protocol';
+import { levelXP } from '../../src/shared/education';
 import { recipeAvailability } from '../../src/shared/recipeAvailability';
 import { applyFoodAction } from '../food';
 import { diningLocation } from '../../src/shared/furnitureUse';
 
 test('Grill menu accepts chicken and onion without oil, when both fuels are present',()=>{
   const state=initialState();
+  state.education.characters.vlad.xp.cooking=levelXP(11);
   state.pantry.chicken=5;
   state.pantry.onion=8;
   state.pantry.charcoal=5;
@@ -19,6 +21,7 @@ test('Grill menu accepts chicken and onion without oil, when both fuels are pres
 
 test('Missing ingredient, low energy and full serving table have specific reasons',()=>{
   const state=initialState();
+  state.education.characters.vlad.xp.cooking=levelXP(11);
   state.pantry.chicken=2;
   state.pantry.onion=1;
   state.pantry.charcoal=5;

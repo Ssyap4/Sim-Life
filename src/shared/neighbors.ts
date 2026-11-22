@@ -36,19 +36,15 @@ export const NEIGHBORS: readonly NeighborProfile[] = [
   { name: 'Роман', hair: 0x3b3029, clothes: 0x887a63, trousers: 0x505569, skin: 0xd9ad8e, height: 1.09, speed: 1.12, habit: 'Иногда задерживается у фонарей', hairStyle:'short', outfit:'vest', accessory:'backpack', accent:0xabb6bb },
 ] as const;
 
-// All three existing paths move TOGETHER. The ring leaves about eight metres
-// for future extensions beyond the current west/east/rear walls.
+// Four markers on a single shared walkway behind all neighboring plots.
 export const NEIGHBOR_PATH = [
-  { x: -17.50, z: 9.50 }, { x: -17.50, z: -15.35 },
-  { x: 23.50, z: -15.35 }, { x: 23.50, z: 9.50 },
+  {x:-25.0,z:-15.35},{x:-8.0,z:-15.35},
+  {x:8.0,z:-15.35},{x:25.0,z:-15.35},
 ] as const;
-export const NEIGHBOR_SLOT_COUNT = 7;
+export const NEIGHBOR_SLOT_COUNT = 26;
 export const NEIGHBOR_TRIP_SECONDS = 100;
-export const NEIGHBOR_FADE_METERS = 5.5;
-
-const side = NEIGHBOR_PATH[0].z - NEIGHBOR_PATH[1].z;
-const rear = NEIGHBOR_PATH[2].x - NEIGHBOR_PATH[1].x;
-export const NEIGHBOR_ROUTE_LENGTH = side * 2 + rear;
+export const NEIGHBOR_FADE_METERS = 1.6;
+export const NEIGHBOR_ROUTE_LENGTH=NEIGHBOR_PATH[3].x-NEIGHBOR_PATH[0].x;
 
 /**
  * Daily schedules are deterministic from the synced household game clock;

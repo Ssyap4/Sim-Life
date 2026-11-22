@@ -107,15 +107,22 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
   const idleAutonomyMs=options.autonomyTiming?.idleMs??18_000;
-  const careCooldownMs=options.autonomyTiming?.careCooldownMs??45_000;
-  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??50_000;
+  const careCooldownMs=options.autonomyTiming?.careCooldownMs??25_000;
+  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??19_000;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
+  const fullRoutineTurn=new Map<CharacterId,number>();
+
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
   const running = new Map<CharacterId, RunningTask>();
+  // Only the owner can enqueue. Each queue is per resident, in memory, and
+  // never serialized into the household save; revalidation happens at execution.
+  type QueuedEntry={id:number;label:string;plan?:TaskPlan;sleep?:{mode:SleepMode;furnitureId?:number}};
+  const queuedTasks = new Map<CharacterId, QueuedEntry[]>();
+  let nextQueueId = 0;
   let nextTaskId = 0;
   const scale = options.taskTimeScale ?? 1;
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
@@ -151,6 +158,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   });
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
+    // Defer until all completion bookkeeping and saves have finished.
+    // This also works for homeSessions (including toilet -> hand washing).
+    if(event.type==='task_ended' && (queuedTasks.get(event.role)?.length??0)>0)
+      setTimeout(()=>startNextQueued(event.role),0);
+  };
+  const queueSnapshot = (role:CharacterId) => ({
+    type:'task_queue' as const,role,
+    tasks:(queuedTasks.get(role)??[]).map(({id,label})=>({id,label})),
+  });
+  const publishQueue=(role:CharacterId)=>all(queueSnapshot(role));
+  const clearQueue=(role:CharacterId)=>{
+    if(!queuedTasks.has(role))return;
+    queuedTasks.delete(role);
+    publishQueue(role);
   };
   const announceTime = () => {
     all({ type: 'time_status', status: timeStatus() });
@@ -212,6 +233,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     sleepers.delete(role);
     announceTime();
+    if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
   };
   const homeTasks = createHomeSessions({
     state: () => state, save(next) { files.save(next); state = next; },
@@ -309,6 +331,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         (spoiled.length>2?' и другое':'')+' · выброшено порций: '+portions });
     }
     if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
+    for(const id of finishedSleeping)if(queuedTasks.get(id)?.length)setTimeout(()=>startNextQueued(id),0);
     if (arrived) all({ type: 'delivery_arrived' });
     homeTasks.recheckAccess();
     if (billingMessages.length) {
@@ -324,7 +347,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     return true;
   };
+  const reapFinishedWalks = (now: number): void => {
+    for(const [role,walk] of walkingHome){
+      const length=walk.route.path.reduce((distance,point,index)=>{
+        const prev=walk.route.path[index-1]??walk.route.from;
+        return distance+Math.hypot(point.x-prev.x,point.z-prev.z);
+      },0);
+      // Leave a small grace period for mobile animation interpolation.
+      if(now-walk.started>=length/HOME_WALK_SPEED*1000+700)
+        walkingHome.delete(role);
+    }
+  };
   const lifeTicker = setInterval(() => {
+    reapFinishedWalks(Date.now());
     if (!commitLife()) return;
     const now = Date.now();
     const available: CharacterId[] = [];
@@ -334,10 +369,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // Offline players, manual tasks, work, sleep, travelling and interactive
       // storage sessions are never taken over by the automatic decision engine.
       if(state.world.places[role]!=='home'||sleepers.has(role)||
-        running.has(role)||homeTasks.busy(role)||state.activeShifts[role]||
+        running.has(role)||homeTasks.busy(role)||(queuedTasks.get(role)?.length??0)>0||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
         (mode!=='off'&&walkingHome.has(role))||
-        now-(lastIntent.get(role)??now)<idleAutonomyMs)continue;
+        now-(lastIntent.get(role)??now)<Math.min(idleAutonomyMs,mode==='off'?idleAutonomyMs:5500))continue;
       // Off means the exact existing 0.16 background routine, not a frozen
       // resident: rare idle walks and rescue only when a vital need reaches 8%.
       if(mode==='off'){
@@ -396,8 +431,33 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
       }
       if(started)continue;
-      if(mode==='full'&&!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs)
-        available.push(role);
+      if(!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs) {
+        if(mode==='full'){
+          // Alternate ordinary household chores with leisure: without this
+          // both residents could only repeat TV/computer/pet interactions.
+          const turn=fullRoutineTurn.get(role)??0;
+          fullRoutineTurn.set(role,turn+1);
+          if(turn%3===1){
+            const chores=(role==='vlad'
+              ? ['kitchenTidy','tablePlan','kitchenWash','bathTeeth','sofaRest']
+              : ['bathTeeth','tablePlan','kitchenTidy','bathWash','sofaMusic']) as
+              (keyof typeof ACTIONS)[];
+            for(let i=0;i<chores.length;i++){
+              const actionId=chores[(Math.floor(turn/3)+i)%chores.length];
+              const plan=planTask({type:'act',actionId});
+              if(!plan || taskAccessError(state,plan.command) ||
+                  plan.resource && (homeTasks.reserved(plan.resource) ||
+                    [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
+              if(!evaluateTask(state,role,plan.command).ok)continue;
+              lastAutoCare.set(role,now);
+              beginTask(role,socket,plan,true);
+              started=true;
+              break;
+            }
+          }
+        }
+        if(!started)available.push(role);
+      }
     }
     // Keep the original 0.16 idle entertainment in OFF mode as well. The
     // expanded planner must not replace it or invent new obligations.
@@ -430,7 +490,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     // Only two idle residents who explicitly opted into FULL autonomy may
     // perform a shared spontaneous chat; neither character is commandeered
     // from manual control, study, sleep or any other task.
-    if(available.length===2&&Math.floor(clockMinutes(state.clock)/125)%3===0){
+    if(available.length===2&&available.every(role=>state.autonomy[role]==='full')&&
+        Math.floor(clockMinutes(state.clock)/125)%3===0){
       const routes:Partial<Record<CharacterId,WalkRoute>>={};
       for(const role of available){
         const route=planLeisure(state,role,'chat');
@@ -446,8 +507,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=role==='vlad'
-        ? ['computer','tv','verdell','simba']
+      const preferences:HomeLeisure[]=state.autonomy[role]==='needs'
+        ? role==='vlad'?['verdell','simba']:['simba','verdell']
+        : role==='vlad'?['computer','tv','verdell','simba']
         : ['simba','tv','verdell','computer'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
       const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
@@ -599,6 +661,80 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all({ type: 'task_started', role, taskId: id, label: plan.label,
       durationMs, command: plan.command, automatic, effects: gains(state,validation.state,role) });
   };
+  /** Sleep is an authentic, long-running action: the next queued command
+   * waits for recovery or explicit waking, just like other completed tasks. */
+  function startSleepRequest(role:CharacterId,socket:WebSocket,
+      command:{mode:SleepMode;furnitureId?:number}):void {
+    if(state.world.places[role]!=='home'||state.activeShifts[role]||state.careers.residents[role].shift||
+        (running.has(role)&&!running.get(role)?.automatic)||
+        (homeTasks.busy(role)&&!homeTasks.automatic(role))){
+      packet(socket,{type:'error',reason:'Для сна нужно находиться дома и закончить текущее дело'});return;
+    }
+    if(state.characters[role].energy>=sleepTarget(command.mode)){
+      packet(socket,{type:'error',reason:'Энергия уже достигла выбранной отметки'});return;
+    }
+    const requestedBed=command.furnitureId;
+    const chosen=selectSleepBed(state,role,requestedBed);
+    if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
+    closeStorage(role);
+    stopLeisure(role);
+    if(running.get(role)?.automatic||homeTasks.automatic(role))stopTask(role,'Время спать');
+    const next=structuredClone(state);
+    Object.assign(next.characters[role],chosen.bed.approach,
+      {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode:command.mode});
+    next.revision++;
+    try{files.save(next)}
+    catch{packet(socket,{type:'error',reason:'Не удалось сохранить начало сна'});return;}
+    accountTime();
+    state=next;
+    sleepers.set(role,command.mode);
+    autoSleeping.delete(role);
+    shiftVotes.delete(role);
+    lastIntent.set(role,Date.now());
+    all({type:'snapshot',state});
+    announceTime();
+  }
+  function startNextQueued(role: CharacterId): void {
+    if(running.has(role)||homeTasks.busy(role)||sleepers.has(role))return;
+    const tasks=queuedTasks.get(role);
+    if(!tasks?.length)return;
+    const socket=active.get(role);
+    const candidate=tasks[0];
+    if(!socket||(state.world.places[role]!=='home'&&
+        candidate.plan?.command.type!=='local_activity')||
+        state.activeShifts[role]||state.careers.residents[role].shift){
+      clearQueue(role);return;
+    }
+    const next=tasks.shift()!;
+    if(!tasks.length)queuedTasks.delete(role);
+    publishQueue(role);
+    if(next.sleep)startSleepRequest(role,socket,next.sleep);
+    else if(next.plan)beginTask(role,socket,next.plan);
+    // Invalid or stale queued work never strands later valid requests.
+    if(!running.has(role)&&!homeTasks.busy(role)&&!sleepers.has(role)&&
+        (queuedTasks.get(role)?.length??0)>0)
+      setTimeout(()=>startNextQueued(role),0);
+  }
+  function queueAction(role:CharacterId,socket:WebSocket,
+    item:Omit<QueuedEntry,'id'>):boolean {
+    const busy=running.has(role)||homeTasks.busy(role)||sleepers.has(role);
+    const tasks=queuedTasks.get(role)??[];
+    if(!busy&&!tasks.length)return false;
+    if(tasks.length>= (busy?2:3)){
+      packet(socket,{type:'error',reason:'Очередь заполнена: максимум 3 действия вместе с текущим'});
+      return true;
+    }
+    tasks.push({id:++nextQueueId,...item});
+    queuedTasks.set(role,tasks);
+    lastIntent.set(role,Date.now());
+    publishQueue(role);
+    if(!busy)setTimeout(()=>startNextQueued(role),0);
+    return true;
+  }
+  function submitTimed(role:CharacterId,socket:WebSocket,plan:TaskPlan):void {
+    if(!queueAction(role,socket,{plan,label:plan.label}))beginTask(role,socket,plan);
+  }
+
   const httpServer = createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405); res.end(); return;
@@ -704,6 +840,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket, { type: 'ready', role, state, online: online() });
         if (state.world.places[role] === 'home') sendLeisure(socket);
         homeTasks.replay(socket);
+        for(const id of ['vlad','alina'] as const)packet(socket,queueSnapshot(id));
         announceTime();
         if (deviceToken && message.type === 'auth') packet(socket, { type: 'device_token', role, token: deviceToken });
         all({ type: 'online', online: online() });
@@ -731,7 +868,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
             if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
-          lastIntent.set(role,Date.now());
+          lastIntent.set(role,Date.now()-4000);
           lastAutoCare.set(role,0);
           all({type:'snapshot',state});
         }
@@ -750,38 +887,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'sleep_start') {
-        if (message.mode !== 'full' && message.mode !== 'half') {
-          packet(socket, { type: 'error', reason: 'Неизвестная длительность сна' }); return;
+        if(message.mode!=='full'&&message.mode!=='half'){
+          packet(socket,{type:'error',reason:'Неизвестная длительность сна'});return;
         }
-        if (state.world.places[role] !== 'home' || state.activeShifts[role] || state.careers.residents[role].shift ||
-            (running.has(role) && !running.get(role)?.automatic) || (homeTasks.busy(role) && !homeTasks.automatic(role))) {
-          packet(socket, { type: 'error', reason: 'Для сна нужно находиться дома и закончить текущее дело' }); return;
-        }
-        const mode = message.mode as SleepMode;
-        if (state.characters[role].energy >= sleepTarget(mode)) {
-          packet(socket, { type: 'error', reason: 'Энергия уже достигла выбранной отметки' }); return;
-        }
-        const requestedBed=message.furnitureId===undefined?undefined:
+        const requested=message.furnitureId===undefined?undefined:
           typeof message.furnitureId==='number'?message.furnitureId:NaN;
-        const chosen=selectSleepBed(state,role,requestedBed);
-        if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
-        closeStorage(role);
-        stopLeisure(role);
-        if (running.get(role)?.automatic || homeTasks.automatic(role)) stopTask(role, 'Время спать');
-        const next = structuredClone(state);
-        Object.assign(next.characters[role],chosen.bed.approach,
-          {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode:mode});
-        next.revision++;
-        try { files.save(next); }
-        catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить начало сна' }); return; }
-        accountTime();
-        state = next;
-        sleepers.set(role, mode);
-        autoSleeping.delete(role);
-        shiftVotes.delete(role);
-        lastIntent.set(role, Date.now());
-        all({ type: 'snapshot', state });
-        announceTime();
+        const command={mode:message.mode as SleepMode,furnitureId:requested};
+        if(!queueAction(role,socket,{sleep:command,label:command.mode==='full'?'😴 Полноценный сон':'😴 Вздремнуть'}))
+          startSleepRequest(role,socket,command);
         return;
       }
       if (message.type === 'sleep_stop') {
@@ -886,6 +999,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         homeTasks.invitation(role, socket, message);
         return;
       }
+      if(message.type==='cancel_queued_task'){
+        const tasks=queuedTasks.get(role)??[];
+        const index=tasks.findIndex(item=>item.id===message.queueId);
+        if(index<0){packet(socket,{type:'error',reason:'Задание уже вышло из очереди'});return;}
+        tasks.splice(index,1);
+        if(!tasks.length)queuedTasks.delete(role);
+        publishQueue(role);
+        return;
+      }
+      if(message.type==='clear_task_queue'){
+        clearQueue(role);return;
+      }
       if (message.type === 'cancel_task') {
         lastIntent.set(role, Date.now());
         if (typeof message.taskId === 'number' && homeTasks.cancel(role, names[role] + ': занятие прервано', message.taskId)) return;
@@ -940,6 +1065,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({type:'store_event',role,message:result.message});
         return;
       }
+      const queueable=typeof message.type==='string'&&[
+        'play_game','computer_video','study','local_activity','act','furniture_use',
+        'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',
+        'pet_action',
+      ].includes(message.type)&&!(message.type==='pet_action'&&message.action==='buyFood');
+      if(sleepers.has(role)&&queueable){
+        const plan=planTask(message);
+        if(!plan){packet(socket,{type:'error',reason:'Неизвестное действие'});return;}
+        submitTimed(role,socket,plan);
+        return;
+      }
       // Walking, starting work, using a station or any other manual action wakes the sleeper.
       stopSleep(role);
       lastIntent.set(role, Date.now());
@@ -962,11 +1098,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
         return;
       }
-      if (running.has(role) || homeTasks.busy(role)) {
+      if ((running.has(role) || homeTasks.busy(role)) && !queueable) {
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
+        if(message.type==='travel'||message.type==='walk')clearQueue(role);
         const from = state.characters[role];
         const result = applyWorld(state, role, message, active.has(otherRole(role)));
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
@@ -991,6 +1128,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'job_start') {
+        clearQueue(role);
         const result=beginShift(state,role,message.job);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         if (result.state.world.dogWalker === role) {
@@ -1014,7 +1152,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           (message.type === 'pet_action' && message.action !== 'buyFood')) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
-        beginTask(role, socket, plan);
+        submitTimed(role, socket, plan);
         return;
       }
 
@@ -1057,6 +1195,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     });
     socket.on('close', () => {
       if (role && active.get(role) === socket) {
+        clearQueue(role);
         walkingHome.delete(role);
         closeStorage(role);
         stopLeisure(role);

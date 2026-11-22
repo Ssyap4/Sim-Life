@@ -188,7 +188,11 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
   | { type: 'social_offer'; kind: SocialKind }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
-  | { type: 'cancel_task'; taskId: number };
+  | { type: 'cancel_task'; taskId: number }
+  | { type: 'cancel_queued_task'; queueId: number }
+  | { type: 'clear_task_queue' };
+
+export type QueuedTask = { id: number; label: string };
 
 export type ServerPacket =
   | { type: 'study_progress'; role: CharacterId; taskId: number; elapsed: number; total: number }
@@ -217,6 +221,7 @@ export type ServerPacket =
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
   | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: Genre }
   | { type: 'movie_offer_closed'; inviteId: number; message: string }
+  | { type: 'task_queue'; role: CharacterId; tasks: QueuedTask[] }
   | { type: 'task_active'; role: CharacterId; taskId: number; elapsedMs: number }
   | { type: 'need_gain'; role: CharacterId; label: string; effects: NeedEffects }
   | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand; automatic?: boolean; home?: HomePresentation; effects?: NeedEffects }

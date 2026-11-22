@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { batchRigidParts, drum, type XYZ } from './ArtKit';
-import { lettering, paintContactShade, part, paving, round, smallOrb, trim, type LocationResources } from './LocationArt';
+import { lettering, part, paving, round, smallOrb, trim, type LocationResources } from './LocationArt';
 import { marketCashier } from './MarketArt';
 import { CAREERS, careerAt, type CareerId, type CareerPlace } from '../shared/careers';
-import { STATIONS, WORK_DECOR, WORK_NPCS, WORK_VISITORS, type Station } from '../shared/locations';
+import { WORK_DECOR, WORK_NPCS, WORK_VISITORS, type Station } from '../shared/locations';
 
 const palettes: Record<CareerId, { floor: string; seam: string; wall: number; base: number; ink: string; color: string; accent: number }> = {
   it:{floor:'#c6c7bc',seam:'#afb6b1',wall:0xaabdbb,base:0x536a70,ink:'#284757',color:'#e4eadc',accent:0x567d8e},
@@ -180,7 +180,6 @@ export function buildCareerPlace(place: CareerPlace, root: THREE.Group, people: 
       ctx.fillStyle=id==='it'?'#b4c3be':id==='clinic'?'#a7c7b7':'#c29fa9';
       ctx.beginPath(); ctx.roundRect(-1.1,3.66,2.2,1.0,.12); ctx.fill();
     }
-    for (const site of STATIONS[place]) paintContactShade(ctx,site.center.x,site.center.z,site.width*.70,site.depth*.84);
   },scheme.base);
   trim(root,[12.2,2.86,.20],[0,1.43,-4.93],scheme.wall);
   trim(root,[.20,2.86,9.97],[-6.01,1.43,0],scheme.wall);

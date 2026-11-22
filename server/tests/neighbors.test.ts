@@ -66,9 +66,9 @@ test('neighbors remain deterministic, quiet at night and much rarer than constan
         pose.z<HOUSE.minZ-.5,NEIGHBORS[i].name+' walked into the private home');
     }
   }
-  assert.ok(max<=2,'never a stream of six or seven neighbors');
-  assert.ok(activeMinutes<410,'the street should be empty most of the day');
-  assert.ok(silent>950,'long calm gaps between events');
+  assert.ok(max<=4,'rear gardens remain calm rather than a street crowd');
+  assert.ok(activeMinutes>300&&activeMinutes<950,'real family routines now show throughout daytime');
+  assert.ok(silent>500,'night and intermittent periods remain quiet');
 });
 
 test('two real residents meet face-to-face for eighteen game minutes', () => {
@@ -96,7 +96,7 @@ test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', 
   const crowd=new NeighborPeople();
   crowd.bindDoors(scene);
   assert.equal(crowd.group.children.length,NEIGHBORS.length);
-  crowd.update(12*60);
+  crowd.update(12*60+14);
   let shown=0,activeMeshes=0;
   for(const person of crowd.group.children) {
     if(!person.visible)continue;
@@ -104,8 +104,8 @@ test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', 
     person.traverse(obj=>{if(obj instanceof THREE.Mesh && obj.visible)activeMeshes++});
     assert.equal(person.userData.interactable,undefined);
   }
-  assert.ok(shown<=2 && shown>=1,'sparse afternoon street');
-  assert.ok(activeMeshes<=125,'smooth NPC models must remain practical for mobile');
+  assert.ok(shown<=4 && shown>=1,'neighbors active on their plots at midday');
+  assert.ok(activeMeshes<=250,'active NPC models remain practical for mobile');
   for(const home of NEIGHBOR_HOMES)assert.ok(scene.getObjectByName('neighbor-door-'+home.id));
 });
 
@@ -123,20 +123,20 @@ test('scheduled NPCs actually stop for real chores and do not slide while gestur
   assert.ok(Math.hypot(before.x-after.x,before.z-after.z)<.0001);
 });
 
-test('public paths and all neighboring props leave a generous expansion reserve', () => {
-  const [west,rearWest,rearEast,east] = NEIGHBOR_PATH;
-  assert.ok(HOUSE.minX-west.x >= 7.5, 'west future expansion reserve');
-  assert.ok(east.x-HOUSE_WING.maxX >= 7.5, 'east future expansion reserve');
-  assert.ok(HOUSE.minZ-rearWest.z >= 7.5, 'rear future expansion reserve');
-  assert.equal(west.x,rearWest.x);
-  assert.equal(rearWest.z,rearEast.z);
-  assert.equal(rearEast.x,east.x);
-  assert.ok(NEIGHBOR_ROUTE_LENGTH > 80);
-  const scene = new THREE.Scene();
+test('the new rear public walkway leaves a safe reserve and all four homes stay behind the family',()=>{
+  const positions=NEIGHBOR_PATH;
+  assert.ok(positions.every(p=>p.z===positions[0].z),'all walking happens on rear public lane');
+  for(let i=1;i<positions.length;i++)assert.ok(positions[i].x>positions[i-1].x);
+  assert.ok(HOUSE.minZ-positions[0].z>=7.5,'expansion strip behind main house');
+  assert.ok(NEIGHBOR_ROUTE_LENGTH>=48,'rear paths span the neighborhood gardens');
+  for(const home of NEIGHBOR_HOMES){
+    assert.ok(home.side==='rear'&&home.z+home.depth/2+4<positions[0].z);
+  }
+  const scene=new THREE.Scene();
   buildNeighborhood(scene);
-  const box = new THREE.Box3().setFromObject(scene);
-  assert.ok(box.min.x < west.x - 2 && box.max.x > east.x + 2);
-  assert.ok(box.min.z < rearWest.z - 7);
+  const bounds=new THREE.Box3().setFromObject(scene);
+  assert.ok(bounds.min.x<-24 && bounds.max.x>24);
+  assert.ok(bounds.min.z<-28);
 });
 
 test('neighbors physically leave their own doors and return home without street teleportation', () => {

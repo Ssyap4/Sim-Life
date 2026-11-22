@@ -8,6 +8,8 @@ import { addLedger, formatRub } from '../src/shared/economy';
 import { gameMinutes } from '../src/shared/life';
 import { serviceAvailable } from '../src/shared/services';
 import { BOOKS, type BookId } from '../src/shared/homeLife';
+import { cookingExperience } from '../src/shared/cookingProgression';
+import { RECIPES, type RecipeId } from '../src/shared/food';
 import type { CharacterId, GameState, TimedCommand } from '../src/shared/protocol';
 
 const xpLogLimit = 60;
@@ -232,6 +234,23 @@ export function practiceXP(state: GameState, role: CharacterId, id: string, skil
   achievements(profile, now);
 }
 
+/** Award only after the food transaction actually succeeds, for manual, autonomous
+ * and paired cooking alike. Familiar recipes taper without becoming zero XP. */
+export function awardCooking(state: GameState, role: CharacterId, recipe: RecipeId,
+  assisting = false): number {
+  const profile = profileOf(state, role);
+  const earned = cookingExperience(profile, role, recipe, assisting);
+  if (!earned) return 0;
+  const id = 'life:recipe:' + recipe;
+  const record = profile.studied[id] ??= {minutes:0, completions:0};
+  record.completions = Math.min(9999, record.completions + 1);
+  const result = grant(profile, 'cooking', earned,
+    (assisting ? 'Помощь на кухне · ' : 'Приготовлено · ') + RECIPES[recipe].name,
+    gameMinutes(state.clock));
+  achievements(profile, gameMinutes(state.clock));
+  return result;
+}
+
 const routines: Record<string, [SkillId, number]> = {
   bedStretch: ['fitness', 8], tablePlan: ['organization', 9], deskJournal: ['creativity', 8],
   deskGames: ['attention', 6], vladStudy: ['technology', 10], vladOrder: ['technology', 12],
@@ -241,7 +260,7 @@ const routines: Record<string, [SkillId, number]> = {
 export function awardActivity(state: GameState, role: CharacterId, command: TimedCommand, label: string) {
   if (command.type === 'read_book' && Object.hasOwn(BOOKS, command.book))
     practiceXP(state, role, 'book:' + command.book, readingSkill(command.book), label, 10, 8);
-  else if (command.type === 'cook') practiceXP(state, role, 'recipe:' + command.recipe, 'cooking', label, 13, 12);
+  else if (command.type === 'cook') awardCooking(state, role, command.recipe);
   else if (command.type === 'local_activity' && command.action === 'exercise')
     practiceXP(state, role, 'exercise:' + command.station, 'fitness', label, 9, 8);
   else if (command.type === 'act' && Object.hasOwn(routines, command.actionId)) {

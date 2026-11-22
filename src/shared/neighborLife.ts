@@ -1,5 +1,5 @@
 import type { NeighborAction, NeighborPose, NeighborProfile } from './neighbors';
-import { NEIGHBOR_HOMES, homeStops, type NeighborPoint, type NeighborHome } from './neighborHomes';
+import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, type NeighborPoint, type NeighborHome } from './neighborHomes';
 
 type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number };
 type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise';
@@ -7,21 +7,34 @@ export type NeighborVisit = { resident: number; home: number; start: number; end
 type Plan = NeighborVisit & { steps: Stop[] };
 
 const DAY = 1440;
-const PATH = [
-  { x: -17.50, z: 9.50 }, { x: -17.50, z: -15.35 },
-  { x: 23.50, z: -15.35 }, { x: 23.50, z: 9.50 },
-] as const;
-
-// There is intentionally no continuous crowd loop. Each event is a short
-// household outing, with substantial empty periods between visits.
 const SLOTS: readonly { start: number; home: number; kind: LifeKind; withHome?: number }[] = [
-  { start: 464, home: 0, kind: 'garden' },      // 07:44
-  { start: 573, home: 3, kind: 'errand' },      // 09:33
-  { start: 699, home: 1, kind: 'tea' },         // 11:39
-  { start: 821, home: 0, kind: 'chat', withHome: 2 },  // 13:41
-  { start: 981, home: 2, kind: 'stroll' },      // 16:21
-  { start: 1091, home: 3, kind: 'chat', withHome: 1 }, // 18:11
-  { start: 1226, home: 1, kind: 'mail' },       // 20:26
+  {start:462,home:0,kind:'garden'},
+  {start:480,home:1,kind:'tea'},
+  {start:508,home:2,kind:'mail'},
+  {start:529,home:3,kind:'garden'},
+  {start:555,home:1,kind:'garden'},
+  {start:579,home:0,kind:'mail'},
+  {start:607,home:2,kind:'tea'},
+  {start:637,home:3,kind:'exercise'},
+  {start:670,home:0,kind:'tea'},
+  {start:693,home:1,kind:'mail'},
+  {start:723,home:3,kind:'garden'},
+  {start:747,home:2,kind:'exercise'},
+  {start:806,home:0,kind:'chat',withHome:1},
+  {start:839,home:2,kind:'garden'},
+  {start:867,home:3,kind:'tea'},
+  {start:910,home:0,kind:'garden'},
+  {start:938,home:1,kind:'tea'},
+  {start:968,home:2,kind:'errand'},
+  {start:991,home:3,kind:'garden'},
+  {start:1043,home:2,kind:'chat',withHome:3},
+  {start:1062,home:1,kind:'exercise'},
+  {start:1108,home:0,kind:'mail'},
+  {start:1136,home:3,kind:'tea'},
+  {start:1166,home:2,kind:'garden'},
+  {start:1197,home:0,kind:'tea'},
+  {start:1220,home:1,kind:'mail'},
+  {start:1250,home:3,kind:'stroll'},
 ];
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const smooth = (v: number) => { const x = clamp01(v); return x * x * (3 - 2 * x); };
@@ -51,24 +64,9 @@ class Sequence {
   }
 }
 
-function publicRoute(home: NeighborHome, to: NeighborPoint): NeighborPoint[] {
-  const s=homeStops(home).sidewalk;
-  const points: NeighborPoint[]=[s];
-  const [west,rearWest,rearEast,east]=PATH;
-  if(home.side==='west') {
-    if(Math.abs(to.z-rearWest.z)<1.4) points.push(rearWest);
-    else if (to.z > s.z + 1) points.push({x:west.x,z:to.z});
-    else if(to.z < s.z - 1) points.push({x:west.x,z:to.z});
-  } else if(home.side==='east') {
-    if(Math.abs(to.z-rearEast.z)<1.4) points.push(rearEast);
-    else if(to.z > s.z + 1 || to.z < s.z - 1) points.push({x:east.x,z:to.z});
-  } else if(Math.abs(to.z - rearWest.z)<1.4) {
-    // The rear house already enters the rear walk directly.
-  }
-  points.push(to);
-  return points;
+function publicRoute(home:NeighborHome,to:NeighborPoint):NeighborPoint[]{
+  return [homeStops(home).sidewalk,to];
 }
-
 function outward(s: Sequence, home: NeighborHome, destination: NeighborPoint): void {
   const stops=homeStops(home);
   s.move(stops.porch).move(stops.gate);
@@ -99,9 +97,9 @@ function singlePlan(home: NeighborHome, kind: LifeKind): Sequence {
       .hold('look',5).move(stops.flower).hold('adjust',4).move(stops.door);
   } else {
     const base=stops.sidewalk;
-    const target = home.side==='rear'
-      ? { x: base.x + 7.6, z: base.z }
-      : { x: base.x, z: Math.max(-13.0,Math.min(8.2,base.z+(kind==='errand'?-8:7))) };
+    // Public walks are deliberately rare. Most outings stay in the plots.
+    const distance=kind==='errand'?7.5:5.4;
+    const target={x:Math.max(-24,Math.min(24,base.x+(home.x<0?distance:-distance))),z:base.z};
     outward(s,home,target);
     s.hold(kind==='errand'?'phone':'look',6);
     if(kind==='stroll')s.hold('stretch',3);
@@ -142,17 +140,17 @@ function dayPlans(day:number,count:number):Plan[] {
     const first=chooseResident(day,slot.home,index,count);
     const home=NEIGHBOR_HOMES[slot.home];
     if(slot.kind!=='chat' || slot.withHome===undefined) {
-      const scene = slot.kind==='garden'&&day%3===2?'exercise'
-        : slot.kind==='mail'&&day%3===0?'garden':slot.kind;
+      const scene=slot.kind==='garden'&&day%4===3?'exercise'
+      :slot.kind==='mail'&&day%5===4?'garden':slot.kind;
       const seq=singlePlan(home,scene);
       plans.push({resident:first,home:slot.home,start,end:start+seq.elapsed,kind:scene,steps:seq.steps});
       return;
     }
     const second=chooseResident(day,slot.withHome,index+2,count);
-    const centerX=index===3?-5.6:6.4;
-    const firstRight=slot.home===3;
-    const a={x:centerX+(firstRight?.78:-.78),z:PATH[1].z};
-    const b={x:centerX+(firstRight?-.78:.78),z:PATH[1].z};
+    const centerX=slot.home===0?-13.55:13.45;
+    const firstRight=slot.home>slot.withHome;
+    const a={x:centerX+(firstRight?.78:-.78),z:REAR_WALK_Z};
+    const b={x:centerX+(firstRight?-.78:.78),z:REAR_WALK_Z};
     const sa=rendezvous(home,a,firstRight);
     const sb=rendezvous(NEIGHBOR_HOMES[slot.withHome],b,!firstRight);
     plans.push({resident:first,home:slot.home,start,end:start+sa.elapsed,kind:'chat',companion:second,steps:sa.steps});

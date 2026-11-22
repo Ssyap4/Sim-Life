@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { batchRigidParts, colors as C, torus, type XYZ } from './ArtKit';
 import { PLAZA_BEDS, PLAZA_FOUNTAIN, PLAZA_TREES } from '../shared/locationLayout';
 import type { Station } from '../shared/locations';
-import { bud, lettering, paintContactShade, part, paving, round, shortCylinder, smallOrb, trim, type LocationResources } from './LocationArt';
+import { bud, lettering, part, paving, round, shortCylinder, smallOrb, trim, type LocationResources } from './LocationArt';
 
 const paths = '#d6c5ab';
 const warmStone = 0xe3d1aa;
@@ -57,9 +57,6 @@ function pavement(ctx: CanvasRenderingContext2D) {
     ctx.lineTo(x+Math.cos(angle)*2.03,z+Math.sin(angle)*2.03);
     ctx.stroke();
   }
-  paintContactShade(ctx, x+.07, z+.13, 1.68, 1.66);
-  for (const bed of PLAZA_BEDS) paintContactShade(ctx, bed.x, bed.z+.10, bed.width*.70, bed.depth*.74);
-  for (const tree of PLAZA_TREES) paintContactShade(ctx, tree.x, tree.z+.08, .69, .65);
 }
 
 function archWindow(group: THREE.Group, x: number, y: number, z: number, width: number, height: number, frame: number) {
