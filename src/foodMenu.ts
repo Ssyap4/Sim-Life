@@ -1,10 +1,13 @@
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability } from './shared/recipeAvailability';
+import { skillRank } from './shared/education';
+import { gameMinutes } from './shared/life';
+import { readyFoodRemaining } from './shared/readyFood';
 import type { CharacterId } from './shared/protocol';
 import type { GameState } from './shared/protocol';
 import { RECIPE_DESCRIPTIONS } from './shared/storageSpace';
 
-export type FoodCommand = 'buy' | 'cook' | 'eat';
+export type FoodCommand = 'buy' | 'cook' | 'eat' | 'store';
 
 function entry(container: HTMLElement, heading: string, hint: string, disabled: boolean, onClick: () => void): void {
   const button = document.createElement('button');
@@ -42,6 +45,13 @@ export function showFoodChoices(
         () => submit('buy', id));
     }
   } else if (location === 'kitchen' || location === 'grill') {
+    const skill=skillRank(state.education.characters[role].xp.cooking);
+    const info=document.createElement('small');
+    info.className='food-cooking-skill';
+    info.textContent='🍲 Кулинария · ур. '+skill.level+'/20 · '+
+      (skill.next?skill.current+'/'+skill.next+' XP':'максимальный уровень')+
+      '. После успешной готовки начисляется XP. Все навыки — в телефоне → «Навыки и развитие».';
+    container.append(info);
     // On a phone, dozens of long ingredient lists were making recipes
     // impossible to browse. Keep availability visible; reveal composition on tap.
     const recipes=(Object.entries(RECIPES) as Array<[RecipeId,(typeof RECIPES)[RecipeId]]>)
@@ -74,7 +84,9 @@ export function showFoodChoices(
     });
     tools.append(search,filters,count);
     container.append(tools,results);
-    results.style.display='contents';
+    // Keep a real grid container. iOS Safari incorrectly collapses the
+    // nested recipe cards when display:contents is nested in the HUD grid.
+    results.style.display='grid';
     function renderRecipes(){
       const query=search.value.trim().toLocaleLowerCase('ru-RU').replaceAll('ё','е');
       const visible=recipes.filter(item=>{
@@ -124,19 +136,41 @@ export function showFoodChoices(
     search.addEventListener('input',renderRecipes);
     renderRecipes();
   } else {
-    let hasMeals = false;
-    for (const [id, recipe] of Object.entries(RECIPES) as Array<[RecipeId, (typeof RECIPES)[RecipeId]]>) {
-      if (!state.meals[id] || isGrillRecipe(id) !== (location === 'yardTable')) continue;
-      hasMeals = true;
-      entry(container, recipe.emoji + ' ' + recipe.name,
-        'Порций: ' + state.meals[id] + ' · голод +' + recipe.hunger + ' · настроение +' + recipe.mood,
-        false, () => submit('eat', id));
+    const now=gameMinutes(state.clock);
+    // Totals in state.meals include refrigerated leftovers. The dining table
+    // must show ONLY the actual, fresh servings physically placed on it.
+    const batches=state.readyFood.filter(b=>b.kind==='meal'&&b.storage==='table'&&
+      b.portions>0&&b.expiresAt>now&&
+      isGrillRecipe(b.item as RecipeId)===(location==='yardTable'));
+    const groups=new Map<RecipeId,{portions:number;expiresAt:number}>();
+    for(const batch of batches){
+      const id=batch.item as RecipeId;
+      const previous=groups.get(id);
+      groups.set(id,{portions:(previous?.portions??0)+batch.portions,
+        expiresAt:Math.min(previous?.expiresAt??batch.expiresAt,batch.expiresAt)});
     }
-    if (!hasMeals) {
+    for(const [id,stored] of groups){
+      const recipe=RECIPES[id];
+      const card=document.createElement('article');
+      card.className='food-serving-card';
+      const title=document.createElement('strong');
+      title.textContent=recipe.emoji+' '+recipe.name+' · '+stored.portions+' порц.';
+      const hint=document.createElement('small');
+      hint.textContent='Голод +'+recipe.hunger+' · '+readyFoodRemaining(stored.expiresAt,state.clock)+
+        ' · на столе портится быстрее';
+      const actions=document.createElement('div');
+      actions.className='food-serving-actions';
+      entry(actions,'🍽️ Съесть','1 порция',false,()=>submit('eat',id));
+      entry(actions,'🧊 Убрать в холодильник','1 порция · холод замедлит порчу',false,()=>submit('store',id));
+      card.append(title,hint,actions);
+      container.append(card);
+    }
+    if (!groups.size) {
       const hint = document.createElement('p');
       hint.className = 'food-empty';
-      hint.textContent = location === 'yardTable' ? 'На столе пока нет блюд с гриля.'
-        : 'Пока нет готовой еды. Купите ингредиенты и приготовьте что-нибудь на кухне.';
+      hint.textContent = location === 'yardTable' ?
+        'На столе пока нет свежих блюд с гриля. Приготовь их на мангале.' :
+        'На столе нет готовых порций. Приготовь блюдо или достань еду из холодильника.';
       container.append(hint);
     }
   }

@@ -1,3 +1,4 @@
+import { moveReadyFoodToTable } from '../../src/shared/readyFood';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -72,6 +73,8 @@ test('Takeaway is shared, eaten at the table, and consumed only once per portion
   const bought=checkout(initialState(),'alina',[{id:'takeout:pizzaCheese',quantity:1}]);
   assert.equal(bought.ok,true);
   if(!bought.ok)return;
+  assert.equal(moveReadyFoodToTable(bought.state,'takeout','pizzaCheese'),true);
+  assert.equal(moveReadyFoodToTable(bought.state,'takeout','pizzaCheese'),true);
   const first=applyTakeoutMeal(bought.state,'vlad','pizzaCheese');
   assert.equal(first.ok,true);
   if(!first.ok)return;

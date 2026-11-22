@@ -17,7 +17,7 @@ test('Grill menu accepts chicken and onion without oil, when both fuels are pres
   assert.ok(cooked.ok,!cooked.ok?cooked.reason:'');
 });
 
-test('Missing ingredient, low energy and full refrigerator have specific reasons',()=>{
+test('Missing ingredient, low energy and full serving table have specific reasons',()=>{
   const state=initialState();
   state.pantry.chicken=2;
   state.pantry.onion=1;
@@ -34,10 +34,11 @@ test('Missing ingredient, low energy and full refrigerator have specific reasons
   assert.equal(tired.available,false);
   if(!tired.available)assert.match(tired.reason,/энергии/);
   state.characters.vlad.energy=100;
-  state.meals.omelette=16;
+  state.meals.omelette=12;
+  state.readyFood=[{kind:'meal',item:'omelette',portions:12,storage:'table',expiresAt:999999}];
   const full=recipeAvailability(state,'vlad','grillChicken');
   assert.equal(full.available,false);
-  if(!full.available)assert.match(full.reason,/холодильнике/);
+  if(!full.available)assert.match(full.reason,/столе/);
   const refused=applyFoodAction(state,'vlad',{type:'cook',recipe:'grillChicken'});
   assert.equal(refused.ok,false);
   if(!refused.ok)assert.equal(refused.reason,full.available?'':full.reason);

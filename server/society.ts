@@ -11,7 +11,7 @@ import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { completeStudy, practiceXP, studyDenial } from './education';
 import { evaluateTask, type EvaluatedTask } from './tasks';
 import { dishCount, dirtyDishStops } from '../src/shared/dirtyDishes';
-import { expireReadyFood, readyFoodTableUsage, TABLE_READY_CAPACITY } from '../src/shared/readyFood';
+import { expireReadyFood, moveReadyFoodToTable, readyFoodTableUsage, TABLE_READY_CAPACITY } from '../src/shared/readyFood';
 import { planWalk, pointIsClear } from '../src/game/navigation';
 import { RESIDENT_CLEARANCE } from '../src/game/residentCollision';
 
@@ -221,6 +221,11 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
         change(state,to,{energy:-1});
         practiceXP(state,to,'coop:prep:'+id,'cooking','Подготовка продуктов · '+RECIPES[id as RecipeId].name,7,8);
         practiceXP(state,from,'coop:cook:'+id,'cooking','Совместная готовка · '+RECIPES[id as RecipeId].name,12,12);
+        const gainA=state.education.characters[from].xp.cooking -
+          source.education.characters[from].xp.cooking;
+        const gainB=state.education.characters[to].xp.cooking -
+          source.education.characters[to].xp.cooking;
+        message+=' · 🍲 Кулинария: +'+gainA+' / +'+gainB+' XP';
       }
       break;
     }
@@ -229,10 +234,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'bring':rejected=run(to,{type:'eat',recipe:id as RecipeId});break;
     case 'serve': {
       expireReadyFood(state);
-      const batch=state.readyFood.filter(b=>b.kind==='meal'&&b.item===id&&b.storage==='fridge').sort((a,b)=>a.expiresAt-b.expiresAt)[0];
-      if(!batch)return fail('Порция больше не хранится в холодильнике');
-      batch.portions--;state.readyFood.push({...batch,storage:'table',portions:1});
-      if(!batch.portions)state.readyFood.splice(state.readyFood.indexOf(batch),1);
+      if(!moveReadyFoodToTable(state,'meal',id))return fail('В холодильнике нет свежих порций');
       message='На стол подана одна порция · '+RECIPES[id as RecipeId].name;
       break;
     }

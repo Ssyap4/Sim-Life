@@ -22,13 +22,14 @@ export function recipeAvailability(state: GameState, role: CharacterId,
     return {available:false,effort,reason:'Слишком много порций этого блюда (максимум 30)'};
   if(state.characters[role].energy<effort)
     return {available:false,effort,reason:'Не хватает энергии для готовки (нужно '+effort+'%)'};
-  // A prepared serving occupies two fridge cells. Model the post-cooking
-  // stock without mutating the live multiplayer state or allocating batches.
+  // Freshly cooked portions go on the serving table, not straight into the
+  // fridge. Model that actual table placement before reserving ingredients.
   const after={
     pantry:{...state.pantry},
     meals:{...state.meals},
     takeout:state.takeout,
-    readyFood:state.readyFood,
+    readyFood:[...state.readyFood,{kind:'meal' as const,item:id,
+      portions:recipe.servings,storage:'table' as const,expiresAt:0}],
   };
   for(const [item,amount] of ingredientList(id))after.pantry[item]-=amount;
   after.meals[id]+=recipe.servings;

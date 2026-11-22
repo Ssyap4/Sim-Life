@@ -15,6 +15,19 @@ export interface ReadyFoodBatch {
 }
 export const READY_FOOD_SLOTS = 2; // One plated serving uses two fridge cells.
 export const TABLE_READY_CAPACITY = 12; // No infinite unrefrigerated buffet.
+export const TABLE_SHELF_MINUTES = 8 * 60; // Eight game hours exposed, not days.
+export function tableShelfMinutes(item:string):number{
+  return item==='salad'||item==='fruitSalad'?6*60:TABLE_SHELF_MINUTES;
+}
+function shiftedExpiry(batch:ReadyFoodBatch,next:ReadyFoodStorage,now:number):number{
+  const previous= batch.storage==='table'?tableShelfMinutes(batch.item):
+    readyFoodShelfDays(batch.kind,batch.item,'fridge')*MINUTES_PER_DAY;
+  const future= next==='table'?tableShelfMinutes(batch.item):
+    readyFoodShelfDays(batch.kind,batch.item,'fridge')*MINUTES_PER_DAY;
+  // No new shelf life is fabricated on repeat fridge/table transfers.
+  const fraction=Math.min(1,Math.max(0,(batch.expiresAt-now)/previous));
+  return now+Math.max(1,Math.floor(fraction*future));
+}
 
 export type ReadyFoodState = Pick<GameState, 'clock' | 'meals' | 'takeout' | 'readyFood'>;
 const owns = (record: object, key: string) => Object.prototype.hasOwnProperty.call(record, key);
@@ -37,7 +50,7 @@ export function readyFoodName(kind: ReadyFoodKind, item: string): string {
 /** In-game shelf life: fresh salads and sushi keep 2 days, other refrigerated meals 3.
  * Unrefrigerated takeaway always has a maximum of 2 days. */
 export function readyFoodShelfDays(kind: ReadyFoodKind, item: string, storage: ReadyFoodStorage): 2 | 3 {
-  if (storage === 'table') return 2;
+  if (storage === 'table') return 2; // Legacy fridge-day label; actual exposed food lasts hours.
   if (kind === 'meal' && (item === 'salad' || item === 'fruitSalad')) return 2;
   if (kind === 'takeout' && item.startsWith('rolls')) return 2;
   return 3;
@@ -48,7 +61,8 @@ export function addReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, item: s
   if (!Number.isSafeInteger(portions) || portions < 1 || portions > 40 ||
     !(kind === 'meal' ? owns(RECIPES, item) : owns(TAKEOUT, item))) throw new Error('Invalid ready food');
   state.readyFood.push({ kind, item, portions, storage,
-    expiresAt: bornAt + readyFoodShelfDays(kind, item, storage) * MINUTES_PER_DAY });
+    expiresAt: bornAt + (storage==='table' ? tableShelfMinutes(item)
+      : readyFoodShelfDays(kind, item, storage) * MINUTES_PER_DAY) });
 }
 
 /** Older saves only contained totals; give existing portions one fixed, short expiry
@@ -100,11 +114,14 @@ export function expireReadyFood(state: ReadyFoodState): ReadyFoodBatch[] {
   return expired;
 }
 
-/** Eat the oldest fresh batch first, across fridge and table. */
-export function consumeReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, item: string): boolean {
+/** Eat the oldest fresh batch in the requested place. By default preserve
+ * legacy callers that eat from the combined household stock. */
+export function consumeReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, item: string,
+  location?:ReadyFoodStorage): boolean {
   reconcileReadyFood(state);
   expireReadyFood(state);
-  const batch = state.readyFood.filter(b => b.kind === kind && b.item === item)
+  const batch = state.readyFood.filter(b => b.kind === kind && b.item === item &&
+      (location===undefined||b.storage===location))
     .sort((a,b) => a.expiresAt - b.expiresAt)[0];
   if (!batch) return false;
   batch.portions--;
@@ -114,7 +131,8 @@ export function consumeReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, ite
   return true;
 }
 
-/** Moving a serving must preserve the original expiry timestamp. */
+/** Moving changes the rate of spoilage, never restores freshness.
+ * The same portion remains one batch in exactly one storage location. */
 export function moveReadyFoodToFridge(state: ReadyFoodState, kind: ReadyFoodKind, item: string): boolean {
   reconcileReadyFood(state);
   expireReadyFood(state);
@@ -122,8 +140,25 @@ export function moveReadyFoodToFridge(state: ReadyFoodState, kind: ReadyFoodKind
     .sort((a,b) => a.expiresAt - b.expiresAt)[0];
   if (!batch) return false;
   batch.portions--;
-  state.readyFood.push({ ...batch, portions: 1, storage: 'fridge' });
+  state.readyFood.push({ ...batch, portions: 1, storage: 'fridge',
+    expiresAt:shiftedExpiry(batch,'fridge',gameMinutes(state.clock)) });
   if (!batch.portions) state.readyFood.splice(state.readyFood.indexOf(batch), 1);
+  return true;
+}
+
+/** Serve a refrigerated portion on the table without duplicating stock.
+ * The remaining fraction of freshness is preserved, but outdoor exposure
+ * makes its remaining time much shorter. */
+export function moveReadyFoodToTable(state: ReadyFoodState, kind: ReadyFoodKind, item: string): boolean {
+  reconcileReadyFood(state);
+  expireReadyFood(state);
+  const batch=state.readyFood.filter(b=>b.kind===kind&&b.item===item&&b.storage==='fridge')
+    .sort((a,b)=>a.expiresAt-b.expiresAt)[0];
+  if(!batch)return false;
+  batch.portions--;
+  state.readyFood.push({...batch,portions:1,storage:'table',
+    expiresAt:shiftedExpiry(batch,'table',gameMinutes(state.clock))});
+  if(!batch.portions)state.readyFood.splice(state.readyFood.indexOf(batch),1);
   return true;
 }
 

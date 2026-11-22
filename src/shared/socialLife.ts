@@ -125,10 +125,15 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
     case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
       const count=a.object==='eat'?2:1;
-      return recipeIds.filter(id=>state.meals[id]>=count&&(a.object!=='serve'||state.readyFood.some(batch=>batch.kind==='meal'&&batch.item===id&&batch.storage==='fridge')))
+      return recipeIds.filter(id=>state.meals[id]>=count&&state.readyFood.some(batch=>
+        batch.kind==='meal'&&batch.item===id&&batch.storage===(a.object==='serve'?'fridge':'table')&&
+        batch.portions>=count))
         .map(id=>({id,label:RECIPES[id].name}));
     }
-    case 'takeout':return Object.entries(TAKEOUT).filter(([id])=>state.takeout[id as keyof typeof TAKEOUT]>=2).map(([id,item])=>({id,label:item.name}));
+    case 'takeout':return Object.entries(TAKEOUT).filter(([id])=>
+      state.takeout[id as keyof typeof TAKEOUT]>=2&&state.readyFood.some(batch=>
+        batch.kind==='takeout'&&batch.item===id&&batch.storage==='table'&&batch.portions>=2))
+      .map(([id,item])=>({id,label:item.name}));
     case 'film':return Object.entries(GENRES).map(([id,label])=>({id,label}));
     case 'lesson':return MATERIALS.filter(m=>m.channel==='tv'&&(!m.price||state.education.licenses.includes(m.id))&&
       [from,otherPerson(from)].every(role=>skillRank(state.education.characters[role].xp[m.skill]).level>=m.min))

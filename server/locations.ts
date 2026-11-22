@@ -13,7 +13,7 @@ import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
 import { RECIPES, TAKEOUT } from '../src/shared/food';
 import { MINUTES_PER_DAY } from '../src/shared/life';
-import { discardReadyFood, moveReadyFoodToFridge, readyFoodName } from '../src/shared/readyFood';
+import { discardReadyFood, moveReadyFoodToFridge, moveReadyFoodToTable, readyFoodName } from '../src/shared/readyFood';
 import { storageCanFit } from '../src/shared/storageSpace';
 import { marketProduct } from '../src/shared/market';
 
@@ -63,7 +63,7 @@ export function setDogParkPosition(state: GameState): void {
 
 export const worldMessages = new Set([
   'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim',
-  'ready_food_move', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
+  'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
 export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>, neighborOnline = false): Result {
@@ -207,8 +207,13 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       (spoiled ? '. Испортившихся порций выброшено: ' + spoiled : ''));
   }
 
-  if (command.type === 'ready_food_move' || command.type === 'ready_food_discard') {
-    if (place !== 'home' || !at(source, role, stationById('home', 'fridge')))
+  if (command.type === 'ready_food_move' || command.type === 'ready_food_serve' ||
+      command.type === 'ready_food_discard') {
+    if(place!=='home')return fail('Это действие доступно только дома');
+    // "Store" is clicked on the plate at the table. "Serve" and
+    // discarding refrigerated food require using the actual fridge.
+    if((command.type==='ready_food_serve'||command.type==='ready_food_discard'&&command.storage==='fridge')&&
+      !at(source,role,stationById('home','fridge')))
       return fail('Сначала подойди к холодильнику');
     const kind = command.kind;
     const item = command.item;
@@ -220,7 +225,13 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       if (!moveReadyFoodToFridge(next, kind, item)) return fail('На столе больше нет свежих порций этого блюда');
       const fit = storageCanFit(source, next);
       if (!fit.ok) return fail(fit.reason);
-      return done(next, 'В холодильник убрана 1 порция: ' + readyFoodName(kind, item));
+      return done(next, '🧊 Убрана 1 порция в холодильник: ' + readyFoodName(kind, item));
+    }
+    if(command.type==='ready_food_serve') {
+      if(!moveReadyFoodToTable(next,kind,item))return fail('В холодильнике нет свежих порций');
+      const fit=storageCanFit(source,next);
+      if(!fit.ok)return fail(fit.reason);
+      return done(next,'🍽️ На стол подана 1 порция: '+readyFoodName(kind,item));
     }
     const storage = command.storage;
     if (storage !== 'fridge' && storage !== 'table') return fail('Неизвестное место хранения');

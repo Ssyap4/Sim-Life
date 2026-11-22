@@ -97,7 +97,7 @@ export class World {
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
-  private displayedMealRecipe: RecipeId | undefined;
+  private displayedMealRecipe: RecipeId | TakeoutId | undefined;
   private readonly meals = new Map<CharacterId, THREE.Group>();
   private readonly vector = new THREE.Vector3();
   private remote: ReturnType<typeof createLocation> | null = null;
@@ -210,6 +210,14 @@ export class World {
 
     this.createLights();
     this.createHome();
+    // Grill portions are tappable just like the plates on the indoor table.
+    // Invisible dishes are ignored by pick(), preventing ghost actions.
+    for(const dish of [this.yard.platter,...this.yard.servings.values()])dish.traverse(part=>{
+      if(part instanceof THREE.Mesh){
+        part.userData.interactable='yardTable';
+        this.interactiveMeshes.push(part);
+      }
+    });
     this.createDirtyDishes();
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
@@ -252,6 +260,12 @@ export class World {
     const serving = this.meals.get('vlad')!.clone();
     serving.position.set(HOME_PLACEMENTS.table.x, DINING_TOP + .014, HOME_PLACEMENTS.table.z - .28);
     serving.visible = false;
+    serving.traverse(object=>{
+      if(object instanceof THREE.Mesh){
+        object.userData.interactable='table';
+        this.interactiveMeshes.push(object);
+      }
+    });
     this.homeScene.add(serving);
     this.served = serving;
     this.setActive('vlad');
@@ -430,7 +444,7 @@ export class World {
       sofa: { x: vlad ? -.50 : .50, y: vlad ? .057 : .106, z: -.27, yaw: Math.PI },
       bed: { x: vlad ? -.55 : .55, y: 1.055, z: 1.01, yaw: 0 },
       desk: { x: 0, y: vlad ? -.24 : -.19, z: 1.01, yaw: Math.PI },
-      table: { x: vlad ? .99 : -.99, y: vlad ? -.27 : -.22, z: 0, yaw: vlad ? -Math.PI / 2 : Math.PI / 2 },
+      table: { x: vlad ? .99 : -.99, y: vlad ? -.37 : -.32, z: 0, yaw: vlad ? -Math.PI / 2 : Math.PI / 2 },
     } as const;
     const item = itemId as keyof typeof anchors;
     const anchor = anchors[item];
@@ -1772,8 +1786,11 @@ export class World {
           plate.visible=index<state.dirtyDishes[station];
         });
       }
-      this.yard.platter.visible = GRILL_RECIPES.some(recipe => state.meals[recipe] > 0);
-      for (const [recipe, serving] of this.yard.servings) serving.visible = state.meals[recipe] > 0;
+      const onTable=(kind:'meal'|'takeout',item:string)=>
+        state.readyFood.some(batch=>batch.kind===kind&&batch.item===item&&
+          batch.storage==='table'&&batch.portions>0&&batch.expiresAt>clockMinutes(state.clock));
+      this.yard.platter.visible = GRILL_RECIPES.some(recipe => onTable('meal',recipe));
+      for (const [recipe, serving] of this.yard.servings) serving.visible = onTable('meal',recipe);
       for(const [id,model] of this.staticFixtureModels)
         model.visible=!state.furnishing.soldFixtures?.includes(id);
       this.renderOwnedFurniture(state.furnishing.placed);
@@ -1782,8 +1799,12 @@ export class World {
       if(this.served){
         const platePos=tabletopPoint(top,0,top.kind==='counter'?.08:-Math.min(.28,top.depth*.25));
         this.served.position.set(platePos.x,top.height+.014,platePos.z);
-        const recipe=(Object.keys(state.meals) as RecipeId[])
-          .find(id=>!isGrillRecipe(id)&&state.meals[id]>0);
+        // Totals include the fridge, but only food actually served on the
+        // table is allowed to appear in the 3D scene.
+        const recipe=state.readyFood.find(batch=>batch.storage==='table'&&
+          batch.portions>0&&batch.expiresAt>clockMinutes(state.clock)&&
+          (batch.kind==='takeout'||!isGrillRecipe(batch.item as RecipeId)))?.item as
+            (RecipeId|TakeoutId|undefined);
         if(recipe!==this.displayedMealRecipe&&recipe){
           selectIndoorDish(this.served.getObjectByName('Indoor serving')! as THREE.Group,recipe);
         }

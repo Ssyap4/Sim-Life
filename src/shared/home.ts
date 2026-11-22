@@ -107,9 +107,9 @@ export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./prot
   const p = furniturePosition(id, layout);
   const seat = {
     sofa: [first ? -.50 : .50, first ? .057 : .106, -.27, Math.PI, first ? -.50 : .50, -1.01],
-    officeChair: [.14, first ? -.24 : -.19, 0, Math.PI / 2, 1.02, 0],
-    table: [first ? .99 : -.99, first ? -.27 : -.22, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
-    yardTable: [first ? -.57 : .57, first ? -.27 : -.22, .72, Math.PI, first ? -.57 : .57, 1.42],
+    officeChair: [.14, first ? -.30 : -.25, 0, Math.PI / 2, 1.02, 0],
+    table: [first ? .99 : -.99, first ? -.37 : -.32, 0, first ? -Math.PI / 2 : Math.PI / 2, first ? 1.80 : -1.80, 0],
+    yardTable: [first ? -.57 : .57, first ? -.35 : -.30, .72, Math.PI, first ? -.57 : .57, 1.42],
   }[id];
   const [x,y,z,yaw,approachX,approachZ] = seat;
   return { position: {x:p.x+x,y,z:p.z+z}, yaw, approach: {x:p.x+approachX,z:p.z+approachZ} };

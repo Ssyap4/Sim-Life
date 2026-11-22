@@ -1,3 +1,4 @@
+import { addReadyFood } from '../../src/shared/readyFood';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -75,6 +76,7 @@ test('Three modes: off does nothing; care uses existing real tasks; full adds pr
   state.characters.vlad.hunger=18;
   state.characters.vlad.energy=70;
   state.meals.omelette=2;
+  addReadyFood(state,'meal','omelette',2,'table');
   assert.deepEqual(autonomyCandidates(state,'vlad'),[]);
   state.autonomy.vlad='needs';
   const eat=autonomyCandidates(state,'vlad');

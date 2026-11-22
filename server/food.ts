@@ -45,20 +45,20 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     const {effort}=availability;
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
-    addReadyFood(state,'meal',id,recipe.servings,'fridge');
+    addReadyFood(state,'meal',id,recipe.servings,'table');
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
     actor.energy = Math.max(0, actor.energy - effort);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);
     Object.assign(actor, isGrillRecipe(id) ? { ...points.grill, pose: 'idle' } : { ...points.kitchen, pose: 'work' });
-    message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции';
+    message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции · на столе';
   } else {
     if (!owns(RECIPES, command.recipe)) return { ok: false, reason: 'Неизвестное блюдо' };
     const id: RecipeId = command.recipe;
     const meal = RECIPES[id];
     if (state.meals[id] < 1) return { ok: false, reason: 'Готовых порций нет — сначала приготовь' };
-    if (!consumeReadyFood(state,'meal',id)) return { ok: false, reason: 'Это блюдо уже испортилось' };
+    if (!consumeReadyFood(state,'meal',id,'table')) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     actor.mood = Math.min(100, actor.mood + meal.mood);
     actor.comfort = Math.min(100, actor.comfort + 4);
@@ -78,7 +78,7 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
   const state=structuredClone(source);
   reconcileReadyFood(state);
   expireReadyFood(state);
-  if (!state.takeout[id] || !consumeReadyFood(state,'takeout',id))
+  if (!state.takeout[id] || !consumeReadyFood(state,'takeout',id,'table'))
     return {ok:false,reason:'Готовой еды нет или срок её годности истёк'};
   const meal=TAKEOUT[id];
   const actor=state.characters[role];

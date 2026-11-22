@@ -9,7 +9,7 @@ import { initialState, type CharacterId, type GameState, type ServerPacket } fro
 import { activityItems, contextAvailable, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, type SocialIntent } from '../../src/shared/socialLife';
 import { ingredientList } from '../../src/shared/food';
 import { clockAt, gameMinutes } from '../../src/shared/life';
-import { addReadyFood } from '../../src/shared/readyFood';
+import { addReadyFood, moveReadyFoodToFridge } from '../../src/shared/readyFood';
 import { initialServices } from '../../src/shared/services';
 import { newCareerProgress } from '../../src/shared/careers';
 import { pointIsClear } from '../../src/game/navigation';
@@ -25,7 +25,7 @@ function sample(){
   const state=initialState();
   state.pantry.eggs=7;state.pantry.milk=7;
   state.meals.omelette=2;
-  addReadyFood(state,'meal','omelette',2,'fridge');
+  addReadyFood(state,'meal','omelette',2,'table');
   state.characters.vlad.hunger=25;state.characters.alina.hunger=30;
   state.characters.vlad.mood=45;state.characters.alina.mood=45;
   return state;
@@ -254,9 +254,12 @@ test('Pet bowl, food service and dish cleaning perform single operations against
   together('petFeed','simba');
   assert.equal(state.petFood.simba,original-1);
   assert.equal(state.petBowls.simba,3);
+  assert.equal(moveReadyFoodToFridge(state,'meal','omelette'),true);
+  assert.equal(moveReadyFoodToFridge(state,'meal','omelette'),true);
   const expiry=state.readyFood[0].expiresAt;
   together('serve','omelette');
-  assert.equal(state.readyFood.find(b=>b.storage==='table')?.expiresAt,expiry);
+  assert.ok(state.readyFood.some(b=>b.storage==='table'&&b.expiresAt<expiry),
+    'serving the portion accelerates spoilage without refreshing the food');
   assert.equal(state.meals.omelette,2);
   state.dirtyDishes={table:2,yardTable:1};
   together('dishes');

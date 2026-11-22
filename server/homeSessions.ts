@@ -270,7 +270,13 @@ export function createHomeSessions(hooks: Hooks) {
         seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
       Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from,
         { pose: seated ? 'sit' : 'idle' });
-      if (!session.study && !packet.automatic) awardActivity(result.state, role, session.plan.command, session.plan.label);
+      if (!session.study && (!packet.automatic||session.plan.command.type==='cook'))
+        awardActivity(result.state, role, session.plan.command, session.plan.label);
+      if(session.plan.command.type==='cook'){
+        const earned=result.state.education.characters[role].xp.cooking -
+          next.education.characters[role].xp.cooking;
+        if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
+      }
       next = result.state;
       results.push(result);
     }
