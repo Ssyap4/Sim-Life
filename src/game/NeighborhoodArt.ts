@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HOUSE, HOUSE_WING } from '../shared/home';
+import { HOUSE } from '../shared/home';
 import { NEIGHBOR_PATH } from '../shared/neighbors';
 import { NEIGHBOR_HOMES, homeStops, type NeighborHome } from '../shared/neighborHomes';
 export { NEIGHBOR_HOMES } from '../shared/neighborHomes';
@@ -239,95 +239,62 @@ function cottage(root: Root, home: Home, index: number): void {
 
 export function buildNeighborhood(scene: THREE.Scene): void {
   const root = new THREE.Group();
-  root.name = '0.18 · уютный пригород · четыре разнесённых соседских дома';
-  const [west, rearWest, rearEast, east] = NEIGHBOR_PATH;
-  const midZ = (west.z + rearWest.z) / 2;
-  const depth = west.z - rearWest.z;
-  const middleX = (west.x + east.x) / 2;
-  const width = 1.80;
-
-  // One continuous, very cheap terrain layer replaces the old patchwork
-  // platforms. Its distant edges dissolve in existing atmospheric fog, and
-  // the home floor/yard remain visibly higher than the surrounding lawn.
-  part(root, cube, [140, .515, 140], [0, -.395, 0], 0x94a780);
-  const grassMap = turfTexture();
-  if (grassMap) {
-    grassMap.wrapS = THREE.RepeatWrapping;
-    grassMap.wrapT = THREE.RepeatWrapping;
-    const geometry = plane.clone();
-    const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 17.5, uv.getY(i) * 17.5);
-    const lawn = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-      map: grassMap, roughness: 1, color: 0xffffff,
+  root.name = '0.19 · four backyard neighborhood homes and daily-life residents';
+  const walkwayZ=NEIGHBOR_PATH[0].z;
+  part(root,cube,[140,.515,140],[0,-.395,0],0x94a780);
+  const grassMap=turfTexture();
+  if(grassMap){
+    grassMap.wrapS=THREE.RepeatWrapping;grassMap.wrapT=THREE.RepeatWrapping;
+    const geometry=plane.clone(),uv=geometry.getAttribute('uv') as THREE.BufferAttribute;
+    for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*17.5,uv.getY(i)*17.5);
+    const lawn=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
+      map:grassMap,roughness:1,color:0xffffff,
     }));
-    lawn.rotation.x = -Math.PI / 2;
-    lawn.position.set(0, -.134, 0);
-    lawn.scale.set(140, 140, 1);
-    lawn.receiveShadow = true;
+    lawn.rotation.x=-Math.PI/2;
+    lawn.position.set(0,-.134,0);
+    lawn.scale.set(140,140,1);
     root.add(lawn);
   }
-
-  const stone = pavingTexture();
-  if (stone) {
-    stone.wrapS = THREE.RepeatWrapping;
-    stone.wrapT = THREE.RepeatWrapping;
-  }
-  const pavingMaterial = new THREE.MeshStandardMaterial({
-    map: stone, color: stone ? 0xffffff : 0xcab99d, roughness: .96,
+  const stone=pavingTexture();
+  if(stone){stone.wrapS=THREE.RepeatWrapping;stone.wrapT=THREE.RepeatWrapping;}
+  const material=new THREE.MeshStandardMaterial({
+    map:stone,color:stone?0xffffff:0xcab99d,roughness:.96,
   });
-  footpath(root, west.x, midZ, width, depth + width, stone, pavingMaterial);
-  footpath(root, east.x, midZ, width, depth + width, stone, pavingMaterial);
-  footpath(root, middleX, rearWest.z, east.x - west.x + width, width, stone, pavingMaterial);
-
-  // Subtle corner cobbles make the two bends read as connected public space.
-  for (const x of [rearWest.x, rearEast.x]) {
-    part(root, drum, [1.01, .045, 1.01], [x, -.004, rearWest.z], 0xd8c4a6, 'ceramic');
-  }
-
-  // Planting is *outside* the path strip, not in the existing navigation lane.
-  for (const [side, x] of [[0, west.x - 2.55], [1, east.x + 2.55]] as const) {
-    for (const [i, z] of [rearWest.z + 3.5, rearWest.z + 9.8, rearWest.z + 17.2, west.z - 4.4].entries()) {
-      planting(root, x, z, i + side * 2, i % 2 === 0);
-      if (i !== 2) flowerbed(root, x + (side ? -.30 : .30), z + 1.45, i + side);
-    }
-  }
-  for (let i = 0; i < 6; i++) {
-    const x = rearWest.x + 4.8 + i * (rearEast.x - rearWest.x - 9.6) / 5;
-    planting(root, x, rearWest.z - 3.45 - (i % 2) * .45, i + 3, i % 2 === 0);
-    if (i % 2) planting(root, x + .9, rearWest.z - 2.3, i);
-  }
-
-  // Farm-style posts with painted caps, no real point lights or per-frame work.
-  for (const [x, z] of [
-    [west.x - 1.48, rearWest.z + 5.2], [west.x - 1.48, west.z - 4.2],
-    [east.x + 1.48, rearWest.z + 5.2], [east.x + 1.48, west.z - 4.2],
-    [middleX - 9.8, rearWest.z - 1.64], [middleX + 9.8, rearWest.z - 1.64],
-  ]) {
-    part(root, drum, [.078, 2.15, .078], [x, .94, z], 0x4d5a51, 'metal');
-    part(root, softCube, [.31, .13, .31], [x, 2.02, z], 0x6e7868, 'metal');
-    part(root, orb, [.17, .16, .17], [x, 1.91, z], 0xffdfac, 'ceramic');
-    part(root, softCube, [.38, .068, .38], [x, 2.13, z], 0x4a594f, 'metal');
-  }
-
-  for (const [i, home] of NEIGHBOR_HOMES.entries()) {
-    cottage(root, home, i);
-    // Real connecting garden paths link each gate to its public sidewalk.
-    const { gate, sidewalk } = homeStops(home);
-    const dx=sidewalk.x-gate.x, dz=sidewalk.z-gate.z;
-    const length=Math.hypot(dx,dz);
-    const yaw=Math.atan2(dx,dz);
-    for(let k=0;k<Math.floor(length/.55);k++) {
+  // Single rear path: all four houses are behind the playable home.
+  footpath(root,0,walkwayZ,51,1.8,stone,material);
+  for(let i=0;i<NEIGHBOR_HOMES.length;i++){
+    const home=NEIGHBOR_HOMES[i];
+    cottage(root,home,i);
+    const {gate,sidewalk}=homeStops(home);
+    const dx=sidewalk.x-gate.x,dz=sidewalk.z-gate.z;
+    const length=Math.hypot(dx,dz),yaw=Math.atan2(dx,dz);
+    for(let k=0;k<Math.floor(length/.55);k++){
       const f=(k+.5)*.55/length;
-      const stone=part(root,softCube,[.84,.050,.43],
+      const step=part(root,softCube,[.84,.050,.43],
         [gate.x+dx*f,.008,gate.z+dz*f],
         [0xd3c1a1,0xc9b79d,0xe1cfb0][(k+i)%3],'ceramic');
-      stone.rotation.y=yaw;
+      step.rotation.y=yaw;
     }
+    // One garden tree per rear plot, always away from pedestrian routes.
+    planting(root,home.x-(i%2?2.5:-2.5),home.z-4.5,i+3,true);
+    flowerbed(root,home.x+2.9,home.z+home.depth/2+1.25,i);
   }
-
-  // The separate homes always sit beyond the public pedestrian network.
-  const reserve = Math.min(HOUSE.minX - west.x, east.x - HOUSE_WING.maxX, HOUSE.minZ - rearWest.z);
-  if (reserve < 7.5) throw new Error('Keep the future house extension reserve and pedestrian ring');
-  batchRigidParts(root, true);
+  for(let i=0;i<NEIGHBOR_HOMES.length-1;i++){
+    const a=NEIGHBOR_HOMES[i],b=NEIGHBOR_HOMES[i+1];
+    const middle=(a.x+b.x)/2;
+    planting(root,middle,-29.2,i+2,i%2===0);
+  }
+  for(const x of [-22,-10,4,17,24]){
+    part(root,drum,[.075,2.05,.075],[x,.94,walkwayZ-.15],0x4d5a51,'metal');
+    part(root,orb,[.17,.16,.17],[x,1.91,walkwayZ-.15],0xffdfac,'ceramic');
+  }
+  // Reserve an extension strip between the family's rear wall and public path.
+  if(HOUSE.minZ-walkwayZ<7.5)throw new Error('Rear path needs room for future extensions');
+  for(let i=0;i<NEIGHBOR_HOMES.length-1;i++){
+    const a=NEIGHBOR_HOMES[i],b=NEIGHBOR_HOMES[i+1];
+    if(b.x-b.width/2-(a.x+a.width/2)<4)
+      throw new Error('Neighbor houses must have independent open garden gaps');
+  }
+  batchRigidParts(root,true);
   scene.add(root);
 }

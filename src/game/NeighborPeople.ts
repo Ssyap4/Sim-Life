@@ -4,7 +4,7 @@ import { GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { batchRigidParts, cube, drum, finish, orb, softCube, sculptedCurve } from './ArtKit';
 import { makeEye } from './EyeArt';
 import { loft, sculpt } from './SculptMesh';
-import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
+import { NEIGHBOR_HOMES, REAR_WALK_Z } from '../shared/neighborHomes';
 
 interface NeighborRig {
   root: THREE.Group;
@@ -360,7 +360,7 @@ export class NeighborPeople {
       if(!pose.visible)continue;
       // The public stone paving sits 13cm above the garden lawn. Blend their
       // elevations at each footpath instead of floating around the cottages.
-      const pathDist=Math.min(Math.abs(pose.x+17.50),Math.abs(pose.x-23.50),Math.abs(pose.z+15.35));
+      const pathDist=Math.abs(pose.z-REAR_WALK_Z);
       const lawn=THREE.MathUtils.smoothstep(pathDist,.9,2.5);
       rig.root.position.set(pose.x,.03-.136*lawn,pose.z);
       rig.root.rotation.y=pose.yaw;

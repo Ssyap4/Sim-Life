@@ -71,6 +71,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       grid.append(entry);
     }
     map.append(grid);
+    if (location === 'home') {
+      map.append(button('🏘️ Осмотреть соседей',()=>{
+        closeMap();getWorld().focusNeighborhood();
+      }));
+      map.append(button('🏠 Камера к нашему дому',()=>{
+        closeMap();getWorld().focusHome();
+      }));
+    }
     if (location === 'home' && !state.world.dogWalker)
       map.append(button('🐾 В парк с Верделлом', () => travel('park', undefined, true), !!state.activeShifts[role]));
     map.append(button('Выйти и забыть устройство', signOut));

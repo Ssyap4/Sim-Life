@@ -2,6 +2,7 @@ import { HomeEffects } from './HomeEffects';
 import { buildHomeWing } from './HomeWing';
 import { buildNeighborhood } from './NeighborhoodArt';
 import { NeighborPeople } from './NeighborPeople';
+import { NEIGHBORS, neighborPose } from '../shared/neighbors';
 import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
@@ -165,6 +166,7 @@ export class World {
   private readonly followPoint = new THREE.Vector3();
   private readonly followDelta = new THREE.Vector3();
   private cameraMove: Frame | null = null;
+  private neighborhoodView=false;
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
@@ -339,6 +341,7 @@ export class World {
   }
 
   showcase(subject: CharacterId | PetId | null): void {
+    this.neighborhoodView=false;
     this.inspected = subject;
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
@@ -361,6 +364,26 @@ export class World {
     const angle = subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
       : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
     this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
+  }
+
+  private neighborCameraFrame():Frame {
+    // Observe the active garden resident rather than showing tiny NPCs
+    // behind the HUD. The camera affects only this player's viewport.
+    const visiting=NEIGHBORS.map((_,i)=>neighborPose(i,this.neighborMinute))
+      .find(p=>p.visible&&p.opacity>.30);
+    const target=new THREE.Vector3(visiting?.x??-7.1,.65,visiting?.z??-20.3);
+    const direction=new THREE.Vector3(.18,1.20,1.43).normalize();
+    return {target,position:target.clone().addScaledVector(direction,21.5)};
+  }
+  focusNeighborhood():void {
+    if(this.place!=='home')return;
+    this.showcase(null);
+    this.neighborhoodView=true;
+    this.cameraMove=this.neighborCameraFrame();
+  }
+  focusHome():void {
+    if(this.place!=='home')return;
+    this.showcase(null);
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work',
@@ -1625,6 +1648,7 @@ export class World {
     this.kitchenCooking=false;
     this.kitchenEffects.root.visible=false;
     this.homeTasks.clear();
+    this.neighborhoodView=false;
     this.computerScreens.resetPreviews();
     this.pairStages.clear();
     this.dishTasks.clear();
@@ -1888,12 +1912,14 @@ export class World {
     }
     const current = this.defaultFrame;
     this.defaultFrame = this.homeFrame(compact, band);
+    const nextFrame=this.neighborhoodView ? this.neighborCameraFrame() : this.defaultFrame;
     if (this.cameraMove) {
-      this.cameraMove = this.defaultFrame;
-    } else if (!current || (this.camera.position.distanceTo(current.position) < 0.07 &&
+      this.cameraMove = nextFrame;
+    } else if (this.neighborhoodView || !current ||
+        (this.camera.position.distanceTo(current.position) < 0.07 &&
         this.controls.target.distanceTo(current.target) < 0.07)) {
-      this.camera.position.copy(this.defaultFrame.position);
-      this.controls.target.copy(this.defaultFrame.target);
+      this.camera.position.copy(nextFrame.position);
+      this.controls.target.copy(nextFrame.target);
       this.controls.update();
     }
   }

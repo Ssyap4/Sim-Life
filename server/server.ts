@@ -107,11 +107,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
   const idleAutonomyMs=options.autonomyTiming?.idleMs??18_000;
-  const careCooldownMs=options.autonomyTiming?.careCooldownMs??45_000;
-  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??50_000;
+  const careCooldownMs=options.autonomyTiming?.careCooldownMs??25_000;
+  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??19_000;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
+  const fullRoutineTurn=new Map<CharacterId,number>();
+
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
@@ -345,7 +347,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const done of next.completed) all({type:'job_event',role:done.role,outcome:'finished',message:done.message});
     return true;
   };
+  const reapFinishedWalks = (now: number): void => {
+    for(const [role,walk] of walkingHome){
+      const length=walk.route.path.reduce((distance,point,index)=>{
+        const prev=walk.route.path[index-1]??walk.route.from;
+        return distance+Math.hypot(point.x-prev.x,point.z-prev.z);
+      },0);
+      // Leave a small grace period for mobile animation interpolation.
+      if(now-walk.started>=length/HOME_WALK_SPEED*1000+700)
+        walkingHome.delete(role);
+    }
+  };
   const lifeTicker = setInterval(() => {
+    reapFinishedWalks(Date.now());
     if (!commitLife()) return;
     const now = Date.now();
     const available: CharacterId[] = [];
@@ -358,7 +372,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         running.has(role)||homeTasks.busy(role)||(queuedTasks.get(role)?.length??0)>0||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
         (mode!=='off'&&walkingHome.has(role))||
-        now-(lastIntent.get(role)??now)<idleAutonomyMs)continue;
+        now-(lastIntent.get(role)??now)<Math.min(idleAutonomyMs,mode==='off'?idleAutonomyMs:5500))continue;
       // Off means the exact existing 0.16 background routine, not a frozen
       // resident: rare idle walks and rescue only when a vital need reaches 8%.
       if(mode==='off'){
@@ -417,8 +431,33 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
       }
       if(started)continue;
-      if(mode==='full'&&!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs)
-        available.push(role);
+      if(!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs) {
+        if(mode==='full'){
+          // Alternate ordinary household chores with leisure: without this
+          // both residents could only repeat TV/computer/pet interactions.
+          const turn=fullRoutineTurn.get(role)??0;
+          fullRoutineTurn.set(role,turn+1);
+          if(turn%3===1){
+            const chores=(role==='vlad'
+              ? ['kitchenTidy','tablePlan','kitchenWash','bathTeeth','sofaRest']
+              : ['bathTeeth','tablePlan','kitchenTidy','bathWash','sofaMusic']) as
+              (keyof typeof ACTIONS)[];
+            for(let i=0;i<chores.length;i++){
+              const actionId=chores[(Math.floor(turn/3)+i)%chores.length];
+              const plan=planTask({type:'act',actionId});
+              if(!plan || taskAccessError(state,plan.command) ||
+                  plan.resource && (homeTasks.reserved(plan.resource) ||
+                    [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
+              if(!evaluateTask(state,role,plan.command).ok)continue;
+              lastAutoCare.set(role,now);
+              beginTask(role,socket,plan,true);
+              started=true;
+              break;
+            }
+          }
+        }
+        if(!started)available.push(role);
+      }
     }
     // Keep the original 0.16 idle entertainment in OFF mode as well. The
     // expanded planner must not replace it or invent new obligations.
@@ -451,7 +490,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     // Only two idle residents who explicitly opted into FULL autonomy may
     // perform a shared spontaneous chat; neither character is commandeered
     // from manual control, study, sleep or any other task.
-    if(available.length===2&&Math.floor(clockMinutes(state.clock)/125)%3===0){
+    if(available.length===2&&available.every(role=>state.autonomy[role]==='full')&&
+        Math.floor(clockMinutes(state.clock)/125)%3===0){
       const routes:Partial<Record<CharacterId,WalkRoute>>={};
       for(const role of available){
         const route=planLeisure(state,role,'chat');
@@ -467,8 +507,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=role==='vlad'
-        ? ['computer','tv','verdell','simba']
+      const preferences:HomeLeisure[]=state.autonomy[role]==='needs'
+        ? role==='vlad'?['verdell','simba']:['simba','verdell']
+        : role==='vlad'?['computer','tv','verdell','simba']
         : ['simba','tv','verdell','computer'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
       const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
@@ -827,7 +868,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
             if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
-          lastIntent.set(role,Date.now());
+          lastIntent.set(role,Date.now()-4000);
           lastAutoCare.set(role,0);
           all({type:'snapshot',state});
         }
