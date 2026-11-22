@@ -28,6 +28,7 @@ import { HOME_LAPTOP } from './shared/locations';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
+import './mobile-polish.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -1135,6 +1136,15 @@ function openActions(item: ItemId): void {
   if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
+  // On phone screens the cooking list must be the FIRST content after the
+  // heading. General hints, washing dishes and collaboration follow below.
+  if(state&&active&&(item==='kitchen'||item==='grill')){
+    showFoodChoices(actionsEl,item,state,(type:FoodCommand,id)=>{
+      const sent=net.food(type,id);
+      if(sent){actionsEl.hidden=true;statusEl.textContent='Обрабатываем действие…';}
+      return sent;
+    },active);
+  }
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];
@@ -1175,7 +1185,7 @@ function openActions(item: ItemId): void {
     });
     actionsEl.append(together);
   }
-  if (state && (item === 'delivery' || item === 'kitchen' || item === 'table' || item === 'grill' || item === 'yardTable')) {
+  if (state && (item === 'delivery' || item === 'table' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = net.food(type, id);
       if (sent) {

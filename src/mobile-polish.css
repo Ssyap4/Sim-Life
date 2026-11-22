@@ -1,0 +1,300 @@
+/* Sim-Life 0.17 — mobile-first HUD, shop, cooking and home UX.
+   Portrait phone sizes are the design source of truth. No desktop redesign. */
+@media (max-width: 640px) and (orientation: portrait) {
+  :root {
+    --mobile-paper: #fffdf5;
+    --mobile-mint: #eef4e8;
+    --mobile-line: #d7e4d6;
+    --mobile-ink: #345b45;
+  }
+  .phone-overlay {
+    padding: 4px max(4px, env(safe-area-inset-right, 0px))
+      max(4px, env(safe-area-inset-bottom, 0px))
+      max(4px, env(safe-area-inset-left, 0px));
+    backdrop-filter: blur(2px);
+  }
+  .phone-case {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    border-width: 4px;
+    border-radius: 20px;
+  }
+  .phone-header { padding: 5px 8px 6px 9px; }
+  .phone-header button { min-width: 44px; min-height: 44px; }
+  .phone-grid { padding: 12px; gap: 8px; }
+  .phone-grid button {
+    min-height: 72px;
+    padding: 9px 7px;
+    gap: 4px;
+    border-radius: 12px;
+    line-height: 1.25;
+    font-size: 12px;
+  }
+  .phone-grid button span { font-size: 23px; }
+  .phone-info { padding: 9px; }
+  .phone-info article { padding: 10px; margin-bottom: 7px; }
+
+  /* The store and job board already own their close button, title and
+     navigation. Hiding the phone's duplicate header exposes actual content. */
+  .phone-overlay:has(.market-overlay:not([hidden])) .phone-header,
+  .phone-overlay:has(.jobs-overlay:not([hidden])) .phone-header { display:none; }
+
+  .market-card,.phone-screen .market-card { min-height:0; border-radius:0; }
+  .market-header { padding: 8px 10px 5px; gap: 8px; }
+  .market-title strong { font-size:15px; line-height:1.2; }
+  .market-title small { font-size:11px; }
+  .market-close { min-width:44px; width:44px; min-height:44px; height:44px; }
+  .market-tabs { padding: 2px 8px 7px; gap:5px; }
+  .market-tab { padding: 7px 3px; min-height:44px; font-size:11px; }
+  .market-scroll { padding: 0 9px 8px; }
+  .market-search { padding:7px 8px; margin:0 0 3px; }
+  .market-search-input { min-height:44px; height:44px; font-size:16px; }
+  .market-search-clear { height:44px; min-width:44px; }
+  .market-search-count { margin: 4px 2px; font-size:11px; }
+  .market-suggestions { gap:5px; }
+  .market-search-suggestion { min-height:44px; padding:7px 10px; font-size:11px; }
+  .market-filters {
+    gap:6px; padding:4px 1px 8px; overflow-x:auto;
+    scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch;
+    overscroll-behavior-inline:contain;
+  }
+  .market-filter {
+    min-height:44px; padding:8px 11px; font-size:11px;
+    scroll-snap-align:start;
+  }
+  .market-hint { margin:0 3px 7px; font-size:11px; line-height:1.4; }
+  .market-scroll > .market-catalog-capacity { display:none; }
+  .market-products { grid-template-columns:1fr; gap:7px; }
+  .market-product {
+    display:grid;
+    grid-template-columns:34px minmax(0,1fr) 48px;
+    align-items:center; column-gap:9px; row-gap:3px;
+    padding:9px 8px; border-radius:13px;
+    background:#fffdf8; border-color:var(--mobile-line);
+  }
+  .market-product-icon { grid-column:1; font-size:26px; }
+  .market-description { grid-column:2; gap:3px; }
+  .market-description strong { font-size:13px; line-height:1.3; }
+  .market-description small { font-size:11px; line-height:1.35; }
+  .market-product-about {
+    display:-webkit-box; -webkit-box-orient:vertical;
+    -webkit-line-clamp:2; overflow:hidden;
+  }
+  .market-price { font-size:14px; }
+  .market-stepper {
+    grid-column:3; grid-row:1; width:48px;
+    display:flex; flex-direction:column; justify-content:center;
+    align-items:center; gap:1px;
+    font-size:12px; font-variant-numeric:tabular-nums;
+  }
+  .market-stepper .market-adjust {
+    width:44px; min-width:44px; height:44px; min-height:44px;
+    padding:2px; font-size:19px;
+  }
+  .market-stepper >span { min-height:22px; display:grid; place-items:center; }
+  .market-checkout {
+    align-items:center; padding:7px 9px max(7px,env(safe-area-inset-bottom));
+    gap:8px;
+  }
+  .market-summary { gap:2px; min-width:0; }
+  .market-summary strong { font-size:12px; }
+  .market-summary small { font-size:10px; line-height:1.25; }
+  .market-summary .market-checkout-extra,
+  .market-summary .market-checkout-capacity { display:none; }
+  .market-order { min-height:44px; max-width:46%; padding:8px 10px; font-size:11px; }
+  .market-recipe-order { min-height:44px; font-size:11px; padding:9px 11px; }
+  .market-stock-row { overflow-wrap:anywhere; }
+
+  .jobs-head { padding:10px 11px 7px; }
+  .jobs-title strong { font-size:15px; }
+  .jobs-card,.phone-screen .jobs-card { min-height:0; }
+  .jobs-scroll { padding:4px 9px 12px; }
+  .jobs-offer { padding:10px; }
+  .jobs-description { font-size:12px; }
+
+  .furnish-overlay {
+    padding:max(4px,env(safe-area-inset-top,0px))
+      max(4px,env(safe-area-inset-right,0px))
+      max(4px,env(safe-area-inset-bottom,0px))
+      max(4px,env(safe-area-inset-left,0px));
+    backdrop-filter:blur(2px);
+  }
+  .furnish-case {
+    height:100%; max-height:100%; min-height:0;
+    border-radius:14px;
+  }
+  .furnish-head { padding:9px 11px 6px; }
+  .furnish-head h2 { font-size:19px; }
+  .furnish-head button { min-height:44px; min-width:44px; }
+  .furnish-tabs { padding:5px 7px; gap:5px; }
+  .furnish-tabs button { min-height:44px; font-size:11px; padding:7px 4px; }
+  .furnish-topline { padding:6px 9px; font-size:11px; line-height:1.3; }
+  .furnish-body { padding:8px; }
+  .furnish-filters { gap:6px; margin-bottom:7px; }
+  .furnish-filters input,.furnish-filters select {
+    min-height:44px; padding:8px; font-size:16px;
+  }
+  .furnish-instructions { margin:5px 0 9px; font-size:11px; line-height:1.35; }
+  .furnish-grid { gap:7px; }
+  .furnish-card { gap:6px; }
+  .furnish-card-icon { height:110px; }
+  .furnish-card-copy strong { font-size:12px; line-height:1.3; }
+  .furnish-card-copy small { font-size:11px; }
+  .furnish-card-actions button,.furnish-button,.furnish-line-buttons button {
+    min-height:44px; font-size:11px; padding:8px;
+  }
+  .furnish-placebox {
+    bottom:calc(83px + env(safe-area-inset-bottom));
+    max-height:min(48dvh,300px); overflow:auto;
+    padding:9px 11px;
+  }
+  .furnish-placebox small { font-size:11px; line-height:1.35; }
+
+  /* Long ingredient lists have a separate expandable composition row. */
+  .food-recipe-tools {
+    grid-column:1/-1; display:grid; gap:6px;
+    padding:7px; background:#f6f9ee; border:1px solid #dce8d8;
+    border-radius:12px;
+  }
+  .food-recipe-tools input {
+    width:100%; min-height:44px; font-size:16px;
+    border:1px solid #cbdccc; border-radius:9px;
+    background:white; color:#365543; padding:8px 11px;
+  }
+  .food-recipe-filter {
+    display:grid; grid-template-columns:1fr 1fr; gap:6px;
+  }
+  .food-recipe-filter button {
+    min-height:44px; border:1px solid #d6e3d3;
+    border-radius:10px; background:white; color:#53725d;
+    font-size:11px; font-weight:900;
+  }
+  .food-recipe-filter button[aria-pressed="true"] {
+    background:#d8ead9; border-color:#92bd99; color:#2f6545;
+  }
+  .food-recipe-count { grid-column:1/-1; font-size:11px; font-weight:800; color:#64806a; }
+  .food-recipe-card {
+    grid-column:1/-1; display:grid; gap:0;
+    border:1px solid #d6e4d1; border-radius:11px;
+    background:#fffef7; overflow:hidden;
+  }
+  .food-recipe-card .food-action {
+    width:100%; min-height:57px; border:0; background:none;
+    border-radius:0; padding:9px 11px; gap:4px;
+  }
+  .food-recipe-card .food-action strong { font-size:12px; }
+  .food-recipe-card .food-action small { font-size:11px; }
+  .food-recipe-card details { border-top:1px solid #e4eadc; padding:0 10px; }
+  .food-recipe-card summary {
+    min-height:40px; display:flex; align-items:center;
+    color:#5b8062; font-size:11px; font-weight:900; cursor:pointer;
+  }
+  .food-recipe-card details p {
+    margin:0 0 10px; line-height:1.45; font-size:11px;
+    color:#687866; overflow-wrap:anywhere;
+  }
+  .food-recipe-card.unavailable .food-action {
+    background:#faf6ee;
+  }
+  .food-recipe-empty { grid-column:1/-1; padding:10px; font-size:12px; }
+  .food-section-heading { grid-column:1/-1; font-size:12px; }
+}
+@media (max-width:360px) and (orientation:portrait) {
+  .market-header { padding:6px 8px 4px; }
+  .market-tabs { padding:1px 6px 5px; }
+  .market-hint { font-size:10px; margin-bottom:5px; }
+  .market-checkout { padding:5px 7px; }
+  .market-order { font-size:11px; }
+  .furnish-card {
+    display:grid; grid-template-columns:112px minmax(0,1fr);
+    gap:7px; padding:8px;
+  }
+  .furnish-card-icon {
+    grid-column:1; grid-row:1; height:104px;
+  }
+  .furnish-card-copy { grid-column:2; grid-row:1; }
+  .furnish-card-actions {
+    grid-column:1/-1; grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .furnish-card-actions button { font-size:11px; min-height:44px; }
+  .furnish-topline { font-size:10px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .market-scroll,.phone-screen,.furnish-body { scroll-behavior:auto; }
+}
+
+/* Furniture filters are a single discoverable touch target on small phones. */
+.furnish-filter-details { margin:5px 0 7px; }
+.furnish-filter-details >summary {
+  cursor:pointer; list-style:none; min-height:44px;
+  display:flex; align-items:center; padding:8px 11px;
+  border:1px solid #d0e1d0; border-radius:10px;
+  background:#eaf2e7; color:#43694c; font-size:12px; font-weight:900;
+}
+.furnish-filter-details >summary::-webkit-details-marker { display:none; }
+.furnish-filter-details >summary::after { content:'⌄'; margin-left:auto; font-size:17px; }
+.furnish-filter-details[open]>summary::after { content:'⌃'; }
+.furnish-filter-options {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px; padding:8px 1px 3px;
+}
+.furnish-filter-options select {
+  width:100%; min-width:0; min-height:44px;
+  border:1px solid #d4ddcd; border-radius:10px;
+  background:#fff; color:#344b3e; padding:8px; font-size:16px;
+}
+@media (max-width:640px) and (orientation:portrait) {
+  .furnish-filter-details { margin:2px 0 4px; }
+  .furnish-filter-details>summary { font-size:11px; }
+  .furnish-instructions { margin:2px 0 7px; }
+}
+@media (min-width:641px), (orientation:landscape) {
+  .furnish-filter-details >summary { display:none; }
+  .furnish-filter-options { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+
+/* Readable needs on compact phones: one resident per row instead of two
+   140px-wide columns. */
+@media(max-width:380px) and (orientation:portrait) {
+  .needs-panel {
+    max-height:min(61dvh,420px);
+    padding:8px 10px;
+  }
+  #needs-content { grid-template-columns:minmax(0,1fr); gap:9px; }
+  .needs-group { padding:6px 1px 8px; }
+  .needs-group + .needs-group { border-top:1px solid #dfe8dc; padding-top:10px; }
+  .need-row {
+    grid-template-columns:minmax(0,1fr) 48px;
+    gap:4px 9px; margin:7px 0;
+    font-size:12px;
+  }
+  .need-track { grid-column:1/-1; height:6px; }
+  .need-value { font-size:11px; }
+  .autonomy-thought { font-size:12px; }
+  .autonomy-mode-row select { min-height:44px; }
+}
+
+/* Explicitly override the legacy two-column furniture rule at narrow widths.
+   With one column, the thumbnail/copy layout has enough real screen width. */
+@media(max-width:360px) and (orientation:portrait) {
+  .furnish-grid { grid-template-columns:minmax(0,1fr) !important; }
+  .furnish-grid > .furnish-card { min-width:0; width:100%; }
+  .furnish-card-copy { min-width:0; overflow-wrap:anywhere; }
+  .furnish-grid > .furnish-group-title { min-width:0; }
+}
+
+@media(max-width:640px) and (orientation:portrait) {
+  /* Cooking is a browsing task, not a one-tap action. Give recipes a real
+     scrolling sheet while retaining some of the 3D room above it. */
+  .actions:has(.food-recipe-tools) {
+    max-height:min(55dvh,485px);
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .actions:has(.food-recipe-tools) .food-recipe-card {
+    scroll-margin-top:6px;
+  }
+}
