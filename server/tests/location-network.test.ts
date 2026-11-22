@@ -40,6 +40,11 @@ test('Two live clients can shop and cook in different places, reconnect at the s
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-world-network-'));
   let server: RunningServer | null = null;
   try {
+    // This integration scenario cooks an omelette. Since 0.19 it requires
+    // cooking level 2, so give Alina that skill without changing the shop flow.
+    const seed = initialState();
+    seed.education.characters.alina.xp.cooking = 200;
+    openServerFiles(dir).save(seed);
     server = await startServer({ port: 0, dataDir: dir, taskTimeScale: 0.01 });
     const keys = JSON.parse(readFileSync(join(dir, 'access.json'), 'utf8'));
     const vlad = await connection(server.port);
