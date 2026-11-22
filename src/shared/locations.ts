@@ -213,7 +213,7 @@ export const CAFE_MINUTES = 2;
 export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number }
 export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean }
 export interface WorldState {
-  districtLayout?: 1 | 2;
+  districtLayout?: 1 | 2 | 3;
   places: Record<CharacterId, PlaceId>;
   sequence: Record<CharacterId, number>;
   bags: Record<CharacterId, number>;
@@ -223,7 +223,7 @@ export interface WorldState {
   dogWalker: CharacterId | null;
 }
 export function initialWorld(): WorldState {
-  return { districtLayout: 2, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
+  return { districtLayout: 3, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
 export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';

@@ -153,7 +153,7 @@ test('A 0.20 household on the old plaza keeps its progress and wakes at the corr
     const files=openServerFiles(dir);
     files.save(old);
     const restored=files.load();
-    assert.equal(restored.world.districtLayout,2);
+    assert.equal(restored.world.districtLayout,3);
     assert.equal(restored.world.places.vlad,'home');
     assert.deepEqual({x:restored.characters.vlad.x,z:restored.characters.vlad.z},districtArrival('market','vlad'));
     assert.equal(restored.characters.vlad.skill,47);
@@ -292,6 +292,26 @@ test('Layout 1 positions move into the joined home once and preserve an outside 
     assert.equal(restored.money,old.money);
     assert.ok(existsSync(join(dir,'household.pre-unified-district.json')));
     assert.deepEqual(files.load(),restored);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Moving the street preserves a resident and purchases on an occupied former building footprint', () => {
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-street-redesign-'));
+  try {
+    const state=initialState();
+    state.world.districtLayout=2;
+    Object.assign(state.characters.vlad,{x:-23.8,z:41.5-.5});
+    state.world.bags.vlad=2;
+    state.pantry.milk=7;
+    const files=openServerFiles(dir);
+    files.save(state);
+    const migrated=files.load();
+    assert.equal(migrated.world.districtLayout,3);
+    assert.ok(pointIsClear(migrated.characters.vlad,placeObstacles('home'),floorFor('home')));
+    assert.equal(migrated.world.bags.vlad,2);
+    assert.equal(migrated.pantry.milk,7);
+    assert.ok(existsSync(join(dir,'household.pre-street-redesign.json')));
+    assert.deepEqual(files.load(),migrated);
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
 

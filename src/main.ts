@@ -139,7 +139,7 @@ app.innerHTML = `
       </div>
     </div>
   </header>
-  <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button></div>
+  <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button><button id="camera-follow" class="camera-reset camera-follow" type="button" aria-label="Следовать за персонажем" aria-pressed="false" title="Следовать за персонажем">◎</button></div>
   <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
@@ -269,6 +269,7 @@ document.querySelector<HTMLButtonElement>('#camera-reset')!.addEventListener('cl
   if(!showcaseReturn.hidden)focusModel(null);
   world.resetCamera();
 });
+document.querySelector<HTMLButtonElement>('#camera-follow')!.addEventListener('click',()=>world?.toggleFollowPlayer());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
   if (event.key === 'Escape') {

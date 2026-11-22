@@ -1,12 +1,19 @@
 import * as THREE from 'three';
 import { finish, type XYZ } from './ArtKit';
-import { DISTRICT_BEDS, DISTRICT_TREES, DISTRICT_PATHS, DISTRICT_PLAZA, DISTRICT_OBSTACLES } from '../shared/district';
+import { DISTRICT_BEDS, DISTRICT_TREES, DISTRICT_PATHS, DISTRICT_PLAZA, DISTRICT_OBSTACLES, DISTRICT_SITES, sitePoint } from '../shared/district';
 import { pointIsClear } from './navigation';
 
 const stem = new THREE.CylinderGeometry(.56,1,1,7);
 const tip = new THREE.ConeGeometry(1,1,10);
 const needle = new THREE.ConeGeometry(1,1,8);
-const canopy = new THREE.IcosahedronGeometry(1,1);
+const canopy = new THREE.IcosahedronGeometry(1,2);
+const foliagePositions=canopy.getAttribute('position');
+for(let i=0;i<foliagePositions.count;i++){
+  const x=foliagePositions.getX(i),y=foliagePositions.getY(i),z=foliagePositions.getZ(i);
+  const ripple=1+.085*Math.sin(x*13+y*8+z*11)+.045*Math.cos(x*19-z*16);
+  foliagePositions.setXYZ(i,x*ripple,y*ripple,z*ripple);
+}
+canopy.computeVertexNormals();
 const leaf = new THREE.IcosahedronGeometry(1,0);
 const lowCanopy = new THREE.IcosahedronGeometry(1,0);
 const petal = new THREE.IcosahedronGeometry(1,0);
@@ -113,7 +120,7 @@ function plantTree(near:Nursery,far:Nursery,x:number,z:number,type:keyof typeof 
     const middle:XYZ=[origin[0]+(end[0]-origin[0])*.55,y-.26*scale,origin[2]+(end[2]-origin[2])*.55];
     near.branch(origin,middle,scale*.051,style.bough);
     near.branch(middle,end,scale*.034,style.bough);
-    for(let u=0;u<2;u++){
+    for(let u=0;u<3;u++){
       const dx=(random()-.5)*.63*w,dz=(random()-.5)*.65*w;
       near.add(canopy,style.colors[(u+b)%3],[end[0]+dx,y+.16+random()*.35,end[2]+dz],
         [(.35+random()*.22)*w,(long?.61:.41)*scale,(.38+random()*.22)*w],angle+u*.32);
@@ -180,7 +187,7 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
     const garden=gardenAt(bed.x,bed.z);
     flowers(garden,bed.x,bed.z,bed.w-.22,bed.d-.19,bed.scheme,i*851+15,16);
     for(let k=0;k<5;k++)garden.add(lowCanopy,k%2?0x6a875d:0x80975d,
-      [bed.x+(k/4-.5)*bed.w*.85,.135,bed.z+(k%2-.5)*.34],[.28,.17,.24],k*.67);
+      [bed.x+(k/4-.5)*bed.w*.85,.135,bed.z+(k%2-.5)*.34],[.23,.15,.20],k*.67);
   }
   const extra=[
     [-23.48,-21.66,1.48,1.2,0],[-18,-20.1,1.02,.66,1],[-8.96,-21.8,1.18,.62,3],
@@ -189,6 +196,21 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
     [1.05,5.65,1.37,.67,1],[7.75,5.63,1.27,.68,0],[19.4,-11.35,2.3,.79,3],
   ];
   for(const [i,[x,z,w,d,scheme]] of extra.entries())flowers(gardenAt(x,z),x,z,w,d,scheme,i*567+85,11);
+  // Low layered shrubs and flowering drifts frame the shopping promenade.
+  for(const [i,site] of DISTRICT_SITES.entries()) {
+    if(site.place==='park')continue;
+    for(const side of [-1,1]){
+      const spot=sitePoint(site,side*(site.w*.43),site.d/2+.55);
+      const n=gardenAt(spot.x,spot.z),rng=seedRandom(127+i*21+side);
+      for(let j=0;j<9;j++){
+        const angle=j*2.4, r=.06+rng()*.28;
+        n.add(canopy,[0x617d57,0x789763,0x9baa78][j%3],
+          [spot.x+Math.sin(angle)*r,.24+rng()*.25,spot.z+Math.cos(angle)*r],
+          [.18+rng()*.14,.16+rng()*.17,.17+rng()*.12],angle);
+      }
+      flowers(n,spot.x,spot.z,.60,.45,i%4,911+i*44+side,8);
+    }
+  }
   const grassMat=new THREE.MeshStandardMaterial({ color:0xffffff,side:THREE.DoubleSide,roughness:1 });
   materialPool.push(grassMat);
   const wind={value:0};
@@ -198,9 +220,9 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
       '#include <begin_vertex>\ntransformed.x += transformed.y * transformed.y * sin(districtWind * 1.58 + instanceMatrix[3].x * 0.8 + instanceMatrix[3].z * 0.63)*0.76;');
   };
   let planted=0;
-  for(let attempt=0;attempt<980&&planted<480;attempt++){
-    const x=(random()-.5)*52,z=-8.6+(random()-.5)*44;
-    if(!pointIsClear({x,z},DISTRICT_OBSTACLES,{minX:-28,maxX:28,minZ:-31,maxZ:15}))continue;
+  for(let attempt=0;attempt<1750&&planted<820;attempt++){
+    const x=(random()-.5)*52,z=-.5+(random()-.5)*60;
+    if(!pointIsClear({x,z},DISTRICT_OBSTACLES,{minX:-28,maxX:28,minZ:-31,maxZ:32}))continue;
     if([...DISTRICT_PATHS,DISTRICT_PLAZA].some(p=>Math.abs(x-p.x)<p.w/2+.18&&Math.abs(z-p.z)<p.d/2+.18))continue;
     const scale=.62+random()*.65;
     gardenAt(x,z).add(tuft,[0x78905a,0x9aa767,0xa5a86e,0x668651][planted%4],

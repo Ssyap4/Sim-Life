@@ -210,7 +210,8 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     box(group,[3.57,.44,.40],[0,2.68,face-.26],site.color);
     signY=2.70;signWidth=3.5;
   }
-  lettering(group,resources,[0,signY,face+.29],signWidth,.45,site.sign,
+  box(group,[signWidth+.22,.72,.16],[0,signY,face+.92],site.color);
+  lettering(group,resources,[0,signY,face+1.01],signWidth,.62,site.sign,
     site.place==='cafe'?['#763c32','#fff0d0']:['#344f4d','#ffeed2']);
   batchRigidParts(group,true);
   return group;

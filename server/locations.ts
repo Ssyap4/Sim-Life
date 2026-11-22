@@ -32,8 +32,8 @@ export function validWorld(value: unknown): value is WorldState {
   if (!value || typeof value !== 'object') return false;
   const w = value as Partial<WorldState>;
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
-    (isPlace(w.places![role]) || w.districtLayout!==2 && String(w.places![role])==='street') && count(w.sequence![role]) && count(w.bags![role])) &&
+  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
+    (isPlace(w.places![role]) || (w.districtLayout===undefined || w.districtLayout===1) && String(w.places![role])==='street') && count(w.sequence![role]) && count(w.bags![role])) &&
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&

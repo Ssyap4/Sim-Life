@@ -2,7 +2,7 @@ import { HomeEffects } from './HomeEffects';
 import { buildHomeWing } from './HomeWing';
 import { NeighborPeople } from './NeighborPeople';
 import { NEIGHBORS, neighborPose } from '../shared/neighbors';
-import { districtArrival, districtPoint, districtSite, inHomeGrounds } from '../shared/district';
+import { DISTRICT_OFFSET_Z, districtArrival, districtPoint, districtSite, inHomeGrounds } from '../shared/district';
 import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
@@ -171,6 +171,7 @@ export class World {
     alina: (from: Point, target: Point) => this.steerPast('alina','vlad', from, target),
   };
   private followSubject: THREE.Object3D | null = null;
+  private followingPlayer = false;
   private readonly followPoint = new THREE.Vector3();
   private readonly followDelta = new THREE.Vector3();
   private cameraMove: Frame | null = null;
@@ -318,6 +319,7 @@ export class World {
         event.stopPropagation();
         return;
       }
+      if (this.followingPlayer && (event.buttons || event.pointerType === 'touch')) this.setFollowPlayer(false);
       if (motion.twistRadians)
         this.controls.rotateLeft(-motion.twistRadians);
       if (event.pointerType === 'mouse' && this.furnishingGhost &&
@@ -340,8 +342,28 @@ export class World {
 
     const cancel = (event: PointerEvent) => gate.cancel(event.pointerId);
     this.canvas.addEventListener('pointercancel', cancel, { capture: true });
+    this.canvas.addEventListener('wheel', () => {
+      if (this.followingPlayer) this.setFollowPlayer(false);
+    }, { passive: true });
     this.canvas.addEventListener('lostpointercapture', cancel);
   }
+
+  setFollowPlayer(enabled: boolean): void {
+    this.followingPlayer = enabled;
+    const button = document.querySelector<HTMLButtonElement>('#camera-follow');
+    button?.setAttribute('aria-pressed', String(enabled));
+    if (!enabled) {
+      this.followSubject = null;
+      this.cameraMove = null;
+      return;
+    }
+    this.inspected = null;
+    this.followSubject = this.actors[this.localRole].root;
+    this.followSubject.getWorldPosition(this.followPoint);
+    this.cameraMove = this.residentDistrictFrame(this.followPoint, this.compactPortrait.matches);
+  }
+
+  toggleFollowPlayer(): void { this.setFollowPlayer(!this.followingPlayer); }
 
   setActive(id: CharacterId): void {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
@@ -355,6 +377,7 @@ export class World {
   }
 
   showcase(subject: CharacterId | PetId | null): void {
+    if (this.followingPlayer) this.setFollowPlayer(false);
     this.neighborhoodView=false;
     this.inspected = subject;
     this.updateViewLens();
@@ -437,6 +460,11 @@ export class World {
     this.districtWide=false;
     this.districtFocus=place==='home'?HOUSE_ENTRY:districtArrival(place,this.localRole);
     this.showcase(null);
+    if(site) {
+      const target=new THREE.Vector3(site.x,2.05,site.z+DISTRICT_OFFSET_Z);
+      const direction=new THREE.Vector3(1,.45,.02).normalize();
+      this.cameraMove={target,position:target.clone().addScaledVector(direction,15)};
+    }
   }
   overviewDistrict():void {
     if(this.place!=='home')return;
@@ -452,6 +480,7 @@ export class World {
 
   /** One deliberate, predictable camera reset at any location. */
   resetCamera():void {
+    if (this.followingPlayer) this.setFollowPlayer(false);
     this.savedCameras.delete(this.place);
     if(this.place==='home')this.frameDistrictResident();
     this.inspected=null;
@@ -1683,7 +1712,7 @@ export class World {
       onArrive();
     };
     const actor=this.actors[role];
-    if (this.place==='home' && role===this.localRole &&
+    if (this.followingPlayer && this.place==='home' && role===this.localRole &&
         (!inHomeGrounds(actor.root.position)||path.some(point=>!inHomeGrounds(point)))) {
       this.neighborhoodView=false;
       this.inspected=null;
@@ -1796,6 +1825,7 @@ export class World {
       this.controls.target.copy(remembered.target);
       this.controls.update();
     }
+    if(this.followingPlayer)this.setFollowPlayer(true);
     this.renderer.renderLists.dispose();
   }
 

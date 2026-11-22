@@ -1,4 +1,4 @@
-import { DISTRICT_FLOOR, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
+import { DISTRICT_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
@@ -168,9 +168,9 @@ const previousSeats = [
 ] as const;
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
-  furnishing: FurnishingState, districtLayout: 1 | 2 | undefined): CharacterState {
+  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | undefined): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
-  if (String(place)==='street' && districtLayout!==2) {
+  if (String(place)==='street' && (districtLayout===undefined || districtLayout===1)) {
     Object.assign(resident,restoreDistrictPosition(resident,role,districtLayout),{pose:'idle'});
     place='home';
   }
@@ -182,9 +182,13 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
   if (place !== 'home') return resident;
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
+  const nearEntrance = districtLayout===2 && !inHomeGrounds(resident)
+    ? DISTRICT_SITES.map(site=>districtArrival(site.place,role))
+      .sort((a,b)=>Math.hypot(a.x-resident.x,a.z-resident.z)-Math.hypot(b.x-resident.x,b.z-resident.z))[0]
+    : spawn('home',role);
   const point = movedSeat ? points[movedSeat.item]
     : nearestClearPoint(resident, placeObstacles('home', furnishing),
-      districtLayout!==2 && inHomeGrounds(resident) ? HOME_FLOOR : floorFor('home')) ?? spawn('home', role);
+      (districtLayout===undefined || districtLayout===1) && inHomeGrounds(resident) ? HOME_FLOOR : floorFor('home')) ?? nearEntrance;
   return { ...resident, x: point.x, z: point.z };
 }
 
@@ -243,14 +247,14 @@ export function openServerFiles(dataDir: string): ServerFiles {
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const districtLayout = data.world?.districtLayout;
-      const migratedDistrict = districtLayout!==2;
+      const migratedDistrict = districtLayout!==3;
       const bagAtHouse = (role:CharacterId) => data.world?.places[role]==='home' &&
-        (migratedDistrict || inHomeGrounds(data.characters[role]));
+        ((districtLayout===undefined || districtLayout===1) || inHomeGrounds(data.characters[role]));
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
-          ...data.world, districtLayout: 2,
+          ...data.world, districtLayout: 3,
           places: {
             vlad: String(data.world.places.vlad)==='street'?'home':data.world.places.vlad,
             alina: String(data.world.places.alina)==='street'?'home':data.world.places.alina,
@@ -303,7 +307,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(migratedDistrict){
-        const backup=join(dataDir,'household.pre-unified-district.json');
+        const backup=join(dataDir,districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(data.furnishing?.soldFixtures===undefined){

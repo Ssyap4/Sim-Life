@@ -1,9 +1,9 @@
-import { DISTRICT_OBSTACLES, DISTRICT_FLOOR } from './district';
+import { DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_SITES, sitePoint } from './district';
 import { findRoute } from '../game/navigation';
 import type { NeighborAction, NeighborPose, NeighborProfile } from './neighbors';
 import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, type NeighborPoint, type NeighborHome } from './neighborHomes';
 
-type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number };
+type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number; inside?: boolean };
 type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise';
 export type NeighborVisit = { resident: number; home: number; start: number; end: number; kind: LifeKind; companion?: number };
 type Plan = NeighborVisit & { steps: Stop[] };
@@ -118,12 +118,19 @@ function singlePlan(home: NeighborHome, kind: LifeKind, resident:number, day:num
     const base=stops.sidewalk;
     const distance=4.0+6*f;
     const west=home.x<0;
+    const destinations = DISTRICT_SITES.filter(site=>site.place==='market'||site.place==='cafe');
+    const destination = destinations[Math.floor(variation(day,resident,slot+13)*destinations.length)];
     const target=kind==='errand'
-      ? west?{x:-17.04,z:5.95}:{x:-10.76,z:-2.02}
+      ? sitePoint(destination, resident%2===0?-.55:.55, destination.d/2+1.15)
       : f>.62?{x:west?-15.77:11.55,z:-10.18}
         :{x:Math.max(-24,Math.min(24,base.x+(west?distance:-distance))),z:base.z};
     outward(s,home,target);
-    s.hold(kind==='errand'?'phone':'look',4+f*5);
+    if(kind==='errand'){
+      const doorway=sitePoint(destination,0,destination.d/2+.20);
+      s.move(doorway).hold('look',10+f*5);
+      s.last.inside=true;
+      s.move(target);
+    } else s.hold('look',4+f*5);
     if(kind==='stroll')s.hold(f>.47?'stretch':'look',3+3*f);
     inbound(s,home,target);
     if(kind==='errand') {
@@ -273,7 +280,9 @@ export function livingNeighborPose(index:number,gameMinute:number,profiles:reado
   // the doorway, never in the middle of a visible street.
   const fadeIn=smooth(local/1.6);
   const fadeOut=smooth((plan.end-time)/1.6);
-  const opacity=fadeIn*fadeOut;
+  const indoor=to.inside ? 1-smooth((local-from.t)/.85)
+    : from.inside ? smooth((local-from.t)/.85) : 1;
+  const opacity=fadeIn*fadeOut*indoor;
   return {x,z,yaw,action,visible:opacity>.001,opacity,gestureBlend:blend,
     intent:plan.kind,gait,
     carrying:plan.kind==='errand' && local>(plan.end-plan.start)*.54 && local<plan.steps[plan.steps.length-1].t-.7};
