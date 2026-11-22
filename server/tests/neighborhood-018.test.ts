@@ -21,12 +21,12 @@ test('0.19: four distinct homes are all behind the family home and have individu
  assert.ok(HOUSE_WING.maxX<sorted[3].x+sorted[3].width/2);
 });
 
-test('0.19: rear footpath and scenery are one batched noninteractive scene without shadow casting',()=>{
+test('rear footpath and scenery are one batched noninteractive scene without shadow casting',()=>{
  const scene=new THREE.Scene();
  buildNeighborhood(scene);
  assert.equal(scene.children.length,1);
  const root=scene.children[0];
- assert.ok(root.name.includes('0.19'));
+ assert.match(root.name,/neighboring homes/i);
  const homes=root.children.filter(ch=>ch.name.startsWith('Фоновый дом'));
  assert.equal(homes.length,4);
  let meshes=0;

@@ -31,7 +31,8 @@ test('Micro-tutorials describe real household supplies and player control',()=>{
   state.characters.vlad.hunger=15;
   let lessons=thoughtLessons(state,'vlad');
   assert.equal(lessons[0].id,'hunger');
-  assert.match(lessons[1].body,/0\.16/);
+  assert.match(lessons[1].body,/выключенной самостоятельности/i);
+  assert.doesNotMatch(lessons[1].body,/0\.\d+/);
   assert.ok(lessons.some(t=>t.id==='priority'));
   assert.ok(lessons.every(t=>t.body.length>30&&t.body.length<300));
   for(const ingredient of Object.keys(state.pantry) as (keyof typeof state.pantry)[]){
