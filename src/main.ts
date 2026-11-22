@@ -452,10 +452,21 @@ function renderTimePanel(): void {
   const status = document.createElement('strong');
   status.textContent = (mode === 'full' ? '🌙 Сон до 100%' : '😴 Отдых до 50%') +
     ' · энергия ' + Math.round(state.characters[active].energy) + '%' +
-    (timeStatus.multiplier > 1 ? ' · ×' + timeStatus.multiplier : ' · обычное время');
+    ' · сейчас ×' + timeStatus.multiplier;
+  const speeds = document.createElement('div');
+  speeds.className = 'sleep-speed-guide';
+  speeds.setAttribute('aria-label', 'Возможные ускорения сна');
+  for (const [multiplier, label] of [[2, '×2 · до 100%'], [3, '×3 · до 50%']] as const) {
+    const chip = document.createElement('span');
+    chip.className = 'sleep-speed-chip';
+    chip.textContent = label;
+    chip.classList.toggle('sleep-speed-current', timeStatus.multiplier === multiplier);
+    speeds.append(chip);
+  }
   const note = document.createElement('small');
-  note.textContent = online.length > 1 && Object.keys(timeStatus.sleepers).length < online.length
-    ? 'Ускорение начнётся, когда второй игрок тоже уснёт.' : 'Сон прервётся автоматически при достижении цели.';
+  note.textContent = online.some(role => !timeStatus.sleepers[role])
+    ? '⏳ Ускорение начнётся, когда все игроки в сети будут спать. Пока ×1.'
+    : 'Скорость выбирается автоматически по режимам сна. Разные режимы = ×2.';
   const track = document.createElement('progress');
   track.className = 'sleep-progress';
   track.max = mode === 'full' ? 100 : 50;
@@ -466,7 +477,7 @@ function renderTimePanel(): void {
   wake.className = 'action-button';
   wake.textContent = 'Проснуться сейчас';
   wake.addEventListener('click', () => net.stopSleep());
-  timePanelEl.append(status,track,note,wake);
+  timePanelEl.append(status,track,speeds,note,wake);
 }
 
 function renderClock(): void {
@@ -1019,8 +1030,8 @@ function addBedSleepActions(furnitureId?:number):void{
     return;
   }
   for(const [mode,target,label] of [
-    ['full',100,'🌙 Спать до полного восстановления энергии'],
-    ['half',50,'💤 Немного поспать (до 50% энергии)'],
+    ['full',100,'🌙 Спать до 100% · ×2'],
+    ['half',50,'💤 Отдых до 50% · ×3'],
   ] as const){
     const button=document.createElement('button');
     button.type='button';button.className='action-button';button.textContent=label;
@@ -1030,6 +1041,12 @@ function addBedSleepActions(furnitureId?:number):void{
     });
     actionsEl.append(button);
   }
+  const guide=document.createElement('p');
+  guide.className='sleep-speed-condition';
+  guide.textContent=online.length>1
+    ? '⏩ Ускорение ×2 или ×3 включится, когда оба игрока в сети будут спать. Если режимы отличаются — ×2.'
+    : '⏩ Ускорение ×2 / ×3 включается автоматически при начале сна.';
+  actionsEl.append(guide);
 }
 function openPurchasedBedActions(id:number):void{
   if(!state||!active||!net.isReady())return;

@@ -298,3 +298,33 @@
     scroll-margin-top:6px;
   }
 }
+
+/* Clear sleep-speed guidance for both starter and purchased beds. */
+.sleep-speed-guide {
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+}
+.sleep-speed-chip {
+  display:inline-flex; align-items:center; min-height:28px;
+  padding:4px 9px; border-radius:9px;
+  background:#edf1e5; border:1px solid #d7e1d3;
+  color:#4d6e53; font-weight:850; font-size:11px;
+}
+.sleep-speed-chip.sleep-speed-current {
+  background:#d5ead9; border-color:#95be9d; color:#295d3a;
+}
+.sleep-speed-condition {
+  grid-column:1 / -1;
+  margin:2px 0; padding:8px 10px;
+  background:#edf4e8; color:#416d4b; border-radius:10px;
+  font-size:11px; line-height:1.5; font-weight:750;
+}
+@media (max-width:640px) and (orientation:portrait) {
+  .bottom-ui .time-panel {
+    max-height:min(38dvh,245px);
+    padding:9px 11px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    gap:6px;
+  }
+  .time-panel .sleep-speed-chip { font-size:11px; }
+}
