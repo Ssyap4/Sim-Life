@@ -81,18 +81,26 @@ class Sequence {
   }
 }
 
-function publicRoute(home:NeighborHome,to:NeighborPoint):NeighborPoint[]{
+// Neighbor plans are shared across days. Cache the static routes: the
+// entire district's A* is too expensive to recompute for each trip home.
+const publicPaths=new Map<string,NeighborPoint[]|null>();
+function publicRoute(home:NeighborHome,to:NeighborPoint):NeighborPoint[]|null {
+  const key=home.id+':'+Math.round(to.x*100)+':'+Math.round(to.z*100);
+  const cached=publicPaths.get(key);
+  if(cached!==undefined)return cached;
   const sidewalk=homeStops(home).sidewalk;
-  return [sidewalk,...(findRoute(sidewalk,to,DISTRICT_OBSTACLES,DISTRICT_FLOOR) ?? [])];
+  const path=findRoute(sidewalk,to,DISTRICT_OBSTACLES,DISTRICT_FLOOR);
+  const route=path?[sidewalk,...path]:null;
+  publicPaths.set(key,route);
+  return route;
 }
-function outward(s: Sequence, home: NeighborHome, destination: NeighborPoint): void {
+function outward(s:Sequence,home:NeighborHome,way:readonly NeighborPoint[]):void {
   const stops=homeStops(home);
   s.move(stops.porch).move(stops.gate);
-  for(const p of publicRoute(home,destination))s.move(p);
+  for(const p of way)s.move(p);
 }
-function inbound(s: Sequence, home: NeighborHome, destination: NeighborPoint): void {
+function inbound(s:Sequence,home:NeighborHome,way:readonly NeighborPoint[]):void {
   const stops=homeStops(home);
-  const way=publicRoute(home,destination);
   for(const p of way.slice(0,-1).reverse())s.move(p);
   s.move(stops.gate).move(stops.porch).move(stops.door);
 }
@@ -120,19 +128,23 @@ function singlePlan(home: NeighborHome, kind: LifeKind, resident:number, day:num
     const west=home.x<0;
     const destinations = DISTRICT_SITES.filter(site=>site.place==='market'||site.place==='cafe');
     const destination = destinations[Math.floor(variation(day,resident,slot+13)*destinations.length)];
+    // Finish at a collision-safe point right in front of the actual door.
+    // Do NOT step inside the facade obstacle to fake the indoor transition.
     const target=kind==='errand'
-      ? sitePoint(destination, resident%2===0?-.55:.55, destination.d/2+1.15)
+      ? sitePoint(destination,0,destination.d/2+.45)
       : f>.62?{x:west?-15.77:11.55,z:-10.18}
         :{x:Math.max(-24,Math.min(24,base.x+(west?distance:-distance))),z:base.z};
-    outward(s,home,target);
+    const route=publicRoute(home,target);
+    // A closed route is not permission to walk in a straight line through
+    // buildings. Stay near home instead of inventing a path.
+    if(!route)return singlePlan(home,'garden',resident,day,slot);
+    outward(s,home,route);
     if(kind==='errand'){
-      const doorway=sitePoint(destination,0,destination.d/2+.20);
-      s.move(doorway).hold('look',10+f*5);
+      s.hold('look',10+f*5);
       s.last.inside=true;
-      s.move(target);
     } else s.hold('look',4+f*5);
     if(kind==='stroll')s.hold(f>.47?'stretch':'look',3+3*f);
-    inbound(s,home,target);
+    inbound(s,home,route);
     if(kind==='errand') {
       // Groceries carried home from outside; no purchases, inventory or costs.
       s.hold('carry',3);
@@ -142,13 +154,16 @@ function singlePlan(home: NeighborHome, kind: LifeKind, resident:number, day:num
 }
 
 function rendezvous(home: NeighborHome, meeting: NeighborPoint, right: boolean): Sequence {
-  const s=new Sequence(homeStops(home).door,2.63);
-  outward(s,home,meeting);
+  const stops=homeStops(home);
+  const s=new Sequence(stops.door,2.63);
+  const route=publicRoute(home,meeting);
+  if(!route)return s.move(stops.porch).hold('look',28).move(stops.door);
+  outward(s,home,route);
   s.until(29,'look');
   const other={x:meeting.x+(right?-1.52:1.52),z:meeting.z};
   s.hold('chat',18,yawTo(meeting,other));
   s.hold('wave',3,yawTo(meeting,other));
-  inbound(s,home,meeting);
+  inbound(s,home,route);
   return s;
 }
 
