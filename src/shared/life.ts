@@ -4,7 +4,7 @@ export const INITIAL_CLOCK = { day: 1, minute: 8 * 60 };
 export interface GameClock { day: number; minute: number }
 export const MINUTES_PER_DAY = 1440;
 export const CLOCK_SYNC_MS = 2000;
-export interface ClockSample { minutes: number; multiplier: 1 | 1.5 | 2 | 3 }
+export interface ClockSample { minutes: number; multiplier: 0 | 1 | 1.5 | 2 | 3 }
 
 const calendarStart = Date.UTC(2001, 2, 1);
 const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',

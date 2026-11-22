@@ -1,0 +1,51 @@
+/* Sim-Life 0.20 mobile control pass: preserve the same HUD and controls. */
+
+/* manipulation disables browser double-tap zoom while preserving vertical
+   scrolling, native input focus and accessibility pinch-zoom on UI sheets. */
+html, body, #app {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#app { touch-action: manipulation; }
+#game-canvas {
+  touch-action: none; /* pan + two-finger camera gestures are handled by 3D */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#app button, #app a, #app [role="button"], #app label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (any-pointer: coarse) {
+  /* Text is not a selection layer in a game; prevent the blue copy highlight
+     on HUD, pause sheets, item cards and action menus. */
+  #app, #app * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  #app input, #app textarea, #app select,
+  #app [contenteditable="true"], #app [data-allow-selection],
+  #app [data-allow-selection] * {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+  #app .market-scroll, #app .phone-info, #app .jobs-scroll,
+  #app .furnish-body, #app .actions, #app .needs-panel,
+  #app .thought-panel, #app .skills-sheet, #app .phone-screen {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  #app .market-filters { touch-action: pan-x; }
+  #app button, #app [role="button"], #app select {
+    cursor: pointer;
+  }
+  /* Readable keyboard inputs on iPhone: focusing never triggers auto-zoom. */
+  #app input:not([type="checkbox"]):not([type="radio"]),
+  #app textarea, #app select {
+    font-size: max(16px, 1em);
+  }
+}

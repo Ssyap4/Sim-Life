@@ -19,11 +19,13 @@ import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOU
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
+import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { diningSurface, tabletopPoint } from '../shared/diningSurface';
 import { mealServingScale } from './MealGesture';
-import { selectIndoorDish } from './MealArt';
+import { ceramicPlate, selectIndoorDish } from './MealArt';
 import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
@@ -78,8 +80,6 @@ const homePosition = new THREE.Vector3(15, 19, 22);
 const locationTarget = new THREE.Vector3(0, 1.45, 0);
 const portraitAspect = 390 / 844;
 const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
-const tapSlop = 9;
-const minTwistSpanSquared = 16 ** 2;
 
 type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
@@ -138,6 +138,12 @@ export class World {
   private furnishingItemCallback:((id:number)=>void)|null=null;
   private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
+  private paused = false;
+  private visualSeconds = 0;
+  private quality: 'standard'|'high'|'low' = 'standard';
+  private smoothedFrameMs = 16.7;
+  private lastQualityUpdate = performance.now();
+  private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
@@ -167,6 +173,8 @@ export class World {
   private readonly followDelta = new THREE.Vector3();
   private cameraMove: Frame | null = null;
   private neighborhoodView=false;
+  private readonly savedCameras=new Map<PlaceId,Frame>();
+  private readonly tapLayer=document.createElement('div');
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
@@ -179,10 +187,14 @@ export class World {
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
-    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void }) {
+    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
+      dismissTap?: () => boolean }) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 64, 97);
 
+    this.tapLayer.className='world-tap-feedback';
+    this.tapLayer.setAttribute('aria-hidden','true');
+    this.canvas.parentElement?.append(this.tapLayer);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -196,7 +208,9 @@ export class World {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
     this.controls.touches.ONE = THREE.TOUCH.PAN;
-    this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+    // Pinch zoom + two-finger pan. Rotation comes only from the explicit
+    // twist handler below, so a slightly uneven pinch cannot rotate twice.
+    this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     this.controls.enablePan = true;
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 46;
@@ -233,8 +247,7 @@ export class World {
       this.bags[id].visible = false;
       this.scene.add(this.bags[id]);
       const plate = new THREE.Group();
-      const dish = new THREE.Mesh(drum, finish(0xf2dfc3, 'ceramic'));
-      dish.scale.set(.19,.032,.19);
+      const dish = ceramicPlate();
       const food = new THREE.Group();
       food.name = 'Indoor serving';
       food.position.y = .035;
@@ -268,65 +281,55 @@ export class World {
   }
 
   private bindCanvasInput(): void {
-    const touches = new Map<number, { x: number; y: number }>();
-    let tap: { id: number; x: number; y: number } | null = null;
-    const tapDistance = (event: PointerEvent, start: { x: number; y: number }) =>
-      Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    const gate = new CanvasGestureGate();
+    const contact = (event: PointerEvent): PointerContact => ({
+      id: event.pointerId, x: event.clientX, y: event.clientY,
+      type: event.pointerType === 'touch' ? 'touch' :
+        event.pointerType === 'pen' ? 'pen' : 'mouse',
+      primary: event.isPrimary, button: event.button, time: event.timeStamp,
+    });
 
     this.canvas.addEventListener('pointerdown', event => {
       const touch = event.pointerType === 'touch';
-      if (touch) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      gate.down(contact(event));
       if (event.isPrimary) {
-        // Enable touch panning in every location while keeping the mouse controls for the current scene.
         this.controls.enablePan = touch || this.place === 'home';
         this.controls.dampingFactor = touch ? .22 : .065;
       }
-      tap = event.isPrimary && event.button === 0 && touches.size === (touch ? 1 : 0)
-        ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
     }, { capture: true });
 
+    // IMPORTANT: capture before OrbitControls' document-level move handler.
+    // stopPropagation on a bubble listener was too late: small finger tremors
+    // already panned the camera while the touch still counted as a tap.
     this.canvas.addEventListener('pointermove', event => {
-      const point = touches.get(event.pointerId);
-      if (tap?.id === event.pointerId) {
-        if (tapDistance(event, tap) >= tapSlop) tap = null;
-        else if (point) {
-          // Let a tap absorb small finger movements before OrbitControls starts panning.
-          event.stopPropagation();
-          return;
-        }
+      const motion = gate.move(contact(event));
+      if (motion.holdTap) {
+        event.stopPropagation();
+        return;
       }
-      if(!point && this.furnishingGhost && event.pointerType==='mouse' &&
-          performance.now()-this.lastFurnitureHover>125){
-        this.lastFurnitureHover=performance.now();
-        this.previewFurnitureAt(event.clientX,event.clientY);
+      if (motion.twistRadians)
+        this.controls.rotateLeft(-motion.twistRadians);
+      if (event.pointerType === 'mouse' && this.furnishingGhost &&
+          performance.now() - this.lastFurnitureHover > 125) {
+        this.lastFurnitureHover = performance.now();
+        this.previewFurnitureAt(event.clientX, event.clientY);
       }
-      if (!point) return;
-      if (touches.size === 2) {
-        const [first, second] = touches.values();
-        const other = first === point ? second : first;
-        const ax = point.x - other.x, ay = point.y - other.y;
-        const bx = event.clientX - other.x, by = event.clientY - other.y;
-        // OrbitControls handles the two-finger drag and pinch. Also honor a twist in place.
-        if (ax * ax + ay * ay >= minTwistSpanSquared && bx * bx + by * by >= minTwistSpanSquared) {
-          const angle = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
-          if (angle) this.controls.rotateLeft(-angle);
-        }
-      }
-      point.x = event.clientX;
-      point.y = event.clientY;
-    });
+    }, { capture: true });
 
-    const clearPointer = (event: PointerEvent) => {
-      touches.delete(event.pointerId);
-      if (tap?.id === event.pointerId) tap = null;
-    };
     this.canvas.addEventListener('pointerup', event => {
-      const picked = tap?.id === event.pointerId && tapDistance(event, tap) < tapSlop;
-      clearPointer(event);
-      if (picked) this.pick(event.clientX, event.clientY);
-    });
-    this.canvas.addEventListener('pointercancel', clearPointer);
-    this.canvas.addEventListener('lostpointercapture', clearPointer);
+      const picked = gate.up(contact(event));
+      if (picked) {
+        // Let OrbitControls finish releasing capture before opening an item
+        // menu or sending a walking command. No visible tap delay.
+        const { clientX, clientY } = event;
+        const touch=event.pointerType==='touch';
+        queueMicrotask(() => this.pick(clientX, clientY, touch));
+      }
+    }, { capture: true });
+
+    const cancel = (event: PointerEvent) => gate.cancel(event.pointerId);
+    this.canvas.addEventListener('pointercancel', cancel, { capture: true });
+    this.canvas.addEventListener('lostpointercapture', cancel);
   }
 
   setActive(id: CharacterId): void {
@@ -384,6 +387,19 @@ export class World {
   focusHome():void {
     if(this.place!=='home')return;
     this.showcase(null);
+  }
+
+  /** One deliberate, predictable camera reset at any location. */
+  resetCamera():void {
+    this.savedCameras.delete(this.place);
+    this.inspected=null;
+    this.neighborhoodView=false;
+    this.followSubject=null;
+    this.controls.minDistance=10;
+    this.controls.maxDistance=this.place==='home'?74:51;
+    this.controls.maxPolarAngle=1.25;
+    this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
+    this.cameraMove=this.defaultFrame;
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work',
@@ -1193,27 +1209,55 @@ export class World {
   }
 
   setTimeOfDay(minute: number): void {
-    const phase = dayPhase({ day: 1, minute });
-    if (phase === this.lastDayPhase) return;
-    this.lastDayPhase = phase;
-    this.remote?.setNight(phase === 'night' || phase === 'evening');
-    // Reuse existing lights: no new meshes, draw calls or shadow maps.
-    const settings = {
-      morning: { sun: 1.95, ambient: 1.76, sky: 0xc6c3ad, warmth: 0xffd8b9 },
-      day: { sun: 2.48, ambient: 1.87, sky: 0xc0c7ad, warmth: 0xffe5ce },
-      evening: { sun: 1.55, ambient: 1.60, sky: 0xb8adae, warmth: 0xffc8a9 },
-      night: { sun: 0.75, ambient: 1.32, sky: 0x85929c, warmth: 0xc5d1e8 },
-    }[phase];
-    this.sun.intensity = settings.sun;
-    this.sun.color.setHex(settings.warmth);
-    this.ambient.intensity = settings.ambient;
-    this.ambient.color.setHex(phase === 'night' ? 0xc7d7ee : 0xeef2fb);
-    (this.scene.background as THREE.Color).setHex(settings.sky);
-    if (this.scene.fog) this.scene.fog.color.setHex(settings.sky);
+    const hour = THREE.MathUtils.euclideanModulo(minute,1440);
+    const phase = dayPhase({day:1,minute:hour});
+    if(phase!==this.lastDayPhase) {
+      this.lastDayPhase=phase;
+      this.remote?.setNight(phase==='night'||phase==='evening');
+    }
+    // Smooth solar cycle: cool predawn, amber sunrise, clear midday, honeyed
+    // golden hour and a blue twilight. No shadow maps or extra render passes.
+    const keys = [
+      {t:0,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+      {t:300,sky:0x65778a,sun:.37,ambient:1.12,warm:0xb7cbed,glow:.78},
+      {t:365,sky:0xada5a3,sun:1.10,ambient:1.32,warm:0xffaf83,glow:.47},
+      {t:445,sky:0xd9c5a2,sun:1.92,ambient:1.64,warm:0xffd0a3,glow:.15},
+      {t:625,sky:0xc1d2c9,sun:2.35,ambient:1.80,warm:0xffecda,glow:0},
+      {t:900,sky:0xbcd3d3,sun:2.46,ambient:1.86,warm:0xfff0df,glow:0},
+      {t:1050,sky:0xd4c7b0,sun:1.90,ambient:1.67,warm:0xffd4a4,glow:.06},
+      {t:1145,sky:0xc2988d,sun:1.15,ambient:1.46,warm:0xffad79,glow:.42},
+      {t:1230,sky:0x78839a,sun:.59,ambient:1.20,warm:0xb5c2f1,glow:.76},
+      {t:1320,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+      {t:1440,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+    ];
+    const index = keys.findIndex(key=>key.t>=hour);
+    const end = keys[Math.max(1,index)];
+    const begin = keys[Math.max(0,Math.max(1,index)-1)];
+    const progress=THREE.MathUtils.smoothstep(hour,begin.t,end.t);
+    const mix=(a:number,b:number)=>THREE.MathUtils.lerp(a,b,progress);
+    const mixed=(a:number,b:number)=>new THREE.Color(a).lerp(new THREE.Color(b),progress);
+    this.sun.intensity=mix(begin.sun,end.sun);
+    this.sun.color.copy(mixed(begin.warm,end.warm));
+    this.ambient.intensity=mix(begin.ambient,end.ambient);
+    this.ambient.color.copy(mixed(0xbdcee4,0xeef2fb))
+      .lerpColors(new THREE.Color(0xbdcee4),new THREE.Color(0xeef2fb),
+        THREE.MathUtils.smoothstep(this.sun.intensity,.33,1.7));
+    const sky=mixed(begin.sky,end.sky);
+    (this.scene.background as THREE.Color).copy(sky);
+    if(this.scene.fog)this.scene.fog.color.copy(sky);
+    this.roomGlow.intensity=mix(begin.glow,end.glow);
+    const solarAngle=(hour-360)/720*Math.PI;
+    this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
+      3+Math.max(0,Math.sin(solarAngle))*10,
+      5.5+Math.cos(solarAngle)*3);
   }
 
   private createLights(): void {
     this.scene.add(this.ambient);
+    // One inexpensive shadowless practical light for evening interiors.
+    this.roomGlow.position.set(0, 2.55, -0.5);
+    this.roomGlow.castShadow = false;
+    this.scene.add(this.roomGlow);
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);
@@ -1612,6 +1656,11 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
+      this.savedCameras.set(this.place,{
+        position:this.camera.position.clone(),target:this.controls.target.clone(),
+      });
+    }
     this.openDoors.clear();
     this.cameraMove = null;
     this.followSubject = null;
@@ -1661,6 +1710,12 @@ export class World {
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
+    const remembered=this.savedCameras.get(place);
+    if(remembered){
+      this.camera.position.copy(remembered.position);
+      this.controls.target.copy(remembered.target);
+      this.controls.update();
+    }
     this.renderer.renderLists.dispose();
   }
 
@@ -1838,36 +1893,90 @@ export class World {
     }
   }
 
-  private pick(clientX: number, clientY: number): void {
-    const bounds = this.canvas.getBoundingClientRect();
-    const x = ((clientX - bounds.left) / bounds.width) * 2 - 1;
-    const y = -((clientY - bounds.top) / bounds.height) * 2 + 1;
-    this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    const sceneMeshes = this.place === 'home' ? [...this.interactiveMeshes, ...this.stationMeshes] : this.remoteMeshes;
-    const hit = this.raycaster.intersectObjects([...sceneMeshes, ...this.subjectMeshes], false).find(entry => {
-      for (let part: THREE.Object3D | null = entry.object; part; part = part.parent) {
-        if (!part.visible) return false;
-      }
+  private touchPulse(clientX: number,clientY: number,kind:'select'|'walk'|'place'):void {
+    const layerRect=this.tapLayer.getBoundingClientRect();
+    const marker=document.createElement('span');
+    marker.className='world-tap-pulse '+kind;
+    marker.style.left=(clientX-layerRect.left)+'px';
+    marker.style.top=(clientY-layerRect.top)+'px';
+    this.tapLayer.append(marker);
+    marker.addEventListener('animationend',()=>marker.remove(),{once:true});
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      window.setTimeout(()=>marker.remove(),350);
+    subtleHaptic(kind==='place'?'place':'select');
+  }
+
+  private pick(clientX: number, clientY: number, touch = false): void {
+    // Outside an open action menu, the first tap only dismisses the menu.
+    // Never send an unexpected walk or open a different interaction behind it.
+    if(this.navigation?.dismissTap?.())return;
+    const bounds=this.canvas.getBoundingClientRect();
+    const ndc=(px:number,py:number)=>new THREE.Vector2(
+      ((px-bounds.left)/bounds.width)*2-1,
+      -((py-bounds.top)/bounds.height)*2+1);
+    const visible=(entry:THREE.Intersection)=>{
+      for(let part:THREE.Object3D|null=entry.object;part;part=part.parent)
+        if(!part.visible)return false;
       return true;
-    });
+    };
+    const meshes=this.place==='home'
+      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes]
+      : [...this.remoteMeshes,...this.subjectMeshes];
+    const intersections=(px:number,py:number)=>{
+      this.raycaster.setFromCamera(ndc(px,py),this.camera);
+      return this.raycaster.intersectObjects(meshes,false).find(visible);
+    };
+    let hit=intersections(clientX,clientY);
+    // On phones the target's invisible hit zone is larger than its model.
+    // Extra ray casts run only if the exact tap missed, never every frame.
+    if(!hit&&touch&&!this.furnishingGhost){
+      let nearest: { hit:THREE.Intersection;score:number }|null=null;
+      for(const [ox,oy] of [[-9,0],[9,0],[0,-9],[0,9],
+        [-13,-13],[13,-13],[-13,13],[13,13]]){
+        const candidate=intersections(clientX+ox,clientY+oy);
+        if(!candidate)continue;
+        // Screen-space proximity first, with slight depth priority to avoid
+        // selecting furniture behind a more obvious foreground object.
+        const score=Math.hypot(ox,oy)+candidate.distance*.035;
+        if(!nearest||score<nearest.score)nearest={hit:candidate,score};
+      }
+      hit=nearest?.hit;
+      // Put the ray back on the actual finger location for walking.
+      this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);
+    }
     if(this.place==='home'&&this.furnishingGhost){
       this.previewFurnitureAt(clientX,clientY);
+      this.touchPulse(clientX,clientY,'place');
       return;
     }
     const furnitureId:unknown=hit?.object.userData.furnitureId;
     if(this.place==='home'&&typeof furnitureId==='number'){
+      this.touchPulse(clientX,clientY,'select');
       this.furnishingItemCallback?.(furnitureId);
       return;
     }
-    const station: unknown = hit?.object.userData.station;
-    if (typeof station === 'string') { this.navigation?.station(station); return; }
-    const id: unknown = hit?.object.userData.interactable;
-    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba' ||
-        id === 'bowl:verdell' || id === 'bowl:simba') this.onPick(id);
-    else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
-    else {
-      const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);
-      if (point && pointIsClear(point, this.currentObstacles(), floorFor(this.place))) this.navigation?.ground(point.x, point.z);
+    const station:unknown=hit?.object.userData.station;
+    if(typeof station==='string'){
+      this.touchPulse(clientX,clientY,'select');
+      this.navigation?.station(station);
+      return;
+    }
+    const id:unknown=hit?.object.userData.interactable;
+    if(id==='vlad'||id==='alina'||id==='verdell'||id==='simba'||
+       id==='bowl:verdell'||id==='bowl:simba'){
+      this.touchPulse(clientX,clientY,'select');
+      this.onPick(id);
+    } else if(typeof id==='string'&&id in objectNames){
+      this.touchPulse(clientX,clientY,'select');
+      this.onPick(id as ItemId);
+    } else {
+      this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);
+      const point=this.raycaster.ray.intersectPlane(
+        new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);
+      if(point&&pointIsClear(point,this.currentObstacles(),floorFor(this.place))){
+        this.touchPulse(clientX,clientY,'walk');
+        this.navigation?.ground(point.x,point.z);
+      }
     }
   }
 
@@ -1884,11 +1993,20 @@ export class World {
     return { position: homePosition.clone().multiplyScalar(1 + fit * .35).add(locationTarget), target: locationTarget.clone() };
   }
 
+  setPaused(value: boolean): void {
+    this.paused = value;
+    this.lastFrame = performance.now();
+  }
+
   refreshViewport(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
-    const { pixelRatio } = renderProfile(compact, window.devicePixelRatio);
+    const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
+    const pixelRatio = compact
+      ? Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.45
+        : this.quality === 'low' ? 1.0 : initialRatio)
+      : initialRatio;
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -1935,8 +2053,20 @@ export class World {
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
-    const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
+    const frameMs = Math.max(1, now - this.lastFrame);
+    const dt = this.paused ? 0 : Math.min(frameMs / 1000, 0.20);
     this.lastFrame = now;
+    this.visualSeconds += dt;
+    this.smoothedFrameMs = this.smoothedFrameMs * .97 + Math.min(frameMs, 150) * .03;
+    if (!this.paused && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
+      this.lastQualityUpdate = now;
+      const nextQuality = this.smoothedFrameMs > 24 ? 'low'
+        : this.smoothedFrameMs < 17.8 ? 'high' : 'standard';
+      if (nextQuality !== this.quality) {
+        this.quality = nextQuality;
+        this.refreshViewport();
+      }
+    }
     this.movementDt=dt;
     if (this.place === 'home' && this.household) {
       this.neighborMinute += dt * GAME_MINUTES_PER_REAL_SECOND;
@@ -2122,10 +2252,10 @@ export class World {
     }
     this.controls.update();
     if (this.place === 'home') {
-      this.homeEffects.update(now/1000);
-      this.computerScreens.update(now/1000);
+      this.homeEffects.update(this.visualSeconds);
+      this.computerScreens.update(this.visualSeconds);
     }
-    this.remote?.animate?.(now / 1000);
+    this.remote?.animate?.(this.visualSeconds);
     this.renderer.render(this.scene, this.camera);
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };

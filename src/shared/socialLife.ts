@@ -72,7 +72,7 @@ export type SocialCommand =
   | {type:'social_reply';inviteId:number;choice:number|null}
   | {type:'social_withdraw';inviteId:number}
   | {type:'social_finish';taskId:number};
-export interface SocialOffer { id:number; from:CharacterId; action:string; title:string; text:string; replies:readonly string[]; expiresAt:number }
+export interface SocialOffer { id:number; from:CharacterId; action:string; title:string; text:string; replies:readonly string[]; expiresAt:number; remainingMs?:number }
 export type SocialPhase = 'accepted'|'declined'|'expired'|'cancelled'|'interrupted';
 export interface SocialMemory { at:number; action:string; title:string; description:string; group:SocialGroup }
 export interface Relationship {

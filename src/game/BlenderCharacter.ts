@@ -89,11 +89,24 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
     const joints = collectBones(model);
     const parts = model.getObjectsByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh[];
     const skeleton = parts[0].skeleton;
+    const finishes=new Map<THREE.Material,THREE.Material>();
     for (const child of parts) {
       // SkeletonUtils gives each part its own copy. These parts use the same
       // joints and inverse bind matrices, so upload one bone texture per resident.
       child.skeleton = skeleton;
-      const material = child.material as THREE.Material;
+      const material = child.material as THREE.MeshStandardMaterial;
+      let tailored=finishes.get(material) as THREE.MeshStandardMaterial | undefined;
+      if (!tailored) {
+        tailored=material.clone();
+        // Refine hair sheen, natural skin response and crisp fabric separation
+        // without increasing skinned meshes, bones, textures or draw calls.
+        if(material.name.includes('Hair')) {tailored.roughness=.71;tailored.metalness=0;}
+        else if(material.name.includes('Skin')||material.name.includes('Complexion')) {tailored.roughness=.87;tailored.metalness=0;}
+        else if(material.name.includes('Eyes')) {tailored.roughness=.23;tailored.metalness=0;}
+        else if(material.name.includes('Cloth')) {tailored.roughness=.91;tailored.metalness=0;}
+        finishes.set(material,tailored);
+      }
+      child.material=tailored;
       // Hair and clothing carry the shadow silhouette. The dense eyelids,
       // lips and finger surfaces still receive light and shadow in the main pass.
       child.castShadow = material.name === 'Hair pigment' || material.name === 'Cloth pigment';
@@ -102,12 +115,33 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
       // one scene unit, and this bound covers all supported furniture poses.
       child.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.6);
     }
+    // Rig-attached personal details follow the existing bones. No extra skin,
+    // skeleton, morph target, textures or per-frame mesh updates.
+    const watch = new THREE.Mesh(new THREE.TorusGeometry(.047,.008,6,18),
+      new THREE.MeshStandardMaterial({color:id==='vlad'?0x506c62:0xc9ac84,
+        metalness:.34,roughness:.52}));
+    watch.rotation.x=Math.PI/2;
+    watch.position.y=.015;
+    joints.WristL.add(watch);
+    if(id==='alina'){
+      const earringGeometry=new THREE.TorusGeometry(.017,.004,5,12);
+      const earringFinish=new THREE.MeshStandardMaterial({
+        color:0xc8ae79,metalness:.52,roughness:.35,
+      });
+      for(const side of [-1,1]){
+        const earring=new THREE.Mesh(earringGeometry,earringFinish);
+        earring.position.set(side*.163,-.084,.006);
+        earring.rotation.y=side*.30;
+        joints.Head.add(earring);
+      }
+    }
     figure.add(model);
     const weights = (model.getObjectByName(faceName) as THREE.SkinnedMesh).morphTargetInfluences!;
     const sampleBlink = new THREE.LinearInterpolant(blinkTrack.times, blinkTrack.values, blinkTrack.getValueSize());
     const eyes = [joints.EyeL, joints.EyeR];
     let time = id === 'vlad' ? 0 : 0.22;
     let rest = 0;
+    let glance = 0;
     return {
       joints: { leftArm: joints.ArmL, rightArm: joints.ArmR, leftLeg: joints.ThighL, rightLeg: joints.ThighR },
       rig: {
@@ -122,8 +156,12 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
           rest = THREE.MathUtils.lerp(rest, Number(asleep), blend);
           weights[lids] = THREE.MathUtils.lerp(sampleBlink.evaluate(time)[lids], 1, rest);
           weights[smile] = THREE.MathUtils.lerp(weights[smile], expression, blend);
+          // The eyes make occasional tiny, synchronized focus shifts; their
+          // original player/pet look direction retains priority.
+          glance += dt;
+          const fineYaw = Math.sin(glance*.91+(id==='vlad'?0:1.7))*.008;
           for (const eye of eyes) {
-            eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, eyeYaw, blend);
+            eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, eyeYaw+fineYaw, blend);
             eye.rotation.x = THREE.MathUtils.lerp(eye.rotation.x, eyePitch, blend);
           }
         },

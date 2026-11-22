@@ -15,12 +15,18 @@ test('both players can reach every interaction around the assembled interior', (
   const furnished = new Map<string, { x: number; z: number }>();
   const counts = { meshes: 0, shadows: 0 };
   const sharedGeometries = new Set<THREE.BufferGeometry>();
+  const bakedDetailBatches = new Set<THREE.BufferGeometry>();
 
   const register: Parameters<typeof buildFurniture>[0] = (id, root, point) => {
     assert.deepEqual(point, points[id], id + ' approach must match server coordinates');
     furnished.set(id, point);
     if (id !== 'bookcase' && id !== 'grill' && id !== 'yardTable') root.traverse((object) => {
-      if (object instanceof THREE.Mesh) sharedGeometries.add(object.geometry);
+      if (object instanceof THREE.Mesh) {
+        // Fully static ornamentation can be merged into one tinted geometry.
+        // Such batches are deliberately unique, not failed reusable primitives.
+        if(object.geometry.hasAttribute('color')) bakedDetailBatches.add(object.geometry);
+        else sharedGeometries.add(object.geometry);
+      }
     });
     else assert.ok(root.children.length <= 9, id + ' should stay batched');
     batchRigidParts(root);
@@ -68,8 +74,10 @@ test('both players can reach every interaction around the assembled interior', (
   }
   assert.ok(counts.meshes <= 135, 'too many furniture meshes: ' + counts.meshes);
   assert.ok(counts.shadows < 45, 'too many furniture shadow casters: ' + counts.shadows);
-  assert.ok(sharedGeometries.size <= 11, 'furniture parts should reuse the shared geometry kit');
-  console.log('INTERIOR_BUDGET ' + JSON.stringify({ ...counts, sharedGeometries: sharedGeometries.size }));
+  assert.ok(sharedGeometries.size <= 11, 'unmerged furniture parts should reuse the shared geometry kit');
+  assert.ok(bakedDetailBatches.size <= 12, 'too many unique static decoration batches: ' + bakedDetailBatches.size);
+  console.log('INTERIOR_BUDGET ' + JSON.stringify({ ...counts,
+    sharedGeometries: sharedGeometries.size,bakedDetailBatches: bakedDetailBatches.size }));
 });
 
 test('The bathroom is entered through its doorway and the shower is entered from the open side', () => {

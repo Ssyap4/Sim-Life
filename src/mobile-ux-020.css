@@ -1,0 +1,78 @@
+/* Sim-Life 0.20: last touch-first UI layer. No Dynamic Island design.
+   Safe-area env values already support the standard iPhone 11 notch/home bar. */
+.world-tap-feedback {pointer-events:none;position:absolute;inset:0;z-index:3;overflow:hidden}
+.world-tap-pulse {
+  pointer-events:none;position:absolute;display:block;width:35px;height:35px;
+  margin-left:-17px;margin-top:-17px;border-radius:50%;
+  border:2px solid rgba(248,255,225,.92);
+  background:rgba(208,249,209,.20);box-shadow:0 0 0 3px rgba(42,104,72,.18);
+  animation:world-tap-pulse .48s ease-out both;
+}
+.world-tap-pulse.walk {border-color:#d6ead4;background:rgba(185,219,164,.16)}
+.world-tap-pulse.place {border-color:#ffd5ab;background:rgba(255,197,135,.19)}
+@keyframes world-tap-pulse {
+  from {opacity:.98;transform:scale(.58)}
+  to {opacity:0;transform:scale(1.65)}
+}
+/* A separate camera dock avoids squeezing the already full top HUD. */
+.camera-dock {
+  position:absolute;z-index:6;
+  left:max(11px,env(safe-area-inset-left));
+  bottom:max(111px,calc(env(safe-area-inset-bottom) + 105px));
+  pointer-events:none;
+}
+.camera-dock .camera-reset {
+  pointer-events:auto;width:43px;height:43px;display:grid;place-items:center;
+  border:1px solid rgba(255,255,255,.92);border-radius:14px;
+  background:linear-gradient(145deg,#fffef8ef,#e2eddfec);
+  color:#466c55;font:900 25px/1 'Nunito',sans-serif;
+  box-shadow:0 5px 16px rgba(47,72,52,.20);
+}
+.camera-dock .camera-reset:active{transform:scale(.96)}
+@media(max-width:640px) and (orientation:portrait) {
+  /* Real action buttons stay unchanged, just make dismissal and scrolling easy. */
+  .actions, .location-panel {
+    max-height:min(52dvh,380px);
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    scroll-padding-top:52px;
+  }
+  .actions-head {
+    position:sticky;top:-15px;z-index:1;padding:8px 2px;
+    margin:-8px -1px 0;
+    background:linear-gradient(#fffdf7f9,#fffdf7f5);
+  }
+  .actions .close-actions {min-width:44px;min-height:44px;flex:none}
+  .actions .action-button,.actions .food-action,
+  .actions button:not(.close-actions) {touch-action:manipulation}
+  .camera-dock .camera-reset {min-width:40px;width:40px;height:40px}
+}
+@media(any-pointer:coarse){
+  #app button:not(:disabled):active,#app [role="button"]:active {
+    filter:brightness(.97);
+  }
+  #app input, #app textarea, #app select {scroll-margin-block:12px}
+  /* Focused search/checkout stays inside the *visible* viewport when the
+     mobile keyboard opens. Do not move or resize the 3D rendering surface. */
+  #app.mobile-keyboard-open .phone-overlay,
+  #app.mobile-keyboard-open .market-overlay,
+  #app.mobile-keyboard-open .jobs-overlay,
+  #app.mobile-keyboard-open .computer-overlay,
+  #app.mobile-keyboard-open .furnish-overlay,
+  #app.mobile-keyboard-open .skills-overlay {
+    top:var(--mobile-keyboard-top,0px);
+    bottom:auto;
+    height:var(--mobile-keyboard-height,100dvh);
+    max-height:var(--mobile-keyboard-height,100dvh);
+  }
+  #app.mobile-keyboard-open .phone-case,
+  #app.mobile-keyboard-open .market-card,
+  #app.mobile-keyboard-open .jobs-card,
+  #app.mobile-keyboard-open .furnish-case {
+    max-height:100%;
+    min-height:0;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .world-tap-pulse {animation:none;opacity:.55;transform:scale(1)}
+}

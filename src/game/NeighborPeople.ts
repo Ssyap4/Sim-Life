@@ -133,6 +133,19 @@ function dressTorso(torso:THREE.Group,person:NeighborProfile):void {
       piece(torso,softCube,a,[.063,.45,.04],[x,1.34,.173]);
   }
 
+  // Wardrobe hardware and tailoring make silhouettes less interchangeable.
+  // Batch the static details with the torso for stable mobile draw-call cost.
+  if (['coat','jacket','vest','shirt'].includes(outfit)) {
+    for (const y of [1.01,1.16,1.31]) {
+      piece(torso,orb,0xd6bf92,[.013,.013,.010],[.019,y,.198]);
+    }
+    for (const s of [-1,1])
+      piece(torso,softCube,a,[.065,.028,.019],[s*.154,1.13,.186]);
+  }
+  if(outfit==='sweater'||outfit==='hoodie') {
+    for(const s of [-1,1])piece(torso,softCube,a,
+      [.094,.041,.118],[s*.333,1.076,.014]);
+  }
   if(person.accessory==='backpack') {
     piece(torso,softCube,a,[.40,.52,.21],[0,1.12,-.245]);
     for(const x of [-.16,.16])
@@ -196,6 +209,9 @@ function resident(index:number):NeighborRig {
       [x+side*.038,1.760,.218],
     ],.007,.0025,p.hair,.66,false);
     piece(headVisual,orb,0xdca18f,[.045,.021,.010],[side*.135,1.632,.192]);
+    if(index%4===1) for(let f=0;f<2;f++)
+      piece(headVisual,orb,0x987263,[.005,.004,.004],
+        [side*(.125+f*.022),1.638+f*.010,.203]);
   }
   piece(headVisual,orb,p.skin,[.034,.045,.055],[0,1.637,.242]);
   sculptedCurve(headVisual,[
@@ -402,6 +418,8 @@ export class NeighborPeople {
     rig.torso.rotation.x=-.014*walking+Math.sin(t*.9+index)*.008;
     rig.torso.rotation.z=sway*.015*walking+Math.sin(t*.55+index)*.006;
     rig.torso.rotation.y=Math.sin(phase)*.018*walking;
+    // Slight weight shifts during conversation, barely perceptible at distance.
+    rig.torso.rotation.y+=blend*.022*Math.sin(t*.7+index*1.7);
 
     const leftSwing=leftStep*.17*walking;
     const rightSwing=rightStep*.17*walking;
@@ -410,6 +428,8 @@ export class NeighborPeople {
     let headX=Math.sin(t*.69+index)*.018;
     let headY=Math.sin(t*.44+index*.91)*.052;
     let headZ=Math.sin(t*.62+index)*.014;
+    headX+=blend*.012*Math.sin(t*1.07+index*.73);
+    headY+=blend*.025*Math.sin(t*.59+index);
 
     // Distinct, readable actions with nonexaggerated hand/head coordination.
     // All changes enter and exit through the deterministic gesture envelope.

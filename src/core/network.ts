@@ -104,6 +104,8 @@ export class LiveConnection {
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
   setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
+  togglePause(): boolean { return this.sendAuthenticated({type:'pause_toggle'}); }
+  replyPause(accept: boolean): boolean { return this.sendAuthenticated({type:'pause_reply',accept}); }
   setAutonomyMode(mode:AutonomyMode):boolean{return this.sendAuthenticated({type:'autonomy_mode',mode});}
   startSleep(mode: SleepMode,furnitureId?:number): boolean {return this.sendAuthenticated({type:'sleep_start',mode,...(furnitureId===undefined?{}:{furnitureId})});}
   stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}

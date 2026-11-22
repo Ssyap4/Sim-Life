@@ -158,16 +158,29 @@ function makeKitchen(): THREE.Group {
     part(kitchen, [x2 - x1, 0.126, z2 - z1], [(x1 + x2) / 2, 0.966, (z1 + z2) / 2],
       C.stone, cube, true, 'ceramic');
   }
+  // Thin plinth and continuous lower moulding improve depth without
+  // changing the counter's footprint or any work target.
+  part(kitchen,[4.09,.085,.043],[0,.16,.435],0x29463e,'soft',false,'wood');
+  part(kitchen,[4.09,.022,.035],[0,.85,.443],0xb39a73,'soft',false,'wood');
   // Inset cabinet fronts and a dedicated oven.
   for (const x of [-1.56, -0.70, 0.78, 1.56]) {
     part(kitchen, [0.72, 0.68, 0.036], [x, 0.51, 0.431], C.moss, 'soft', false, 'wood');
     part(kitchen, [0.53, 0.48, 0.017], [x, 0.49, 0.451], 0x5e8271, 'soft', false, 'wood');
     part(kitchen, [0.30, 0.025, 0.038], [x, 0.74, 0.480], C.brass, 'soft', false, 'metal');
+    for (const edge of [-.28,.28])
+      part(kitchen,[.020,.43,.016],[x+edge,.49,.467],0x93ad96,'soft',false,'wood');
+    for (const y of [.295,.68])
+      part(kitchen,[.55,.018,.016],[x,y,.467],0x93ad96,'soft',false,'wood');
+    part(kitchen,[.20,.018,.017],[x,.37,.478],0x9ab09b,'soft',false,'wood');
   }
   part(kitchen, [0.83, 0.65, 0.055], [0.05, 0.52, 0.449], C.graphite);
   part(kitchen, [0.67, 0.45, 0.012], [0.05, 0.50, 0.485], C.slate, 'soft', false, 'screen');
   part(kitchen, [0.37, 0.025, 0.025], [0.05, 0.79, 0.497], C.brass, 'soft', false, 'metal');
   for (const x of [-0.17, 0.05, 0.27]) round(kitchen, 0.027, 0.017, [x, 0.84, 0.493], C.brass, 'metal');
+  // Oven rack edges behind tinted glass and discrete temperature icons.
+  for (const y of [.39,.49,.59])
+    part(kitchen,[.53,.012,.006],[.05,y,.496],0xa6b9b2,'square',false,'metal');
+  part(kitchen,[.54,.014,.011],[.05,.28,.492],0x9cb4ac,'soft',false,'metal');
 
   // Hob, cooker hood and a shallow backsplash, all contained in old footprint.
   part(kitchen, [1.23, 0.025, 0.64], [-0.57, 1.041, -0.06], C.graphite, 'soft', false, 'screen');
@@ -184,6 +197,10 @@ function makeKitchen(): THREE.Group {
   part(kitchen, [1.07, 0.033, 0.22], [-0.57, 1.657, -0.28], C.stone);
   part(kitchen, [1.18, 0.22, 0.53], [-0.57, 1.79, -0.31], C.paleSage, 'soft');
   part(kitchen, [1.06, 0.06, 0.10], [-0.57, 1.62, -0.08], C.brass, 'soft', false, 'metal');
+  // Recessed range-hood filter, small steel rails and control lights.
+  part(kitchen,[.83,.010,.19],[-.57,1.636,-.27],0x72817a,'soft',false,'metal');
+  for(const x of [-.83,-.57,-.31])
+    part(kitchen,[.014,.011,.17],[x,1.645,-.27],0x3e4c47,'soft',false,'metal');
 
   // A steel liner sits below the stone lip, with tapered walls and a drain.
   for (const x of [0.881, 1.679]) {
@@ -205,7 +222,23 @@ function makeKitchen(): THREE.Group {
   for (const x of [0.45, 1.20, 1.86]) {
     part(kitchen, [0.70, 0.35, 0.30], [x, 1.79, -0.28], C.linen, 'soft', false, 'wood');
     part(kitchen, [0.26, 0.025, 0.021], [x, 1.70, -0.105], C.brass, 'soft', false, 'metal');
+    part(kitchen,[.53,.20,.012],[x,1.80,-.117],0xdce1d0,'soft',false,'ceramic');
+    for (const edge of [-.28,.28]) part(kitchen,[.018,.30,.025],
+      [x+edge,1.79,-.11],0xc2ad89,'soft',false,'wood');
   }
+  // An orderly, genuinely three-dimensional cluster of countertop details.
+  // These are fixed to the existing kitchen and carry no gameplay inventory.
+  for (let i=0;i<4;i++) {
+    const x=-1.92+i*.15;
+    round(kitchen,.043,.095,[x,1.112,-.30],i%2?0x876a46:0xa5b18a,'ceramic');
+    round(kitchen,.045,.014,[x,1.178,-.30],C.brass,'metal');
+  }
+  part(kitchen,[.31,.065,.18],[1.87,1.099,-.23],C.woodDark,'soft',false,'wood');
+  for (const x of [1.79,1.87,1.95])
+    part(kitchen,[.022,.15,.012],[x,1.20,-.23],C.slate,'soft',false,'metal');
+  // Baking material colors into the static cabinet pieces keeps their new
+  // ornamentation without a draw call for every handle and trim.
+  batchRigidParts(kitchen, true);
   return kitchen;
 }
 

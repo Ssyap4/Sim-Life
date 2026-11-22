@@ -3,6 +3,21 @@ import { drum, orb, softCube, batchRigidParts } from './ArtKit';
 import type { RecipeId, TakeoutId } from '../shared/food';
 
 export type ServedDish = RecipeId | TakeoutId;
+
+// One lathed, gently curved glazed ceramic plate, shared by every portion.
+// This replaces the flat cylinder without introducing another draw call.
+const plateGeometry = new THREE.LatheGeometry([
+  new THREE.Vector2(0, .006), new THREE.Vector2(.092,.006),
+  new THREE.Vector2(.128,.009),new THREE.Vector2(.155,.017),
+  new THREE.Vector2(.169,.029),new THREE.Vector2(.182,.032),
+  new THREE.Vector2(.191,.039),new THREE.Vector2(.190,.045),
+],32);
+const plateFinish = new THREE.MeshStandardMaterial({
+  color:0xf3e6d5,roughness:.29,metalness:.02,
+});
+export function ceramicPlate(): THREE.Mesh {
+  return new THREE.Mesh(plateGeometry,plateFinish);
+}
 const materials = new Map<number, THREE.MeshStandardMaterial>();
 const prototypes = new Map<string, THREE.Group>();
 const palette = {
@@ -123,6 +138,30 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
   else {
     slice(g,palette.meat,-.035,0,.2);
     grains(g,palette.rice,5);
+  }
+  // Distinct garnishes / finishing touches, merged into the same cached
+  // geometry batch; the plate never acquires per-frame draw calls.
+  if (id==='homemadePizza'||id==='pizzaCheese'||id==='pizzaPepperoni'||id==='pizzaBig') {
+    for (let i=0;i<5;i++) {
+      const angle=i*2.4;
+      bit(g,id==='pizzaPepperoni'?palette.meat:palette.olive,
+        Math.cos(angle)*.080,.057,Math.sin(angle)*.080,.022,.011,.023,drum);
+    }
+  } else if (id==='pancakes') {
+    for(let i=0;i<3;i++)bit(g,palette.cream,
+      -.03+i*.024,.085,-.018+i*.015,.018,.014,.015);
+  } else if (id==='porridge'||id==='chickenSoup'||id==='beefStew') {
+    for(let i=0;i<5;i++) {
+      const a=i*2.4;
+      bit(g,i%2?palette.leaf:palette.cream,
+        Math.sin(a)*.068,.055,Math.cos(a)*.067,.012,.009,.013);
+    }
+  } else if (id==='salad'||id==='fruitSalad'||id==='pastaBolognese'||id==='pastaCheese') {
+    for(let i=0;i<4;i++) {
+      const a=i*2.1;
+      bit(g,id==='fruitSalad'?palette.apple:palette.leaf,
+        Math.sin(a)*.081,.057,Math.cos(a)*.070,.015,.008,.012);
+    }
   }
   batchRigidParts(g,true);
   return g;
