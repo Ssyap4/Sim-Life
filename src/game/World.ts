@@ -41,7 +41,7 @@ import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './Interio
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
-import { diningLocation, furnitureUseLocation } from '../shared/furnitureUse';
+import { canFurniturePerform, diningLocation, furnitureUseLocation } from '../shared/furnitureUse';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -1093,8 +1093,42 @@ export class World {
     for (const role of roles) {
       follow(role, () => {
         if (activity === 'tv' || activity === 'computer') {
-          this.applyFurniturePose(role, activity === 'tv' ? 'sofa' : 'desk', activity === 'tv' ? 'sit' : 'work');
-          if (activity === 'computer') this.actors[role].playDomesticActivity('games');
+          const fixture=activity==='tv'?'sofa':'desk';
+          const action=activity==='tv'?'free_tv':'deskGames';
+          const pose=activity==='tv'?'sit':'work';
+          const endpoint=routes?.[role]?.path.at(-1)??routes?.[role]?.from;
+          let placed=false;
+          // The shared household position advances while the actor walks.
+          // Thus a freshly computed route may choose another approach side:
+          // match the original destination to the nearest compatible real
+          // furniture, not to an exact path endpoint that can change.
+          if(this.household&&endpoint){
+            let nearestUse:ReturnType<typeof furnitureUseLocation>=null;
+            let nearestDistance=Infinity;
+            for(const item of this.household.furnishing.placed){
+              if(!canFurniturePerform(item,action))continue;
+              const distance=Math.hypot(item.x-endpoint.x,item.z-endpoint.z);
+              if(distance>3.2||distance>=nearestDistance)continue;
+              const use=furnitureUseLocation(this.household,role,item.id,action);
+              if(!use)continue;
+              nearestUse=use;
+              nearestDistance=distance;
+            }
+            if(nearestUse){
+              this.actors[role].setFurniturePose(pose,
+                new THREE.Vector3(nearestUse.pose.x,nearestUse.pose.y,nearestUse.pose.z),
+                nearestUse.pose.yaw);
+              placed=true;
+            }
+          }
+          if(!placed){
+            if(!this.household?.furnishing.soldFixtures?.includes(fixture))
+              this.applyFurniturePose(role,fixture,pose);
+            else this.actors[role].setPose('idle');
+          }
+          if(activity==='computer'&&
+             (placed||!this.household?.furnishing.soldFixtures?.includes(fixture)))
+            this.actors[role].playDomesticActivity('games');
         } else {
           const pet = this.pets[activity];
           this.actors[role].faceTowards(pet.root.position);

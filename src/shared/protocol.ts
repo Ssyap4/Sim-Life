@@ -1,4 +1,5 @@
 import { initialRelationship, type Relationship, type SocialCommand, type SocialIntent, type SocialOffer, type SocialPhase } from './socialLife';
+import { INITIAL_AUTONOMY, type AutonomyMode, type AutonomySettings } from './autonomy';
 import { initialEducation, type EducationCommand, type EducationState } from './education';
 import { initialCareers, type CareerCommand, type CareersState } from './careers';
 import { initialComputerLibrary, type ComputerLibrary, type ComputerGameId, type VideoClipId } from './computerGames';
@@ -79,6 +80,7 @@ export interface GameState {
   careers: CareersState;
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
+  autonomy: AutonomySettings;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
 }
@@ -176,6 +178,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'job_start'; job: import('./jobs').JobId }
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
+  | { type: 'autonomy_mode'; mode: AutonomyMode }
   | { type: 'shift_speed'; enabled: boolean }
   | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }
   | { type: 'sleep_stop' }
@@ -229,7 +232,7 @@ export function initialState(): GameState {
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
     ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
-    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(),
+    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY },
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },

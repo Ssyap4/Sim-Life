@@ -12,7 +12,9 @@ startServer({ port, host, dataDir, distDir: resolve('dist'),
   testNoCodes:process.env.SIM_LIFE_TEST_NO_CODES==='1' })
   .then((server) => {
     console.log('🏡 Sim-Life server: http://127.0.0.1:' + server.port);
-    console.log('Invite codes (private): ' + resolve(dataDir, 'access.json'));
+    if(process.env.SIM_LIFE_TEST_NO_CODES==='1')
+      console.log('🧪 TEST PREVIEW: codes disabled for both characters; trusted LAN only.');
+    else console.log('Invite codes (private): ' + resolve(dataDir, 'access.json'));
     console.log('Use trusted home Wi-Fi only; this prototype uses HTTP, not HTTPS.');
   })
   .catch((error: unknown) => {

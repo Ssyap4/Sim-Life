@@ -132,3 +132,42 @@ test('Live two-player sleep and shift votes never speed up a non-consenting awak
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Purchased replacement bed keeps x2/x3 sleep acceleration for two online residents',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-purchased-speed-'));
+  const files=openServerFiles(dir);
+  const state=initialState();
+  state.furnishing.soldFixtures=['bed'];
+  state.furnishing.placed=[{id:1,sku:'bed-aurora',finish:'sage',x:-6.97,z:-5.88,rotation:0}];
+  state.furnishing.nextId=2;
+  state.characters.vlad.energy=18;
+  state.characters.alina.energy=18;
+  files.save(state);
+  const server=await startServer({port:0,dataDir:dir});
+  const sockets:Connection[]=[];
+  try{
+    const a=await connection(server.port);sockets.push(a);
+    const b=await connection(server.port);sockets.push(b);
+    a.send({type:'auth',role:'vlad',code:files.access.vlad});
+    b.send({type:'auth',role:'alina',code:files.access.alina});
+    await a.next('ready');await b.next('ready');
+    a.send({type:'sleep_start',mode:'full',furnitureId:1});
+    await a.next('time_status',p=>p.status.sleepers.vlad==='full'&&p.status.multiplier===1);
+    b.send({type:'sleep_start',mode:'half',furnitureId:1});
+    await a.next('time_status',p=>p.status.multiplier===2&&
+      p.status.sleepers.vlad==='full'&&p.status.sleepers.alina==='half');
+    const mixed=await a.next('snapshot',p=>p.state.characters.vlad.pose==='sleep'&&
+      p.state.characters.alina.pose==='sleep');
+    assert.equal(mixed.state.characters.vlad.sleepingOn,1);
+    assert.equal(mixed.state.characters.alina.sleepingOn,1);
+    a.send({type:'sleep_stop'});
+    await b.next('time_status',p=>p.status.multiplier===1&&!p.status.sleepers.vlad);
+    a.send({type:'sleep_start',mode:'half',furnitureId:1});
+    await b.next('time_status',p=>p.status.multiplier===3&&
+      p.status.sleepers.vlad==='half'&&p.status.sleepers.alina==='half');
+  }finally{
+    for(const socket of sockets)await socket.close();
+    await server.close();
+    rmSync(dir,{recursive:true,force:true});
+  }
+});

@@ -1,4 +1,5 @@
 import { initialRelationship } from '../src/shared/socialLife';
+import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
 import { initialServices } from '../src/shared/services';
 import { validBilling } from './services';
@@ -42,6 +43,7 @@ const isValidState = (value: unknown): value is GameState => {
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if (state.autonomy !== undefined && !validAutonomy(state.autonomy)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
   if (state.careers !== undefined && !validCareers(state.careers)) return false;
   if (state.computerLibrary !== undefined && !validComputerLibrary(state.computerLibrary)) return false;
@@ -266,6 +268,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         computerLibrary: data.computerLibrary ?? initialComputerLibrary(),
         furnishing: savedFurnishing,
         relationship: data.relationship ?? initialRelationship(),
+        autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
           verdell: restorePet('verdell', data.pets?.verdell, restoredPetGeometry),

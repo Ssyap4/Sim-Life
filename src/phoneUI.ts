@@ -1,4 +1,6 @@
 import { renderRelationship } from './socialUI';
+import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
+import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
 import { createBillingUI, type BillingApp } from './billingUI';
 import { createEducationUI, educationAppointments, type EducationView } from './educationUI';
@@ -16,7 +18,7 @@ import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | BillingApp;
+type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
@@ -24,6 +26,7 @@ const apps: Record<App,[string,string]> = {
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
   family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
+  autonomy:['🧠','Жизнь и привычки'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
@@ -33,7 +36,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
-  openFurnishing:()=>void) {
+  openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
+  thoughts:ReturnType<typeof createThoughtUI>) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -78,6 +82,80 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='autonomy'){
+      const scroll=info.scrollTop;
+      const intro=block('🧠 Живая повседневность',
+        '«Выключена» сохраняет поведение 0.16: редкие прогулки по дому и помощь при критических потребностях. Новые режимы дают больше самостоятельности; команды игрока главнее. Покупок и рабочих смен без разрешения нет.');
+      intro.classList.add('autonomy-phone-intro');
+      const cards=(['vlad','alina'] as const).map(id=>{
+        const current=block(names[id]+' · '+AUTONOMY_LABELS[state.autonomy[id]],'');
+        current.classList.add('autonomy-phone-card');
+        const thought=thoughtFor(state,id);
+        current.querySelector('p')!.textContent=thought.emoji+' '+thought.text;
+        if(role===id){
+          const select=document.createElement('select');
+          select.dataset.autonomy=id;
+          select.setAttribute('aria-label','Выбрать самостоятельность '+names[id]);
+          for(const mode of AUTONOMY_MODES){
+            const option=document.createElement('option');
+            option.value=mode;option.textContent=AUTONOMY_LABELS[mode];
+            select.append(option);
+          }
+          select.value=state.autonomy[id];
+          select.addEventListener('change',()=>{if(setAutonomy(select.value as AutonomyMode))select.disabled=true;});
+          current.append(select);
+        }else{
+          const note=document.createElement('small');
+          note.textContent='Настраивает только сам персонаж со своего устройства.';
+          current.append(note);
+        }
+        return current;
+      });
+      const settings=block('💭 Всплывающая карточка',
+        'Настройки показываемых мыслей для этого персонажа на данном устройстве.');
+      settings.classList.add('autonomy-phone-settings');
+      const preferences=thoughts.preferences();
+      for(const [id,label] of [
+        ['show','Показывать всплывающие мысли'],
+        ['hints','Показывать мини-подсказки'],
+        ['pin','Закрепить карточку на экране'],
+      ] as [keyof ThoughtPreferences,string][]){
+        const row=document.createElement('label');
+        const checkbox=document.createElement('input');
+        checkbox.type='checkbox';checkbox.dataset.thoughtSetting=id;
+        checkbox.checked=preferences[id];
+        checkbox.addEventListener('change',()=>{thoughts.setPreference(id,checkbox.checked);});
+        row.append(checkbox,document.createTextNode(label));
+        settings.append(row);
+      }
+      const historyIntro=block('🕰 Недавние мысли',
+        'Пять последних мыслей каждого персонажа. История хранится на этом устройстве, не изменяя семейное сохранение.');
+      historyIntro.dataset.thoughtHistoryAnchor='true';
+      const historyCards=(['vlad','alina'] as const).map(id=>{
+        const section=block('💭 '+names[id],'');
+        section.classList.add('autonomy-phone-history');
+        section.querySelector('p')!.remove();
+        const entries=[...thoughts.history(id)].reverse();
+        if(!entries.length){
+          const empty=document.createElement('p');
+          empty.textContent='Пока нет записей. Мысли появятся во время игры.';
+          section.append(empty);
+        }
+        for(const entry of entries){
+          const item=document.createElement('div');
+          item.className='thought-history-item';
+          const time=document.createElement('small');
+          time.textContent=entry.emoji+' '+entry.time;
+          const text=document.createElement('p');
+          text.textContent='«'+entry.text+'»';
+          item.append(time,text);
+          section.append(item);
+        }
+        return section;
+      });
+      info.replaceChildren(intro,...cards,settings,historyIntro,...historyCards);
+      info.scrollTop=scroll;
+    }
     if (app === 'relationship') {
       const scroll=info.scrollTop;
       renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current());
@@ -156,7 +234,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='relationship'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);
@@ -183,7 +261,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if ((app==='delivery'&&delivery.hidden)||(app==='jobs'&&jobs.hidden)) show(null);
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
-  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+  return { open(next: App | null = null) {show(next);closeButton.focus();},
+    openAutonomyHistory(){
+      show('autonomy');
+      info.querySelector<HTMLElement>('[data-thought-history-anchor]')?.scrollIntoView({block:'start'});
+      closeButton.focus();
+    },
+    close,refresh,refreshClock,
     refreshRelationship() { if(app==='relationship')refresh(); },
     openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
     educationMessage(message: string) {

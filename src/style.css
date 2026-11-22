@@ -32,7 +32,8 @@ button:focus-visible { outline: 3px solid #5e896d; outline-offset: 2px; }
   width: min(100%, 490px); display: flex; flex-direction: column; gap: 11px;
 }
 .brand-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-kicker, .brand h1 { white-space: nowrap; }
 .brand-icon {
   display: grid; place-items: center; width: 40px; height: 40px;
   font: 900 32px/1 'Nunito',sans-serif; border-radius: 14px;
@@ -501,6 +502,20 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .need-track i.need-low { background:#ce887d; }
 .need-value { text-align:right; color:#6d786a; font-variant-numeric: tabular-nums; }
 .need-hint { display:block; margin-top:8px; color:#9c705c; font-size:10px; }
+.autonomy-thought { margin: 5px 0 10px; font-size: 11px; line-height: 1.45;
+  border-radius: 12px; background: #eaf0e6; color: #49634f; padding: 9px 11px; }
+.autonomy-mode-row { display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+  justify-content:space-between; font-size:11px; font-weight:800; color:#4c6653; }
+.autonomy-mode-row select,.autonomy-phone-card select {
+  border:1px solid #a8bea4; border-radius:10px; background:#fffdf5;
+  color:#3d6049; font:inherit; font-size:11px; font-weight:800;
+  padding:8px 9px; max-width:100%; min-height:36px; }
+.autonomy-mode-row select:disabled {opacity:.65;cursor:default}
+.autonomy-note { display:block; margin:5px 1px 10px; font-size:9px;
+  color:#778478; line-height:1.4; }
+.autonomy-phone-intro {font-size:12px}
+.autonomy-phone-card select { display:block; width:100%; margin-top:10px; min-height:43px; }
+.autonomy-phone-card small {display:block; padding-top:7px; color:#728573;}
 @media (max-width:370px) {
   .life-strip { padding-left:8px; }
   .life-strip button { padding:6px 8px; font-size:10px; }
@@ -861,7 +876,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .phone-screen { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .phone-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;
-  height: 100%; align-content: start; padding: 22px 16px;
+  height: 100%; align-content: start; padding: 22px 16px; overflow-y: auto;
   background: radial-gradient(ellipse at 12% 100%, var(--phone-light), transparent 78%), #faf7ec;
 }
 .phone-grid button {
@@ -1272,3 +1287,123 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 }
 
 .market-search-input::-webkit-search-cancel-button { appearance:none; display:none; }
+
+/* 0.17 thoughts and contextual micro-tutorials. Pure DOM; no WebGL draw calls. */
+.thought-dock {
+  pointer-events: auto; position: absolute; z-index: 5;
+  left: 50%; transform: translateX(-50%);
+  top: calc(var(--hud-top, 214px) + 8px);
+  width: min(328px, calc(100% - 20px));
+  display: flex; flex-direction: column; align-items: stretch; gap: 7px;
+}
+.thought-trigger {
+  align-self: flex-end; min-height: 38px; padding: 7px 12px;
+  border: 1px solid #fff; border-radius: 13px;
+  background: rgba(250,252,241,.95); color: #456651;
+  box-shadow: 0 5px 19px #27442e35; backdrop-filter: blur(9px);
+  font-size: 12px; font-weight: 900;
+}
+.thought-trigger[aria-expanded="true"] { background: #dcebd8; }
+.thought-trigger.thought-muted { color: #7e8980; }
+.thought-urgent .thought-trigger { background: #f9e7db; color: #865b47; }
+.thought-panel {
+  background: rgba(255,253,246,.985); color: #3d5848; border: 1px solid #fff;
+  border-radius: 18px; box-shadow: 0 12px 32px #24423248;
+  padding: 12px; max-height: min(56dvh,480px); overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin;
+  animation: thought-appear 140ms ease-out;
+}
+@keyframes thought-appear {
+  from { opacity:.3; transform:translateY(-6px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.thought-heading, .thought-heading-actions, .thought-lesson-head, .thought-footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 6px;
+}
+.thought-heading > div:first-child { min-width: 0; }
+.thought-heading strong { display:block; font-size:13px; font-weight:900; }
+.thought-heading small { display:block; font-size:9px; color:#79877b; margin-top:2px; }
+.thought-heading-actions button, .thought-lesson-head button {
+  flex: 0 0 auto; border: 0; border-radius: 9px;
+  background: #e7eee3; color: #416650; font-size: 12px; font-weight:900;
+  min-width: 32px; min-height: 32px;
+}
+.thought-heading-actions button:last-child { font-size: 21px; }
+.thought-heading-actions button.selected { background: #d3e7d1; }
+.thought-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.thought-switch button {
+  min-height: 30px; border: 1px solid #dce6d8; border-radius: 9px;
+  color: #5c765f; background:#f3f5ed; font-size:11px; font-weight:900;
+}
+.thought-switch button.selected { border-color:#aac6aa; color:#41654d; background:#deebdb; }
+.thought-phrase {
+  font-size: 12px; line-height: 1.5; font-weight: 750;
+  border-radius: 12px; background: #eaf0e6; padding: 10px;
+  margin: 9px 0 7px; overflow-wrap: anywhere;
+}
+.thought-need {
+  color:#748873; font-size:10px; font-weight:900; margin:0 2px 8px;
+}
+.thought-lesson {
+  border: 1px solid #e3e6d6; border-radius: 12px;
+  padding: 10px; background: #f7f5e8;
+}
+.thought-lesson-head strong { font-size: 11px; line-height: 1.3; }
+.thought-lesson-head button { min-height: 30px; padding: 0 8px; }
+.thought-lesson p {
+  margin: 7px 0 3px; line-height:1.48; font-size: 11px; overflow-wrap:anywhere;
+}
+.thought-lesson small { display:block; color:#8d988a; font-size:9px; }
+.thought-footer { margin-top: 9px; }
+.thought-footer button {
+  flex:1; min-width: 0; min-height: 33px; border-radius: 9px;
+  border: 1px solid #e1e8da; background: #f2f5ee; color: #54715c;
+  font-size: 10px; font-weight: 900;
+}
+.thought-preferences {
+  background:#f0f5ee; border:1px solid #dae6d8;
+  border-radius:11px; padding:9px; margin-top:8px;
+  display:grid; gap:7px; font-size:10px;
+}
+.thought-preferences > strong { font-size:11px; }
+.thought-preferences label { display:flex; align-items:center; gap:7px; cursor:pointer; min-height:26px; }
+.thought-preferences input { width:16px; height:16px; accent-color:#658f73; }
+.thought-preferences small { color:#7c897d; line-height:1.4; }
+.autonomy-phone-history article { padding:8px 10px; }
+.autonomy-phone-history .thought-history-item {
+  padding:7px 0; border-bottom:1px solid #d2ded0; font-size:11px; line-height:1.4;
+}
+.autonomy-phone-history .thought-history-item:last-child { border:0; }
+.autonomy-phone-history .thought-history-item small {
+  color:#738879; display:block; font-size:10px;
+}
+.autonomy-phone-history .thought-history-item p { margin:2px 0 0; font-size:11px; }
+.autonomy-phone-settings label {
+  min-height: 37px; display:flex; align-items:center; gap:8px; font-weight:800; font-size:12px;
+}
+.autonomy-phone-settings input { width:18px; height:18px; accent-color:#658f73; }
+#app:has(.phone-overlay:not([hidden])) .thought-dock,
+#app:has(.needs-panel:not([hidden])) .thought-dock,
+#app:has(.furnish-overlay:not([hidden])) .thought-dock,
+#app:has(.computer-overlay:not([hidden])) .thought-dock,
+#app:has(.world-map:not([hidden])) .thought-dock,
+#app:has(.auth-screen:not([hidden])) .thought-dock,
+#app.inspecting .thought-dock { visibility:hidden; }
+@media(min-width:1120px) and (min-height:650px) {
+  .thought-dock { left:18px; transform:none; width:320px; }
+}
+@media(max-width:640px) and (orientation:portrait) {
+  .thought-dock {
+    top:calc(var(--hud-top, 118px) + 4px); left:auto;right:8px;transform:none;
+    width:min(300px,calc(100% - 16px)); gap:4px;
+  }
+  .thought-trigger { min-height:44px; font-size:11px; padding:6px 10px; }
+  .thought-panel { max-height:min(46dvh,385px); padding:9px; border-radius:14px; }
+  .thought-heading-actions button, .thought-lesson-head button { min-height:39px; min-width:39px; }
+  .thought-switch button { min-height:37px; }
+  .thought-footer button { min-height:39px; }
+  .thought-phrase { font-size:11px; padding:8px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .thought-panel { animation:none; }
+}

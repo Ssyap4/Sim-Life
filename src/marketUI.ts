@@ -44,7 +44,15 @@ export function createMarketUI(
   let currentTab: Tab = 'shop';
   let category: Filter = 'all';
   let searchQuery = '';
+  let lastHouseholdView = '';
   const cart = new Map<string, number>();
+  // Frequent position/need snapshots must not replace a touch target while
+  // someone is tapping +, scrolling, or typing into the mobile catalogue.
+  const householdView=(household:GameState)=>JSON.stringify([
+    household.money,household.pantry,household.meals,household.takeout,
+    household.petFood,household.petBowls,household.readyFood,household.ledger,
+    household.billing,Math.floor(clockMinutes(household.clock)/30),
+  ]);
   function cartFit(id?:string,delta=0):boolean {
     if(!state)return false;
     const choices=new Map(cart);
@@ -80,7 +88,7 @@ export function createMarketUI(
     panel.setAttribute('aria-label','Магазин и семейные запасы');
     const header = el('div','market-header');
     const title = el('div','market-title');
-    title.append(el('strong','', '🛍️ Доставка и семейные запасы'),
+    title.append(el('strong','', '🛍️ Продукты и доставка'),
       el('small','', 'Семейный бюджет: '+formatRub(state.money)));
     header.append(title,button('✕',close,'market-close'));
     panel.append(header);
@@ -129,7 +137,7 @@ export function createMarketUI(
         'Продукты готовить дома выгоднее. Пицца и роллы доставляются готовыми и стоят заметно дороже.');
       scroll.append(caption);
       const used=storageUsage(state);
-      scroll.append(el('div','market-capacity',
+      scroll.append(el('div','market-capacity market-catalog-capacity',
         '🧊 Холодильник '+used.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ Полки '+used.cupboard+'/'+CUPBOARD_CAPACITY+
         ' · упаковка обычно занимает одну ячейку'));
       const grid = el('div','market-products');
@@ -217,12 +225,18 @@ export function createMarketUI(
       const capacity=storageUsage(after);
       const footer=el('div','market-checkout');
       const amounts=el('div','market-summary');
-      amounts.append(el('small','', 'Товары · '+selected.reduce((n,l)=>n+l.quantity,0)+' уп.: '+formatRub(productsTotal)),
-        el('small','market-delivery-line', '🚚 Доставка: '+formatRub(deliveryCost)),
-        el('strong','', 'Итого к оплате: '+formatRub(total)),
-        el('small','', !storageOkay ? 'Недостаточно мест для заказа' :
-          total>state.money ? 'Не хватает '+formatRub(total-state.money) : 'После покупки: '+formatRub(state.money-total)),
-        el('small','', '🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY +
+      amounts.append(
+        el('small','market-summary-count',selected.length
+          ? '🛍️ В корзине '+selected.reduce((n,l)=>n+l.quantity,0)+' уп. · '+formatRub(productsTotal)
+          : '🛍️ Выбери товары в каталоге'),
+        el('strong','',selected.length ? 'К оплате: '+formatRub(total) : 'Корзина пока пуста'),
+        el('small','market-delivery-line',selected.length
+          ? '🚚 Доставка: '+formatRub(deliveryCost)
+          : 'Список товаров пролистывается ниже'),
+        el('small','market-checkout-extra',!storageOkay ? 'Недостаточно мест для заказа' :
+          total>state.money ? 'Не хватает '+formatRub(total-state.money) :
+          'После покупки: '+formatRub(state.money-total)),
+        el('small','market-checkout-capacity','🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY +
           ' · 🍽️ стол ' + readyFoodTableUsage(after) + '/' + TABLE_READY_CAPACITY));
       const sendBtn=button('Оформить доставку',()=>{
         if (sendCheckout(selected)) {
@@ -325,10 +339,18 @@ export function createMarketUI(
     redraw();
   }
   return {
-    open(household) {state=household; searchQuery=''; root.hidden=false; redraw();},
-    refresh(household) {state=household;redraw();},
+    open(household) {
+      state=household;lastHouseholdView=householdView(household);
+      searchQuery='';root.hidden=false;redraw();
+    },
+    refresh(household) {
+      state=household;
+      const view=householdView(household);
+      if(view===lastHouseholdView)return;
+      lastHouseholdView=view;redraw();
+    },
     close,
-    acknowledge() {cart.clear(); redraw();},
+    acknowledge() {cart.clear();redraw();},
   };
 }
 

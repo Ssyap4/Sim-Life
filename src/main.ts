@@ -1,4 +1,5 @@
 import { createSocialOffer, showSocialMenu } from './socialUI';
+import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
@@ -11,6 +12,7 @@ import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } f
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { BOOKS, GENRES } from './shared/homeLife';
 import { createPhone } from './phoneUI';
+import { createThoughtUI } from './thoughtUI';
 import { createComputerUI } from './computerUI';
 import { createFurnishingUI } from './furnishingUI';
 import './furnishing.css';
@@ -26,6 +28,7 @@ import { HOME_LAPTOP } from './shared/locations';
 import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
+import './mobile-polish.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -90,7 +93,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.16 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.17 · ЖИВОЙ ДОМ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -125,6 +128,7 @@ app.innerHTML = `
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
   </section>
+  <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
   <div id="message" class="message" aria-live="polite"></div>
@@ -208,6 +212,7 @@ const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
 const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
 const marketOverlay = document.querySelector<HTMLElement>('#market-overlay')!;
 function toggleNeeds(open: boolean): void {
+  if(open) thoughts.close();
   needsPanelEl.hidden = !open;
   needsToggleEl.setAttribute('aria-expanded', String(open));
   if (open) renderNeeds();
@@ -376,6 +381,36 @@ function renderNeeds(): void {
     const heading = document.createElement('strong');
     heading.textContent = names[role] + ' · настроение ' + Math.round(char.mood) + '%';
     group.append(heading);
+    const thought=thoughtFor(state,role);
+    const thoughtNode=document.createElement('p');
+    thoughtNode.className='autonomy-thought';
+    thoughtNode.textContent=thought.emoji+' '+thought.text;
+    group.append(thoughtNode);
+    const settings=document.createElement('div');
+    settings.className='autonomy-mode-row';
+    const name=document.createElement('span');
+    name.textContent='🧠 Самостоятельность';
+    const chosen=document.createElement('select');
+    chosen.setAttribute('aria-label','Самостоятельность: '+names[role]);
+    chosen.dataset.autonomy=role;
+    chosen.disabled=role!==active;
+    for(const mode of AUTONOMY_MODES){
+      const option=document.createElement('option');
+      option.value=mode;option.textContent=AUTONOMY_LABELS[mode];
+      chosen.append(option);
+    }
+    chosen.value=state.autonomy[role];
+    chosen.addEventListener('change',()=>{
+      if(net.setAutonomyMode(chosen.value as AutonomyMode)) chosen.disabled=true;
+    });
+    settings.append(name,chosen);
+    group.append(settings);
+    if(role===active){
+      const note=document.createElement('small');
+      note.className='autonomy-note';
+      note.textContent='«Выключена» — прежняя игра 0.16: редкие прогулки и помощь при критических потребностях. Покупки и работу персонаж не начинает сам.';
+      group.append(note);
+    }
     for (const need of VITAL_NEEDS) {
       const info = NEED_INFO[need];
       const value = Math.round(char[need]);
@@ -417,10 +452,21 @@ function renderTimePanel(): void {
   const status = document.createElement('strong');
   status.textContent = (mode === 'full' ? '🌙 Сон до 100%' : '😴 Отдых до 50%') +
     ' · энергия ' + Math.round(state.characters[active].energy) + '%' +
-    (timeStatus.multiplier > 1 ? ' · ×' + timeStatus.multiplier : ' · обычное время');
+    ' · сейчас ×' + timeStatus.multiplier;
+  const speeds = document.createElement('div');
+  speeds.className = 'sleep-speed-guide';
+  speeds.setAttribute('aria-label', 'Возможные ускорения сна');
+  for (const [multiplier, label] of [[2, '×2 · до 100%'], [3, '×3 · до 50%']] as const) {
+    const chip = document.createElement('span');
+    chip.className = 'sleep-speed-chip';
+    chip.textContent = label;
+    chip.classList.toggle('sleep-speed-current', timeStatus.multiplier === multiplier);
+    speeds.append(chip);
+  }
   const note = document.createElement('small');
-  note.textContent = online.length > 1 && Object.keys(timeStatus.sleepers).length < online.length
-    ? 'Ускорение начнётся, когда второй игрок тоже уснёт.' : 'Сон прервётся автоматически при достижении цели.';
+  note.textContent = online.some(role => !timeStatus.sleepers[role])
+    ? '⏳ Ускорение начнётся, когда все игроки в сети будут спать. Пока ×1.'
+    : 'Скорость выбирается автоматически по режимам сна. Разные режимы = ×2.';
   const track = document.createElement('progress');
   track.className = 'sleep-progress';
   track.max = mode === 'full' ? 100 : 50;
@@ -431,7 +477,7 @@ function renderTimePanel(): void {
   wake.className = 'action-button';
   wake.textContent = 'Проснуться сейчас';
   wake.addEventListener('click', () => net.stopSleep());
-  timePanelEl.append(status,track,note,wake);
+  timePanelEl.append(status,track,speeds,note,wake);
 }
 
 function renderClock(): void {
@@ -487,6 +533,7 @@ function render(reset = false): void {
     }
   }
   renderClock();
+  thoughts.refresh();
   showUpcomingPayments(state);
   const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
@@ -553,6 +600,7 @@ function signOut(): void {
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
+  thoughts.reset();
   phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
@@ -566,10 +614,14 @@ function signOut(): void {
   socialInvite.clear();
   feedback.clear();
   locationUI.reset();
-  showStatus('Выбери персонажа и введи личный код');
+  showStatus(localPreviewNoCodes?'Выбери персонажа — тестовый вход без кода':'Выбери персонажа и введи личный код');
 }
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
   enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
+const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-dock')!,
+  ()=>state&&active?{state,role:active}:null,
+  ()=>{toggleNeeds(false);locationUI.closeMap();},
+  ()=>phone.openAutonomyHistory());
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -582,7 +634,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  },()=>furnishing.open());
+  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts);
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
@@ -642,6 +694,7 @@ const net = new LiveConnection({
     selectedDesktopFurnitureId=null;
     active = role;
     state = household;
+    thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
     timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
@@ -977,8 +1030,8 @@ function addBedSleepActions(furnitureId?:number):void{
     return;
   }
   for(const [mode,target,label] of [
-    ['full',100,'🌙 Спать до полного восстановления энергии'],
-    ['half',50,'💤 Немного поспать (до 50% энергии)'],
+    ['full',100,'🌙 Спать до 100% · ×2'],
+    ['half',50,'💤 Отдых до 50% · ×3'],
   ] as const){
     const button=document.createElement('button');
     button.type='button';button.className='action-button';button.textContent=label;
@@ -988,6 +1041,12 @@ function addBedSleepActions(furnitureId?:number):void{
     });
     actionsEl.append(button);
   }
+  const guide=document.createElement('p');
+  guide.className='sleep-speed-condition';
+  guide.textContent=online.length>1
+    ? '⏩ Ускорение ×2 или ×3 включится, когда оба игрока в сети будут спать. Если режимы отличаются — ×2.'
+    : '⏩ Ускорение ×2 / ×3 включается автоматически при начале сна.';
+  actionsEl.append(guide);
 }
 function openPurchasedBedActions(id:number):void{
   if(!state||!active||!net.isReady())return;
@@ -1094,6 +1153,15 @@ function openActions(item: ItemId): void {
   if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
+  // On phone screens the cooking list must be the FIRST content after the
+  // heading. General hints, washing dishes and collaboration follow below.
+  if(state&&active&&(item==='kitchen'||item==='grill')){
+    showFoodChoices(actionsEl,item,state,(type:FoodCommand,id)=>{
+      const sent=net.food(type,id);
+      if(sent){actionsEl.hidden=true;statusEl.textContent='Обрабатываем действие…';}
+      return sent;
+    },active);
+  }
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];
@@ -1134,7 +1202,7 @@ function openActions(item: ItemId): void {
     });
     actionsEl.append(together);
   }
-  if (state && (item === 'delivery' || item === 'kitchen' || item === 'table' || item === 'grill' || item === 'yardTable')) {
+  if (state && (item === 'delivery' || item === 'table' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = net.food(type, id);
       if (sent) {
@@ -1308,7 +1376,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     });
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
-    showStatus('Выбери персонажа и введи личный код');
+    showStatus('Проверяем режим входа…');
     try{
       const health=await fetch('/health',{cache:'no-store'});
       if(health.ok){
@@ -1320,10 +1388,10 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           accessInput.hidden=true;
           document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
           document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
-          authStatusEl.textContent='Тестовая локальная версия: выбери персонажа и входи без кода';
-        }
+          authStatusEl.textContent='Тестовая версия: выбери Влада или Алину и нажми «Войти без кода»';
+        }else authStatusEl.textContent='Выбери персонажа и введи личный код';
       }
-    }catch{}
+    }catch{authStatusEl.textContent='Выбери персонажа и введи личный код';}
     const remembered = localPreviewNoCodes?null:trustedDevice();
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {

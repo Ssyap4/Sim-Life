@@ -60,6 +60,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   let search='';
   let finish:FurnitureFinish='oak';
   let quantity=1;
+  let filtersExpanded=false;
   let previewObserver:IntersectionObserver|null=null;
   // Network snapshots arrive often, but an unchanged catalogue must retain
   // its real DOM buttons, focus and lazy-loaded thumbnails. Recreating cards
@@ -88,8 +89,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       const t=button.dataset.tab as Tab;
       button.textContent=({catalog:'🛍️ Каталог',delivery:'📦 Доставка',storage:'🗄️ Склад',placed:'🏠 Установлено'}[t])+' · '+counts[t];
     });
-    status.textContent='💳 Семейный бюджет: '+formatRub(state.money)+
-      ' · 📦 '+ready+' посылок готовы · '+stored.length+' предметов на складе';
+    status.textContent='💳 Баланс: '+formatRub(state.money)+
+      ' · 📦 Готово посылок: '+ready;
     if(root.hidden)return;
     const viewKey=JSON.stringify(tab==='catalog'?['catalog',state.money]:
       tab==='delivery'?['delivery',orders,Math.floor(callbacks.minute())]:
@@ -129,7 +130,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     }
     design.value=style;
     design.addEventListener('change',()=>{style=design.value as typeof style;renderCards(state);});
-    filters.append(searchInput,select,design);
+    filters.append(searchInput);
     const tint=document.createElement('select');tint.setAttribute('aria-label','Цвет и материал мебели');
     for(const id of FINISH_IDS){
       const option=document.createElement('option');option.value=id;option.textContent=FURNITURE_FINISHES[id].name;
@@ -142,12 +143,20 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       qty.append(option);
     }
     qty.value=String(quantity);qty.addEventListener('change',()=>{quantity=Number(qty.value);renderCards(state);});
-    const secondary=node('div','furnish-filters','');
-    secondary.append(tint,qty);
+    const extra=document.createElement('details');
+    extra.className='furnish-filter-details';
+    extra.open=window.matchMedia('(max-width:640px) and (orientation:portrait)').matches
+      ? filtersExpanded : true;
+    const toggle=document.createElement('summary');
+    toggle.textContent='⚙ Категория, стиль, цвет и количество';
+    const secondary=node('div','furnish-filter-options','');
+    secondary.append(select,design,tint,qty);
+    extra.append(toggle,secondary);
+    extra.addEventListener('toggle',()=>{filtersExpanded=extra.open;});
     const list=node('div','furnish-grid','');
     list.dataset.furnishCards='';
-    body.append(filters,secondary,
-      node('p','furnish-instructions','Выбирай цвет, количество и тип доставки. Модели отличаются не только оттенком, но и конструкцией.'),
+    body.append(filters,extra,
+      node('p','furnish-instructions','Выбери предмет и доставку. Цвет, стиль и количество меняются в фильтрах.'),
       list);
     renderCards(state);
     if(focused){

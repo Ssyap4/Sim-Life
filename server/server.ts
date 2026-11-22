@@ -18,7 +18,8 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
-import { planLeisure, urgentHomeAction } from './home';
+import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
+import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
 import { otherRole } from './social';
@@ -50,6 +51,8 @@ export interface ServerOptions {
   testNoCodes?:boolean;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
+  /** Isolated integration tests can shorten the real-world autonomy delays. */
+  autonomyTiming?: { idleMs:number; careCooldownMs:number; leisureCooldownMs:number };
 }
 export interface RunningServer {
   httpServer: HttpServer;
@@ -72,11 +75,17 @@ const packet = (socket: WebSocket, value: ServerPacket): void => {
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const port = options.port ?? 3101;
-  const previewNoCodes=options.testNoCodes===true && options.host==='127.0.0.1' &&
-    port!==3111 && options.dataDir!==undefined &&
-    resolve(options.dataDir)!==resolve('server-data') &&
-    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
   const host = options.host ?? '127.0.0.1';
+  // Explicit no-code previews must have separate saves and a non-production
+  // port. Binding to 0.0.0.0 permits trusted home-LAN phone testing only.
+  const previewNoCodes=options.testNoCodes===true &&
+    (host==='127.0.0.1'||host==='0.0.0.0') &&
+    (port===0&&host==='127.0.0.1'||port>=3120&&port<=3199) &&
+    options.dataDir!==undefined &&
+    resolve(options.dataDir).toLowerCase()!==resolve('server-data').toLowerCase() &&
+    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
+  if(options.testNoCodes===true&&!previewNoCodes)
+    throw new Error('Passwordless test mode requires a dedicated preview port and isolated household data');
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
@@ -97,7 +106,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
+  const idleAutonomyMs=options.autonomyTiming?.idleMs??18_000;
+  const careCooldownMs=options.autonomyTiming?.careCooldownMs??45_000;
+  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??50_000;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
+  // Keep full autonomy from repeating the same entertainment at every idle tick.
+  const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
@@ -107,6 +121,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
+  const autoSleeping = new Set<CharacterId>();
   // Active sleep was already persisted in the household. Resume it when the
   // server restarts instead of leaving a permanently sleeping visual with
   // no wake-up action or recovery timer.
@@ -170,8 +185,19 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       leisure.delete(resident);
     }
     all({ type: 'home_leisure', roles, activity: null, routes });
+    if(current.activity==='chat'&&now>=current.until){
+      const next=structuredClone(state);
+      for(const resident of roles){
+        next.characters[resident].social=Math.min(100,next.characters[resident].social+9);
+        next.characters[resident].mood=Math.min(100,next.characters[resident].mood+2);
+      }
+      next.revision++;
+      try{files.save(next);state=next;all({type:'snapshot',state});}
+      catch(error){console.error('Could not save completed autonomous chat:',error);}
+    }
   };
   const stopSleep = (role: CharacterId): void => {
+    autoSleeping.delete(role);
     if (!sleepers.has(role)) return;
     accountTime();
     if (state.characters[role].pose === 'sleep') {
@@ -270,7 +296,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
     minuteCarry -= gameMinutes;
     if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
-    for (const role of finishedSleeping) sleepers.delete(role);
+    for (const role of finishedSleeping) { sleepers.delete(role); autoSleeping.delete(role); }
     if (next.completed.length) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
       d.readyAt <= clockMinutes(next.state.clock));
@@ -302,42 +328,155 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!commitLife()) return;
     const now = Date.now();
     const available: CharacterId[] = [];
+    const legacyIdle: CharacterId[] = [];
     for (const [role, socket] of active) {
-      if (state.world.places[role] !== 'home' || sleepers.has(role) || running.has(role) || homeTasks.busy(role) || state.activeShifts[role] || state.careers.residents[role].shift || storageOpen.has(role) ||
-          now - (lastIntent.get(role) ?? now) < 18_000) continue;
-      const command = now - (lastAutoCare.get(role) ?? 0) >= 70_000 && urgentHomeAction(state, role);
-      const plan = command && planTask(command);
-      if (plan && !taskAccessError(state, plan.command) && ![...running.values()].some(task => plan.resource && task.plan.resource === plan.resource)) {
-        stopLeisure(role);
-        lastAutoCare.set(role, now);
-        beginTask(role, socket, plan, true);
-      } else if (!leisure.has(role)) {
+      const mode=state.autonomy[role];
+      // Offline players, manual tasks, work, sleep, travelling and interactive
+      // storage sessions are never taken over by the automatic decision engine.
+      if(state.world.places[role]!=='home'||sleepers.has(role)||
+        running.has(role)||homeTasks.busy(role)||state.activeShifts[role]||
+        state.careers.residents[role].shift||storageOpen.has(role)||
+        (mode!=='off'&&walkingHome.has(role))||
+        now-(lastIntent.get(role)??now)<idleAutonomyMs)continue;
+      // Off means the exact existing 0.16 background routine, not a frozen
+      // resident: rare idle walks and rescue only when a vital need reaches 8%.
+      if(mode==='off'){
+        const oldCommand=now-(lastAutoCare.get(role)??0)>=
+          (options.autonomyTiming?.careCooldownMs??70_000)&&urgentHomeAction(state,role);
+        const oldPlan=oldCommand&&planTask(oldCommand);
+        if(oldPlan&&!taskAccessError(state,oldPlan.command)&&
+          ![...running.values()].some(task=>oldPlan.resource&&task.plan.resource===oldPlan.resource)){
+          stopLeisure(role);
+          lastAutoCare.set(role,now);
+          beginTask(role,socket,oldPlan,true);
+        }else if(!leisure.has(role))legacyIdle.push(role);
+        continue;
+      }
+      // Real sleep uses the existing bed-reservation and time-control system,
+      // including bought beds. Never lie down on a sold invisible starter bed.
+      const resident=state.characters[role];
+      const energyMostUrgent=resident.energy/42<=Math.min(
+        resident.bladder/38,resident.hunger/46,resident.hygiene/43);
+      if(resident.energy<=38&&energyMostUrgent){
+        const chosen=selectSleepBed(state,role);
+        if(chosen.ok){
+          stopLeisure(role);
+          const next=structuredClone(state);
+          const sleepMode:SleepMode=mode==='full'?'full':'half';
+          Object.assign(next.characters[role],chosen.bed.approach,
+            {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode});
+          next.revision++;
+          try{
+            files.save(next);
+            state=next;
+            sleepers.set(role,sleepMode);
+            autoSleeping.add(role);
+            lastAutoCare.set(role,now);
+            all({type:'snapshot',state});
+            announceTime();
+            continue;
+          }catch(error){console.error('Autonomous sleep could not be saved:',error);}
+        }
+      }
+      let started=false;
+      const mostCritical=Math.min(...(['bladder','hunger','energy','hygiene'] as const)
+        .map(need=>state.characters[role][need]));
+      if(now-(lastAutoCare.get(role)??0)>=careCooldownMs||mostCritical<=15){
+        for(const candidate of autonomyCandidates(state,role)){
+          const plan=planTask(candidate.command);
+          if(!plan||taskAccessError(state,plan.command))continue;
+          if((plan.resource&&homeTasks.reserved(plan.resource))||
+            [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
+          if(!evaluateTask(state,role,plan.command).ok)continue;
+          stopLeisure(role);
+          lastAutoCare.set(role,now);
+          beginTask(role,socket,plan,true);
+          started=true;
+          break;
+        }
+      }
+      if(started)continue;
+      if(mode==='full'&&!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs)
         available.push(role);
+    }
+    // Keep the original 0.16 idle entertainment in OFF mode as well. The
+    // expanded planner must not replace it or invent new obligations.
+    if(legacyIdle.length){
+      const oldOptions:HomeLeisure[]=['tv','computer','simba'];
+      if(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))
+        oldOptions.splice(oldOptions.indexOf('computer'),1);
+      if(!state.world.dogWalker)oldOptions.push('verdell');
+      const oldChoices=oldOptions.filter(activity=>
+        ![...leisure.values()].some(current=>current.activity===activity)&&
+        !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity)&&
+        ![...running.values()].some(task=>task.plan.resource===
+          (activity==='computer'?'desk':'pet:'+activity)));
+      const activity=oldChoices[Math.floor(Math.random()*oldChoices.length)];
+      if(activity){
+        const role=legacyIdle[Math.floor(Math.random()*legacyIdle.length)];
+        const route=planLeisure(state,role,activity);
+        if(route){
+          if(activity==='verdell'||activity==='simba'){
+            pausePetRoutine(state,activity,liveGameTime());
+            state.revision++;
+            all({type:'snapshot',state});
+          }
+          leisure.set(role,{activity,startedAt:now,until:now+leisureDurationMs(route),route});
+          all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
+        }
       }
     }
-    if (!available.length) return;
-    const options: HomeLeisure[] = ['tv', 'computer', 'simba'];
-    if (!serviceAvailable(state.billing, 'internet', clockMinutes(state.clock))) options.splice(options.indexOf('computer'), 1);
-    if (!state.world.dogWalker) options.push('verdell');
-    const choices = options.filter(activity => ![...leisure.values()].some(current => current.activity === activity) &&
-      !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity) &&
-      ![...running.values()].some(task => task.plan.resource === (activity === 'computer' ? 'desk' : 'pet:' + activity)));
-    const activity = choices[Math.floor(Math.random() * choices.length)];
-    if (!activity) return;
-    const roles = [available[Math.floor(Math.random() * available.length)]];
-    const routes: Partial<Record<CharacterId, WalkRoute>> = {};
-    if (activity === 'verdell' || activity === 'simba') {
-      pausePetRoutine(state, activity, liveGameTime());
-      state.revision++;
-      all({ type: 'snapshot', state });
+    if(!available.length)return;
+    // Only two idle residents who explicitly opted into FULL autonomy may
+    // perform a shared spontaneous chat; neither character is commandeered
+    // from manual control, study, sleep or any other task.
+    if(available.length===2&&Math.floor(clockMinutes(state.clock)/125)%3===0){
+      const routes:Partial<Record<CharacterId,WalkRoute>>={};
+      for(const role of available){
+        const route=planLeisure(state,role,'chat');
+        if(!route)return;
+        routes[role]=route;
+      }
+      const chatUntil=now+Math.max(...available.map(role=>leisureDurationMs(routes[role]!)));
+      for(const role of available){
+        leisure.set(role,{activity:'chat',startedAt:now,until:chatUntil,route:routes[role]!});
+        lastAutoCare.set(role,now);
+      }
+      all({type:'home_leisure',roles:available,activity:'chat',routes});
+      return;
     }
-    for (const role of roles) {
-      const route = planLeisure(state, role, activity);
-      if (!route) return;
-      routes[role] = route;
+    for(const role of available){
+      const preferences:HomeLeisure[]=role==='vlad'
+        ? ['computer','tv','verdell','simba']
+        : ['simba','tv','verdell','computer'];
+      const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
+      const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
+      const recent=recentLeisure.get(role);
+      // Try a different activity first; reuse the previous one only when
+      // another entertainment option has no reachable route or is occupied.
+      const ordered=[...rotated.filter(activity=>activity!==recent),
+        ...rotated.filter(activity=>activity===recent)];
+      for(const activity of ordered){
+        if(activity==='computer'&&!serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))continue;
+        if(activity==='verdell'&&state.world.dogWalker)continue;
+        const resource=activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity;
+        if([...leisure.values()].some(current=>current.activity===activity)||
+           homeTasks.reserved(resource)||
+           [...running.values()].some(task=>task.plan.resource===resource))continue;
+        const route=planLeisure(state,role,activity);
+        if(!route)continue;
+        if(activity==='verdell'||activity==='simba'){
+          pausePetRoutine(state,activity,liveGameTime());
+          state.revision++;
+          all({type:'snapshot',state});
+        }
+        leisure.set(role,{activity,startedAt:now,until:now+leisureDurationMs(route),route});
+        recentLeisure.set(role,activity);
+        lastAutoCare.set(role,now);
+        all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
+        break;
+      }
     }
-    for (const role of roles) leisure.set(role, { activity, startedAt: now, until: now + 16_000, route: routes[role]! });
-    all({ type: 'home_leisure', roles, activity, routes });
   }, options.lifeClock?.tickMs ?? 10_000);
   lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
@@ -564,6 +703,33 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if (message.type === 'autonomy_mode') {
+        if (typeof message.mode !== 'string' || !AUTONOMY_MODES.includes(message.mode as typeof AUTONOMY_MODES[number])) {
+          packet(socket,{type:'error',reason:'Неизвестный режим самостоятельности'});return;
+        }
+        if (state.autonomy[role] !== message.mode) {
+          const previousMode=state.autonomy[role];
+          const next=structuredClone(state);
+          next.autonomy[role]=message.mode as typeof AUTONOMY_MODES[number];
+          next.revision++;
+          try {files.save(next);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить режим самостоятельности'});return;}
+          state=next;
+          // The owner regains control immediately, even if the character was
+          // in the middle of a previous autonomous chore or an idle walk.
+          if(message.mode==='off'||(previousMode==='full'&&message.mode==='needs')) {
+            // Dropping FULL must also stop full-only leisure and chats, while
+            // preserving manual tasks and an already ongoing restorative sleep.
+            if(message.mode==='off'&&autoSleeping.has(role))stopSleep(role);
+            stopLeisure(role);
+            if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
+            if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
+          }
+          lastIntent.set(role,Date.now());
+          lastAutoCare.set(role,0);
+          all({type:'snapshot',state});
+        }
+        return;
+      }
       if (message.type === 'shift_speed') {
         if (typeof message.enabled !== 'boolean') {
           packet(socket, { type: 'error', reason: 'Неверный режим скорости' }); return;
@@ -604,6 +770,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         accountTime();
         state = next;
         sleepers.set(role, mode);
+        autoSleeping.delete(role);
         shiftVotes.delete(role);
         lastIntent.set(role, Date.now());
         all({ type: 'snapshot', state });
