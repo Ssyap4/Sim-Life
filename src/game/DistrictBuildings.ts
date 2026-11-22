@@ -137,7 +137,6 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
   group.position.set(site.x,0,site.z);group.rotation.y=districtYaw(site);
   const face=site.d/2, w=site.w;
   const frame={group,site,face,resources,lights};
-  let signY=2.82, signWidth=w*.60;
   if(site.place==='market') {
     wall(frame,3.85,0xacaca0,2.56);
     roofDeck(frame,3.85,site.color,1.1);
@@ -147,7 +146,6 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     for(const x of [-w*.45,w*.45]) box(group,[.17,2.56,.38],[x,1.34,face+.11],0x456963);
     entrance(frame,1.68);
     for(const x of [-2.72,2.72]) {pots(group,x,face+.73,1); box(group,[.055,.51,.055],[x,.265,face+1.0],graphite);}
-    signY=3.13;
   } else if(site.place==='cafe') {
     wall(frame,3.57,0xcda78a,2.51);gable(frame,3.59,.79,0x80574e);
     for(const x of [-1.58,1.58]){
@@ -160,7 +158,6 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     for(let i=0;i<12;i++)box(canopy,[w*.92/12,.075,.92],[(i-5.5)*w*.92/12,0,0],i%2?0xc07b65:0xe3c2a2);
     group.add(canopy);batchRigidParts(canopy,true);
     for(const x of [-1.96,1.96]) pots(group,x,face+.46,0);
-    signY=3.13;signWidth=w*.72;
   } else if(site.place==='education'){
     wall(frame,4.10,0xd3b58a,2.62);roofDeck(frame,4.16,0xb38464);
     box(group,[w+.54,.30,.80],[0,2.73,face+.32],ivory);
@@ -168,14 +165,12 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     for(const x of [-1.68,1.68]) pane(frame,x,1.64,1.06,1.45,'atrium');
     for(const x of [-1.92,-.63,.63,1.92]) pane(frame,x,3.44,.77,.61,'office');
     entrance(frame,1.42,true);
-    signY=2.92;signWidth=w*.79;
   } else if(site.place==='work-it'){
     wall(frame,4.84,0x728482,2.57);roofDeck(frame,4.85,0x536d73);
     for(const x of [-1.63,0,1.63])pane(frame,x,3.57,1.38,1.45,'office');
     for(const x of [-1.61,1.61])pane(frame,x,1.47,1.22,1.49,'office');
     for(const x of [-2.13,-.835,.835,2.13])box(group,[.105,4.21,.20],[x,2.28,face+.085],0x456372);
     entrance(frame,1.18);ledge(frame,2.25,2.61,.79,graphite);
-    signY=4.61;
   } else if(site.place==='work-detail'){
     wall(frame,3.48,0x929b97,2.69);roofDeck(frame,3.49,site.color,1.15);
     for(const x of [-2.26,2.26]){
@@ -185,7 +180,6 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
       box(group,[1.59,.034,.055],[x,.38,face+.092],0xc8a076);
     }
     entrance(frame,1.27);
-    signY=2.94;signWidth=w*.78;
   } else if(site.place==='work-marketing'){
     wall(frame,3.77,0xb78465,2.57);gable(frame,3.79,.70,0x62554d);
     box(group,[w,.41,.12],[0,3.22,face+.044],0xa86d56);
@@ -195,26 +189,73 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     }
     for(let n=0;n<14;n++)box(group,[w-.12,.036,.015],[0,2.63+n*.065,face+.056],0xc59472);
     entrance(frame,1.25,true);
-    signY=3.10;
   } else if(site.place==='work-clinic'){
     wall(frame,3.35,0xbcc3ac,2.57);roofDeck(frame,3.37,site.color,.97);
     for(const x of [-1.91,1.91])pane(frame,x,1.49,1.52,1.34,'atrium');
     entrance(frame,1.57);ledge(frame,2.45,2.61,1.02,site.color);
     for(const x of [-2.71,2.71]) pots(group,x,face+.52,1);
-    signY=2.93;signWidth=w*.80;
   } else {
     for(const side of [-1,1]) {
       box(group,[.23,2.6,.75],[side*1.67,1.31,0],0x587660);
       box(group,[.35,.11,.81],[side*1.67,2.58,0],ivory);
     }
     box(group,[3.57,.44,.40],[0,2.68,face-.26],site.color);
-    signY=2.70;signWidth=3.5;
   }
-  box(group,[signWidth+.22,.72,.16],[0,signY,face+.92],site.color);
-  lettering(group,resources,[0,signY,face+1.01],signWidth,.62,site.sign,
-    site.place==='cafe'?['#763c32','#fff0d0']:['#344f4d','#ffeed2']);
+  // Park entrance stays an entrance sign; shops get freestanding ROOFTOP boards.
+  if(site.place==='park'){
+    box(group,[3.72,.72,.16],[0,2.70,face+.92],site.color);
+    lettering(group,resources,[0,2.70,face+1.01],3.50,.62,site.sign,['#344f4d','#ffeed2']);
+  }
   batchRigidParts(group,true);
   return group;
+}
+
+/** Compact, readable roof-mounted signs. Separate from facade LOD so the names
+ * remain visible as the building switches between full and simplified meshes. */
+export function buildRoofBillboard(site:DistrictSite,resources:LocationResources):THREE.Group {
+  const board=new THREE.Group();
+  board.name='Roof sign: '+site.place;
+  if(site.place==='park')return board;
+
+  // Eave/ridge heights match the actual roof shapes above (including gables).
+  const rooflines={
+    market:{eave:3.85,rise:.36,gable:false},
+    cafe:{eave:3.59,rise:.79,gable:true},
+    education:{eave:4.16,rise:.36,gable:false},
+    'work-it':{eave:4.85,rise:.36,gable:false},
+    'work-detail':{eave:3.49,rise:.36,gable:false},
+    'work-marketing':{eave:3.79,rise:.70,gable:true},
+    'work-clinic':{eave:3.37,rise:.36,gable:false},
+  } as const;
+  const roofline=rooflines[site.place];
+  const width=Math.min(site.w-.52,6.45),height=1.10;
+  const bottom=roofline.eave+roofline.rise+.28;
+  const centerY=bottom+height/2;
+  const z=site.d/2-.23;
+  const palette:Record<Exclude<DistrictSite['place'],'park'>,readonly [number,string,string]>={
+    market:[0x275a4f,'#245649','#fff6d9'],
+    cafe:[0x763f34,'#70392f','#fff0d9'],
+    education:[0x795e41,'#715338','#fff3d4'],
+    'work-it':[0x3b5e69,'#335766','#f4f6ed'],
+    'work-detail':[0x43595d,'#40565a','#f6eee0'],
+    'work-marketing':[0x804d3b,'#7a4b3d','#fff2d9'],
+    'work-clinic':[0x4c6c5d,'#486b5b','#f5f1df'],
+  };
+  const [frameColor,background,ink]=palette[site.place];
+  // A slightly proud front face, slim metal rim and two believable supports.
+  box(board,[width+.20,height+.16,.18],[0,centerY,z],graphite);
+  box(board,[width+.13,height+.09,.055],[0,centerY,z+.11],frameColor);
+  for(const side of [-1,1]){
+    const x=side*width*.32;
+    const base=roofline.gable
+      ? roofline.eave+roofline.rise*(1-Math.abs(x)/(site.w/2))
+      : roofline.eave+.16;
+    const length=Math.max(.12,bottom-base+.06);
+    box(board,[.105,length,.13],[x,base+length/2,z-.10],0x556264);
+    box(board,[.31,.08,.33],[x,base+.025,z-.10],graphite);
+  }
+  lettering(board,resources,[0,centerY,z+.149],width-.12,height-.14,site.sign,[background,ink]);
+  return board;
 }
 
 /** One small shell per landmark keeps the full district readable at overview scale. */
@@ -246,7 +287,6 @@ export function distantDistrictFacade(site:DistrictSite) {
       box(model,[w*.26,.086,.14],[side*w*.30,.91,z],ivory);
       if(h>4.00)box(model,[w*.28,.81,.09],[side*w*.31,3.36,z],0x62858c);
     }
-    box(model,[w*.81,.32,.22],[0,2.79,z],site.color);
   }
   batchRigidParts(model,true);
   return model;
