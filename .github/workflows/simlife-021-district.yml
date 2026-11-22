@@ -5,6 +5,9 @@ on:
     branches:
       - feat/world-character-overhaul-021
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
