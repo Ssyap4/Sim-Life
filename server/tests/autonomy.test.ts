@@ -257,3 +257,53 @@ test('A sold original bookshelf does not prevent using a purchased shelf for aut
   assert.ok(choices.every(({command})=>command.type!=='read_book'),
     'Never select an invisible sold bookshelf');
 });
+
+test('Off keeps the 0.16 occasional autonomous leisure instead of freezing the house',async()=>{
+  const ctx=await setup(undefined,true);
+  try{
+    const ws=await ctx.join('vlad');
+    const event=await waitFor(ws,p=>p.type==='home_leisure'&&p.activity!==null,4300);
+    if(event.type!=='home_leisure')return;
+    assert.deepEqual(event.roles,['vlad']);
+    assert.ok(['tv','computer','simba','verdell'].includes(event.activity??''));
+    assert.equal(openServerFiles(ctx.dir).load().autonomy.vlad,'off');
+    assert.equal(openServerFiles(ctx.dir).load().money,10000);
+  }finally{await ctx.close();}
+});
+
+test('Off still rescues a genuinely critical need using the old 8% rule',async()=>{
+  const seed=initialState();
+  seed.characters.vlad.bladder=7;
+  const ctx=await setup(seed,true);
+  try{
+    const ws=await ctx.join('vlad');
+    const task=await waitFor(ws,p=>p.type==='task_started'&&p.automatic===true,4300);
+    if(task.type!=='task_started')return;
+    assert.equal(task.command.type,'act');
+    if(task.command.type==='act')assert.equal(task.command.actionId,'toiletUse');
+    const finished=await waitFor(ws,p=>p.type==='task_ended'&&p.taskId===task.taskId,4300);
+    if(finished.type==='task_ended')assert.equal(finished.outcome,'completed');
+    assert.equal(openServerFiles(ctx.dir).load().autonomy.vlad,'off');
+    assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+  }finally{await ctx.close();}
+});
+
+test('Explicit passwordless previews use isolated saves, while the production port stays protected',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-017-no-code-'));
+  try{
+    await assert.rejects(startServer({port:3111,host:'0.0.0.0',dataDir:dir,testNoCodes:true}),
+      /Passwordless test mode/);
+    const preview=await startServer({port:0,host:'127.0.0.1',dataDir:dir,testNoCodes:true});
+    let ws:WebSocket|undefined;
+    try{
+      const health=await fetch('http://127.0.0.1:'+preview.port+'/health');
+      assert.equal(health.ok,true);
+      assert.equal((await health.json() as {testNoCodes:boolean}).testNoCodes,true);
+      ws=await enter(preview.port,'vlad','TEST-LOCAL-NO-CODES');
+      assert.equal(ws.readyState,WebSocket.OPEN);
+    }finally{
+      ws?.terminate();
+      await preview.close();
+    }
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});

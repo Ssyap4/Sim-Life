@@ -404,7 +404,7 @@ function renderNeeds(): void {
     if(role===active){
       const note=document.createElement('small');
       note.className='autonomy-note';
-      note.textContent='Игрок всегда главный. Самостоятельность никогда не покупает вещи и не начинает работу.';
+      note.textContent='«Выключена» — прежняя игра 0.16: редкие прогулки и помощь при критических потребностях. Покупки и работу персонаж не начинает сам.';
       group.append(note);
     }
     for (const need of VITAL_NEEDS) {
@@ -597,7 +597,7 @@ function signOut(): void {
   socialInvite.clear();
   feedback.clear();
   locationUI.reset();
-  showStatus('Выбери персонажа и введи личный код');
+  showStatus(localPreviewNoCodes?'Выбери персонажа — тестовый вход без кода':'Выбери персонажа и введи личный код');
 }
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
   enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
@@ -1339,7 +1339,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     });
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
-    showStatus('Выбери персонажа и введи личный код');
+    showStatus('Проверяем режим входа…');
     try{
       const health=await fetch('/health',{cache:'no-store'});
       if(health.ok){
@@ -1351,10 +1351,10 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           accessInput.hidden=true;
           document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
           document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
-          authStatusEl.textContent='Тестовая локальная версия: выбери персонажа и входи без кода';
-        }
+          authStatusEl.textContent='Тестовая версия: выбери Влада или Алину и нажми «Войти без кода»';
+        }else authStatusEl.textContent='Выбери персонажа и введи личный код';
       }
-    }catch{}
+    }catch{authStatusEl.textContent='Выбери персонажа и введи личный код';}
     const remembered = localPreviewNoCodes?null:trustedDevice();
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {

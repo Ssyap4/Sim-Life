@@ -18,7 +18,7 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
-import { planLeisure } from './home';
+import { planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
@@ -75,11 +75,17 @@ const packet = (socket: WebSocket, value: ServerPacket): void => {
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const port = options.port ?? 3101;
-  const previewNoCodes=options.testNoCodes===true && options.host==='127.0.0.1' &&
-    port!==3111 && options.dataDir!==undefined &&
-    resolve(options.dataDir)!==resolve('server-data') &&
-    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
   const host = options.host ?? '127.0.0.1';
+  // Explicit no-code previews must have separate saves and a non-production
+  // port. Binding to 0.0.0.0 permits trusted home-LAN phone testing only.
+  const previewNoCodes=options.testNoCodes===true &&
+    (host==='127.0.0.1'||host==='0.0.0.0') &&
+    (port===0&&host==='127.0.0.1'||port>=3120&&port<=3199) &&
+    options.dataDir!==undefined &&
+    resolve(options.dataDir).toLowerCase()!==resolve('server-data').toLowerCase() &&
+    !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
+  if(options.testNoCodes===true&&!previewNoCodes)
+    throw new Error('Passwordless test mode requires a dedicated preview port and isolated household data');
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
@@ -320,14 +326,30 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!commitLife()) return;
     const now = Date.now();
     const available: CharacterId[] = [];
+    const legacyIdle: CharacterId[] = [];
     for (const [role, socket] of active) {
       const mode=state.autonomy[role];
       // Offline players, manual tasks, work, sleep, travelling and interactive
       // storage sessions are never taken over by the automatic decision engine.
-      if(mode==='off'||state.world.places[role]!=='home'||sleepers.has(role)||
+      if(state.world.places[role]!=='home'||sleepers.has(role)||
         running.has(role)||homeTasks.busy(role)||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
-        walkingHome.has(role)||now-(lastIntent.get(role)??now)<idleAutonomyMs)continue;
+        (mode!=='off'&&walkingHome.has(role))||
+        now-(lastIntent.get(role)??now)<idleAutonomyMs)continue;
+      // Off means the exact existing 0.16 background routine, not a frozen
+      // resident: rare idle walks and rescue only when a vital need reaches 8%.
+      if(mode==='off'){
+        const oldCommand=now-(lastAutoCare.get(role)??0)>=
+          (options.autonomyTiming?.careCooldownMs??70_000)&&urgentHomeAction(state,role);
+        const oldPlan=oldCommand&&planTask(oldCommand);
+        if(oldPlan&&!taskAccessError(state,oldPlan.command)&&
+          ![...running.values()].some(task=>oldPlan.resource&&task.plan.resource===oldPlan.resource)){
+          stopLeisure(role);
+          lastAutoCare.set(role,now);
+          beginTask(role,socket,oldPlan,true);
+        }else if(!leisure.has(role))legacyIdle.push(role);
+        continue;
+      }
       // Real sleep uses the existing bed-reservation and time-control system,
       // including bought beds. Never lie down on a sold invisible starter bed.
       const resident=state.characters[role];
@@ -374,6 +396,33 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if(started)continue;
       if(mode==='full'&&!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs)
         available.push(role);
+    }
+    // Keep the original 0.16 idle entertainment in OFF mode as well. The
+    // expanded planner must not replace it or invent new obligations.
+    if(legacyIdle.length){
+      const oldOptions:HomeLeisure[]=['tv','computer','simba'];
+      if(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))
+        oldOptions.splice(oldOptions.indexOf('computer'),1);
+      if(!state.world.dogWalker)oldOptions.push('verdell');
+      const oldChoices=oldOptions.filter(activity=>
+        ![...leisure.values()].some(current=>current.activity===activity)&&
+        !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity)&&
+        ![...running.values()].some(task=>task.plan.resource===
+          (activity==='computer'?'desk':'pet:'+activity)));
+      const activity=oldChoices[Math.floor(Math.random()*oldChoices.length)];
+      if(activity){
+        const role=legacyIdle[Math.floor(Math.random()*legacyIdle.length)];
+        const route=planLeisure(state,role,activity);
+        if(route){
+          if(activity==='verdell'||activity==='simba'){
+            pausePetRoutine(state,activity,liveGameTime());
+            state.revision++;
+            all({type:'snapshot',state});
+          }
+          leisure.set(role,{activity,startedAt:now,until:now+16_000,route});
+          all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
+        }
+      }
     }
     if(!available.length)return;
     // Only two idle residents who explicitly opted into FULL autonomy may
