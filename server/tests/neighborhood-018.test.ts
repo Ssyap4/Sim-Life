@@ -1,0 +1,49 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { NEIGHBOR_PATH } from '../../src/shared/neighbors';
+import { buildNeighborhood, NEIGHBOR_HOMES } from '../../src/game/NeighborhoodArt';
+
+test('0.18 background homes are one rear, one east, two west with generous real spacing', () => {
+  assert.equal(NEIGHBOR_HOMES.length, 4);
+  assert.equal(NEIGHBOR_HOMES.filter(home => home.side === 'west').length, 2);
+  assert.equal(NEIGHBOR_HOMES.filter(home => home.side === 'east').length, 1);
+  assert.equal(NEIGHBOR_HOMES.filter(home => home.side === 'rear').length, 1);
+  assert.equal(new Set(NEIGHBOR_HOMES.map(home => home.id)).size, 4);
+  assert.equal(new Set(NEIGHBOR_HOMES.map(home => home.plaster)).size, 4);
+  assert.equal(new Set(NEIGHBOR_HOMES.map(home => home.roof)).size, 4);
+
+  const [west, back, , east] = NEIGHBOR_PATH;
+  const western = NEIGHBOR_HOMES.filter(home => home.side === 'west');
+  const gap = Math.abs(western[0].z - western[1].z) - (western[0].width + western[1].width) / 2;
+  assert.ok(gap > 14, 'western properties must not look like a tight row');
+  for (const home of NEIGHBOR_HOMES) {
+    if (home.side === 'west')
+      assert.ok(home.x + home.depth / 2 + 3 < west.x - 5, 'west property clear of walkway');
+    if (home.side === 'east')
+      assert.ok(home.x - home.depth / 2 - 3 > east.x + 5, 'east property clear of walkway');
+    if (home.side === 'rear')
+      assert.ok(home.z + home.depth / 2 + 3 < back.z - 5, 'rear property clear of walkway');
+  }
+});
+
+test('0.18 neighborhood remains one static, noninteractive scene and is batched on mobile', () => {
+  const scene = new THREE.Scene();
+  buildNeighborhood(scene);
+  assert.equal(scene.children.length, 1);
+  const root = scene.children[0];
+  assert.equal(root.name.includes('0.18'), true);
+  const houses = root.children.filter(child => child.name.startsWith('Фоновый дом'));
+  assert.equal(houses.length, 4);
+  let meshes = 0;
+  root.traverse(obj => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    meshes++;
+    assert.equal(obj.userData.interactable, undefined);
+    assert.equal(obj.castShadow, false, 'distant decorative houses should not cast shadow maps');
+  });
+  assert.ok(meshes < 70, 'batching should avoid one draw call per small visual part: ' + meshes);
+  const box = new THREE.Box3().setFromObject(root);
+  assert.ok(box.min.x < -32 && box.max.x > 37);
+  assert.ok(box.min.z < -29, 'back cottage is beyond the public rear path');
+});
