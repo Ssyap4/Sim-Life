@@ -65,9 +65,13 @@ test('The desk is exclusive, cancellation grants no reward, and another player c
     assert.ok(v.durationMs > 100);
     assert.equal(existsSync(join(ctx.dir, 'household.json')), false, 'Starting never awards money');
 
-    const busyV = waitFor(ctx.vlad, p => p.type === 'error');
+    const queuedV = waitFor(ctx.vlad, p => p.type === 'task_queue' && p.role === 'vlad' && p.tasks.length===1);
     send(ctx.vlad, { type: 'act', actionId: 'vladStudy' });
-    assert.match((await busyV as Extract<ServerPacket,{type:'error'}>).reason, /занят/);
+    const planned=await queuedV;
+    assert.ok(planned.type==='task_queue' && planned.tasks.length===1); // queued instead of rejected
+    const emptied=waitFor(ctx.vlad,p=>p.type==='task_queue'&&p.role==='vlad'&&p.tasks.length===0);
+    send(ctx.vlad,{type:'clear_task_queue'});
+    await emptied;
 
     const busyA = waitFor(ctx.alina, p => p.type === 'error');
     send(ctx.alina, { type: 'act', actionId: 'alinaStudy' });

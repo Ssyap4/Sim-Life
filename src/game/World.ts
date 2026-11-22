@@ -36,7 +36,6 @@ import { decorateHome } from './HomeStyling';
 import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, neighborhoodOutline, renderProfile } from './HomeFrame';
-import { furnitureContact, walkingContact } from './ContactShade';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
@@ -152,7 +151,6 @@ export class World {
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
-  private readonly contacts: { visual: THREE.Object3D; shade: ReturnType<typeof walkingContact>; pet: boolean }[] = [];
   private yard!: ReturnType<typeof buildYard>;
   private grillCooking = false;
   private readonly otherBody = new THREE.Vector3();
@@ -166,7 +164,6 @@ export class World {
   private followSubject: THREE.Object3D | null = null;
   private readonly followPoint = new THREE.Vector3();
   private readonly followDelta = new THREE.Vector3();
-  private readonly contactPoint = new THREE.Vector3();
   private cameraMove: Frame | null = null;
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
@@ -188,8 +185,7 @@ export class World {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.enabled = false; // no shadow-map render passes
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 110);
     this.camera.position.copy(homePosition);
@@ -230,14 +226,6 @@ export class World {
         part.userData.interactable = subject.id;
         this.subjectMeshes.push(part);
       });
-      const pet = subject instanceof PetActor;
-      const shade = walkingContact(pet);
-      if (subject instanceof PetActor) {
-        shade.scale.multiplyScalar(subject.root.scale.x);
-        if (subject.id === 'simba') { shade.scale.x *= .79; shade.scale.y *= 1.14; }
-      }
-      this.contacts.push({ visual, shade, pet });
-      this.scene.add(shade);
     }
     for (const id of ['vlad', 'alina'] as const) {
       this.bags[id].visible = false;
@@ -347,10 +335,6 @@ export class World {
     const resident=this.actors[id];
     if(resident.root.visible===!away)return;
     resident.root.visible=!away;
-    const body=resident.root.children[0];
-    for(const item of this.contacts) {
-      if(item.visual===body)item.shade.visible=!away;
-    }
     if(away && this.inspected===id)this.showcase(null);
   }
 
@@ -1210,27 +1194,15 @@ export class World {
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 22;
-    sun.shadow.radius = 2.65;
-    sun.shadow.intensity = 0.72;
-    sun.shadow.bias = -0.00025;
-    sun.shadow.normalBias = 0.025;
+    sun.castShadow = false;
     this.scene.add(sun, sun.target);
-    this.frameShadows(true);
   }
 
-  private frameShadows(home: boolean): void {
+  private frameSun(home: boolean): void {
     const offset = home ? 1.8 : 0;
-    const bounds = home ? 16.3 : 8.5;
     this.sun.target.position.z = offset;
     this.sun.position.z = 5.5 + offset;
-    const camera = this.sun.shadow.camera;
-    camera.left = camera.bottom = -bounds;
-    camera.right = camera.top = bounds;
-    camera.updateProjectionMatrix();
+
   }
 
   private register(id: ItemId, group: THREE.Group, point: Point): void {
@@ -1259,7 +1231,6 @@ export class World {
       new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)),
       (id,model)=>this.staticFixtureModels.set(id,model));
     buildSoftRugs(this.scene,(id,model)=>this.staticFixtureModels.set(id,model));
-    this.scene.add(furnitureContact());
     let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture, true);
@@ -1646,7 +1617,7 @@ export class World {
     }
     this.scene.add(this.ambient, this.sun, this.sun.target,
       ...Object.values(this.actors).map(actor => actor.root), ...Object.values(this.pets).map(pet => pet.root),
-      ...this.contacts.map(contact => contact.shade), ...Object.values(this.bags), ...this.meals.values());
+      ...Object.values(this.bags), ...this.meals.values());
     for (const meal of this.meals.values()) meal.visible = false;
     if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
     this.homeEffects.reset();
@@ -1661,7 +1632,7 @@ export class World {
     this.place = place;
     this.controls.maxTargetRadius = place === 'home' ? 46 : 18;
     this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education' || isCareerPlace(place);
-    this.frameShadows(place === 'home');
+    this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
@@ -1769,9 +1740,6 @@ export class World {
       dog.position.set(point.x, 0, point.z);
       this.dogTrail = [];
       this.lastDogPoint = null;
-    }
-    for (const c of this.contacts) {
-      if (c.pet) c.shade.visible = c.visual.parent?.visible === true;
     }
     if (place === 'home') {
       const top=diningSurface(state);
@@ -1896,7 +1864,7 @@ export class World {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
-    const { pixelRatio, shadowSize } = renderProfile(compact, window.devicePixelRatio);
+    const { pixelRatio } = renderProfile(compact, window.devicePixelRatio);
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -1914,12 +1882,6 @@ export class World {
     }
     if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
     if (sizeChanged) this.renderer.setSize(width, height, false);
-    if (this.sun.shadow.mapSize.x !== shadowSize) {
-      this.sun.shadow.mapSize.setScalar(shadowSize);
-      this.sun.shadow.map?.setSize(shadowSize, shadowSize);
-      this.sun.shadow.radius = 2.65 * shadowSize / 1024;
-    }
-
     if (this.inspected) {
       this.showcase(this.inspected);
       return;
@@ -2110,11 +2072,6 @@ export class World {
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
       const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
       door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);
-    }
-    for (const { visual, shade, pet } of this.contacts) {
-      visual.getWorldPosition(this.contactPoint);
-      shade.position.set(this.contactPoint.x, pet && this.place === 'home' ? 0.098 : 0.029, this.contactPoint.z);
-      shade.material.opacity = pet ? 0.53 : 0.49 * (1 - THREE.MathUtils.smoothstep(this.contactPoint.y, 0.07, 0.52));
     }
     if (this.followSubject) {
       this.followSubject.getWorldPosition(this.followDelta);

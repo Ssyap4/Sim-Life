@@ -1,0 +1,23 @@
+
+/* Compact server-synced three-action queue. Current task stays in running-task. */
+.queued-task-list {
+  display:grid; grid-template-columns:minmax(0,1fr); gap:5px;
+  min-width:0; padding:7px 9px; border-radius:11px;
+  background:#f9fbf4f5; border:1px solid #e0e9d9; color:#415e49;
+}
+.queued-task-list>strong{font-size:11px;line-height:1.3}
+.queued-task-row {min-width:0;display:flex;align-items:center;justify-content:space-between;
+  gap:7px; background:#eaf1e5;border-radius:8px;padding:4px 7px; min-height:35px}
+.queued-task-row span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:11px;font-weight:750}
+.queued-task-row button {flex:0 0 44px;min-height:44px;border:0;border-radius:8px;
+  color:#91645b;background:#f2e3dc;font-weight:900;font-size:19px}
+.queued-task-row button:disabled {opacity:.5}
+.queue-clear {min-height:36px;align-self:start;padding:4px 10px;font-size:10px;
+  font-weight:850;color:#7b5c54;background:#f4eae2;border:1px solid #ecd8ce;border-radius:8px}
+@media(max-width:640px) and (orientation:portrait){
+ .task-panel:has(.queued-task-list){max-height:min(41dvh,340px);overscroll-behavior:contain}
+ .queued-task-list {padding:6px;gap:3px}
+ .queued-task-row{padding:0 4px;min-height:44px}
+ .queued-task-list>strong{font-size:10px}
+}

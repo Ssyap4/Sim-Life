@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors as C, type XYZ } from './ArtKit';
 import { CASHIER_SPOT } from '../shared/locationLayout';
-import { STATIONS, type Station } from '../shared/locations';
-import { bud, lettering, paintContactShade, part, paving, round, shortCylinder, smallOrb, trim, type LocationResources } from './LocationArt';
+import { type Station } from '../shared/locations';
+import { bud, lettering, part, paving, round, shortCylinder, smallOrb, trim, type LocationResources } from './LocationArt';
 
 type Display = 'cold' | 'baked' | 'produce' | 'packages' | 'bottles' | 'meat' | 'ready' | 'pet';
 const displays: Record<string, { kind: Display; palette: number[]; frame: number; sign: [string,string] }> = {
@@ -257,9 +257,6 @@ function tileGrid(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle='#7e9383';
   for(const z of [2.77,3.15]){
     ctx.beginPath();ctx.moveTo(-.125,z);ctx.lineTo(0,z-.09);ctx.lineTo(.125,z);ctx.lineTo(0,z+.09);ctx.fill();
-  }
-  for (const {center, width, depth} of STATIONS.market) {
-    paintContactShade(ctx,center.x,center.z+.06,width*.72,depth*.87);
   }
 }
 

@@ -31,6 +31,7 @@ import { createLocationUI } from './locationUI';
 import { trustedDevice } from './core/trusted';
 import './style.css';
 import './mobile-polish.css';
+import './queue-ui.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -46,7 +47,7 @@ import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_
 import type { TimeStatus } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names,
-  type ActionId, type CharacterId, type GameState, type ItemId,
+  type ActionId, type CharacterId, type GameState, type ItemId, type QueuedTask,
 } from './shared/protocol';
 
 let state: GameState | null = null;
@@ -58,6 +59,7 @@ const installedDesktopId=():number|undefined=>{
 };
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
+const waitingTasks = new Map<CharacterId,QueuedTask[]>();
 let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
 let selectedRole: CharacterId = 'vlad';
 let localPreviewNoCodes=false;
@@ -291,7 +293,7 @@ function showUpcomingPayments(household: GameState): void {
 
 function drawTaskPanel(): void {
   taskPanelEl.replaceChildren();
-  taskPanelEl.hidden = tasks.size === 0;
+  taskPanelEl.hidden = tasks.size === 0 && ![...waitingTasks.values()].some(rows=>rows.length);
   for (const [role, task] of tasks) {
     const box = document.createElement('div');
     box.className = 'running-task';
@@ -351,6 +353,37 @@ function drawTaskPanel(): void {
       }
     }
     taskPanelEl.append(box);
+  }
+  for(const [role, list] of waitingTasks){
+    if(!list.length)continue;
+    const section=document.createElement('div');
+    section.className='queued-task-list';
+    const caption=document.createElement('strong');
+    caption.textContent='📋 '+names[role]+' · до 3 действий';
+    section.append(caption);
+    for(const [index,task] of list.entries()){
+      const row=document.createElement('div');
+      row.className='queued-task-row';
+      const label=document.createElement('span');
+      label.textContent=(index+1+(tasks.has(role)||Boolean(timeStatus.sleepers[role])?2:1))+'. '+task.label;
+      row.append(label);
+      if(role===active){
+        const remove=document.createElement('button');
+        remove.type='button';remove.textContent='×';
+        remove.setAttribute('aria-label','Убрать из очереди: '+task.label);
+        remove.addEventListener('click',()=>{if(net.cancelQueuedTask(task.id))remove.disabled=true;});
+        row.append(remove);
+      }
+      section.append(row);
+    }
+    if(role===active){
+      const clear=document.createElement('button');
+      clear.type='button';clear.className='queue-clear';
+      clear.textContent='Очистить ожидание';
+      clear.addEventListener('click',()=>{if(net.clearTaskQueue())clear.disabled=true;});
+      section.append(clear);
+    }
+    taskPanelEl.append(section);
   }
   updateTaskProgress();
 }
@@ -604,6 +637,7 @@ function signOut(): void {
   active = null;
   state = null;
   tasks.clear();
+  waitingTasks.clear();
   drawTaskPanel();
   accessInput.value = '';
   rememberDevice.checked = false;
@@ -713,6 +747,7 @@ const net = new LiveConnection({
     online = players;
     timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
     tasks.clear();
+    waitingTasks.clear();
     drawTaskPanel();
     toggleNeeds(false);
     phone.close();
@@ -756,6 +791,7 @@ const net = new LiveConnection({
       }
     }
     render();
+    drawTaskPanel();
     if (state) jobsUI.refresh(state);
   },
   onClock(sample) {
@@ -767,6 +803,7 @@ const net = new LiveConnection({
   onDisconnect() {
     displayClock.pause(performance.now());
     socialInvite.clear();
+    waitingTasks.clear();
     for(const [role,task] of tasks)if(task.paired){world.cancelTimedAction(role);tasks.delete(role);}
     drawTaskPanel();
   },
@@ -830,6 +867,10 @@ const net = new LiveConnection({
     const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated && role === active) notify('Действие началось на сервере, путь анимации пока недоступен');
+  },
+  onTaskQueue(role, queued){
+    waitingTasks.set(role,queued);
+    drawTaskPanel();
   },
   onTaskActive(role,taskId,elapsedMs) {
     const task=tasks.get(role);
@@ -1346,6 +1387,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
             if(id===expected) net.career({type:'career_approach',nonce:task.nonce});
             else notify('Текущее поручение · '+CAREERS[shift.career].stations[event.station]);
           } else if (!shift) phone.open('career');
+          return;
+        }
+        if(world.place==='home'&&id==='fridge'){
+          const fridge=stationById('home','fridge');
+          if(fridge)locationUI.visit(fridge);
           return;
         }
         net.world({ type: 'approach', place: world.place, station: id });

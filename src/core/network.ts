@@ -3,7 +3,7 @@ import type { ServiceCommand } from '../shared/services';
 import type { EducationCommand } from '../shared/education';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
-import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
+import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, QueuedTask, SocialKind, TimedCommand } from '../shared/protocol';
 import type { AutonomyMode } from '../shared/autonomy';
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { InstantCoffeeId } from '../shared/coffee';
@@ -34,6 +34,7 @@ export interface ConnectionCallbacks {
   onPetEvent(role: CharacterId, pet: PetId, action: PetAction, message: string): void;
   onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean, home?: HomePresentation, effects?: NeedEffects): void;
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
+  onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void;
   onMovieOffer(inviteId: number, from: CharacterId, genre: Genre): void;
   onMovieOfferClosed(inviteId: number, message: string): void;
@@ -121,6 +122,9 @@ export class LiveConnection {
   inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
   withdrawMovie(inviteId: number): boolean {return this.sendAuthenticated({type:'movie_withdraw',inviteId});}
+
+  cancelQueuedTask(queueId:number):boolean{return this.sendAuthenticated({type:'cancel_queued_task',queueId});}
+  clearTaskQueue():boolean{return this.sendAuthenticated({type:'clear_task_queue'});}
 
   cancelTask(taskId: number): boolean {
     return this.sendAuthenticated({ type: 'cancel_task', taskId });
@@ -244,6 +248,8 @@ export class LiveConnection {
         this.callbacks.onPetEvent(packet.role, packet.pet, packet.action, packet.message);
       } else if (packet.type === 'task_started' && this.authorized) {
         this.callbacks.onTaskStarted(packet.role, packet.taskId, packet.label, packet.durationMs, packet.command, packet.automatic, packet.home, packet.effects);
+      } else if (packet.type === 'task_queue' && this.authorized) {
+        this.callbacks.onTaskQueue(packet.role,packet.tasks);
       } else if (packet.type === 'task_active' && this.authorized) {
         this.callbacks.onTaskActive(packet.role,packet.taskId,packet.elapsedMs);
       } else if (packet.type === 'need_gain' && this.authorized) {
