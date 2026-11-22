@@ -18,6 +18,8 @@ export const GROCERIES = {
   pasta:   { name:'Макароны · 450 г', emoji:'🍝', price:110, quantity:6, unit:'порц.', category:'pantry' },
   butter:  { name:'Масло сливочное · 180 г', emoji:'🧈', price:250, quantity:8, unit:'порц.', category:'dairy' },
   oil:     { name:'Масло подсолнечное · 1 л', emoji:'🫗', price:170, quantity:12, unit:'порц.', category:'pantry' },
+  charcoal: { name:'Древесный уголь для мангала · 2,5 кг', emoji:'⚫', price:390, quantity:5, unit:'закладок', category:'grill' },
+  lighterFluid: { name:'Жидкость для розжига · 0,5 л', emoji:'🔥', price:210, quantity:10, unit:'розжигов', category:'grill' },
   flour:   { name:'Мука · 1 кг', emoji:'🌾', price:95, quantity:12, unit:'порц.', category:'pantry' },
   sugar:   { name:'Сахар · 1 кг', emoji:'🍬', price:95, quantity:20, unit:'порц.', category:'pantry' },
   buckwheat:{ name:'Гречка · 900 г', emoji:'🌾', price:150, quantity:9, unit:'порц.', category:'pantry' },
@@ -38,7 +40,7 @@ export type IngredientId = keyof typeof GROCERIES;
 export type Pantry = Record<IngredientId, number>;
 export const GROCERY_CATEGORIES = {
   dairy:'Молочные и яйца', bakery:'Хлеб', meat:'Мясо и колбаса',
-  vegetables:'Овощи', pantry:'Крупы и бакалея', fruit:'Фрукты',
+  vegetables:'Овощи', pantry:'Крупы и бакалея', fruit:'Фрукты', grill:'Для мангала',
 } as const;
 
 export const RECIPES = {
@@ -57,7 +59,7 @@ export const RECIPES = {
   homemadePizza: { name:'Домашняя пицца',emoji:'🍕', ingredients:{ flour:2,cheese:2,sausage:2,tomato:2 }, servings:4,hunger:38,mood:11 },
   fruitSalad: { name:'Фруктовый салат',emoji:'🍎', ingredients:{ apple:2,banana:2,sourCream:1 }, servings:2,hunger:24,mood:8 },
   pastaCheese: { name:'Макароны с сыром',emoji:'🧀', ingredients:{ pasta:2,cheese:2,butter:1 }, servings:2,hunger:41,mood:7 },
-  grillChicken: { name:'Куриные шашлычки',emoji:'🍢', ingredients:{ chicken:2,onion:1,oil:1 }, servings:3,hunger:38,mood:8, appliance:'grill' },
+  grillChicken: { name:'Куриные шашлычки',emoji:'🍢', ingredients:{ chicken:2,onion:1 }, servings:3,hunger:38,mood:8, appliance:'grill' },
   grillSteak: { name:'Стейки на углях',emoji:'🥩', ingredients:{ beef:2,onion:1,oil:1 }, servings:2,hunger:49,mood:10, appliance:'grill' },
   grillVegetables: { name:'Овощи на решётке',emoji:'🍅', ingredients:{ tomato:2,carrot:2,onion:1,oil:1 }, servings:2,hunger:27,mood:8, appliance:'grill' },
   grillBurgers: { name:'Бургеры с гриля',emoji:'🍔', ingredients:{ mince:2,bread:2,cheese:1,tomato:1 }, servings:2,hunger:44,mood:10, appliance:'grill' },
@@ -69,6 +71,9 @@ export function isGrillRecipe(id: RecipeId) {
   return Boolean(recipe && 'appliance' in recipe);
 }
 export const GRILL_RECIPES = (Object.keys(RECIPES) as RecipeId[]).filter(isGrillRecipe);
+/** Every ignition uses one coal charge and one lighter-fluid portion.
+ * The same rule applies automatically to all current and future grill recipes. */
+export const GRILL_FUEL_PER_SESSION = { charcoal:1, lighterFluid:1 } as const;
 
 export const TAKEOUT = {
   shawarma: { name:'Шаурма',emoji:'🌯',price:650,quantity:1,hunger:38,mood:7 },
@@ -87,7 +92,8 @@ export const EMPTY_PANTRY = Object.fromEntries(Object.keys(GROCERIES).map(id=>[i
 export const EMPTY_MEALS = Object.fromEntries(Object.keys(RECIPES).map(id=>[id,0])) as CookedMeals;
 export const EMPTY_TAKEOUT = Object.fromEntries(Object.keys(TAKEOUT).map(id=>[id,0])) as TakeoutStock;
 export function ingredientList(id: RecipeId): Array<[IngredientId, number]> {
-  return Object.entries(RECIPES[id].ingredients) as Array<[IngredientId, number]>;
+  const ingredients=Object.entries(RECIPES[id].ingredients) as Array<[IngredientId, number]>;
+  return isGrillRecipe(id) ? [...ingredients,...Object.entries(GRILL_FUEL_PER_SESSION) as Array<[IngredientId,number]>] : ingredients;
 }
 export function recipePortionCost(id: RecipeId): number {
   const cost = ingredientList(id).reduce((sum,[ingredient,amount])=>{

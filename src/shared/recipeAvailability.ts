@@ -1,0 +1,38 @@
+import { skillRank } from './education';
+import { GROCERIES, RECIPES, ingredientList, type RecipeId } from './food';
+import type { CharacterId, GameState } from './protocol';
+import { storageCanFit } from './storageSpace';
+
+export type RecipeAvailability =
+  | {available:true; effort:number}
+  | {available:false; effort:number; reason:string};
+
+/** Exactly the same limits are presented on the grill and kitchen menus.
+ * The server remains authoritative and repeats these checks on completion. */
+export function recipeAvailability(state: GameState, role: CharacterId,
+  id: RecipeId): RecipeAvailability {
+  const recipe=RECIPES[id];
+  const cooking=skillRank(state.education.characters[role].xp.cooking).level;
+  const effort=cooking>=12?2:cooking>=6?3:4;
+  const missing=ingredientList(id).filter(([item,amount])=>state.pantry[item]<amount);
+  if(missing.length)return {available:false,effort,reason:'Не хватает: '+
+    missing.map(([item,amount])=>GROCERIES[item].name.split(' · ')[0]+' ×'+
+      (amount-state.pantry[item])).join(', ')};
+  if(state.meals[id]+recipe.servings>30)
+    return {available:false,effort,reason:'Слишком много порций этого блюда (максимум 30)'};
+  if(state.characters[role].energy<effort)
+    return {available:false,effort,reason:'Не хватает энергии для готовки (нужно '+effort+'%)'};
+  // A prepared serving occupies two fridge cells. Model the post-cooking
+  // stock without mutating the live multiplayer state or allocating batches.
+  const after={
+    pantry:{...state.pantry},
+    meals:{...state.meals},
+    takeout:state.takeout,
+    readyFood:state.readyFood,
+  };
+  for(const [item,amount] of ingredientList(id))after.pantry[item]-=amount;
+  after.meals[id]+=recipe.servings;
+  const fit=storageCanFit(state,after);
+  if(!fit.ok)return {available:false,effort,reason:fit.reason};
+  return {available:true,effort};
+}

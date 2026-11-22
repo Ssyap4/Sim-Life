@@ -90,7 +90,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.15 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.16 · МЫ ВМЕСТЕ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -1057,7 +1057,7 @@ function openPurchasedFurnitureActions(id:number):void{
       const ok=net.food(type,recipe,type==='eat'?id:undefined);
       if(ok)actionsEl.hidden=true;
       return ok;
-    });
+    }, active!);
     showTakeoutChoices(actionsEl,state,product=>{
       const ok=net.eatTakeout(product,id);
       if(ok)actionsEl.hidden=true;
@@ -1142,7 +1142,7 @@ function openActions(item: ItemId): void {
         statusEl.textContent = 'Обрабатываем действие…';
       }
       return sent;
-    });
+    }, active);
   }
 
   if ((item === 'kitchen' || item === 'coffeeMaker') && state && active) {

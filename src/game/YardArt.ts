@@ -123,6 +123,28 @@ function grillAndTable() {
   contents.position.set(.11, .867, .028);
   contents.visible = false;
   grill.add(lid, contents);
+  // A few reusable ember glows and rising smoke puffs, visible ONLY while
+  // grilling. No particles, dynamic geometry, or new textures per frame.
+  const embers = new THREE.Group();
+  for(let i=0;i<6;i++){
+    const glow=new THREE.Mesh(orb,new THREE.MeshBasicMaterial({
+      color:i%2?0xe88732:0xdf5b32,transparent:true,opacity:.88,depthWrite:false
+    }));
+    glow.position.set((i%3-1)*.23,.827,Math.floor(i/3)*.18-.10);
+    glow.scale.set(.075,.035,.05);
+    embers.add(glow);
+  }
+  embers.visible=false;
+  const smoke = new THREE.Group();
+  for(let i=0;i<5;i++){
+    const puff=new THREE.Mesh(orb,new THREE.MeshBasicMaterial({
+      color:0xd5d6cd,transparent:true,opacity:.12,depthWrite:false
+    }));
+    puff.scale.setScalar(.08);
+    smoke.add(puff);
+  }
+  smoke.visible=false;
+  grill.add(embers,smoke);
 
   const table = new THREE.Group();
   const { x, z } = furniturePosition('yardTable');
@@ -158,7 +180,7 @@ function grillAndTable() {
     servings.set(recipe, plate);
   }
   platter.visible = false;
-  return { grill, table, lid, contents, platter, servings };
+  return { grill, table, lid, contents, platter, servings, embers, smoke };
 }
 
 function fence(yard: THREE.Group): void {
@@ -228,6 +250,14 @@ export function buildYard(scene: THREE.Scene) {
   batchRigidParts(yard, true);
   scene.add(yard);
   const furniture = grillAndTable();
+  // Smoke and ember FX are visual-only overlays. Detach them from the
+  // clickable grill: this preserves the established static furniture mesh
+  // budget and prevents a raycast against translucent puffs on low-end phones.
+  for(const effect of [furniture.embers,furniture.smoke]){
+    effect.removeFromParent();
+    effect.position.copy(furniture.grill.position);
+    scene.add(effect);
+  }
   scene.add(furniture.platter);
   return furniture;
 }

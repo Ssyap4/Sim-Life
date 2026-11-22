@@ -146,7 +146,18 @@ export function diningLocation(state:GameState,role:CharacterId,requestedId?:num
     const available=state.furnishing.placed.filter(item=>
       item.id!==table.id&&seats.has(FURNITURE_BY_ID.get(item.sku)!.shape)&&
       Math.hypot(table.x-item.x,table.z-item.z)<=Math.max(1.35,info.width/2+1.1));
-    for(const chair of available){
+    // Two characters must not independently pick the first chair and sit
+    // inside each other. Reserve opposite sides deterministically by role.
+    // With only one chair keep it usable by either player when dining alone.
+    const yaw=table.rotation*Math.PI/2;
+    const c=Math.cos(yaw),s=Math.sin(yaw);
+    available.sort((a,b)=>{
+      const ax=(a.x-table.x)*c-(a.z-table.z)*s;
+      const bx=(b.x-table.x)*c-(b.z-table.z)*s;
+      return ax-bx||a.id-b.id;
+    });
+    const preferred=available.length>1&&role==='alina'?[...available].reverse():available;
+    for(const chair of preferred){
       const seat=furnitureUseLocation(state,role,chair.id,'officeChairSit');
       if(seat)return {...use,route:seat.route,pose:seat.pose,seated:true,chairId:chair.id};
     }

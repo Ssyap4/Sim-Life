@@ -10,7 +10,7 @@ import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
 import { isCareerPlace, type CareerShift } from '../shared/careers';
-import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId } from '../shared/food';
+import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from '../shared/food';
 import { carryingBag, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
@@ -22,6 +22,9 @@ import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { diningSurface, tabletopPoint } from '../shared/diningSurface';
 import { mealServingScale } from './MealGesture';
+import { selectIndoorDish } from './MealArt';
+import { servingOffset } from './CookingChoreography';
+import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
@@ -94,6 +97,7 @@ export class World {
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
+  private displayedMealRecipe: RecipeId | undefined;
   private readonly meals = new Map<CharacterId, THREE.Group>();
   private readonly vector = new THREE.Vector3();
   private remote: ReturnType<typeof createLocation> | null = null;
@@ -137,6 +141,11 @@ export class World {
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
+  private readonly kitchenEffects = buildCookingStation(this.homeScene);
+  private kitchenCooking = false;
+  private cookingClock = 0;
+  private grillClock = 0;
+  private activeGrillRecipe: RecipeId | undefined;
   private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
   private readonly dishTasks = new Set<CharacterId>();
@@ -227,10 +236,10 @@ export class World {
       const plate = new THREE.Group();
       const dish = new THREE.Mesh(drum, finish(0xf2dfc3, 'ceramic'));
       dish.scale.set(.19,.032,.19);
-      const food = new THREE.Mesh(softCube, finish(0xc88850, 'ceramic'));
+      const food = new THREE.Group();
       food.name = 'Indoor serving';
-      food.scale.set(.22,.072,.20);
-      food.position.y = .042;
+      food.position.y = .035;
+      selectIndoorDish(food,undefined);
       const grilled = grilledFood();
       grilled.position.y = .016;
       grilled.visible = false;
@@ -462,13 +471,15 @@ export class World {
   }
 
   performFood(id: CharacterId, action: 'cook' | 'eat', current = () => true,
-    furnitureId?:number): boolean {
+    furnitureId?:number, dish?:RecipeId|TakeoutId): boolean {
     if (action === 'cook') {
       return this.perform(id, 'kitchen', 'idle', () => {
         if (!current()) return;
         const actor = this.actors[id];
         actor.faceTowards(cookingPan);
-        actor.playActivity('cook', cookingPan);
+        actor.playActivity('cook', cookingPan, dish as RecipeId|undefined);
+        if(dish){this.kitchenEffects.recipe(dish as RecipeId);this.cookingClock=0;}
+        this.kitchenCooking=true;
       });
     }
     // Use each person's *own* seat and approach. The old shared table marker
@@ -485,8 +496,17 @@ export class World {
           actor.setPose('idle');
           actor.faceTowards(new THREE.Vector3(bought.item.x,0,bought.item.z));
         }
-        this.showMeal(id,bought.item.x,FURNITURE_BY_ID.get(bought.item.sku)!.height+.014,bought.item.z);
-        actor.playActivity('eat');
+        // Place a personal dish inside the actual rotated tabletop, near
+        // this resident's visual seat. Never balance every plate at its center.
+        const info=FURNITURE_BY_ID.get(bought.item.sku)!;
+        const yaw=bought.item.rotation*Math.PI/2;
+        const c=Math.cos(yaw),s=Math.sin(yaw);
+        const dx=pose.x-bought.item.x,dz=pose.z-bought.item.z;
+        const near=servingOffset(info.width,info.depth,dx*c-dz*s,dx*s+dz*c);
+        const px=bought.item.x+near.x*c+near.z*s;
+        const pz=bought.item.z-near.x*s+near.z*c;
+        const serving=this.showMeal(id,px,info.height+.025,pz,dish);
+        actor.playActivity('eat',serving,dish);
       });
     }
     if(furnitureId!==undefined||this.household?.furnishing.soldFixtures?.includes('table'))
@@ -497,8 +517,8 @@ export class World {
       const actor = this.actors[id];
       actor.setFurniturePose('sit', new THREE.Vector3().copy(seat.position), seat.yaw);
       const plateX = seat.position.x + (id === 'vlad' ? -.59 : .59);
-      this.showMeal(id, plateX, DINING_TOP + .014, seat.position.z);
-      actor.playActivity('eat');
+      const serving=this.showMeal(id, plateX, DINING_TOP + .014, seat.position.z,dish);
+      actor.playActivity('eat',serving,dish);
     });
   }
 
@@ -562,13 +582,21 @@ export class World {
       if (station === 'studyPractice') { actor.playDomesticActivity('stretch'); return; }
       if (station === 'kitchenCook') {
         actor.faceTowards(cookingPan);
-        actor.playActivity('cook',cookingPan);return;
+        actor.playActivity('cook',cookingPan,command.type==='cook'?command.recipe:undefined);
+        if(command.type==='cook')this.kitchenEffects.recipe(command.recipe);
+        this.kitchenCooking=true;
+        this.cookingClock=0;
+        return;
       }
       if (station === 'grill') {
         const target = new THREE.Vector3().copy(GRILL_WORK.target);
         actor.faceTowards(target);
-        actor.playDomesticActivity('grill', target);
-        if (command.type === 'cook') selectGrilledFood(this.yard.contents, command.recipe);
+        actor.playDomesticActivity('grill', target,command.type==='cook'?command.recipe:undefined);
+        if (command.type === 'cook') {
+          selectGrilledFood(this.yard.contents, command.recipe);
+          this.activeGrillRecipe=command.recipe;
+        }
+        this.grillClock=0;
         this.grillCooking = true;
         return;
       }
@@ -605,8 +633,8 @@ export class World {
       } else if (command.type === 'read_book' || study?.channel === 'book') actor.playDomesticActivity('read');
       else if (study?.channel === 'practice') actor.playDomesticActivity('journal');
       else if (station === 'yardTable' && command.type === 'eat') {
-        this.showMeal(role, seat.position.x, DINING_TOP, HOME_PLACEMENTS.yardTable.z + .22, command.recipe);
-        actor.playActivity('eat');
+        const point=this.showMeal(role, seat.position.x, DINING_TOP, HOME_PLACEMENTS.yardTable.z + .22, command.recipe);
+        actor.playActivity('eat',point,command.recipe);
       }
       else if (command.type === 'act') {
         const motion = DOMESTIC_MOTIONS[command.actionId];
@@ -713,12 +741,30 @@ export class World {
         actor.watch(home?.program==='comedy'?1:home?.program==='horror'?-1:0);
         this.homeEffects.television(role,home?.program,home?.lesson);break;
       case 'read':actor.playDomesticActivity('read');break;
-      case 'cook':actor.playActivity('cook',cookingPan);break;
+      case 'cook':
+        actor.faceTowards(cookingPan);
+        actor.playActivity('cook',cookingPan,pair.item as RecipeId|undefined);
+        if(pair.item)this.kitchenEffects.recipe(pair.item as RecipeId);
+        this.kitchenCooking=true;this.cookingClock=0;break;
       case 'grill':
-        actor.playDomesticActivity('grill',new THREE.Vector3().copy(GRILL_WORK.target));
-        if(pair.item)selectGrilledFood(this.yard.contents,pair.item as RecipeId);
+        actor.playDomesticActivity('grill',new THREE.Vector3().copy(GRILL_WORK.target),pair.item as RecipeId|undefined);
+        if(pair.item){
+          selectGrilledFood(this.yard.contents,pair.item as RecipeId);
+          this.activeGrillRecipe=pair.item as RecipeId;
+        }
+        this.grillClock=0;
         this.grillCooking=true;break;
-      case 'prep':actor.playDomesticActivity('tidy');break;
+      case 'prep': {
+        // During cooperative cooking the helper prepares ingredients at a
+        // separate counter (or the garden table), not in empty air beside
+        // the cook. Keep both residents at their server-assigned stations.
+        const prepTarget=pair.item&&isGrillRecipe(pair.item as RecipeId)
+          ? new THREE.Vector3(HOME_PLACEMENTS.yardTable.x,DINING_TOP+.045,HOME_PLACEMENTS.yardTable.z)
+          : new THREE.Vector3().copy(KITCHEN_WORK.wash.target);
+        actor.faceTowards(prepTarget);
+        actor.playDomesticActivity('prep',prepTarget,pair.item as RecipeId|undefined);
+        break;
+      }
       case 'wash':actor.playDomesticActivity('dishes',new THREE.Vector3().copy(KITCHEN_WORK.dishes.target));break;
       case 'serve':
         actor.carryDirtyPlate();
@@ -728,12 +774,13 @@ export class World {
         if(pair.seat){
           const seat=homeSeat(pair.seat,role).position;
           const x=pair.seat==='yardTable'?seat.x:seat.x+(role==='vlad'?-.56:.56);
-          this.showMeal(role,x,DINING_TOP+.02,seat.z-.14,pair.seat==='yardTable'?pair.item as RecipeId:undefined);
+          const plate=this.showMeal(role,x,DINING_TOP+.02,seat.z-.14,pair.item as RecipeId|undefined);
+          actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }else if(pair.station) {
           const site=stationById(this.place,pair.station)!;
-          this.showMeal(role,site.center.x+(role==='vlad'?-.25:.25),1.02,site.center.z-.10);
-        }
-        actor.playActivity('eat');break;
+          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.25:.25),1.02,site.center.z-.10,pair.item as RecipeId|undefined);
+          actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
+        }break;
       }
       case 'feed':actor.playPetActivity('feed');break;
       case 'pet':{
@@ -776,6 +823,8 @@ export class World {
     if (home.station === 'shower' || home.station === 'bathtub' || home.station === 'wcBasin')
       this.homeEffects.water(home.station,false);
     if (home.station === 'grill'||home.pair?.motion==='grill') this.grillCooking = false;
+    if (home.station === 'kitchenCook'||home.pair?.motion==='cook'||home.pair?.motion==='prep')
+      this.kitchenCooking = false;
     return true;
   }
 
@@ -810,8 +859,8 @@ export class World {
           this.pets.verdell.react('play');
         }
         if (command.action === 'dine' && this.household?.world.cafe[role]?.pickedUp) {
-          this.showMeal(role, station.center.x + (role === 'vlad' ? -.25 : .25), 1.022, station.center.z - .10);
-          actor.playActivity('eat');
+          const plate=this.showMeal(role, station.center.x + (role === 'vlad' ? -.25 : .25), 1.022, station.center.z - .10);
+          actor.playActivity('eat',plate);
         }
       };
       return this.walkTo(role, approachFor(station, role), start);
@@ -923,9 +972,9 @@ export class World {
       });
     }
     if (command.type === 'pet_action') return this.performPet(role, command.pet, command.action, current);
-    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current,command.furnitureId);
+    if (command.type === 'eat_takeout') return this.performFood(role, 'eat', current,command.furnitureId,command.item);
     if (command.type === 'cook') return this.prepareFood(role, command.recipe, current);
-    return command.type === 'eat' && this.performFood(role, command.type, current,command.furnitureId);
+    return command.type === 'eat' && this.performFood(role, command.type, current,command.furnitureId,command.recipe);
   }
 
   private prepareFood(role: CharacterId, recipe: RecipeId, current: () => boolean): boolean {
@@ -942,7 +991,7 @@ export class World {
     }, 0);
     if (!start || !towardStorage || !towardStove ||
       length(start, towardStorage) + length(approach, towardStove) > 22) {
-      return this.performFood(role, 'cook', current);
+      return this.performFood(role, 'cook', current,undefined,recipe);
     }
     return this.walkTo(role, approach, () => {
       if (!current()) return;
@@ -952,7 +1001,7 @@ export class World {
       this.preparations.set(role, { remaining: 1.25, next: () => {
         if (!current()) return;
         this.closeStorage(role);
-        this.performFood(role, 'cook', current);
+        this.performFood(role, 'cook', current,undefined,recipe);
       } });
     });
   }
@@ -1434,18 +1483,23 @@ export class World {
       role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);
   }
 
-  private showMeal(role: CharacterId, x: number, y: number, z: number, grilled?: RecipeId): void {
+  private showMeal(role: CharacterId, x: number, y: number, z: number,
+    dish?:RecipeId|TakeoutId): THREE.Vector3 {
     const meal = this.meals.get(role)!;
     meal.position.set(x, y, z);
-    // Reused plates reset for every serving, including after a cancelled meal.
-    const indoor = meal.getObjectByName('Indoor serving')!;
-    indoor.scale.set(.22, .072, .20);
+    const grilled = dish!==undefined && isGrillRecipe(dish as RecipeId);
+    // Give each ordered/selected dish its own recognizable light 3D serving.
+    // Reinitialize on task START only, never regenerate meshes every frame.
+    const indoor = meal.getObjectByName('Indoor serving')! as THREE.Group;
+    indoor.scale.setScalar(1);
     indoor.visible = !grilled;
+    if(!grilled)selectIndoorDish(indoor,dish);
     const food = meal.getObjectByName('Grilled serving')!;
     food.scale.setScalar(1);
-    food.visible = grilled !== undefined;
-    if (grilled) selectGrilledFood(food, grilled);
+    food.visible = grilled;
+    if(grilled)selectGrilledFood(food,dish as RecipeId);
     meal.visible = true;
+    return new THREE.Vector3(x,y+.08,z);
   }
 
   walkTo(role: CharacterId, target: { x: number; z: number }, onArrive = () => {}): boolean {
@@ -1547,6 +1601,8 @@ export class World {
     if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
     this.homeEffects.reset();
     this.grillCooking = false;
+    this.kitchenCooking=false;
+    this.kitchenEffects.root.visible=false;
     this.homeTasks.clear();
     this.computerScreens.resetPreviews();
     this.pairStages.clear();
@@ -1689,8 +1745,13 @@ export class World {
       if(this.served){
         const platePos=tabletopPoint(top,0,top.kind==='counter'?.08:-Math.min(.28,top.depth*.25));
         this.served.position.set(platePos.x,top.height+.014,platePos.z);
-        this.served.visible=(Object.keys(state.meals) as RecipeId[])
-          .some(recipe=>!isGrillRecipe(recipe)&&state.meals[recipe]>0);
+        const recipe=(Object.keys(state.meals) as RecipeId[])
+          .find(id=>!isGrillRecipe(id)&&state.meals[id]>0);
+        if(recipe!==this.displayedMealRecipe&&recipe){
+          selectIndoorDish(this.served.getObjectByName('Indoor serving')! as THREE.Group,recipe);
+        }
+        this.displayedMealRecipe=recipe;
+        this.served.visible=recipe!==undefined;
       }
       this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
       const counts = { fridge: 0, cupboard: 0 };
@@ -1865,14 +1926,37 @@ export class World {
       const plate = this.meals.get(id)!;
       if (plate.visible && elapsed !== null) {
         const scale = mealServingScale(elapsed);
-        plate.getObjectByName('Indoor serving')!.scale.set(.22 * scale, .072 * scale, .20 * scale);
+        plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }
       if (this.bags[id].visible) this.followBag(this.bags[id], actor);
     }
     if (this.place === 'home') {
+      this.cookingClock += dt;
+      this.grillClock += dt;
+      this.kitchenEffects.root.visible=this.kitchenCooking;
+      if(this.kitchenCooking)this.kitchenEffects.update(this.cookingClock);
       this.yard.lid.rotation.x = THREE.MathUtils.damp(this.yard.lid.rotation.x, this.grillCooking ? -1.22 : 0, 9, dt);
       this.yard.contents.visible = this.grillCooking;
+      this.yard.embers.visible=this.grillCooking;
+      this.yard.smoke.visible=this.grillCooking;
+      if(this.grillCooking){
+        for(let i=0;i<this.yard.smoke.children.length;i++){
+          const puff=this.yard.smoke.children[i] as THREE.Mesh;
+          const phase=(this.grillClock*.30+i/this.yard.smoke.children.length)%1;
+          puff.position.set(Math.sin(this.grillClock*.9+i)*.12,
+            .94+phase*.62,Math.cos(i*2+this.grillClock*.43)*.07);
+          puff.scale.setScalar(.09+.16*phase);
+          (puff.material as THREE.MeshBasicMaterial).opacity=.17*(1-phase);
+        }
+        for(let i=0;i<this.yard.embers.children.length;i++){
+          const glow=this.yard.embers.children[i] as THREE.Mesh;
+          glow.scale.y=.035+.014*Math.sin(this.grillClock*4.2+i);
+        }
+        const motion=this.activeGrillRecipe==='grillChicken'?.04:
+          this.activeGrillRecipe==='grillVegetables'?.06:.027;
+        this.yard.contents.rotation.z=Math.sin(this.grillClock*2.3)*motion;
+      } else this.yard.contents.rotation.z=0;
     }
     if (this.place === 'home' && this.entryLeaf) {
       const { x, z, width } = HOUSE_ENTRY;

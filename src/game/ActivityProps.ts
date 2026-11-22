@@ -56,6 +56,25 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   groomingBrush.rotation.x = -.20;
   groomingBrush.visible=false;
   wrists[1].add(groomingBrush);
+  const knife = new THREE.Group();
+  knife.name = 'Cooking knife';
+  part(knife, material(0x665447), [.025,.028,.095], [0,0,.036]);
+  part(knife, steel, [.012,.052,.142], [0,.011,.142]);
+  batchRigidParts(knife);
+  knife.position.set(0,-.067,.026);
+  knife.rotation.x=.12;
+  knife.visible=false;
+  wrists[1].add(knife);
+  const fork = new THREE.Group();
+  fork.name='Dining fork';
+  part(fork,steel,[.012,.012,.195],[0,0,.098]);
+  for(const x of [-.020,-.007,.007,.020])
+    part(fork,steel,[.005,.011,.065],[x,0,.224]);
+  batchRigidParts(fork);
+  fork.position.set(-.012,-.043,.024);
+  fork.rotation.x=.25;
+  fork.visible=false;
+  wrists[1].add(fork);
   const tongs = new THREE.Group();
   tongs.position.set(0, -.090, .043);
   const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
@@ -65,6 +84,8 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   return {
     brush,
     groomingBrush,
+    knife,
+    fork,
     tongs,
     grip(time: number) {
       const opening = .07 + .075 * (1 + Math.sin(time * 4));

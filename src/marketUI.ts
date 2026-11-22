@@ -200,7 +200,9 @@ export function createMarketUI(
       scroll.append(grid);
       updateResults();
       const selected=[...cart.entries()].map(([id,quantity])=>({id,quantity}));
-      const total=basketPrice(selected)+(selected.length ? DELIVERY_FEE : 0);
+      const productsTotal = basketPrice(selected);
+      const deliveryCost = selected.length ? DELIVERY_FEE : 0;
+      const total = productsTotal + deliveryCost;
       const storageOkay=cartFit();
       const after={clock:state.clock,pantry:{...state.pantry},meals:{...state.meals},
         takeout:{...state.takeout},readyFood:state.readyFood.map(batch=>({...batch}))};
@@ -215,7 +217,9 @@ export function createMarketUI(
       const capacity=storageUsage(after);
       const footer=el('div','market-checkout');
       const amounts=el('div','market-summary');
-      amounts.append(el('strong','', 'Корзина: '+selected.reduce((n,l)=>n+l.quantity,0)+' уп. · '+formatRub(total)),
+      amounts.append(el('small','', 'Товары · '+selected.reduce((n,l)=>n+l.quantity,0)+' уп.: '+formatRub(productsTotal)),
+        el('small','market-delivery-line', '🚚 Доставка: '+formatRub(deliveryCost)),
+        el('strong','', 'Итого к оплате: '+formatRub(total)),
         el('small','', !storageOkay ? 'Недостаточно мест для заказа' :
           total>state.money ? 'Не хватает '+formatRub(total-state.money) : 'После покупки: '+formatRub(state.money-total)),
         el('small','', '🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY +

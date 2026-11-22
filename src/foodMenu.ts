@@ -1,4 +1,6 @@
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
+import { recipeAvailability } from './shared/recipeAvailability';
+import type { CharacterId } from './shared/protocol';
 import type { GameState } from './shared/protocol';
 import { RECIPE_DESCRIPTIONS } from './shared/storageSpace';
 
@@ -23,6 +25,7 @@ export function showFoodChoices(
   location: 'delivery' | 'kitchen' | 'table' | 'grill' | 'yardTable',
   state: GameState,
   submit: (type: FoodCommand, id: IngredientId | RecipeId) => boolean,
+  role: CharacterId,
 ): void {
   const heading = document.createElement('div');
   heading.className = 'food-section-heading';
@@ -41,13 +44,17 @@ export function showFoodChoices(
   } else if (location === 'kitchen' || location === 'grill') {
     for (const [id, recipe] of Object.entries(RECIPES) as Array<[RecipeId, (typeof RECIPES)[RecipeId]]>) {
       if (isGrillRecipe(id) !== (location === 'grill')) continue;
-      const needed = ingredientList(id).map(([ingredient, quantity]) =>
-        GROCERIES[ingredient].emoji + quantity + (state.pantry[ingredient] < quantity ? ' ❗' : ''),
+      const ingredients = ingredientList(id);
+      const needed = ingredients.map(([ingredient, quantity]) =>
+        GROCERIES[ingredient].emoji + ' ' + GROCERIES[ingredient].name.split(' · ')[0] +
+        ' ×' + quantity + (state.pantry[ingredient] < quantity ? ' ❗ (есть ' + state.pantry[ingredient] + ')' : ''),
       ).join(' · ');
-      const available = ingredientList(id).every(([ingredient, qty]) => state.pantry[ingredient] >= qty);
+      const availability=recipeAvailability(state,role,id);
+      const reason=availability.available?'':availability.reason+'. ';
       entry(container, recipe.emoji + ' ' + recipe.name,
-        RECIPE_DESCRIPTIONS[id]+' · '+needed + ' · '+recipe.servings+' порц. · ~'+recipePortionCost(id)+' ₽/порция',
-        !available || state.meals[id] + recipe.servings > 30,
+        reason + RECIPE_DESCRIPTIONS[id] + ' · Ингредиенты: ' + needed +
+        ' · ' + recipe.servings + ' порц. · ~' + recipePortionCost(id) + ' ₽/порция',
+        !availability.available,
         () => submit('cook', id));
     }
   } else {

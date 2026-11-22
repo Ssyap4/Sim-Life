@@ -164,8 +164,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const id = 'D-' + role + '-' + next.world.sequence[role]++;
       next.money -= cost;
       next.world.deliveries.push({ id, role, lines: quote.lines, cost, readyAt: now + DELIVERY_MINUTES });
-      addLedger(next, role, 'expense', 'groceries', cost, 'Доставка ' + id + ' · ' + quote.units + ' уп.');
-      return done(next, 'Заказ оплачен. Доставка к дому через ' + DELIVERY_MINUTES + ' игровых мин.');
+      addLedger(next, role, 'expense', 'groceries', cost,
+        'Доставка ' + id + ' · ' + quote.units + ' уп. · товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE + ' ₽');
+      return done(next, 'Заказ оплачен: товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE +
+        ' ₽ = ' + cost + ' ₽. Курьер будет через ' + DELIVERY_MINUTES + ' игровых мин.');
     }
     if (place !== 'cafe' || !at(source, role, stationById('cafe', 'terminal'))) return fail('Подойди к терминалу кафе');
     if (!isCafeItem(command.item)) return fail('Такого блюда нет в меню');

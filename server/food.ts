@@ -1,4 +1,4 @@
-import { skillRank } from '../src/shared/education';
+import { recipeAvailability } from '../src/shared/recipeAvailability';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { homeSeat } from '../src/shared/home';
 import { addDirtyDish } from '../src/shared/dirtyDishes';
@@ -40,15 +40,9 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (!owns(RECIPES, command.recipe)) return { ok: false, reason: 'Неизвестный рецепт' };
     const id: RecipeId = command.recipe;
     const recipe = RECIPES[id];
-    const missing = ingredientList(id).filter(([item, amount]) => state.pantry[item] < amount);
-    if (missing.length) {
-      return { ok: false, reason: 'Не хватает ингредиентов: ' +
-        missing.map(([item, count]) => GROCERIES[item].name + ' (нужно ' + count + ')').join(', ') };
-    }
-    if (state.meals[id] + recipe.servings > 30) return { ok: false, reason: 'Слишком много готовой еды этого вида' };
-    const cooking = skillRank(state.education.characters[role].xp.cooking).level;
-    const effort = cooking >= 12 ? 2 : cooking >= 6 ? 3 : 4;
-    if (actor.energy < effort) return { ok: false, reason: 'Не хватает сил для готовки' };
+    const availability=recipeAvailability(state,role,id);
+    if(!availability.available)return {ok:false,reason:availability.reason};
+    const {effort}=availability;
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
     addReadyFood(state,'meal',id,recipe.servings,'fridge');
