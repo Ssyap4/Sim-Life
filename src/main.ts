@@ -742,7 +742,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
   () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
-  () => net.world({ type: 'travel', place: 'education' }),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
+  () => locationUI.go('education'),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
     suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
     offer(){phone.close();socialInvite.unfold();},
     pending:()=>socialInvite.pending,
@@ -789,7 +789,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   career: command => net.career(command),
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
-  travel: () => net.world({type:'travel',place:'education'}),
+  travel: () => locationUI.go('education'),
   service: command => net.service(command),
   checkout: lines => orderDelivery(lines),
   furnishing:()=>furnishing.open(),
@@ -1456,6 +1456,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     }, characters, diagnostics?.onFrame, {
       station(id) {
         if (!active) return;
+        locationUI.cancelRoute();
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
         if (world.place === 'home' && id === HOME_LAPTOP) {
@@ -1488,6 +1489,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       },
       ground(x, z) {
         if (!active) return;
+        locationUI.cancelRoute();
         if (net.world({ type: 'walk', place: world.place, x, z })) {
           actionsEl.hidden = true;
           locationUI.close();

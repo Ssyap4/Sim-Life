@@ -2,7 +2,7 @@ import { FURNITURE_BY_ID, type PlacedFurniture } from './furniture';
 import { HOME_PLACEMENTS } from './home';
 import { placeObstacles } from './locations';
 import { findRoute, nearestClearPoint, pointIsClear } from '../game/navigation';
-import { HOME_FLOOR } from './home';
+import { HOME_WORLD_FLOOR } from './district';
 import type { CharacterId, GameState } from './protocol';
 
 export type SleepBedId = 'starter' | number;
@@ -73,14 +73,14 @@ function approachForBed(state:GameState,role:CharacterId,item:PlacedFurniture):
   ];
   const blocked=placeObstacles('home',state.furnishing);
   const actor=state.characters[role];
-  const start=nearestClearPoint(actor,blocked,HOME_FLOOR);
+  const start=nearestClearPoint(actor,blocked,HOME_WORLD_FLOOR);
   if(!start)return null;
   let result:{x:number;z:number}|null=null;
   let cost=Infinity;
   for(const [x,z] of candidates){
     const point=rotated(item,x,z);
-    if(!pointIsClear(point,blocked,HOME_FLOOR))continue;
-    const route=findRoute(start,point,blocked,HOME_FLOOR);
+    if(!pointIsClear(point,blocked,HOME_WORLD_FLOOR))continue;
+    const route=findRoute(start,point,blocked,HOME_WORLD_FLOOR);
     if(!route)continue;
     let distance=0;
     let previous=start;

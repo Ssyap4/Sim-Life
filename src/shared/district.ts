@@ -1,12 +1,19 @@
-import { NEIGHBOR_HOMES } from './neighborHomes';
+import { NEIGHBOR_HOMES, REAR_WALK_Z } from './neighborHomes';
 import type { PlaceId, Point } from './locations';
 import type { CharacterId } from './protocol';
 import type { FloorRect } from '../game/navigation';
+import { HOME_FLOOR, HOME_YARD, HOUSE } from './home';
 
 export const DISTRICT_FLOOR: FloorRect = { minX: -28.4, maxX: 28.4, minZ: -30.7, maxZ: 15.3 };
+export const DISTRICT_OFFSET_Z = 41.5;
+export const HOME_WORLD_FLOOR: FloorRect = { ...DISTRICT_FLOOR,
+  minZ: HOME_FLOOR.minZ, maxZ: DISTRICT_FLOOR.maxZ + DISTRICT_OFFSET_Z };
+export const inHomeGrounds = ({x,z}:Point) => x>=HOME_FLOOR.minX && x<=HOME_FLOOR.maxX &&
+  z>=HOME_FLOOR.minZ && z<=HOME_YARD.gate.z;
+export const districtPoint = ({x,z}:Point):Point => ({x,z:z+DISTRICT_OFFSET_Z});
+export const HOME_GATE_APPROACH = { x:HOME_YARD.gate.x, z:HOME_YARD.gate.z+.66 };
 export const DISTRICT_FOUNTAIN = { x: -8.6, z: -4.45, radius: 1.69 };
 export const DISTRICT_SITES = [
-  { place: 'home', x: 4.3, z: 1.40, w: 9.60, d: 6.2, turn: 0, name: 'Дом', sign: 'ДОМ', color: 0xd0a67b },
   { place: 'market', x: -21.8, z: 6.65, w: 6.8, d: 5.4, turn: 1, name: 'Супермаркет', sign: 'ПРОДУКТЫ', color: 0x397766 },
   { place: 'cafe', x: -22.1, z: -.50, w: 5.30, d: 4.8, turn: 1, name: 'Кафе «Тёплый угол»', sign: 'ТЁПЛЫЙ УГОЛ', color: 0xa85846 },
   { place: 'education', x: -22, z: -6.98, w: 5.65, d: 5.1, turn: 1, name: 'Центр «Потенциал»', sign: 'ПОТЕНЦИАЛ', color: 0xc09058 },
@@ -27,8 +34,9 @@ export function sitePoint(site: DistrictSite, side: number, depth: number): Poin
 }
 
 export function districtArrival(place: PlaceId, role: CharacterId): Point {
-  const site = districtSite(place) ?? DISTRICT_SITES[0];
-  return sitePoint(site, role === 'vlad' ? -.59 : .59, site.d / 2 + 1.06);
+  const site = districtSite(place);
+  return site ? districtPoint(sitePoint(site, role === 'vlad' ? -.59 : .59, site.d / 2 + 1.06))
+    : {x:HOME_GATE_APPROACH.x+(role==='vlad'?-.27:.27),z:HOME_GATE_APPROACH.z};
 }
 
 export const DISTRICT_PLAZA = {x:-8.6,z:-4.45,w:11.5,d:8.0};
@@ -39,7 +47,8 @@ export const DISTRICT_PATHS = [
   { x: 13.35, z: -6.20, w: 2.2, d: 28.1 },
   { x: 1.9, z: -10, w: 33.4, d: 1.78 },
   { x: -.22, z: -15.35, w: 51.5, d: 1.8 },
-  { x: 4.3, z: 6.12, w: 2.0, d: 3.1 },
+  { x: HOME_YARD.gate.x, z:(HOME_YARD.gate.z-DISTRICT_OFFSET_Z+REAR_WALK_Z)/2,
+    w:HOME_YARD.gate.width,d:DISTRICT_OFFSET_Z+REAR_WALK_Z-HOME_YARD.gate.z+.26 },
 ] as const;
 
 export const DISTRICT_BEDS = [
@@ -93,6 +102,14 @@ export const DISTRICT_OBSTACLES: readonly FloorRect[] = [
   ...DISTRICT_TREES.map(([x,z])=>districtRect(x,z,.46,.46)),
   ...DISTRICT_LAMPS.map(([x,z])=>districtRect(x,z,.29,.29,.19)),
 ];
+const gateEdge = .26;
+const {gate}=HOME_YARD;
+export const HOME_WORLD_OBSTACLES: readonly FloorRect[] = [
+  ...DISTRICT_OBSTACLES.map(rect=>({...rect,minZ:rect.minZ+DISTRICT_OFFSET_Z,maxZ:rect.maxZ+DISTRICT_OFFSET_Z})),
+  {minX:HOUSE.minX-.26,maxX:HOUSE.minX+.28,minZ:HOME_WORLD_FLOOR.minZ,maxZ:HOUSE.maxZ+.25},
+  {minX:-6.26,maxX:gate.x-gate.width/2+gateEdge,minZ:gate.z-.36,maxZ:gate.z+.36},
+  {minX:gate.x+gate.width/2-gateEdge,maxX:6.26,minZ:gate.z-.36,maxZ:gate.z+.36},
+];
 
 export function hydrateLegacyDistrict(point: Point, role: CharacterId): Point {
   const landmarks = [
@@ -101,5 +118,12 @@ export function hydrateLegacyDistrict(point: Point, role: CharacterId): Point {
     {x:-5.35,z:-2.3,place:'education'},
   ] as const;
   const closest = landmarks.find(door => Math.hypot(door.x-point.x,door.z-point.z)<1.5);
-  return closest ? districtArrival(closest.place,role) : districtArrival('home',role);
+  return districtArrival(closest?.place??'home',role);
+}
+
+export function restoreDistrictPosition(point:Point,role:CharacterId,layout:1|undefined):Point {
+  if(layout!==1)return hydrateLegacyDistrict(point,role);
+  // The former duplicate house occupied this plot. Its entrance is now the existing yard gate.
+  if(Math.abs(point.x-4.3)<2 && Math.abs(point.z-5.56)<2)return districtArrival('home',role);
+  return districtPoint(point);
 }

@@ -210,16 +210,16 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
   for(const display of displays.values()){
     display.nursery.finish(display.group,grassMat);root.add(display.group);
   }
-  function update(camera:THREE.Camera,seconds:number) {
+  function update(camera:THREE.Vector3,compactLow:boolean,seconds:number) {
     wind.value=seconds;
-    const bias=camera.userData.compactLow?4:0;
+    const bias=compactLow?4:0;
     for(const r of regions.values()){
-      const distance=Math.hypot(camera.position.x-r.x,camera.position.z-r.z,camera.position.y*.90);
+      const distance=Math.hypot(camera.x-r.x,camera.z-r.z,camera.y*.90);
       const far=r.distant.visible?distance>25-bias:distance>27-bias;
       r.distant.visible=far;r.group.visible=!far;
     }
     for(const display of displays.values()){
-      display.group.visible=Math.hypot(camera.position.x-display.x,camera.position.z-display.z,camera.position.y*.60)<30-bias;
+      display.group.visible=Math.hypot(camera.x-display.x,camera.z-display.z,camera.y*.60)<30-bias;
     }
   }
   return update;

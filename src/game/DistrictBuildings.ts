@@ -202,18 +202,6 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     entrance(frame,1.57);ledge(frame,2.45,2.61,1.02,site.color);
     for(const x of [-2.71,2.71]) pots(group,x,face+.52,1);
     signY=2.93;signWidth=w*.80;
-  } else if(site.place==='home'){
-    wall(frame,3.25,site.color,2.53);gable(frame,3.27,1.38,0x86624f);
-    for(const side of [-1,1]) {
-      const x=side*3.09;
-      box(group,[2.80,2.53,.17],[x,1.36,face-.10],0xd1aa83);
-      for(let n=0;n<7;n++)box(group,[2.65,.024,.024],[x,.34+n*.31,face+.008],0xb48f69);
-      pane(frame,x,1.61,1.63,1.21,'curtain');
-      pots(group,side*1.67,face+.60,0);
-    }
-    entrance(frame,1.63,true);ledge(frame,2.87,2.65,1.09,0x786256);
-    for(const x of [-1.30,1.3])box(group,[.105,2.57,.13],[x,1.27,face+.78],ivory);
-    signY=2.94;signWidth=1.67;
   } else {
     for(const side of [-1,1]) {
       box(group,[.23,2.6,.75],[side*1.67,1.31,0],0x587660);
@@ -237,9 +225,9 @@ export function distantDistrictFacade(site:DistrictSite) {
     box(model,[3.65,.43,.32],[0,2.65,0],site.color);
   } else {
     box(model,[w,h,d],[0,h/2,0],site.place==='market'?0xb7bbaa:site.color);
-    const sloped=site.place==='home'||site.place==='cafe'||site.place==='work-marketing';
-    const rise=site.place==='home'?1.3:.68;
-    const surface=site.place==='home'?0x805e4b:site.place==='cafe'?0x80574e:site.color;
+    const sloped=site.place==='cafe'||site.place==='work-marketing';
+    const rise=.68;
+    const surface=site.place==='cafe'?0x80574e:site.color;
     if(sloped){
       for(const side of [-1,1]){
         const panel=box(model,[Math.hypot(w/2,rise)+.24,.15,d+.42],[side*w/4,h+rise/2,0],surface);

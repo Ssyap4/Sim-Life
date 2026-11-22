@@ -185,7 +185,7 @@ test('Personal skill milestones can be replaced and completed independently for 
 });
 
 test('Every education station and the plaza entrance are reachable from both spawns', () => {
-  for (const place of ['street', 'education'] as const) for (const role of ['vlad', 'alina'] as const) {
+  for (const place of ['home', 'education'] as const) for (const role of ['vlad', 'alina'] as const) {
     const positions = [spawn(place, role), ...STATIONS[place].map(station => approachFor(station, role))];
     for (const from of positions) for (const to of positions)
       assert.ok(findRoute(from, to, placeObstacles(place), floorFor(place)), JSON.stringify({ place, from, to }));

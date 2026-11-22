@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, finish, plane, torus, type XYZ } from './ArtKit';
 import { lettering, painted, part, round, trim, type LocationResources } from './LocationArt';
-import { DISTRICT_FOUNTAIN, DISTRICT_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
+import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, HOME_WORLD_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
   DISTRICT_BEDS, DISTRICT_LAMPS, districtStation, districtYaw, sitePoint } from '../shared/district';
 import { buildDistrictFacade, distantDistrictFacade } from './DistrictBuildings';
 import { buildDistrictPlants, districtPlantGeometry } from './DistrictPlants';
@@ -59,11 +59,11 @@ function gardenPaint(resources:LocationResources) {
 
 function landscaping(root:THREE.Group,resources:LocationResources) {
   const {turf,stone}=gardenPaint(resources);
-  const {minX,maxX,minZ,maxZ}=DISTRICT_FLOOR;
-  const w=maxX-minX+1.7,d=maxZ-minZ+1.7,z=(minZ+maxZ)/2;
+  const {minX,maxX,minZ,maxZ}=HOME_WORLD_FLOOR;
+  const w=maxX-minX+1.7,d=maxZ-minZ+1.7,z=(minZ+maxZ)/2-DISTRICT_OFFSET_Z;
   trim(root,[w+.7,.49,d+.7],[0,-.29,z],0x736853);
   trim(root,[w+.32,.15,d+.28],[0,-.14,z],0x998965);
-  planeSurface(root,resources,turf,0,z,w,d,-.002,0x879463,.26);
+  planeSurface(root,resources,turf,0,z,w,d,-.020,0x879463,.26);
   for(const [x,z,w,d,color] of [[-7,-11,9.1,4.1,0x92a17a],[18,3,10,4,0x879572],
     [-14,-13,6.2,3.6,0x8f9b72],[2,9.1,13.2,3.4,0x919d77],[-15,9.15,4.4,2.1,0x8fa67e]]) {
     const grass=new THREE.Mesh(new THREE.CircleGeometry(1,20),finish(color,'fabric'));
@@ -84,7 +84,6 @@ function landscaping(root:THREE.Group,resources:LocationResources) {
   for(const p of DISTRICT_PATHS)path(p.x,p.z,p.w,p.d);
   path(DISTRICT_PLAZA.x,DISTRICT_PLAZA.z,DISTRICT_PLAZA.w,DISTRICT_PLAZA.d,true);
   for(const site of DISTRICT_SITES) {
-    if(site.place==='home')continue;
     const porch=sitePoint(site,0,site.d/2+.86);
     path(porch.x,porch.z,Math.abs(site.turn)%2?2.4:2.2,Math.abs(site.turn)%2?2.2:2.46);
   }
@@ -125,8 +124,6 @@ function fixtures(root:THREE.Group,resources:LocationResources, bulb:THREE.MeshS
     for(const [name,dx,y] of signs)lettering(root,resources,cursor.set(x+dx,y,z+.07).toArray(),.96,.21,name,['#56726b','#fff1d5']);
   }
   // Low perimeter posts articulate the entrance gaps without closing routes.
-  for(const x of [-25,-21,-17,-13,-8,-4,0,4,8,12,16,20,24])
-    trim(root,[.11,.66,.11],[x,.31,-30.44],0xd2bf99);
   for(const side of [-1,1])for(const z of [-23,-18,-13,-8,-3,2,7,12])
     trim(root,[.11,.62,.11],[side*27.9,.30,z],0xc9b692);
 }
@@ -208,10 +205,13 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
     detail.position.set(0,0,0);detail.rotation.y=0;
     const model=distantDistrictFacade(site);model.visible=false;
     building.add(detail,model);
+    root.add(building);
     return {id:districtStation(site.place),building,model,detail};
   });
   const entries=new Map(facades.map(({id,building})=>[id,building]));
-  const bounds:XYZ[] = [[-27.5,0,13],[27.5,0,13],[-26,3,-29],[26,3,-29]];
+  const {minX,maxX,minZ,maxZ}=HOME_WORLD_FLOOR;
+  const bounds:XYZ[] = [[minX,0,minZ],[maxX,0,minZ],[minX,3,maxZ],[maxX,3,maxZ]];
+  const cameraLocal=new THREE.Vector3();
   return {
     entries,bounds,
     setNight(night:boolean) {
@@ -222,15 +222,17 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
     animate(seconds:number,camera?:THREE.Camera){
       animateWater(seconds);
       if(!camera)return;
-      animatePlants(camera,seconds);
+      cameraLocal.copy(camera.position);cameraLocal.z-=DISTRICT_OFFSET_Z;
+      const compactLow=Boolean(camera.userData.compactLow);
+      animatePlants(cameraLocal,compactLow,seconds);
       for(const {building,detail,model} of facades){
-        const bias=camera.userData.compactLow?6:0;
-        const far=building.position.distanceTo(camera.position)>(model.visible?32-bias:35-bias);
+        const bias=compactLow?6:0;
+        const far=building.position.distanceTo(cameraLocal)>(model.visible?32-bias:35-bias);
         model.visible=far;detail.visible=!far;
       }
       for(const {model,detail} of distantCottages){
-        const bias=camera.userData.compactLow?5:0;
-        const far=model.position.distanceTo(camera.position)>(model.visible?32-bias:35-bias);
+        const bias=compactLow?5:0;
+        const far=model.position.distanceTo(cameraLocal)>(model.visible?32-bias:35-bias);
         model.visible=far;detail.visible=!far;
       }
     },

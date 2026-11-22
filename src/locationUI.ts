@@ -1,4 +1,5 @@
-import { CAFE_MENU, PLACES, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
+import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
+import { districtStation, inHomeGrounds } from './shared/district';
 import { CAREERS, isCareerPlace, type CareerId } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
@@ -34,6 +35,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let current: Station | null = null;
   let ingredient: IngredientId | null = null;
   let pending: number | null = null;
+  let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
@@ -48,6 +50,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   function closeMap() { map.hidden = true; map.replaceChildren(); }
   function travel(destination: PlaceId, via?: string, dog = false) {
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
+  }
+  function go(destination:PlaceId,dog=false):boolean {
+    const target = location==='home'
+      ? stationById('home',destination==='home'?'home-doorstep':districtStation(destination))
+      : STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='home');
+    if(!target || !send({type:'approach',place:location,station:target.id}))return false;
+    entrance={station:target.id,dog,onward:location!=='home'&&destination!=='home'?destination:undefined};
+    close();closeMap();
+    return true;
   }
   function transaction(operation: WorldCommand): void {
     if (pending !== null || !state) return;
@@ -65,14 +76,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
       if (isCareerPlace(id)) continue;
-      const entry = button('', () => travel(id), location === id || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift));
+      const here=location===id&&(id!=='home'||inHomeGrounds(state.characters[role]));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', location === id ? 'Вы здесь' : destination.detail));
+        element('small', '', here ? 'Вы здесь' : destination.detail));
       grid.append(entry);
     }
     map.append(grid);
-    if (location === 'street') {
+    if (location === 'home') {
       map.append(button('🏘️ Осмотреть соседей',()=>{
         closeMap();getWorld().focusNeighborhood();
       }));
@@ -85,7 +97,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }));
     }
     if (location === 'home' && !state.world.dogWalker)
-      map.append(button('🐾 В парк с Верделлом', () => travel('park', undefined, true), !!state.activeShifts[role]));
+      map.append(button('🐾 В парк с Верделлом', () => go('park', true), !!state.activeShifts[role]));
     map.append(button('Выйти и забыть устройство', signOut));
   }
   function change(id: string, delta: number) {
@@ -270,9 +282,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   }
 
   return {
-    openMap, closeMap, close,
+    openMap, closeMap, close, go,
+    cancelRoute() { entrance=null; },
     visit(station: Station) {
-      if (station.action.kind === 'door') { travel(station.action.destination, station.id); return; }
+      if (station.action.kind === 'waypoint') { entrance=null; return; }
+      if (station.action.kind === 'door') {
+        const dog=entrance?.station===station.id&&entrance.dog&&station.action.destination==='park';
+        travel(station.action.destination, station.id,dog);
+        return;
+      }
       current = station;
       ingredient = null;
       panel.hidden = false;
@@ -282,10 +300,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     },
     refresh(next: GameState, nextRole: CharacterId) {
       if (location !== next.world.places[nextRole] || role !== nextRole) {
+        const onward=role===nextRole&&next.world.places[nextRole]==='home'?entrance?.onward:undefined;
+        entrance=null;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
         close(); closeMap();
+        if(onward)queueMicrotask(()=>go(onward));
       }
       if (pending !== null && next.world.sequence[role] > pending) {
         if (current?.action.kind === 'checkout') { cart.clear(); showCart(); }
@@ -294,7 +315,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       state = next;
       draw();
     },
-    reject() { pending = null; draw(); },
-    reset() { cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reject() { entrance=null; pending = null; draw(); },
+    reset() { entrance=null; cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

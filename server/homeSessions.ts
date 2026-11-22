@@ -1,8 +1,9 @@
+import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
-import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_FLOOR, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
+import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe } from '../src/shared/food';
 import { GENRES, HOME_SEATS, YOUTUBE, type Genre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
@@ -120,7 +121,7 @@ export function createHomeSessions(hooks: Hooks) {
     const { x, z } = hooks.state().characters[role];
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
-      planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_FLOOR);
+      planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
-import { STATIONS, type PlaceId, type Station } from '../shared/locations';
+import { STATIONS, HOME_STATIONS, DISTRICT_STATIONS, type PlaceId, type Station } from '../shared/locations';
+import { DISTRICT_OFFSET_Z } from '../shared/district';
 import { locationGeometry } from './LocationArt';
 import { buildDistrict, districtPlantGeometry } from './DistrictArt';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
@@ -122,6 +123,22 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
   return root;
 }
 
+export function createHomeDistrict() {
+  const root = new THREE.Group();
+  root.name = 'Дворы и торговая улица';
+  root.position.z = DISTRICT_OFFSET_Z;
+  const resources = { textures: [] as THREE.Texture[], materials: [] as THREE.Material[] };
+  const district = buildDistrict(root, resources);
+  for (const station of DISTRICT_STATIONS) {
+    if (district.entries.has(station.id)) continue;
+    const object = buildStation(station, resources.textures, resources.materials);
+    object.position.z -= DISTRICT_OFFSET_Z;
+    root.add(object);
+    district.entries.set(station.id, object);
+  }
+  return {root,...district};
+}
+
 export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const root = new THREE.Group();
   const textures: THREE.Texture[] = [];
@@ -132,13 +149,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const floor = new THREE.Group();
   root.add(floor);
   const resources = { textures, materials };
-  const district = place === 'street' ? buildDistrict(floor, resources) : null;
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
   if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
   } else if (place === 'education') buildEducationCenter(floor, resources);
-  else if (!district && !animateWork) {
+  else if (!animateWork) {
     shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (outdoor) {
@@ -198,11 +214,11 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     batchRigidParts(coffee);
     sign(floor, 'ТЁПЛЫЙ УГОЛ', 2.18, -4.89, 3.02, C.paper, textures, materials);
   }
-  batchRigidParts(floor, place === 'market' || place === 'street' || place === 'education' || Boolean(animateWork));
+  batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = district?.entries.get(station.id) ?? (place === 'market' ? marketStation(station, resources)
+    const custom = place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
-          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null);
+          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);
@@ -213,13 +229,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = district?.bounds ?? (place === 'market' ? marketOutline
-    : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station))));
-  const vertical = district?.bounds ?? corners(new THREE.Box3().setFromObject(root));
+  const horizontal = place === 'market' ? marketOutline
+    : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
+  const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
-    animate: district?.animate ?? animateWork,
-    setNight(night: boolean) { district?.setNight(night); for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
+    animate: animateWork,
+    setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {
@@ -240,7 +256,8 @@ export function homeExtensions() {
   const doors = new Map<string, THREE.Group>();
   const stock = new Map<string, THREE.Group[]>();
   const parcel = new THREE.Group();
-  for (const station of STATIONS.home) {
+  for (const station of HOME_STATIONS) {
+    if (station.action.kind === 'waypoint') continue;
     if (station.action.kind === 'career') {
       const laptop = careerStation(station,'marketing');
       group.add(laptop); stations.set(station.id,laptop); continue;

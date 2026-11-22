@@ -1,3 +1,4 @@
+import { DISTRICT_OFFSET_Z } from '../shared/district';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { NEIGHBORS, neighborDoorOpen, neighborPose } from '../shared/neighbors';
@@ -37,7 +38,8 @@ export class NeighborPeople {
   private doors:THREE.Group[]=[];
   private pending=0;
 
-  constructor() {
+  constructor(private readonly offset=DISTRICT_OFFSET_Z) {
+    this.group.position.z=this.offset;
     this.group.name='Прогуливающиеся соседи';
     this.group.add(...this.entries.map(entry=>entry.mounted));
     this.group.visible=false;
@@ -82,11 +84,12 @@ export class NeighborPeople {
       entry.seen=seconds;
       entry.mounted.position.set(pose.x,0,pose.z);
       entry.mounted.rotation.y=pose.yaw;
-      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z},clearance:.76,person:true,moving:pose.action==='walk'});
+      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z+this.offset},clearance:.76,person:true,moving:pose.action==='walk'});
       const rig=entry.model;
-      if(!rig){this.request(i,entry);continue;}
+      const distance=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z-this.offset,camera.position.y*.40):0;
+      if(!rig){if(distance<38)this.request(i,entry);continue;}
       rig.root.visible=true;
-      const far=camera&&Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z,camera.position.y*.40)>29;
+      const far=distance>29;
       if(far&&seconds-entry.stamp<.10&&seconds>=entry.stamp)continue;
       entry.stamp=seconds;
       setFade(rig,pose.opacity);
