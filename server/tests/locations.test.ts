@@ -14,7 +14,8 @@ import { Box3, LineSegments, Mesh, Sprite } from 'three';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, DELIVERY_FEE, STATIONS, DISTRICT_STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
 import { CASHIER_SPOT } from '../../src/shared/locationLayout';
-import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, DISTRICT_TREES, districtArrival, districtPoint, inHomeGrounds, HOME_GATE_APPROACH } from '../../src/shared/district';
+import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, sitePoint } from '../../src/shared/district';
+import { NEIGHBOR_HOMES, homeStops } from '../../src/shared/neighborHomes';
 import { doorwayArrival } from '../../src/shared/locations';
 import { HOME_YARD } from '../../src/shared/home';
 import { GROCERIES } from '../../src/shared/food';
@@ -60,6 +61,18 @@ test('Both spawns and every physical station are reachable in every scene', () =
 
 test('Home, gate, district and both players share the same walkable coordinates', () => {
   const stage = createHomeDistrict();
+  // Textured name boards live above the roofs, outside the near/far
+  // facade swap; every actual commercial building must have one.
+  for(const site of DISTRICT_SITES.filter(site=>site.place!=='park')){
+    const building=stage.entries.get(districtStation(site.place));
+    const roofSign=building?.getObjectByName('Roof sign: '+site.place);
+    assert.ok(roofSign,site.place+' is missing its rooftop sign');
+    assert.ok(roofSign.getObjectByName(site.sign),site.sign+' is not labelled');
+    const bounds=new Box3().setFromObject(roofSign);
+    assert.ok(bounds.min.y>3,site.place+' sign is below the roofline');
+    assert.ok(bounds.max.y-bounds.min.y>.9,site.place+' sign is too small');
+    assert.ok(roofSign.parent===building,site.place+' sign must stay visible with distant LOD');
+  }
   const jets = stage.root.getObjectByName('Fountain streams');
   assert.ok(jets instanceof LineSegments);
   stage.animate(2);
@@ -98,6 +111,25 @@ test('Home, gate, district and both players share the same walkable coordinates'
     }
     state=at(state,role,'home-doorstep');
     assert.ok(inHomeGrounds(state.characters[role]));
+  }
+});
+
+test('All four neighbors can reach each public shop doorway without crossing buildings',()=>{
+  for(const home of NEIGHBOR_HOMES){
+    const start=homeStops(home).sidewalk;
+    assert.ok(pointIsClear(start,DISTRICT_OBSTACLES,DISTRICT_FLOOR),home.id+' sidewalk blocked');
+    for(const site of DISTRICT_SITES.filter(site=>site.place==='market'||site.place==='cafe')){
+      const doorway=sitePoint(site,0,site.d/2+.45);
+      assert.ok(pointIsClear(doorway,DISTRICT_OBSTACLES,DISTRICT_FLOOR),
+        site.place+' entry is inside an obstacle');
+      const route=findRoute(start,doorway,DISTRICT_OBSTACLES,DISTRICT_FLOOR);
+      assert.ok(route,home.id+' cannot reach '+site.place);
+      assert.ok(route.every((point,index)=>segmentIsClear(route[index-1]??start,point,
+        DISTRICT_OBSTACLES,DISTRICT_FLOOR)),home.id+' crosses an obstacle en route to '+site.place);
+      const backwards=[...route].reverse();
+      assert.ok(backwards.every((point,index)=>segmentIsClear(backwards[index-1]??doorway,point,
+        DISTRICT_OBSTACLES,DISTRICT_FLOOR)),home.id+' cannot return from '+site.place);
+    }
   }
 });
 
