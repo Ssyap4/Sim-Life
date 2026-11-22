@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -63,7 +65,7 @@ test('neighbors remain deterministic, quiet at night and much rarer than constan
       assert.deepEqual(pose,neighborPose(i,minute));
       if(!pose.visible)continue;
       assert.ok(pose.x < HOUSE.minX-.5 || pose.x>HOUSE_WING.maxX+.5 ||
-        pose.z<HOUSE.minZ-.5,NEIGHBORS[i].name+' walked into the private home');
+        !(pose.x>-.65 && pose.x<9.3 && pose.z>-1.75 && pose.z<4.51),NEIGHBORS[i].name+' walked into the family house');
     }
   }
   assert.ok(max<=4,'rear gardens remain calm rather than a street crowd');
@@ -160,11 +162,23 @@ test('neighbors physically leave their own doors and return home without street 
     'different family members should sometimes leave their homes');
 });
 
-test('hair, coats, skirts and accessories are genuinely different geometric styles', () => {
+async function fullCast() {
+  const crowd=new NeighborPeople();
+  const loader=new GLTFLoader();
+  await Promise.all(NEIGHBORS.map(async (_,i)=>{
+    const id=String(i+1).padStart(2,'0');
+    const source=readFileSync(new URL('../../src/assets/neighbors/neighbor-'+id+'.glb',import.meta.url));
+    const asset=await loader.parseAsync(Uint8Array.from(source).buffer,'');
+    crowd.mount(i,asset);
+  }));
+  return crowd;
+}
+
+test('hair, coats, skirts and accessories are genuinely different geometric styles', async () => {
   assert.ok(new Set(NEIGHBORS.map(p=>p.hairStyle)).size >= 9);
   assert.ok(new Set(NEIGHBORS.map(p=>p.outfit)).size >= 7);
   assert.ok(new Set(NEIGHBORS.map(p=>p.accessory)).size >= 3);
-  const crowd = new NeighborPeople();
+  const crowd = await fullCast();
   const meshCount = crowd.group.children.map(root=>{
     let count=0;
     root.traverse(obj=>{if(obj instanceof THREE.Mesh)count++;});
@@ -176,7 +190,7 @@ test('hair, coats, skirts and accessories are genuinely different geometric styl
   const getMaterial = (index:number) => {
     let material:THREE.Material|undefined;
     crowd.group.children[index].traverse(obj=>{
-      if(!material && obj instanceof THREE.Mesh)material=obj.material as THREE.Material;
+      if(!material && obj instanceof THREE.SkinnedMesh)material=obj.material as THREE.Material;
     });
     return material;
   };
@@ -197,8 +211,8 @@ test('desktop neighborhood overview frames moved sidewalks without shrinking mob
   }
 });
 
-test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and blinking', () => {
-  const crowd=new NeighborPeople();
+test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and blinking', async () => {
+  const crowd=await fullCast();
   let samples=0,raisedKnee=false,tiltedHead=false,blinkSeen=false;
   for(let minute=455;minute<1280;minute+=.22) {
     crowd.update(minute);
@@ -206,15 +220,16 @@ test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and 
       const pose=neighborPose(i,minute);
       if(!pose.visible||pose.opacity<.85)continue;
       const root=crowd.group.children[i];
-      const head=root.getObjectByName('neighbor-head') as THREE.Group;
-      const leftKnee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
-      const rightKnee=root.getObjectByName('neighbor-rightKnee') as THREE.Group;
-      const foot=root.getObjectByName('neighbor-leftFoot') as THREE.Group;
-      const eyelids=root.getObjectByName('neighbor-eyelids') as THREE.Mesh;
+      const head=root.getObjectByName('Head') as THREE.Group;
+      const leftKnee=root.getObjectByName('KneeL') as THREE.Group;
+      const rightKnee=root.getObjectByName('KneeR') as THREE.Group;
+      const foot=root.getObjectByName('AnkleL') as THREE.Group;
+      const eyelids=(root.getObjectsByProperty('isSkinnedMesh',true) as THREE.SkinnedMesh[])
+        .find(mesh=>mesh.morphTargetDictionary?.CloseLids!==undefined);
       assert.ok(head&&leftKnee&&rightKnee&&foot&&eyelids);
       raisedKnee||=Math.max(leftKnee.rotation.x,rightKnee.rotation.x)>.12;
       tiltedHead||=Math.abs(head.rotation.y)>.035;
-      blinkSeen||=eyelids.visible;
+      blinkSeen||=(eyelids.morphTargetInfluences?.[eyelids.morphTargetDictionary!.CloseLids]??0)>.12;
       root.updateMatrixWorld(true);
       const world=new THREE.Vector3();
       foot.getWorldPosition(world);
@@ -226,8 +241,8 @@ test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and 
   assert.ok(samples>100&&raisedKnee&&tiltedHead&&blinkSeen);
 });
 
-test('NPCs perform legible chores and gestures with deterministic rig motion on two clients', () => {
-  const crowd=new NeighborPeople();
+test('NPCs perform legible chores and gestures with deterministic rig motion on two clients', async () => {
+  const crowd=await fullCast();
   const actions=['chat','phone','wave','look','adjust','stretch','water','sip','mail','carry'] as const;
   for(const action of actions) {
     let found:{minute:number;index:number}|undefined;
@@ -247,15 +262,15 @@ test('NPCs perform legible chores and gestures with deterministic rig motion on 
     const {minute,index}=found;
     crowd.update(minute);
     const root=crowd.group.children[index];
-    const head=root.getObjectByName('neighbor-head') as THREE.Group;
-    const leftArm=root.getObjectByName('neighbor-leftArm') as THREE.Group;
-    const rightArm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
-    const rightElbow=root.getObjectByName('neighbor-rightElbow') as THREE.Group;
+    const head=root.getObjectByName('Head') as THREE.Group;
+    const leftArm=root.getObjectByName('ArmL') as THREE.Group;
+    const rightArm=root.getObjectByName('ArmR') as THREE.Group;
+    const rightElbow=root.getObjectByName('ElbowR') as THREE.Group;
     assert.ok(head&&leftArm&&rightArm&&rightElbow);
     if(action==='wave')assert.ok(rightArm.rotation.z< -1.4);
     if(action==='stretch')assert.ok(leftArm.rotation.z>.8&&rightArm.rotation.z<-.8);
     if(action==='phone')assert.ok(rightElbow.rotation.x<-.75);
-    if(action==='water')assert.ok(root.getObjectByName('neighbor-head'));
+    if(action==='water')assert.ok(root.getObjectByName('Head'));
     if(action==='sip')assert.ok(rightElbow.rotation.x<-.8);
     if(action==='mail')assert.ok(rightElbow.rotation.x<-.6);
     if(action==='adjust')assert.ok(leftArm.rotation.z>.2);
@@ -266,8 +281,8 @@ test('NPCs perform legible chores and gestures with deterministic rig motion on 
   }
 });
 
-test('neighbor animations blend smoothly across idle, conversation and chores', () => {
-  const crowd=new NeighborPeople();
+test('neighbor animations blend smoothly across idle, conversation and chores', async () => {
+  const crowd=await fullCast();
   const frame=GAME_MINUTES_PER_REAL_SECOND/60;
   let checked=0;
   for(let minute=456;minute<1280;minute+=.34) {
@@ -278,9 +293,9 @@ test('neighbor animations blend smoothly across idle, conversation and chores', 
     for(const index of visible) {
       const root=crowd.group.children[index];
       crowd.update(minute);
-      const arm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
-      const knee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
-      const head=root.getObjectByName('neighbor-head') as THREE.Group;
+      const arm=root.getObjectByName('ArmR') as THREE.Group;
+      const knee=root.getObjectByName('KneeL') as THREE.Group;
+      const head=root.getObjectByName('Head') as THREE.Group;
       const before=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
       crowd.update(minute+frame);
       const after=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
@@ -307,8 +322,8 @@ test('oncoming neighbors use separate lanes and never overlap on a simulated ful
   assert.ok(checked>300 && closest<2,'must actually test nearby oncoming traffic');
 });
 
-test('pedestrians fade independently instead of changing shared apartment materials', () => {
-  const crowd=new NeighborPeople();
+test('pedestrians fade independently instead of changing shared apartment materials', async () => {
+  const crowd=await fullCast();
   let picked:number|undefined,personA=-1,personB=-1;
   for(let minute=540;minute<1100 && picked===undefined;minute+=.2) {
     const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
@@ -324,7 +339,7 @@ test('pedestrians fade independently instead of changing shared apartment materi
   const material=(index:number) => {
     let first:THREE.MeshStandardMaterial|undefined;
     crowd.group.children[index].traverse(obj=>{
-      if(!first&&obj instanceof THREE.Mesh&&obj.visible)first=obj.material as THREE.MeshStandardMaterial;
+      if(!first&&obj instanceof THREE.SkinnedMesh&&obj.visible)first=obj.material as THREE.MeshStandardMaterial;
     });
     return first!;
   };

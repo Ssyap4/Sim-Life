@@ -58,17 +58,19 @@ class Resident:
         rig['waistY'] = self.hip-.061
         return rig
 
-    def figure(self, clothing, body):
+    def figure(self, clothing, body, lower, footwear, alternative=False):
         w = self.woman
         complexion = self.portrait.base
         top = rgb('729cb7' if w else 'e8e4d8')
         cuff = rgb('5d859f' if w else 'cccbc3')
+        if alternative:
+            top,cuff=rgb('a87161'),rgb('654743')
         pants = rgb('414655' if w else '475968')
         seams = rgb('727888' if w else '778890')
         sole = rgb('d6c7b9')
         upper = rgb('b2ada9' if w else '666660')
         h,s,n = self.hip,self.shoulder,self.neck
-        taper = .139 if w else .167
+        taper = .143 if w else .166
         chest = .173 if w else .203
         torso = [(h-.043,.189 if w else .194,.116,-.006),(h+.043,.169 if w else .185,.112,-.009),
                  (h+.157,taper,.099,-.007),(s-.135,chest,.119 if w else .127,.002),
@@ -80,20 +82,48 @@ class Resident:
             collar = ramp(.91,.99,t)
             return blend(top,cuff,.16*ribs*(.82 if w else .34)+.58*max(hem,collar)+.10*max(0,-cos(a)))
         def folds(x,y,z,a,t):
-            wrinkle = (.0048*bell((t-.30)/.17)+.0032*bell((t-.76)/.13))*sin(a*3+t*22)
+            wrinkle = (.0072*bell((t-.30)/.16)+.0046*bell((t-.76)/.13))*sin(a*3+t*22)+.0025*sin(a*7-t*14)*bell((t-.64)/.28)
             return x+sin(a)*wrinkle,y,z+cos(a)*wrinkle
-        clothing.lathe(torso,(0,0,0),fabric,lambda _t:solid('Chest'),rings=18,sides=25,warp=folds)
+        clothing.lathe(torso,(0,0,0),fabric,lambda _t:solid('Chest'),rings=22,sides=25,warp=folds)
         edge = [((.075*sin(a),n-.008-.005*cos(a),.068*cos(a)-.014),.005) for a in [2*pi*t for t in steps(23)]]
         clothing.cord(edge,blend(top,cuff,.61),solid('Chest'),sides=5,thickness=.62)
+        collar = [((.081*sin(a),n-.019-.007*cos(a),.073*cos(a)-.012),.0036)
+                  for a in [2*pi*t for t in steps(26)]]
+        clothing.cord(collar,blend(top,cuff,.46),solid('Chest'),sides=6)
+        hem = [((.183*sin(a),h+.019-.004*cos(a),.114*cos(a)-.005),.0036)
+               for a in [2*pi*t for t in steps(25)]]
+        clothing.cord(hem,cuff,solid('Chest'),sides=5)
+        if w:
+            for side in (-1,1):
+                path = [((side*x,y,z),r) for x,y,z,r in [(.074,n-.019,.069,.007),
+                    (.101,s-.048,.102,.008),(.067,s-.144,.116,.008),(.024,h+.192,.106,.006)]]
+                clothing.cord(path,blend(top,cuff,.55),solid('Chest'),sides=6,thickness=.64)
+        if alternative:
+            for i in range(5):
+                y=h+.10+i*.069
+                clothing.lathe([(-.007,.004,.004,0),(0,.009,.008,0),(.006,.006,.004,0)],
+                    (.023,y,.111),lambda _t,_a:rgb('d4a36f'),lambda _t:solid('Chest'),rings=4,sides=8)
+        elif not w:
+            for side in (-1,1):
+                path = [((side*x,y,z),r) for x,y,z,r in [(.090,n-.033,.062,.003),
+                    (.129,s-.098,.097,.0023),(.169,s-.113,.082,.0022)]]
+                clothing.cord(path,cuff,solid('Chest'),sides=5)
+        if alternative:
+            return self.sleeves(clothing,body,None,None,top,cuff,None,None,None,None,True)
         neck = [(n-.053,.069,.062,-.013),(n+.037,.059,.057,-.016),
                  (n+.103,.065,.058,.002),(n+.172,.072,.063,.028)]
         body.lathe(neck,(0,0,0),lambda t,a:blend(complexion,rgb('ae796a'),.21*bell((t-.38)/.46)),
                    lambda t:skin('Chest','Head',(t-.34)/.54),rings=9,sides=15)
         seat = [(h-.113,.046,.050,-.017),(h-.092,.133,.082,-.014),
                 (h-.047,.173,.098,-.010),(h-.009,.179,.101,-.008),(h+.034,.152,.092,-.008)]
-        clothing.lathe(seat,(0,0,0),lambda t,a:blend(pants,seams,.10*max(0,cos(a))),
+        lower.lathe(seat,(0,0,0),lambda t,a:blend(pants,seams,.10*max(0,cos(a))),
                        lambda _:solid('Pelvis'),rings=7,sides=20)
 
+        self.sleeves(clothing,body,lower,footwear,top,cuff,pants,seams,sole,upper,False)
+
+    def sleeves(self,clothing,body,lower,footwear,top,cuff,pants,seams,sole,upper,alternative):
+        w,s=self.woman,self.shoulder
+        complexion=self.portrait.base
         for side,suffix in ((-1,'L'),(1,'R')):
             a,f = self.arm,self.forearm
             arm = 'Arm'+suffix
@@ -131,8 +161,13 @@ class Resident:
                 body.lathe(bare,(x,s,0),lambda t,ang:blend(complexion,rgb('a37366'),.12*max(0,-cos(ang))),
                            lambda t:skin(elbow,arm,(t-.50)/.32),rings=13,sides=14)
             wrist_y = s-a-f
-            self.hand(body,x,wrist_y,side,wrist)
-            self.trousers(clothing,body,pants,seams,sole,upper,side,suffix)
+            if w:
+                cuffs = [((x+.038*sin(angle),wrist_y+.043,.039*cos(angle)),.0032)
+                         for angle in [2*pi*t for t in steps(16)]]
+                clothing.cord(cuffs,cuff,solid(elbow),sides=5)
+            if not alternative:
+                self.hand(body,x,wrist_y,side,wrist)
+                self.trousers(lower,footwear,pants,seams,sole,upper,side,suffix)
 
     def hand(self, body,x,y,side,wrist):
         shade = lambda t,a: blend(self.portrait.base,rgb('b48674'),.29*(1-t)*max(0,cos(a)))
@@ -184,10 +219,25 @@ class Resident:
         rig = self.rig()
         skin_mesh = Mesh('Skin and accessories','Skin and trim',.72)
         eyes = Mesh('Eyes','Eyes',.31)
-        clothing = Mesh('Tailored clothing','Cloth pigment',.85)
+        clothing = Mesh('Signature upper','Cloth pigment',.84)
+        lower = Mesh('Signature trousers','Denim pigment',.89)
+        footwear = Mesh('Signature footwear','Footwear',.58)
         face = self.portrait.head(skin_mesh,eyes)
         hair = self.portrait.hair()
-        self.figure(clothing,skin_mesh)
-        for mesh in (face,skin_mesh,eyes,hair,clothing):
+        self.figure(clothing,skin_mesh,lower,footwear)
+        for mesh in (face,skin_mesh,eyes,hair):
             mesh.build(rig)
+        for mesh,slot in ((clothing,'upper'),(lower,'lower'),(footwear,'footwear')):
+            self.garment(rig,mesh,slot,'signature')
+        if self.woman:
+            other=Mesh('Terracotta cardigan','Cardigan pigment',.91)
+            self.figure(other,skin_mesh,lower,footwear,alternative=True)
+            self.garment(rig,other,'upper','cardigan')
         return rig
+
+    def garment(self,rig,mesh,slot,look):
+        obj=mesh.build(rig)
+        obj['garmentSlot']=slot
+        obj['garmentId']=self.name+'-'+look+'-'+slot
+        obj['garmentFit']=self.name+'-021'
+        obj['garmentDefault']=look=='signature'

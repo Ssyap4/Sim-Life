@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -86,21 +87,25 @@ test('neighbors actually appear across morning, afternoon and evening, with gard
  assert.ok(quietAtNight>500);
 });
 
-test('fourteen unique NPC models still have articulated heads and real textured-eye geometry',()=>{
- const crowd=new NeighborPeople();
- assert.equal(crowd.group.children.length,14);
- let faces=0,eyes=0;
- for(const rig of crowd.group.children){
-   const head=rig.getObjectByName('neighbor-head') as THREE.Group;
-   assert.ok(head);
-   let face=false,eye=false;
-   head.traverse(part=>{
-    if(!(part instanceof THREE.Mesh))return;
-    const verts=part.geometry.getAttribute('position')?.count??0;
-    if(verts>450)face=true;
-    if(verts===85)eye=true;
-   });
-   faces+=Number(face);eyes+=Number(eye);
- }
- assert.equal(faces,14);assert.equal(eyes,14);
+test('Fourteen individual GLBs retain shared skeleton chains, portrait morphs and affordable geometry',()=>{
+  const faces=new Set<string>();
+  for(const [index,profile] of NEIGHBORS.entries()){
+    const file=String(index+1).padStart(2,'0');
+    const bytes=readFileSync(new URL('../../src/assets/neighbors/neighbor-'+file+'.glb',import.meta.url));
+    const manifest=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    const rig=manifest.nodes.find((node:{name:string})=>node.name==='Resident');
+    assert.equal(rig.extras.name,profile.name);
+    assert.equal(rig.extras.neighborIndex,index);
+    assert.equal(manifest.skins.length,1);
+    for(const name of ['ArmL','ElbowR','WristL','KneeR','AnkleL','Head','Hair'])
+      assert.ok(manifest.nodes.some((node:{name:string})=>node.name===name),name+' '+profile.name);
+    const portrait=manifest.meshes.find((mesh:{extras?:{targetNames?:string[]}})=>mesh.extras?.targetNames?.includes('CloseLids'));
+    assert.ok(portrait && portrait.extras.targetNames.includes('Smile'));
+    const buffer=manifest.bufferViews[manifest.accessors[portrait.primitives[0].attributes.POSITION].bufferView];
+    const offset=28+bytes.readUInt32LE(12)+(buffer.byteOffset??0);
+    faces.add(bytes.subarray(offset,offset+buffer.byteLength).toString('base64'));
+    assert.ok(bytes.length<600*1024,profile.name);
+    assert.ok(manifest.meshes.length<=5,profile.name);
+  }
+  assert.equal(faces.size,14);
 });

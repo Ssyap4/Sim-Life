@@ -1,3 +1,4 @@
+import { hydrateLegacyDistrict } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
@@ -167,8 +168,9 @@ const previousSeats = [
 ] as const;
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
-  furnishing: FurnishingState): CharacterState {
+  furnishing: FurnishingState, legacyDistrict = false): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
+  if(place==='street' && legacyDistrict) return {...resident,...hydrateLegacyDistrict(resident,role),pose:'idle'};
   if (place === 'street' || place === 'market') {
     // Preserve saved positions except where a newly added solid occupies them.
     const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
@@ -236,11 +238,12 @@ export function openServerFiles(dataDir: string): ServerFiles {
         soldFixtures:data.furnishing?.soldFixtures ?? []};
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
+      const migratedDistrict = !!data.world && data.world.districtLayout === undefined;
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
-          ...data.world,
+          ...data.world, districtLayout: 1,
           // Old staged bags had already been credited to pantry / ready food.
           // Remove them without ever granting the same purchase twice.
           tableBags: 0,
@@ -251,8 +254,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
-          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing),
-          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing),
+          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing,migratedDistrict),
+          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing,migratedDistrict),
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
@@ -306,7 +309,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
           data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
           data.dirtyDishes === undefined || data.computerLibrary === undefined ||
-          migratedFood || recoveredCareer || migratedBags)
+          migratedFood || recoveredCareer || migratedBags || migratedDistrict)
         this.save(household);
       return household;
     },

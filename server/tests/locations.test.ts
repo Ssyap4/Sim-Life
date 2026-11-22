@@ -13,7 +13,9 @@ import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigati
 import { Box3, LineSegments, Mesh, Sprite } from 'three';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, DELIVERY_FEE, STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
-import { CASHIER_SPOT, PLAZA_BEDS, PLAZA_FOUNTAIN, PLAZA_TREES } from '../../src/shared/locationLayout';
+import { CASHIER_SPOT } from '../../src/shared/locationLayout';
+import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_TREES, districtArrival } from '../../src/shared/district';
+import { doorwayArrival } from '../../src/shared/locations';
 import { GROCERIES } from '../../src/shared/food';
 
 const send = (state: GameState, role: CharacterId, command: Record<string, unknown>) => {
@@ -26,7 +28,7 @@ const at = (state: GameState, role: CharacterId, station: string) =>
 const travel = (state: GameState, role: CharacterId, place: PlaceId, dog = false) =>
   send(state, role, { type: 'travel', place, dog });
 
-test('Both spawns and every physical station are reachable in all five scenes', () => {
+test('Both spawns and every physical station are reachable in every scene', () => {
   for (const [place, stations] of Object.entries(STATIONS) as [PlaceId, typeof STATIONS.home][]) {
     const obstacles = placeObstacles(place);
     if (place === 'home') {
@@ -55,7 +57,7 @@ test('Both spawns and every physical station are reachable in all five scenes', 
   }
 });
 
-test('The plaza routes both residents around its landmarks and through every doorway', () => {
+test('The unified district routes both residents around its landmarks and through every doorway', () => {
   const stage = createLocation('street');
   const jets = stage.root.getObjectByName('Fountain streams');
   assert.ok(jets instanceof LineSegments);
@@ -73,10 +75,10 @@ test('The plaza routes both residents around its landmarks and through every doo
     state = travel(state, role, 'street');
     const start = spawn('street', role);
     assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, start);
-    for (const { x, z } of [PLAZA_FOUNTAIN, ...PLAZA_BEDS, ...PLAZA_TREES]) {
+    for (const { x, z } of [DISTRICT_FOUNTAIN, ...DISTRICT_BEDS, ...DISTRICT_TREES.map(([x,z])=>({x,z}))]) {
       assert.equal(applyWorld(state, role, { type: 'walk', place: 'street', x, z }).ok, false);
     }
-    const target = { x: .10, z: -3.31 };
+    const target = { x: -11.00, z: -6.15 };
     assert.equal(segmentIsClear(start, target, obstacles, floor), false);
     const walk = applyWorld(state, role, { type: 'walk', place: 'street', ...target });
     assert.ok(walk.ok && walk.path && walk.path.length > 1);
@@ -87,10 +89,11 @@ test('The plaza routes both residents around its landmarks and through every doo
       const destination = station.action.destination;
       state = send(at(state, role, station.id), role, { type: 'travel', place: destination, via: station.id });
       assert.equal(state.world.places[role], destination);
-      assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, spawn(destination, role));
+      assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, doorwayArrival(destination,'street',role));
       const exit = STATIONS[destination].find(item => item.action.kind === 'door' && item.action.destination === 'street');
       assert.ok(exit);
       state = send(at(state, role, exit.id), role, { type: 'travel', place: 'street', via: exit.id });
+      assert.deepEqual({x:state.characters[role].x,z:state.characters[role].z},districtArrival(destination,role));
     }
   }
 });
@@ -116,7 +119,7 @@ test('A 0.6 save relocates only residents standing on the new fountain or cashie
     legacy = send(at(legacy, 'alina', 'checkout'), 'alina', {
       type: 'store_pay', sequence: 0, lines: [{ id: 'grocery:milk', quantity: 1 }],
     });
-    legacy.characters.vlad = { ...legacy.characters.vlad, x: PLAZA_FOUNTAIN.x, z: PLAZA_FOUNTAIN.z };
+    legacy.characters.vlad = { ...legacy.characters.vlad, x: DISTRICT_FOUNTAIN.x, z: DISTRICT_FOUNTAIN.z };
     legacy.characters.alina = { ...legacy.characters.alina, x: CASHIER_SPOT.x, z: CASHIER_SPOT.z };
     files.save(legacy);
     const restored = files.load();
@@ -133,6 +136,28 @@ test('A 0.6 save relocates only residents standing on the new fountain or cashie
     files.save(expanded);
     assert.deepEqual(files.load(), expanded);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('A 0.20 household on the old plaza keeps its progress and wakes at the corresponding district entrance',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-district-migration-'));
+  try {
+    const old=travel(initialState(),'vlad','street');
+    delete old.world.districtLayout;
+    Object.assign(old.characters.vlad,{x:.11,z:-3.25,skill:47});
+    old.money=7357;
+    old.pantry.milk=8;
+    const files=openServerFiles(dir);
+    files.save(old);
+    const restored=files.load();
+    assert.equal(restored.world.districtLayout,1);
+    assert.equal(restored.world.places.vlad,'street');
+    assert.deepEqual({x:restored.characters.vlad.x,z:restored.characters.vlad.z},districtArrival('market','vlad'));
+    assert.equal(restored.characters.vlad.skill,47);
+    assert.equal(restored.money,7357);
+    assert.deepEqual(restored.pantry,old.pantry);
+    assert.deepEqual(restored.furnishing,old.furnishing);
+    assert.deepEqual(files.load(),restored);
+  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
 test('Both residents can save in the yard and walk back through the house threshold', () => {

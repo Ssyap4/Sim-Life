@@ -686,7 +686,8 @@ const orderDelivery = (lines: BasketLine[]) => {
 const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'));
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
-  (room, exam) => openEducation(exam ? 'exam' : 'center', room));
+  (room, exam) => openEducation(exam ? 'exam' : 'center', room),
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'));
 
 function signOut(): void {
   net.forgetDevice();
@@ -1432,7 +1433,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     const modelsStartedMs = performance.now();
     const useBlender = params.get('characters') !== 'procedural';
     const characters = useBlender ? await import('./game/BlenderCharacter')
-      .then(({ loadResidents }) => loadResidents())
+      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='cardigan' ? ['alina-cardigan-upper'] : []))
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};

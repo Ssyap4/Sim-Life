@@ -12,6 +12,8 @@ export interface NeighborPose {
   /** 0 walking, 1 fully settled in a gesture; blends at both ends. */
   gestureBlend: number;
   carrying?: boolean;
+  gait?: number;
+  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise';
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;

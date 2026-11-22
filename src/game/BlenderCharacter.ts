@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import type { CharacterId } from '../shared/protocol';
+import { fitWardrobe } from './Wardrobe';
 import type { CharacterModel } from './CharacterArt';
 
 const assets: Record<CharacterId, string> = {
@@ -10,7 +11,7 @@ const assets: Record<CharacterId, string> = {
 };
 const cache = new Map<string, Promise<GLTF>>();
 
-function readAsset(url: string): Promise<GLTF> {
+export function readAsset(url: string): Promise<GLTF> {
   const cached = cache.get(url);
   if (cached) return cached;
   const request = (async () => {
@@ -46,7 +47,7 @@ function collectBones(object: THREE.Object3D): Record<BoneName, THREE.Bone> {
   return bones;
 }
 
-export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterModel {
+export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:readonly string[]=[]): CharacterModel {
   const rigRoot = gltf.scene.getObjectByName('Resident');
   const waistY: unknown = rigRoot?.userData.waistY;
   const blink = THREE.AnimationClip.findByName(gltf.animations, 'Blink');
@@ -87,6 +88,7 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
   return (figure) => {
     const model = clone(gltf.scene);
     const joints = collectBones(model);
+    fitWardrobe(model,id,outfit);
     const parts = model.getObjectsByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh[];
     const skeleton = parts[0].skeleton;
     const finishes=new Map<THREE.Material,THREE.Material>();
@@ -170,10 +172,10 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId): CharacterMo
   };
 }
 
-export async function loadResidents(): Promise<Partial<Record<CharacterId, CharacterModel>>> {
+export async function loadResidents(outfit:readonly string[]=[]): Promise<Partial<Record<CharacterId, CharacterModel>>> {
   const entries = await Promise.all((Object.entries(assets) as [CharacterId, string][]).map(async ([id, url]) => {
     try {
-      return [id, createBlenderCharacter(await readAsset(url), id)] as const;
+      return [id, createBlenderCharacter(await readAsset(url), id, outfit)] as const;
     } catch (error) {
       console.warn(`Using built-in character for ${id}`, error);
       return null;

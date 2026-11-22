@@ -1,7 +1,8 @@
+import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import {
   CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
-  approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById,
+  approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById, doorwayArrival,
   type LocalActivity, type Point, type Station, type WorldState,
 } from '../src/shared/locations';
 import type { CharacterId, GameState } from '../src/shared/protocol';
@@ -30,7 +31,7 @@ export function validWorld(value: unknown): value is WorldState {
   if (!value || typeof value !== 'object') return false;
   const w = value as Partial<WorldState>;
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  return !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
+  return (w.districtLayout === undefined || w.districtLayout === 1) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
     isPlace(w.places![role]) && count(w.sequence![role]) && count(w.bags![role])) &&
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
@@ -97,7 +98,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
     }
-    const spawnPoint = spawn(command.place, role);
+    const spawnPoint = command.via !== undefined || command.place === 'street'
+      ? doorwayArrival(command.place,place,role) : spawn(command.place, role);
     const other = neighborAt(command.place);
     const arrival = other
       ? unoccupiedDestination(spawnPoint, other, placeObstacles(command.place,source.furnishing), floorFor(command.place))
@@ -121,8 +123,13 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const obstacles = placeObstacles(place,source.furnishing);
     const floor = floorFor(place);
     const other = neighborAt(place);
-    const target = other && pointIsClear(requested, obstacles, floor)
-      ? unoccupiedDestination(requested, other, obstacles, floor) : requested;
+    const body = other && Math.hypot(other.x-requested.x,other.z-requested.z)<1.05 ? other
+      : place === 'street' ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
+        .find(person=>person.visible && person.opacity>.35 && Math.hypot(person.x-requested.x,person.z-requested.z)<.82)
+        : undefined;
+    const target = body && !station && pointIsClear(requested, obstacles, floor)
+      ? unoccupiedDestination(requested, body, obstacles, floor)
+      : other && station ? unoccupiedDestination(requested,other,obstacles,floor) : requested;
     const origin = nearestClearPoint(source.characters[role], obstacles, floor);
     const path = origin && target && pointIsClear(target, obstacles, floor)
       ? findRoute(origin, target, obstacles, floor) : null;

@@ -1,4 +1,5 @@
-import { CASHIER_OBSTACLE, PLAZA_FLOOR, PLAZA_OBSTACLES } from './locationLayout';
+import { CASHIER_OBSTACLE } from './locationLayout';
+import { DISTRICT_FLOOR, DISTRICT_BENCH, DISTRICT_OBSTACLES, DISTRICT_SITES, districtArrival, districtStation, sitePoint } from './district';
 import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
@@ -7,7 +8,7 @@ import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FLOOR, HOME_FURNITURE, HOME_PLA
 
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный двор' },
-  street: { name: 'Тихий квартал', icon: '▥', detail: 'Площадь с фонтаном и входами в соседние места' },
+  street: { name: 'Тихий квартал', icon: '▥', detail: 'Дома, площадь, магазины и рабочие места' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
@@ -20,16 +21,18 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place === 'street' ? PLAZA_FLOOR : WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place === 'street' ? DISTRICT_FLOOR : WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
   if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
+  if (place === 'street') return districtArrival('home',role);
   if (place === 'education') return { x: role === 'vlad' ? .47 : 1.38, z: 3.94 };
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
+  if (place === 'street') return { x: role === 'vlad' ? -7.2 : -6.36, z: -1.68 };
   return { x: role === 'vlad' ? -0.42 : 0.42, z: place === 'home' ? 2.38 : 3.35 };
 }
 
@@ -38,6 +41,7 @@ type SiteAction =
   | { kind: 'shelf'; categories: MarketCategory[] }
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
   | { kind: 'career'; station: WorkStation }
+  | { kind: 'employment'; career: CareerId }
   | { kind: 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'unpack' };
 
 export interface Station {
@@ -97,13 +101,14 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     door('home-exit', 'На улицу', 'street', HOME_YARD.gate.x, HOME_YARD.gate.z, true),
   ],
   street: [
-    door('street-home', 'Домой', 'home', -3.88, -3.95),
-    door('street-market', 'Супермаркет', 'market', 0.11, -3.95),
-    door('street-cafe', 'Кафе', 'cafe', 4.10, -3.95),
-    door('street-park', 'В парк', 'park', 4.55, 1.39),
-    site('street-bench', 'Скамья у клумбы', -3.90, 0.28, 1.74, 0.63, { kind: 'rest' }),
-    site('street-education', 'Потенциал', -6.38, -2.30, .22, 2.36, { kind: 'door', destination: 'education' },
-      { approach: { x: -5.35, z: -2.30 } }),
+    ...DISTRICT_SITES.map(building => {
+      const center = sitePoint(building, 0, building.d / 2 + .08);
+      const career = (Object.keys(CAREERS) as CareerId[]).find(id => CAREERS[id].place === building.place);
+      return site(districtStation(building.place),building.name,center.x,center.z,1.4,.24,
+        career ? { kind:'employment',career } : { kind:'door',destination:building.place },
+        { blocks:false,approach:sitePoint(building,0,building.d/2+1.06) });
+    }),
+    site('street-bench','Скамья у фонтана',DISTRICT_BENCH.x,DISTRICT_BENCH.z,DISTRICT_BENCH.w,DISTRICT_BENCH.d,{kind:'rest'}),
   ],
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
@@ -142,6 +147,12 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   'work-marketing': workStations('marketing'),
   'work-clinic': workStations('clinic'),
 };
+export function doorwayArrival(destination:PlaceId, from:PlaceId, role:CharacterId):Point {
+  if(destination === 'street') return districtArrival(from,role);
+  if(from !== 'street') return spawn(destination,role);
+  const exit=STATIONS[destination].find(station=>station.action.kind==='door'&&station.action.destination==='street');
+  return exit ? {x:exit.approach.x+(role==='vlad'?-.44:.44),z:exit.approach.z-.34} : spawn(destination,role);
+}
 export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find(station => station.id === id);
 export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind === 'education' && station.action.room !== 'reception')
@@ -164,7 +175,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
-  if (place === 'street') obstacles.push(...PLAZA_OBSTACLES);
+  if (place === 'street') obstacles.push(...DISTRICT_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
   for (const { x,z,w,d } of WORK_DECOR[place] ?? []) obstacles.push({
     minX:x-w/2-.26,maxX:x+w/2+.26,minZ:z-d/2-.26,maxZ:z+d/2+.26,
@@ -201,6 +212,7 @@ export const CAFE_MINUTES = 2;
 export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number }
 export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean }
 export interface WorldState {
+  districtLayout?: 1;
   places: Record<CharacterId, PlaceId>;
   sequence: Record<CharacterId, number>;
   bags: Record<CharacterId, number>;
@@ -210,7 +222,7 @@ export interface WorldState {
   dogWalker: CharacterId | null;
 }
 export function initialWorld(): WorldState {
-  return { places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
+  return { districtLayout: 1, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
 export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';

@@ -1,5 +1,5 @@
 import { CAFE_MENU, PLACES, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
-import { isCareerPlace } from './shared/careers';
+import { CAREERS, isCareerPlace, type CareerId } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
 import { GROCERY_DETAILS, storageUsage, FRIDGE_CAPACITY } from './shared/storageSpace';
@@ -26,7 +26,8 @@ function button(label: string, click: () => void, disabled = false) {
 
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
-  openEducation: (room: string, exam?: boolean) => void) {
+  openEducation: (room: string, exam?: boolean) => void,
+  enterWork: (station:string) => boolean, openCareer: () => void) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -71,12 +72,16 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       grid.append(entry);
     }
     map.append(grid);
-    if (location === 'home') {
+    if (location === 'street') {
       map.append(button('🏘️ Осмотреть соседей',()=>{
         closeMap();getWorld().focusNeighborhood();
       }));
-      map.append(button('🏠 Камера к нашему дому',()=>{
-        closeMap();getWorld().focusHome();
+      map.append(button('🛍️ Камера к торговой улице',()=>{
+        closeMap();getWorld().focusDistrict('market');
+      }), button('🏠 Камера к нашему дому',()=>{
+        closeMap();getWorld().focusDistrict('home');
+      }), button('◉ Общий вид района',()=>{
+        closeMap();getWorld().overviewDistrict();
       }));
     }
     if (location === 'home' && !state.world.dogWalker)
@@ -142,6 +147,11 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         pay.dataset.worldAction = 'pay';
         options.append(pay, button('Очистить корзину', () => { cart.clear(); showCart(); draw(); }, !lines.length || pending !== null));
       }
+    } else if (kind === 'employment') {
+      const career=CAREERS[(station.action as {career:CareerId}).career];
+      const contracted=place.careers.residents[role].contract?.career=== (station.action as {career:CareerId}).career;
+      options.append(element('small','',career.title),button('К работе',()=>{ close(); openCareer(); }));
+      if(contracted) options.append(button('Начать смену здесь',()=>{ if(enterWork(station.id))close(); }));
     } else if (kind === 'fridge' || kind === 'cupboard') {
       const amount = storageUsage(place);
       const capacity = kind === 'fridge' ? amount.fridge + '/36' : amount.cupboard + '/42';

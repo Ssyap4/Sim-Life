@@ -216,10 +216,26 @@ function garden(yard: THREE.Group): void {
     shape(yard, [.33, .37, .38], [x + .03, .31, z], i % 2 ? C.pine : 0x6e8158, orb);
     shape(yard, [.24, .29, .26], [x - .12, .43, z + .18], C.leaf, orb);
     if (i % 2) {
-      shape(yard, [.13, .11, .115], [x + .17, .58, z - .07], 0xe7bd86, orb);
-      shape(yard, [.085, .079, .098], [x - .05, .68, z + .14], C.paper, orb);
+      for(const [index,[dx,dz]] of [[.16,-.10],[.015,.13],[-.105,-.06]].entries()){
+        const height=.55+index*.045;
+        const bloom=shape(yard,[.025,.19,.028],[x+dx,height-.075,z+dz],0x5a7b56,drum);
+        bloom.rotation.z=.19-index*.15;
+        for(let petal=0;petal<5;petal++){
+          const angle=petal*2*Math.PI/5;
+          shape(yard,[.031,.016,.042],[x+dx+Math.sin(angle)*.038,height,z+dz+Math.cos(angle)*.037],
+            i===3?0xd9948b:0xe7d3a7,orb).rotation.y=angle;
+        }
+        shape(yard,[.025,.018,.025],[x+dx,height+.011,z+dz],0xbf9350,orb);
+      }
     }
   }
+  // The mailbox and its light are fixed to the gate post, outside the
+  // furniture placement surface and the open central lane.
+  const { gate }=HOME_YARD;
+  const post=gate.x-gate.width/2-.23;
+  shape(yard,[.32,.24,.25],[post,.72,gate.z+.10],0x52766a,softCube,false,'metal');
+  shape(yard,[.21,.023,.034],[post,.75,gate.z+.235],0xd6be95,cube,false,'metal');
+  shape(yard,[.12,.057,.17],[post,.87,gate.z+.10],0xe4c9a0,softCube);
 }
 
 export function buildYard(scene: THREE.Scene) {

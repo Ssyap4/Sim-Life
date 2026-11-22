@@ -22,6 +22,7 @@ class Portrait:
         self.mouth_y = -.112 if woman else -.121
         self.mouth_w = .047 if woman else .048
         self.eye_x = .060 if woman else .059
+        self.face_relief = True
         self.widths = (
             [(LOW,.009,.010,.062),(-.192,.049,.057,.037),(-.163,.082,.089,.021),
              (-.128,.106,.112,.008),(-.077,.130,.134,-.004),(-.031,.144,.145,-.009),
@@ -63,7 +64,14 @@ class Portrait:
         dy = y-line
         ph = dy/(max(.001,full)*(upper if dy >= 0 else lower))
         lip = full * (.0062*bell(ph*1.9-.65)+.0071*bell(ph*1.7+.63)-.0021*bell(ph*5))
-        return max(0,cosine)*(brow_shape+socket+cheek+jaw+ridge+tip+wing+nostril+muzzle+chin+fold+lip)
+        relief=0
+        if self.face_relief:
+            lid_slope=.0049*bell((y-.016)/.010)*bell((a-self.eye_x)/.035)
+            cheek_line=.0075*bell((a-.099)/.027)*bell((y+.047+.25*(a-.10))/.025)
+            lower_jaw=(.0045 if w else .0082)*bell((y+.124)/.023)*bell((a-.088)/.034)
+            philtrum=-.0031*bell(x/.007)*bell((y+.091)/.012)
+            relief=lid_slope+cheek_line+lower_jaw+philtrum
+        return max(0,cosine)*(brow_shape+socket+cheek+jaw+ridge+tip+wing+nostril+muzzle+chin+fold+lip+relief)
 
     def depth(self,x,y):
         rx,rz,z = profile(self.widths,y)
@@ -369,9 +377,9 @@ class Portrait:
                 flow = a*11+t*13+2.1*sin(a-t*2.1)+.47*cos(3*a+t*2.8)
                 strand = (.5+.5*cos(flow))**3
                 fiber = .5+.5*cos(flow*2.1+.9)
-                quiff = (.026+.034*f)*f*swell*(.84+.24*side)
+                quiff = (.025+.045*f)*f*swell*(.84+.37*side)
                 taper = (1-f**2)*bell(t/.18)
-                loft = .0032+swell*(.006+.020*f+.004*strand)
+                loft = .0032+swell*(.005+.025*f+.005*strand)
                 x = (rx+loft)*side - .029*swell*f
                 z = z0 + (rz+loft)*front + quiff*.32
                 y = h+quiff+.019*t
@@ -397,7 +405,7 @@ class Portrait:
             t = (y0-shoulder)/(.236-shoulder)
             row = []
             for u in steps(58):
-                hem = sin(u*4*pi+.7)*.022+cos(u*7*pi+1.24)*.014
+                hem = sin(u*4*pi+.7)*.029+cos(u*9*pi+1.24)*.018 + .012*sin(u*13*pi+.4)
                 y = y0+hem*(1-ramp(0,.27,t))
                 opening, = profile(split,y)
                 part = -.105-.095*bell((y-.133)/.052)
@@ -412,7 +420,7 @@ class Portrait:
                 flow = u*2*pi*12 + .92*sin(t*8+u*5) + .44*sin(t*19-u*12)
                 strand = (.5+.5*cos(flow))**2.5
                 thread = (.5+.5*cos(flow*2.13+.48))**2
-                texture = (.0042*strand+.0025*cos(u*2*pi*5+t*5))*sin(pi*t)**.73
+                texture = (.0068*strand+.0044*cos(u*2*pi*5+t*5))*sin(pi*t)**.73
                 side = min(u,1-u)
                 face_lock = bell(side/.047)
                 curve = .011*sin(y*14+u*5)*bell((y+.17)/.28)

@@ -1,9 +1,7 @@
 import * as THREE from 'three';
-import { HOUSE } from '../shared/home';
-import { NEIGHBOR_PATH } from '../shared/neighbors';
 import { NEIGHBOR_HOMES, homeStops, type NeighborHome } from '../shared/neighborHomes';
 export { NEIGHBOR_HOMES } from '../shared/neighborHomes';
-import { batchRigidParts, cube, drum, finish, orb, paintedMap, plane, softCube } from './ArtKit';
+import { batchRigidParts, cube, drum, finish, orb, softCube } from './ArtKit';
 
 type Root = THREE.Group;
 type Surface = Parameters<typeof finish>[1];
@@ -17,69 +15,6 @@ function part(parent: Root, geometry: THREE.BufferGeometry, size: readonly [numb
   // All houses and vegetation are deliberately unshadowed background art.
   parent.add(mesh);
   return mesh;
-}
-
-function pavingTexture(): THREE.Texture | null {
-  return paintedMap('neighborhood-country-stone-018', 256, 256, ctx => {
-    ctx.fillStyle = '#a99981';
-    ctx.fillRect(0, 0, 256, 256);
-    const shades = ['#cdbb9d', '#d9c7ab', '#c4b398', '#e1ccb0', '#bfb19b', '#d0bba3'];
-    for (let row = 0; row < 8; row++) {
-      for (let col = -1; col < 5; col++) {
-        const x = col * 65 + (row % 2 ? 32 : 0);
-        const y = row * 32;
-        ctx.fillStyle = shades[((row * 3 + col * 5) % shades.length + shades.length) % shades.length];
-        ctx.beginPath();
-        ctx.roundRect(x + 2, y + 2, 61, 28, 3);
-        ctx.fill();
-        ctx.fillStyle = '#f1e0c32a';
-        ctx.fillRect(x + 6, y + 4, 47, 1);
-      }
-    }
-  });
-}
-
-function turfTexture(): THREE.Texture | null {
-  return paintedMap('neighborhood-grass-018', 256, 256, ctx => {
-    ctx.fillStyle = '#91a37a';
-    ctx.fillRect(0, 0, 256, 256);
-    let seed = 40513;
-    const rand = () => {
-      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
-    // Fine, low-contrast variation; one tiny shared texture, no 3D grass blades.
-    for (let i = 0; i < 1400; i++) {
-      ctx.fillStyle = i % 4 ? 'rgba(72,97,54,.13)' : 'rgba(240,223,177,.15)';
-      ctx.fillRect(rand() * 256, rand() * 256, 1 + rand() * 1.5, 1 + rand() * 2.5);
-    }
-  });
-}
-
-function footpath(root: Root, x: number, z: number, width: number, length: number,
-  map: THREE.Texture | null, material: THREE.Material): void {
-  // Warm stone with a narrow inset edge: no floating slabs, no new walk obstacles.
-  part(root, softCube, [width + .28, .12, length + .28], [x, -.10, z], 0x998e76, 'ceramic');
-  part(root, cube, [width + .09, .037, length + .09], [x, -.019, z], 0xb7ab91, 'ceramic');
-  const geometry = plane.clone();
-  const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) {
-    uv.setXY(i, uv.getX(i) * width / 2.05, uv.getY(i) * length / 2.05);
-  }
-  const surface = new THREE.Mesh(geometry, material);
-  surface.rotation.x = -Math.PI / 2;
-  surface.position.set(x, .004, z);
-  surface.scale.set(width, length, 1);
-  surface.receiveShadow = true;
-  root.add(surface);
-  // Low borders remain outside the 1.8 m pedestrian corridor.
-  for (const offset of [-1, 1]) {
-    const alongX = width > length;
-    part(root, cube, alongX ? [width - .04, .025, .052] : [.052, .025, length - .04],
-      alongX ? [x, .015, z + offset * (length + .12) / 2] : [x + offset * (width + .12) / 2, .015, z],
-      0xe2d2b5, 'ceramic');
-  }
-  if (!map) surface.material = finish(0xcdbd9f, 'ceramic');
 }
 
 function planting(root: Root, x: number, z: number, seed: number, large = false): void {
@@ -107,7 +42,7 @@ function flowerbed(root: Root, x: number, z: number, seed: number): void {
 }
 
 type Home = NeighborHome;
-function cottage(root: Root, home: Home, index: number): void {
+function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMaterial): void {
   const house = new THREE.Group();
   house.name = 'Фоновый дом · ' + home.id;
   house.position.set(home.x, 0, home.z);
@@ -164,7 +99,8 @@ function cottage(root: Root, home: Home, index: number): void {
 
   for (const x of [-w * .30, w * .30]) {
     part(house, softCube, [1.17, 1.12, .105], [x, 1.59, face + .07], home.trim, 'wood');
-    part(house, cube, [.98, .91, .11], [x, 1.59, face + .13], 0xaac3bd, 'ceramic');
+    const pane=part(house,cube,[.98,.91,.11],[x,1.59,face+.13],0xaac3bd,'ceramic');
+    if(glass)pane.material=glass;
     part(house, cube, [.065, .97, .14], [x, 1.59, face + .195], home.trim);
     part(house, cube, [1.04, .061, .14], [x, 1.59, face + .197], home.trim);
     for (const shift of [-.72, .72]) {
@@ -233,68 +169,49 @@ function cottage(root: Root, home: Home, index: number): void {
     part(house, cube, [1.85, 1.76, 2.03], [w / 2 + .61, .89, -d * .18], home.plaster, 'ceramic');
     part(house, cube, [2.18, .19, 2.42], [w / 2 + .61, 1.88, -d * .18], home.roof, 'ceramic');
   }
+  const gardenZ = face + 2.10;
+  const gardenX = w * .37;
+  if(index===0) {
+    for(let row=0;row<3;row++) {
+      part(house,softCube,[1.13,.14,.43],[-gardenX,.05,gardenZ-1.05+row*.57],0xb28059,'wood');
+      for(let n=0;n<4;n++)part(house,orb,[.11,.085,.075],[-gardenX-.39+n*.26,.16,gardenZ-1.05+row*.57],n%2?0x6e8862:0x879f62);
+    }
+  } else if(index===1) {
+    for(const side of [-1,1])for(let n=0;n<3;n++)
+      part(house,softCube,[.52,.12,.43],[side*(gardenX-.20+n*.22),.03,gardenZ-1.13+n*.29],0xd0c3a4,'ceramic');
+    part(house, softCube,[.28,.51,.32],[gardenX,.26,gardenZ-.10],0x877b66,'ceramic');
+  } else if(index===2) {
+    for(const side of [-1,1]){
+      part(house, softCube,[.68,.16,.43],[side*gardenX,.08,gardenZ-1.1],0x9a6f55,'wood');
+      flowerbed(house,side*gardenX,gardenZ-.4,side + 2);
+    }
+  } else {
+    for(const x of [-gardenX-.48,-gardenX+.49])
+      part(house,cube,[.074,.75,.49],[x,.40,gardenZ-1.2],0x637b74,'metal');
+    part(house,softCube,[1.15,.09,.51],[-gardenX,.54,gardenZ-1.18],0xb38b63,'wood');
+    part(house,softCube,[1.16,.21,.095],[-gardenX,.74,gardenZ-1.38],0xb38b63,'wood');
+  }
   batchRigidParts(house, true);
   root.add(house);
 }
 
-export function buildNeighborhood(scene: THREE.Scene): void {
+export function buildNeighborhood(parent:THREE.Object3D,glass?:THREE.MeshStandardMaterial):THREE.Group {
   const root = new THREE.Group();
-  root.name = 'Four neighboring homes and their residents';
-  const walkwayZ=NEIGHBOR_PATH[0].z;
-  part(root,cube,[140,.515,140],[0,-.395,0],0x94a780);
-  const grassMap=turfTexture();
-  if(grassMap){
-    grassMap.wrapS=THREE.RepeatWrapping;grassMap.wrapT=THREE.RepeatWrapping;
-    const geometry=plane.clone(),uv=geometry.getAttribute('uv') as THREE.BufferAttribute;
-    for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*17.5,uv.getY(i)*17.5);
-    const lawn=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
-      map:grassMap,roughness:1,color:0xffffff,
-    }));
-    lawn.rotation.x=-Math.PI/2;
-    lawn.position.set(0,-.134,0);
-    lawn.scale.set(140,140,1);
-    root.add(lawn);
-  }
-  const stone=pavingTexture();
-  if(stone){stone.wrapS=THREE.RepeatWrapping;stone.wrapT=THREE.RepeatWrapping;}
-  const material=new THREE.MeshStandardMaterial({
-    map:stone,color:stone?0xffffff:0xcab99d,roughness:.96,
-  });
-  // Single rear path: all four houses are behind the playable home.
-  footpath(root,0,walkwayZ,51,1.8,stone,material);
+  root.name='Four neighboring homes and their residents';
+  parent.add(root);
   for(let i=0;i<NEIGHBOR_HOMES.length;i++){
     const home=NEIGHBOR_HOMES[i];
-    cottage(root,home,i);
+    cottage(root,home,i,glass);
     const {gate,sidewalk}=homeStops(home);
     const dx=sidewalk.x-gate.x,dz=sidewalk.z-gate.z;
     const length=Math.hypot(dx,dz),yaw=Math.atan2(dx,dz);
     for(let k=0;k<Math.floor(length/.55);k++){
       const f=(k+.5)*.55/length;
-      const step=part(root,softCube,[.84,.050,.43],
+      const step=part(root,softCube,[.90,.050,.48],
         [gate.x+dx*f,.008,gate.z+dz*f],
         [0xd3c1a1,0xc9b79d,0xe1cfb0][(k+i)%3],'ceramic');
       step.rotation.y=yaw;
     }
-    // One garden tree per rear plot, always away from pedestrian routes.
-    planting(root,home.x-(i%2?2.5:-2.5),home.z-4.5,i+3,true);
-    flowerbed(root,home.x+2.9,home.z+home.depth/2+1.25,i);
   }
-  for(let i=0;i<NEIGHBOR_HOMES.length-1;i++){
-    const a=NEIGHBOR_HOMES[i],b=NEIGHBOR_HOMES[i+1];
-    const middle=(a.x+b.x)/2;
-    planting(root,middle,-29.2,i+2,i%2===0);
-  }
-  for(const x of [-22,-10,4,17,24]){
-    part(root,drum,[.075,2.05,.075],[x,.94,walkwayZ-.15],0x4d5a51,'metal');
-    part(root,orb,[.17,.16,.17],[x,1.91,walkwayZ-.15],0xffdfac,'ceramic');
-  }
-  // Reserve an extension strip between the family's rear wall and public path.
-  if(HOUSE.minZ-walkwayZ<7.5)throw new Error('Rear path needs room for future extensions');
-  for(let i=0;i<NEIGHBOR_HOMES.length-1;i++){
-    const a=NEIGHBOR_HOMES[i],b=NEIGHBOR_HOMES[i+1];
-    if(b.x-b.width/2-(a.x+a.width/2)<4)
-      throw new Error('Neighbor houses must have independent open garden gaps');
-  }
-  batchRigidParts(root,true);
-  scene.add(root);
+  return root;
 }

@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { STATIONS, type PlaceId, type Station } from '../shared/locations';
 import { locationGeometry } from './LocationArt';
-import { buildPlaza, plazaEntrance } from './PlazaArt';
+import { buildDistrict, districtPlantGeometry } from './DistrictArt';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 import { buildEducationCenter, educationStation } from './EducationArt';
 import { buildCareerPlace, careerStation } from './CareerArt';
 import { careerAt, isCareerPlace } from '../shared/careers';
 
-const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry]);
+const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry, ...districtPlantGeometry]);
 const accents = [0xc38367, 0xd4a560, 0x759785, 0x8e9eb5, 0xe1cc9d, 0x9b625a];
 function shape(parent: THREE.Object3D, size: XYZ, pos: XYZ, color: number,
   geometry: THREE.BufferGeometry = softCube, shadow = false): THREE.Mesh {
@@ -132,13 +132,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const floor = new THREE.Group();
   root.add(floor);
   const resources = { textures, materials };
-  const plaza = place === 'street' ? buildPlaza(floor, resources) : null;
+  const district = place === 'street' ? buildDistrict(floor, resources) : null;
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
   if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
   } else if (place === 'education') buildEducationCenter(floor, resources);
-  else if (!plaza && !animateWork) {
+  else if (!district && !animateWork) {
     shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (outdoor) {
@@ -200,11 +200,9 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'street' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place === 'street' && station.action.kind === 'door'
-      ? plazaEntrance(station, resources)
-      : place === 'market' ? marketStation(station, resources)
+    const custom = district?.entries.get(station.id) ?? (place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
-          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null;
+          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null);
     const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);
@@ -215,13 +213,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = plaza?.boundary ?? (place === 'market' ? marketOutline
+  const horizontal = district?.bounds ?? (place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station))));
-  const vertical = corners(new THREE.Box3().setFromObject(root));
+  const vertical = district?.bounds ?? corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
-    animate: plaza?.animate ?? animateWork,
-    setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
+    animate: district?.animate ?? animateWork,
+    setNight(night: boolean) { district?.setNight(night); for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {
