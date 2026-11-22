@@ -236,6 +236,9 @@ function makeKitchen(): THREE.Group {
   part(kitchen,[.31,.065,.18],[1.87,1.099,-.23],C.woodDark,'soft',false,'wood');
   for (const x of [1.79,1.87,1.95])
     part(kitchen,[.022,.15,.012],[x,1.20,-.23],C.slate,'soft',false,'metal');
+  // Baking material colors into the static cabinet pieces keeps their new
+  // ornamentation without a draw call for every handle and trim.
+  batchRigidParts(kitchen, true);
   return kitchen;
 }
 
