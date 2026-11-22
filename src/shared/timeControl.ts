@@ -5,6 +5,9 @@ export interface TimeStatus {
   multiplier: 1 | 1.5 | 2 | 3;
   shiftVotes: CharacterId[];
   sleepers: Partial<Record<CharacterId, SleepMode>>;
+  /** Shared authoritative pause state; not persisted into family saves. */
+  paused?: boolean;
+  pauseRequestedBy?: CharacterId | null;
 }
 
 /** Never speed up an awake online resident without their agreement. */

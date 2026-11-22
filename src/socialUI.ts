@@ -119,8 +119,9 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   root.replaceChildren(pane);
 }
 
-export function createSocialOffer(root:HTMLElement,send:SocialSend){
+export function createSocialOffer(root:HTMLElement,send:SocialSend, now:()=>number=Date.now){
   let offer:SocialOffer|null=null, self:CharacterId|null=null, folded=false;
+  let deadline = 0;
   let timer:number|undefined;
   function render(){
     root.hidden=!offer;
@@ -129,7 +130,7 @@ export function createSocialOffer(root:HTMLElement,send:SocialSend){
     const heading=node('strong',outgoing?'Приглашение отправлено':names[current.from]+' предлагает');
     const title=node('h3',current.title);
     const clock=node('small','','social-clock');
-    const tick=()=>{clock.textContent=Math.max(0,Math.ceil((current.expiresAt-Date.now())/1000))+' с';};
+    const tick=()=>{clock.textContent=Math.max(0,Math.ceil((deadline-now())/1000))+' с';};
     tick();
     window.clearInterval(timer);timer=window.setInterval(tick,500);
     const top=node('header');top.append(heading,clock);
@@ -149,7 +150,13 @@ export function createSocialOffer(root:HTMLElement,send:SocialSend){
     }
   }
   return {
-    set(next:SocialOffer,role:CharacterId){offer=next;self=role;folded=false;render();},
+    set(next:SocialOffer,role:CharacterId){
+      offer=next;self=role;folded=false;
+      // Use a local, pause-aware countdown. Server expiry remains authoritative;
+      // wall clocks across two phones may differ substantially.
+      deadline=now()+(next.remainingMs??Math.max(0,next.expiresAt-Date.now()));
+      render();
+    },
     clear(id?:number){if(id!==undefined&&offer?.id!==id)return;window.clearInterval(timer);timer=undefined;offer=null;render();},
     get pending(){return !!offer;},
     unfold(){folded=false;render();},

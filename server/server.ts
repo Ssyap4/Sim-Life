@@ -34,6 +34,7 @@ import { CLOCK_SYNC_MS, GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life'
 import { timeMultiplier, sleepTarget, type SleepMode, type TimeStatus } from '../src/shared/timeControl';
 import { selectSleepBed } from '../src/shared/bedSleep';
 import { recoverSleep } from './timeControl';
+import { PausableTimers } from './pausableTimers';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
 import { advanceCareers, applyCareer, careerCommands } from './careers';
@@ -102,6 +103,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state.world.dogWalker = null;
     setDogParkPosition(state);
   }
+  const pauseTimers = new PausableTimers();
+  let isPaused = false;
+  let pauseRequestedBy: CharacterId | null = null;
+  let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
@@ -155,6 +160,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       alina: state.activeShifts.alina || state.careers.residents.alina.shift }, sleepers, shiftVotes),
     shiftVotes: [...shiftVotes],
     sleepers: Object.fromEntries(sleepers) as TimeStatus['sleepers'],
+    paused: isPaused,
+    pauseRequestedBy,
   });
   const all = (event: ServerPacket): void => {
     for (const socket of active.values()) packet(socket, event);
@@ -177,12 +184,26 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all({ type: 'time_status', status: timeStatus() });
     sendClock();
   };
+  const clearPauseRequest = () => {
+    if (pauseVoteTimer) clearTimeout(pauseVoteTimer);
+    pauseVoteTimer = null;
+    pauseRequestedBy = null;
+  };
+  const setPaused = (value: boolean) => {
+    if (value === isPaused) return;
+    accountTime(); // settle the previous clock rate before freezing it
+    clearPauseRequest();
+    if (value) pauseTimers.pause(); else pauseTimers.resume();
+    isPaused = value;
+    lastLifeTick = lifeNow();
+    announceTime();
+  };
   const leisureRoute = (role: CharacterId, now: number) => {
     const task = leisure.get(role)!;
     return sampleWalk(task.route, Math.max(0, Math.min(task.until, now) - task.startedAt) / 1000 * 1.8);
   };
   const sendLeisure = (socket: WebSocket): void => {
-    const now = Date.now();
+    const now = pauseTimers.now();
     for (const [resident, current] of leisure) {
       if (current.until <= now || (current.activity === 'chat' && resident === 'alina')) continue;
       const roles: CharacterId[] = current.activity === 'chat' ? ['vlad', 'alina'] : [resident];
@@ -194,7 +215,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const closeStorage = (role: CharacterId): void => {
     if (storageOpen.delete(role)) all({ type: 'storage_event', role });
   };
-  const stopLeisure = (role: CharacterId, now = Date.now()): void => {
+  const stopLeisure = (role: CharacterId, now = pauseTimers.now()): void => {
     const current = leisure.get(role);
     if (!current) return;
     const roles = current.activity === 'chat' ? [role, otherRole(role)] : [role];
@@ -240,6 +261,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     all, send: packet, socket: role => active.get(role),
     busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role] || state.careers.residents[role].shift),
     gameTime: () => liveGameTime(),
+    now: () => pauseTimers.now(),
+    schedule: (cb, ms) => pauseTimers.schedule(cb, ms),
+    clearTimer: handle => pauseTimers.clear(handle),
     pausePet: pet => {
       if(state.pets[pet].routine){
         pausePetRoutine(state,pet,liveGameTime());
@@ -253,11 +277,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       stopLeisure(role);
       const walk = walkingHome.get(role);
       if (walk) {
-        const distance = (Date.now()-walk.started)/1000*HOME_WALK_SPEED;
+        const distance = (pauseTimers.now()-walk.started)/1000*HOME_WALK_SPEED;
         Object.assign(state.characters[role],sampleWalk(walk.route,distance).from,{pose:'idle'});
         walkingHome.delete(role);
       }
-      lastIntent.set(role, Date.now());
+      lastIntent.set(role, pauseTimers.now());
     },
     nextId: () => ++nextTaskId, timeScale: scale,
   });
@@ -274,21 +298,22 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const now = lifeNow();
     const elapsed = timeSinceTick(now);
     lastLifeTick = now;
-    if (active.size) minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
+    if (active.size && !isPaused) minuteCarry += elapsed / 1000 * GAME_MINUTES_PER_REAL_SECOND * timeStatus().multiplier;
   };
   const liveGameTime = (multiplier = timeStatus().multiplier) => clockMinutes(state.clock) + minuteCarry +
-    timeSinceTick(lifeNow()) / 1000 * GAME_MINUTES_PER_REAL_SECOND * multiplier;
+    (isPaused ? 0 : timeSinceTick(lifeNow()) / 1000 * GAME_MINUTES_PER_REAL_SECOND * multiplier);
   const sendClock = () => {
     if (!active.size) return;
     const { multiplier } = timeStatus();
-    all({ type: 'clock_sync', sample: { minutes: liveGameTime(multiplier), multiplier } });
+    all({ type: 'clock_sync', sample: { minutes: liveGameTime(multiplier), multiplier: isPaused ? 0 : multiplier } });
   };
   const clockSync = setInterval(sendClock, CLOCK_SYNC_MS);
   clockSync.unref();
   // Only the authoritative server moves the clock. With nobody online the
   // household is paused; reconnects never drain the absent player's needs.
   const commitLife = (): boolean => {
-    const now = Date.now();
+    if (isPaused) return false;
+    const now = pauseTimers.now();
     const speedBefore = timeStatus().multiplier;
     accountTime();
     if (!active.size) return false;
@@ -359,9 +384,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   };
   const lifeTicker = setInterval(() => {
-    reapFinishedWalks(Date.now());
+    if (isPaused) return;
+    reapFinishedWalks(pauseTimers.now());
     if (!commitLife()) return;
-    const now = Date.now();
+    const now = pauseTimers.now();
     const available: CharacterId[] = [];
     const legacyIdle: CharacterId[] = [];
     for (const [role, socket] of active) {
@@ -545,7 +571,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (homeTasks.cancel(role, reason)) return;
     const task = running.get(role);
     if (!task) return;
-    clearTimeout(task.timer);
+    pauseTimers.clear(task.timer);
     running.delete(role);
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
@@ -617,7 +643,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
-    const timer = setTimeout(() => {
+    const timer = pauseTimers.schedule(() => {
       const current = running.get(role);
       if (!current || current.id !== id || active.get(role) !== socket) return;
       running.delete(role);
@@ -644,7 +670,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       const effects = gains(state,result.state,role);
       state = result.state;
-      lastAction.set(role, Date.now());
+      lastAction.set(role, pauseTimers.now());
       all({ type: 'task_ended', role, taskId: id, outcome: 'completed', message: result.message, effects });
       if (plan.command.type === 'local_activity') {
         all({ type: 'world_event', role, message: result.message });
@@ -690,11 +716,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     sleepers.set(role,command.mode);
     autoSleeping.delete(role);
     shiftVotes.delete(role);
-    lastIntent.set(role,Date.now());
+    lastIntent.set(role,pauseTimers.now());
     all({type:'snapshot',state});
     announceTime();
   }
   function startNextQueued(role: CharacterId): void {
+    if (isPaused) return;
     if(running.has(role)||homeTasks.busy(role)||sleepers.has(role))return;
     const tasks=queuedTasks.get(role);
     if(!tasks?.length)return;
@@ -726,7 +753,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     tasks.push({id:++nextQueueId,...item});
     queuedTasks.set(role,tasks);
-    lastIntent.set(role,Date.now());
+    lastIntent.set(role,pauseTimers.now());
     publishQueue(role);
     if(!busy)setTimeout(()=>startNextQueued(role),0);
     return true;
@@ -746,7 +773,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (pathname === '/health') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ ok: true, version: 2, online: online().length,
-        testNoCodes:previewNoCodes }));
+        testNoCodes:previewNoCodes, paused:isPaused }));
       return;
     }
     if (pathname.includes('\\') || pathname.includes('\0')) {
@@ -836,7 +863,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (active.size === 0) lastLifeTick = lifeNow();
         else accountTime();
         active.set(role, socket);
-        lastIntent.set(role, Date.now());
+        lastIntent.set(role, pauseTimers.now());
         packet(socket, { type: 'ready', role, state, online: online() });
         if (state.world.places[role] === 'home') sendLeisure(socket);
         homeTasks.replay(socket);
@@ -847,6 +874,31 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if (message.type === 'pause_toggle') {
+        if (isPaused) { setPaused(false); return; }
+        if (pauseRequestedBy === role) { clearPauseRequest(); announceTime(); return; }
+        if (pauseRequestedBy) { packet(socket,{type:'error',reason:'Другой игрок уже запросил паузу'}); return; }
+        if (online().length === 1) { setPaused(true); return; }
+        pauseRequestedBy = role;
+        pauseVoteTimer = setTimeout(() => {
+          clearPauseRequest();
+          announceTime();
+        }, 25000);
+        announceTime();
+        return;
+      }
+      if (message.type === 'pause_reply') {
+        if (!pauseRequestedBy || pauseRequestedBy === role || typeof message.accept !== 'boolean') {
+          packet(socket,{type:'error',reason:'Нет запроса паузы, ожидающего твоего ответа'});return;
+        }
+        if (message.accept) setPaused(true);
+        else {clearPauseRequest();announceTime();}
+        return;
+      }
+      if (isPaused) {
+        packet(socket,{type:'error',reason:'Игра на паузе. Для продолжения нажми ▶'});
+        return;
+      }
       if (message.type === 'autonomy_mode') {
         if (typeof message.mode !== 'string' || !AUTONOMY_MODES.includes(message.mode as typeof AUTONOMY_MODES[number])) {
           packet(socket,{type:'error',reason:'Неизвестный режим самостоятельности'});return;
@@ -868,7 +920,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
             if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
-          lastIntent.set(role,Date.now()-4000);
+          lastIntent.set(role,pauseTimers.now()-4000);
           lastAutoCare.set(role,0);
           all({type:'snapshot',state});
         }
@@ -900,7 +952,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (message.type === 'sleep_stop') {
         if (!sleepers.has(role)) { packet(socket, { type: 'error', reason: 'Персонаж не спит' }); return; }
         stopSleep(role);
-        lastIntent.set(role, Date.now());
+        lastIntent.set(role, pauseTimers.now());
         return;
       }
       if (message.type === 'forget_device') {
@@ -918,7 +970,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (message.type === 'close_storage') {
         closeStorage(role);
-        lastIntent.set(role, Date.now());
+        lastIntent.set(role, pauseTimers.now());
         return;
       }
       const careerShift = state.careers.residents[role].shift;
@@ -942,7 +994,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           shiftVotes.clear();
           announceTime();
         }
-        lastIntent.set(role,Date.now());
+        lastIntent.set(role,pauseTimers.now());
         all({type:'snapshot',state});
         if (result.path) all({type:'world_path',place:state.world.places[role],role,path:result.path});
         packet(socket,{type:'world_event',role,message:result.message});
@@ -961,7 +1013,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state=result.state;
           all({type:'snapshot',state});
         }
-        lastIntent.set(role,Date.now());
+        lastIntent.set(role,pauseTimers.now());
         return;
       }
       if (message.type === 'education_answer') {
@@ -1012,7 +1064,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         clearQueue(role);return;
       }
       if (message.type === 'cancel_task') {
-        lastIntent.set(role, Date.now());
+        lastIntent.set(role, pauseTimers.now());
         if (typeof message.taskId === 'number' && homeTasks.cancel(role, names[role] + ': занятие прервано', message.taskId)) return;
         const current = running.get(role);
         if (!current || message.taskId !== current.id) {
@@ -1036,7 +1088,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const spatial=message.type==='furniture_place'||message.type==='furniture_move'||message.type==='furniture_sell_static';
         if (spatial && (running.size>0 || leisure.size>0 || homeTasks.busy('vlad') || homeTasks.busy('alina') ||
           sleepers.size>0 || [...walkingHome.values()].some(walk=>{
-            const distance=(Date.now()-walk.started)/1000*HOME_WALK_SPEED;
+            const distance=(pauseTimers.now()-walk.started)/1000*HOME_WALK_SPEED;
             const total=walk.route.path.reduce((sum,point,index)=>{
               const from=walk.route.path[index-1]??walk.route.from;
               return sum+Math.hypot(point.x-from.x,point.z-from.z);
@@ -1060,7 +1112,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         try{files.save(result.state);}
         catch{packet(socket,{type:'error',reason:'Не удалось сохранить мебель'});return;}
         state=result.state;
-        lastIntent.set(role,Date.now());
+        lastIntent.set(role,pauseTimers.now());
         all({type:'snapshot',state});
         all({type:'store_event',role,message:result.message});
         return;
@@ -1078,7 +1130,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       // Walking, starting work, using a station or any other manual action wakes the sleeper.
       stopSleep(role);
-      lastIntent.set(role, Date.now());
+      lastIntent.set(role, pauseTimers.now());
       closeStorage(role);
       stopLeisure(role);
       if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
@@ -1118,7 +1170,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         if (result.path) {
           if (state.world.places[role] === 'home') walkingHome.set(role,{
-            route:{from:{x:from.x,z:from.z},path:result.path},started:Date.now(),
+            route:{from:{x:from.x,z:from.z},path:result.path},started:pauseTimers.now(),
           });
           if (state.world.places[role] === 'home' && (result.station === 'fridge' || result.station === 'cupboard')) {
             storageOpen.set(role, result.station);
@@ -1157,7 +1209,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
 
       if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && message.action === 'buyFood')) {
-        const now = Date.now();
+        const now = pauseTimers.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
           packet(socket, { type: 'error', reason: 'Немного подожди перед следующей покупкой' });
           return;
@@ -1203,6 +1255,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         homeTasks.closeInvite('Игрок отключился');
         if (active.size === 1) commitLife(); else accountTime();
         active.delete(role);
+        if (pauseRequestedBy === role) {clearPauseRequest();announceTime();}
+        else if (pauseRequestedBy && active.size === 1) setPaused(true);
+        if (isPaused && active.size === 0) setPaused(false);
         shiftVotes.delete(role);
         stopSleep(role);
         announceTime();
@@ -1232,7 +1287,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   return {
     httpServer, port: actualPort,
     async close(): Promise<void> {
-      for (const task of running.values()) clearTimeout(task.timer);
+      for (const task of running.values()) pauseTimers.clear(task.timer);
+      pauseTimers.dispose();
+      clearPauseRequest();
       running.clear();
       homeTasks.dispose();
       clearInterval(heartbeat);

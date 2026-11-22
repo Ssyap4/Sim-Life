@@ -42,6 +42,22 @@ export function buildCookingStation(scene: THREE.Scene) {
   // recipes use the pan directly, pastry uses dough, salads use chopped food.
   board.position.set(pan.x-.23,1.088,pan.z+.10);
   root.add(board);
+  // A shallow steel rim and turning wooden utensil read clearly in closeups.
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(.213,.008,5,20),
+    new THREE.MeshStandardMaterial({color:0x9aa6a1,metalness:.63,roughness:.32}));
+  rim.rotation.x=Math.PI/2;
+  rim.position.set(pan.x,pan.y+.053,pan.z);
+  root.add(rim);
+  const spoon=new THREE.Group();
+  const handle=new THREE.Mesh(softCube,wood);
+  handle.scale.set(.028,.025,.29);
+  handle.position.set(0,.02,.14);
+  const bowl=new THREE.Mesh(orb,wood);
+  bowl.scale.set(.061,.018,.071);
+  spoon.add(handle,bowl);
+  spoon.position.set(pan.x+.07,pan.y+.105,pan.z-.065);
+  spoon.rotation.z=.16;
+  root.add(spoon);
   const steam=new THREE.Group();
   const puffs:THREE.Mesh[]=[];
   for(let i=0;i<4;i++){
@@ -67,6 +83,8 @@ export function buildCookingStation(scene: THREE.Scene) {
     },
     update(seconds:number){
       const cycle=Math.max(0,seconds);
+      spoon.rotation.y=Math.sin(cycle*2.15)*.18;
+      spoon.rotation.z=.16+Math.sin(cycle*3.15)*.06;
       for(let i=0;i<puffs.length;i++){
         const progress=(cycle*.37+i/4)%1;
         const puff=puffs[i];

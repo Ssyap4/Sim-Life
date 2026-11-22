@@ -23,7 +23,7 @@ import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { diningSurface, tabletopPoint } from '../shared/diningSurface';
 import { mealServingScale } from './MealGesture';
-import { selectIndoorDish } from './MealArt';
+import { ceramicPlate, selectIndoorDish } from './MealArt';
 import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
@@ -138,6 +138,12 @@ export class World {
   private furnishingItemCallback:((id:number)=>void)|null=null;
   private furnishingParcels=new THREE.Group();
   private lastFrame = performance.now();
+  private paused = false;
+  private visualSeconds = 0;
+  private quality: 'standard'|'high'|'low' = 'standard';
+  private smoothedFrameMs = 16.7;
+  private lastQualityUpdate = performance.now();
+  private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
   private socialSequence = 0;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
@@ -233,8 +239,7 @@ export class World {
       this.bags[id].visible = false;
       this.scene.add(this.bags[id]);
       const plate = new THREE.Group();
-      const dish = new THREE.Mesh(drum, finish(0xf2dfc3, 'ceramic'));
-      dish.scale.set(.19,.032,.19);
+      const dish = ceramicPlate();
       const food = new THREE.Group();
       food.name = 'Indoor serving';
       food.position.y = .035;
@@ -1193,27 +1198,55 @@ export class World {
   }
 
   setTimeOfDay(minute: number): void {
-    const phase = dayPhase({ day: 1, minute });
-    if (phase === this.lastDayPhase) return;
-    this.lastDayPhase = phase;
-    this.remote?.setNight(phase === 'night' || phase === 'evening');
-    // Reuse existing lights: no new meshes, draw calls or shadow maps.
-    const settings = {
-      morning: { sun: 1.95, ambient: 1.76, sky: 0xc6c3ad, warmth: 0xffd8b9 },
-      day: { sun: 2.48, ambient: 1.87, sky: 0xc0c7ad, warmth: 0xffe5ce },
-      evening: { sun: 1.55, ambient: 1.60, sky: 0xb8adae, warmth: 0xffc8a9 },
-      night: { sun: 0.75, ambient: 1.32, sky: 0x85929c, warmth: 0xc5d1e8 },
-    }[phase];
-    this.sun.intensity = settings.sun;
-    this.sun.color.setHex(settings.warmth);
-    this.ambient.intensity = settings.ambient;
-    this.ambient.color.setHex(phase === 'night' ? 0xc7d7ee : 0xeef2fb);
-    (this.scene.background as THREE.Color).setHex(settings.sky);
-    if (this.scene.fog) this.scene.fog.color.setHex(settings.sky);
+    const hour = THREE.MathUtils.euclideanModulo(minute,1440);
+    const phase = dayPhase({day:1,minute:hour});
+    if(phase!==this.lastDayPhase) {
+      this.lastDayPhase=phase;
+      this.remote?.setNight(phase==='night'||phase==='evening');
+    }
+    // Smooth solar cycle: cool predawn, amber sunrise, clear midday, honeyed
+    // golden hour and a blue twilight. No shadow maps or extra render passes.
+    const keys = [
+      {t:0,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+      {t:300,sky:0x65778a,sun:.37,ambient:1.12,warm:0xb7cbed,glow:.78},
+      {t:365,sky:0xada5a3,sun:1.10,ambient:1.32,warm:0xffaf83,glow:.47},
+      {t:445,sky:0xd9c5a2,sun:1.92,ambient:1.64,warm:0xffd0a3,glow:.15},
+      {t:625,sky:0xc1d2c9,sun:2.35,ambient:1.80,warm:0xffecda,glow:0},
+      {t:900,sky:0xbcd3d3,sun:2.46,ambient:1.86,warm:0xfff0df,glow:0},
+      {t:1050,sky:0xd4c7b0,sun:1.90,ambient:1.67,warm:0xffd4a4,glow:.06},
+      {t:1145,sky:0xc2988d,sun:1.15,ambient:1.46,warm:0xffad79,glow:.42},
+      {t:1230,sky:0x78839a,sun:.59,ambient:1.20,warm:0xb5c2f1,glow:.76},
+      {t:1320,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+      {t:1440,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+    ];
+    const index = keys.findIndex(key=>key.t>=hour);
+    const end = keys[Math.max(1,index)];
+    const begin = keys[Math.max(0,Math.max(1,index)-1)];
+    const progress=THREE.MathUtils.smoothstep(hour,begin.t,end.t);
+    const mix=(a:number,b:number)=>THREE.MathUtils.lerp(a,b,progress);
+    const mixed=(a:number,b:number)=>new THREE.Color(a).lerp(new THREE.Color(b),progress);
+    this.sun.intensity=mix(begin.sun,end.sun);
+    this.sun.color.copy(mixed(begin.warm,end.warm));
+    this.ambient.intensity=mix(begin.ambient,end.ambient);
+    this.ambient.color.copy(mixed(0xbdcee4,0xeef2fb))
+      .lerpColors(new THREE.Color(0xbdcee4),new THREE.Color(0xeef2fb),
+        THREE.MathUtils.smoothstep(this.sun.intensity,.33,1.7));
+    const sky=mixed(begin.sky,end.sky);
+    (this.scene.background as THREE.Color).copy(sky);
+    if(this.scene.fog)this.scene.fog.color.copy(sky);
+    this.roomGlow.intensity=mix(begin.glow,end.glow);
+    const solarAngle=(hour-360)/720*Math.PI;
+    this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
+      3+Math.max(0,Math.sin(solarAngle))*10,
+      5.5+Math.cos(solarAngle)*3);
   }
 
   private createLights(): void {
     this.scene.add(this.ambient);
+    // One inexpensive shadowless practical light for evening interiors.
+    this.roomGlow.position.set(0, 2.55, -0.5);
+    this.roomGlow.castShadow = false;
+    this.scene.add(this.roomGlow);
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);
@@ -1884,11 +1917,20 @@ export class World {
     return { position: homePosition.clone().multiplyScalar(1 + fit * .35).add(locationTarget), target: locationTarget.clone() };
   }
 
+  setPaused(value: boolean): void {
+    this.paused = value;
+    this.lastFrame = performance.now();
+  }
+
   refreshViewport(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
-    const { pixelRatio } = renderProfile(compact, window.devicePixelRatio);
+    const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
+    const pixelRatio = compact
+      ? Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.45
+        : this.quality === 'low' ? 1.0 : initialRatio)
+      : initialRatio;
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -1935,8 +1977,20 @@ export class World {
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
-    const dt = Math.min((now - this.lastFrame) / 1000, 0.20);
+    const frameMs = Math.max(1, now - this.lastFrame);
+    const dt = this.paused ? 0 : Math.min(frameMs / 1000, 0.20);
     this.lastFrame = now;
+    this.visualSeconds += dt;
+    this.smoothedFrameMs = this.smoothedFrameMs * .97 + Math.min(frameMs, 150) * .03;
+    if (!this.paused && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
+      this.lastQualityUpdate = now;
+      const nextQuality = this.smoothedFrameMs > 24 ? 'low'
+        : this.smoothedFrameMs < 17.8 ? 'high' : 'standard';
+      if (nextQuality !== this.quality) {
+        this.quality = nextQuality;
+        this.refreshViewport();
+      }
+    }
     this.movementDt=dt;
     if (this.place === 'home' && this.household) {
       this.neighborMinute += dt * GAME_MINUTES_PER_REAL_SECOND;
@@ -2122,10 +2176,10 @@ export class World {
     }
     this.controls.update();
     if (this.place === 'home') {
-      this.homeEffects.update(now/1000);
-      this.computerScreens.update(now/1000);
+      this.homeEffects.update(this.visualSeconds);
+      this.computerScreens.update(this.visualSeconds);
     }
-    this.remote?.animate?.(now / 1000);
+    this.remote?.animate?.(this.visualSeconds);
     this.renderer.render(this.scene, this.camera);
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };

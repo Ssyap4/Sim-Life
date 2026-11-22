@@ -190,7 +190,9 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
   | { type: 'cancel_task'; taskId: number }
   | { type: 'cancel_queued_task'; queueId: number }
-  | { type: 'clear_task_queue' };
+  | { type: 'clear_task_queue' }
+  | { type: 'pause_toggle' }
+  | { type: 'pause_reply'; accept: boolean };
 
 export type QueuedTask = { id: number; label: string };
 

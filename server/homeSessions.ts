@@ -46,6 +46,10 @@ type Hooks = {
   nextId(): number;
   timeScale: number;
   gameTime(): number;
+  /** Virtual time and pausable delays supplied by the authoritative server. */
+  now?: () => number;
+  schedule?: (callback: () => void, ms: number) => ReturnType<typeof setTimeout>;
+  clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
   resourceBusy(resource: string): boolean;
   pausePet?(pet:PetId):void;
   socialTtlMs?:number;
@@ -76,6 +80,10 @@ export function usesHomeSession(command: TimedCommand): boolean {
 }
 
 export function createHomeSessions(hooks: Hooks) {
+  const now = hooks.now ?? Date.now;
+  const schedule: (callback: () => void, ms: number) => ReturnType<typeof setTimeout> =
+    hooks.schedule ?? ((callback, ms) => setTimeout(callback, ms) as ReturnType<typeof setTimeout>);
+  const clearTimer = hooks.clearTimer ?? clearTimeout;
   const sessions = new Map<CharacterId, Session>();
   let invite: Invite | null = null;
   let nextInviteId = 0;
@@ -84,7 +92,7 @@ export function createHomeSessions(hooks: Hooks) {
   function closeSocial(phase:SocialPhase,message:string,reply?:string) {
     if(!socialInvite)return;
     const {offer,timer}=socialInvite;
-    clearTimeout(timer);
+    clearTimer(timer);
     socialInvite=null;
     hooks.all({type:'social_closed',inviteId:offer.id,phase,message,reply});
   }
@@ -96,7 +104,7 @@ export function createHomeSessions(hooks: Hooks) {
   const closeInvite = (message: string) => {
     closeSocial('interrupted',message);
     if (!invite) return;
-    clearTimeout(invite.timer);
+    clearTimer(invite.timer);
     hooks.all({ type: 'movie_offer_closed', inviteId: invite.id, message });
     invite = null;
   };
@@ -240,7 +248,7 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function end(session: Session, outcome: 'cancelled' | 'failed', message: string) {
-    clearTimeout(session.timer);
+    clearTimer(session.timer);
     for (const {role,packet} of session.participants) {
       sessions.delete(role);
       hooks.all({ type: 'task_ended', role, taskId: packet.taskId, outcome, message });
@@ -379,13 +387,13 @@ export function createHomeSessions(hooks: Hooks) {
       if (pet) hooks.pausePet?.(pet);
     }
     const travel = Math.max(0,...participants.map(p => p.arriveMs));
-    const session: Session = { plan: { ...plan, resource }, participants, started: Date.now(), activeAt: null, study, cooperation,
-      duration, timer: setTimeout(() => {
+    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study, cooperation,
+      duration, timer: schedule(() => {
         if(cooperation&&command.type==='together'){
           const reason=cooperationDenial(hooks.state(),cooperation.from,command);
           if(reason){cancel(cooperation.from,reason);return;}
         }
-        session.activeAt = Date.now();
+        session.activeAt = now();
         for (const {role,packet} of participants) {
           hooks.all({ type: 'task_active', role, taskId: packet.taskId, elapsedMs: 0 });
         }
@@ -396,10 +404,10 @@ export function createHomeSessions(hooks: Hooks) {
             sendProgress(session, elapsed);
             if (elapsed >= study.minutes && study.correct === study.questions.length) complete(session);
             else if (elapsed > study.minutes + 8) end(session, 'failed', 'Занятие закончено. Для зачёта нужен ответ');
-            else session.timer = setTimeout(tick, 500);
+            else session.timer = schedule(tick, 500);
           };
           tick();
-        } else session.timer = setTimeout(() => complete(session), session.duration);
+        } else session.timer = schedule(() => complete(session), session.duration);
       }, Math.round(travel * hooks.timeScale)) };
     for (const participant of participants) {
       sessions.set(participant.role, session);
@@ -431,8 +439,8 @@ export function createHomeSessions(hooks: Hooks) {
         !session.participants.some(person => person.role === role && person.packet.taskId === taskId))
       return error(socket, 'Сейчас нет активного задания для ответа');
     if (study.correct === study.questions.length) return;
-    if (Date.now() - study.lastAnswer < 900) return;
-    study.lastAnswer = Date.now();
+    if (now() - study.lastAnswer < 900) return;
+    study.lastAnswer = now();
     const current = study.questions[study.correct];
     const correct = answerMatches(current, choice);
     const insight = studyQuestion(current)?.explanation ?? study.material.description;
@@ -455,11 +463,11 @@ export function createHomeSessions(hooks: Hooks) {
     const next = structuredClone(hooks.state());
     checkpoint(next, session);
     for (const {role,packet} of members) {
-      const elapsed = session.activeAt === null ? (Date.now()-session.started)/hooks.timeScale : Infinity;
+      const elapsed = session.activeAt === null ? (now()-session.started)/hooks.timeScale : Infinity;
       const home=packet.home!;
       const end=home.route.path.at(-1)??home.route.from;
       const position=home.pair?.stroll&&session.activeAt!==null?
-        sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(Date.now()-session.activeAt)/1000).from:sampled(home,elapsed).route.from;
+        sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(now()-session.activeAt)/1000).from:sampled(home,elapsed).route.from;
       Object.assign(next.characters[role],position,{pose:'idle'});
     }
     next.revision++;
@@ -477,11 +485,11 @@ export function createHomeSessions(hooks: Hooks) {
     for (const [role,session] of sessions) {
       const original = session.participants.find(p => p.role === role)!.packet;
       const home = original.home!;
-      const elapsed = session.activeAt === null ? (Date.now()-session.started)/hooks.timeScale : Infinity;
+      const elapsed = session.activeAt === null ? (now()-session.started)/hooks.timeScale : Infinity;
       hooks.send(socket,{ ...original, home: { ...home, ...sampled(home,elapsed),
         question: session.study?.questions[session.study.correct] } });
       if (session.activeAt !== null)
-        hooks.send(socket,{ type:'task_active', role, taskId:original.taskId, elapsedMs:Date.now()-session.activeAt });
+        hooks.send(socket,{ type:'task_active', role, taskId:original.taskId, elapsedMs:now()-session.activeAt });
       if (session.study && session.activeAt !== null) sendProgress(session, studyElapsed(session), socket);
     }
   }
@@ -491,7 +499,7 @@ export function createHomeSessions(hooks: Hooks) {
     const command=s?.plan.command;
     const member=s?.participants.find(p=>p.role===role&&p.packet.taskId===taskId);
     if(!s?.cooperation||command?.type!=='together'||!member||s.activeAt===null||s.participants.length!==2||
-      !['eat','takeout','cafeMeal'].includes(command.action)||Date.now()-s.activeAt<s.duration*.72)
+      !['eat','takeout','cafeMeal'].includes(command.action)||now()-s.activeAt<s.duration*.72)
       return error(socket,'Дайте персонажу время закончить свою порцию');
     const before=hooks.state();
     const result=completeTogether(before,role,command,[role],s.cooperation.choice,socialHomes(s),false);
@@ -511,7 +519,7 @@ export function createHomeSessions(hooks: Hooks) {
       const partner=otherRole(role), helper=message.action==='joinCook', cook=helper?cookFor(partner):undefined;
       if(helper&&!cook)return error(socket,'Партнёр сейчас не готовит');
       if(!available(role)||(!cook&&!available(partner)))return error(socket,'Оба игрока должны быть в сети и свободны');
-      if(Date.now()-(lastProposal[role]??0)<600)return error(socket,'Подожди перед следующим приглашением');
+      if(now()-(lastProposal[role]??0)<600)return error(socket,'Подожди перед следующим приглашением');
       const a=cook?SOCIAL_BY_ID.get(isGrillRecipe(cook.command.recipe)?'grill':'cook'):
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
       if(!a)return error(socket,'Неизвестное совместное занятие');
@@ -524,15 +532,15 @@ export function createHomeSessions(hooks: Hooks) {
       const ttl=hooks.socialTtlMs??SOCIAL_TTL_MS;
       const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cook?'Помочь с готовкой':a.title,
         text:cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':socialText(a,hooks.state(),role),
-        replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:Date.now()+ttl};
-      socialInvite={offer,command:cmd,cookTask:cook?.id,timer:setTimeout(()=>closeSocial('expired','Время ответа истекло'),ttl)};
-      lastProposal[role]=Date.now();
+        replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:now()+ttl,remainingMs:ttl};
+      socialInvite={offer,command:cmd,cookTask:cook?.id,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
+      lastProposal[role]=now();
       hooks.all({type:'social_pending',offer});
       return;
     }
     if(!socialInvite||message.inviteId!==socialInvite.offer.id)return error(socket,'Это приглашение уже закрыто');
     const {offer,command,cookTask}=socialInvite;
-    if(Date.now()>=offer.expiresAt)return closeSocial('expired','Время ответа истекло');
+    if(now()>=offer.expiresAt)return closeSocial('expired','Время ответа истекло');
     if(message.type==='social_withdraw'&&offer.from===role)return closeSocial('cancelled','Приглашение отозвано');
     if(message.type!=='social_reply'||offer.from===role)return error(socket,'Ответить может только приглашённый игрок');
     if(message.choice===null)return closeSocial('declined','Приглашение отклонено');
@@ -564,8 +572,8 @@ export function createHomeSessions(hooks: Hooks) {
       if (!available(role) || !available(otherRole(role)) || reserved('tv'))
         return error(socket,'Для просмотра оба должны быть свободны дома, а телевизор — выключен');
       const id = ++nextInviteId;
-      invite = { id,from:role,genre:genre as Genre,timer:setTimeout(() => closeInvite('Время ответа истекло'),30_000) };
-      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite.genre });
+      invite = { id,from:role,genre:genre as Genre,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
+      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre });
       return;
     }
     if (!invite || message.inviteId !== invite.id) return error(socket,'Это приглашение уже закрыто');
@@ -608,10 +616,10 @@ export function createHomeSessions(hooks: Hooks) {
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {
-      for (const session of sessions.values()) clearTimeout(session.timer);
+      for (const session of sessions.values()) clearTimer(session.timer);
       sessions.clear();
-      if (invite) clearTimeout(invite.timer);
-      if(socialInvite)clearTimeout(socialInvite.timer);
+      if (invite) clearTimer(invite.timer);
+      if(socialInvite)clearTimer(socialInvite.timer);
       socialInvite=null;
       invite = null;
     },

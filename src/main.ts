@@ -33,6 +33,7 @@ import './style.css';
 import './mobile-polish.css';
 import './queue-ui.css';
 import './minimal-hud.css';
+import './visual-polish-020.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -61,7 +62,10 @@ const installedDesktopId=():number|undefined=>{
 let active: CharacterId | null = null;
 let online: CharacterId[] = [];
 const waitingTasks = new Map<CharacterId,QueuedTask[]>();
-let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
+let timeStatus: TimeStatus = { multiplier: 1, shiftVotes: [], sleepers: {}, paused: false, pauseRequestedBy: null };
+let taskPauseStart: number | null = null;
+let taskPauseTotal = 0;
+const taskNow = () => (taskPauseStart ?? performance.now()) - taskPauseTotal;
 let selectedRole: CharacterId = 'vlad';
 let localPreviewNoCodes=false;
 let toastTimer: number | undefined;
@@ -69,7 +73,7 @@ let paymentNoticeTimer: number | undefined;
 const shownPayments = new Map<ServiceId, number>();
 const displayClock = new GameClockDisplay();
 let previousClockMinute = -1;
-let previousClockSpeed: TimeStatus['multiplier'] = 1;
+let previousClockSpeed: TimeStatus['multiplier'] | 0 = 1;
 interface TaskView {
   taskId: number;
   label: string;
@@ -98,11 +102,11 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.19 · ЖИВЫЕ ПРИВЫЧКИ</div>
+      <div class="version">0.20 · ВИЗУАЛЬНЫЙ ПРЕДПРОСМОТР</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
-      <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small></span>
+      <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small><button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled>⏸</button></span>
       <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
       <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
       <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><span aria-hidden="true">🐾</span><small class="pet-alert" hidden></small></button>
@@ -130,6 +134,7 @@ app.innerHTML = `
       </div>
     </div>
   </header>
+  <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
@@ -391,7 +396,7 @@ function updateTaskProgress(): void {
   for (const [role, task] of tasks) {
     const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
     if (!card) continue;
-    const elapsed = task.since === null ? 0 : Math.min(performance.now() - task.since, task.durationMs);
+    const elapsed = task.since === null ? 0 : Math.min(taskNow() - task.since, task.durationMs);
     const finish=card.querySelector<HTMLButtonElement>('[data-social-finish]');
     if(finish)finish.disabled=elapsed/task.durationMs<.72;
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
@@ -517,10 +522,47 @@ function renderTimePanel(): void {
   timePanelEl.append(status,track,speeds,note,wake);
 }
 
+function renderPause(): void {
+  const toggle = document.querySelector<HTMLButtonElement>('#pause-btn')!;
+  const sheet = document.querySelector<HTMLElement>('#pause-sheet')!;
+  const title = document.querySelector<HTMLElement>('#pause-title')!;
+  const desc = document.querySelector<HTMLElement>('#pause-description')!;
+  const actions = document.querySelector<HTMLElement>('#pause-actions')!;
+  toggle.disabled = !active;
+  toggle.textContent = timeStatus.paused ? '▶' : '⏸';
+  toggle.setAttribute('aria-label', timeStatus.paused ? 'Продолжить игру' : 'Поставить игру на паузу');
+  const request = timeStatus.pauseRequestedBy;
+  sheet.hidden = !timeStatus.paused && !request;
+  actions.replaceChildren();
+  if (sheet.hidden) return;
+  const action = (label: string, callback: () => void, secondary = false) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (secondary) button.className = 'pause-secondary';
+    button.addEventListener('click', callback);
+    actions.append(button);
+  };
+  if (timeStatus.paused) {
+    title.textContent = 'Игра на паузе';
+    desc.textContent = 'Часы, действия и жизнь соседей остановлены для обоих игроков.';
+    action('▶ Продолжить', () => net.togglePause());
+  } else if (request === active) {
+    title.textContent = 'Ждём подтверждения';
+    desc.textContent = 'Второй игрок должен согласиться. До этого игра продолжает идти.';
+    action('Отменить запрос', () => net.togglePause(), true);
+  } else {
+    title.textContent = names[request!]+ ' предлагает паузу';
+    desc.textContent = 'Остановить время и все игровые действия?';
+    action('⏸ Поставить на паузу', () => net.replyPause(true));
+    action('Нет, продолжить', () => net.replyPause(false), true);
+  }
+}
+
 function renderClock(): void {
   if (!state) return;
   const minute = Math.floor(displayClock.read(performance.now()));
-  const speed = timeStatus.multiplier;
+  const speed = timeStatus.paused ? 0 : timeStatus.multiplier;
   if (minute === previousClockMinute && speed === previousClockSpeed) return;
   previousClockMinute = minute;
   previousClockSpeed = speed;
@@ -750,7 +792,7 @@ paymentNotice.querySelector('button')!.addEventListener('click', () => {
 });
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.social({type:'social_propose',action:'film',item:genre}),
   () => state, () => active, where => phone.open(where), openEducation);
-const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command));
+const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
@@ -762,7 +804,10 @@ const net = new LiveConnection({
     thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
-    timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };
+    timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {}, paused: false, pauseRequestedBy: null };
+    taskPauseStart = null;
+    taskPauseTotal = 0;
+    renderPause();
     tasks.clear();
     waitingTasks.clear();
     drawTaskPanel();
@@ -794,12 +839,20 @@ const net = new LiveConnection({
   },
   onOnline(players) {
     online = players;
+    renderPause();
     render();
     if (state) jobsUI.refresh(state);
   },
   onTimeStatus(status) {
     const before = timeStatus.sleepers;
     timeStatus = status;
+    if (status.paused && taskPauseStart === null) taskPauseStart = performance.now();
+    if (!status.paused && taskPauseStart !== null) {
+      taskPauseTotal += performance.now() - taskPauseStart;
+      taskPauseStart = null;
+    }
+    world?.setPaused(Boolean(status.paused));
+    renderPause();
     if (active && world) {
       for (const role of ['vlad', 'alina'] as const) {
         if (Boolean(before[role]) !== Boolean(status.sleepers[role]))
@@ -815,6 +868,7 @@ const net = new LiveConnection({
     renderClock();
     furnishing.tick();
     world.updateFurnitureDeliveryTime(displayClock.read(performance.now()));
+    world.setTimeOfDay(displayClock.read(performance.now()) % 1440);
   },
   onDisconnect() {
     displayClock.pause(performance.now());
@@ -822,6 +876,7 @@ const net = new LiveConnection({
     waitingTasks.clear();
     for(const [role,task] of tasks)if(task.paired){world.cancelTimedAction(role);tasks.delete(role);}
     drawTaskPanel();
+    renderPause();
   },
   onWorldPath(role, place, path, station) {
     if (!active || world.place !== place) return;
@@ -875,7 +930,7 @@ const net = new LiveConnection({
     else world.closeStorage(role);
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
-    tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : performance.now(),
+    tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
       paired: command.type==='together'?command:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
@@ -891,7 +946,7 @@ const net = new LiveConnection({
   onTaskActive(role,taskId,elapsedMs) {
     const task=tasks.get(role);
     if(task?.taskId!==taskId) return;
-    task.since=performance.now()-elapsedMs;
+    task.since=taskNow()-elapsedMs;
     world.activateHomeTask(role);
     if(role===active&&task.paired)phone.refreshRelationship();
     if (task.material) drawTaskPanel(); else updateTaskProgress();
@@ -1495,3 +1550,5 @@ document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit'
   net.login(selectedRole, code, rememberDevice.checked);
 });
 void initializeWorld(app);
+
+document.querySelector<HTMLButtonElement>('#pause-btn')!.addEventListener('click', () => net.togglePause());

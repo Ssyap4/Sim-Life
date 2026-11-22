@@ -1,0 +1,77 @@
+/* 0.20: a warmer, more coherent finish for the existing HUD structure. */
+:root { --hud-ink:#34483e; --hud-accent:#527f68; }
+#life-clock { position:relative; padding-right:43px; }
+#pause-btn {
+  position:absolute; right:0; top:50%; transform:translateY(-50%);
+  width:40px; height:40px; min-height:40px; padding:0;
+  display:grid; place-items:center; border:1px solid #e5eddc;
+  border-radius:14px; background:linear-gradient(150deg,#fffef9,#e7eee3);
+  box-shadow:0 2px 9px #405a451b,inset 0 1px #fff;
+  color:#426953; font-size:19px; font-weight:800; pointer-events:auto;
+}
+#pause-btn:disabled{opacity:.5}
+#pause-btn:active{transform:translateY(-50%) scale(.96)}
+.money-panel,.person,.life-strip,.bottom-bar,.task-panel,.needs-panel,.thought-panel{
+  border-color:rgba(255,255,255,.86);
+  box-shadow:0 7px 26px #213d361b,inset 0 1px 0 #ffffffb9;
+}
+.money-panel,.person{
+  background:linear-gradient(142deg,rgba(255,254,248,.96),rgba(240,245,234,.90));
+}
+.money-panel strong{
+  color:#3d7358; font-variant-numeric:tabular-nums; letter-spacing:-.025em;
+}
+.person.active{
+  border-color:#86b79b;
+  box-shadow:0 0 0 2px #78b69b35,0 8px 23px #30543a27,inset 0 1px #fff;
+}
+.avatar-vlad{background:linear-gradient(145deg,#8dad97,#507861)}
+.avatar-alina{background:linear-gradient(145deg,#e2b9a5,#b87d7c)}
+.brand-icon{background:linear-gradient(148deg,#769e86,#446b57);box-shadow:0 5px 13px #2f5c4327}
+.life-strip button:not(:disabled),.market-btn,.showcase-toggle,.thought-trigger{
+  box-shadow:0 3px 10px #24473818,inset 0 1px #ffffffb2;
+  transition:background-color .16s,border-color .16s,box-shadow .16s,transform .12s;
+}
+.home-buttons .market-btn{
+  background:linear-gradient(158deg,#fffdf7,#e5eee1);
+  border:1px solid #eaf2e7;color:#426451;
+}
+.home-buttons .market-btn:active,.life-strip button:active{filter:brightness(.97)}
+.vignette{background:linear-gradient(to bottom,rgba(255,246,220,.22),transparent 29%,transparent 74%,rgba(31,47,43,.13))}
+.pause-sheet{
+  position:absolute;z-index:55;inset:0;display:grid;place-items:center;
+  pointer-events:auto;background:rgba(23,36,35,.20);padding:16px;
+  backdrop-filter:blur(2.5px);
+}
+.pause-card{
+  width:min(100%,320px);display:grid;justify-items:center;gap:12px;
+  text-align:center;padding:25px 20px 20px;
+  background:linear-gradient(165deg,#fffef8,#ebf3e9);
+  border:1px solid #fff;border-radius:24px;
+  box-shadow:0 18px 55px #203b384d,inset 0 1px 0 #fff;
+  color:#3a5545;
+}
+.pause-card .pause-emblem{
+  display:grid;place-items:center;width:56px;height:56px;
+  border-radius:20px;background:#dceadf;color:#4e7d61;font-size:26px;
+}
+.pause-card strong{font-size:18px;font-weight:900}
+.pause-card p{font-size:12px;line-height:1.5;margin:0;color:#6d8172}
+#pause-actions{display:grid;gap:8px;width:100%}
+#pause-actions button{
+  border:0;border-radius:13px;background:#477b5c;color:white;
+  min-height:44px;font:inherit;font-size:13px;font-weight:900;padding:10px;
+}
+#pause-actions .pause-secondary{
+  background:#e3ece2;color:#456954;border:1px solid #d4e3d4;
+}
+@media(max-width:640px) and (orientation:portrait){
+  #life-clock{padding-right:41px}
+  #pause-btn{width:38px;height:38px;border-radius:12px}
+  .pause-card{padding:20px 15px}
+}
+@media(max-width:350px) and (orientation:portrait){
+  #life-clock{padding-right:38px}
+  #pause-btn{width:35px;height:35px;font-size:17px}
+}
+@media(prefers-reduced-motion:reduce){ .life-strip button,.market-btn{transition:none} }
