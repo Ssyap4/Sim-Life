@@ -93,6 +93,7 @@ export class World {
   private entryLeaf?: THREE.Group;
   private readonly extensions = homeExtensions();
   private readonly subjectMeshes: THREE.Object3D[] = [];
+  private readonly homeViewOccluders: THREE.Object3D[];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
@@ -218,13 +219,14 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 46;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'street' ? 96 : this.place === 'home' ? 74 : 51;
+    this.controls.maxDistance = this.place === 'street' ? (this.districtWide ? 132 : 96) : this.place === 'home' ? 74 : 51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.controls.update();
 
     this.createLights();
     this.createHome();
+    this.homeViewOccluders = this.scene.children.filter(object => !(object instanceof THREE.Light));
     // Grill portions are tappable just like the plates on the indoor table.
     // Invisible dishes are ignored by pick(), preventing ghost actions.
     for(const dish of [this.yard.platter,...this.yard.servings.values()])dish.traverse(part=>{
@@ -349,9 +351,10 @@ export class World {
   showcase(subject: CharacterId | PetId | null): void {
     this.neighborhoodView=false;
     this.inspected = subject;
+    this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'street' ? 96 : this.place === 'home' ? 74 : 51;
+    this.controls.maxDistance = this.place === 'street' ? (this.districtWide ? 132 : 96) : this.place === 'home' ? 74 : 51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -369,7 +372,41 @@ export class World {
     // Simba's right-hand approach to the inspection view had the desk in front.
     const angle = subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
       : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
-    this.cameraMove = inspectionFrame(bounds, angle, this.camera.fov, this.camera.aspect, this.viewBand(true));
+    const band = this.viewBand(true);
+    const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
+    this.cameraMove = frame(angle);
+    if (person && this.place === 'home' && !this.canSeeCharacter(bounds,this.cameraMove)) {
+      // Doorposts and tall furniture can hide a resident behind the default angle.
+      for (const direction of [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]] as const) {
+        const alternative = frame(new THREE.Vector3(...direction));
+        if (!this.canSeeCharacter(bounds,alternative)) continue;
+        this.cameraMove = alternative;
+        break;
+      }
+    }
+  }
+
+  private canSeeCharacter(bounds: THREE.Box3, frame: Frame): boolean {
+    const point = bounds.getCenter(new THREE.Vector3());
+    const eye = point.clone();
+    eye.y = THREE.MathUtils.lerp(bounds.min.y,bounds.max.y,.82);
+    const side = new THREE.Vector3().subVectors(frame.position,frame.target)
+      .cross(THREE.Object3D.DEFAULT_UP).normalize().multiplyScalar(.16);
+    const direction = new THREE.Vector3();
+    for (const target of [eye, point.clone().add(side), point.sub(side)]) {
+      const distance = direction.subVectors(target,frame.position).length();
+      this.raycaster.set(frame.position,direction.normalize());
+      this.raycaster.far = distance;
+      const blocked = this.raycaster.intersectObjects(this.homeViewOccluders,true)
+        .some(hit => {
+          for (let object: THREE.Object3D | null = hit.object; object; object = object.parent)
+            if (!object.visible) return false;
+          return true;
+        });
+      this.raycaster.far = Infinity;
+      if (blocked) return false;
+    }
+    return true;
   }
 
   private neighborCameraFrame():Frame {
@@ -403,6 +440,7 @@ export class World {
   private frameDistrictResident():void {
     this.districtWide=false;
     this.districtFocus=null;
+    this.updateViewLens();
   }
 
   /** One deliberate, predictable camera reset at any location. */
@@ -1706,7 +1744,7 @@ export class World {
     this.remote = place === 'home' ? null : createLocation(place);
     this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place === 'home' ? new THREE.Fog(0xc0c7ad, 64, 97) : new THREE.Fog(0xc0c7ad, place==='street'?98:49, place==='street'?148:75);
+    this.scene.fog = place === 'home' ? new THREE.Fog(0xc0c7ad, 64, 97) : new THREE.Fog(0xc0c7ad, place==='street'?125:49, place==='street'?171:75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -1735,12 +1773,12 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
-    this.camera.far=place==='street'?155:110;
+    this.camera.far=place==='street'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'street' ? 44 : place === 'home' ? 36 : 18;
     this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'street' ? 96 : this.place === 'home' ? 74 : 51;
+    this.controls.maxDistance = this.place === 'street' ? (this.districtWide ? 132 : 96) : this.place === 'home' ? 74 : 51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -2017,7 +2055,8 @@ export class World {
   private homeFrame(compact: boolean, band: ViewBand): Frame {
     if (this.place === 'home') return portraitHomeFrame(this.camera.fov,this.camera.aspect,band);
     if(this.place==='street'){
-      if(this.districtWide&&this.remote)return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.48,1.35,1.16]);
+      if(this.districtWide&&this.remote)return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,
+        this.remote.horizontal,this.remote.vertical,[.31,1.85,1.03],128);
       const resident=this.districtFocus ?? this.household?.characters[this.localRole] ?? districtArrival('home',this.localRole);
       const target=new THREE.Vector3(resident.x,.46,resident.z);
       const reverse=this.districtFocus && this.districtFocus.z>8;
@@ -2037,14 +2076,23 @@ export class World {
     this.lastFrame = performance.now();
   }
 
+  private updateViewLens():void {
+    const reference=this.place==='street' && this.districtWide && !this.inspected ? 34 : 23;
+    this.camera.fov=THREE.MathUtils.radToDeg(2*Math.atan(
+      Math.tan(THREE.MathUtils.degToRad(reference))*Math.max(1,portraitAspect/this.camera.aspect)));
+    this.camera.updateProjectionMatrix();
+  }
+
   refreshViewport(): void {
     const width = Math.max(1, this.canvas.clientWidth);
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
     const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
+    const district = this.place==='street';
     const pixelRatio = compact
-      ? Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 1.45
-        : this.quality === 'low' ? 1.0 : initialRatio)
+      ? Math.min(window.devicePixelRatio || 1, this.quality==='low' ? (district?.88:1)
+        : district ? (this.quality==='high'?1.26:1.11)
+          : this.quality==='high' ? 1.45 : initialRatio)
       : initialRatio;
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
@@ -2053,13 +2101,11 @@ export class World {
     if (!sizeChanged && !scaleChanged && previous.compact === compact &&
         previous.band.top === band.top && previous.band.bottom === band.bottom) return;
     this.viewport = { width, height, pixelRatio, compact, band };
+    this.camera.userData.compactLow=compact&&this.quality==='low';
 
     if (sizeChanged) {
       this.camera.aspect = width / height;
-      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(
-        Math.tan(THREE.MathUtils.degToRad(23)) * Math.max(1, portraitAspect / this.camera.aspect),
-      ));
-      this.camera.updateProjectionMatrix();
+      this.updateViewLens();
     }
     if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
     if (sizeChanged) this.renderer.setSize(width, height, false);

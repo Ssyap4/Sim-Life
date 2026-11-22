@@ -69,17 +69,17 @@ class IndividualPortrait(Portrait):
         self.mouth_w*=design.mouth
         self.mouth_y+=.008*sin(index*2.40)
         self.eye_x*=design.eyes
+        self.nose_projection=(.59 if self.woman else .55)*design.nose
+        self.nose_width=1+(design.nose-1)*.35
         self.widths=[(y,x*(1+(design.jaw-1)*bell((y+.133)/.080)+(design.cheek-1)*bell((y+.036)/.080)),
-                     z*(.90+.16*design.nose),z0+.009*sin(index*2.4)*bell((y+.169)/.06))
+                     z*1.06,z0+.009*sin(index*2.4)*bell((y+.169)/.06))
                     for y,x,z,z0 in self.widths]
 
     def face_depth(self,x,y,cosine):
-        n=self.design.nose-1
         frontal=max(0,cosine)
-        nose=n*.18*bell(x/(.022+n*.012))*bell((y+.052)/.026)
         cheek=(self.design.cheek-1)*.060*bell((abs(x)-.108)/.040)*bell((y+.032)/.049)
         chin=(self.design.jaw-1)*.037*bell(x/.064)*bell((y+.158)/.043)
-        return super().face_depth(x,y,cosine)+frontal*(nose+cheek+chin)
+        return super().face_depth(x,y,cosine)+frontal*(cheek+chin)
 
     def paint(self):
         # The portrait uses painted vertex bands, so a visiting NPC costs no skin atlas.
@@ -242,22 +242,32 @@ class Neighbor(Resident):
         add=.014 if mode in ('vest','hoodie','bomber','pea coat') else 0
         waist=.145*w+add
         upper=.166*shoulder+add
-        torso=[(hem,flare,.128,-.009),(hem+.054,flare*.96,.130,-.007),
+        clearance=.159 if long else .128
+        torso=[(hem,flare,clearance,-.009),(hem+.054,flare*.96,clearance+.002,-.007),
                (h+.049,.178*w+add,.118,.001),(h+.213,waist,.101,.004),
                (s-.124,upper+.010,.128,.016),(s-.034,upper+.012,.107,.000),
                (s+.027,upper*.89,.087,-.009),(s+.091,.098,.070,-.008),(n,.076,.066,-.012)]
         if hem+.054>=h+.049:torso.pop(1)
         bind=lambda t: skin('Pelvis','Chest',t*2)
+        def fabric(t,a):
+            return blend(cloth(t,a),detail,.14*(1-ramp(.01,.08,t))) if long else cloth(t,a)
         def wrinkles(x,y,z,a,t):
             seam=sin(a*(8 if dress else 4)+t*14)*(.0113 if dress else .0058)
             k=seam*(.22+.78*bell((t-.21)/.30)+.22*bell((t-.81)/.21))
             return x+sin(a)*k,y,z+cos(a)*k
-        clothes.lathe(torso,(0,0,0),cloth,bind,rings=20,sides=28,warp=wrinkles)
+        clothes.lathe(torso,(0,0,0),fabric,bind,rings=20,sides=28,warp=wrinkles)
+        if long:
+            # Follow each thigh below the hips so a step cannot pass through the hem.
+            for i,(x,y,_) in enumerate(clothes.points):
+                step=.91*(1-ramp(hem+.025,h+.019,y))
+                if step:
+                    right=ramp(-.065,.065,x)
+                    clothes.weights[i]={'ThighL':step*(1-right),'ThighR':step*right,'Pelvis':1-step}
         trim.lathe([(n-.066,.075,.057,-.016),(n+.026,.065,.062,-.006),
             (n+.087,.072,.059,.006),(n+.151,.077,.067,.032)],(0,0,0),
             lambda t,a:blend(self.portrait.base,rgb('986858'),.19*max(0,-cos(a))),lambda t:skin('Chest','Head',t*.85),rings=8,sides=14)
         waistband=hem+.080 if long else hem+.046
-        if dress or 'coat' in mode or mode in ('trench','bomber','dungarees'):
+        if dress or mode in ('bomber','dungarees'):
             hem_path=[((sin(a)*(.161*w if dress else flare*.93),h+.180 if dress else waistband,cos(a)*.120),.006)
                       for a in [t*2*pi for t in steps(27)]]
             clothes.cord(hem_path,blend(top,detail,.36),solid('Chest' if dress else 'Pelvis'),sides=5)
@@ -302,7 +312,7 @@ class Neighbor(Resident):
                 sleeve_bind,rings=14,sides=15,warp=crease)
             self.hand(trim,x,s-a-f,direction,'Wrist'+suffix)
             self.trousers(clothes,clothes,pants,blend(pants,detail,.31),rgb('524c46' if d.woman else '5b554c'),
-                rgb('8f7868' if d.woman else '5d625e'),direction,suffix)
+                rgb('8f7868' if d.woman else '5d625e'),direction,suffix,hem+.045 if long else None)
 
 
 def main():

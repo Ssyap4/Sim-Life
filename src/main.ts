@@ -1433,7 +1433,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     const modelsStartedMs = performance.now();
     const useBlender = params.get('characters') !== 'procedural';
     const characters = useBlender ? await import('./game/BlenderCharacter')
-      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='cardigan' ? ['alina-cardigan-upper'] : []))
+      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='tee' ? ['alina-tee-upper'] : []))
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};

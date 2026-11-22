@@ -224,11 +224,13 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
       if(!camera)return;
       animatePlants(camera,seconds);
       for(const {building,detail,model} of facades){
-        const far=building.position.distanceTo(camera.position)>(model.visible?32:35);
+        const bias=camera.userData.compactLow?6:0;
+        const far=building.position.distanceTo(camera.position)>(model.visible?32-bias:35-bias);
         model.visible=far;detail.visible=!far;
       }
       for(const {model,detail} of distantCottages){
-        const far=model.position.distanceTo(camera.position)>(model.visible?32:35);
+        const bias=camera.userData.compactLow?5:0;
+        const far=model.position.distanceTo(camera.position)>(model.visible?32-bias:35-bias);
         model.visible=far;detail.visible=!far;
       }
     },

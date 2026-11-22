@@ -212,13 +212,14 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
   }
   function update(camera:THREE.Camera,seconds:number) {
     wind.value=seconds;
+    const bias=camera.userData.compactLow?4:0;
     for(const r of regions.values()){
       const distance=Math.hypot(camera.position.x-r.x,camera.position.z-r.z,camera.position.y*.90);
-      const far=r.distant.visible?distance>25:distance>27;
+      const far=r.distant.visible?distance>25-bias:distance>27-bias;
       r.distant.visible=far;r.group.visible=!far;
     }
     for(const display of displays.values()){
-      display.group.visible=Math.hypot(camera.position.x-display.x,camera.position.z-display.z,camera.position.y*.60)<30;
+      display.group.visible=Math.hypot(camera.position.x-display.x,camera.position.z-display.z,camera.position.y*.60)<30-bias;
     }
   }
   return update;

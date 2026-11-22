@@ -22,6 +22,8 @@ class Portrait:
         self.mouth_y = -.112 if woman else -.121
         self.mouth_w = .047 if woman else .048
         self.eye_x = .060 if woman else .059
+        self.nose_projection = .61 if woman else 1.0
+        self.nose_width = 1.02 if woman else 1.0
         self.face_relief = True
         self.widths = (
             [(LOW,.009,.010,.062),(-.192,.049,.057,.037),(-.163,.082,.089,.021),
@@ -48,15 +50,18 @@ class Portrait:
         a = abs(x)
         w = self.woman
         tip_y = -.054 if w else -.063
+        nose_x = x / self.nose_width
+        nose_side = abs(nose_x)
         brow = bell((y-.035)/.022)*bell((a-.059)/.047)
         brow_shape = (.009 if w else .019)*brow
         socket = -.026*bell(y/.023)*bell((a-self.eye_x)/.034)
         cheek = (.018 if w else .023)*bell((a-.099)/.046)*bell((y+.035)/.045)
         jaw = (.003 if w else -.010)*bell((a-.100)/.038)*bell((y+.106)/.037)
-        ridge = (.038 if w else .046)*bell((y+.028)/.052)*bell(x/(.020 if w else .024))
-        tip = (.031 if w else .041)*bell((y-tip_y)/(.019 if w else .016))*bell((x+.0018)/.022)
-        wing = .015*bell((y-tip_y+.006)/.013)*bell((a-.018)/.010)
-        nostril = -.012*bell((a-.016)/.0055)*bell((y-tip_y+.014)/.005)
+        ridge = (.038 if w else .046)*bell((y+.028)/.052)*bell(nose_x/(.020 if w else .024))
+        tip = (.031 if w else .041)*bell((y-tip_y)/(.019 if w else .016))*bell((nose_x+.0018)/.022)
+        wing = .015*bell((y-tip_y+.006)/.013)*bell((nose_side-.018)/.010)
+        nostril = -.012*bell((nose_side-.016)/.0055)*bell((y-tip_y+.014)/.005)
+        nose = self.nose_projection*(ridge+tip) + (.65+.35*self.nose_projection)*(wing+nostril)
         muzzle = .017*bell(x/.063)*bell((y-self.mouth_y)/.043)
         chin = .018*bell(x/(.050 if w else .059))*bell((y+.174)/.034)
         fold = -.006*bell((y-self.mouth_y+.028)/.009)*bell(x/.036)
@@ -71,7 +76,7 @@ class Portrait:
             lower_jaw=(.0045 if w else .0082)*bell((y+.124)/.023)*bell((a-.088)/.034)
             philtrum=-.0031*bell(x/.007)*bell((y+.091)/.012)
             relief=lid_slope+cheek_line+lower_jaw+philtrum
-        return max(0,cosine)*(brow_shape+socket+cheek+jaw+ridge+tip+wing+nostril+muzzle+chin+fold+lip+relief)
+        return max(0,cosine)*(brow_shape+socket+cheek+jaw+nose+muzzle+chin+fold+lip+relief)
 
     def depth(self,x,y):
         rx,rz,z = profile(self.widths,y)

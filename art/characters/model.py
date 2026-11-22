@@ -5,7 +5,7 @@ from math import cos, pi, sin
 import bpy
 from mathutils import Vector
 
-from mesh import Mesh, bell, blend, ramp, rgb, skin, solid, steps, xyz
+from mesh import Mesh, bell, blend, profile, ramp, rgb, skin, solid, steps, xyz
 from portrait import Portrait
 
 
@@ -64,7 +64,7 @@ class Resident:
         top = rgb('729cb7' if w else 'e8e4d8')
         cuff = rgb('5d859f' if w else 'cccbc3')
         if alternative:
-            top,cuff=rgb('a87161'),rgb('654743')
+            top,cuff=rgb('dbd7c9'),rgb('bdb7a7')
         pants = rgb('414655' if w else '475968')
         seams = rgb('727888' if w else '778890')
         sole = rgb('d6c7b9')
@@ -72,44 +72,38 @@ class Resident:
         h,s,n = self.hip,self.shoulder,self.neck
         taper = .143 if w else .166
         chest = .173 if w else .203
-        torso = [(h-.043,.189 if w else .194,.116,-.006),(h+.043,.169 if w else .185,.112,-.009),
+        torso = [(h+.010,.202 if w else .210,.126,-.009),(h+.057,.177 if w else .190,.115,-.009),
                  (h+.157,taper,.099,-.007),(s-.135,chest,.119 if w else .127,.002),
                  (s-.045,chest+.010,.108,-.007),(s+.012,.169 if w else .192,.087,-.011),
                  (s+.064,.105,.069,-.012),(n,.074,.065,-.014)]
         def fabric(t,a):
-            ribs = (.5+.5*cos(a*(20 if w else 9)+cos(t*11)*.6))**2
+            ribs = (.5+.5*cos(a*(20 if w and not alternative else 9)+cos(t*11)*.6))**2
             hem = 1-ramp(.03,.125,t)
             collar = ramp(.91,.99,t)
-            return blend(top,cuff,.16*ribs*(.82 if w else .34)+.58*max(hem,collar)+.10*max(0,-cos(a)))
+            return blend(top,cuff,.16*ribs*(.82 if w and not alternative else .34)+.58*max(hem,collar)+.10*max(0,-cos(a)))
         def folds(x,y,z,a,t):
             wrinkle = (.0072*bell((t-.30)/.16)+.0046*bell((t-.76)/.13))*sin(a*3+t*22)+.0025*sin(a*7-t*14)*bell((t-.64)/.28)
             return x+sin(a)*wrinkle,y,z+cos(a)*wrinkle
-        clothing.lathe(torso,(0,0,0),fabric,lambda _t:solid('Chest'),rings=22,sides=25,warp=folds)
+        clothing.lathe(torso,(0,0,0),fabric,lambda t:skin('Pelvis','Chest',ramp(.015,.32,t)),
+                       rings=22,sides=25,warp=folds)
         edge = [((.075*sin(a),n-.008-.005*cos(a),.068*cos(a)-.014),.005) for a in [2*pi*t for t in steps(23)]]
         clothing.cord(edge,blend(top,cuff,.61),solid('Chest'),sides=5,thickness=.62)
         collar = [((.081*sin(a),n-.019-.007*cos(a),.073*cos(a)-.012),.0036)
                   for a in [2*pi*t for t in steps(26)]]
         clothing.cord(collar,blend(top,cuff,.46),solid('Chest'),sides=6)
-        hem = [((.183*sin(a),h+.019-.004*cos(a),.114*cos(a)-.005),.0036)
-               for a in [2*pi*t for t in steps(25)]]
-        clothing.cord(hem,cuff,solid('Chest'),sides=5)
-        if w:
+        if w and not alternative:
             for side in (-1,1):
                 path = [((side*x,y,z),r) for x,y,z,r in [(.074,n-.019,.069,.007),
                     (.101,s-.048,.102,.008),(.067,s-.144,.116,.008),(.024,h+.192,.106,.006)]]
                 clothing.cord(path,blend(top,cuff,.55),solid('Chest'),sides=6,thickness=.64)
-        if alternative:
-            for i in range(5):
-                y=h+.10+i*.069
-                clothing.lathe([(-.007,.004,.004,0),(0,.009,.008,0),(.006,.006,.004,0)],
-                    (.023,y,.111),lambda _t,_a:rgb('d4a36f'),lambda _t:solid('Chest'),rings=4,sides=8)
         elif not w:
             for side in (-1,1):
                 path = [((side*x,y,z),r) for x,y,z,r in [(.090,n-.033,.062,.003),
                     (.129,s-.098,.097,.0023),(.169,s-.113,.082,.0022)]]
                 clothing.cord(path,cuff,solid('Chest'),sides=5)
+        self.sleeves(clothing, top, cuff, long=w and not alternative)
         if alternative:
-            return self.sleeves(clothing,body,None,None,top,cuff,None,None,None,None,True)
+            return
         neck = [(n-.053,.069,.062,-.013),(n+.037,.059,.057,-.016),
                  (n+.103,.065,.058,.002),(n+.172,.072,.063,.028)]
         body.lathe(neck,(0,0,0),lambda t,a:blend(complexion,rgb('ae796a'),.21*bell((t-.38)/.46)),
@@ -119,55 +113,56 @@ class Resident:
         lower.lathe(seat,(0,0,0),lambda t,a:blend(pants,seams,.10*max(0,cos(a))),
                        lambda _:solid('Pelvis'),rings=7,sides=20)
 
-        self.sleeves(clothing,body,lower,footwear,top,cuff,pants,seams,sole,upper,False)
+        for side,suffix in ((-1,'L'),(1,'R')):
+            self.hand(body,side*self.arm_x,s-self.arm-self.forearm,side,'Wrist'+suffix)
+            self.trousers(lower,footwear,pants,seams,sole,upper,side,suffix)
 
-    def sleeves(self,clothing,body,lower,footwear,top,cuff,pants,seams,sole,upper,alternative):
+    def arm_weights(self, y, suffix):
+        if y < -.086:
+            return skin('Elbow'+suffix,'Arm'+suffix,(y+self.arm+.082)/.166)
+        return skin('Arm'+suffix,'Chest',(y+.086)/.167)
+
+    def sleeves(self,clothing,top,cuff,long):
         w,s=self.woman,self.shoulder
-        complexion=self.portrait.base
         for side,suffix in ((-1,'L'),(1,'R')):
             a,f = self.arm,self.forearm
-            arm = 'Arm'+suffix
-            elbow,wrist = 'Elbow'+suffix,'Wrist'+suffix
             x = side*self.arm_x
-            def arm_bind(t):
-                y = (t-1)*(a+f)
-                return skin(elbow,arm,(y+a+.090)/.171) if y < -.086 else skin(arm,'Chest',(y+.086)/.167)
-
             def sheen(t,angle):
                 cloth_shadow = .16*max(0,-cos(angle))
                 ribbing = .10*(.5+.5*cos(angle*12-t*4)) if w else .021
                 return blend(top,cuff,cloth_shadow+ribbing+.44*(1-ramp(.03,.12,t)))
 
-            arm_shape = [(-a-f+.018,.036,.034,-.002),(-a-f+.053,.042,.041,-.004),
-                         (-a-.100,.058,.046,-.012),(-a,.058,.050,.000),(-.118,.063,.059,.001),
-                         (-.052,.075,.066,-.009),(.005,.072,.067,-.009),(.056,.043,.048,-.010),(.074,.023,.026,-.011)]
+            sections = [(-a-f+.020,.041,.041,-.002),(-a-f+.055,.046,.043,-.004),
+                        (-a-.100,.058,.046,-.012),(-a,.058,.050,.000),(-.118,.063,.059,.001),
+                        (-.052,.075,.066,-.009),(.005,.072,.067,-.009),(.056,.043,.048,-.010),(.074,.023,.026,-.011)] if long else [
+                        (-.173,.061,.058,-.002),(-.155,.068,.063,-.002),(-.100,.072,.065,-.003),
+                        (-.039,.074,.069,-.008),(.016,.064,.062,-.012),(.057,.044,.046,-.010),(.075,.022,.025,-.010)]
             def sleeve(xx,y,z,angle,t):
                 wrinkle = .004*cos(angle*3+y*35)*bell((y+a)/.13)
                 shoulder = ramp(-.048,.058,y)
                 return (xx+sin(angle)*wrinkle-side*.047*shoulder,
                         y-.027*shoulder-.012*shoulder*max(0,side*sin(angle)),z+cos(angle)*wrinkle)
-            if w:
-                clothing.lathe(arm_shape,(x,s,0),sheen,arm_bind,rings=14,sides=17,warp=sleeve)
-            else:
-                # Turn the T-shirt sleeve into a rounded folded edge above the elbow.
-                cut = [(-.184,.063,.060,-.001),(-.169,.068,.063,-.002),
-                       (-.105,.073,.065,-.003),(-.039,.074,.069,-.008),
-                       (.016,.064,.062,-.012),(.057,.044,.046,-.010),(.075,.022,.025,-.010)]
-                clothing.lathe(cut,(x,s,0),sheen,lambda t:skin(arm,'Chest',(t-.47)/.36),
-                               rings=9,sides=16,warp=sleeve)
-                bare = [(-a-f+.006,.026,.025,0),(-a-f+.063,.032,.032,-.003),
-                        (-a-.095,.043,.043,-.009),(-a,.047,.043,-.002),
-                        (-.185,.052,.048,-.003),(-.132,.051,.050,-.007)]
-                body.lathe(bare,(x,s,0),lambda t,ang:blend(complexion,rgb('a37366'),.12*max(0,-cos(ang))),
-                           lambda t:skin(elbow,arm,(t-.50)/.32),rings=13,sides=14)
-            wrist_y = s-a-f
-            if w:
-                cuffs = [((x+.038*sin(angle),wrist_y+.043,.039*cos(angle)),.0032)
+            def bind(t):
+                y = sections[0][0] + (sections[-1][0]-sections[0][0])*t
+                return self.arm_weights(y, suffix)
+            clothing.lathe(sections,(x,s,0),sheen,bind,rings=14 if long else 10,sides=17,warp=sleeve)
+            if long:
+                cuffs = [((x+.044*sin(angle),s-a-f+.038,.042*cos(angle)-.003),.0026)
                          for angle in [2*pi*t for t in steps(16)]]
-                clothing.cord(cuffs,cuff,solid(elbow),sides=5)
-            if not alternative:
-                self.hand(body,x,wrist_y,side,wrist)
-                self.trousers(lower,footwear,pants,seams,sole,upper,side,suffix)
+                clothing.cord(cuffs,cuff,solid('Elbow'+suffix),sides=5)
+
+    def forearms(self, mesh):
+        a,f=self.arm,self.forearm
+        for side,suffix in ((-1,'L'),(1,'R')):
+            shape = [(-a-f+.010,.026,.024,0),(-a-f+.054,.030,.029,-.003),
+                     (-a-.085,.039,.038,-.009),(-a,.043,.041,-.003),
+                     (-.184,.049,.045,-.003),(-.126,.050,.047,-.006)]
+            def bind(t):
+                y=shape[0][0]+(shape[-1][0]-shape[0][0])*t
+                return self.arm_weights(y,suffix)
+            mesh.lathe(shape,(side*self.arm_x,self.shoulder,0),
+                       lambda _t,ang:blend(self.portrait.base,rgb('a37366'),.12*max(0,-cos(ang))),
+                       bind,rings=13,sides=14)
 
     def hand(self, body,x,y,side,wrist):
         shade = lambda t,a: blend(self.portrait.base,rgb('b48674'),.29*(1-t)*max(0,cos(a)))
@@ -184,7 +179,7 @@ class Resident:
                  ((x-side*.035,y-.048,.020),.008),((x-side*.034,y-.057,.021),.005)]
         body.cord(thumb,self.portrait.base,solid(wrist),sides=7)
 
-    def trousers(self, clothing, trim, pants, seam, sole, upper, side, suffix):
+    def trousers(self, clothing, trim, pants, seam, sole, upper, side, suffix, covered_above=None):
         h,k = self.hip,self.leg
         x = side*.111
         thigh,knee,ankle = 'Thigh'+suffix,'Knee'+suffix,'Ankle'+suffix
@@ -192,6 +187,9 @@ class Resident:
                  (h-k-.110,.068,.073,-.014),(h-k,.074,.077,.000),
                  (h-.247,.083,.085,-.017),(h-.105,.091,.092,-.013),
                  (h+.012,.094,.099,-.010),(h+.048,.061,.078,-.018)]
+        if covered_above is not None:
+            fit=profile(shape,covered_above)
+            shape=[ring for ring in shape if ring[0]<covered_above]+[(covered_above,*fit)]
         def denim(t,a):
             crease = bell(sin(a)*11)*max(0,cos(a))
             weld = bell((abs(sin(a))-.996)/.025)
@@ -227,12 +225,15 @@ class Resident:
         self.figure(clothing,skin_mesh,lower,footwear)
         for mesh in (face,skin_mesh,eyes,hair):
             mesh.build(rig)
+        forearms=Mesh('Forearms','Skin and trim',.72)
+        self.forearms(forearms)
+        forearms.build(rig)['bodyRegion']='forearms'
         for mesh,slot in ((clothing,'upper'),(lower,'lower'),(footwear,'footwear')):
             self.garment(rig,mesh,slot,'signature')
         if self.woman:
-            other=Mesh('Terracotta cardigan','Cardigan pigment',.91)
+            other=Mesh('Plain T-shirt','Cloth pigment',.91)
             self.figure(other,skin_mesh,lower,footwear,alternative=True)
-            self.garment(rig,other,'upper','cardigan')
+            self.garment(rig,other,'upper','tee')
         return rig
 
     def garment(self,rig,mesh,slot,look):

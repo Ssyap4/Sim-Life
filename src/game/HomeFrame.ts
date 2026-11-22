@@ -29,7 +29,7 @@ export const neighborhoodOutline: readonly Vertex[] = [
 
 export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
   horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline,
-  direction: Vertex = [0.13, 1.42, 1.08]) {
+  direction: Vertex = [0.13, 1.42, 1.08], maxDistance = 88) {
   // An elevated, front-facing view keeps the house threshold and yard readable.
   const axis = new THREE.Vector3(...direction).normalize();
   const right = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, axis).normalize();
@@ -64,7 +64,7 @@ export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
     return { xMin, xMax, yMin, yMax };
   }
 
-  let near = 10, far = 88;
+  let near = 10, far = maxDistance;
   for (let step = 0; step < 18; step++) {
     const distance = (near + far) / 2;
     const { xMin, xMax, yMin, yMax } = limits(distance);
