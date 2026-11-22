@@ -1,0 +1,27 @@
+name: Sim-Life 0.21 focused checks
+
+on:
+  push:
+    branches:
+      - feat/world-character-overhaul-021
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  district:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci
+      - name: Check TypeScript
+        run: npm run check
+      - name: Check routes, saves, and rooftop signs
+        run: npx tsx --test server/tests/locations.test.ts
