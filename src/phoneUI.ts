@@ -1,4 +1,5 @@
 import { renderRelationship } from './socialUI';
+import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
 import { createBillingUI, type BillingApp } from './billingUI';
 import { createEducationUI, educationAppointments, type EducationView } from './educationUI';
@@ -16,7 +17,7 @@ import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 
-type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | BillingApp;
+type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
@@ -24,6 +25,7 @@ const apps: Record<App,[string,string]> = {
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
   family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
+  autonomy:['🧠','Жизнь и привычки'],
 };
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
@@ -33,7 +35,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
-  openFurnishing:()=>void) {
+  openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -78,6 +80,38 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='autonomy'){
+      const scroll=info.scrollTop;
+      const intro=block('🧠 Живая повседневность',
+        'Выбирай режим только для своего персонажа. Команды игрока всегда главнее. Никаких покупок и рабочих смен без разрешения.');
+      intro.classList.add('autonomy-phone-intro');
+      const cards=(['vlad','alina'] as const).map(id=>{
+        const current=block(names[id]+' · '+AUTONOMY_LABELS[state.autonomy[id]],'');
+        current.classList.add('autonomy-phone-card');
+        const thought=thoughtFor(state,id);
+        current.querySelector('p')!.textContent=thought.emoji+' '+thought.text;
+        if(role===id){
+          const select=document.createElement('select');
+          select.dataset.autonomy=id;
+          select.setAttribute('aria-label','Выбрать самостоятельность '+names[id]);
+          for(const mode of AUTONOMY_MODES){
+            const option=document.createElement('option');
+            option.value=mode;option.textContent=AUTONOMY_LABELS[mode];
+            select.append(option);
+          }
+          select.value=state.autonomy[id];
+          select.addEventListener('change',()=>{if(setAutonomy(select.value as AutonomyMode))select.disabled=true;});
+          current.append(select);
+        }else{
+          const note=document.createElement('small');
+          note.textContent='Настраивает только сам персонаж со своего устройства.';
+          current.append(note);
+        }
+        return current;
+      });
+      info.replaceChildren(intro,...cards);
+      info.scrollTop=scroll;
+    }
     if (app === 'relationship') {
       const scroll=info.scrollTop;
       renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current());
@@ -156,7 +190,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='relationship'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);

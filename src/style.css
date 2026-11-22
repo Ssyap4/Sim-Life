@@ -32,7 +32,8 @@ button:focus-visible { outline: 3px solid #5e896d; outline-offset: 2px; }
   width: min(100%, 490px); display: flex; flex-direction: column; gap: 11px;
 }
 .brand-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-kicker, .brand h1 { white-space: nowrap; }
 .brand-icon {
   display: grid; place-items: center; width: 40px; height: 40px;
   font: 900 32px/1 'Nunito',sans-serif; border-radius: 14px;
@@ -501,6 +502,20 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .need-track i.need-low { background:#ce887d; }
 .need-value { text-align:right; color:#6d786a; font-variant-numeric: tabular-nums; }
 .need-hint { display:block; margin-top:8px; color:#9c705c; font-size:10px; }
+.autonomy-thought { margin: 5px 0 10px; font-size: 11px; line-height: 1.45;
+  border-radius: 12px; background: #eaf0e6; color: #49634f; padding: 9px 11px; }
+.autonomy-mode-row { display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+  justify-content:space-between; font-size:11px; font-weight:800; color:#4c6653; }
+.autonomy-mode-row select,.autonomy-phone-card select {
+  border:1px solid #a8bea4; border-radius:10px; background:#fffdf5;
+  color:#3d6049; font:inherit; font-size:11px; font-weight:800;
+  padding:8px 9px; max-width:100%; min-height:36px; }
+.autonomy-mode-row select:disabled {opacity:.65;cursor:default}
+.autonomy-note { display:block; margin:5px 1px 10px; font-size:9px;
+  color:#778478; line-height:1.4; }
+.autonomy-phone-intro {font-size:12px}
+.autonomy-phone-card select { display:block; width:100%; margin-top:10px; min-height:43px; }
+.autonomy-phone-card small {display:block; padding-top:7px; color:#728573;}
 @media (max-width:370px) {
   .life-strip { padding-left:8px; }
   .life-strip button { padding:6px 8px; font-size:10px; }
@@ -861,7 +876,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .phone-screen { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .phone-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;
-  height: 100%; align-content: start; padding: 22px 16px;
+  height: 100%; align-content: start; padding: 22px 16px; overflow-y: auto;
   background: radial-gradient(ellipse at 12% 100%, var(--phone-light), transparent 78%), #faf7ec;
 }
 .phone-grid button {

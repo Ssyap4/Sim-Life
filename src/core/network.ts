@@ -4,6 +4,7 @@ import type { EducationCommand } from '../shared/education';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, SocialKind, TimedCommand } from '../shared/protocol';
+import type { AutonomyMode } from '../shared/autonomy';
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
 import type { InstantCoffeeId } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
@@ -102,6 +103,7 @@ export class LiveConnection {
   startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
   setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
+  setAutonomyMode(mode:AutonomyMode):boolean{return this.sendAuthenticated({type:'autonomy_mode',mode});}
   startSleep(mode: SleepMode,furnitureId?:number): boolean {return this.sendAuthenticated({type:'sleep_start',mode,...(furnitureId===undefined?{}:{furnitureId})});}
   stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}
 

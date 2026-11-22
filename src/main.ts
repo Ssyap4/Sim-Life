@@ -1,4 +1,5 @@
 import { createSocialOffer, showSocialMenu } from './socialUI';
+import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
@@ -90,7 +91,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.16 · МЫ ВМЕСТЕ</div>
+      <div class="version">0.17 · ЖИВОЙ ДОМ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -376,6 +377,36 @@ function renderNeeds(): void {
     const heading = document.createElement('strong');
     heading.textContent = names[role] + ' · настроение ' + Math.round(char.mood) + '%';
     group.append(heading);
+    const thought=thoughtFor(state,role);
+    const thoughtNode=document.createElement('p');
+    thoughtNode.className='autonomy-thought';
+    thoughtNode.textContent=thought.emoji+' '+thought.text;
+    group.append(thoughtNode);
+    const settings=document.createElement('div');
+    settings.className='autonomy-mode-row';
+    const name=document.createElement('span');
+    name.textContent='🧠 Самостоятельность';
+    const chosen=document.createElement('select');
+    chosen.setAttribute('aria-label','Самостоятельность: '+names[role]);
+    chosen.dataset.autonomy=role;
+    chosen.disabled=role!==active;
+    for(const mode of AUTONOMY_MODES){
+      const option=document.createElement('option');
+      option.value=mode;option.textContent=AUTONOMY_LABELS[mode];
+      chosen.append(option);
+    }
+    chosen.value=state.autonomy[role];
+    chosen.addEventListener('change',()=>{
+      if(net.setAutonomyMode(chosen.value as AutonomyMode)) chosen.disabled=true;
+    });
+    settings.append(name,chosen);
+    group.append(settings);
+    if(role===active){
+      const note=document.createElement('small');
+      note.className='autonomy-note';
+      note.textContent='Игрок всегда главный. Самостоятельность никогда не покупает вещи и не начинает работу.';
+      group.append(note);
+    }
     for (const need of VITAL_NEEDS) {
       const info = NEED_INFO[need];
       const value = Math.round(char[need]);
@@ -582,7 +613,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  },()=>furnishing.open());
+  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode));
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
