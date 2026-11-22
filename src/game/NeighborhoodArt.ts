@@ -1,21 +1,9 @@
 import * as THREE from 'three';
 import { HOUSE, HOUSE_WING } from '../shared/home';
 import { NEIGHBOR_PATH } from '../shared/neighbors';
+import { NEIGHBOR_HOMES, homeStops, type NeighborHome } from '../shared/neighborHomes';
+export { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { batchRigidParts, cube, drum, finish, orb, paintedMap, plane, softCube } from './ArtKit';
-
-/** Four spaced-out *background* properties, never gameplay destinations.
- * North/south here refer to the garden's visible front/rear, not map coordinates.
- * The side cottages face the footpaths rather than forming one rear-facing row. */
-export const NEIGHBOR_HOMES = [
-  { id: 'west-garden', side: 'west', x: -30.5, z: 7.8, yaw: Math.PI / 2,
-    width: 6.0, depth: 4.2, plaster: 0xe3d4b8, roof: 0x856651, trim: 0xf4e6cd, shutters: 0x71866b },
-  { id: 'west-orchard', side: 'west', x: -30.8, z: -15.7, yaw: Math.PI / 2,
-    width: 6.9, depth: 4.6, plaster: 0xc5cba9, roof: 0x765c51, trim: 0xf1e5ca, shutters: 0xa7785a },
-  { id: 'rear-cottage', side: 'rear', x: 3.8, z: -27.5, yaw: 0,
-    width: 7.4, depth: 4.8, plaster: 0xe7c9ae, roof: 0x8d5e4c, trim: 0xffecd2, shutters: 0x668479 },
-  { id: 'east-cottage', side: 'east', x: 35.1, z: -1.4, yaw: -Math.PI / 2,
-    width: 7.0, depth: 4.6, plaster: 0xd1c6ae, roof: 0x657066, trim: 0xf5e8cf, shutters: 0xa47659 },
-] as const;
 
 type Root = THREE.Group;
 type Surface = Parameters<typeof finish>[1];
@@ -118,7 +106,7 @@ function flowerbed(root: Root, x: number, z: number, seed: number): void {
   }
 }
 
-type Home = typeof NEIGHBOR_HOMES[number];
+type Home = NeighborHome;
 function cottage(root: Root, home: Home, index: number): void {
   const house = new THREE.Group();
   house.name = 'Фоновый дом · ' + home.id;
@@ -162,8 +150,13 @@ function cottage(root: Root, home: Home, index: number): void {
   part(house, softCube, [2.46, .14, 1.12], [0, .01, face + .38], 0xaf9e86, 'ceramic');
   part(house, cube, [1.48, .11, .50], [0, -.02, face + 1.05], 0xddd1b9, 'ceramic');
   part(house, cube, [1.10, 1.85, .12], [0, 1.03, face + .068], home.trim, 'wood');
-  part(house, softCube, [.91, 1.67, .14], [0, .98, face + .15], index % 2 ? 0x795944 : 0x718075);
-  part(house, orb, [.05, .05, .055], [.30, 1.0, face + .24], 0xd0aa6c, 'metal');
+  // Real hinge, kept outside rigid batching: opens for household NPCs.
+  const leaf = new THREE.Group();
+  leaf.name = 'neighbor-door-' + home.id;
+  leaf.position.set(-.455, .145, face + .15);
+  part(leaf, softCube, [.91, 1.67, .14], [.455, .835, 0], index % 2 ? 0x795944 : 0x718075);
+  part(leaf, orb, [.05, .05, .055], [.755, .85, .086], 0xd0aa6c, 'metal');
+  house.add(leaf);
   part(house, cube, [2.58, .15, 1.06], [0, 2.19, face + .35], home.roof, 'wood');
   for (const x of [-1.14, 1.14]) {
     part(house, softCube, [.095, 2.12, .105], [x, 1.05, face + .81], home.trim, 'wood');
@@ -192,7 +185,7 @@ function cottage(root: Root, home: Home, index: number): void {
   part(house, softCube, [.73, .14, .76], [w * .25, eave + 1.02, -d * .17], home.trim, 'ceramic');
 
   // A small front garden with a central open gate and private stepping stones.
-  const fenceZ = face + 2.66;
+  const fenceZ = face + 4.35;
   for (const side of [-1, 1]) {
     for (const y of [.34, .67]) {
       part(house, cube, [w / 2 - .67, .07, .10],
@@ -203,8 +196,8 @@ function cottage(root: Root, home: Home, index: number): void {
       part(house, softCube, [.09, .87, .13], [x, .43, fenceZ], index % 2 ? 0xb9aa90 : 0xf1dfc0);
     }
   }
-  for (let i = 0; i < 5; i++) {
-    const z = face + .86 + i * .37;
+  for (let i = 0; i < 7; i++) {
+    const z = face + .86 + i * .47;
     part(house, softCube, [1.02, .065, .33], [((i % 2) - .5) * .045, .02, z],
       [0xc9b69c, 0xd9c7a9, 0xbca98e][i % 3], 'ceramic');
   }
@@ -212,6 +205,28 @@ function cottage(root: Root, home: Home, index: number): void {
     flowerbed(house, side * (w / 2 - .74), face + 1.47, index + (side + 1) / 2);
     planting(house, side * (w / 2 + .62), face + 1.94, index + 1);
   }
+  // Larger personal plot: side borders, letterbox, a garden stool and
+  // distinctive outdoor props. Keep the central walking lane unobstructed.
+  for (const side of [-1, 1]) {
+    for(let i=0;i<4;i++) {
+      const z=face-1.0+i*1.45;
+      part(house, orb, [.38,.30,.48],
+        [side*(w/2+1.35), .22, z], (i+index)%2 ? 0x82976c : 0x718d67);
+    }
+    for(const z of [face-.10,face+2.15,face+4.26]) {
+      part(house, softCube, [.12,.83,.14],
+        [side*(w/2+1.70),.43,z], 0xb3a184,'wood');
+    }
+  }
+  const mailX=w*.32;
+  part(house, softCube, [.12, .85, .14], [mailX,.42,face+3.88], 0x8a725d,'wood');
+  part(house, softCube, [.39, .28, .33], [mailX,.87,face+3.88], home.roof, 'metal');
+  part(house, cube, [.27,.025,.033], [mailX,.88,face+4.06], home.trim,'ceramic');
+  part(house, cube, [.48,.055,.34], [-w*.36,.51,face+2.46], 0xb99b78,'wood');
+  for(const dx of [-.18,.18]) {
+    part(house, cube, [.06,.49,.07], [-w*.36+dx,.25,face+2.46], 0x99785d,'wood');
+  }
+  part(house, drum, [.13,.17,.13], [-w*.36,.65,face+2.46], 0xe6cfaa,'ceramic');
   if (index === 1 || index === 2) {
     // A modest secondary volume gives the orchard and rear home different
     // silhouettes without introducing heavy unique meshes.
@@ -271,7 +286,7 @@ export function buildNeighborhood(scene: THREE.Scene): void {
 
   // Planting is *outside* the path strip, not in the existing navigation lane.
   for (const [side, x] of [[0, west.x - 2.55], [1, east.x + 2.55]] as const) {
-    for (const [i, z] of [rearWest.z + 3.5, rearWest.z + 9.8, rearWest.z + 17.2, west.z - 1.9].entries()) {
+    for (const [i, z] of [rearWest.z + 3.5, rearWest.z + 9.8, rearWest.z + 17.2, west.z - 4.4].entries()) {
       planting(root, x, z, i + side * 2, i % 2 === 0);
       if (i !== 2) flowerbed(root, x + (side ? -.30 : .30), z + 1.45, i + side);
     }
@@ -294,7 +309,21 @@ export function buildNeighborhood(scene: THREE.Scene): void {
     part(root, softCube, [.38, .068, .38], [x, 2.13, z], 0x4a594f, 'metal');
   }
 
-  for (const [i, home] of NEIGHBOR_HOMES.entries()) cottage(root, home, i);
+  for (const [i, home] of NEIGHBOR_HOMES.entries()) {
+    cottage(root, home, i);
+    // Real connecting garden paths link each gate to its public sidewalk.
+    const { gate, sidewalk } = homeStops(home);
+    const dx=sidewalk.x-gate.x, dz=sidewalk.z-gate.z;
+    const length=Math.hypot(dx,dz);
+    const yaw=Math.atan2(dx,dz);
+    for(let k=0;k<Math.floor(length/.55);k++) {
+      const f=(k+.5)*.55/length;
+      const stone=part(root,softCube,[.84,.050,.43],
+        [gate.x+dx*f,.008,gate.z+dz*f],
+        [0xd3c1a1,0xc9b79d,0xe1cfb0][(k+i)%3],'ceramic');
+      stone.rotation.y=yaw;
+    }
+  }
 
   // The separate homes always sit beyond the public pedestrian network.
   const reserve = Math.min(HOUSE.minX - west.x, east.x - HOUSE_WING.maxX, HOUSE.minZ - rearWest.z);

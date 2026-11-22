@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { NEIGHBORS, neighborPose, type NeighborAction, type NeighborProfile } from '../shared/neighbors';
+import { NEIGHBORS, neighborPose, neighborDoorOpen, type NeighborAction, type NeighborProfile } from '../shared/neighbors';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
-import { batchRigidParts, cube, drum, finish, orb, softCube } from './ArtKit';
+import { batchRigidParts, cube, drum, finish, orb, softCube, sculptedCurve } from './ArtKit';
+import { makeEye } from './EyeArt';
+import { loft, sculpt } from './SculptMesh';
+import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 
 interface NeighborRig {
   root: THREE.Group;
@@ -11,6 +14,8 @@ interface NeighborRig {
   leftElbow: THREE.Group; rightElbow: THREE.Group;
   leftKnee: THREE.Group; rightKnee: THREE.Group;
   leftFoot: THREE.Group; rightFoot: THREE.Group;
+  wateringCan: THREE.Group; cup: THREE.Group; letter: THREE.Mesh;
+  marketBag: THREE.Group; tote: THREE.Group;
   materials: THREE.MeshStandardMaterial[];
 }
 
@@ -38,16 +43,29 @@ function makeHair(torso: THREE.Group, person: NeighborProfile): void {
       piece(torso,softCube,h,[.34,.115,.10],[-.052,1.866,.155]).rotation.z=.18;
       piece(torso,orb,h,[.13,.12,.09],[.18,1.86,-.02]); break;
     case 'bob':
-      for(const x of [-.19,.19]) piece(torso,orb,h,[.135,.305,.15],[x,1.650,-.025]);
-      piece(torso,softCube,h,[.30,.095,.08],[0,1.855,.184]); break;
+      for(const side of [-1,1]) sculptedCurve(torso,[
+        [side*.15,1.92,-.07],[side*.21,1.78,-.13],
+        [side*.22,1.63,-.07],[side*.20,1.52,.006],
+      ],.109,.044,h,.70,false);
+      piece(torso,softCube,h,[.30,.082,.08],[0,1.856,.182]); break;
     case 'long':
-      piece(torso,softCube,h,[.36,.62,.115],[0,1.495,-.186]);
-      for(const x of [-.19,.19]) piece(torso,orb,h,[.088,.35,.12],[x,1.586,-.06]);
+      for(const side of [-1,1]) {
+        sculptedCurve(torso,[
+          [side*.16,1.94,-.10],[side*.22,1.74,-.17],
+          [side*.19,1.48,-.16],[side*.20,1.25,-.15],
+        ],.095,.022,h,.66,false);
+        sculptedCurve(torso,[
+          [side*.14,1.86,.10],[side*.18,1.69,.07],
+          [side*.17,1.48,.10],[side*.19,1.30,.08],
+        ],.060,.012,h,.62,false);
+      }
       break;
     case 'ponytail':
-      piece(torso,orb,h,[.18,.19,.18],[0,1.79,-.215]);
-      piece(torso,orb,h,[.105,.27,.115],[0,1.56,-.31]);
-      piece(torso,softCube,a,[.16,.05,.08],[0,1.76,-.31]); break;
+      sculptedCurve(torso,[
+        [0,1.86,-.15],[0,1.80,-.28],[.06,1.67,-.35],
+        [.03,1.50,-.34],[-.035,1.38,-.28],
+      ],.105,.018,h,.73,false);
+      piece(torso,softCube,a,[.15,.065,.085],[0,1.81,-.28]); break;
     case 'bun':
       piece(torso,orb,h,[.168,.15,.17],[0,1.95,-.19]);
       piece(torso,softCube,h,[.24,.10,.08],[0,1.85,.17]); break;
@@ -62,15 +80,26 @@ function makeHair(torso: THREE.Group, person: NeighborProfile): void {
       piece(torso,softCube,a,[.42,.135,.35],[0,1.899,.008]);
       piece(torso,softCube,a,[.36,.047,.18],[0,1.867,.25]); break;
     case 'braid':
-      for(let n=0;n<4;n++)
-        piece(torso,orb,h,[.083,.097,.097],[-.12,1.70-n*.16,-.25-n*.015]);
+      sculptedCurve(torso,[
+        [-.085,1.88,-.13],[-.13,1.74,-.23],
+        [-.17,1.56,-.27],[-.145,1.38,-.31],
+        [-.115,1.23,-.27],
+      ],.079,.014,h,.67,false);
+      for(let n=0;n<5;n++)
+        piece(torso,orb,h,[.045,.057,.05],
+          [-.145+Math.sin(n*.7)*.024,1.67-n*.095,-.27-n*.01]);
       piece(torso,softCube,h,[.28,.08,.06],[0,1.858,.169]); break;
   }
 }
 
 function dressTorso(torso:THREE.Group,person:NeighborProfile):void {
   const {clothes:c,accent:a,outfit} = person;
-  piece(torso,softCube,c,[outfit==='coat'?.59:.54,.62,.31],[0,1.12,0]);
+  // Sculpted, gently tapered torso rather than a squared-off toy box.
+  sculpt(torso,loft([
+    [.755,.155,.123], [.85,.21,.143], [1.035,.245,.154],
+    [1.285,outfit==='coat'?.285:.245,.163],
+    [1.43,.192,.123], [1.49,.092,.075],
+  ],20,18,(x,y,z,a)=>[x,y,z+.009*Math.cos(a*3+y*18)]),c,'fabric',false);
   piece(torso,softCube,person.trousers,[.45,.20,.29],[0,.78,0]);
   if (outfit==='dress') {
     piece(torso,drum,c,[.38,.30,.32],[0,.74,0]);
@@ -130,15 +159,53 @@ function resident(index:number):NeighborRig {
   const headVisual=new THREE.Group();
   headVisual.position.y=-1.575;
   head.add(headVisual);
-  piece(headVisual,orb,p.skin,[.225,.268,.225],[0,1.69,.012]);
+  // Anatomical face profile, the same sculpt/eye technology as Vlad and
+  // Alina. Each neighbor keeps a distinct skin, hair and iris palette.
+  const face=new THREE.Group();
+  face.position.set(0,1.695,0);
+  headVisual.add(face);
+  const cheek=new THREE.Color(p.skin).lerp(new THREE.Color(0xe7a18c),.18);
+  const skin=new THREE.Color(p.skin);
+  sculpt(face,loft([
+    [-.238,.064,.085,.014],[-.185,.158,.126,.016],
+    [-.102,.201,.178,.016],[-.014,.218,.212,.009],
+    [.095,.198,.180,-.003],[.180,.151,.120,-.018],
+    [.235,.072,.061,-.030],
+  ],26,25,(x,y,z,a)=>{
+    const front=Math.max(0,Math.cos(a));
+    const bridge=Math.exp(-((x/.037)**2)-(((y+.045)/.072)**2));
+    const jaw=Math.max(0,-y-.09)*.065*Math.abs(Math.sin(a));
+    return [x+Math.sign(x)*jaw,y,z+front*bridge*.026];
+  },(color,a,y)=>{
+    const blush=Math.max(0,Math.cos(a))*.18*Math.exp(-(((y+.090)/.065)**2));
+    color.copy(skin).lerp(cheek,blush);
+  }),0xffffff,'skin',false);
+  for(const side of [-1,1]) {
+    piece(headVisual,orb,p.skin,[.035,.058,.028],[side*.202,1.634,.003]);
+    const eye=new THREE.Group();
+    eye.position.set(side*.080,1.710,.226);
+    eye.rotation.y=side*.18;
+    headVisual.add(eye);
+    const iris=['#607970','#7b8764','#6c7a94','#987353','#70848c'][index%5];
+    makeEye(eye,.040,.019,.017,{
+      iris,edge:'#513c36',white:'#f5ebe0',pupil:.49,human:true,
+    });
+    const x=side*.080;
+    sculptedCurve(headVisual,[
+      [x-side*.040,1.760,.220],[x,1.769,.227],
+      [x+side*.038,1.760,.218],
+    ],.007,.0025,p.hair,.66,false);
+    piece(headVisual,orb,0xdca18f,[.045,.021,.010],[side*.135,1.632,.192]);
+  }
+  piece(headVisual,orb,p.skin,[.034,.045,.055],[0,1.637,.242]);
+  sculptedCurve(headVisual,[
+    [-.044,1.566,.194],[-.019,1.561,.220],[0,1.557,.225],
+    [.019,1.561,.220],[.044,1.566,.194],
+  ],.004,.0015,0x9b6158,.68,false);
   makeHair(headVisual,p);
-  for(const x of [-.080,.080])
-    piece(headVisual,orb,0x302d2b,[.019,.023,.013],[x,1.704,.223]);
-  piece(headVisual,orb,p.skin,[.032,.035,.046],[0,1.63,.243]);
-  piece(headVisual,softCube,0x8b5850,[.057,.010,.008],[0,1.557,.22]);
   batchRigidParts(headVisual,true);
-  // A movable skin-colored lid covers both eyes for brief natural blinks.
-  const eyelids=piece(headVisual,softCube,p.skin,[.232,.002,.022],[0,1.705,.245]);
+  // Blinking remains independent of face and eye batching.
+  const eyelids=piece(headVisual,softCube,p.skin,[.242,.002,.022],[0,1.709,.270]);
   eyelids.name='neighbor-eyelids';
   eyelids.visible=false;
 
@@ -155,33 +222,52 @@ function resident(index:number):NeighborRig {
     const arm=limbs[key], elbow=elbows[joint];
     arm.name='neighbor-'+key;
     arm.position.set(side*.333,1.40,0);
-    piece(arm,softCube,p.clothes,[.163,.345,.189],[0,-.155,0]);
+    sculpt(arm,loft([
+      [-.33,.072,.081],[-.29,.088,.093],[-.17,.094,.10],
+      [-.04,.102,.110],[.035,.080,.082],
+    ],14,13),p.clothes,'fabric',false);
     elbow.name='neighbor-'+joint;
     elbow.position.set(0,-.30,0);
-    piece(elbow,softCube,p.clothes,[.147,.265,.175],[0,-.114,0]);
+    sculpt(elbow,loft([
+      [-.26,.063,.071],[-.20,.076,.080],
+      [-.09,.086,.088],[.04,.082,.09],
+    ],14,12),p.clothes,'fabric',false);
     piece(elbow,orb,p.skin,[.085,.10,.095],[0,-.263,.017]);
     arm.add(elbow);
     torso.add(arm);
   }
+  const tote=new THREE.Group();
+  // The canvas bag is for social outings, not gardening or drinking tea.
   if(p.accessory==='tote') {
-    // Fabric shopping bag follows the swinging hand without clipping the torso.
-    piece(elbows.leftElbow,softCube,p.accent,[.27,.29,.095],[-.065,-.44,.095]);
+    piece(tote,softCube,p.accent,[.27,.29,.095],[-.065,-.44,.095]);
     for(const x of [-.16,.03])
-      piece(elbows.leftElbow,softCube,0x755d4f,[.035,.22,.045],[x,-.252,.095]);
+      piece(tote,softCube,0x755d4f,[.035,.22,.045],[x,-.252,.095]);
   }
+  tote.visible=false;
+  elbows.leftElbow.add(tote);
   for(const [side,key,joint,footKey] of [
     [-1,'leftLeg','leftKnee','leftFoot'],[1,'rightLeg','rightKnee','rightFoot']
   ] as const) {
     const leg=limbs[key], knee=knees[joint], foot=feet[footKey];
     leg.name='neighbor-'+key;
     leg.position.set(side*.15,.76,0);
-    piece(leg,softCube,p.trousers,[.178,.39,.20],[0,-.18,0]);
+    sculpt(leg,loft([
+      [-.38,.079,.091],[-.31,.087,.102],[-.15,.096,.105],
+      [.02,.096,.114],[.105,.078,.083],
+    ],16,15),p.trousers,'fabric',false);
     knee.name='neighbor-'+joint;
     knee.position.set(0,-.36,0);
-    piece(knee,softCube,p.trousers,[.164,.345,.19],[0,-.157,0]);
+    sculpt(knee,loft([
+      [-.33,.076,.093],[-.25,.077,.092],[-.09,.083,.105],
+      [.045,.087,.099],
+    ],16,14),p.trousers,'fabric',false);
     foot.name='neighbor-'+footKey;
     foot.position.set(0,-.335,0);
-    piece(foot,softCube,index%2?0x353537:0x675447,[.197,.10,.335],[0,-.035,.081]);
+    sculpt(foot,loft([
+      [-.090,.073,.155,.058],[-.070,.089,.163,.060],
+      [-.032,.084,.146,.054],[.015,.067,.108,.017],
+      [.060,.055,.074,0],
+    ],16,12),index%2?0x353537:0x675447,'leather',false);
     knee.add(foot);
     leg.add(knee);
     root.add(leg);
@@ -192,6 +278,29 @@ function resident(index:number):NeighborRig {
   batchRigidParts(torso,true);
   const phone=piece(elbows.rightElbow,cube,0x3a474c,[.095,.165,.022],[0,-.275,.095]);
   phone.visible=false;
+
+  // Small, explicit action props, carried on the existing articulated joints.
+  const wateringCan=new THREE.Group();
+  wateringCan.position.set(.02,-.39,.095);
+  piece(wateringCan,drum,0x799889,[.135,.165,.137],[0,.04,0]);
+  piece(wateringCan,drum,0x799889,[.035,.20,.037],[.14,.10,.045]).rotation.z=1.03;
+  piece(wateringCan,orb,0xd2d9b9,[.075,.041,.071],[.19,.14,.07]);
+  wateringCan.visible=false;
+  elbows.rightElbow.add(wateringCan);
+  const cup=new THREE.Group();
+  cup.position.set(.02,-.38,.13);
+  piece(cup,drum,0xe9d7b9,[.088,.102,.088],[0,.04,0]);
+  piece(cup,orb,0xc79b6e,[.025,.036,.025],[.09,.045,0]);
+  cup.visible=false;
+  elbows.rightElbow.add(cup);
+  const letter=piece(elbows.rightElbow,cube,0xf5e5c8,[.15,.09,.017],[.04,-.345,.18]);
+  letter.visible=false;
+  const marketBag=new THREE.Group();
+  marketBag.position.set(-.025,-.42,.1);
+  piece(marketBag,softCube,0xc8ab7c,[.19,.27,.11],[0,-.035,0]);
+  for(const x of [-.075,.075])piece(marketBag,softCube,0xe9d7b2,[.02,.19,.02],[x,.13,0]);
+  marketBag.visible=false;
+  elbows.leftElbow.add(marketBag);
 
   // ArtKit.finish caches globally shared materials. Clone them ONCE for this
   // particular person before animating opacity; never fade household objects
@@ -205,7 +314,7 @@ function resident(index:number):NeighborRig {
     if(!local) { local=original.clone(); copies.set(original,local); materials.push(local); }
     child.material=local;
   });
-  return {root,torso,head,eyelids,phone,materials,...limbs,...elbows,...knees,...feet};
+  return {root,torso,head,eyelids,phone,wateringCan,cup,letter,marketBag,tote,materials,...limbs,...elbows,...knees,...feet};
 }
 
 function setFade(rig:NeighborRig,alpha:number):void {
@@ -225,6 +334,16 @@ function setFade(rig:NeighborRig,alpha:number):void {
 export class NeighborPeople {
   readonly group=new THREE.Group();
   private readonly rigs=NEIGHBORS.map((_,i)=>resident(i));
+  private doors: THREE.Group[]=[];
+
+  bindDoors(scene: THREE.Scene):void {
+    this.doors=NEIGHBOR_HOMES.map(home=>{
+      const door=scene.getObjectByName('neighbor-door-'+home.id);
+      if(!(door instanceof THREE.Group))
+        throw new Error('Missing animated neighbor door '+home.id);
+      return door;
+    });
+  }
 
   constructor() {
     this.group.name='Прогуливающиеся соседи';
@@ -234,18 +353,28 @@ export class NeighborPeople {
 
   update(gameMinute:number):void {
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,gameMinute));
     for(const [i,rig] of this.rigs.entries()) {
-      const pose=neighborPose(i,gameMinute);
+      const pose=poses[i];
       rig.root.visible=pose.visible;
       if(!pose.visible)continue;
-      rig.root.position.set(pose.x,.03,pose.z);
+      // The public stone paving sits 13cm above the garden lawn. Blend their
+      // elevations at each footpath instead of floating around the cottages.
+      const pathDist=Math.min(Math.abs(pose.x+17.50),Math.abs(pose.x-23.50),Math.abs(pose.z+15.35));
+      const lawn=THREE.MathUtils.smoothstep(pathDist,.9,2.5);
+      rig.root.position.set(pose.x,.03-.136*lawn,pose.z);
       rig.root.rotation.y=pose.yaw;
       setFade(rig,pose.opacity);
-      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i);
+      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,!!pose.carrying);
+    }
+    // The hinge opens before a resident appears and closes once they are
+    // safely away; no tiny twitch when their fade is near zero.
+    for(const [i,door] of this.doors.entries()) {
+      door.rotation.y=-1.08*neighborDoorOpen(i,gameMinute,NEIGHBORS.length);
     }
   }
 
-  private animateRig(rig:NeighborRig,action:NeighborAction,blend:number,t:number,index:number):void {
+  private animateRig(rig:NeighborRig,action:NeighborAction,blend:number,t:number,index:number,carrying=false):void {
     // A smaller stride plus knee flex and ankle roll replaces the old rigid,
     // marching legs. Every angle is computed from the shared game clock.
     const profile=NEIGHBORS[index];
@@ -322,6 +451,32 @@ export class NeighborPeople {
       re=THREE.MathUtils.lerp(re,-.20,blend);
       headX=THREE.MathUtils.lerp(headX,.11,blend);
       headY=THREE.MathUtils.lerp(headY,.17,blend);
+    } else if(action==='water') {
+      // Lean toward the flowerbed and tip a real watering can.
+      lx=THREE.MathUtils.lerp(lx,-.36,blend);
+      rx=THREE.MathUtils.lerp(rx,-.60+Math.sin(t*1.3)*.065,blend);
+      re=THREE.MathUtils.lerp(re,-.59,blend);
+      rz=THREE.MathUtils.lerp(rz,-.32,blend);
+      headX=THREE.MathUtils.lerp(headX,.19,blend);
+      headY=THREE.MathUtils.lerp(headY,.13,blend);
+    } else if(action==='sip') {
+      // Cup rises to the mouth for a few sips, then relaxes slightly.
+      const sip=.5+.5*Math.sin(t*.88+index);
+      rx=THREE.MathUtils.lerp(rx,-.38-sip*.15,blend);
+      re=THREE.MathUtils.lerp(re,-1.01-sip*.15,blend);
+      rz=THREE.MathUtils.lerp(rz,-.22,blend);
+      headX=THREE.MathUtils.lerp(headX,.08+sip*.025,blend);
+      lx=THREE.MathUtils.lerp(lx,-.16,blend);
+    } else if(action==='mail') {
+      rx=THREE.MathUtils.lerp(rx,-.48,blend);
+      re=THREE.MathUtils.lerp(re,-.83,blend);
+      rz=THREE.MathUtils.lerp(rz,-.18,blend);
+      headX=THREE.MathUtils.lerp(headX,.18,blend);
+      headY=THREE.MathUtils.lerp(headY,.06*Math.sin(t*.6+index),blend);
+    } else if(action==='carry') {
+      lx=THREE.MathUtils.lerp(lx,-.19,blend);
+      le=THREE.MathUtils.lerp(le,-.20,blend);
+      headY=THREE.MathUtils.lerp(headY,-.13,blend);
     } else if(action==='stretch') {
       // Brief shoulder stretch, deliberately subtler than a workout animation.
       lz=THREE.MathUtils.lerp(lz,1.15,blend);
@@ -341,6 +496,12 @@ export class NeighborPeople {
     rig.rightElbow.rotation.set(re,0,rez);
     rig.head.rotation.set(headX,headY,headZ);
     rig.phone.visible=action==='phone'&&blend>.10;
+    rig.wateringCan.visible=action==='water'&&blend>.12;
+    rig.wateringCan.rotation.z=-.25-.3*Math.sin(t*1.2);
+    rig.cup.visible=action==='sip'&&blend>.12;
+    rig.letter.visible=action==='mail'&&blend>.12;
+    rig.marketBag.visible=carrying||action==='carry'&&blend>.12;
+    rig.tote.visible=profile.accessory==='tote' && (carrying||action==='chat'&&blend>.1);
 
     // A quick eyelid closure once every few seconds. No new geometries or
     // textures are allocated per frame.

@@ -200,7 +200,8 @@ export class World {
     this.controls.touches.ONE = THREE.TOUCH.PAN;
     this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     this.controls.enablePan = true;
-    this.controls.maxTargetRadius = 18;
+    // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
+    this.controls.maxTargetRadius = 46;
     this.controls.minDistance = 10;
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
     this.controls.minPolarAngle = 0.24;
@@ -1234,6 +1235,7 @@ export class World {
     this.entryLeaf = decorateHome(this.scene);
     buildHomeWing(this.scene);
     buildNeighborhood(this.scene);
+    this.neighbors.bindDoors(this.scene);
     this.scene.add(this.neighbors.group);
     this.neighbors.group.visible = true;
     this.yard = buildYard(this.scene);
@@ -1643,6 +1645,7 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
+    this.controls.maxTargetRadius = place === 'home' ? 46 : 18;
     this.controls.enablePan = place === 'home' || place === 'street' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameShadows(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? 74 : 51;
