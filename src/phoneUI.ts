@@ -86,7 +86,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if(app==='autonomy'){
       const scroll=info.scrollTop;
       const intro=block('🧠 Живая повседневность',
-        '«Выключена» сохраняет поведение 0.16: редкие прогулки по дому и помощь при критических потребностях. Новые режимы дают больше самостоятельности; команды игрока главнее. Покупок и рабочих смен без разрешения нет.');
+        '«Выключена» оставляет спокойную повседневность: редкие прогулки и помощь лишь при крайней необходимости. Другие режимы дают больше самостоятельности. Твои команды всегда главнее; покупки и рабочие смены остаются под твоим контролем.');
       intro.classList.add('autonomy-phone-intro');
       const cards=(['vlad','alina'] as const).map(id=>{
         const current=block(names[id]+' · '+AUTONOMY_LABELS[state.autonomy[id]],'');

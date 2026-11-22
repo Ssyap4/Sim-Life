@@ -107,7 +107,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.20 · ВИЗУАЛЬНЫЙ ПРЕДПРОСМОТР</div>
+      <div class="version">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -129,7 +129,7 @@ app.innerHTML = `
     <div class="status-line" id="status" role="status">Подключение к общему дому…</div>
     <div class="showcase-ui">
       <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
-      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false" aria-label="Посмотреть модели"><span aria-hidden="true">🔎</span><span class="hud-label" id="showcase-label"> Посмотреть модели</span></button>
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false" aria-label="Рассмотреть героев"><span aria-hidden="true">🔎</span><span class="hud-label" id="showcase-label"> Рассмотреть героев</span></button>
       <div id="showcase-choices" class="showcase-choices" hidden>
         <button type="button" data-showcase="vlad">👨 Влад</button>
         <button type="button" data-showcase="alina">👩 Алина</button>
@@ -192,11 +192,11 @@ app.innerHTML = `
         <button data-role="alina" class="role-option" type="button">🌸 <b>Алина</b><span>Мастер реконструкции</span></button>
       </div>
       <label for="access-code">Личный код персонажа</label>
-      <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Код из server-data/access.json" autocomplete="off" required />
+      <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Введи личный код" autocomplete="off" required />
       <label class="remember-device"><input type="checkbox" id="remember-device"> Запомнить вход на этом устройстве</label>
       <button class="enter-button" type="submit" disabled>Войти в общий дом</button>
-      <p class="auth-status" id="auth-status">Коды созданы на компьютере в D:\\Sim-Life\\server-data\\access.json</p>
-      <small>Доступен по домашней Wi-Fi сети. Пока не публикуй адрес сервера в интернете.</small>
+      <p class="auth-status" id="auth-status">Выбери персонажа и введи личный код</p>
+      <small>Ваш общий дом доступен в домашней сети.</small>
     </form>
   </section>
   <div class="rotate-notice">Для Sim-Life поверни телефон вертикально ↻</div>
@@ -254,7 +254,7 @@ function focusModel(id: CharacterId | PetId | null): void {
     item.classList.toggle('selected', item.dataset.showcase === (id ?? 'home'));
   });
   const label = document.querySelector<HTMLElement>('#showcase-label')!;
-  label.textContent = id === null ? ' Посмотреть модели'
+  label.textContent = id === null ? ' Рассмотреть героев'
     : ' ' + (id === 'vlad' || id === 'alina' ? names[id] : PETS[id].name);
   world.showcase(id);
 }
@@ -463,7 +463,7 @@ function renderNeeds(): void {
     if(role===active){
       const note=document.createElement('small');
       note.className='autonomy-note';
-      note.textContent='«Выключена» — прежняя игра 0.16: редкие прогулки и помощь при критических потребностях. Покупки и работу персонаж не начинает сам.';
+      note.textContent='«Выключена» — спокойный ритм: редкие прогулки и помощь только при очень сильной необходимости. Покупки и работу персонаж не начинает сам.';
       group.append(note);
     }
     for (const need of VITAL_NEEDS) {
@@ -1537,7 +1537,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     });
     window.addEventListener('pagehide', () => net.stop());
     document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
-    showStatus('Проверяем режим входа…');
+    showStatus('Подключаемся к дому…');
     try{
       const health=await fetch('/health',{cache:'no-store'});
       if(health.ok){
@@ -1549,7 +1549,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           accessInput.hidden=true;
           document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
           document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
-          authStatusEl.textContent='Тестовая версия: выбери Влада или Алину и нажми «Войти без кода»';
+          authStatusEl.textContent='Выбери героя, чтобы вернуться домой';
         }else authStatusEl.textContent='Выбери персонажа и введи личный код';
       }
     }catch{authStatusEl.textContent='Выбери персонажа и введи личный код';}
@@ -1557,7 +1557,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {
     console.error(error);
-    showStatus('Не удалось запустить 3D. Проверь WebGL и поддержку браузера.');
+    showStatus('Не удалось открыть игру. Попробуй обновить страницу или использовать другой браузер.');
   }
 }
 

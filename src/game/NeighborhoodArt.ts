@@ -239,7 +239,7 @@ function cottage(root: Root, home: Home, index: number): void {
 
 export function buildNeighborhood(scene: THREE.Scene): void {
   const root = new THREE.Group();
-  root.name = '0.19 · four backyard neighborhood homes and daily-life residents';
+  root.name = 'Four neighboring homes and their residents';
   const walkwayZ=NEIGHBOR_PATH[0].z;
   part(root,cube,[140,.515,140],[0,-.395,0],0x94a780);
   const grassMap=turfTexture();
