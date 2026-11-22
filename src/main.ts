@@ -34,6 +34,8 @@ import './mobile-polish.css';
 import './queue-ui.css';
 import './minimal-hud.css';
 import './visual-polish-020.css';
+import './mobile-controls-020.css';
+import { installMobileInput } from './mobileInput';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -195,6 +197,8 @@ app.innerHTML = `
   </section>
   <div class="rotate-notice">Для Sim-Life поверни телефон вертикально ↻</div>
 `;
+
+installMobileInput(app);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;

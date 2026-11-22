@@ -19,6 +19,7 @@ import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOU
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { diningSurface, tabletopPoint } from '../shared/diningSurface';
@@ -78,8 +79,6 @@ const homePosition = new THREE.Vector3(15, 19, 22);
 const locationTarget = new THREE.Vector3(0, 1.45, 0);
 const portraitAspect = 390 / 844;
 const compactPortraitQuery = '(max-width: 640px) and (orientation: portrait)';
-const tapSlop = 9;
-const minTwistSpanSquared = 16 ** 2;
 
 type Frame = { position: THREE.Vector3; target: THREE.Vector3 };
 
@@ -202,7 +201,9 @@ export class World {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.065;
     this.controls.touches.ONE = THREE.TOUCH.PAN;
-    this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+    // Pinch zoom + two-finger pan. Rotation comes only from the explicit
+    // twist handler below, so a slightly uneven pinch cannot rotate twice.
+    this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     this.controls.enablePan = true;
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 46;
@@ -273,65 +274,54 @@ export class World {
   }
 
   private bindCanvasInput(): void {
-    const touches = new Map<number, { x: number; y: number }>();
-    let tap: { id: number; x: number; y: number } | null = null;
-    const tapDistance = (event: PointerEvent, start: { x: number; y: number }) =>
-      Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    const gate = new CanvasGestureGate();
+    const contact = (event: PointerEvent): PointerContact => ({
+      id: event.pointerId, x: event.clientX, y: event.clientY,
+      type: event.pointerType === 'touch' ? 'touch' :
+        event.pointerType === 'pen' ? 'pen' : 'mouse',
+      primary: event.isPrimary, button: event.button, time: event.timeStamp,
+    });
 
     this.canvas.addEventListener('pointerdown', event => {
       const touch = event.pointerType === 'touch';
-      if (touch) touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      gate.down(contact(event));
       if (event.isPrimary) {
-        // Enable touch panning in every location while keeping the mouse controls for the current scene.
         this.controls.enablePan = touch || this.place === 'home';
         this.controls.dampingFactor = touch ? .22 : .065;
       }
-      tap = event.isPrimary && event.button === 0 && touches.size === (touch ? 1 : 0)
-        ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
     }, { capture: true });
 
+    // IMPORTANT: capture before OrbitControls' document-level move handler.
+    // stopPropagation on a bubble listener was too late: small finger tremors
+    // already panned the camera while the touch still counted as a tap.
     this.canvas.addEventListener('pointermove', event => {
-      const point = touches.get(event.pointerId);
-      if (tap?.id === event.pointerId) {
-        if (tapDistance(event, tap) >= tapSlop) tap = null;
-        else if (point) {
-          // Let a tap absorb small finger movements before OrbitControls starts panning.
-          event.stopPropagation();
-          return;
-        }
+      const motion = gate.move(contact(event));
+      if (motion.holdTap) {
+        event.stopPropagation();
+        return;
       }
-      if(!point && this.furnishingGhost && event.pointerType==='mouse' &&
-          performance.now()-this.lastFurnitureHover>125){
-        this.lastFurnitureHover=performance.now();
-        this.previewFurnitureAt(event.clientX,event.clientY);
+      if (motion.twistRadians)
+        this.controls.rotateLeft(-motion.twistRadians);
+      if (event.pointerType === 'mouse' && this.furnishingGhost &&
+          performance.now() - this.lastFurnitureHover > 125) {
+        this.lastFurnitureHover = performance.now();
+        this.previewFurnitureAt(event.clientX, event.clientY);
       }
-      if (!point) return;
-      if (touches.size === 2) {
-        const [first, second] = touches.values();
-        const other = first === point ? second : first;
-        const ax = point.x - other.x, ay = point.y - other.y;
-        const bx = event.clientX - other.x, by = event.clientY - other.y;
-        // OrbitControls handles the two-finger drag and pinch. Also honor a twist in place.
-        if (ax * ax + ay * ay >= minTwistSpanSquared && bx * bx + by * by >= minTwistSpanSquared) {
-          const angle = Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
-          if (angle) this.controls.rotateLeft(-angle);
-        }
-      }
-      point.x = event.clientX;
-      point.y = event.clientY;
-    });
+    }, { capture: true });
 
-    const clearPointer = (event: PointerEvent) => {
-      touches.delete(event.pointerId);
-      if (tap?.id === event.pointerId) tap = null;
-    };
     this.canvas.addEventListener('pointerup', event => {
-      const picked = tap?.id === event.pointerId && tapDistance(event, tap) < tapSlop;
-      clearPointer(event);
-      if (picked) this.pick(event.clientX, event.clientY);
-    });
-    this.canvas.addEventListener('pointercancel', clearPointer);
-    this.canvas.addEventListener('lostpointercapture', clearPointer);
+      const picked = gate.up(contact(event));
+      if (picked) {
+        // Let OrbitControls finish releasing capture before opening an item
+        // menu or sending a walking command. No visible tap delay.
+        const { clientX, clientY } = event;
+        queueMicrotask(() => this.pick(clientX, clientY));
+      }
+    }, { capture: true });
+
+    const cancel = (event: PointerEvent) => gate.cancel(event.pointerId);
+    this.canvas.addEventListener('pointercancel', cancel, { capture: true });
+    this.canvas.addEventListener('lostpointercapture', cancel);
   }
 
   setActive(id: CharacterId): void {
