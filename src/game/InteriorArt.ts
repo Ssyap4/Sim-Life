@@ -452,5 +452,3 @@ export function buildSoftRugs(scene: THREE.Scene,
     registerFixture(style==='living'?'rugLiving':style==='work'?'rugWork':'rugSleep',model);
   }
 }
-
-\n
