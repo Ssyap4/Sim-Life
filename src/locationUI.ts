@@ -140,8 +140,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       options.append(element('small', '', 'Занято ячеек: ' + capacity + ' · Выбери ингредиент'));
       if (kind === 'fridge') {
         options.append(element('strong', '', '🍲 Готовая еда'));
-        options.append(element('small', '', 'Каждая порция занимает ' + READY_FOOD_SLOTS +
-          ' ячейки. Срок — 2–3 игровых дня. Испорченные порции исчезают автоматически.'));
+        options.append(element('small', '', 'Только продукты, действительно убранные сюда, занимают ' +
+          READY_FOOD_SLOTS + ' ячейки за порцию. Холод замедляет порчу, но не делает старую еду новой.'));
         const groups = (location: 'fridge' | 'table') => {
           const grouped = new Map<string, ReadyFoodBatch>();
           for (const batch of place.readyFood) {
@@ -159,6 +159,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           const name = readyFoodName(batch.kind, batch.item);
           options.append(element('small', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
             ' · ' + batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
+          options.append(button('🍽️ Достать 1 порцию на стол', () =>
+            send({ type: 'ready_food_serve', kind: batch.kind, item: batch.item }),
+            readyFoodTableUsage(place)>=TABLE_READY_CAPACITY));
           options.append(button('🗑️ Выбросить 1 порцию', () =>
             send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'fridge' })));
         }

@@ -1,6 +1,7 @@
-import { GAME_MINUTES_PER_REAL_SECOND } from './life';
+import { livingNeighborPose } from './neighborLife';
+export { neighborVisits, neighborDoorOpen } from './neighborLife';
 
-export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch';
+export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' | 'water' | 'sip' | 'mail' | 'carry';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';
 export type OutfitStyle = 'hoodie' | 'jacket' | 'coat' | 'sweater' | 'dress' | 'shirt' | 'vest' | 'overalls';
 export type AccessoryStyle = 'none' | 'backpack' | 'tote';
@@ -10,6 +11,7 @@ export interface NeighborPose {
   opacity: number;
   /** 0 walking, 1 fully settled in a gesture; blends at both ends. */
   gestureBlend: number;
+  carrying?: boolean;
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;
@@ -48,86 +50,11 @@ const side = NEIGHBOR_PATH[0].z - NEIGHBOR_PATH[1].z;
 const rear = NEIGHBOR_PATH[2].x - NEIGHBOR_PATH[1].x;
 export const NEIGHBOR_ROUTE_LENGTH = side * 2 + rear;
 
-const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-const smooth = (t: number) => { const x = clamp01(t); return x * x * (3 - 2 * x); };
-const fadeBetween = (value:number, start:number, end:number) => smooth((value - start) / (end - start));
-const spent = (time:number, start:number, end:number) => Math.max(0, Math.min(time - start, end - start));
-
-/** Restrict crowd density smoothly around day/night schedule transitions. */
-function dailyVisibility(slot:number, minute:number):number {
-  if (slot === 0) return 1;
-  if (slot < 4) return fadeBetween(minute,360,365) * (1 - fadeBetween(minute,1315,1320));
-  if (slot === 4) return fadeBetween(minute,540,545) * (1 - fadeBetween(minute,1315,1320));
-  return fadeBetween(minute,540,545) * (1 - fadeBetween(minute,1075,1080));
-}
-
-function routePoint(metres:number) {
-  const distance = Math.max(0, Math.min(NEIGHBOR_ROUTE_LENGTH, metres));
-  if (distance <= side) return { x: NEIGHBOR_PATH[0].x, z: NEIGHBOR_PATH[0].z - distance };
-  if (distance <= side + rear) return { x: NEIGHBOR_PATH[1].x + distance - side, z: NEIGHBOR_PATH[1].z };
-  return { x: NEIGHBOR_PATH[2].x, z: NEIGHBOR_PATH[2].z + distance - side - rear };
-}
-
-function pathPosition(fraction:number, reverse:boolean, lane:number) {
-  const routeDistance = (reverse ? 1-fraction : fraction) * NEIGHBOR_ROUTE_LENGTH;
-  const base = routePoint(routeDistance);
-  const from = routePoint(Math.max(0, routeDistance - .55));
-  const to = routePoint(Math.min(NEIGHBOR_ROUTE_LENGTH, routeDistance + .55));
-  const sign = reverse ? -1 : 1;
-  const dx = (to.x-from.x)*sign, dz=(to.z-from.z)*sign;
-  const length = Math.hypot(dx,dz) || 1;
-  const tangentX = dx / length, tangentZ = dz / length;
-  return { x: base.x + lane*tangentZ, z: base.z - lane*tangentX,
-    yaw: Math.atan2(tangentX,tangentZ) };
-}
-
-/** Visual-only, reproducible by both connected clients. Each lane has two
- * different people: the first fades away before the other enters next trip.
- * No reversing/teleporting is ever visible to a player. */
-export function neighborPose(index: number, gameMinute: number): NeighborPose {
-  const person = NEIGHBORS[index];
-  const hidden: NeighborPose = { x:0,z:0,yaw:0,action:'look',visible:false,opacity:0,gestureBlend:0 };
-  if (!person || !Number.isFinite(gameMinute)) return hidden;
-  const slot = index % NEIGHBOR_SLOT_COUNT;
-  const seconds = gameMinute / GAME_MINUTES_PER_REAL_SECOND;
-  // Two opposite walkers can meet in the middle of the rear sidewalk.
-  const offset = slot < 2 ? 0 : slot * 13.9;
-  const time = seconds + offset;
-  const cycle = Math.floor(time / NEIGHBOR_TRIP_SECONDS);
-  const phase = time - cycle * NEIGHBOR_TRIP_SECONDS;
-  const variant = Math.floor(index / NEIGHBOR_SLOT_COUNT);
-  if (((cycle % 2) + 2) % 2 !== variant) return hidden;
-  const dayMinute = ((gameMinute % 1440) + 1440) % 1440;
-  const schedule = dailyVisibility(slot, dayMinute);
-  if (schedule <= 0) return hidden;
-
-  const paired = slot < 2;
-  // Conversations and brief street gestures stop forward travel, not just
-  // the animated feet. This avoids sliding NPCs during idle animations.
-  const lost = paired ? spent(phase,44,56)
-    : spent(phase,29,34) + spent(phase,65,69);
-  const movingTime = paired ? 88 : 91;
-  const fraction = clamp01((phase - lost) / movingTime);
-  const reverse = slot === 1 || (slot > 1 && (slot + cycle) % 2 === 1);
-  // Both directions keep their own physical side of the 1.8m pavement.
-  // pathPosition reverses its tangent for oncoming residents, so a positive
-  // lane offset separates them; per-slot variation avoids marching rows.
-  const lane = paired ? .30 : .47 + ((slot % 3) - 1) * .075;
-  const pose = pathPosition(fraction,reverse,lane);
-  if (paired) {
-    const nearMeeting = smooth((fraction-.41)/.09) * (1 - smooth((fraction-.5)/.09));
-    pose.x += (slot === 0 ? -.70 : .70) * nearMeeting;
-    if (phase >= 44 && phase < 56) pose.yaw = slot === 0 ? Math.PI/2 : -Math.PI/2;
-  }
-  const travelFade = smooth(Math.min(fraction,1-fraction) * NEIGHBOR_ROUTE_LENGTH / NEIGHBOR_FADE_METERS);
-  const opacity = travelFade * schedule;
-  const chatBlend = paired ? smooth((phase - 42.4)/1.6) * (1 - smooth((phase - 55.2)/2.2)) : 0;
-  const firstBlend = !paired ? smooth((phase - 27.5)/1.5) * (1 - smooth((phase - 33.2)/2.5)) : 0;
-  const secondBlend = !paired ? smooth((phase - 63.5)/1.5) * (1 - smooth((phase - 68.2)/2.4)) : 0;
-  const gestureBlend = Math.max(chatBlend,firstBlend,secondBlend);
-  const action:NeighborAction = paired ? phase >= 42.4 && phase < 57.4 ? 'chat' : 'walk'
-    : phase >= 27.5 && phase < 35.7 ? (slot % 3 === 0 ? 'adjust' : slot % 3 === 1 ? 'phone' : 'look')
-    : phase >= 63.5 && phase < 70.6 ? (slot % 4 === 0 ? 'stretch' : slot % 4 === 1 ? 'wave' :
-      slot % 4 === 2 ? 'phone' : 'adjust') : 'walk';
-  return {...pose, action, opacity, gestureBlend, visible: opacity > .001};
+/**
+ * Daily schedules are deterministic from the synced household game clock;
+ * NPCs have a home, a reason to go out, and an actual return to the door.
+ * No additional server state or household progress is required.
+ */
+export function neighborPose(index:number,gameMinute:number):NeighborPose {
+  return livingNeighborPose(index,gameMinute,NEIGHBORS);
 }

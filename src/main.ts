@@ -93,7 +93,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.17 · ЖИВОЙ ДОМ</div>
+      <div class="version">0.18 · ЖИВОЙ ПРИГОРОД</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -1113,12 +1113,18 @@ function openPurchasedFurnitureActions(id:number):void{
   }
   if(info.shape==='table'&&info.height>=.63){
     showFoodChoices(actionsEl,'table',state,(type:FoodCommand,recipe)=>{
-      const ok=net.food(type,recipe,type==='eat'?id:undefined);
+      const ok=type==='store'
+        ? net.world({type:'ready_food_move',kind:'meal',item:recipe})
+        : net.food(type,recipe,type==='eat'?id:undefined);
       if(ok)actionsEl.hidden=true;
       return ok;
     }, active!);
     showTakeoutChoices(actionsEl,state,product=>{
       const ok=net.eatTakeout(product,id);
+      if(ok)actionsEl.hidden=true;
+      return ok;
+    },product=>{
+      const ok=net.world({type:'ready_food_move',kind:'takeout',item:product});
       if(ok)actionsEl.hidden=true;
       return ok;
     });
@@ -1157,6 +1163,7 @@ function openActions(item: ItemId): void {
   // heading. General hints, washing dishes and collaboration follow below.
   if(state&&active&&(item==='kitchen'||item==='grill')){
     showFoodChoices(actionsEl,item,state,(type:FoodCommand,id)=>{
+      if(type==='store')return false;
       const sent=net.food(type,id);
       if(sent){actionsEl.hidden=true;statusEl.textContent='Обрабатываем действие…';}
       return sent;
@@ -1204,7 +1211,9 @@ function openActions(item: ItemId): void {
   }
   if (state && (item === 'delivery' || item === 'table' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
-      const sent = net.food(type, id);
+      const sent = type==='store'
+        ? net.world({type:'ready_food_move',kind:'meal',item:id})
+        : net.food(type, id);
       if (sent) {
         actionsEl.hidden = true;
         statusEl.textContent = 'Обрабатываем действие…';
@@ -1225,6 +1234,10 @@ function openActions(item: ItemId): void {
     showTakeoutChoices(actionsEl,state,(id)=>{
       const sent=net.eatTakeout(id);
       if(sent) actionsEl.hidden=true;
+      return sent;
+    },(id)=>{
+      const sent=net.world({type:'ready_food_move',kind:'takeout',item:id});
+      if(sent)actionsEl.hidden=true;
       return sent;
     });
 

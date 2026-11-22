@@ -566,7 +566,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: result.reason });
         return;
       }
-      if (!automatic) awardActivity(result.state, role, plan.command, plan.label);
+      // Cooking is real practice even when initiated by household autonomy.
+      if (!automatic || plan.command.type==='cook')
+        awardActivity(result.state, role, plan.command, plan.label);
+      if(plan.command.type==='cook'){
+        const earned=result.state.education.characters[role].xp.cooking -
+          state.education.characters[role].xp.cooking;
+        if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
+      }
       try { files.save(result.state); }
       catch (error) {
         console.error('Could not persist completed task:', error);

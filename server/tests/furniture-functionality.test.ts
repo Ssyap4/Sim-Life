@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {initialState} from '../../src/shared/protocol';
+import { initialState } from '../../src/shared/protocol';
+import { addReadyFood } from '../../src/shared/readyFood';
 import {FURNITURE_BY_ID,type PlacedFurniture} from '../../src/shared/furniture';
 import {furnitureActionList,furnitureUseLocation,furnitureSource,canFurniturePerform,diningLocation} from '../../src/shared/furnitureUse';
 import {planTask,evaluateTask} from '../tasks';
@@ -51,6 +52,7 @@ test('dining on a replacement table is real food consumption, never a ghost at s
  assert.ok(canFurniturePerform(s.furnishing.placed[0],'tableRest'));
  const recipe=Object.keys(RECIPES)[0] as keyof typeof RECIPES;
  s.meals[recipe]=2;
+ addReadyFood(s,'meal',recipe,2,'table');
  const hungerBefore=s.characters.alina.hunger;
  const plan=planTask({type:'eat',recipe,furnitureId:1});
  assert.ok(plan);
@@ -114,6 +116,7 @@ test('a bought dining chair supplies a physical seat beside the replacement tabl
  assert.equal('chairId' in chair?chair.chairId:undefined,2);
  const recipe=Object.keys(RECIPES)[0] as keyof typeof RECIPES;
  s.meals[recipe]=2;
+ addReadyFood(s,'meal',recipe,2,'table');
  const result=evaluateTask(s,'vlad',{type:'eat',recipe,furnitureId:1});
  assert.ok(result.ok);
  assert.equal(result.state.characters.vlad.pose,'sit');

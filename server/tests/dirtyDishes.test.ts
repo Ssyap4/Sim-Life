@@ -22,7 +22,7 @@ import { planTask } from '../tasks';
 test('A finished indoor meal leaves exactly one dirty dish; failed food cannot create plates', () => {
   const state = initialState();
   state.meals.omelette = 2;
-  addReadyFood(state, 'meal', 'omelette', 2, 'fridge');
+  addReadyFood(state, 'meal', 'omelette', 2, 'table');
   assert.deepEqual(state.dirtyDishes, { table: 0, yardTable: 0 });
   const first = applyFoodAction(state, 'vlad', { type: 'eat', recipe: 'omelette' });
   assert.ok(first.ok);
@@ -39,12 +39,12 @@ test('A finished indoor meal leaves exactly one dirty dish; failed food cannot c
 test('Takeaway and grill leave dishes at their correct dining tables', () => {
   const state = initialState();
   state.takeout.pizzaCheese = 1;
-  addReadyFood(state, 'takeout', 'pizzaCheese', 1, 'fridge');
+  addReadyFood(state, 'takeout', 'pizzaCheese', 1, 'table');
   const takeaway = applyTakeoutMeal(state, 'alina', 'pizzaCheese');
   assert.ok(takeaway.ok);
   assert.deepEqual(takeaway.state.dirtyDishes, { table: 1, yardTable: 0 });
   takeaway.state.meals.grillChicken = 1;
-  addReadyFood(takeaway.state, 'meal', 'grillChicken', 1, 'fridge');
+  addReadyFood(takeaway.state, 'meal', 'grillChicken', 1, 'table');
   const grill = applyFoodAction(takeaway.state, 'vlad', { type: 'eat', recipe: 'grillChicken' });
   assert.ok(grill.ok);
   assert.deepEqual(grill.state.dirtyDishes, { table: 1, yardTable: 1 });

@@ -47,7 +47,7 @@ test('Each server-authoritative cooked meal places the right resident at their o
   state.characters.vlad.hunger = 12;
   state.characters.alina.hunger = 14;
   state.meals.omelette = 2;
-  addReadyFood(state, 'meal', 'omelette', 2, 'fridge');
+  addReadyFood(state, 'meal', 'omelette', 2, 'table');
   const first = applyFoodAction(state, 'vlad', { type: 'eat', recipe: 'omelette' });
   assert.ok(first.ok);
   const second = applyFoodAction(first.state, 'alina', { type: 'eat', recipe: 'omelette' });
@@ -65,7 +65,7 @@ test('Each server-authoritative cooked meal places the right resident at their o
 test('Ready food uses individual meal seats and animators relinquish control on cancel', () => {
   const state = initialState();
   state.takeout.pizzaCheese = 2;
-  addReadyFood(state, 'takeout', 'pizzaCheese', 2, 'fridge');
+  addReadyFood(state, 'takeout', 'pizzaCheese', 2, 'table');
   const first = applyTakeoutMeal(state, 'alina', 'pizzaCheese');
   assert.ok(first.ok);
   assert.deepEqual(

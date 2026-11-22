@@ -8,6 +8,7 @@ import WebSocket,{type RawData} from 'ws';
 import {startServer} from '../server';
 import {openServerFiles} from '../storage';
 import type {CharacterId,ServerPacket} from '../../src/shared/protocol';
+import { addReadyFood } from '../../src/shared/readyFood';
 import {RECIPES} from '../../src/shared/food';
 
 function next(ws:WebSocket,match:(p:ServerPacket)=>boolean,timeoutMs=7500):Promise<ServerPacket>{
@@ -79,7 +80,7 @@ test('two players see bought-table eating rather than invisible old dining table
  s.furnishing.placed=[{id:1,sku:'table-family',finish:'sage',x:2.39,z:-2.22,rotation:0}];
  s.furnishing.nextId=2;
  const meal=Object.keys(RECIPES)[0] as keyof typeof RECIPES;
- s.meals[meal]=2;s.characters.vlad.hunger=30;
+ s.meals[meal]=2;addReadyFood(s,'meal',meal,2,'table');s.characters.vlad.hunger=30;
  files.save(s);
  const server=await startServer({port:0,dataDir:dir,taskTimeScale:.03});
  const sockets:WebSocket[]=[];

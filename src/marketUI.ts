@@ -354,8 +354,11 @@ export function createMarketUI(
   };
 }
 
-export function showTakeoutChoices(container:HTMLElement,state:GameState,send:(id:TakeoutId)=>boolean):void {
-  const available=Object.entries(TAKEOUT).filter(([id])=>state.takeout[id as TakeoutId]>0);
+export function showTakeoutChoices(container:HTMLElement,state:GameState,
+  send:(id:TakeoutId)=>boolean, store?:(id:TakeoutId)=>boolean):void {
+  const available=Object.entries(TAKEOUT).filter(([id])=>
+    state.readyFood.some(batch=>batch.kind==='takeout'&&batch.item===id&&
+      batch.storage==='table'&&batch.portions>0&&batch.expiresAt>clockMinutes(state.clock)));
   if (!available.length) return;
   container.append(el('div','food-section-heading','🍕 Еда из доставки'));
   for (const [id,meal] of available) {
@@ -364,5 +367,9 @@ export function showTakeoutChoices(container:HTMLElement,state:GameState,send:(i
       ()=>send(mealId),'food-action');
     choice.title=TAKEOUT_DESCRIPTIONS[mealId];
     container.append(choice);
+    if(store){
+      const move=button('🧊 Убрать 1 порцию в холодильник',()=>store(mealId),'food-action');
+      container.append(move);
+    }
   }
 }

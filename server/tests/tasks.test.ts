@@ -136,6 +136,7 @@ test('Kitchen tasks lock the stove while the other player can care for a pet', a
     const kitchenStart = waitFor(ctx.vlad, p => p.type === 'task_started' && p.command.type === 'cook');
     send(ctx.vlad, { type: 'cook', recipe: 'omelette' });
     await kitchenStart;
+    const cooked=waitFor(ctx.vlad, p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed');
     const blocked = waitFor(ctx.alina, p => p.type === 'error');
     send(ctx.alina, { type: 'cook', recipe: 'salad' });
     assert.equal((await blocked).type, 'error');
@@ -147,7 +148,12 @@ test('Kitchen tasks lock the stove while the other player can care for a pet', a
     await petStart;
     const [v, a] = await Promise.all([finalV, finalA]);
     assert.deepEqual(v, a);
+    const cookResult=await cooked;
+    assert.equal(cookResult.type,'task_ended');
+    if(cookResult.type==='task_ended')assert.match(cookResult.message,/Кулинария \+\d+ XP/);
     if (v.type === 'snapshot') {
+      assert.ok(v.state.education.characters.vlad.xp.cooking>0,'real completed cooking awards skill XP');
+      assert.equal(v.state.readyFood[0].storage,'table','fresh food should arrive on table');
       assert.equal(v.state.money, 9905);
       assert.equal(v.state.pantry.eggs, 2);
       assert.equal(v.state.pantry.milk, 0);

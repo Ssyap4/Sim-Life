@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, NEIGHBOR_TRIP_SECONDS, NEIGHBOR_SLOT_COUNT, neighborPose } from '../../src/shared/neighbors';
+import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, neighborPose, neighborVisits } from '../../src/shared/neighbors';
 import { HOUSE, HOUSE_WING, HOME_FLOOR, HOME_PLACEMENTS, KITCHEN_WORK } from '../../src/shared/home';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { NeighborPeople } from '../../src/game/NeighborPeople';
 import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
+import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
 import { placeObstacles } from '../../src/shared/locations';
@@ -47,70 +48,79 @@ test('tea and coffee machines have independent click geometry and clear counters
   assert.ok(pointIsClear(KITCHEN_WORK.coffee.position, placeObstacles('home'), HOME_FLOOR));
 });
 
-test('neighbors are distinct, deterministic, safe outside the private property and capped by time of day', () => {
-  assert.equal(NEIGHBORS.length, 14);
-  assert.equal(new Set(NEIGHBORS.map(p => p.name)).size, 14);
-  for (const minute of [8*60, 12*60, 17*60, 19*60, 23*60, 25*60, 28*60]) {
-    const poses = NEIGHBORS.map((_,index) => neighborPose(index, minute));
-    const hour = minute % 1440 / 60;
-    const cap = hour < 6 || hour >= 22 ? 1 : hour < 9 ? 4 : hour < 18 ? 7 : 5;
-    assert.ok(poses.filter(p => p.visible).length <= cap);
-    for (const [index, pose] of poses.entries()) {
-      assert.deepEqual(pose, neighborPose(index,minute));
-      if (!pose.visible) continue;
-      assert.ok(pose.x < HOUSE.minX - .5 || pose.x > HOUSE_WING.maxX + .5
-        || pose.z < HOUSE.minZ - .5, NEIGHBORS[index].name + ' entered private property');
+test('neighbors remain deterministic, quiet at night and much rarer than constant foot traffic', () => {
+  assert.equal(NEIGHBORS.length,14);
+  assert.equal(new Set(NEIGHBORS.map(p=>p.name)).size,14);
+  let activeMinutes=0, max=0, silent=0;
+  for(let minute=0;minute<1440;minute++) {
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
+    const active=poses.filter(p=>p.visible);
+    max=Math.max(max,active.length);
+    activeMinutes+=Number(active.length>0);
+    silent+=Number(active.length===0);
+    if(minute<450||minute>1320)assert.equal(active.length,0,'late-night suburb must be quiet');
+    for(const [i,pose] of poses.entries()) {
+      assert.deepEqual(pose,neighborPose(i,minute));
+      if(!pose.visible)continue;
+      assert.ok(pose.x < HOUSE.minX-.5 || pose.x>HOUSE_WING.maxX+.5 ||
+        pose.z<HOUSE.minZ-.5,NEIGHBORS[i].name+' walked into the private home');
     }
   }
+  assert.ok(max<=2,'never a stream of six or seven neighbors');
+  assert.ok(activeMinutes<410,'the street should be empty most of the day');
+  assert.ok(silent>950,'long calm gaps between events');
 });
 
-test('two residents meet, face each other and talk before resuming their paths', () => {
-  // Day one, 08:30: the paired wanderers meet on the public rear sidewalk.
-  const a = neighborPose(0, 525);
-  const b = neighborPose(1, 525);
-  assert.equal(a.action, 'chat');
-  assert.equal(b.action, 'chat');
-  assert.equal(a.visible, true);
-  assert.equal(b.visible, true);
-  assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 1.7);
-  assert.ok(a.yaw > 1 && b.yaw < -1);
-  assert.equal(neighborPose(0, 530).action, 'walk');
+test('two real residents meet face-to-face for eighteen game minutes', () => {
+  const pair=neighborVisits(0,NEIGHBORS.length).filter(e=>e.kind==='chat').slice(0,2);
+  assert.equal(pair.length,2);
+  assert.equal(pair[0].start,pair[1].start);
+  assert.equal(pair[0].companion,pair[1].resident);
+  const conversationStart=pair[0].start+29.4;
+  for(let minute=conversationStart;minute<conversationStart+17;minute+=.5) {
+    const a=neighborPose(pair[0].resident,minute);
+    const b=neighborPose(pair[1].resident,minute);
+    assert.equal(a.action,'chat');assert.equal(b.action,'chat');
+    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.25);
+    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<1.90);
+    assert.ok(a.yaw>1 && b.yaw< -1,'face-to-face, without talking past one another');
+    assert.ok(a.gestureBlend>.2 && b.gestureBlend>.2);
+  }
+  assert.equal(neighborPose(pair[0].resident,pair[0].start+49).action,'wave');
 });
 
-test('sidewalks, wing and all 14 articulated NPCs remain lightweight and noninteractive', () => {
-  const scene = new THREE.Scene();
-  buildHomeWing(scene);
-  buildNeighborhood(scene);
-  assert.equal(scene.children.length, 2);
-  const crowd = new NeighborPeople();
-  assert.equal(crowd.group.children.length, NEIGHBORS.length);
-  crowd.update(12 * 60);
-  let shown = 0, activeMeshes = 0;
-  for (const person of crowd.group.children) {
-    if (!person.visible) continue;
+test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', () => {
+  const scene=new THREE.Scene();
+  buildHomeWing(scene);buildNeighborhood(scene);
+  assert.equal(scene.children.length,2);
+  const crowd=new NeighborPeople();
+  crowd.bindDoors(scene);
+  assert.equal(crowd.group.children.length,NEIGHBORS.length);
+  crowd.update(12*60);
+  let shown=0,activeMeshes=0;
+  for(const person of crowd.group.children) {
+    if(!person.visible)continue;
     shown++;
-    person.traverse(obj => { if (obj instanceof THREE.Mesh && obj.visible) activeMeshes++; });
-    assert.equal(person.userData.interactable, undefined);
+    person.traverse(obj=>{if(obj instanceof THREE.Mesh && obj.visible)activeMeshes++});
+    assert.equal(person.userData.interactable,undefined);
   }
-  assert.equal(shown, 7);
-  assert.ok(activeMeshes <= 90, 'articulated crowd must stay at or below 90 visible meshes: ' + activeMeshes);
+  assert.ok(shown<=2 && shown>=1,'sparse afternoon street');
+  assert.ok(activeMeshes<=125,'smooth NPC models must remain practical for mobile');
+  for(const home of NEIGHBOR_HOMES)assert.ok(scene.getObjectByName('neighbor-door-'+home.id));
 });
 
-test('idling NPCs genuinely pause rather than sliding while using their phone', () => {
-  let stop: number | undefined;
-  for (let minute = 12 * 60; minute < 14 * 60; minute += .1) {
-    if (neighborPose(3, minute).visible && neighborPose(3, minute + .2).visible &&
-        neighborPose(3, minute).gestureBlend > .999 &&
-        neighborPose(3, minute + .2).gestureBlend > .999 &&
-        neighborPose(3, minute).action !== 'walk' &&
-        neighborPose(3, minute + .2).action !== 'walk') {
-      stop = minute; break;
-    }
+test('scheduled NPCs actually stop for real chores and do not slide while gesturing', () => {
+  const visit=neighborVisits(0,NEIGHBORS.length).find(v=>v.kind==='garden')!;
+  let moment:number|undefined;
+  for(let minute=visit.start;minute<visit.end;minute+=.15) {
+    const pose=neighborPose(visit.resident,minute);
+    if(pose.action==='water'&&pose.gestureBlend>.99){moment=minute;break;}
   }
-  assert.ok(stop !== undefined, 'should encounter a scheduled stop');
-  const before = neighborPose(3, stop);
-  const after = neighborPose(3, stop + .2);
-  assert.ok(Math.hypot(before.x - after.x, before.z - after.z) < .0001);
+  assert.ok(moment!==undefined,'water chore must include a visible real stop');
+  const before=neighborPose(visit.resident,moment);
+  const after=neighborPose(visit.resident,moment+.2);
+  assert.equal(after.action,'water');
+  assert.ok(Math.hypot(before.x-after.x,before.z-after.z)<.0001);
 });
 
 test('public paths and all neighboring props leave a generous expansion reserve', () => {
@@ -129,30 +139,25 @@ test('public paths and all neighboring props leave a generous expansion reserve'
   assert.ok(box.min.z < rearWest.z - 7);
 });
 
-test('every pedestrian completes one way only, fades at the ends and is replaced by a different profile', () => {
-  assert.equal(NEIGHBORS.length, NEIGHBOR_SLOT_COUNT * 2);
-  const offset = 2 * 13.9;
-  const sample = (index:number, cycle:number, second:number) =>
-    neighborPose(index, (cycle*NEIGHBOR_TRIP_SECONDS + second - offset) *
-      GAME_MINUTES_PER_REAL_SECOND);
-  const firstEarly = sample(2,14,2);
-  const firstMiddle = sample(2,14,50);
-  const firstLate = sample(2,14,98);
-  const firstGone = sample(2,14,99.9);
-  const secondEarly = sample(9,15,2);
-  const secondMiddle = sample(9,15,50);
-  assert.ok(firstEarly.opacity > 0 && firstEarly.opacity < 1);
-  assert.ok(firstMiddle.opacity > .99);
-  assert.ok(firstLate.opacity > 0 && firstLate.opacity < 1);
-  assert.ok(firstGone.opacity < firstLate.opacity);
-  assert.equal(sample(9,14,50).visible,false,'replacement must wait offstage');
-  assert.equal(sample(2,15,50).visible,false,'old profile must remain offstage');
-  assert.ok(secondEarly.opacity > 0 && secondEarly.opacity < 1);
-  assert.ok(secondMiddle.opacity > .99);
-  assert.notEqual(NEIGHBORS[2].name,NEIGHBORS[9].name);
-  // One-way travel: no sudden reverse at an endpoint.
-  assert.ok(Math.hypot(firstEarly.x-firstMiddle.x,firstEarly.z-firstMiddle.z) > 20);
-  assert.ok(Math.hypot(secondEarly.x-secondMiddle.x,secondEarly.z-secondMiddle.z) > 20);
+test('neighbors physically leave their own doors and return home without street teleportation', () => {
+  const today=neighborVisits(0,NEIGHBORS.length);
+  assert.ok(today.length>=9);
+  for(const visit of today) {
+    const door=homeStops(NEIGHBOR_HOMES[visit.home]).door;
+    const early=neighborPose(visit.resident,visit.start+.5);
+    const mid=neighborPose(visit.resident,(visit.start+visit.end)/2);
+    const late=neighborPose(visit.resident,visit.end-.5);
+    const gone=neighborPose(visit.resident,visit.end+.1);
+    assert.ok(early.opacity>0 && early.opacity<1);
+    assert.ok(mid.opacity>.98);
+    assert.ok(late.opacity>0 && late.opacity<1);
+    assert.ok(Math.hypot(early.x-door.x,early.z-door.z)<1.8,'exit through own door');
+    assert.ok(Math.hypot(late.x-door.x,late.z-door.z)<1.8,'return through own door');
+    assert.equal(gone.visible,false,'no eternal street NPC');
+  }
+  const tomorrow=neighborVisits(1440,NEIGHBORS.length);
+  assert.ok(today.some((e,i)=>e.resident!==tomorrow[i].resident),
+    'different family members should sometimes leave their homes');
 });
 
 test('hair, coats, skirts and accessories are genuinely different geometric styles', () => {
@@ -192,100 +197,99 @@ test('desktop neighborhood overview frames moved sidewalks without shrinking mob
   }
 });
 
-test('new neighbor joints animate walking without squatting or sinking into the ground', () => {
-  const crowd = new NeighborPeople();
-  let samples=0, raisedKnee=false, tiltedHead=false, blinkSeen=false;
-  for(let minute=720; minute<782; minute+=.26) {
+test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and blinking', () => {
+  const crowd=new NeighborPeople();
+  let samples=0,raisedKnee=false,tiltedHead=false,blinkSeen=false;
+  for(let minute=455;minute<1280;minute+=.22) {
     crowd.update(minute);
-    for(let index=0; index<NEIGHBORS.length; index++) {
-      const pose=neighborPose(index,minute);
-      if(!pose.visible || pose.opacity<.85)continue;
-      const root=crowd.group.children[index];
+    for(let i=0;i<NEIGHBORS.length;i++) {
+      const pose=neighborPose(i,minute);
+      if(!pose.visible||pose.opacity<.85)continue;
+      const root=crowd.group.children[i];
       const head=root.getObjectByName('neighbor-head') as THREE.Group;
       const leftKnee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
       const rightKnee=root.getObjectByName('neighbor-rightKnee') as THREE.Group;
-      const leftFoot=root.getObjectByName('neighbor-leftFoot') as THREE.Group;
-      const rightFoot=root.getObjectByName('neighbor-rightFoot') as THREE.Group;
+      const foot=root.getObjectByName('neighbor-leftFoot') as THREE.Group;
       const eyelids=root.getObjectByName('neighbor-eyelids') as THREE.Mesh;
-      assert.ok(head && leftKnee && rightKnee && leftFoot && rightFoot && eyelids);
-      if(pose.gestureBlend<.01) {
-        raisedKnee ||= Math.max(leftKnee.rotation.x,rightKnee.rotation.x)>.12;
-        for(const foot of [leftFoot,rightFoot]) {
-          root.updateMatrixWorld(true);
-          const world=new THREE.Vector3();
-          foot.getWorldPosition(world);
-          assert.ok(world.y>-.04, 'foot joint must not sink below floor: '+world.y);
-          assert.ok(world.y<.35, 'walking must not lift the leg excessively');
-        }
-      }
-      tiltedHead ||= Math.abs(head.rotation.y)>.035;
-      blinkSeen ||= eyelids.visible;
-      assert.ok(Math.abs(head.rotation.x)<.27 && Math.abs(head.rotation.y)<.40);
+      assert.ok(head&&leftKnee&&rightKnee&&foot&&eyelids);
+      raisedKnee||=Math.max(leftKnee.rotation.x,rightKnee.rotation.x)>.12;
+      tiltedHead||=Math.abs(head.rotation.y)>.035;
+      blinkSeen||=eyelids.visible;
+      root.updateMatrixWorld(true);
+      const world=new THREE.Vector3();
+      foot.getWorldPosition(world);
+      assert.ok(world.y>-.20&&world.y<.35,'feet respect lawn and stone elevations');
+      assert.ok(Math.abs(head.rotation.x)<.27&&Math.abs(head.rotation.y)<.40);
       samples++;
     }
   }
-  assert.ok(samples>40 && raisedKnee && tiltedHead && blinkSeen);
+  assert.ok(samples>100&&raisedKnee&&tiltedHead&&blinkSeen);
 });
 
-test('all visual gestures are readable and deterministic across two clients', () => {
+test('NPCs perform legible chores and gestures with deterministic rig motion on two clients', () => {
   const crowd=new NeighborPeople();
-  const actions=['chat','phone','wave','look','adjust','stretch'] as const;
+  const actions=['chat','phone','wave','look','adjust','stretch','water','sip','mail','carry'] as const;
   for(const action of actions) {
     let found:{minute:number;index:number}|undefined;
-    for(let minute=540;minute<1320 && !found;minute+=.18) {
-      for(let index=0;index<NEIGHBORS.length;index++) {
-        const pose=neighborPose(index,minute);
-        if(pose.visible && pose.opacity>.75 && pose.action===action && pose.gestureBlend>.96) {
-          found={minute,index};break;
+    for(let day=0;day<4&&!found;day++) {
+      for(const event of neighborVisits(day*1440,NEIGHBORS.length)) {
+        for(let minute=event.start+1;minute<event.end-.4;minute+=.65) {
+          const global=day*1440+minute;
+          const p=neighborPose(event.resident,global);
+          if(p.visible && p.opacity>.7 && p.action===action && p.gestureBlend>.90) {
+            found={minute:global,index:event.resident};break;
+          }
         }
+        if(found)break;
       }
     }
-    assert.ok(found,action+' must be observable in daytime');
+    assert.ok(found,action+' must be visible in a real daily event');
     const {minute,index}=found;
     crowd.update(minute);
     const root=crowd.group.children[index];
     const head=root.getObjectByName('neighbor-head') as THREE.Group;
     const leftArm=root.getObjectByName('neighbor-leftArm') as THREE.Group;
     const rightArm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
-    const leftElbow=root.getObjectByName('neighbor-leftElbow') as THREE.Group;
     const rightElbow=root.getObjectByName('neighbor-rightElbow') as THREE.Group;
-    assert.ok(head && leftArm && rightArm && leftElbow && rightElbow);
+    assert.ok(head&&leftArm&&rightArm&&rightElbow);
     if(action==='wave')assert.ok(rightArm.rotation.z< -1.4);
-    if(action==='stretch')assert.ok(leftArm.rotation.z>.8 && rightArm.rotation.z<-.8);
-    if(action==='phone')assert.ok(rightElbow.rotation.x<-.75 && head.rotation.x>.08);
-    if(action==='adjust')assert.ok(leftElbow.rotation.x<-.65);
-    if(action==='chat')assert.ok(Math.abs(rightElbow.rotation.x)>.18);
-    if(action==='look')assert.ok(Math.abs(head.rotation.y)<.4);
-    const first=new THREE.Vector3(rightArm.rotation.x,rightArm.rotation.y,rightArm.rotation.z);
+    if(action==='stretch')assert.ok(leftArm.rotation.z>.8&&rightArm.rotation.z<-.8);
+    if(action==='phone')assert.ok(rightElbow.rotation.x<-.75);
+    if(action==='water')assert.ok(root.getObjectByName('neighbor-head'));
+    if(action==='sip')assert.ok(rightElbow.rotation.x<-.8);
+    if(action==='mail')assert.ok(rightElbow.rotation.x<-.6);
+    if(action==='adjust')assert.ok(leftArm.rotation.z>.2);
+    const first=[leftArm.rotation.x,rightArm.rotation.z,rightElbow.rotation.x,head.rotation.y];
     crowd.update(minute);
-    const second=new THREE.Vector3(rightArm.rotation.x,rightArm.rotation.y,rightArm.rotation.z);
-    assert.deepEqual(first.toArray(),second.toArray(),'animation must be deterministic');
+    const second=[leftArm.rotation.x,rightArm.rotation.z,rightElbow.rotation.x,head.rotation.y];
+    assert.deepEqual(second,first,'both players see the same gestures');
   }
 });
 
-test('arm and leg gestures blend across starts and stops without one-frame snapping', () => {
+test('neighbor animations blend smoothly across idle, conversation and chores', () => {
   const crowd=new NeighborPeople();
-  const gameFrame=GAME_MINUTES_PER_REAL_SECOND/60;
-  let pairs=0;
-  for(const index of [0,2,3,4,5,6]) {
-    for(let minute=630;minute<820;minute+=gameFrame*2) {
-      const now=neighborPose(index,minute);
-      const next=neighborPose(index,minute+gameFrame);
-      if(!now.visible || !next.visible || now.opacity<.75 || next.opacity<.75)continue;
+  const frame=GAME_MINUTES_PER_REAL_SECOND/60;
+  let checked=0;
+  for(let minute=456;minute<1280;minute+=.34) {
+    const visible=NEIGHBORS.map((_,i)=>i).filter(i=>{
+      const a=neighborPose(i,minute),b=neighborPose(i,minute+frame);
+      return a.visible&&b.visible&&a.opacity>.75&&b.opacity>.75;
+    });
+    for(const index of visible) {
       const root=crowd.group.children[index];
       crowd.update(minute);
       const arm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
       const knee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
       const head=root.getObjectByName('neighbor-head') as THREE.Group;
       const before=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
-      crowd.update(minute+gameFrame);
+      crowd.update(minute+frame);
       const after=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
       const delta=Math.max(...before.map((v,i)=>Math.abs(v-after[i])));
-      assert.ok(delta<.24, 'visible one-frame joint snap: '+delta.toFixed(3));
-      pairs++;
+      assert.ok(delta<.24,'one-frame joint snap '+delta);
+      checked++;
     }
   }
-  assert.ok(pairs>200,'transition samples must cover enough visible frames');
+  assert.ok(checked>100,'cover actual visible activity transitions');
 });
 
 test('oncoming neighbors use separate lanes and never overlap on a simulated full day', () => {

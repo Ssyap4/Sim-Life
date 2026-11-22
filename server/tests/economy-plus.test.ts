@@ -1,3 +1,4 @@
+import { moveReadyFoodToTable } from '../../src/shared/readyFood';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOBS, JOB_IDS } from '../../src/shared/jobs';
@@ -68,7 +69,7 @@ test('Immediate early leave pays zero; exhaustion and invalid IDs are rejected',
  assert.equal(leaveShiftEarly(canceled.state,'alina').ok,false);
 });
 
-test('Refrigerator holds 36 food cells; consuming a portion frees room for groceries',()=>{
+test('Refrigerator holds 36 food cells; serving and eating a portion frees room for groceries',()=>{
  const state=initialState();
  state.pantry={...EMPTY_PANTRY};state.meals={...EMPTY_MEALS};state.takeout={...EMPTY_TAKEOUT};
  state.money=30000;state.meals.omelette=FRIDGE_CAPACITY/2;
@@ -76,6 +77,8 @@ test('Refrigerator holds 36 food cells; consuming a portion frees room for groce
  assert.equal(checkout(state,'vlad',[{id:'grocery:milk',quantity:1}]).ok,false);
  assert.equal(applyFoodAction(state,'vlad',{type:'buy',item:'milk'}).ok,false);
  assert.equal(state.money,30000);
+ assert.equal(moveReadyFoodToTable(state,'meal','omelette'),true,
+   'one portion must first be moved out of the fridge onto the table');
  const ate=applyFoodAction(state,'alina',{type:'eat',recipe:'omelette'});
  assert.equal(ate.ok,true);if(!ate.ok)return;
  const bought=checkout(ate.state,'vlad',[{id:'grocery:milk',quantity:1}]);

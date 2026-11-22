@@ -93,6 +93,10 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const shape=info.shape,from=state.characters[role];
   const side=role==='vlad'?-1:1;
   const actorSeats=softSeats.has(shape);
+  const isBareSeat=seats.has(shape);
+  const seatTop=shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
+    shape==='bench'?info.height*.54:shape==='ottoman'?info.height*.56:
+    shape==='armchair'?info.height*.52:info.height*.50;
   const isTable=['tableRest','tableTalk','tablePlan'].includes(action);
   const isSofa=['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action)||
     (action==='read_book'&&(shape==='sofa'||shape==='corner'));
@@ -104,8 +108,10 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const pose={
     ...posePoint,
     y:isTable?(role==='vlad'?-.26:-.21):isDesk?(role==='vlad'?-.24:-.19):
-      isSofa?.04:actorSeats?-.20:0,
-    yaw:item.rotation*Math.PI/2+(isTable?(role==='vlad'?-Math.PI/2:Math.PI/2):Math.PI),
+      isSofa?.04:actorSeats?seatTop-(role==='vlad'?.905:.852):0,
+    // An independent chair faces its open front (+Z); the old +PI made
+    // residents sit backwards through the backrest.
+    yaw:item.rotation*Math.PI/2+(isTable?(role==='vlad'?-Math.PI/2:Math.PI/2):isBareSeat?0:Math.PI),
   };
   const distance=isTable?info.width/2+.68:isSofa?info.depth/2+.63:
     isDesk?info.depth/2+.92:isShelf?info.depth/2+.62:info.depth/2+.55;

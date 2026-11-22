@@ -10,7 +10,7 @@ import { clockAt, gameMinutes, MINUTES_PER_DAY } from '../../src/shared/life';
 import { approachFor, stationById } from '../../src/shared/locations';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
 import { READY_FOOD_SLOTS, TABLE_READY_CAPACITY, addReadyFood, expireReadyFood,
-  readyFoodRemaining, readyFoodShelfDays, readyFoodTableUsage } from '../../src/shared/readyFood';
+  readyFoodShelfDays, readyFoodTableUsage, TABLE_SHELF_MINUTES, moveReadyFoodToTable } from '../../src/shared/readyFood';
 import { FRIDGE_CAPACITY, storageUsage } from '../../src/shared/storageSpace';
 import { applyFoodAction, applyTakeoutMeal } from '../food';
 import { applyWorld } from '../locations';
@@ -34,41 +34,60 @@ function moveClock(state: GameState, minutes: number): GameState {
   return next;
 }
 
-test('Prepared food uses 2 fridge cells per portion; raw ingredients are preserved indefinitely', () => {
+test('Home-cooked meals start on the table; refrigeration slows spoilage without duplicating portions', () => {
   assert.equal(READY_FOOD_SLOTS,2);
   assert.equal(FRIDGE_CAPACITY,36);
   assert.equal(readyFoodShelfDays('meal','omelette','fridge'),3);
   assert.equal(readyFoodShelfDays('meal','salad','fridge'),2);
   assert.equal(readyFoodShelfDays('takeout','rollsSet','fridge'),2);
   assert.equal(readyFoodShelfDays('takeout','pizzaCheese','fridge'),3);
-  assert.equal(readyFoodShelfDays('takeout','pizzaCheese','table'),2);
   const base=initialState();
   base.pantry.milk=2;
-  const one=applyFoodAction(base,'vlad',{type:'cook',recipe:'omelette'});
-  assert.ok(one.ok);
-  assert.equal(one.state.meals.omelette,RECIPES.omelette.servings);
-  assert.equal(storageUsage(one.state).fridge,2+READY_FOOD_SLOTS*2,'the remaining eggs and milk also need two cells');
-  assert.equal(one.state.readyFood.length,1);
-  const expires=one.state.readyFood[0].expiresAt;
-  const nextDay=moveClock(one.state,MINUTES_PER_DAY);
-  const two=applyFoodAction(nextDay,'alina',{type:'cook',recipe:'omelette'});
-  assert.ok(two.ok);
-  assert.equal(two.state.readyFood.length,2,'different batches track different expiries');
-  assert.equal(two.state.readyFood[0].expiresAt,expires);
-  assert.equal(two.state.readyFood[1].expiresAt,expires+MINUTES_PER_DAY);
-  const pastFirst=moveClock(two.state,2*MINUTES_PER_DAY);
-  const gone=expireReadyFood(pastFirst);
-  assert.equal(gone.length,1);
-  assert.equal(gone[0].portions,2);
-  assert.equal(pastFirst.meals.omelette,2,'only the older batch expired');
-  assert.equal(storageUsage(pastFirst).fridge,4);
-  assert.equal(expireReadyFood(pastFirst).length,0,'no double spoilage');
-  assert.equal(pastFirst.pantry.eggs,0,'ordinary ingredients are not affected');
-  assert.ok(readyFoodRemaining(pastFirst.readyFood[0].expiresAt,pastFirst.clock).includes('1 д'));
-  const entirelyOld=moveClock(pastFirst,MINUTES_PER_DAY);
-  assert.equal(expireReadyFood(entirelyOld)[0].portions,2);
-  assert.equal(entirelyOld.meals.omelette,0);
-  assert.equal(storageUsage(entirelyOld).fridge,0);
+  const cooked=applyFoodAction(base,'vlad',{type:'cook',recipe:'omelette'});
+  assert.ok(cooked.ok);
+  assert.equal(cooked.state.meals.omelette,RECIPES.omelette.servings);
+  assert.equal(readyFoodTableUsage(cooked.state),2);
+  assert.equal(storageUsage(cooked.state).fridge,2,'only raw ingredients are in fridge');
+  assert.equal(cooked.state.readyFood.length,1);
+  assert.equal(cooked.state.readyFood[0].storage,'table');
+  const now=gameMinutes(cooked.state.clock);
+  assert.equal(cooked.state.readyFood[0].expiresAt,now+TABLE_SHELF_MINUTES);
+  const moved=successful(applyWorld(cooked.state,'alina',{
+    type:'ready_food_move',kind:'meal',item:'omelette'}));
+  assert.equal(moved.meals.omelette,2,'moving cannot create or consume food');
+  assert.equal(readyFoodTableUsage(moved),1);
+  assert.equal(storageUsage(moved).fridge,4,'one refrigerated portion requires 2 cells');
+  const cold=moved.readyFood.find(batch=>batch.storage==='fridge')!;
+  assert.equal(cold.portions,1);
+  assert.equal(cold.expiresAt,now+3*MINUTES_PER_DAY);
+  assert.equal(moved.readyFood.find(batch=>batch.storage==='table')!.expiresAt,now+TABLE_SHELF_MINUTES);
+  const afterNineHours=moveClock(moved,TABLE_SHELF_MINUTES+60);
+  assert.equal(expireReadyFood(afterNineHours).length,1,'the remaining table portion spoils quickly');
+  assert.equal(afterNineHours.meals.omelette,1);
+  assert.equal(afterNineHours.readyFood[0].storage,'fridge');
+  assert.equal(storageUsage(afterNineHours).fridge,4,'cold portion remains');
+  const newExpired=moveClock(afterNineHours,3*MINUTES_PER_DAY);
+  assert.equal(expireReadyFood(newExpired).length,1);
+  assert.equal(newExpired.meals.omelette,0);
+  assert.equal(storageUsage(newExpired).fridge,2,'eggs and milk remain');
+});
+
+test('Repeatedly moving refrigerated food does not refresh it',()=>{
+  const state=initialState();
+  state.takeout.pizzaCheese=2;
+  addReadyFood(state,'takeout','pizzaCheese',2,'fridge');
+  const freshExpiry=state.readyFood[0].expiresAt;
+  assert.equal(moveReadyFoodToTable(state,'takeout','pizzaCheese'),true);
+  const expiresSoon=state.readyFood.find(batch=>batch.storage==='table')!.expiresAt;
+  assert.ok(expiresSoon<freshExpiry,'food spoils much sooner when exposed');
+  const transferred=successful(applyWorld(state,'vlad',{
+    type:'ready_food_move',kind:'takeout',item:'pizzaCheese',
+  }));
+  assert.equal(transferred.readyFood.find(batch=>batch.storage==='fridge')!.expiresAt,freshExpiry);
+  const older=moveClock(transferred,250);
+  assert.equal(moveReadyFoodToTable(older,'takeout','pizzaCheese'),true);
+  const returned=older.readyFood.find(batch=>batch.storage==='table')!;
+  assert.ok(returned.expiresAt<gameMinutes(older.clock)+TABLE_SHELF_MINUTES);
 });
 
 test('Delivery is collected at the door with fridge or table choice, transferable without renewed expiry', () => {
@@ -92,7 +111,7 @@ test('Delivery is collected at the door with fridge or table choice, transferabl
   assert.equal(readyFoodTableUsage(delivered),2);
   assert.equal(storageUsage(delivered).fridge,2,'the milk and initial eggs occupy fridge cells');
   const originalExpiry=delivered.readyFood[0].expiresAt;
-  assert.equal(originalExpiry,order.world.deliveries[0].readyAt+2*MINUTES_PER_DAY);
+  assert.equal(originalExpiry,order.world.deliveries[0].readyAt+TABLE_SHELF_MINUTES);
   const nearFridge=at(delivered,'vlad','fridge');
   const moved=successful(applyWorld(nearFridge,'vlad',{
     type:'ready_food_move',kind:'takeout',item:'pizzaCheese',
@@ -100,7 +119,9 @@ test('Delivery is collected at the door with fridge or table choice, transferabl
   assert.equal(moved.takeout.pizzaCheese,2);
   assert.equal(readyFoodTableUsage(moved),1);
   assert.equal(storageUsage(moved).fridge,2+READY_FOOD_SLOTS);
-  assert.ok(moved.readyFood.every(batch=>batch.expiresAt===originalExpiry));
+  assert.ok(moved.readyFood.some(batch=>batch.storage==='fridge'&&batch.expiresAt>originalExpiry),
+    'refrigeration slows deterioration');
+  assert.equal(moved.readyFood.find(batch=>batch.storage==='table')!.expiresAt,originalExpiry);
   const discard=successful(applyWorld(moved,'vlad',{
     type:'ready_food_discard',kind:'takeout',item:'pizzaCheese',storage:'fridge',
   }));
@@ -128,6 +149,7 @@ test('Cold takeaway lives 3 days; rolls live 2; old portion expires even after n
   assert.equal(removed.length,1);
   assert.equal(removed[0].portions,2);
   assert.equal(expiredOld.takeout.pizzaCheese,2);
+  assert.equal(moveReadyFoodToTable(expiredOld,'takeout','pizzaCheese'),true);
   const eaten=applyTakeoutMeal(expiredOld,'vlad','pizzaCheese');
   assert.ok(eaten.ok);
   assert.equal(eaten.state.takeout.pizzaCheese,1);
