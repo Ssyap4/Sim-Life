@@ -6,9 +6,18 @@ import { recipeAvailability } from '../../src/shared/recipeAvailability';
 import { DELIVERY_FEE, approachFor, stationById } from '../../src/shared/locations';
 import { clockAt } from '../../src/shared/life';
 import { initialState } from '../../src/shared/protocol';
+import { levelXP } from '../../src/shared/education';
 import { applyFoodAction } from '../food';
 import { applyWorld } from '../locations';
 import { checkout } from '../market';
+
+/** Ingredient/fuel tests start with a cook who already knows every grilled recipe. */
+function skilledState() {
+  const state=initialState();
+  state.education.characters.vlad.xp.cooking=levelXP(18);
+  state.education.characters.alina.xp.cooking=levelXP(18);
+  return state;
+}
 
 test('Every grill recipe requires both ignition supplies, but ordinary kitchen recipes do not', () => {
   assert.equal(isGrillRecipe('grillChicken'), true);
@@ -19,7 +28,7 @@ test('Every grill recipe requires both ignition supplies, but ordinary kitchen r
     assert.deepEqual(ingredientList(recipe).slice(-2),[
       ['charcoal',1],['lighterFluid',1],
     ],recipe);
-    const state=initialState();
+    const state=skilledState();
     for(const [item,count] of ingredientList(recipe))state.pantry[item]=count;
     state.pantry.charcoal=0;
     const noCoal=recipeAvailability(state,'vlad',recipe);
@@ -37,7 +46,7 @@ test('Every grill recipe requires both ignition supplies, but ordinary kitchen r
 });
 
 test('Chicken skewers use chicken, onion and one portion of each fuel, but never oil', () => {
-  const state=initialState();
+  const state=skilledState();
   Object.assign(state.pantry,{chicken:2,onion:1,oil:0,charcoal:2,lighterFluid:2});
   const cooked=applyFoodAction(state,'vlad',{type:'cook',recipe:'grillChicken'});
   assert.ok(cooked.ok,!cooked.ok?cooked.reason:'');
@@ -53,7 +62,7 @@ test('Chicken skewers use chicken, onion and one portion of each fuel, but never
 });
 
 test('Missing fuel blocks cooking without consuming any food or materials',()=>{
-  const state=initialState();
+  const state=skilledState();
   Object.assign(state.pantry,{chicken:2,onion:1,charcoal:0,lighterFluid:1});
   let fail=applyFoodAction(state,'vlad',{type:'cook',recipe:'grillChicken'});
   assert.equal(fail.ok,false);
@@ -85,7 +94,7 @@ test('Supermarket stocks both grill supplies immediately with only the shelf pri
 });
 
 test('Delivery adds fuel to the order, itemizes 149 RUB once, and then cooks skewers',()=>{
-  const state=initialState();
+  const state=skilledState();
   const lines=['chicken','onion','charcoal','lighterFluid'].map(id=>({id:'grocery:'+id,quantity:1}));
   const goods=basketPrice(lines);
   assert.equal(goods,1110);
@@ -122,7 +131,7 @@ test('Delivery adds fuel to the order, itemizes 149 RUB once, and then cooks ske
 });
 
 test('Missing chicken or onion still prevents cooking after purchasing fuel',()=>{
-  const state=initialState();
+  const state=skilledState();
   Object.assign(state.pantry,{chicken:2,onion:0,charcoal:1,lighterFluid:1});
   const result=applyFoodAction(state,'vlad',{type:'cook',recipe:'grillChicken'});
   assert.equal(result.ok,false);

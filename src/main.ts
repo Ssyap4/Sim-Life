@@ -18,7 +18,9 @@ import { createFurnishingUI } from './furnishingUI';
 import './furnishing.css';
 import { needChips, needFeedback } from './needsFeedback';
 import type { NeedEffects } from './shared/homeLife';
-import type { StudyMaterial } from './shared/education';
+import { skillRank, type StudyMaterial } from './shared/education';
+import { createSkillsPanel } from './skillsHUD';
+import './skillsHUD.css';
 import { MATERIAL_BY_ID, studyQuestion } from './shared/educationCatalog';
 import type { EducationView } from './educationUI';
 import { createCareerHUD } from './careerUI';
@@ -93,7 +95,7 @@ app.innerHTML = `
         <div class="brand-icon">⌂</div>
         <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
       </div>
-      <div class="version">0.18 · ЖИВОЙ ПРИГОРОД</div>
+      <div class="version">0.19 · НАВЫКИ (ТЕСТ)</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
@@ -124,6 +126,7 @@ app.innerHTML = `
       </div>
     </div>
   </header>
+  <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
@@ -154,6 +157,7 @@ app.innerHTML = `
       <div id="stock-line" class="stock-line">🍳 Общие запасы и еда загружаются…</div>
       <div class="home-buttons">
         <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
+        <button id="skills-btn" class="market-btn" type="button" disabled>📊 Навыки <small>🍲 0 ур.</small></button>
         <button id="furniture-btn" class="market-btn" type="button" disabled>🛋️ Мебель</button>
         <button id="pets-btn" class="market-btn pets-btn" type="button" disabled>🐾 Питомцы</button>
       </div>
@@ -196,6 +200,7 @@ const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
 const phoneBtn = document.querySelector<HTMLButtonElement>('#phone-btn')!;
+const skillsBtn = document.querySelector<HTMLButtonElement>('#skills-btn')!;
 const furnitureBtn = document.querySelector<HTMLButtonElement>('#furniture-btn')!;
 const mapBtn = document.querySelector<HTMLButtonElement>('#map-btn')!;
 const mapPanel = document.querySelector<HTMLElement>('#map-panel')!;
@@ -505,6 +510,7 @@ function render(reset = false): void {
     if (world.place !== place) {
       actionsEl.hidden = true;
       phone.close();
+      skillsPanel.close();
       computer.close();
       furnishing.close();
       focusModel(null);
@@ -541,12 +547,14 @@ function render(reset = false): void {
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
   world?.setTimeOfDay(state.clock.minute);
   phone.refresh();
+  skillsPanel.refresh();
   computer.refresh();
   furnishing.refresh();
   furnishing.acknowledge(state);
   careerHUD.render(state,active);
   renderNeeds();
   renderTimePanel();
+  if (active) skillsBtn.querySelector('small')!.textContent = '🍲 '+skillRank(state.education.characters[active].xp.cooking).level+' ур.';
   document.querySelector<HTMLElement>('#money')!.textContent =
     new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
   document.querySelector<HTMLElement>('#online-note')!.textContent =
@@ -601,7 +609,8 @@ function signOut(): void {
   rememberDevice.checked = false;
   authEl.hidden = false;
   thoughts.reset();
-  phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
+  phoneBtn.disabled = skillsBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
+  skillsPanel.close();
   actionsEl.hidden = true;
   phone.close();
   computer.close();
@@ -635,6 +644,11 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
   },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts);
+const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
+  () => state && active ? {state, role:active} : null);
+skillsBtn.addEventListener('click',()=>{
+  toggleNeeds(false); actionsEl.hidden=true; phone.close(); computer.close(); skillsPanel.open();
+});
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
@@ -702,8 +716,10 @@ const net = new LiveConnection({
     drawTaskPanel();
     toggleNeeds(false);
     phone.close();
+    skillsPanel.close();
     authEl.hidden = true;
     mapBtn.disabled = false;
+    skillsBtn.disabled = false;
     phoneBtn.disabled = false;
     furnitureBtn.disabled = false;
     petsBtn.disabled = false;

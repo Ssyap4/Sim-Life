@@ -5,7 +5,8 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
-import { points, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
+import { initialState, points, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
+import { levelXP } from '../../src/shared/education';
 import { openServerFiles } from '../storage';
 import { startServer } from '../server';
 
@@ -30,8 +31,13 @@ async function enter(port: number, role: CharacterId, code: string): Promise<Web
   assert.equal((await ready).type, 'ready');
   return ws;
 }
-async function setup(scale = 0.035) {
+async function setup(scale = 0.035, cookingLevel = 0) {
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-timed-'));
+  if(cookingLevel) {
+    const state=initialState();
+    for(const role of ['vlad','alina'] as const)state.education.characters[role].xp.cooking=levelXP(cookingLevel);
+    openServerFiles(dir).save(state);
+  }
   const server = await startServer({ port: 0, dataDir: dir, taskTimeScale: scale });
   const keys = JSON.parse(readFileSync(join(dir, 'access.json'), 'utf8')) as Record<CharacterId, string>;
   const vlad = await enter(server.port, 'vlad', keys.vlad);
@@ -127,7 +133,7 @@ test('The reward comes after timed work, survives restart and cannot be duplicat
 });
 
 test('Kitchen tasks lock the stove while the other player can care for a pet', async () => {
-  const ctx = await setup(0.035);
+  const ctx = await setup(0.035,2);
   try {
     const milkBought = waitFor(ctx.vlad, p => p.type === 'snapshot' && p.state.revision === 1);
     send(ctx.alina, { type: 'buy', item: 'milk' });
@@ -219,7 +225,7 @@ test('Bathroom fixtures are independently exclusive and physiology is published 
 });
 
 test('The grill is exclusive and produces shared portions served at the yard table', async () => {
-  const ctx = await setup(.025);
+  const ctx = await setup(.025,11);
   try {
     const cook = { type: 'cook', recipe: 'grillChicken' };
     const missing = waitFor(ctx.vlad, p => p.type === 'error');

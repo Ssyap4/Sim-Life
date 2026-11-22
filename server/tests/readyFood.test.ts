@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
 import { RECIPES, TAKEOUT } from '../../src/shared/food';
+import { levelXP } from '../../src/shared/education';
 import { clockAt, gameMinutes, MINUTES_PER_DAY } from '../../src/shared/life';
 import { approachFor, stationById } from '../../src/shared/locations';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
@@ -42,6 +43,7 @@ test('Home-cooked meals start on the table; refrigeration slows spoilage without
   assert.equal(readyFoodShelfDays('takeout','rollsSet','fridge'),2);
   assert.equal(readyFoodShelfDays('takeout','pizzaCheese','fridge'),3);
   const base=initialState();
+  base.education.characters.vlad.xp.cooking=levelXP(2);
   base.pantry.milk=2;
   const cooked=applyFoodAction(base,'vlad',{type:'cook',recipe:'omelette'});
   assert.ok(cooked.ok);

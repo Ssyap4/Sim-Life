@@ -24,7 +24,7 @@ const apps: Record<App,[string,string]> = {
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
-  family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Навыки и развитие'],
+  family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Обучение и курсы'],
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
   autonomy:['🧠','Жизнь и привычки'],
 };

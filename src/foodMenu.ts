@@ -1,6 +1,7 @@
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
+import { COOKING_ORDER, COOKING_RECIPES, cookingExperience } from './shared/cookingProgression';
 import { gameMinutes } from './shared/life';
 import { readyFoodRemaining } from './shared/readyFood';
 import type { CharacterId } from './shared/protocol';
@@ -50,14 +51,13 @@ export function showFoodChoices(
     info.className='food-cooking-skill';
     info.textContent='🍲 Кулинария · ур. '+skill.level+'/20 · '+
       (skill.next?skill.current+'/'+skill.next+' XP':'максимальный уровень')+
-      '. После успешной готовки начисляется XP. Все навыки — в телефоне → «Навыки и развитие».';
+      '. Новые рецепты открываются с ростом уровня. Прогресс всех навыков — кнопка «Навыки» в главном интерфейсе.';
     container.append(info);
     // On a phone, dozens of long ingredient lists were making recipes
     // impossible to browse. Keep availability visible; reveal composition on tap.
-    const recipes=(Object.entries(RECIPES) as Array<[RecipeId,(typeof RECIPES)[RecipeId]]>)
-      .filter(([id])=>isGrillRecipe(id)===(location==='grill'))
-      .map(([id,recipe])=>({id,recipe,availability:recipeAvailability(state,role,id)}))
-      .sort((a,b)=>Number(b.availability.available)-Number(a.availability.available));
+    const recipes=COOKING_ORDER
+      .filter(id=>isGrillRecipe(id)===(location==='grill'))
+      .map(id=>({id,recipe:RECIPES[id],availability:recipeAvailability(state,role,id)}));
     const tools=document.createElement('div');
     tools.className='food-recipe-tools';
     const search=document.createElement('input');
@@ -95,7 +95,7 @@ export function showFoodChoices(
         return (!query||text.includes(query))&&
           (currentFilter==='all'||item.availability.available);
       });
-      count.textContent='Можно сейчас: '+recipes.filter(item=>item.availability.available).length+
+      count.textContent='По сложности ↑ · можно сейчас: '+recipes.filter(item=>item.availability.available).length+
         ' из '+recipes.length+' · показано: '+visible.length;
       buttons.forEach((b,i)=>b.setAttribute('aria-pressed',
         String(currentFilter===(i===0?'all':'available'))));
@@ -115,8 +115,10 @@ export function showFoodChoices(
         const name=document.createElement('strong');
         name.textContent=recipe.emoji+' '+recipe.name;
         const summary=document.createElement('small');
-        summary.textContent=(availability.available?'✅ Можно приготовить':
-          'Нельзя сейчас: '+availability.reason)+
+        const difficulty=COOKING_RECIPES[id];
+        summary.textContent=difficulty.tier+' · ур. '+difficulty.minLevel+' · '+
+          (availability.available?'✅ Можно приготовить':'Недоступно: '+availability.reason)+
+          ' · 🍲 +'+cookingExperience(state.education.characters[role],role,id)+' XP'+
           ' · '+recipe.servings+' порц. · ≈'+recipePortionCost(id)+' ₽/порция';
         cook.append(name,summary);
         cook.addEventListener('click',()=>submit('cook',id));

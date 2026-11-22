@@ -1,4 +1,5 @@
 import { skillRank } from './education';
+import { COOKING_RECIPES, cookingEnergy } from './cookingProgression';
 import { GROCERIES, RECIPES, ingredientList, type RecipeId } from './food';
 import type { CharacterId, GameState } from './protocol';
 import { storageCanFit } from './storageSpace';
@@ -13,7 +14,10 @@ export function recipeAvailability(state: GameState, role: CharacterId,
   id: RecipeId): RecipeAvailability {
   const recipe=RECIPES[id];
   const cooking=skillRank(state.education.characters[role].xp.cooking).level;
-  const effort=cooking>=12?2:cooking>=6?3:4;
+  const required=COOKING_RECIPES[id].minLevel;
+  const effort=cookingEnergy(cooking,id);
+  if (cooking < required) return {available:false,effort,
+    reason:'🔒 Нужна кулинария уровня '+required+' (сейчас '+cooking+')'};
   const missing=ingredientList(id).filter(([item,amount])=>state.pantry[item]<amount);
   if(missing.length)return {available:false,effort,reason:'Не хватает: '+
     missing.map(([item,amount])=>GROCERIES[item].name.split(' · ')[0]+' ×'+

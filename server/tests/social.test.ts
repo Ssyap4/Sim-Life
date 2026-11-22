@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
 import { activityItems, contextAvailable, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, type SocialIntent } from '../../src/shared/socialLife';
 import { ingredientList } from '../../src/shared/food';
+import { levelXP } from '../../src/shared/education';
 import { clockAt, gameMinutes } from '../../src/shared/life';
 import { addReadyFood, moveReadyFoodToFridge } from '../../src/shared/readyFood';
 import { initialServices } from '../../src/shared/services';
@@ -23,6 +24,7 @@ import { openServerFiles } from '../storage';
 const residents=['vlad','alina'] as const;
 function sample(){
   const state=initialState();
+  for (const role of residents) state.education.characters[role].xp.cooking=levelXP(2);
   state.pantry.eggs=7;state.pantry.milk=7;
   state.meals.omelette=2;
   addReadyFood(state,'meal','omelette',2,'table');
@@ -158,7 +160,7 @@ test('Cooperative cooking spends exactly one set of ingredients and gives unique
     const saved=f.files.load();
     assert.equal(saved.meals.omelette,2);
     for(const [id,amount] of ingredientList('omelette'))assert.equal(saved.pantry[id],state.pantry[id]-amount);
-    for(const id of residents)assert.ok(saved.education.characters[id].xp.cooking>0);
+    for(const id of residents)assert.ok(saved.education.characters[id].xp.cooking>state.education.characters[id].xp.cooking);
     assert.equal(saved.relationship.memories.length,1);
   }finally{await f.close();}
 });

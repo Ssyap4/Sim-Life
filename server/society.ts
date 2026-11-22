@@ -8,7 +8,7 @@ import type { CharacterId, GameState, TimedCommand } from '../src/shared/protoco
 import { PETS, type PetId, type PetAction } from '../src/shared/pets';
 import { RECIPES, isGrillRecipe, type RecipeId } from '../src/shared/food';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
-import { completeStudy, practiceXP, studyDenial } from './education';
+import { awardCooking, completeStudy, practiceXP, studyDenial } from './education';
 import { evaluateTask, type EvaluatedTask } from './tasks';
 import { dishCount, dirtyDishStops } from '../src/shared/dirtyDishes';
 import { expireReadyFood, moveReadyFoodToTable, readyFoodTableUsage, TABLE_READY_CAPACITY } from '../src/shared/readyFood';
@@ -219,8 +219,8 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       if(rejected.ok) {
         change(state,from,{energy:1}); // one less point of effort with a helper
         change(state,to,{energy:-1});
-        practiceXP(state,to,'coop:prep:'+id,'cooking','Подготовка продуктов · '+RECIPES[id as RecipeId].name,7,8);
-        practiceXP(state,from,'coop:cook:'+id,'cooking','Совместная готовка · '+RECIPES[id as RecipeId].name,12,12);
+        awardCooking(state,to,id as RecipeId,true);
+        awardCooking(state,from,id as RecipeId);
         const gainA=state.education.characters[from].xp.cooking -
           source.education.characters[from].xp.cooking;
         const gainB=state.education.characters[to].xp.cooking -

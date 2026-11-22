@@ -1,0 +1,35 @@
+/* Sim-Life 0.19: skills belong to the world HUD, never the phone/PC app grid. */
+#skills-btn {display:flex;justify-content:center;align-items:center;flex-direction:column;gap:1px}
+#skills-btn small {font-size:9px;line-height:1.1;font-weight:750;opacity:.82}
+.skills-overlay {position:absolute;inset:0;z-index:8;background:#24382c89;
+ display:flex;align-items:flex-end;justify-content:center;padding:0 max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));pointer-events:auto}
+.skills-sheet {width:min(100%,490px);max-height:min(86dvh,790px);overflow-y:auto;overscroll-behavior:contain;
+ background:#fffdf5;border:1px solid #e0e8db;border-radius:18px;box-shadow:0 16px 54px #20392761;padding:12px}
+.skills-head {position:sticky;top:-12px;z-index:2;background:#fffdf5;display:flex;align-items:center;
+ justify-content:space-between;gap:9px;padding:5px 1px 10px}
+.skills-head strong {font-size:16px;color:#3b624a}
+.skills-head small {display:block;font-size:11px;color:#698072}
+.skills-head button {min-width:44px;min-height:44px;border:0;border-radius:11px;background:#e9f0e5;font-size:24px;color:#436550}
+.skills-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.skills-item {display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:3px 4px;text-align:left;
+ padding:8px 7px;min-height:56px;border:1px solid #dae6d6;border-radius:10px;background:#f5f8f0;color:#425f49;min-width:0}
+.skills-item[aria-pressed=true]{border-color:#7dab89;background:#e8f2e7}
+.skills-emoji{font-size:17px}
+.skills-name{font-weight:850;font-size:11px;overflow-wrap:anywhere;line-height:1.2}
+.skills-level{font-size:11px;white-space:nowrap}
+.skills-item progress{grid-column:1/-1;display:block;width:100%;height:6px;accent-color:#71a384}
+.skills-detail {margin-top:10px;border-top:1px solid #dce8d8;padding:8px 3px}
+.skills-detail h3 {font-size:14px;margin:0 0 5px;color:#42684b}
+.skills-detail p {font-size:12px;line-height:1.5;margin:5px 0;overflow-wrap:anywhere}
+.skills-xp,.skills-unlock {font-weight:850;color:#477453}
+.skills-recipe-list {display:grid;grid-template-columns:minmax(0,1fr);gap:4px;margin-top:9px}
+.skills-recipe-list > div {display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:8px;background:#f1f5ee;padding:7px 9px;font-size:11px}
+.skills-recipe-list small {color:#6a7e70;white-space:nowrap;font-size:10px}
+.skills-recipe-locked{opacity:.62}
+@media(max-width:360px) and (orientation:portrait){
+ .skills-sheet {padding:9px}
+ .skills-name {font-size:10px}
+ .skills-item {padding:7px 5px;gap:3px}
+ .home-buttons .market-btn {font-size:11px;min-width:0}
+ #skills-btn small {font-size:8px}
+}

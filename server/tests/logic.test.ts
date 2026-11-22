@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { applyAction } from '../logic';
 import { applyFoodAction } from '../food';
 import { initialState, points } from '../../src/shared/protocol';
+import { levelXP } from '../../src/shared/education';
 
 test('Vlad practice advances skill without printing instant money', () => {
   const original = initialState();
@@ -33,6 +34,7 @@ test('Alina practices communication without an imaginary salary',()=>{
 
 test('Cooking creates two shareable portions from real ingredients', () => {
   const start = initialState();
+  start.education.characters.vlad.xp.cooking=levelXP(2);
   assert.equal(applyFoodAction(start, 'vlad', { type: 'cook', recipe: 'omelette' }).ok, false);
   const milk = applyFoodAction(start, 'alina', { type: 'buy', item: 'milk' });
   assert.equal(milk.ok, true);
