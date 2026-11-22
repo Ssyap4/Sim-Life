@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
 import { INITIAL_AUTONOMY, autonomyCandidates, thoughtFor, validAutonomy } from '../../src/shared/autonomy';
+import { furnitureUseLocation } from '../../src/shared/furnitureUse';
+import { leisureDurationMs, planLeisure } from '../home';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
 import { openServerFiles } from '../storage';
 import { startServer } from '../server';
@@ -29,14 +31,14 @@ async function enter(port:number,role:CharacterId,code:string):Promise<WebSocket
   assert.equal((await promise).type,'ready');
   return ws;
 }
-async function setup(seed?:GameState,fast=false){
+async function setup(seed?:GameState,fast=false,idleMs=60){
   const dir=mkdtempSync(join(tmpdir(),'sim-life-017-autonomy-'));
   if(seed)openServerFiles(dir).save(seed);
   const clock={now:0};
   const ticking=fast?setInterval(()=>{clock.now+=2400;},20):undefined;
   const server=await startServer({port:0,dataDir:dir,taskTimeScale:.08,
     ...(fast?{lifeClock:{now:()=>clock.now,tickMs:20},
-      autonomyTiming:{idleMs:60,careCooldownMs:120,leisureCooldownMs:200}}:{})});
+      autonomyTiming:{idleMs,careCooldownMs:120,leisureCooldownMs:200}}:{})});
   const keys=JSON.parse(readFileSync(join(dir,'access.json'),'utf-8')) as Record<CharacterId,string>;
   const sockets:WebSocket[]=[];
   return {
@@ -138,7 +140,8 @@ test('Default off prevents legacy unsolicited chores; turning on care triggers a
     const finish=waitFor(ws,p=>p.type==='task_ended'&&p.taskId===task.taskId);
     const outcome=await finish;
     if(outcome.type==='task_ended')assert.equal(outcome.outcome,'completed');
-    assert.equal(openServerFiles(ctx.dir).load().characters.vlad.bladder,100);
+    assert.ok(openServerFiles(ctx.dir).load().characters.vlad.bladder>=99,
+      'Normal passage of time may drain a fraction immediately after toilet use');
   }finally{await ctx.close();}
 });
 
@@ -190,7 +193,8 @@ test('Full autonomy performs harmless leisure without spending money and yields 
 test('Shared spontaneous conversation requires both residents in full mode and stops when either takes control',async()=>{
   const seed=initialState();
   seed.autonomy={vlad:'full',alina:'full'};
-  const ctx=await setup(seed,true);
+  // Give both browser clients time to connect before the first idle decision.
+  const ctx=await setup(seed,true,200);
   try{
     const vlad=await ctx.join('vlad');
     const alina=await ctx.join('alina');
@@ -306,4 +310,46 @@ test('Explicit passwordless previews use isolated saves, while the production po
       await preview.close();
     }
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Autonomous leisure approaches real installed replacement furniture',()=>{
+  const state=initialState();
+  state.furnishing.soldFixtures=['sofa','desk'];
+  state.furnishing.placed=[
+    {id:1,sku:'sofa-luna',finish:'sage',x:-2.35,z:2.02,rotation:0},
+    {id:2,sku:'desk-large',finish:'sage',x:7.2,z:-6.7,rotation:0},
+  ];
+  state.furnishing.nextId=3;
+  for(const [activity,id,action] of [
+    ['tv',1,'free_tv'],['computer',2,'deskGames'],
+  ] as const){
+    const expected=furnitureUseLocation(state,'vlad',id,action);
+    const leisure=planLeisure(state,'vlad',activity);
+    assert.ok(expected,'Purchased furniture must be reachable for '+activity);
+    assert.deepEqual(leisure,expected.route,'Leisure must use real furniture coordinates');
+  }
+  assert.ok(planLeisure(state,'vlad','computer'),'A real purchased desk remains usable');
+});
+
+test('Downgrading full autonomy stops spontaneous leisure without disabling basic care',async()=>{
+  const seed=initialState();
+  seed.autonomy.vlad='full';
+  const ctx=await setup(seed,true);
+  try{
+    const ws=await ctx.join('vlad');
+    await waitFor(ws,p=>p.type==='home_leisure'&&p.roles.includes('vlad')&&p.activity!==null,4500);
+    const stopped=waitFor(ws,p=>p.type==='home_leisure'&&p.activity===null);
+    const changed=waitFor(ws,p=>p.type==='snapshot'&&p.state.autonomy.vlad==='needs');
+    send(ws,{type:'autonomy_mode',mode:'needs'});
+    await Promise.all([stopped,changed]);
+    assert.equal(openServerFiles(ctx.dir).load().autonomy.vlad,'needs');
+  }finally{await ctx.close();}
+});
+
+test('Long-distance autonomous leisure lasts long enough to walk and perform the activity',()=>{
+  assert.equal(leisureDurationMs({from:{x:0,z:0},path:[]}),16000);
+  const route={from:{x:0,z:0},path:[{x:0,z:15},{x:15,z:15}]};
+  const duration=leisureDurationMs(route);
+  assert.ok(duration>26000,'A long trip needs walking time plus leisure time');
+  assert.ok(duration>=30000/1.8+10000);
 });

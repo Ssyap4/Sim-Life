@@ -18,7 +18,7 @@ import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
-import { planLeisure, urgentHomeAction } from './home';
+import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
@@ -110,6 +110,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const careCooldownMs=options.autonomyTiming?.careCooldownMs??45_000;
   const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??50_000;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
+  // Keep full autonomy from repeating the same entertainment at every idle tick.
+  const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
@@ -419,7 +421,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             state.revision++;
             all({type:'snapshot',state});
           }
-          leisure.set(role,{activity,startedAt:now,until:now+16_000,route});
+          leisure.set(role,{activity,startedAt:now,until:now+leisureDurationMs(route),route});
           all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
         }
       }
@@ -435,8 +437,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(!route)return;
         routes[role]=route;
       }
+      const chatUntil=now+Math.max(...available.map(role=>leisureDurationMs(routes[role]!)));
       for(const role of available){
-        leisure.set(role,{activity:'chat',startedAt:now,until:now+16_000,route:routes[role]!});
+        leisure.set(role,{activity:'chat',startedAt:now,until:chatUntil,route:routes[role]!});
         lastAutoCare.set(role,now);
       }
       all({type:'home_leisure',roles:available,activity:'chat',routes});
@@ -447,8 +450,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         ? ['computer','tv','verdell','simba']
         : ['simba','tv','verdell','computer'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
-      for(let index=0;index<preferences.length;index++){
-        const activity=preferences[(start+index)%preferences.length];
+      const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
+      const recent=recentLeisure.get(role);
+      // Try a different activity first; reuse the previous one only when
+      // another entertainment option has no reachable route or is occupied.
+      const ordered=[...rotated.filter(activity=>activity!==recent),
+        ...rotated.filter(activity=>activity===recent)];
+      for(const activity of ordered){
         if(activity==='computer'&&!serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))continue;
         if(activity==='verdell'&&state.world.dogWalker)continue;
         const resource=activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity;
@@ -462,7 +470,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.revision++;
           all({type:'snapshot',state});
         }
-        leisure.set(role,{activity,startedAt:now,until:now+16_000,route});
+        leisure.set(role,{activity,startedAt:now,until:now+leisureDurationMs(route),route});
+        recentLeisure.set(role,activity);
         lastAutoCare.set(role,now);
         all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
         break;
@@ -699,6 +708,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           packet(socket,{type:'error',reason:'Неизвестный режим самостоятельности'});return;
         }
         if (state.autonomy[role] !== message.mode) {
+          const previousMode=state.autonomy[role];
           const next=structuredClone(state);
           next.autonomy[role]=message.mode as typeof AUTONOMY_MODES[number];
           next.revision++;
@@ -706,11 +716,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state=next;
           // The owner regains control immediately, even if the character was
           // in the middle of a previous autonomous chore or an idle walk.
-          if(message.mode==='off') {
-            if(autoSleeping.has(role))stopSleep(role);
+          if(message.mode==='off'||(previousMode==='full'&&message.mode==='needs')) {
+            // Dropping FULL must also stop full-only leisure and chats, while
+            // preserving manual tasks and an already ongoing restorative sleep.
+            if(message.mode==='off'&&autoSleeping.has(role))stopSleep(role);
             stopLeisure(role);
-            if(running.get(role)?.automatic)stopTask(role,'Самостоятельность выключена');
-            if(homeTasks.automatic(role))homeTasks.cancel(role,'Самостоятельность выключена');
+            if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
+            if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
           lastIntent.set(role,Date.now());
           lastAutoCare.set(role,0);
