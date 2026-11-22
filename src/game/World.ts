@@ -20,6 +20,7 @@ import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOU
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
+import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
 import { diningSurface, tabletopPoint } from '../shared/diningSurface';
@@ -172,6 +173,8 @@ export class World {
   private readonly followDelta = new THREE.Vector3();
   private cameraMove: Frame | null = null;
   private neighborhoodView=false;
+  private readonly savedCameras=new Map<PlaceId,Frame>();
+  private readonly tapLayer=document.createElement('div');
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
   private readonly compactPortrait = window.matchMedia(compactPortraitQuery);
@@ -184,10 +187,14 @@ export class World {
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
-    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void }) {
+    private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
+      dismissTap?: () => boolean }) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 64, 97);
 
+    this.tapLayer.className='world-tap-feedback';
+    this.tapLayer.setAttribute('aria-hidden','true');
+    this.canvas.parentElement?.append(this.tapLayer);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -315,7 +322,8 @@ export class World {
         // Let OrbitControls finish releasing capture before opening an item
         // menu or sending a walking command. No visible tap delay.
         const { clientX, clientY } = event;
-        queueMicrotask(() => this.pick(clientX, clientY));
+        const touch=event.pointerType==='touch';
+        queueMicrotask(() => this.pick(clientX, clientY, touch));
       }
     }, { capture: true });
 
@@ -379,6 +387,19 @@ export class World {
   focusHome():void {
     if(this.place!=='home')return;
     this.showcase(null);
+  }
+
+  /** One deliberate, predictable camera reset at any location. */
+  resetCamera():void {
+    this.savedCameras.delete(this.place);
+    this.inspected=null;
+    this.neighborhoodView=false;
+    this.followSubject=null;
+    this.controls.minDistance=10;
+    this.controls.maxDistance=this.place==='home'?74:51;
+    this.controls.maxPolarAngle=1.25;
+    this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
+    this.cameraMove=this.defaultFrame;
   }
 
   restoreCharacter(id: CharacterId, x: number, z: number, pose: 'idle' | 'sit' | 'sleep' | 'work',
@@ -1635,6 +1656,11 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
+      this.savedCameras.set(this.place,{
+        position:this.camera.position.clone(),target:this.controls.target.clone(),
+      });
+    }
     this.openDoors.clear();
     this.cameraMove = null;
     this.followSubject = null;
@@ -1684,6 +1710,12 @@ export class World {
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
+    const remembered=this.savedCameras.get(place);
+    if(remembered){
+      this.camera.position.copy(remembered.position);
+      this.controls.target.copy(remembered.target);
+      this.controls.update();
+    }
     this.renderer.renderLists.dispose();
   }
 
@@ -1861,36 +1893,90 @@ export class World {
     }
   }
 
-  private pick(clientX: number, clientY: number): void {
-    const bounds = this.canvas.getBoundingClientRect();
-    const x = ((clientX - bounds.left) / bounds.width) * 2 - 1;
-    const y = -((clientY - bounds.top) / bounds.height) * 2 + 1;
-    this.raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-    const sceneMeshes = this.place === 'home' ? [...this.interactiveMeshes, ...this.stationMeshes] : this.remoteMeshes;
-    const hit = this.raycaster.intersectObjects([...sceneMeshes, ...this.subjectMeshes], false).find(entry => {
-      for (let part: THREE.Object3D | null = entry.object; part; part = part.parent) {
-        if (!part.visible) return false;
-      }
+  private touchPulse(clientX: number,clientY: number,kind:'select'|'walk'|'place'):void {
+    const layerRect=this.tapLayer.getBoundingClientRect();
+    const marker=document.createElement('span');
+    marker.className='world-tap-pulse '+kind;
+    marker.style.left=(clientX-layerRect.left)+'px';
+    marker.style.top=(clientY-layerRect.top)+'px';
+    this.tapLayer.append(marker);
+    marker.addEventListener('animationend',()=>marker.remove(),{once:true});
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      window.setTimeout(()=>marker.remove(),350);
+    subtleHaptic(kind==='place'?'place':'select');
+  }
+
+  private pick(clientX: number, clientY: number, touch = false): void {
+    // Outside an open action menu, the first tap only dismisses the menu.
+    // Never send an unexpected walk or open a different interaction behind it.
+    if(this.navigation?.dismissTap?.())return;
+    const bounds=this.canvas.getBoundingClientRect();
+    const ndc=(px:number,py:number)=>new THREE.Vector2(
+      ((px-bounds.left)/bounds.width)*2-1,
+      -((py-bounds.top)/bounds.height)*2+1);
+    const visible=(entry:THREE.Intersection)=>{
+      for(let part:THREE.Object3D|null=entry.object;part;part=part.parent)
+        if(!part.visible)return false;
       return true;
-    });
+    };
+    const meshes=this.place==='home'
+      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes]
+      : [...this.remoteMeshes,...this.subjectMeshes];
+    const intersections=(px:number,py:number)=>{
+      this.raycaster.setFromCamera(ndc(px,py),this.camera);
+      return this.raycaster.intersectObjects(meshes,false).find(visible);
+    };
+    let hit=intersections(clientX,clientY);
+    // On phones the target's invisible hit zone is larger than its model.
+    // Extra ray casts run only if the exact tap missed, never every frame.
+    if(!hit&&touch&&!this.furnishingGhost){
+      let nearest: { hit:THREE.Intersection;score:number }|null=null;
+      for(const [ox,oy] of [[-9,0],[9,0],[0,-9],[0,9],
+        [-13,-13],[13,-13],[-13,13],[13,13]]){
+        const candidate=intersections(clientX+ox,clientY+oy);
+        if(!candidate)continue;
+        // Screen-space proximity first, with slight depth priority to avoid
+        // selecting furniture behind a more obvious foreground object.
+        const score=Math.hypot(ox,oy)+candidate.distance*.035;
+        if(!nearest||score<nearest.score)nearest={hit:candidate,score};
+      }
+      hit=nearest?.hit;
+      // Put the ray back on the actual finger location for walking.
+      this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);
+    }
     if(this.place==='home'&&this.furnishingGhost){
       this.previewFurnitureAt(clientX,clientY);
+      this.touchPulse(clientX,clientY,'place');
       return;
     }
     const furnitureId:unknown=hit?.object.userData.furnitureId;
     if(this.place==='home'&&typeof furnitureId==='number'){
+      this.touchPulse(clientX,clientY,'select');
       this.furnishingItemCallback?.(furnitureId);
       return;
     }
-    const station: unknown = hit?.object.userData.station;
-    if (typeof station === 'string') { this.navigation?.station(station); return; }
-    const id: unknown = hit?.object.userData.interactable;
-    if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba' ||
-        id === 'bowl:verdell' || id === 'bowl:simba') this.onPick(id);
-    else if (typeof id === 'string' && id in objectNames) this.onPick(id as ItemId);
-    else {
-      const point = this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP, 0), this.vector);
-      if (point && pointIsClear(point, this.currentObstacles(), floorFor(this.place))) this.navigation?.ground(point.x, point.z);
+    const station:unknown=hit?.object.userData.station;
+    if(typeof station==='string'){
+      this.touchPulse(clientX,clientY,'select');
+      this.navigation?.station(station);
+      return;
+    }
+    const id:unknown=hit?.object.userData.interactable;
+    if(id==='vlad'||id==='alina'||id==='verdell'||id==='simba'||
+       id==='bowl:verdell'||id==='bowl:simba'){
+      this.touchPulse(clientX,clientY,'select');
+      this.onPick(id);
+    } else if(typeof id==='string'&&id in objectNames){
+      this.touchPulse(clientX,clientY,'select');
+      this.onPick(id as ItemId);
+    } else {
+      this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);
+      const point=this.raycaster.ray.intersectPlane(
+        new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);
+      if(point&&pointIsClear(point,this.currentObstacles(),floorFor(this.place))){
+        this.touchPulse(clientX,clientY,'walk');
+        this.navigation?.ground(point.x,point.z);
+      }
     }
   }
 

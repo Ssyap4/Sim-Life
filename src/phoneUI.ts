@@ -17,6 +17,7 @@ import { PETS, PET_IDS } from './shared/pets';
 import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
+import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
 type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
@@ -128,6 +129,19 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         row.append(checkbox,document.createTextNode(label));
         settings.append(row);
       }
+      const touchCard=block('📱 Удобство управления',
+        'Лёгкая вибрация подтверждения на поддерживаемых Android. На iPhone Safari вибрация недоступна, визуальный отклик остаётся.');
+      touchCard.classList.add('autonomy-phone-settings');
+      const touchRow=document.createElement('label');
+      const touchToggle=document.createElement('input');
+      touchToggle.type='checkbox';touchToggle.dataset.haptics='';
+      touchToggle.checked=hapticsEnabled();
+      touchToggle.addEventListener('change',()=>{
+        setHapticsEnabled(touchToggle.checked);
+        if(touchToggle.checked)subtleHaptic('confirm');
+      });
+      touchRow.append(touchToggle,document.createTextNode('Тактильный отклик (необязательно)'));
+      touchCard.append(touchRow);
       const historyIntro=block('🕰 Недавние мысли',
         'Пять последних мыслей каждого персонажа. История хранится на этом устройстве, не изменяя семейное сохранение.');
       historyIntro.dataset.thoughtHistoryAnchor='true';
@@ -153,7 +167,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         }
         return section;
       });
-      info.replaceChildren(intro,...cards,settings,historyIntro,...historyCards);
+      info.replaceChildren(intro,...cards,settings,touchCard,historyIntro,...historyCards);
       info.scrollTop=scroll;
     }
     if (app === 'relationship') {
@@ -267,7 +281,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       info.querySelector<HTMLElement>('[data-thought-history-anchor]')?.scrollIntoView({block:'start'});
       closeButton.focus();
     },
-    close,refresh,refreshClock,
+    close,
+    back(){if(app!==null)show(null);else close();},
+    refresh,refreshClock,
     refreshRelationship() { if(app==='relationship')refresh(); },
     openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
     educationMessage(message: string) {

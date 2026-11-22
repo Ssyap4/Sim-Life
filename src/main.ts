@@ -35,7 +35,10 @@ import './queue-ui.css';
 import './minimal-hud.css';
 import './visual-polish-020.css';
 import './mobile-controls-020.css';
+import './mobile-ux-020.css';
 import { installMobileInput } from './mobileInput';
+import { installMobileBack } from './mobileBack';
+import { subtleHaptic } from './mobileHaptics';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -136,6 +139,7 @@ app.innerHTML = `
       </div>
     </div>
   </header>
+  <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button></div>
   <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
@@ -260,6 +264,11 @@ showcaseToggle.addEventListener('click', () => {
   showcaseToggle.setAttribute('aria-expanded', String(!showcaseChoices.hidden));
 });
 showcaseReturn.addEventListener('click', () => focusModel(null));
+document.querySelector<HTMLButtonElement>('#camera-reset')!.addEventListener('click',()=>{
+  if(!world)return;
+  if(!showcaseReturn.hidden)focusModel(null);
+  world.resetCamera();
+});
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
   if (event.key === 'Escape') {
@@ -913,7 +922,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onStoreEvent(role,message) {
-    if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();}
+    if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();subtleHaptic('confirm');}
     statusEl.textContent=message;
     notify(message);
   },
@@ -1470,6 +1479,12 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
         net.world({ type: 'approach', place: world.place, station: id });
       },
+      dismissTap() {
+        if(!actionsEl.hidden){actionsEl.hidden=true;return true;}
+        if(!locationPanel.hidden){locationUI.close();return true;}
+        if(!showcaseChoices.hidden){showcaseChoices.hidden=true;return true;}
+        return false;
+      },
       ground(x, z) {
         if (!active) return;
         if (net.world({ type: 'walk', place: world.place, x, z })) {
@@ -1553,6 +1568,40 @@ document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit'
   if (!localPreviewNoCodes && code.length < 12) { authStatusEl.textContent = 'Введи полный код персонажа'; return; }
   net.login(selectedRole, code, rememberDevice.checked);
 });
+/** Android Back / iOS browser Back dismisses gameplay UI before leaving.
+ * UI order is deliberately explicit: nested phone screen -> phone home -> world.
+ */
+installMobileBack({
+  root:app,
+  isOpen:()=>authEl.hidden && (
+    !document.querySelector<HTMLElement>('#pause-sheet')!.hidden ||
+    !document.querySelector<HTMLElement>('#phone-overlay')!.hidden ||
+    !document.querySelector<HTMLElement>('#computer-overlay')!.hidden ||
+    !document.querySelector<HTMLElement>('#skills-overlay')!.hidden ||
+    !document.querySelector<HTMLElement>('#furnishing-overlay')!.hidden ||
+    !document.querySelector<HTMLElement>('#furnishing-placement')!.hidden ||
+    !marketOverlay.hidden || !jobsOverlay.hidden || !mapPanel.hidden ||
+    !locationPanel.hidden || !needsPanelEl.hidden || !actionsEl.hidden ||
+    !showcaseChoices.hidden || !showcaseReturn.hidden
+  ),
+  closeTop:()=>{
+    const visible=(selector:string)=>!document.querySelector<HTMLElement>(selector)!.hidden;
+    if(visible('#pause-sheet')){notify('Пауза общая · для продолжения нажми ▶');return;}
+    if(visible('#furnishing-placement')||visible('#furnishing-overlay')){furnishing.close();return;}
+    if(visible('#phone-overlay')){phone.back();return;}
+    if(visible('#computer-overlay')){computer.close();return;}
+    if(visible('#skills-overlay')){skillsPanel.close();return;}
+    if(visible('#market-overlay')){marketUI.close();return;}
+    if(visible('#jobs-overlay')){jobsUI.close();return;}
+    if(visible('#map-panel')){locationUI.closeMap();return;}
+    if(visible('#location-panel')){locationUI.close();return;}
+    if(visible('#needs-panel')){toggleNeeds(false);return;}
+    if(!actionsEl.hidden){actionsEl.hidden=true;return;}
+    if(!showcaseChoices.hidden){showcaseChoices.hidden=true;return;}
+    if(!showcaseReturn.hidden){focusModel(null);return;}
+  }
+});
+
 void initializeWorld(app);
 
 document.querySelector<HTMLButtonElement>('#pause-btn')!.addEventListener('click', () => net.togglePause());
