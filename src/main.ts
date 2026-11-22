@@ -12,6 +12,7 @@ import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } f
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { BOOKS, GENRES } from './shared/homeLife';
 import { createPhone } from './phoneUI';
+import { createThoughtUI } from './thoughtUI';
 import { createComputerUI } from './computerUI';
 import { createFurnishingUI } from './furnishingUI';
 import './furnishing.css';
@@ -126,6 +127,7 @@ app.innerHTML = `
     <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
   </section>
+  <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
   <div id="message" class="message" aria-live="polite"></div>
@@ -209,6 +211,7 @@ const needsContentEl = document.querySelector<HTMLElement>('#needs-content')!;
 const needsToggleEl = document.querySelector<HTMLButtonElement>('#needs-toggle')!;
 const marketOverlay = document.querySelector<HTMLElement>('#market-overlay')!;
 function toggleNeeds(open: boolean): void {
+  if(open) thoughts.close();
   needsPanelEl.hidden = !open;
   needsToggleEl.setAttribute('aria-expanded', String(open));
   if (open) renderNeeds();
@@ -518,6 +521,7 @@ function render(reset = false): void {
     }
   }
   renderClock();
+  thoughts.refresh();
   showUpcomingPayments(state);
   const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
@@ -584,6 +588,7 @@ function signOut(): void {
   accessInput.value = '';
   rememberDevice.checked = false;
   authEl.hidden = false;
+  thoughts.reset();
   phoneBtn.disabled = petsBtn.disabled = mapBtn.disabled = furnitureBtn.disabled = true;
   actionsEl.hidden = true;
   phone.close();
@@ -601,6 +606,10 @@ function signOut(): void {
 }
 const jobsUI=makeJobBoard(jobsOverlay,id=>net.startJob(id),()=>net.leaveJobEarly(),
   enabled=>net.setShiftSpeed(enabled),()=>timeStatus,()=>online);
+const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-dock')!,
+  ()=>state&&active?{state,role:active}:null,
+  ()=>{toggleNeeds(false);locationUI.closeMap();},
+  ()=>phone.openAutonomyHistory());
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -613,7 +622,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode));
+  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts);
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
@@ -673,6 +682,7 @@ const net = new LiveConnection({
     selectedDesktopFurnitureId=null;
     active = role;
     state = household;
+    thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
     timeStatus = { multiplier: 1, shiftVotes: [], sleepers: {} };

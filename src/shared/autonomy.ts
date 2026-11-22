@@ -1,6 +1,7 @@
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from './life';
 import { canFurniturePerform } from './furnitureUse';
+import { CALM_VARIANTS, THOUGHT_VARIANTS } from './thoughtNarrative';
 import type { CharacterId, GameState, TimedCommand } from './protocol';
 
 export type AutonomyMode = 'off' | 'needs' | 'full';
@@ -145,14 +146,16 @@ export function thoughtFor(state:GameState,role:CharacterId):{text:string;need?:
   const needs=VITAL_NEEDS.map(need=>({need,value:person[need]}))
     .sort((a,b)=>a.value-b.value);
   const lowest=needs[0];
-  const cycle=Math.floor(gameMinutes(state.clock)/110)+(role==='alina'?1:0);
-  if(lowest.value<=57)
+  const cycle=Math.floor(gameMinutes(state.clock)/75)+(role==='alina'?3:0);
+  if(lowest.value<=57){
+    const phrases=[...expressions[lowest.need][role],...THOUGHT_VARIANTS[lowest.need][role]];
     return {need:lowest.need,emoji:NEED_INFO[lowest.need].emoji,
-      text:expressions[lowest.need][role][cycle%expressions[lowest.need][role].length]};
+      text:phrases[cycle%phrases.length]};
+  }
   const time=dayPhase(state.clock);
   const phrase=time==='night'
     ? role==='vlad'?'Тихий вечер. Хорошо бы отдохнуть перед новым днём.':
       'Вечер дома — лучшее время для спокойствия.'
-    : calm[role][cycle%calm[role].length];
+    : [...calm[role],...CALM_VARIANTS[role]][cycle%(calm[role].length+CALM_VARIANTS[role].length)];
   return {text:phrase,emoji:time==='night'?'🌙':'💭'};
 }

@@ -1,4 +1,5 @@
 import { renderRelationship } from './socialUI';
+import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
 import { createBillingUI, type BillingApp } from './billingUI';
@@ -35,7 +36,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
-  openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean) {
+  openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
+  thoughts:ReturnType<typeof createThoughtUI>) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -109,7 +111,49 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         }
         return current;
       });
-      info.replaceChildren(intro,...cards);
+      const settings=block('💭 Всплывающая карточка',
+        'Настройки показываемых мыслей для этого персонажа на данном устройстве.');
+      settings.classList.add('autonomy-phone-settings');
+      const preferences=thoughts.preferences();
+      for(const [id,label] of [
+        ['show','Показывать всплывающие мысли'],
+        ['hints','Показывать мини-подсказки'],
+        ['pin','Закрепить карточку на экране'],
+      ] as [keyof ThoughtPreferences,string][]){
+        const row=document.createElement('label');
+        const checkbox=document.createElement('input');
+        checkbox.type='checkbox';checkbox.dataset.thoughtSetting=id;
+        checkbox.checked=preferences[id];
+        checkbox.addEventListener('change',()=>{thoughts.setPreference(id,checkbox.checked);});
+        row.append(checkbox,document.createTextNode(label));
+        settings.append(row);
+      }
+      const historyIntro=block('🕰 Недавние мысли',
+        'Пять последних мыслей каждого персонажа. История хранится на этом устройстве, не изменяя семейное сохранение.');
+      historyIntro.dataset.thoughtHistoryAnchor='true';
+      const historyCards=(['vlad','alina'] as const).map(id=>{
+        const section=block('💭 '+names[id],'');
+        section.classList.add('autonomy-phone-history');
+        section.querySelector('p')!.remove();
+        const entries=[...thoughts.history(id)].reverse();
+        if(!entries.length){
+          const empty=document.createElement('p');
+          empty.textContent='Пока нет записей. Мысли появятся во время игры.';
+          section.append(empty);
+        }
+        for(const entry of entries){
+          const item=document.createElement('div');
+          item.className='thought-history-item';
+          const time=document.createElement('small');
+          time.textContent=entry.emoji+' '+entry.time;
+          const text=document.createElement('p');
+          text.textContent='«'+entry.text+'»';
+          item.append(time,text);
+          section.append(item);
+        }
+        return section;
+      });
+      info.replaceChildren(intro,...cards,settings,historyIntro,...historyCards);
       info.scrollTop=scroll;
     }
     if (app === 'relationship') {
@@ -217,7 +261,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if ((app==='delivery'&&delivery.hidden)||(app==='jobs'&&jobs.hidden)) show(null);
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
-  return { open(next: App | null = null) {show(next);closeButton.focus();},close,refresh,refreshClock,
+  return { open(next: App | null = null) {show(next);closeButton.focus();},
+    openAutonomyHistory(){
+      show('autonomy');
+      info.querySelector<HTMLElement>('[data-thought-history-anchor]')?.scrollIntoView({block:'start'});
+      closeButton.focus();
+    },
+    close,refresh,refreshClock,
     refreshRelationship() { if(app==='relationship')refresh(); },
     openEducation(view: EducationView, room?: string) { show('education', view, room); closeButton.focus(); },
     educationMessage(message: string) {
