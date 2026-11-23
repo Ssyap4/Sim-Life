@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
+import { createPetPlayToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
@@ -30,6 +31,7 @@ export class PetActor {
   private rerouteCooldown = 0;
   private yieldingTo: FloorPoint | null = null;
   private readonly hungerMarker = petHungerSprite();
+  private readonly playToy: THREE.Group;
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
     satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
@@ -43,6 +45,8 @@ export class PetActor {
     const { x, z } = PETS[id].home;
     this.root.position.set(x, 0, z);
     this.root.add(this.body);
+    this.playToy=createPetPlayToy(id);
+    this.root.add(this.playToy);
     const dog = id === 'verdell';
     this.idleCooldown = dog ? 3.5 : 5;
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
@@ -283,6 +287,18 @@ export class PetActor {
     const pulse = Math.sin(t * (dog ? 2.6 : 1.9));
     const playBeat = Math.sin(r * (dog ? 8 : 5.9));
     const lift = Math.max(0, playBeat) * playful;
+    // Toys accompany genuine player-initiated play, not fake background rewards.
+    // Model animation never changes server routes or animal needs.
+    this.playToy.visible=playful>.07;
+    if(this.playToy.visible){
+      this.playToy.position.set(
+        (dog ? .11 : .15)+Math.sin(r*(dog?4.4:5.5))*.095*playful,
+        dog ? .092+Math.max(0,Math.sin(r*7))*.10*playful : .053,
+        dog ? .79+Math.cos(r*4.4)*.08*playful : .73+Math.cos(r*5.8)*.06*playful,
+      );
+      this.playToy.rotation.y=r*(dog?4.6:2.1);
+      this.playToy.rotation.z=(dog?.22:-.11)*Math.sin(r*5)*playful;
+    }
     const stretch = dog ? 0 : 0.66 * attention + 0.53 * playful - 0.30 * eating;
     if (this.rig.back?.morphTargetInfluences) {
       this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
