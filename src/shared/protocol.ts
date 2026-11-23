@@ -136,6 +136,7 @@ export const ACTIONS = {
   kitchenTidy: { label: '🧽 Убрать кухню', item: 'kitchen', pose: 'idle' },
   kitchenDishes: { label: '🫧 Помыть грязную посуду', item: 'kitchen', pose: 'idle' },
   kitchenLeftovers: { label: '🧊 Убрать оставшуюся еду в холодильник', item: 'kitchen', pose: 'idle' },
+  kitchenServe: { label: '🍽️ Накрыть стол готовой едой', item: 'kitchen', pose: 'idle' },
   kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
   watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'sit' },
   tvMusic: { label: '🎶 Послушать концерт', item: 'tv', pose: 'sit' },
