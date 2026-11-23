@@ -72,13 +72,15 @@ export class SimbaRig {
     // A cat resting on a cushion lowers its head and folds the muzzle back
     // toward its chest. Bone targets are rebuilt each frame, never accumulated.
     this.head.position.y=this.headRest.y-.036*loaf;
-    this.head.position.z=this.headRest.z-.055*coil;
+    this.head.position.z=this.headRest.z-.055*coil-.025*loaf;
     this.head.rotation.set(head.x*.76+.12*loaf,head.y*.74+.10*coil,head.z*.74);
     this.neck.rotation.set(head.x*.24+.11*loaf,head.y*.26,head.z*.18);
     this.neck.position.y=.02-.095*eating-.05*rest-.035*loaf;
     this.jaw.rotation.x=.12*eating*(.5+.5*Math.sin(time*12));
-    this.spine.rotation.y=.050*motion*Math.sin(distance*12) + rest*.12;
-    this.spine.rotation.x=.085*loaf;
+    // A small spinal bend and lowered muzzle read as a resting CAT,
+    // without twisting the bones through the sofa or stretching the mesh.
+    this.spine.rotation.y=.050*motion*Math.sin(distance*12)+rest*.12+coil*.10;
+    this.spine.rotation.x=.085*loaf+.04*coil;
     this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf;
     for(let i=0;i<this.tail.length;i++){
       const joint = this.tail[i];
