@@ -19,6 +19,9 @@ test('0.27 v6: built-in sofas and beds provide real cushion spots, never sold gh
     assert.ok(p.surface.y>.65 && p.surface.y<1.2);
     assert.ok(Math.hypot(p.surface.x-p.approach.x,p.surface.z-p.approach.z)>.5);
     assert.deepEqual(currentCatPerch(state.furnishing,p),p);
+    const towardFloor={x:p.approach.x-p.surface.x,z:p.approach.z-p.surface.z};
+    assert.ok(Math.sin(p.yaw)*towardFloor.x+Math.cos(p.yaw)*towardFloor.z>0,
+      'Simba must face outward toward the room, not bury his nose in a sofa backrest');
   }
   state.furnishing.soldFixtures=['sofa','bed'];
   assert.equal(catPerchCandidates(state.furnishing).length,0);

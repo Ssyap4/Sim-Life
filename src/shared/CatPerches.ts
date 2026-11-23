@@ -50,7 +50,8 @@ function make(key:string,item:PerchFurniture,x:number,z:number,rotation:number,
       ? item.depth*.14 : 0);
   const foot=rotate(0,sign*(item.depth/2+.67),rotation);
   const seat=rotate(0,localZ,rotation);
-  const heading=rotate(0,-sign,rotation);
+  // Face the ROOM/front edge, never the backrest or wall.
+  const heading=rotate(0,sign,rotation);
   return {
     key, approach:{x:x+foot.x,z:z+foot.z},
     surface:{x:x+seat.x,y:seatHeight(item,starter)+.085,z:z+seat.z},
