@@ -2,6 +2,8 @@ name: Sim-Life 0.28 authored Simba 3D rest QA
 on:
   push:
     branches: [feat/simba-authored-furniture-rest-028]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,8 +20,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npx tsx --test server/tests/simbaAuthoredRest-028.test.ts server/tests/catPerches-027.test.ts
-      - run: npx playwright install --with-deps chromium
       - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
       - run: npx vite build
       - name: Capture FIVE real WebGL furniture poses on 390x844 phone canvas
         run: node --import tsx scripts/qa-028-simba-authored.mjs
