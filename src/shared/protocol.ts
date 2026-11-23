@@ -11,6 +11,7 @@ import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee
 import type { ReadyFoodBatch } from './readyFood';
 import { EMPTY_DIRTY_DISHES, type DirtyDishes } from './dirtyDishes';
 import type { LedgerEntry } from './economy';
+import { initialFamilyBudget, type FamilyBudget, type BudgetCommand } from './familyBudget';
 import { emptyFurnishing, type FurnishingState } from './furniture';
 import type { FurnishingCommand } from './furniture';
 import type { FurnitureUseCommand } from './furnitureUse';
@@ -70,6 +71,7 @@ export interface GameState {
   readyFood: ReadyFoodBatch[];
   dirtyDishes: DirtyDishes;
   ledger: LedgerEntry[];
+  savings: FamilyBudget;
   shiftDays: Record<CharacterId, number>;
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
@@ -164,7 +166,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
 
-export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | EducationCommand | CareerCommand | SocialCommand
+export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -239,7 +241,7 @@ export function initialState(): GameState {
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
-    ledger: [], shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
+    ledger: [], savings: initialFamilyBudget(INITIAL_CLOCK), shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
     computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY },
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },

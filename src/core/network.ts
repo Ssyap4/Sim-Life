@@ -1,5 +1,6 @@
 import type { SocialCommand, SocialOffer } from '../shared/socialLife';
 import type { ServiceCommand } from '../shared/services';
+import type { BudgetCommand } from '../shared/familyBudget';
 import type { EducationCommand } from '../shared/education';
 import type { PlaceId, Point, WorldCommand } from '../shared/locations';
 import { storeTrust } from './trusted';
@@ -119,6 +120,7 @@ export class LiveConnection {
   }
 
   service(command: ServiceCommand): boolean {return this.sendAuthenticated(command);}
+  budget(command: BudgetCommand): boolean {return this.sendAuthenticated(command);}
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
   inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}

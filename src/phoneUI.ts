@@ -9,6 +9,7 @@ import { CAREERS, nextCareerShift, type CareerCommand } from './shared/careers';
 import { MATERIAL_BY_ID } from './shared/educationCatalog';
 import type { EducationCommand } from './shared/education';
 import type { ServiceCommand } from './shared/services';
+import type { BudgetCommand } from './shared/familyBudget';
 import { formatRub } from './shared/economy';
 import { JOBS } from './shared/jobs';
 import { clockAt, clockLabel, gameDate, gameMinutes, NEED_INFO, VITAL_NEEDS, type GameClock } from './shared/life';
@@ -34,7 +35,8 @@ type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStat
 export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTMLElement,
   read: () => View | null, openDelivery: (state: GameState) => void,
   openJobs: (state: GameState,role:CharacterId) => void, closeApps: () => void,
-  sendService: (command: ServiceCommand) => boolean, sendEducation: (command: EducationCommand) => boolean,
+  sendService: (command: ServiceCommand) => boolean, sendBudget: (command: BudgetCommand) => boolean,
+  sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
@@ -50,7 +52,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const screen=root.querySelector<HTMLElement>('.phone-screen')!;
   const grid=root.querySelector<HTMLElement>('.phone-grid')!;
   const info=root.querySelector<HTMLElement>('.phone-info')!;
-  const billing = createBillingUI(info, sendService);
+  const billing = createBillingUI(info, sendService, sendBudget);
   const education = createEducationUI(info, sendEducation, () => close(), travelToCenter);
   const career = createCareerUI(info, sendCareer, id => {
     const material = MATERIAL_BY_ID.get(id);

@@ -744,7 +744,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
-  () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
+  () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.budget(command),command=>net.education(command),
   () => locationUI.go('education'),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
     suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
     offer(){phone.close();socialInvite.unfold();},
@@ -794,6 +794,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   vote: enabled => net.setShiftSpeed(enabled),
   travel: () => locationUI.go('education'),
   service: command => net.service(command),
+  budget: command => net.budget(command),
   checkout: lines => orderDelivery(lines),
   furnishing:()=>furnishing.open(),
 });

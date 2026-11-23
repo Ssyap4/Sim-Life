@@ -2,6 +2,7 @@ import {
   type GameState, type CharacterId,
 } from '../src/shared/protocol';
 import { VITAL_NEEDS, type VitalNeed } from '../src/shared/life';
+import { syncBudgetPeriod } from '../src/shared/familyBudget';
 
 /** Slow decay per in-game hour. No drain at all if the entire household is offline. */
 const HOURLY_DRAIN: Record<VitalNeed, number> = {
@@ -19,6 +20,9 @@ export function advanceLife(source: GameState, gameMinutes: number,
   const total = state.clock.minute + gameMinutes;
   state.clock.day += Math.floor(total / 1440);
   state.clock.minute = total % 1440;
+  // Spend caps refresh at the exact start of each ten-day household period,
+  // even when nobody opens the Finance app or buys anything that day.
+  syncBudgetPeriod(state.savings,state.clock);
   for (const role of online) {
     const character = state.characters[role];
     for (const need of VITAL_NEEDS) {

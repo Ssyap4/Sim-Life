@@ -1,0 +1,32 @@
+name: Sim-Life 0.25 release regression
+on:
+  push:
+    branches: [feat/family-finance-home-025]
+    paths:
+      - .github/workflows/simlife-025-release.yml
+      - package.json
+      - package-lock.json
+      - server/tests/player-copy-020.test.ts
+      - docs/RELEASE_025.md
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-release-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Strict TS
+        run: npm run check
+      - name: Complete server integration tests before main release
+        run: npm test
+      - name: Production Vite build
+        run: npx vite build
+      - name: Furniture inventory audit
+        run: npm run audit:furniture

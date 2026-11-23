@@ -1,4 +1,6 @@
 import { formatRub } from './shared/economy';
+import { renderFamilyBudget } from './budgetUI';
+import type { BudgetCommand } from './shared/familyBudget';
 import { clockAt, clockLabel } from './shared/life';
 import { clockMinutes } from './shared/locations';
 import type { GameState } from './shared/protocol';
@@ -21,7 +23,8 @@ function node<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', tex
   return element;
 }
 
-export function createBillingUI(root: HTMLElement, send: (command: ServiceCommand) => boolean) {
+export function createBillingUI(root: HTMLElement, send: (command: ServiceCommand) => boolean,
+  sendBudget:(command:BudgetCommand)=>boolean) {
   let previous = '';
   let visibleHistory = 12;
   let currentMessages: string[] = [];
@@ -79,14 +82,14 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
         entry.kind === 'income' ? 'market-positive' : 'billing-amount'));
     }
     const upcoming = upcomingPayments(state.billing, now);
-    if (!upcoming.length) return [hero, journal];
+    if (!upcoming.length) return [hero, renderFamilyBudget(state,sendBudget), journal];
     const reminders = node('section', 'billing-journal billing-upcoming');
     reminders.append(node('h3', '', 'Платежи в ближайший игровой день'));
     for (const { id, due, amount } of upcoming) {
       const { icon, name } = SERVICES[id];
       reminders.append(expenseRow(icon + ' ' + name, dateLabel(due), amount === null ? tariff(id) : formatRub(amount)));
     }
-    return [hero, reminders, journal];
+    return [hero, renderFamilyBudget(state,sendBudget), reminders, journal];
   }
 
   function service(state: GameState, id: ServiceId, now: number) {
@@ -149,7 +152,7 @@ export function createBillingUI(root: HTMLElement, send: (command: ServiceComman
 
   function renderPage(state: GameState, page: BillingApp) {
     const now = clockMinutes(state.clock);
-    const signature = JSON.stringify([page, Math.floor(now / 60), state.money, state.billing.services, state.billing.utilityQuote, state.billing.bills.length, state.ledger.at(-1)?.id,
+    const signature = JSON.stringify([page, Math.floor(now / 60), state.money, state.savings, state.billing.services, state.billing.utilityQuote, state.billing.bills.length, state.ledger.at(-1)?.id,
       visibleHistory, currentMessages]);
     if (signature === previous) return;
     previous = signature;

@@ -1,5 +1,6 @@
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
+import { applyBudgetCommand } from './familyBudget';
 import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
@@ -1026,7 +1027,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if (billingMessages.length) all({type:'billing_event',messages:billingMessages});
         return;
       }
-      if (careerShift && message.type !== 'walk' && !['service_connect','service_renewal','service_pay','education_goal'].includes(String(message.type))) {
+      if (careerShift && message.type !== 'walk' && !['service_connect','service_renewal','service_pay','budget_deposit','budget_withdraw','budget_goal','budget_limit','education_goal'].includes(String(message.type))) {
         packet(socket,{type:'error',reason:'Заверши рабочую смену через приложение «Работа и карьера»'});
         return;
       }
@@ -1057,6 +1058,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         state = result.state;
         all({ type: 'snapshot', state });
         packet(socket, { type: 'education_notice', role, message: result.message });
+        return;
+      }
+      if (message.type==='budget_deposit'||message.type==='budget_withdraw'||
+          message.type==='budget_goal'||message.type==='budget_limit'){
+        // Transport packets are untrusted: the budget handler checks types,
+        // bounds, ownership and funds before touching household state.
+        const result=applyBudgetCommand(state,role,
+          message as unknown as import('../src/shared/familyBudget').BudgetCommand);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}
+        catch{packet(socket,{type:'error',reason:'Не удалось сохранить семейный бюджет'});return;}
+        state=result.state;
+        lastIntent.set(role,pauseTimers.now());
+        all({type:'snapshot',state});
+        all({type:'billing_event',messages:[result.message]});
         return;
       }
       if (message.type === 'service_connect' || message.type === 'service_renewal' || message.type === 'service_pay') {

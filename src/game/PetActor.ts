@@ -53,7 +53,7 @@ export class PetActor {
     this.body.add(this.head, this.tail);
     this.root.scale.setScalar(dog ? verdellScale : simbaScale);
     // Real Simba: fine, narrow face, short coat and a longer ginger body.
-    if (!dog) this.head.scale.set(.81, .86, .88);
+    if (!dog) this.head.scale.set(.76, .80, .84);
     this.head.position.set(0, dog ? .728 : .525, dog ? .241 : .44);
     this.tail.position.set(0, dog ? .523 : .422, dog ? -.454 : -.645);
     this.root.rotation.y = dog ? 0.20 : 0.21;
