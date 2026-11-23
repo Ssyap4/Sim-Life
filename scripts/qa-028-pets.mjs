@@ -84,7 +84,9 @@ try{
       await page.waitForTimeout(420);
       await shot(idx+'-'+id+'-real-'+String(frame).padStart(2,'0'));
     }
-    await page.locator('#showcase-toggle').click();
+    // The return button closes the full-screen inspection overlay; the
+    // chooser toggle merely opens its drop-down and does NOT leave inspection.
+    await page.locator('#showcase-return').click();
   }
   // A genuine visible 3D object may never be confused with an empty sticker:
   // the test captures both live world geometry and actual interactive actor frames.
