@@ -90,7 +90,7 @@ export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[
   }
 }
 
-export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target'>) {
+export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target' | 'perch'>) {
   const pet = PETS[id];
   if (routine.kind === 'eat') return { x: pet.bowl.x, z: pet.bowl.z + .51 };
   if (routine.kind === 'sleep') return pet.home;

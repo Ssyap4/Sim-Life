@@ -1,4 +1,4 @@
-import { FURNITURE_BY_ID, type FurnishingState, type FurnitureProduct, type PlacedFurniture } from './furniture';
+import { FURNITURE_BY_ID, type FurnishingState, type FurnitureProduct } from './furniture';
 import { HOME_PLACEMENTS } from './home';
 import type { FloorPoint } from '../game/navigation';
 

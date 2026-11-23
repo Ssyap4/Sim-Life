@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {initialState} from '../../src/shared/protocol';
-import {FURNITURE_CATALOG,FURNITURE_BY_ID} from '../../src/shared/furniture';
+import {FURNITURE_CATALOG} from '../../src/shared/furniture';
 import {catPerchCandidates,catPerchable,currentCatPerch} from '../../src/shared/CatPerches';
 import {HOME_FLOOR} from '../../src/shared/home';
 import {placeObstacles} from '../../src/shared/locations';
@@ -74,7 +74,7 @@ test('0.27 v6: a server-planned cat jump uses a reachable floor route and saved 
 
 test('0.27 v6: physical cat animation clears furniture on a jump, returns to floor before another route',()=>{
   const spot={key:'test',approach:{x:0,z:0},surface:{x:0,y:.85,z:.82},yaw:0,kind:'curl' as const};
-  const cat=new PetActor('simba'),before=cat.root.position.clone();
+  const cat=new PetActor('simba');
   cat.root.position.set(0,0,0);
   cat.followRoute([],'perch',undefined,spot);
   let highest=-10;
