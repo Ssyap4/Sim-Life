@@ -323,3 +323,58 @@ export function livingNeighborPose(index:number,gameMinute:number,profiles:reado
     intent:plan.kind,gait,carrying:plan.kind==='errand'&&local>(plan.end-plan.start)*.54&&
       local<plan.steps[plan.steps.length-1].t-.7};
 }
+
+/** Park interior is its own small scene. Visual extras reuse existing GLB rigs
+ * and the shared clock; no household or server persistence is required. */
+const PARK_VISITORS=[4,7,9,11] as const;
+function parkSequence(index:number):Sequence {
+  const start=index===4?{x:-.45,z:4.10}:index===7?{x:.65,z:4.10}:
+    index===9?{x:1.75,z:4.10}:{x:-1.75,z:4.10};
+  const s=new Sequence(start,2.4);
+  if(index===4) {
+    s.move({x:-2.68,z:3.75}).move({x:-2.68,z:.37}).move({x:-1.10,z:.37})
+      .until(17,'look').hold('chat',25,Math.PI/2).hold('wave',2,Math.PI/2)
+      .move({x:-2.68,z:.37}).move({x:-2.68,z:3.75});
+  }else if(index===7){
+    s.move({x:2.52,z:3.75}).move({x:2.52,z:.37}).move({x:.55,z:.37})
+      .until(17,'look').hold('chat',25,-Math.PI/2).hold('wave',2,-Math.PI/2)
+      .move({x:2.52,z:.37}).move({x:2.52,z:3.75});
+  }else if(index===9){
+    s.move({x:2.52,z:3.75}).move({x:2.52,z:-2.65})
+      .hold('admire',24,-.5).move({x:2.52,z:3.75});
+  }else{
+    s.move({x:-2.68,z:3.75}).move({x:-2.68,z:-2.65})
+      .hold('look',13).hold('phone',9).move({x:-2.68,z:3.75});
+  }
+  s.move({x:start.x,z:4.10});
+  return s;
+}
+const PARK_SEQUENCES=PARK_VISITORS.map(index=>parkSequence(index));
+const PARK_CYCLE=112;
+export function parkNeighborPose(index:number,gameMinute:number):NeighborPose {
+  if(!Number.isFinite(gameMinute))return hidden;
+  const hour=((gameMinute%DAY)+DAY)%DAY;
+  if(hour<475||hour>1290)return hidden;
+  const order=PARK_VISITORS.indexOf(index as typeof PARK_VISITORS[number]);
+  if(order<0)return hidden;
+  const offset=order<2?0:(order===2?47:65);
+  const local=((hour-475+offset)%PARK_CYCLE+PARK_CYCLE)%PARK_CYCLE;
+  const keys=PARK_SEQUENCES[order].steps;
+  const end=PARK_SEQUENCES[order].elapsed;
+  if(local>=end)return hidden;
+  let step=1;
+  while(step<keys.length-1&&keys[step].t<local)step++;
+  const from=keys[step-1],to=keys[step];
+  const ratio=clamp01((local-from.t)/Math.max(.001,to.t-from.t));
+  const walking=to.action==='walk';
+  const yaw=walking?yawTo(from,to):to.yaw;
+  const opacity=smooth(local/1.7)*smooth((end-local)/1.7);
+  return {
+    x:walking?from.x+(to.x-from.x)*ratio:to.x,
+    z:walking?from.z+(to.z-from.z)*ratio:to.z,
+    yaw,action:to.action,visible:opacity>.001,opacity,
+    gestureBlend:walking?0:smooth((local-from.t)/.9)*smooth((to.t-local)/.9),
+    gait:walking?smooth((local-from.t)/.55)*smooth((to.t-local)/.55):0,
+    intent:to.action==='admire'?'pond':to.action==='chat'?'chat':'stroll',
+  };
+}

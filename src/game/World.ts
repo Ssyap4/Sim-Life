@@ -1793,6 +1793,10 @@ export class World {
     this.externalObstacles = placeObstacles(place);
     this.remote = place === 'home' ? null : createLocation(place);
     this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
+    // Reuse the same resident rigs in the park interior and back home.
+    // Commercial interiors stay clear of exterior pedestrian traffic.
+    if(place==='park')this.scene.add(this.neighbors.group);
+    else this.homeScene.add(this.neighbors.group);
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = place === 'home' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, 49, 75);
     if (this.remote) {
@@ -1819,7 +1823,7 @@ export class World {
     this.place = place;
     this.camera.far=place==='home'?180:110;
     this.camera.updateProjectionMatrix();
-    this.controls.maxTargetRadius = place === 'home' ? 88 : 18;
+    this.controls.maxTargetRadius = place === 'home' ? 110 : 18;
     this.controls.enablePan = place === 'home' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
@@ -2210,9 +2214,10 @@ export class World {
       }
     }
     this.movementDt=dt;
-    if (this.place === 'home' && this.household) {
-      this.neighborMinute += dt * GAME_MINUTES_PER_REAL_SECOND;
-      this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera);
+    if ((this.place==='home'||this.place==='park')&&this.household) {
+      this.neighborMinute += dt*GAME_MINUTES_PER_REAL_SECOND;
+      if(this.place==='home')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera);
+      else this.neighbors.updatePark(this.neighborMinute,this.camera);
     }
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];

@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, neighborPose, neighborVisits } from '../../src/shared/neighbors';
+import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, neighborPose, neighborVisits, parkNeighborPose } from '../../src/shared/neighbors';
 import { HOUSE, HOUSE_WING, HOME_FLOOR, HOME_PLACEMENTS, KITCHEN_WORK } from '../../src/shared/home';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { NeighborPeople } from '../../src/game/NeighborPeople';
@@ -14,7 +14,7 @@ import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
 import { DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, sitePoint } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
-import { placeObstacles } from '../../src/shared/locations';
+import { placeObstacles, floorFor } from '../../src/shared/locations';
 
 test('three new rooms are connected to the original office by walkable doors', () => {
   const blocks = placeObstacles('home');
@@ -387,6 +387,29 @@ test('long conversations and pond visits look like real stops and never enter wa
     }
     assert.ok(maxConsecutive>=20,'real conversations last twenty or more game minutes');
   }
+});
+
+test('the park interior has reusable live walkers, conversation and a quiet visitor',()=>{
+  const obstacles=placeObstacles('park'),floor=floorFor('park');
+  let seen=0,chat=0,admire=0;
+  for(let minute=480;minute<1000;minute+=.25){
+    const people=[4,7,9,11].map(id=>parkNeighborPose(id,minute));
+    for(const person of people){
+      if(!person.visible||person.opacity<.75)continue;
+      seen++;
+      if(person.action==='chat')chat++;
+      if(person.action==='admire')admire++;
+      assert.ok(pointIsClear(person,obstacles,floor),
+        'park walkers must not enter benches, flowers or scenery');
+    }
+  }
+  assert.ok(seen>250,'park should not be empty when visited');
+  assert.ok(chat>80,'park friends chat for more than 20 game minutes');
+  assert.ok(admire>60,'a visitor has a real quiet sightseeing stop');
+  const crowd=new NeighborPeople();
+  crowd.updatePark(12*60+15);
+  assert.ok(crowd.group.children.filter(child=>child.visible).length>=1);
+  assert.equal(crowd.group.position.z,0);
 });
 
 test('pedestrians fade independently instead of changing shared apartment materials', async () => {

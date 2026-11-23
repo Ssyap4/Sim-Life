@@ -1,5 +1,5 @@
 import { livingNeighborPose } from './neighborLife';
-export { neighborVisits, neighborDoorOpen } from './neighborLife';
+export { neighborVisits, neighborDoorOpen, parkNeighborPose } from './neighborLife';
 
 export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' | 'water' | 'sip' | 'mail' | 'carry' | 'admire';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';

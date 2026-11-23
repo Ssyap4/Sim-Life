@@ -1,7 +1,7 @@
 import { DISTRICT_OFFSET_Z } from '../shared/district';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { NEIGHBORS, neighborDoorOpen, neighborPose } from '../shared/neighbors';
+import { NEIGHBORS, neighborDoorOpen, neighborPose, parkNeighborPose } from '../shared/neighbors';
 import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import type { NeighborAction } from '../shared/neighbors';
@@ -75,6 +75,7 @@ export class NeighborPeople {
   }
 
   update(gameMinute:number,camera?:THREE.Camera):TrafficBody[] {
+    this.group.position.z=this.offset;
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
     const traffic:TrafficBody[]=[];
     for(const [i,entry] of this.entries.entries()) {
@@ -102,6 +103,30 @@ export class NeighborPeople {
     }
     for(const [i,door] of this.doors.entries())door.rotation.y=-1.08*neighborDoorOpen(i,gameMinute,NEIGHBORS.length);
     return traffic;
+  }
+
+  /** Four background park walkers when players enter the separate park
+   * interior. The SAME GLB rigs are moved between scenes, never duplicated. */
+  updatePark(gameMinute:number,camera?:THREE.Camera):void {
+    const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
+    this.group.position.z=0;
+    for(const [i,entry] of this.entries.entries()){
+      const pose=parkNeighborPose(i,gameMinute);
+      entry.mounted.visible=pose.visible;
+      if(!pose.visible)continue;
+      entry.seen=seconds;
+      entry.mounted.position.set(pose.x,0,pose.z);
+      entry.mounted.rotation.y=pose.yaw;
+      const rig=entry.model;
+      if(!rig){
+        const d=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z,camera.position.y*.35):0;
+        if(d<42)this.request(i,entry);
+        continue;
+      }
+      rig.root.visible=true;
+      setFade(rig,pose.opacity);
+      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0);
+    }
   }
 
   private dispose(entry:Entry):void {
