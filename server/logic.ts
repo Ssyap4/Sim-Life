@@ -2,8 +2,12 @@ import {
   ACTIONS, points, names, type ActionId, type CharacterId,
   type GameState, type Needs,
 } from '../src/shared/protocol';
-import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
+import { KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat } from '../src/shared/home';
+import { stationById } from '../src/shared/locations';
 import { dishCount, EMPTY_DIRTY_DISHES } from '../src/shared/dirtyDishes';
+import { gameMinutes } from '../src/shared/life';
+import { moveReadyFoodToFridge, moveReadyFoodToTable } from '../src/shared/readyFood';
+import { storageCanFit } from '../src/shared/storageSpace';
 
 export type ActionResult =
   | { ok: true; message: string; state: GameState }
@@ -94,6 +98,65 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       message = name + ': вымыта посуда — ' + count + ' шт.';
       break;
     }
+    case 'kitchenServe': {
+      // Lay the table with up to two real servings from the coldest/oldest
+      // available batches, with the same freshness and table capacity rules
+      // used by selecting an individual meal in the fridge UI.
+      const now=gameMinutes(state.clock);
+      const portions=state.readyFood.filter(batch=>batch.storage==='fridge' &&
+        batch.portions>0 && batch.expiresAt>now)
+        .sort((a,b)=>a.expiresAt-b.expiresAt);
+      if(!portions.length)return {ok:false,reason:'В холодильнике нет готовых порций'};
+      let moved=0,blocked='';
+      for(const entry of portions){
+        for(let i=0;i<entry.portions&&moved<2;i++){
+          const candidate=structuredClone(state);
+          if(!moveReadyFoodToTable(candidate,entry.kind,entry.item))break;
+          const fit=storageCanFit(state,candidate);
+          if(!fit.ok){blocked=fit.reason;break;}
+          state.readyFood=candidate.readyFood;
+          state.meals=candidate.meals;
+          state.takeout=candidate.takeout;
+          moved++;
+        }
+        if(moved===2||blocked)break;
+      }
+      if(!moved)return {ok:false,reason:blocked||'Не удалось накрыть стол'};
+      change(state,role,'energy',-1);
+      change(state,role,'comfort',2);
+      message=name+': на стол поставлено '+moved+' порц.';
+      break;
+    }
+    case 'kitchenLeftovers': {
+      // Real kitchen chore: move at most four existing, fresh portions, oldest
+      // first. A fridge without room is respected; nothing is conjured,
+      // duplicated, revived after expiry, or charged to the household.
+      const now = gameMinutes(state.clock);
+      const portions = state.readyFood.filter(batch=>batch.storage==='table' &&
+        batch.portions>0 && batch.expiresAt>now)
+        .sort((a,b)=>a.expiresAt-b.expiresAt);
+      if(!portions.length)return {ok:false,reason:'На столе нет свежих готовых порций'};
+      let moved=0,blocked='';
+      for(const entry of portions){
+        for(let i=0;i<entry.portions && moved<4;i++){
+          const candidate=structuredClone(state);
+          if(!moveReadyFoodToFridge(candidate,entry.kind,entry.item))break;
+          const fit=storageCanFit(state,candidate);
+          if(!fit.ok){blocked=fit.reason;break;}
+          state.readyFood=candidate.readyFood;
+          state.meals=candidate.meals;
+          state.takeout=candidate.takeout;
+          moved++;
+        }
+        if(moved===4||blocked)break;
+      }
+      if(!moved)return {ok:false,reason:blocked||'Нечего убирать в холодильник'};
+      change(state,role,'energy',-2);
+      change(state,role,'comfort',Math.min(6,2+moved));
+      message=name+': в холодильник убрано '+moved+' порц.'+
+        (blocked?' Остальная еда пока осталась на столе.':'');
+      break;
+    }
     case 'kitchenTidy':
       change(state, role, 'comfort', 16); change(state, role, 'hygiene', 4);
       change(state, role, 'energy', -4);
@@ -142,8 +205,10 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'comfort', 9); change(state, role, 'mood', 5);
       message = name + ': составлен план дня'; break;
   }
-  const point = actionId in KITCHEN_ACTIONS
-    ? KITCHEN_WORK[KITCHEN_ACTIONS[actionId as keyof typeof KITCHEN_ACTIONS]].position : points[def.item];
+  const point=key==='kitchenLeftovers' ? stationById('home','fridge')!.approach :
+    key==='kitchenServe' ? homeSeat('table',role).approach :
+    actionId in KITCHEN_ACTIONS
+      ? KITCHEN_WORK[KITCHEN_ACTIONS[actionId as keyof typeof KITCHEN_ACTIONS]].position : points[def.item];
   Object.assign(state.characters[role], { x: point.x, z: point.z, pose: def.pose });
   state.revision += 1;
   return { ok: true, message, state };

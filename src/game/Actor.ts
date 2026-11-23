@@ -54,6 +54,7 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly dirtyPlate: THREE.Mesh;
+  private readonly foodContainer = new THREE.Group();
   private readonly selectionRing: THREE.Mesh;
   private readonly heart: THREE.Mesh;
   private waypoints: THREE.Vector3[] = [];
@@ -97,12 +98,16 @@ export class Actor {
   }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
+  carryFoodContainer(): void { this.foodContainer.visible = true; }
+  hideFoodContainer(): void { this.foodContainer.visible = false; }
+  hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
     this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.fork.visible = false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
@@ -162,6 +167,17 @@ export class Actor {
     this.dirtyPlate.position.set(0, -.055, .02);
     this.dirtyPlate.visible = false;
     this.rig.wrists[1].add(this.dirtyPlate);
+    // Small covered box, only displayed when a real leftover transfer runs.
+    const tray=new THREE.Mesh(drum,finish(0xece5d9,'ceramic'));
+    tray.scale.set(.13,.020,.098);
+    const food=new THREE.Mesh(orb,finish(0xbd8051,'ceramic'));
+    food.scale.set(.085,.023,.063);food.position.y=.023;
+    const lid=new THREE.Mesh(drum,finish(0xc3d6d0,'ceramic'));
+    lid.scale.set(.133,.012,.103);lid.position.y=.054;
+    this.foodContainer.add(tray,food,lid);
+    this.foodContainer.position.set(0,-.056,.020);
+    this.foodContainer.visible=false;
+    this.rig.wrists[1].add(this.foodContainer);
 
     const ringMat = new THREE.MeshBasicMaterial({
       color: vlad ? 0x6da38c : 0xe2a188, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
@@ -184,8 +200,10 @@ export class Actor {
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
     const carryingDishes = this.dirtyPlate.visible;
+    const carryingFood = this.foodContainer.visible;
     this.setPose('idle');
     if (carryingDishes) this.dirtyPlate.visible = true;
+    if (carryingFood) this.foodContainer.visible = true;
     // Furniture poses offset only the rendered body from its navigation root.
     // If that offset eases away *during* a new walk, the visible person can
     // pass straight through a neighbor although their navigation roots don't.
@@ -213,6 +231,7 @@ export class Actor {
     this.heart.visible = false;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
@@ -278,6 +297,7 @@ export class Actor {
     else this.activity = null;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
   }
 
   playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3): void {
@@ -504,6 +524,10 @@ export class Actor {
       rightY = -.38;
       rightZ = .23;
     }
+    if (this.foodContainer.visible) {
+      rightY = -.32;
+      rightZ = .30;
+    }
     let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
     if (asleep) {
       // Relax the arms beside the torso. The old bent-chest pose rotated the
@@ -519,9 +543,16 @@ export class Actor {
       leftZ = rightZ = 0.29;
     }
     if (this.pose === 'work') {
-      gaze += 0.032 * Math.sin(t * 1.18);
-      const leftTap = Math.max(0, Math.sin(t * 9.0)) ** 2;
-      const rightTap = Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
+      // Existing keyboard placement is untouched. Add believable cycles:
+      // bursts of typing, a short pause to check the monitor, then typing.
+      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
+      const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
+        (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
+      gaze += 0.032*Math.sin(t*1.18) - .10*pause;
+      lean+=.035*pause;
+      const beats=1-pause;
+      const leftTap = beats * Math.max(0, Math.sin(t * 9.0)) ** 2;
+      const rightTap = beats * Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
       leftY = 0.097 - leftTap * 0.022;
       rightY = 0.100 - rightTap * 0.022;
       leftZ = 0.48 + leftTap * 0.025;
@@ -597,12 +628,22 @@ export class Actor {
           lean = .16;
           gaze = .18;
           break;
-        case 'watch':
-          gaze = -.05 + Math.sin(a*1.22)*.047;
-          lean = -.07;
-          expression = this.reaction > 0 ? .15+Math.max(0,Math.sin(a*.93))*.53 : .03;
-          if (this.reaction < 0) gaze += Math.max(0,Math.sin(a*2.4))*.16;
+        case 'watch': {
+          // Keep the established sofa pose. React with small gestures to the
+          // genre, without popping up or resetting another character's seat.
+          const beat=Math.max(0,Math.sin(a*.93));
+          const laugh=this.reaction>0?beat*beat:0;
+          const tense=this.reaction<0?Math.max(0,Math.sin(a*2.4)):0;
+          const relax=.5+.5*Math.sin(a*.46+(this.id==='vlad'?0:1.4));
+          gaze=-.05+Math.sin(a*1.22)*.047+.16*tense-.035*laugh;
+          lean=-.07 + tense*.048 - laugh*.038;
+          leftY=-.43 + laugh*.09 - tense*.04;
+          rightY=-.40 + laugh*.19 - tense*.06;
+          leftZ=.26 + laugh*.035;rightZ=.26 + laugh*.11;
+          armSpread=-.06+relax*.025;
+          expression=this.reaction>0?.15+laugh*.5:this.reaction<0?.035:.08;
           break;
+        }
         case 'shower':
           leftY = .20 + Math.sin(a * 4) * .13;
           rightY = .23 - Math.sin(a * 4) * .14;
@@ -1165,7 +1206,10 @@ export class Actor {
     this.figure.position.z += partnerForward;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
-      const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
+      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
+      const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
+        (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
+      const beats = (0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85)))*(1-pause);
       for (const i of [0, 1] as const) {
         const tap = beats * Math.max(0, Math.sin(t * (i === 0 ? 8.5 : 10.2) + i * 1.3)) ** 2;
         this.target.copy(typing[i]);

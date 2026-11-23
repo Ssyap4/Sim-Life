@@ -1,6 +1,6 @@
 import type { PetId } from '../shared/pets';
 
-export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook' | 'playBow' | 'pawWave' | 'slowBlink' | 'pounce';
+export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook' | 'playBow' | 'pawWave' | 'slowBlink' | 'pounce' | 'beg';
 export interface PetIdleContext {
   satiety: number;
   energy: number;
@@ -18,6 +18,10 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
     return turn % 3 === 2 ? (id === 'simba' ? 'groom' : 'sniff') : 'hungryLook';
   if (state.energy < 27 && turn % 3 === 0) return 'stretch';
   if (id === 'verdell') {
+    // Verdell's signature two-paw 'bunny' request: only near family,
+    // never during urgent hunger, exhaustion or an authoritative routine.
+    if (state.personNearby && state.bond >= 38 && state.energy >= 32 &&
+      state.satiety >= 25 && turn % 4 === 2) return 'beg';
     if (state.personNearby && state.happiness >= 43 && turn % 3 !== 2) return 'greet';
     return turn % 6 === 0 ? 'playBow' : turn % 6 === 1 ? 'observe'
       : turn % 6 === 2 ? 'pawWave' : turn % 6 === 3 ? 'stretch'
