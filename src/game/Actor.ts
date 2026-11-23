@@ -54,6 +54,7 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly dirtyPlate: THREE.Mesh;
+  private readonly foodContainer = new THREE.Group();
   private readonly selectionRing: THREE.Mesh;
   private readonly heart: THREE.Mesh;
   private waypoints: THREE.Vector3[] = [];
@@ -97,12 +98,16 @@ export class Actor {
   }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
+  carryFoodContainer(): void { this.foodContainer.visible = true; }
+  hideFoodContainer(): void { this.foodContainer.visible = false; }
+  hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
     this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.fork.visible = false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
@@ -162,6 +167,17 @@ export class Actor {
     this.dirtyPlate.position.set(0, -.055, .02);
     this.dirtyPlate.visible = false;
     this.rig.wrists[1].add(this.dirtyPlate);
+    // Small covered box, only displayed when a real leftover transfer runs.
+    const tray=new THREE.Mesh(drum,finish(0xece5d9,'ceramic'));
+    tray.scale.set(.13,.020,.098);
+    const food=new THREE.Mesh(orb,finish(0xbd8051,'ceramic'));
+    food.scale.set(.085,.023,.063);food.position.y=.023;
+    const lid=new THREE.Mesh(drum,finish(0xc3d6d0,'ceramic'));
+    lid.scale.set(.133,.012,.103);lid.position.y=.054;
+    this.foodContainer.add(tray,food,lid);
+    this.foodContainer.position.set(0,-.056,.020);
+    this.foodContainer.visible=false;
+    this.rig.wrists[1].add(this.foodContainer);
 
     const ringMat = new THREE.MeshBasicMaterial({
       color: vlad ? 0x6da38c : 0xe2a188, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
@@ -184,8 +200,10 @@ export class Actor {
 
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
     const carryingDishes = this.dirtyPlate.visible;
+    const carryingFood = this.foodContainer.visible;
     this.setPose('idle');
     if (carryingDishes) this.dirtyPlate.visible = true;
+    if (carryingFood) this.foodContainer.visible = true;
     // Furniture poses offset only the rendered body from its navigation root.
     // If that offset eases away *during* a new walk, the visible person can
     // pass straight through a neighbor although their navigation roots don't.
@@ -213,6 +231,7 @@ export class Actor {
     this.heart.visible = false;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
@@ -278,6 +297,7 @@ export class Actor {
     else this.activity = null;
     this.spoon.visible = false;
     this.dirtyPlate.visible = false;
+    this.foodContainer.visible = false;
   }
 
   playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3): void {
@@ -503,6 +523,10 @@ export class Actor {
     if (this.carryingBook && this.activity !== 'read') {
       rightY = -.38;
       rightZ = .23;
+    }
+    if (this.foodContainer.visible) {
+      rightY = -.32;
+      rightZ = .30;
     }
     let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
     if (asleep) {
