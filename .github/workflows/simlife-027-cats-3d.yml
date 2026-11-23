@@ -7,6 +7,7 @@ on:
       - src/shared/pets.ts
       - src/shared/furniture.ts
       - src/game/PetActor.ts
+      - src/style.css
       - src/game/PetNavigation.ts
       - src/game/World.ts
       - server/pets.ts
