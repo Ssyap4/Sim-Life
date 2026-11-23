@@ -70,7 +70,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   const delivery=activityItems(SOCIAL_BY_ID.get('takeout')!,state,from)[0];
   if((food||delivery)&&[from,to].some(id=>state.characters[id].hunger<72))add({
     id:'shareDinner',emoji:'🍽️',title:'Пора за общий стол',
-    description:'На столе уже есть два свежих блюда. Можно поужинать вместе — без повторной готовки и без бесплатных порций.',
+    description:'На столе уже есть две свежие порции. Можно поужинать вместе — без повторной готовки.',
     action:food?'eat':'takeout',item:(food??delivery).id,bonus:'Настоящие порции, сытость и уют за общим столом',
   });
   if(lessonMilestone(state,to,now)||Object.values(state.careers.residents[to].progress)
