@@ -50,6 +50,8 @@ test('0.28: pet beds are walkable but cannot be hidden inside large furniture',(
  assert.equal(product.walkable,true);
  assert.equal(checkFurniturePlacement(state,bed,[{...bed,id:200,sku:'sofa-nord'}]).valid,false);
  assert.equal(checkFurniturePlacement(state,bed,[{...bed,id:201,sku:'pet-bed-simba'}]).valid,false);
+ assert.equal(checkFurniturePlacement(state,{...items[2],x:bed.x,z:bed.z},[bed]).valid,false,
+   'a scratcher cannot be placed ON an installed pet bed');
 });
 
 test('0.28: old furniture commerce can actually buy, deliver, unpack and install pet bed',()=>{
