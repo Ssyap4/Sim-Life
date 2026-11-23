@@ -109,3 +109,46 @@ test('0.27 v6: physical cat animation clears furniture on a jump, returns to flo
   assert.ok(body.position.toArray().every(Number.isFinite));
   assert.equal(PET_SPEED.simba>0,true);
 });
+
+test('0.27 v6: a finished sofa nap restores real cat energy but a sold sofa cannot',()=>{
+  const state=initialState();
+  const perch=catPerchCandidates(state.furnishing)[0];
+  const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+  const path=planPetRoute(state.pets.simba.position,perch.approach,geometry);
+  assert.ok(path);
+  state.pets.simba.routine={kind:'perch',target:0,startedAt:480,until:510,
+    route:path,perch};
+  Object.assign(state.pets.simba,{satiety:85,energy:63,bladder:90,happiness:74});
+  const money=state.money,stock=structuredClone(state.pantry);
+  runPetRoutines(state,0,510,new Set(),()=>.99);
+  assert.equal(state.pets.simba.energy,73);
+  assert.equal(state.pets.simba.happiness,76);
+  assert.equal(state.money,money);
+  assert.deepEqual(state.pantry,stock);
+  const invalid=initialState();
+  const stale=catPerchCandidates(invalid.furnishing)[0];
+  const route=planPetRoute(invalid.pets.simba.position,stale.approach,
+    petNavigationGeometry(placeObstacles('home',invalid.furnishing),HOME_FLOOR));
+  assert.ok(route);
+  invalid.pets.simba.routine={kind:'perch',target:0,startedAt:480,until:510,
+    route,perch:stale};
+  invalid.pets.simba.energy=63;
+  invalid.furnishing.soldFixtures=['sofa','bed'];
+  runPetRoutines(invalid,0,510,new Set(),()=>.99);
+  assert.equal(invalid.pets.simba.energy,63,
+    'Do not reward a nap on a removed piece of furniture');
+});
+
+test('0.27 v6: occupied bed stays unavailable even when sleeper floor root is far',()=>{
+  const state=initialState();
+  const sleeper=state.characters.alina;
+  sleeper.pose='sleep';sleeper.sleepingOn='starter';
+  sleeper.x=-4.30;sleeper.z=-1.40; // old/stale pose root, not over mattress
+  Object.assign(state.pets.simba,{satiety:92,energy:92,bladder:92});
+  // A deterministic source puts the bed first, but Simba must skip it.
+  let call=0;
+  const sequence=[.1,.1,.1,.99,.99,.99,.99];
+  runPetRoutines(state,0,480,new Set(),()=>sequence[Math.min(call++,sequence.length-1)]);
+  if(state.pets.simba.routine?.kind==='perch')
+    assert.notEqual(state.pets.simba.routine.perch?.key,'starter:bed');
+});

@@ -62,6 +62,11 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bladder = 100;
     } else if (previous?.kind === 'sleep') {
       pet.energy = clamp(pet.energy + 33);
+    } else if (previous?.kind==='perch' && !invalidPerch && previous.until<=now) {
+      // Real completed resting on an installed sofa/bed restores a modest
+      // amount of energy. An invalidated/sold cushion gives no reward.
+      pet.energy=clamp(pet.energy+10);
+      pet.happiness=clamp(pet.happiness+2);
     }
     let kind: PetRoutine['kind'] = 'wander';
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
@@ -84,7 +89,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         // A resident sleeping or working on a sofa/bed owns that space.
         if((['vlad','alina'] as const).some(role=>{
           const human=state.characters[role];
-          return human.pose!=='idle' &&
+          const sleepingOn=human.sleepingOn??'starter';
+          const bedOccupied=human.pose==='sleep' &&
+            (site.key==='starter:bed' && sleepingOn==='starter' ||
+              site.key.startsWith('placed:') && typeof sleepingOn==='number' &&
+                'placed:'+sleepingOn===site.key);
+          return bedOccupied || human.pose!=='idle' &&
             Math.hypot(human.x-site.surface.x,human.z-site.surface.z)<2.25;
         }))continue;
         if(!pointIsClear(site.approach,geometry.obstacles,geometry.floor))continue;
