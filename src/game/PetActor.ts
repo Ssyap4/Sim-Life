@@ -603,16 +603,21 @@ export class PetActor {
       const phase=this.perchProgress;
       const airborne=surface?Math.sin(Math.PI*phase):0;
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
-      const loaf=Math.max(curled,catNap);
-      const coil=Math.max(curled,catNap*.85);
+      // Even the alert 'watch' perch is a supported sphinx pose, not a
+      // standing cat balanced on a chair. Curl surfaces tuck in further.
+      const loaf=Math.max(curled,lookout*.72,catNap);
+      const coil=Math.max(curled,lookout*.36,catNap*.85);
       const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
-      this.body.scale.setScalar(1);
+      // The imported Blender rig must be compacted as well: setScalar(1)
+      // previously erased the reclining dimensions on *every* real GLB perch.
+      // These changes are modest so the recognizable long cat stays a cat.
+      this.body.scale.set(1+.025*loaf,1-.035*loaf,1-.26*loaf);
       // Rock back onto the hind paws so the forelegs can reach up the post.
       // Gentle spinal side-rest, not a full body roll: a 40° roll made
       // the skinned knees point upwards like a beetle when resting on mats.
       // Bend the IK legs below the breast while the belly stays supported.
-      this.body.rotation.set(-.65*scratching+.16*stretching+.035*loaf,0,
-        -.36*curled-.23*catNap);
+      this.body.rotation.set(-.65*scratching+.16*stretching+.025*loaf,0,
+        -.085*curled-.11*catNap);
       const post=scratching>0?this.scratchPost:undefined;
       const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
       const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
