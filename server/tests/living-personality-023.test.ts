@@ -82,3 +82,31 @@ test('Finance, food and pet dialogue follow actual world state',()=>{
   assert.equal(contextAvailable(SOCIAL_BY_ID.get('readyDinner')!,state,'vlad'),true);
   assert.equal(socialText(SOCIAL_BY_ID.get('ourSavings')!,state,'vlad').includes('{balance}'),false);
 });
+
+test('Verdell fetches a visible ball and Simba plays with a mouse; toys never leak into scheduled activities',()=>{
+  for(const id of ['verdell','simba'] as const){
+    const pet=new PetActor(id);
+    const toy=(pet as unknown as {playToy:{visible:boolean;position:{x:number;y:number;z:number};children:unknown[]}}).playToy;
+    assert.equal(toy.visible,false,id+' starts without a toy');
+    assert.ok(toy.children.length>0,id+' toy has 3D parts');
+    const before={x:pet.root.position.x,z:pet.root.position.z};
+    pet.react('play');
+    pet.update(.55);
+    assert.equal(toy.visible,true,id+' actual play shows its toy');
+    assert.ok(Number.isFinite(toy.position.x)&&Number.isFinite(toy.position.z));
+    assert.equal(pet.root.position.x,before.x);
+    assert.equal(pet.root.position.z,before.z);
+    pet.followRoute([], 'sleep');
+    assert.equal(toy.visible,false,id+' sleep hides toy immediately');
+    pet.update(.1);
+    assert.equal(toy.visible,false,id+' no ghost prop during sleep');
+    pet.stop();
+    pet.react('play');
+    pet.update(.5);
+    assert.equal(toy.visible,true);
+    pet.react('pet');
+    assert.equal(toy.visible,false,'petting hides the toy immediately');
+    pet.update(.2);
+    assert.equal(toy.visible,false);
+  }
+});
