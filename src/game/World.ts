@@ -2141,13 +2141,22 @@ export class World {
         const at=perch?.surface??bed!;
         const origin=new THREE.Vector3(at.x,perch?perch.surface.y+.11:.25,at.z);
         const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),0,.42);
-        // The middle ray may hit a seam between two sofa cushions.
+        // Probe the seat itself, not a nearby tall armrest or back. The old
+        // maximum-of-three could raise Simba onto a piece of the backrest.
         const side=perch?.yaw??0;
         const sideways=new THREE.Vector3(Math.cos(side),0,-Math.sin(side));
-        for(const offset of [0,-.13,.13]){
+        const expected=perch?perch.surface.y-.085:0.16;
+        const heights:number[]=[];
+        for(const offset of [0,-.13,.13,-.23,.23]){
           ray.ray.origin.copy(origin).addScaledVector(sideways,offset);
           const y=ray.intersectObject(support,true)[0]?.point.y;
-          if(y!==undefined)supportHeight=Math.max(supportHeight??0,y);
+          if(y!==undefined&&(!perch||Math.abs(y-expected)<.21))
+            heights.push(y);
+        }
+        // Median support resists cushion seams and decorative raised details.
+        if(heights.length){
+          heights.sort((a,b)=>a-b);
+          supportHeight=heights[Math.floor(heights.length/2)];
         }
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
