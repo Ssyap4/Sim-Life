@@ -116,9 +116,9 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
 export const SOCIAL_ACTIVITIES = [...exchanges,...objects];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const SOCIAL_TTL_MS = 30_000;
-export type SocialIntent = { type:'together'; action:string; item?:string };
+export type SocialIntent = { type:'together'; action:string; item?:string; moment?:string };
 export type SocialCommand =
-  | {type:'social_propose';action:string;item?:string}
+  | {type:'social_propose';action:string;item?:string;moment?:string}
   | {type:'social_reply';inviteId:number;choice:number|null}
   | {type:'social_withdraw';inviteId:number}
   | {type:'social_finish';taskId:number};
