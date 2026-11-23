@@ -45,8 +45,11 @@ export function initialFamilyBudget(clock:GameClock):FamilyBudget {
   return {
     balance:0,goal:'reserve',target:SAVINGS_GOALS.reserve.target,
     period:budgetPeriod(clock),
-    limits: Object.fromEntries(SPENDING_KEYS.map(id=>[id,SPENDING_CATEGORIES[id].limit]))
-      as Record<SpendingCategory,number>,
+    limits: {
+      groceries:SPENDING_CATEGORIES.groceries.limit,
+      takeout:SPENDING_CATEGORIES.takeout.limit,
+      pets:SPENDING_CATEGORIES.pets.limit,
+    },
     spent:{groceries:0,takeout:0,pets:0},history:[],
   };
 }
