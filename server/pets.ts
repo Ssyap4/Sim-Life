@@ -1,4 +1,5 @@
 import { HOME_FLOOR } from '../src/shared/home';
+import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
   PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
   PET_FOOD_MAX_REFILLS, petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
@@ -7,8 +8,9 @@ import { names, type CharacterId, type GameState } from '../src/shared/protocol'
 import { addLedger } from '../src/shared/economy';
 import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
-import { sampleWalk } from '../src/game/navigation';
+import { sampleWalk, segmentIsClear, pointIsClear } from '../src/game/navigation';
 import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
+import { preferredPetWanderTarget } from '../src/shared/petPersonality';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -44,8 +46,13 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       delete pet.routine;
       continue;
     }
-    // A pre-update saved 'eat' route cannot mime eating from a newly empty bowl.
-    if (previous && previous.until > now && !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
+    // Furniture can be moved/sold while Simba is up on it: abandon that
+    // contact immediately. Never let an obsolete surface survive the tick.
+    const invalidPerch=previous?.kind==='perch' &&
+      (id!=='simba'||!previous.perch||!currentCatPerch(state.furnishing,previous.perch));
+    // A pre-update saved 'eat' route cannot mime eating from an empty bowl.
+    if (previous && previous.until > now && !invalidPerch &&
+        !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
       state.petBowls[id]--;
@@ -55,13 +62,58 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bladder = 100;
     } else if (previous?.kind === 'sleep') {
       pet.energy = clamp(pet.energy + 33);
+    } else if (previous?.kind==='perch' && !invalidPerch && previous.until<=now) {
+      // Real completed resting on an installed sofa/bed restores a modest
+      // amount of energy. An invalidated/sold cushion gives no reward.
+      pet.energy=clamp(pet.energy+10);
+      pet.happiness=clamp(pet.happiness+2);
     }
     let kind: PetRoutine['kind'] = 'wander';
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
     else if (pet.bladder <= 63) kind = 'toilet';
     else if (pet.energy <= 63) kind = 'sleep';
-    let target = Math.floor(random() * PET_ROAM.length);
+    let target = kind === 'wander' ? preferredPetWanderTarget(id,now,random)
+      : Math.floor(random() * PET_ROAM.length);
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
+    let chosenPerch:CatPerch|undefined;
+    let chosenRoute:PetRoutine['route']|undefined;
+    // Real, server-owned little feline excursions. Never during hunger,
+    // fatigue, toilet trips, play, or immediately after another perching.
+    if(id==='simba' && kind==='wander' && previous?.kind!=='perch' &&
+      pet.energy>=66 && pet.satiety>=50 && pet.bladder>=66 && random()<.42){
+      const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      const candidates=catPerchCandidates(state.furnishing);
+      const first=candidates.length?Math.floor(random()*candidates.length):0;
+      for(let i=0;i<candidates.length;i++){
+        const site=candidates[(first+i)%candidates.length];
+        // A resident sleeping or working on a sofa/bed owns that space.
+        if((['vlad','alina'] as const).some(role=>{
+          const human=state.characters[role];
+          const sleepingOn=human.sleepingOn??'starter';
+          const bedOccupied=human.pose==='sleep' &&
+            (site.key==='starter:bed' && sleepingOn==='starter' ||
+              site.key.startsWith('placed:') && typeof sleepingOn==='number' &&
+                'placed:'+sleepingOn===site.key);
+          return bedOccupied || human.pose!=='idle' &&
+            Math.hypot(human.x-site.surface.x,human.z-site.surface.z)<2.25;
+        }))continue;
+        if(!pointIsClear(site.approach,geometry.obstacles,geometry.floor))continue;
+        // The launch-to-landing arc may pass over the chosen object but may
+        // not cut through a completely unrelated wall or neighboring item.
+        const otherObstacles=placeObstacles('home',state.furnishing).filter(rect=>
+          !(site.surface.x>=rect.minX-.02 && site.surface.x<=rect.maxX+.02 &&
+            site.surface.z>=rect.minZ-.02 && site.surface.z<=rect.maxZ+.02));
+        if(!segmentIsClear(site.approach,site.surface,otherObstacles,HOME_FLOOR))continue;
+        const route=planPetRoute(pet.position,site.approach,geometry);
+        const end=route?.path.at(-1)??route?.from;
+        if(!route||!end||Math.hypot(end.x-site.approach.x,end.z-site.approach.z)>.02)continue;
+        chosenPerch=site;
+        chosenRoute=route;
+        kind='perch';
+        target=0; // compatibility with older numeric routine validation
+        break;
+      }
+    }
     // Two pets must not reserve the exact same roaming destination.
     // Keep real feeding/sleep/toilet destinations unchanged.
     const otherId = id === 'verdell' ? 'simba' : 'verdell';
@@ -74,10 +126,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         ? lawnStart + (target - lawnStart + 2) % 4
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
-    const duration = kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
-    const route = planPetRoute(pet.position, petDestination(id, { kind, target }),
+    const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
+      : kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+    const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route } : undefined;
+    pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route,
+      ...(chosenPerch?{perch:chosenPerch}:{}) } : undefined;
   }
 }
 /** Pets are family members. No real-time health penalties or forced purchases. */

@@ -1,0 +1,24 @@
+name: Sim-Life 0.27 living personalities focused QA
+on:
+  push:
+    branches: [feat/living-personalities-027]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  personalities:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Strict TypeScript
+        run: npm run check
+      - name: Character rig, context and actual server autonomy checks
+        run: node --import tsx --test server/tests/personalities-027.test.ts server/tests/autonomy.test.ts server/tests/player-copy-020.test.ts server/tests/pets.test.ts server/tests/petNavigation.test.ts server/tests/personalities-027-v3.test.ts server/tests/personalities-027-v5.test.ts server/tests/catPerches-027.test.ts
+      - name: Production client build
+        run: npx vite build

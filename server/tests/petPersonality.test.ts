@@ -92,8 +92,10 @@ test('Dog is sociable while cat stretches, observes and grooms independently', (
   assert.equal(choosePetIdle('verdell', context, 0), 'greet');
   assert.equal(choosePetIdle('verdell', { ...context, satiety: 15, bowl: 0 }, 0), 'hungryLook');
   assert.equal(choosePetIdle('simba', context, 0), 'groom');
-  assert.equal(choosePetIdle('simba', context, 1), 'stretch');
-  assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 2), 'slowBlink');
+  assert.equal(choosePetIdle('simba', context, 1), 'nuzzle',
+    'independent cat occasionally chooses affection when a familiar owner is near');
+  assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 2), 'observe');
+  assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 3), 'stretch');
   assert.equal(petIdleWeight(0), 0);
   assert.equal(petIdleWeight(PET_IDLE_SECONDS), 0);
   assert.ok(petIdleWeight(.3) > 0 && petIdleWeight(.3) < 1);
@@ -105,8 +107,11 @@ test('Dog greeting animates only while idle and yields immediately to feeding or
   dog.setAmbient({
     satiety: 82, energy: 90, happiness: 90, bond: 70, bowl: 2, personNearby: true,
   });
-  for (let i = 0; i < 275; i++) dog.update(1 / 60);
-  assert.equal(dog.currentIdleGesture(), 'greet');
+  // A genuine owner arrival now produces one joyful hop in the first second,
+  // not a repetitive wave every idle loop. Check the live window itself,
+  // not 4.5 seconds later when the animation has already faded out.
+  for (let i = 0; i < 30; i++) dog.update(1 / 60);
+  assert.equal(dog.currentIdleGesture(), 'happyHop');
   dog.followRoute([new Vector3(dog.root.position.x + 2, 0, dog.root.position.z)],
     'wander');
   dog.update(1 / 60);
@@ -138,9 +143,13 @@ test('A roaming pet can perform a visible gesture once it reaches a stop', () =>
   dog.setAmbient({ satiety: 85, energy: 80, happiness: 90, bond: 72,
     bowl: 2, personNearby: true });
   dog.followRoute([new Vector3(dog.root.position.x + .12, 0, dog.root.position.z)], 'wander');
-  for (let i = 0; i < 250; i++) dog.update(1 / 60);
-  assert.equal(dog.currentIdleGesture(), 'greet',
-    'wandering routine does not forbid idle animation at its endpoint');
+  let observedWelcome = false;
+  for (let i = 0; i < 250; i++) {
+    dog.update(1 / 60);
+    observedWelcome ||= dog.currentIdleGesture() === 'happyHop';
+  }
+  assert.ok(observedWelcome,
+    'roaming routine allows a real welcome at its endpoint, then it naturally expires');
   assert.ok(Math.abs(dog.root.position.x - (PETS.verdell.home.x + .12)) < .03,
     'gesture does not displace the pet or disrupt server path');
   dog.followRoute([], 'eat', Math.PI);

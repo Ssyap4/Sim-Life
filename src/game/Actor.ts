@@ -13,6 +13,7 @@ import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait'
 import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
+import { characterDemeanor } from './CharacterDemeanor';
 import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
   residentIdleEase, residentIdleTouchWeight,
   type ResidentIdleContext, type ResidentIdleGesture } from './ResidentIdle';
@@ -84,17 +85,49 @@ export class Actor {
   private arrivalUntil = -1;
   private greeting = false;
   private nextGreeting = 0;
+  private petArrivalUntil = -1;
+  private nextPetNotice = 0;
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
   /** Local visual awareness only: no game state or social actions are changed. */
   setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
+    // An approaching partner gets one friendly acknowledgement after a
+    // genuine gap in proximity, never an automatic social task or kiss.
+    if (partnerYaw !== null && this.idleContext.partnerYaw === null)
+      this.noticePartnerArrival();
+    if (petYaw !== null && this.idleContext.petYaw === null)
+      this.noticePetArrival();
     this.idleContext.petYaw = petYaw;
     this.idleContext.partnerYaw = partnerYaw;
   }
   currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
   noticePartnerArrival():void {
-    if(this.clock>=this.nextGreeting)this.arrivalUntil=this.clock+4;
+    if(this.clock<this.nextGreeting)return;
+    // A meeting may supersede an existing purely decorative hair/idle gesture,
+    // otherwise its next 8-second cooldown can swallow the entire hello.
+    // Never interrupt a real action, route, need warning, or paired animation.
+    this.arrivalUntil=this.clock+6;
+    if(this.pose==='idle' && !this.activity && !this.waypoints.length &&
+      !this.gesture && !this.partnerGesture && !this.needReaction &&
+      !this.carryingBook && this.closingBook<=0){
+      this.idleGesture=null;
+      this.idleGestureTime=0;
+      this.idleCooldown=0;
+    }
+  }
+  private noticePetArrival():void {
+    if(this.clock<this.nextPetNotice || this.greeting ||
+      this.clock<=this.arrivalUntil || this.idleGesture==='noticePartner')return;
+    this.petArrivalUntil=this.clock+4.5;
+    // Never interrupt work, travel, contact or a real need reaction.
+    if(this.pose==='idle' && !this.activity && !this.waypoints.length &&
+      !this.gesture && !this.partnerGesture && !this.needReaction &&
+      !this.carryingBook && this.closingBook<=0){
+      this.idleGesture=null;
+      this.idleGestureTime=0;
+      this.idleCooldown=0;
+    }
   }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
@@ -490,12 +523,20 @@ export class Actor {
       }
     } else {
       this.idleCooldown -= dt;
-      if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)){
+      if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)&&
+        characterDemeanor(this.needs,'idle').friendly){
         this.idleGesture='noticePartner';
         this.idleGestureTime=0;
         this.greeting=true;
         this.arrivalUntil=-1;
-        this.nextGreeting=this.clock+65;
+        this.nextGreeting=this.clock+80;
+      }else if(this.clock<=this.petArrivalUntil &&
+        residentIdleAllowed('noticePet',this.idleContext) &&
+        this.needs!.mood>=35 && this.needs!.energy>=24 && this.needs!.hunger>=20){
+        this.idleGesture='noticePet';
+        this.idleGestureTime=0;
+        this.petArrivalUntil=-1;
+        this.nextPetNotice=this.clock+70;
       }else if (this.idleCooldown <= 0) {
         this.idleGesture = chooseResidentIdle(this.id, this.idleContext, this.idleTurn++);
         this.idleGestureTime = 0;
@@ -863,6 +904,14 @@ export class Actor {
       }
     }
 
+    // Continuous, small expressions across ordinary idle and walking.
+    // Active cooking, seats, hugs and sleep keep their original authored poses.
+    const demeanor=characterDemeanor(this.needs,asleep?'sleep':
+      this.activity||this.gesture||this.partnerGesture||seated?'busy':motion>.08?'walking':'idle');
+    lean+=demeanor.shoulders;
+    gaze+=demeanor.gaze;
+    expression=Math.min(.78,expression+demeanor.smile);
+
     // Reuse the exact same lightweight articulated rig used by cooking and
     // talking: a few soft arm/head targets, no new meshes or animation files.
     const needWeight = this.needReaction ? needReactionWeight(this.needReactionTime) : 0;
@@ -1094,9 +1143,16 @@ export class Actor {
           rightY = THREE.MathUtils.lerp(rightY, -0.43, w * 0.42);
           rightZ = THREE.MathUtils.lerp(rightZ, 0.18 + .017 * nod, w * 0.52);
           if(this.greeting){
-            const wave=residentIdleEase(phase,.35,.9)*(1-residentIdleEase(phase,1.9,2.8));
-            rightY+=.37*wave;
-            rightZ+=(.15+.09*Math.sin(phase*10))*wave;
+            // A single calm hello, readable even at a normal phone camera
+            // distance. Arm rises beside the shoulder, then settles.
+            // No extra social action, root displacement or forced embrace.
+            const wave=residentIdleEase(phase,.32,.86)*
+              (1-residentIdleEase(phase,2.12,2.96));
+            // The raised hand is solved at the wrist below, not by a
+            // shoulder-only twist (which could flip the arm behind the body).
+            idleChestYaw+=yaw*.18*wave;
+            idleHeadYaw+=yaw*.08*wave;
+            expression+=.10*wave;
           }
           break;
         }
@@ -1338,6 +1394,23 @@ export class Actor {
           this.handDirection.set(contactHand === 0 ? -0.18 : 0.11,
             -0.18, -1).applyAxisAngle(up, this.root.rotation.y),
           handBlend);
+      }
+    }
+    // A readable little hello needs the *hand* beside the face, with an
+    // elbow that bends correctly. Shoulder angles alone once sent the whole
+    // arm behind Vlad on actual 390x844 WebGL frames. Reuse the existing
+    // two-bone IK and hand orientation; no extra bone, mesh or server action.
+    if (this.idleGesture === 'noticePartner' && this.greeting) {
+      const phase = this.idleGestureTime;
+      const wave = residentIdleEase(phase, .32, .91) *
+        (1 - residentIdleEase(phase, 2.13, 3.07));
+      if (wave > .004) {
+        const flutter = Math.sin(phase * 8.6);
+        data.head.localToWorld(this.target.set(
+          .28 + .024 * flutter, -.016 + .024 * Math.sin(phase * 8.6), .205));
+        this.reach(1, this.target, Math.min(1, wave * alpha * 8.0));
+        this.aimHand(1, this.handDirection.set(.13, .90, .22)
+          .applyAxisAngle(up, this.root.rotation.y), Math.min(1, wave * alpha * 6.1));
       }
     }
     if (this.activity === 'reach' && this.pan) {

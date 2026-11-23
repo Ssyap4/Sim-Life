@@ -31,6 +31,7 @@ import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import { currentCatPerch } from '../shared/CatPerches';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -433,18 +434,35 @@ export class World {
     this.followSubject = subjectRoot.children[0];
     this.followSubject.getWorldPosition(this.followPoint);
     const bounds = new THREE.Box3().setFromObject(this.followSubject, true);
-    // Simba's right-hand approach to the inspection view had the desk in front.
-    const angle = subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
-      : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
+    // When Simba perches on a real sofa/bed, the old inspection angle can
+    // sit behind the tall backrest: only the tip of his tail is visible.
+    // Favor a view from the validated FLOOR approach (the open seat/front).
+    // The automatic camera is still optional; normal touch gestures work.
+    const candidate = subject==='simba' && this.place==='home'
+      ? this.household?.pets.simba.routine?.perch : undefined;
+    const perch = candidate && this.household &&
+      currentCatPerch(this.household.furnishing,candidate) ? candidate : null;
+    const angle = perch
+      ? new THREE.Vector3(
+          perch.approach.x-perch.surface.x,.65,
+          perch.approach.z-perch.surface.z)
+      : subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
+        : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
     const band = this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);
-    if (person && this.place === 'home' && !this.canSeeCharacter(bounds,this.cameraMove)) {
-      // Doorposts and tall furniture can hide a resident behind the default angle.
-      for (const direction of [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]] as const) {
-        const alternative = frame(new THREE.Vector3(...direction));
+    if (this.place === 'home' && !perch && !this.canSeeCharacter(bounds,this.cameraMove)) {
+      // Both humans AND small pets need a clear line of sight. In particular,
+      // a low Spitz behind the dining table otherwise shows just two ears.
+      // Try alternate azimuths before a mildly raised view of the same model.
+      const directions = person
+        ? [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]]
+        : [[-.92,.43,.24],[.90,.55,.35],[-.8,.65,-.7],[.7,.85,-.6],
+          [-.68,1.15,.3],[.45,1.30,1]];
+      for (const direction of directions) {
+        const alternative=frame(new THREE.Vector3(...direction));
         if (!this.canSeeCharacter(bounds,alternative)) continue;
-        this.cameraMove = alternative;
+        this.cameraMove=alternative;
         break;
       }
     }
@@ -2070,7 +2088,10 @@ export class World {
     for (const id of PET_IDS) {
       this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
-      const routine = state.pets[id].routine;
+      const candidate = state.pets[id].routine;
+      const routine = candidate?.kind==='perch' &&
+        (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch))
+        ? undefined : candidate;
       if (!pet.root.visible || !routine) {
         this.petRoutines.delete(id);
         if (pet.root.visible) {
@@ -2086,7 +2107,8 @@ export class World {
       const route = sampleWalk(routine.route, distance);
       pet.root.position.set(route.from.x, 0, route.from.z);
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined);
+        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined,
+        routine.perch);
     }
   }
 

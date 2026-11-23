@@ -1391,7 +1391,9 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 #app:has(.computer-overlay:not([hidden])) .thought-dock,
 #app:has(.world-map:not([hidden])) .thought-dock,
 #app:has(.auth-screen:not([hidden])) .thought-dock,
-#app.inspecting .thought-dock { visibility:hidden; }
+#app.inspecting .thought-dock,
+/* A portrait showcase dropdown must never hide behind the thoughts button. */
+#app:has(#showcase-choices:not([hidden])) .thought-dock { visibility:hidden; }
 @media(min-width:1120px) and (min-height:650px) {
   .thought-dock { left:18px; transform:none; width:320px; }
 }

@@ -23,6 +23,7 @@ import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
+import { currentCatPerch } from '../src/shared/CatPerches';
 import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
@@ -140,7 +141,13 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
         routine.route && point(routine.route.from) && Array.isArray(routine.route.path) && routine.route.path.length <= 60 &&
-        routine.route.path.every(p => point(p)));
+        routine.route.path.every(p => point(p)) &&
+        (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
+          routine.perch && typeof routine.perch.key==='string' &&
+          point(routine.perch.approach) && point(routine.perch.surface) &&
+          Number.isFinite(routine.perch.surface.y) && routine.perch.surface.y>=.30 &&
+          routine.perch.surface.y<=1.5 && Number.isFinite(routine.perch.yaw)));
+
   }))) return false;
   if (petFood !== undefined && (!petFood || !PET_IDS.every((id) =>
     Number.isSafeInteger(petFood[id]) && petFood[id] >= 0 && petFood[id] <= PET_FOOD_MAX_REFILLS))) return false;
@@ -195,7 +202,7 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
 }
 
 function restorePet(id: PetId, saved: PetState | undefined,
-  safeHome = safePetHome): PetState {
+  safeHome = safePetHome, furnishing?: import('../src/shared/furniture').FurnishingState): PetState {
   const pet = { ...INITIAL_PETS[id], ...saved };
   // Old positions or animation routes may now graze an enlarged pet collider,
   // or refer to a bowl/bench/roaming stop removed from the current layout.
@@ -204,9 +211,11 @@ function restorePet(id: PetId, saved: PetState | undefined,
     ?? INITIAL_PETS[id].position;
   const route = pet.routine?.route;
   if (route && pet.routine) {
+    const invalidPerch=pet.routine.kind==='perch' &&
+      (id!=='simba'||!pet.routine.perch||!furnishing||!currentCatPerch(furnishing,pet.routine.perch));
     const expected = petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
-    if (Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
+    if (invalidPerch || Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
       !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||
       !route.path.every((point, index) =>
         segmentIsClear(route.path[index - 1] ?? route.from, point, safeHome.obstacles, safeHome.floor))) {
@@ -292,8 +301,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {
-          verdell: restorePet('verdell', data.pets?.verdell, restoredPetGeometry),
-          simba: restorePet('simba', data.pets?.simba, restoredPetGeometry),
+          verdell: restorePet('verdell', data.pets?.verdell, restoredPetGeometry, data.furnishing),
+          simba: restorePet('simba', data.pets?.simba, restoredPetGeometry, data.furnishing),
         },
         petFood: { ...INITIAL_PET_FOOD, ...data.petFood },
         petBowls: { ...INITIAL_PET_BOWLS, ...data.petBowls },

@@ -2,13 +2,15 @@ import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from 
 
 export type PetId = 'verdell' | 'simba';
 export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush';
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet'] as const;
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch'] as const;
 export interface PetRoutine {
   kind: typeof PET_ROUTINES[number];
   target: number;
   until: number;
   startedAt: number;
   route: WalkRoute;
+  /** Present ONLY for a real cat-on-furniture routine. Ground navigation stays at approach. */
+  perch?: import('./CatPerches').CatPerch;
 }
 
 export interface PetState {
@@ -88,11 +90,12 @@ export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[
   }
 }
 
-export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target'>) {
+export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target' | 'perch'>) {
   const pet = PETS[id];
   if (routine.kind === 'eat') return { x: pet.bowl.x, z: pet.bowl.z + .51 };
   if (routine.kind === 'sleep') return pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
+  if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
   return PET_ROAM[routine.target];
 }
 

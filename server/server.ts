@@ -22,6 +22,7 @@ import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
+import { homeHabitCommands } from '../src/shared/personalityHabits';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
 import { otherRole } from './social';
@@ -120,6 +121,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const fullRoutineTurn=new Map<CharacterId,number>();
+  // Ephemeral habit memory: never alter saved household state or manual queues.
+  const recentHomeHabits=new Map<CharacterId,import('../src/shared/protocol').ActionId[]>();
 
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
@@ -468,20 +471,24 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // both residents could only repeat TV/computer/pet interactions.
           const turn=fullRoutineTurn.get(role)??0;
           fullRoutineTurn.set(role,turn+1);
-          if(turn%3===1){
-            const chores=(role==='vlad'
-              ? ['kitchenTidy','tablePlan','kitchenWash','bathTeeth','sofaRest']
-              : ['bathTeeth','tablePlan','kitchenTidy','bathWash','sofaMusic']) as
-              (keyof typeof ACTIONS)[];
-            for(let i=0;i<chores.length;i++){
-              const actionId=chores[(Math.floor(turn/3)+i)%chores.length];
-              const plan=planTask({type:'act',actionId});
+          // Keep a short natural chat window from being consumed by a new
+          // solo chore. Critical needs still execute before this block.
+          const partner=otherRole(role);
+          const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
+            Math.floor(clockMinutes(state.clock)/125)%3===0;
+          if(turn%3===1&&!sharedWindow){
+            const recent=recentHomeHabits.get(role)??[];
+            const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent);
+            for(const {habit,command} of chores){
+              const plan=planTask(command);
               if(!plan || taskAccessError(state,plan.command) ||
                   plan.resource && (homeTasks.reserved(plan.resource) ||
                     [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
               if(!evaluateTask(state,role,plan.command).ok)continue;
               lastAutoCare.set(role,now);
               beginTask(role,socket,plan,true);
+              // Remember *started* work, not an unavailable suggestion.
+              recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
               started=true;
               break;
             }
@@ -535,7 +542,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           (queuedTasks.get(other)?.length??0)===0&&!state.activeShifts[other]&&
           !state.careers.residents[other].shift&&!walkingHome.has(other)&&
           !storageOpen.has(other)&&!leisure.has(other)&&
-          age>=otherIdleThreshold-2400&&age<otherIdleThreshold){
+          (age>=0&&age<otherIdleThreshold ||
+           now-(lastAutoCare.get(other)??0)<leisureCooldownMs &&
+           leisureCooldownMs-(now-(lastAutoCare.get(other)??0))<=3000)){
         return;
       }
     }
