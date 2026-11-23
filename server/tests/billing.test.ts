@@ -142,6 +142,9 @@ test('An old save at midnight keeps all progress and credentials and migrates on
     const files=openServerFiles(dir);
     const saved=initialState();
     saved.clock={day:38,minute:1439};
+    // A fixture advanced to day 38 must carry a synchronized 10-day budget
+    // period; the finance migration itself is tested separately.
+    saved.savings.period=Math.floor(time(saved)/BILLING_PERIOD);
     saved.money=54321;
     saved.pantry.bread=11;
     saved.pets.simba.bond=77;
