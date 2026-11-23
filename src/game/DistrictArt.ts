@@ -8,6 +8,7 @@ import { buildDistrictPlants, districtGroundPatches } from './DistrictPlants';
 import { paintGround } from './LandscapeGround';
 import { districtTrailGeometry } from './DistrictTrail';
 import { buildDistrictPond } from './DistrictPond';
+import { detailLimit } from './DistrictDetail';
 import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { buildNeighborhood } from './NeighborhoodArt';
 
@@ -222,13 +223,13 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
       const compactLow=Boolean(camera.userData.compactLow);
       animatePlants(cameraLocal,compactLow,seconds);
       for(const {building,detail,model} of facades){
-        const bias=compactLow?6:0;
-        const far=building.position.distanceTo(cameraLocal)>(model.visible?32-bias:35-bias);
+        const far=building.position.distanceTo(cameraLocal)>
+          detailLimit('building',model.visible,compactLow);
         model.visible=far;detail.visible=!far;
       }
       for(const {model,detail} of distantCottages){
-        const bias=compactLow?5:0;
-        const far=model.position.distanceTo(cameraLocal)>(model.visible?32-bias:35-bias);
+        const far=model.position.distanceTo(cameraLocal)>
+          detailLimit('cottage',model.visible,compactLow);
         model.visible=far;detail.visible=!far;
       }
     },

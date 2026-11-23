@@ -19,6 +19,7 @@ import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOU
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
 import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
@@ -212,18 +213,19 @@ export class World {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.target.set(0, 1.0, 1.8);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.065;
+    this.controls.dampingFactor = TOUCH_CAMERA_DAMPING;
     this.controls.touches.ONE = THREE.TOUCH.PAN;
     // Pinch zoom + two-finger pan. Rotation comes only from the explicit
     // twist handler below, so a slightly uneven pinch cannot rotate twice.
     this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     this.controls.enablePan = true;
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
-    this.controls.maxTargetRadius = 88;
+    this.controls.maxTargetRadius = 110;
     this.controls.minDistance = 10;
     this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
+    this.updatePanFeel();
     this.controls.update();
 
     this.createLights();
@@ -292,6 +294,11 @@ export class World {
     this.animate();
   }
 
+  /** Consistent ground travel per drag pixel regardless of zoom or scene edge. */
+  private updatePanFeel():void {
+    this.controls.panSpeed=steadyPanSpeed(this.camera.position.distanceTo(this.controls.target));
+  }
+
   private bindCanvasInput(): void {
     const gate = new CanvasGestureGate();
     const contact = (event: PointerEvent): PointerContact => ({
@@ -306,7 +313,8 @@ export class World {
       gate.down(contact(event));
       if (event.isPrimary) {
         this.controls.enablePan = touch || this.place === 'home';
-        this.controls.dampingFactor = touch ? .22 : .065;
+        this.controls.dampingFactor = TOUCH_CAMERA_DAMPING;
+        this.updatePanFeel();
       }
     }, { capture: true });
 
@@ -2388,6 +2396,7 @@ export class World {
         if (this.inspected) this.controls.maxDistance = 12;
       }
     }
+    this.updatePanFeel();
     this.controls.update();
     if (this.place === 'home') {
       this.homeEffects.update(this.visualSeconds);

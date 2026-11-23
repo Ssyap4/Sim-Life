@@ -36,6 +36,7 @@ import './minimal-hud.css';
 import './visual-polish-020.css';
 import './mobile-controls-020.css';
 import './mobile-ux-020.css';
+import './district-minimal-021.css';
 import { installMobileInput } from './mobileInput';
 import { installMobileBack } from './mobileBack';
 import { subtleHaptic } from './mobileHaptics';
@@ -104,15 +105,15 @@ app.innerHTML = `
   <header class="top-ui">
     <div class="brand-row">
       <div class="brand">
-        <div class="brand-icon">⌂</div>
-        <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
+        <div class="brand-icon" aria-hidden="true">⌂</div>
+        <div><span class="brand-kicker">СИМУЛЯТОР ЖИЗНИ</span><h1>SIM LIFE</h1></div>
       </div>
-      <div class="version">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
+      <div class="version">ДОМ · РАЙОН</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
       <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small><button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled>⏸</button></span>
-      <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
+      <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span class="need-glyph" aria-hidden="true"><i></i><i></i><i></i></span><span class="hud-label"> Потребности</span></button>
       <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
       <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><span aria-hidden="true">🐾</span><small class="pet-alert" hidden></small></button>
     </div>
@@ -143,7 +144,7 @@ app.innerHTML = `
   <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
-    <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
+    <div class="needs-header"><strong>Состояние и потребности</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
   </section>
   <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
@@ -178,14 +179,14 @@ app.innerHTML = `
         <span class="tip-icon">✦</span>
         <span>Тап по предмету · Щипок для масштаба</span>
       </div>
-      <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
+      <div class="footer-row"><span>Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
     </div>
   </footer>
   <section id="auth" class="auth-screen" aria-labelledby="auth-title">
     <form id="auth-form" class="auth-card">
       <span class="auth-emblem">⌂</span>
       <div class="brand-kicker">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
-      <h2 id="auth-title">С возвращением домой ♥</h2>
+      <h2 id="auth-title">С возвращением домой</h2>
       <p>У каждого свой персонаж, но один дом, семейный бюджет и общий прогресс.</p>
       <div class="role-choices">
         <button data-role="vlad" class="role-option selected" type="button">💻 <b>Влад</b><span>Разработчик</span></button>

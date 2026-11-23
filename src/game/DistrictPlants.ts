@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { detailLimit } from './DistrictDetail';
 import { DISTRICT_BEDS, DISTRICT_TREES, DISTRICT_PATHS, DISTRICT_PLAZA, DISTRICT_FLOOR, DISTRICT_OBSTACLES,
   DISTRICT_SITES, DISTRICT_POND, districtPoint, inDistrictPond, sitePoint } from '../shared/district';
 import { NEIGHBOR_HOMES, homePoint, homeStops } from '../shared/neighborHomes';
@@ -185,16 +186,16 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
 
   return (camera:THREE.Vector3,compactLow:boolean,seconds:number)=>{
     wind.value=seconds;
-    const bias=compactLow?4:0;
     for(const l of layers) {
       const distance=Math.hypot(camera.x-l.x,camera.z-l.z,camera.y*.77);
-      // Keep foliage silhouettes on the overview. Lawn paint carries the
-      // flower color once a garden is too far away to make out individual buds.
-      l.distantTrees.visible=distance>(l.distantTrees.visible?22:24)-bias;
+      // Near and medium zoom retain rich foliage. Far overview uses cheaper
+      // silhouettes; mobile low-quality mode steps down a little earlier.
+      l.distantTrees.visible=distance>detailLimit('trees',l.distantTrees.visible,compactLow);
       l.trees.visible=!l.distantTrees.visible;
-      l.beds.visible=distance<(l.beds.visible?20:18)-bias;
-      l.distantBeds.visible=!l.beds.visible && distance<(l.distantBeds.visible?43:40)-bias;
-      l.tufts.visible=distance<(l.tufts.visible?23:21)-bias;
+      l.beds.visible=distance<detailLimit('flowers',!l.beds.visible,compactLow);
+      l.distantBeds.visible=!l.beds.visible &&
+        distance<detailLimit('distantFlowers',!l.distantBeds.visible,compactLow);
+      l.tufts.visible=distance<detailLimit('grass',!l.tufts.visible,compactLow);
     }
   };
 }
