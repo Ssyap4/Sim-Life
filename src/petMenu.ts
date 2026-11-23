@@ -3,6 +3,7 @@ import {
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
 import { catPerchCandidates } from './shared/CatPerches';
+import {petBeds,petScratchers} from './shared/petFurniture';
 import { petWish } from './shared/petWishes';
 
 /** Small touch-friendly family panel driven by persistent server state. */
@@ -54,6 +55,13 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const beds=petBeds(state.furnishing,selected);
+  const petFurniture=document.createElement('p');
+  petFurniture.className='pet-note';
+  const favorite=beds.some(item=>item.id===stats.favoriteBedId);
+  petFurniture.textContent='🏡 Лежанки: '+beds.length+(favorite?' · есть любимая':'')+
+    (selected==='simba'?' · когтеточки: '+petScratchers(state.furnishing).length:'');
+  container.appendChild(petFurniture);
   const wish = petWish(state, selected);
   const thoughts = document.createElement('section');
   thoughts.className = 'pet-wish' + (wish.urgent ? ' pet-wish-urgent' : '');
@@ -123,6 +131,14 @@ export function renderPetChoices(
     },
   ];
   // These are new server-owned routes, not copies of the existing pet/play actions.
+  actions.unshift({
+    action:'mat',icon:'🧺',hint:'Сам идёт на реально купленную и установленную лежанку',
+    disabled:!beds.length||stats.satiety<40||stats.bladder<35||stats.energy<20,
+  });
+  if(selected==='simba')actions.unshift({
+    action:'scratch',icon:'🐾',hint:'Симба идёт к установленной когтеточке и точит когти',
+    disabled:!petScratchers(state.furnishing).length||stats.satiety<40||stats.bladder<35||stats.energy<20,
+  });
   actions.unshift({
     action:'call',icon:'📣',hint:'Питомец сам подходит к хозяину, обходя мебель',
     disabled:stats.satiety<40||stats.bladder<35||stats.energy<20,
