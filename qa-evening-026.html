@@ -1,0 +1,56 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim-Life · Домашний вечер вдвоём</title>
+<link rel="stylesheet" href="/src/style.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;overflow-x:hidden;background:#e9ece6;font:13px system-ui,sans-serif;color:#294c3f}
+h1{text-align:center;font-size:18px;margin:13px 4px 5px}
+.intro{text-align:center;font-size:12px;margin:0 10px 10px;color:#536d5c}
+#phone{width:min(calc(100vw - 20px),390px);margin:0 auto 16px;border:6px solid #354f43;border-radius:24px;
+background:#f5f7f0;padding:11px;box-shadow:0 5px 17px #27463428}
+#relationship,#social{max-width:100%;min-width:0}
+#social{margin-top:12px;padding-top:10px;border-top:1px solid #d7ded3}
+#social:empty{display:none}
+</style></head><body>
+<h1>Домашний вечер вдвоём</h1>
+<p class="intro">Реальный интерфейс отношений, в размере экрана телефона</p>
+<main id="phone">
+  <div id="relationship"></div><div id="social"></div>
+</main>
+<script type="module">
+import {initialState} from './src/shared/protocol.ts';
+import {renderRelationship,showSocialMenu} from './src/socialUI.ts';
+import {gameMinutes} from './src/shared/life.ts';
+import {levelXP} from './src/shared/education.ts';
+const state=initialState();
+state.clock.minute=19*60;
+state.pantry.eggs=8;state.pantry.milk=8;
+state.education.characters.vlad.xp.cooking=levelXP(3);
+state.education.characters.alina.xp.cooking=levelXP(3);
+const relationship=document.getElementById('relationship');
+const social=document.getElementById('social');
+const sent=[];
+const send=command=>{sent.push(command);document.body.dataset.sent=JSON.stringify(sent);return true;};
+function suggest(group,id){
+  social.replaceChildren();
+  showSocialMenu(social,state,'vlad',true,undefined,send,group,id);
+  document.body.dataset.suggested=id||'';
+}
+function render(){
+  social.replaceChildren();
+  renderRelationship(relationship,state,'vlad',suggest,()=>{},false,undefined);
+}
+window.testStage=phase=>{
+  state.relationship.evening=phase==='none'?undefined:{
+    recipe:'omelette',phase,startedAt:gameMinutes(state.clock)-45,
+    ...(phase==='complete'?{completedAt:gameMinutes(state.clock)}:{}),
+  };
+  state.relationship.memories=phase==='complete'?
+    [{at:gameMinutes(state.clock),action:'homeEvening',title:'Наш вечер вдвоём',
+      group:'romance',description:'Вместе приготовили омлет, поужинали и посмотрели фильм.'}]:[];
+  render();
+};
+render();
+document.body.dataset.ready='true';
+</script></body></html>
