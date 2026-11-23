@@ -6,7 +6,7 @@ import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, HOME_WORLD_FLOOR, DISTRICT_PLAZA,
 import { buildDistrictFacade, buildRoofBillboard, distantDistrictFacade } from './DistrictBuildings';
 import { buildDistrictPlants, districtGroundPatches } from './DistrictPlants';
 import { paintGround } from './LandscapeGround';
-import { districtTrailGeometry } from './DistrictTrail';
+import { districtTrailGeometry, districtTrailGravelGeometry } from './DistrictTrail';
 import { buildDistrictPond } from './DistrictPond';
 import { detailLimit } from './DistrictDetail';
 import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
@@ -34,9 +34,18 @@ function pavingPaint(resources:LocationResources) {
       ctx.beginPath();ctx.roundRect(l+1,t+1,41,30,2);ctx.fill();
       ctx.fillStyle='#eddbc059';ctx.fillRect(l+4,t+4,34,2);
     }
-    for(let n=0;n<1400;n++){
-      ctx.fillStyle=n%2?'#907b6251':'#f7dec052';
-      ctx.fillRect((n*43+n*n)%256,(n*71+n*n*3)%256,1,1);
+    for(let n=0;n<1800;n++){
+      const x=(n*43+n*n*5)%256,y=(n*71+n*n*3)%256;
+      ctx.fillStyle=n%5?'#907b6240':'#f7dec03d';
+      ctx.fillRect(x,y,1+(n%4===0?1:0),1);
+    }
+    // Thin pores, old mortar scratches and moss: baked once, no draw calls.
+    for(let i=0;i<195;i++){
+      const x=(i*97+i*i*7)%256,y=(i*71+i*i*11)%256;
+      ctx.lineWidth=.35+(i%3)*.22;
+      ctx.strokeStyle=i%5===0?'#5e79543b':'#7f6f5d3c';
+      ctx.beginPath();ctx.moveTo(x,y);
+      ctx.lineTo(x+3+(i%6),y+(i%3-1)*1.3);ctx.stroke();
     }
   });
   if(stone)stone.wrapS=stone.wrapT=THREE.RepeatWrapping;
@@ -76,13 +85,30 @@ function landscaping(root:THREE.Group,resources:LocationResources) {
   const trail=new THREE.Mesh(districtTrailGeometry(),trailMaterial);
   trail.name='Curved garden walk';
   root.add(trail);
-  for(const bed of DISTRICT_BEDS){
-    trim(root,[bed.w,.15,bed.d],[bed.x,.070,bed.z],0xad886b);
-    trim(root,[bed.w-.12,.065,bed.d-.11],[bed.x,.156,bed.z],0x6e5942);
+  const gravel=new THREE.Mesh(districtTrailGravelGeometry(),
+    new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide}));
+  gravel.name='Trail edge gravel and scattered chips';
+  resources.materials.push(gravel.material as THREE.Material);
+  root.add(gravel);
+  for(const [i,bed] of DISTRICT_BEDS.entries()){
+    const trimColor=[0xb39b7e,0xd2bf9f,0x93765b,0xc0ad91][i%4];
+    const soilColor=[0x564633,0x624a36,0x544836][i%3];
+    const height=i%4===0?.13:i%4===1?.20:.16;
+    trim(root,[bed.w,.12,bed.d],[bed.x,.065,bed.z],trimColor);
+    trim(root,[bed.w-.09,.053,bed.d-.09],[bed.x,.13,bed.z],soilColor);
     for(const edge of [-1,1]){
-      const edgeColor=0xd5b698;
-      trim(root,[bed.w-.05,.071,.086],[bed.x,.176,bed.z+edge*(bed.d/2-.043)],edgeColor);
-      trim(root,[.086,.074,bed.d-.15],[bed.x+edge*(bed.w/2-.052),.175,bed.z],edgeColor);
+      if(i%4===1){ // cut stone blocks instead of a single uniform border
+        const segments=Math.max(3,Math.floor(bed.w/.47));
+        for(let n=0;n<segments;n++){
+          const x=bed.x-bed.w*.5+(n+.5)*bed.w/segments;
+          trim(root,[bed.w/segments-.014,.10,.085],[x,.16,bed.z+edge*(bed.d/2-.044)],
+            n%3===0?0xc7b7a1:trimColor);
+        }
+      }else{
+        trim(root,[bed.w-.04,.08,.075],[bed.x,.14+height*.2,bed.z+edge*(bed.d/2-.040)],trimColor);
+      }
+      trim(root,[.087,.09,bed.d-.15],[bed.x+edge*(bed.w/2-.050),.17,bed.z],
+        i%3===0?0xa88f70:trimColor);
     }
   }
   for(const [x,z] of [[-15.7,-6],[-5.4,1.8],[5.3,-10.9],[17.4,4.0],[10.7,8.8],[-25.8,3.4],[-23.4,-19.0]]){

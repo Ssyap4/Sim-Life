@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { detailLimit } from './DistrictDetail';
 import { DISTRICT_BEDS, DISTRICT_TREES, DISTRICT_PATHS, DISTRICT_PLAZA, DISTRICT_FLOOR, DISTRICT_OBSTACLES,
   DISTRICT_SITES, DISTRICT_POND, districtPoint, inDistrictPond, sitePoint } from '../shared/district';
-import { NEIGHBOR_HOMES, homePoint, homeStops } from '../shared/neighborHomes';
+import { NEIGHBOR_HOMES, homePoint, homeStops, yardFeatures } from '../shared/neighborHomes';
 import { pointIsClear } from './navigation';
-import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, PlantBatch,
+import { addTufts, grassMaterial, growFlowers, growShrub, growTree, growKitchenGarden, landscapeRandom, PlantBatch,
   type GrassTuft } from './LandscapePlants';
 import type { GroundArea, GroundPatch } from './LandscapeGround';
 import { besideTrail } from './DistrictTrail';
@@ -45,6 +45,7 @@ const borderGardens: Garden[] = [
   {x:-7.40,z:26.60,w:2.2,d:1.13,palette:1,y:0,count:10},
 ];
 const gardens: Garden[] = [...publicGardens,...borderGardens];
+const kitchenPlots=NEIGHBOR_HOMES.map((home,i)=>yardFeatures(home,i));
 const shrubs: Shrub[] = [];
 const porchPads = DISTRICT_SITES.map(site=>({...sitePoint(site,0,site.d/2+.86),w:2.4,d:2.46}));
 const paved = [...DISTRICT_PATHS,DISTRICT_PLAZA,...porchPads];
@@ -52,16 +53,23 @@ const paved = [...DISTRICT_PATHS,DISTRICT_PLAZA,...porchPads];
 for (const [i,home] of NEIGHBOR_HOMES.entries()) {
   const face = home.depth/2;
   for (const side of [-1,1]) {
-    gardens.push({...homePoint(home,side*(home.width/2-.77),face+1.47),w:1.24,d:.55,palette:i,y:.06,count:10});
+    // Raised kitchen plot takes over the right front bed; left side remains
+    // an ornamental strip. No duplicate flower patch underneath vegetables.
+    if(side===-1)gardens.push({...homePoint(home,side*(home.width/2-.77),face+1.47),w:1.24,d:.55,
+      palette:i,y:.26,count:13});
     gardens.push({...homePoint(home,side*home.width*.30,face+.33),w:1.08,d:.28,palette:i,y:1.10,count:6});
     for (let k=0;k<4;k++) shrubs.push({...homePoint(home,side*(home.width/2+1.35),face-1+k*1.45),
       w:.70,d:.98,height:.55,palette:i,y:0});
     if (i===2) gardens.push({...homePoint(home,side*home.width*.37,face+1.70),w:1.28,d:.45,palette:2,y:.08,count:8});
   }
-  if (i===0) for (let row=0;row<3;row++) {
-    const tray=homePoint(home,-home.width*.37,face+1.05+row*.57);
-    for (let n=0;n<4;n++) shrubs.push({...tray,x:tray.x+(n-1.5)*.26,w:.22,d:.20,height:.20,palette:0,y:.11});
+  // Hedge pockets and low herbs are intentionally not repeated in straight
+  // identical rows along each home.
+  const plot=kitchenPlots[i];
+  if(i===1||i===3){
+    for(let n=0;n<3;n++)shrubs.push({...homePoint(home,-home.width*.37,face+.6+n*.48),
+      w:.36+(n%2)*.10,d:.40,height:.26+n*.035,palette:i,y:.08});
   }
+  if(i===2)gardens.push({...plot.flowerArea,palette:1,y:.27,count:14});
 }
 for (const [i,site] of DISTRICT_SITES.entries()) {
   for(const side of [-1,1]) {
@@ -107,7 +115,11 @@ export const districtGroundPatches: GroundPatch[] = [
     ink:[107,115,91],opacity:.63,border:true},
   ...DISTRICT_TREES.map(([x,z,kind,size])=>({x:x+.19,z:z+.16,w:size*2.54,d:size*1.99,
     ink:(kind==='maple'?[143,116,66]:[57,93,61]) as GroundPatch['ink'],opacity:.42,border:true})),
-  ...gardens.filter(g=>g.y<.1).map(g=>({x:g.x,z:g.z,w:g.w*1.36,d:g.d*1.39,
+  ...kitchenPlots.map((plot,i)=>({x:plot.patch.x,z:plot.patch.z,
+    w:plot.patchArea.w*1.3,d:plot.patchArea.d*1.3,
+    ink:[91,76,54] as GroundPatch['ink'],opacity:.56,border:true,
+    flecks:flowerInk[i%flowerInk.length]})),
+  ...gardens.filter(g=>g.y<.1||g.y>.24&&g.y<.32).map(g=>({x:g.x,z:g.z,w:g.w*1.36,d:g.d*1.39,
     ink:[129,112,82] as GroundPatch['ink'],opacity:.44,border:true, flecks:flowerInk[g.palette]})),
   ...shrubs.filter(s=>s.y<.05).map(s=>({x:s.x,z:s.z,w:s.w*1.34,d:s.d*1.22,
     ink:[55,98,59] as GroundPatch['ink'],opacity:.41,border:true})),
@@ -141,6 +153,13 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
     growFlowers(beds,...args,false,allowed);
     growFlowers(distantBeds,...args,true,allowed);
   }
+  for (const [i,plot] of kitchenPlots.entries()) {
+    const {beds,distantBeds}=sector(plot.patch.x,plot.patch.z);
+    growKitchenGarden(beds,plot.patch.x,.263,plot.patch.z,
+      plot.patchArea.w-.11,plot.patchArea.d-.12,plot.style,8001+i*307);
+    growKitchenGarden(distantBeds,plot.patch.x,.263,plot.patch.z,
+      plot.patchArea.w-.11,plot.patchArea.d-.12,plot.style,8001+i*307,true);
+  }
   for (const [i,s] of shrubs.entries()) {
     const {beds,distantBeds}=sector(s.x,s.z);
     const args=[s.x,s.y,s.z,s.w,s.height,s.d,s.palette,32+i*19] as const;
@@ -159,15 +178,19 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
       const {gate,sidewalk}=homeStops(home);
       return Math.abs(x-gate.x)<.74 && z>home.z+home.depth/2 && z<sidewalk.z+.22;
     }))return;
-    if (gardens.some(g=>g.y<.1&&within(x,z,g,.12)))return;
-    sector(x,z).grass.push({x,z,size:large?.62+random()*.76:.42+random()*.55,
-      yaw:random()*Math.PI*2,color:[0x83ad61,0x729f59,0xa6b873,0x668f60][Math.floor(random()*4)]});
+    if (gardens.some(g=>g.y<.32&&within(x,z,g,.13)))return;
+    if (kitchenPlots.some(g=>within(x,z,g.patchArea,.18)||
+        within(x,z,g.grillPad,.12)||within(x,z,{...g.bench,w:1.7,d:.85},.11)))return;
+    const shade=[0x83ad61,0x729f59,0xa6b873,0x668f60,0x9baa68,0x79966a,
+      0x738f4b,0xb6b585,0x6c9b69,0x8b9e5c][Math.floor(random()*10)];
+    sector(x,z).grass.push({x,z,size:large?.59+random()*.94:.31+random()*.67,
+      yaw:random()*Math.PI*2,color:shade});
   }
-  for(let i=0;i<625;i++) {
+  for(let i=0;i<1120;i++) {
     const group=countryside[i%countryside.length];
     addGrass(group.x+(random()-.5)*group.w,group.z+(random()-.5)*group.d,i%4===0);
   }
-  for(let i=0;i<275;i++) addGrass((random()-.5)*55,(random()-.5)*60,i%5===0);
+  for(let i=0;i<520;i++) addGrass((random()-.5)*55,(random()-.5)*60,i%5===0);
 
   const {material,wind}=grassMaterial();
   materialPool.push(material);

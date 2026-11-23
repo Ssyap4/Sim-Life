@@ -250,16 +250,88 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
   }
 }
 
+
+/** Lightweight, visibly different edible crops. Soil is built into the yard;
+ * crop leaves/fruits are collected into the same batched garden mesh. */
+export type KitchenCrop='tomato'|'herbs'|'flowers'|'cabbage';
+export function growKitchenGarden(batch:PlantBatch,x:number,y:number,z:number,w:number,d:number,
+  crop:KitchenCrop,seed:number,distant=false):void {
+  const rng=landscapeRandom(seed);
+  const cols=crop==='tomato'?3:crop==='cabbage'?3:4;
+  const rows=crop==='cabbage'?3:4;
+  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+    const a=(row*cols+col),jitter=distant?0:.05;
+    const px=x+(col/(cols-1)-.5)*w*.73+(rng()-.5)*jitter;
+    const pz=z+(row/(rows-1)-.5)*d*.70+(rng()-.5)*jitter;
+    const height=(crop==='tomato'?.48:crop==='herbs'?.24:crop==='cabbage'?.22:.34)*(.82+rng()*.38);
+    if(distant){
+      batch.cluster(crop==='flowers'?0xb88aa8:crop==='tomato'?0x5c8e52:
+        crop==='cabbage'?0x78a875:0x6a9162,
+      [px,y+height*.6,pz],[.13,height*.65,.14],seed+a,true);
+      continue;
+    }
+    batch.stem(0x577a45,[px,y,pz],[px,y+height,pz],.010);
+    for(let leafIndex=0;leafIndex<(crop==='cabbage'?7:5);leafIndex++){
+      const angle=a*2.3+leafIndex*2.39996+seed*.04;
+      const spread=crop==='cabbage'?.18:crop==='tomato'?.14:crop==='herbs'?.105:.12;
+      const cy=y+height*(.34+leafIndex*.09);
+      batch.blade([0x537f4f,0x739653,0x98b66c,0x46765a][(a+leafIndex)%4],
+        [px+Math.sin(angle)*spread*.63,cy,pz+Math.cos(angle)*spread*.63],
+        [spread*.73,.065+height*.10,spread*1.26],angle,-.34+(leafIndex%3)*.19);
+    }
+    if(crop==='tomato'){
+      for(let fruit=0;fruit<3;fruit++){
+        const spin=seed+a*1.7+fruit*2.23;
+        batch.bud([0xd45b47,0xe38b42,0xb75040][(a+fruit)%3],
+          [px+Math.sin(spin)*.087,y+height*(.55+fruit*.10),pz+Math.cos(spin)*.09],
+          [.045,.045,.045],spin);
+      }
+      batch.stem(0x96745b,[px+.14,y,pz-.13],[px+.14,y+.73,pz-.13],.014);
+    }else if(crop==='cabbage'){
+      batch.cluster([0x7baa70,0x9cbd79,0x658e65][a%3],
+        [px,y+height*.58,pz],[.14,.115,.13],a+.9);
+    }else if(crop==='herbs'){
+      for(let head=0;head<3;head++){
+        const spin=a*1.2+head*2.4;
+        batch.bud(head%2?0xbfc68e:0xe0d5a9,
+          [px+Math.sin(spin)*.052,y+height+head*.018,pz+Math.cos(spin)*.045],
+          [.032,.038,.030],spin);
+      }
+    }else{
+      const colors=[0xe7a6b5,0xf0df96,0xceb6de,0xdca390];
+      for(let head=0;head<5;head++){
+        const spin=head*1.257+a;
+        batch.bud(colors[(a+head)%4],
+          [px+Math.sin(spin)*.066,y+height+.016,pz+Math.cos(spin)*.066],
+          [.039,.026,.045],spin);
+      }
+      batch.bud(0xe4bf56,[px,y+height+.028,pz],[.035,.026,.035]);
+    }
+  }
+}
+
 const tuftGeometry = new THREE.BufferGeometry();
 const tuftPositions: number[] = [];
 const tuftColors: number[] = [];
-for (let i = 0; i < 6; i++) {
-  const angle = i * 2.39996, x = Math.sin(angle) * i * .025, z = Math.cos(angle) * i * .025;
-  const w = .027 + i % 3 * .005, h = .14 + i % 4 * .041, lean = (i % 2 - .5) * .22;
-  tuftPositions.push(x-w,0,z,x+w,0,z,x+w*.6,h*.54,z+.018,
-    x-w,0,z,x+w*.6,h*.54,z+.018,x-w*.53,h*.50,z+.019,
-    x-w*.53,h*.50,z+.019,x+w*.6,h*.54,z+.018,x+lean,h,z+.074);
-  for (const shade of [.42,.56,.81,.42,.81,.73,.73,.81,1.16]) tuftColors.push(shade,shade,shade);
+for (let i = 0; i < 9; i++) {
+  // Narrow and wide fronds, natural curvature, uneven crowns; each group
+  // is a single cheap instanced blade cluster at runtime.
+  const angle = i * 2.39996, radius=.026+.019*(i%4);
+  const x = Math.sin(angle)*radius, z = Math.cos(angle)*radius;
+  const width=(i%3===0?.019:.027)+i%4*.004;
+  const height=.13+(i%5)*.034;
+  const bow=Math.sin(angle)*(.039+.020*(i%3));
+  const tip=bow+Math.cos(angle)*.055;
+  tuftPositions.push(x-width,0,z,x+width,0,z,
+    x+bow*.48+width*.38,height*.51,z+.024,
+    x-width,0,z,x+bow*.48+width*.38,height*.51,z+.024,
+    x+bow*.45-width*.37,height*.48,z-.021,
+    x+bow*.45-width*.37,height*.48,z-.021,
+    x+bow*.48+width*.38,height*.51,z+.024,
+    x+tip,height,z+.042);
+  const light=.80+(i%4)*.09;
+  for(const shade of [.62,.70,.88,.62,.88,.76,.76,.91,light])
+    tuftColors.push(shade,shade*.99,shade*.96);
 }
 tuftGeometry.setAttribute('position', new THREE.Float32BufferAttribute(tuftPositions,3));
 tuftGeometry.setAttribute('color', new THREE.Float32BufferAttribute(tuftColors,3));
@@ -286,7 +358,7 @@ export function addTufts(parent: THREE.Object3D, tufts: readonly GrassTuft[], ma
   const t = new THREE.Object3D(), rgb = new THREE.Color();
   for (const [i,b] of tufts.entries()) {
     t.position.set(b.x,.004,b.z);
-    t.scale.setScalar(b.size);
+    t.scale.set(b.size*(.74+(i%5)*.085),b.size*(.79+(i%7)*.060),b.size*(.81+(i%3)*.11));
     t.rotation.y = b.yaw;
     t.updateMatrix();
     mesh.setMatrixAt(i,t.matrix);

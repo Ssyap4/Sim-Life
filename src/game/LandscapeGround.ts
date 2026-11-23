@@ -57,7 +57,9 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
   }
 
   // Brush marks are baked into the ground; 3D blades are reserved for the foreground.
-  const count = Math.round(width*height*.044);
+  // Extra tonal brush variation replaces the repeated smooth lawn look
+  // without spending any additional per-frame WebGL work.
+  const count = Math.round(width*height*.058);
   const size = Math.max(.54,Math.min(sx,sz)*.051);
   for (let i=0;i<count;i++) {
     const x=random()*width,z=random()*height;
