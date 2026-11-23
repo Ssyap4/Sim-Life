@@ -117,8 +117,8 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     };
     story.append(node('p',names[evening.phase]+' · '+RECIPES[evening.recipe].name),
       node('p',descriptions[evening.phase]));
-    const action=evening.phase==='prepare'?'cook':evening.phase==='dine'?'eat':'film';
-    const title=evening.phase==='prepare'?dish:evening.phase==='dine'?'Позвать к столу':'Отдохнуть вместе';
+    const action=evening.phase==='prepare'?'cook':evening.phase==='dine'?'eat':'tv';
+    const title=evening.phase==='prepare'?dish:evening.phase==='dine'?'Позвать к столу':'Посмотреть ТВ вдвоём';
     story.append(button(title,()=>suggest(evening.phase==='unwind'?'fun':'home',action)));
     story.append(button('Выбрать другой план',()=>suggest('home','eveningPlan')));
   }
