@@ -208,18 +208,33 @@ test('Shared spontaneous conversation requires both residents in full mode and s
   const ctx=await setup(seed,true,250,180,true);
   try{
     const [vlad,alina]=await Promise.all([ctx.join('vlad'),ctx.join('alina')]);
+    const log:string[]=[];
+    for(const [role,ws] of [['vlad',vlad],['alina',alina]] as const){
+      let snapshots=0;
+      ws.on('message',(raw:RawData)=>{
+        const p=JSON.parse(raw.toString()) as ServerPacket;
+        if(p.type==='home_leisure')log.push(role+' leisure:'+p.activity+' roles:'+p.roles.join(','));
+        if(p.type==='task_started')log.push(role+' task:'+p.command.type+' automatic:'+p.automatic);
+        if(p.type==='snapshot'&&snapshots++%12===0)
+          log.push(role+' clock:'+p.state.clock.minute.toFixed(1)+' places:'+
+            JSON.stringify(p.state.world.places)+' autonomy:'+JSON.stringify(p.state.autonomy));
+        if(log.length>90)log.shift();
+      });
+    }
     const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
     // Both sockets and the event listener are ready before game-time moves.
     // This tests a synchronized conversation, not the relative speed of two
     // unrelated WebSocket handshakes on a busy CI runner.
     ctx.startClock();
-    const event=await started;
+    const event=await started.catch(error=>{throw new Error(
+      'Chat did not start: '+String(error)+'; trace='+JSON.stringify(log.slice(-60)));});
     if(event.type!=='home_leisure')return;
     assert.deepEqual(event.roles,['vlad','alina']);
     assert.ok(event.routes.vlad&&event.routes.alina);
     const stopped=waitFor(alina,p=>p.type==='home_leisure'&&p.activity===null);
     send(alina,{type:'act',actionId:'kitchenWash'});
-    const cancellation=await stopped;
+    const cancellation=await stopped.catch(error=>{throw new Error(
+      'Chat did not stop: '+String(error)+'; trace='+JSON.stringify(log.slice(-60)));});
     if(cancellation.type==='home_leisure')assert.deepEqual(cancellation.roles,['alina','vlad']);
     assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
   }finally{await ctx.close();}
