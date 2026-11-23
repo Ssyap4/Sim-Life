@@ -1,5 +1,6 @@
 import { activityItems, eveningDinnerAction, eveningDishId, eveningMealName, eveningSelection, needsItem, otherPerson, SOCIAL_BY_ID, socialRestriction,
   type PairMotion, type PairPresentation, type Relationship, type SocialActivity, type SocialIntent } from '../src/shared/socialLife';
+import { familyMoments, momentDenial, momentReward } from '../src/shared/familyMoments';
 import { HOME_PLACEMENTS, GRILL_WORK, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { approachFor, floorFor, meeting, placeObstacles, stationById, type PlaceId, type Point } from '../src/shared/locations';
 import { gameMinutes } from '../src/shared/life';
@@ -48,6 +49,8 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
   if (!a) return 'Неизвестное совместное занятие';
   const restriction=socialRestriction(a,state,from,individual);
   if(restriction) return restriction;
+  const momentProblem=momentDenial(state,from,command);
+  if(momentProblem)return momentProblem;
   const onePortion=individual&&(a.object==='eat'&&state.meals[command.item as RecipeId]>=1||
     a.object==='takeout'&&state.takeout[command.item as keyof GameState["takeout"]]>=1);
   if(needsItem(a)&&!onePortion&&!activityItems(a,state,from).some(item=>item.id===command.item)) return 'Выбранное блюдо, питомец или материал больше недоступны';
@@ -215,6 +218,9 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   if(denial) return fail(denial);
   let state=structuredClone(source);
   let message=a.title+' · готово';
+  // Capture the legitimate opportunity now, before any real task changes pantry,
+  // pet bowls, dirty plates or needs. A forged id was rejected above.
+  const moment=command.moment?familyMoments(source,from).find(m=>m.id===command.moment):undefined;
   const id=command.item!,to=otherPerson(from);
   const run=(role:CharacterId,c:TimedCommand)=>{
     const home=homes[role],end=home.route.path.at(-1)??home.route.from;
@@ -291,6 +297,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   if(remember&&roles.length===2){
     const {strength,quiz}=addRelationship(state,a,choice);
     const now=gameMinutes(state.clock);
+    if(moment)message+=momentReward(state,from,moment);
     if(a.id==='eveningPlan'){
       // Every proposed option was revalidated against REAL food and stock in cooperationDenial.
       const choice=eveningSelection(id)!;
