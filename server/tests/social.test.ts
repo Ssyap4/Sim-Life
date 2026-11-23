@@ -16,7 +16,7 @@ import { newCareerProgress } from '../../src/shared/careers';
 import { pointIsClear } from '../../src/game/navigation';
 import { RESIDENT_CLEARANCE } from '../../src/game/residentCollision';
 import { floorFor, placeObstacles, spawn } from '../../src/shared/locations';
-import { addRelationship, completeTogether, pairScenes } from '../society';
+import { addRelationship, completeTogether, pairScenes, validRelationship } from '../society';
 import { startServer } from '../server';
 import { createHomeSessions } from '../homeSessions';
 import { openServerFiles } from '../storage';
@@ -536,4 +536,119 @@ test('A two-phone home evening stays synchronized through every real server acti
     assert.equal(rejoined.ready.state.relationship.evening?.phase,'complete');
     assert.equal(rejoined.ready.state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
   }finally{await f.close();}
+});
+
+test('An evening with fresh leftovers consumes actual portions without cooking or hidden pantry costs',()=>{
+  let state=sample();
+  const pantry=structuredClone(state.pantry),originalCount=state.meals.omelette;
+  const together=(action:string,item?:string)=>{
+    const command:SocialIntent={type:'together',action,item};
+    const homes=pairScenes(state,'vlad',command);
+    assert.ok(homes,action+' must have a physical route');
+    const result=completeTogether(state,'vlad',command,[...residents],0,homes);
+    if(!result.ok)assert.fail(action+': '+result.reason);
+    state=result.state;
+  };
+  assert.ok(activityItems(SOCIAL_BY_ID.get('eveningPlan')!,state,'vlad')
+    .some(item=>item.id==='leftovers:omelette'));
+  together('eveningPlan','leftovers:omelette');
+  assert.equal(state.relationship.evening?.kind,'leftovers');
+  assert.equal(state.relationship.evening?.phase,'dine');
+  assert.deepEqual(state.pantry,pantry,'planning leftovers does not buy or cook food');
+  assert.equal(state.meals.omelette,originalCount);
+  together('eat','omelette');
+  assert.equal(state.meals.omelette,originalCount-2);
+  assert.equal(state.relationship.evening?.phase,'unwind');
+  const satiety=state.pets.simba.satiety;
+  together('petPlay','simba');
+  assert.equal(state.relationship.evening?.phase,'complete');
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+  assert.match(state.relationship.memories.find(m=>m.action==='homeEvening')!.description,/готовым блюдом/);
+  assert.deepEqual(state.pantry,pantry);
+  assert.ok(state.pets.simba.satiety<=satiety,'pet care still uses the genuine pet state');
+});
+
+test('A takeout evening uses real delivered servings and heartfelt talk, not extra money or food',()=>{
+  let state=sample();
+  state.readyFood=[];state.meals.omelette=0;state.takeout.pizzaCheese=2;
+  addReadyFood(state,'takeout','pizzaCheese',2,'table');
+  state.characters.alina.mood=25;
+  const money=state.money,pantry=structuredClone(state.pantry);
+  const together=(action:string,item?:string)=>{
+    const command:SocialIntent={type:'together',action,item};
+    const homes=pairScenes(state,'vlad',command);
+    assert.ok(homes,action);
+    const result=completeTogether(state,'vlad',command,[...residents],0,homes);
+    if(!result.ok)assert.fail(action+': '+result.reason);
+    state=result.state;
+  };
+  const options=activityItems(SOCIAL_BY_ID.get('eveningPlan')!,state,'vlad');
+  assert.ok(options.some(item=>item.id==='takeout:pizzaCheese'));
+  together('eveningPlan','takeout:pizzaCheese');
+  assert.equal(state.relationship.evening?.kind,'takeout');
+  assert.equal(state.relationship.evening?.phase,'dine');
+  assert.equal(state.relationship.evening?.attentionTo,'alina');
+  assert.equal(state.relationship.evening?.occasion,'comfort');
+  assert.equal(state.takeout.pizzaCheese,2);
+  together('takeout','pizzaCheese');
+  assert.equal(state.takeout.pizzaCheese,0);
+  assert.equal(state.relationship.evening?.phase,'unwind');
+  together('eveningHeartTalk');
+  assert.equal(state.relationship.evening?.phase,'complete');
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+  const memory=state.relationship.memories.find(m=>m.action==='homeEvening')!;
+  assert.match(memory.description,/доставку/);
+  assert.match(memory.description,/поддержать Алину/);
+  assert.equal(state.money,money,'no additional delivery purchase is silently charged');
+  assert.deepEqual(state.pantry,pantry);
+  assert.equal(state.dirtyDishes.table,2);
+});
+
+test('Fake evening selections, expired food and malformed saved plans cannot mint dinner rewards',()=>{
+  const state=sample();
+  const relationships=structuredClone(state.relationship);
+  const fake:SocialIntent={type:'together',action:'eveningPlan',item:'takeout:nonexistent'};
+  const homes=pairScenes(state,'vlad',fake);
+  assert.ok(homes);
+  const rejected=completeTogether(state,'vlad',fake,[...residents],0,homes);
+  assert.equal(rejected.ok,false);
+  assert.deepEqual(state.relationship,relationships);
+  const old={...relationships,evening:{recipe:'omelette',phase:'prepare',startedAt:0}};
+  assert.equal(validRelationship(old),true,'the first 0.26 evening save remains compatible');
+  assert.equal(validRelationship({...relationships,evening:{kind:'takeout',recipe:'omelette',phase:'dine',startedAt:0}}),false);
+  assert.equal(validRelationship({...relationships,evening:{kind:'leftovers',recipe:'nope',phase:'dine',startedAt:0}}),false);
+  assert.equal(validRelationship({...relationships,evening:{kind:'takeout',takeoutItem:'pizzaCheese',phase:'prepare',startedAt:0}}),false);
+  state.relationship.evening={kind:'leftovers',recipe:'omelette',phase:'dine',startedAt:gameMinutes(state.clock)};
+  state.readyFood[0].expiresAt=gameMinutes(state.clock);
+  assert.equal(activityItems(SOCIAL_BY_ID.get('eveningPlan')!,state,'vlad')
+    .some(item=>item.id==='leftovers:omelette'),false);
+  const eat:SocialIntent={type:'together',action:'eat',item:'omelette'};
+  const mealHomes=pairScenes(state,'vlad',eat)!;
+  const badMeal=completeTogether(state,'vlad',eat,[...residents],0,mealHomes);
+  assert.equal(badMeal.ok,false);
+  assert.equal(state.relationship.evening.phase,'dine');
+  assert.equal(state.meals.omelette,2);
+  assert.equal(state.relationship.memories.length,0);
+});
+
+test('The ending bonus and special memory cannot be farmed by repeating evenings immediately',()=>{
+  let state=sample();
+  const together=(action:string,item?:string)=>{
+    const intent:SocialIntent={type:'together',action,item};
+    const homes=pairScenes(state,'vlad',intent)!;
+    const result=completeTogether(state,'vlad',intent,[...residents],0,homes);
+    if(!result.ok)assert.fail(result.reason);
+    state=result.state;
+  };
+  for(let i=0;i<2;i++){
+    if(i===1){
+      state.meals.omelette=2;state.readyFood=[];
+      addReadyFood(state,'meal','omelette',2,'table');
+    }
+    together('eveningPlan','leftovers:omelette');
+    together('eat','omelette');
+    together('tv');
+  }
+  assert.equal(state.relationship.evening?.phase,'complete');
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
 });
