@@ -1,0 +1,74 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim-Life — живые экраны ПК и ТВ 0.24</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9e0d5;font:12px system-ui;color:#3b3330}
+  h1{text-align:center;font-size:18px;margin:16px 3px 6px}
+  p{text-align:center;color:#675a51;margin:6px 0 14px}
+  #gallery{max-width:390px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 10px 20px;margin:auto}
+  .tile{border:1px solid #ccbeb0;border-radius:11px;background:#fbf7ef;padding:6px;min-width:0;box-shadow:0 1px 4px #32220d12}
+  .tile canvas{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;border-radius:5px;background:#111}
+  .tile span{display:block;font-weight:650;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style></head><body>
+<h1>Живые экраны в Sim-Life</h1><p>Работа, игра, уход за волосами и домашнее ТВ</p>
+<div id="gallery"></div>
+<script type="module">
+import * as THREE from 'three';
+import {drawComputerScene} from './src/game/ComputerScreenArt.ts';
+import {GAME_BY_ID} from './src/shared/computerGames.ts';
+import {HomeEffects} from './src/game/HomeEffects.ts';
+const gallery=document.querySelector('#gallery');
+const game=GAME_BY_ID.values().next().value?.id;
+const tasks=[
+ ['ПК · Влад пишет код',{mode:'code',role:'vlad'}],
+ ['ПК · Алина, реконструкция волос',{mode:'hair',role:'alina'}],
+ ['ПК · игра',{mode:'game',role:'vlad',game}],
+ ['ПК · учёба',{mode:'study',role:'alina'}],
+ ['ПК · заметки',{mode:'notes',role:'vlad'}],
+ ['ПК · просмотр ролика',{mode:'video',role:'alina',clip:'pets'}],
+];
+const tvShows=[
+ ['ТВ · приготовление еды','cooking'],
+ ['ТВ · питомцы','pets'],
+ ['ТВ · путешествия','travel'],
+ ['ТВ · концерт','concert'],
+ ['ТВ · технологии','tech'],
+ ['ТВ · комедия','comedy'],
+];
+const scene=new THREE.Scene();
+const tv=new HomeEffects(scene);
+const entries=[];
+for(const [label,source] of tasks.concat(tvShows)){
+  const card=document.createElement('div');card.className='tile';
+  const canvas=document.createElement('canvas');
+  canvas.width=256;canvas.height=144;
+  const title=document.createElement('span');title.textContent=label;
+  card.append(canvas,title);gallery.append(card);
+  entries.push({label,source,canvas,ctx:canvas.getContext('2d')});
+}
+const hash=c=>{
+  const data=c.getImageData(0,0,256,144).data;let h=2166136261;
+  for(let i=0;i<data.length;i+=13)h=Math.imul(h^data[i],16777619)>>>0;
+  return h.toString(16);
+};
+function render(time){
+  const results=[];
+  for(const entry of entries){
+    if(typeof entry.source==='string'){
+      tv.television('qa',entry.source);
+      tv.update(time);
+      entry.ctx.drawImage(tv['canvas'],0,0);
+    }else drawComputerScene(entry.ctx,entry.source,time);
+    results.push(hash(entry.ctx));
+  }
+  return results;
+}
+const initial=render(5.2);
+document.body.dataset.initial=initial.join(',');
+const next=render(12.8);
+document.body.dataset.next=next.join(',');
+document.body.dataset.unique=String(new Set(next).size);
+document.body.dataset.animated=String(initial.filter((h,i)=>h!==next[i]).length);
+document.body.dataset.ready='true';
+</script></body></html>
