@@ -28,6 +28,11 @@ try{
       await page.getByRole('button',{name:/Камера к торговой улице/}).click();
       await page.waitForTimeout(2200);
       await page.screenshot({path:path.join(dir,'district-shops-390.png'),animations:'disabled'});
+      // Move to a real residential plot after shopping, do not fake a render.
+      await page.locator('#map-btn').click();
+      await page.getByRole('button',{name:/Осмотреть соседей/}).click();
+      await page.waitForTimeout(2350);
+      await page.screenshot({path:path.join(dir,'neighbor-yards-390.png'),animations:'disabled'});
     }
     const measure=await page.evaluate(()=>{
       const needs=document.querySelector('#needs-toggle');
