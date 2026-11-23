@@ -1,17 +1,40 @@
-/** Keep rendering on mobile GPUs whose memory budget is tighter than iPhone.
- * gfx=full permits comparing the original path; gfx=safe forces fallback.
- * No game state, network protocol or household data changes. */
+/** Per-browser graphics budget. Android Chrome can lose its context even at
+ * reduced resolution; Firefox/Gecko is a separate GPU implementation and must
+ * NOT be punished with the old blurry 0.88x/antialias-off fallback by default.
+ *
+ * gfx=safe: minimal fallback for devices with a weak renderer
+ * gfx=balanced: crisp Firefox-like profile, with adaptive quality
+ * gfx=quality: higher starting resolution, still throttles if FPS is poor
+ * gfx=full: original iPhone-like renderer for comparison; not automatically used
+ */
 export function graphicsProfile(userAgent: string, query: string) {
   const mode = new URLSearchParams(query).get('gfx');
   const android = /Android/i.test(userAgent);
-  const safe = mode === 'safe' || (android && mode !== 'full');
+  const firefox = android && /(?:Firefox|Fenix)\//i.test(userAgent);
+  const safeFallback = mode === 'safe' || (android && !firefox &&
+    mode !== 'full' && mode !== 'balanced' && mode !== 'quality');
+  const balanced = mode === 'balanced' || (firefox && mode !== 'safe' && mode !== 'full' && mode !== 'quality');
+  const quality = mode === 'quality';
+  const safe = safeFallback || balanced || quality;
+  const enhancedAndroid = android && (balanced || quality);
   return {
     android,
+    firefox,
     safe,
-    antialias: !safe,
+    enhancedAndroid,
+    antialias: !safeFallback,
     powerPreference: (safe ? 'default' : 'low-power') as 'default' | 'low-power',
-    maxPixelRatio: safe ? 1 : 1.5,
+    maxPixelRatio: safeFallback ? 1 : quality ? 1.5 : balanced ? 1.4 : 1.5,
+    initialQuality: (safeFallback ? 'low' : quality ? 'high' : 'standard') as 'low' | 'standard' | 'high',
   };
+}
+
+/** Match the effective 3D resolution to the actual mobile browser while the
+ * existing FPS feedback loop can still step down on slow hardware. */
+export function enhancedAndroidPixelRatio(quality: 'low' | 'standard' | 'high',
+  devicePixelRatio: number, maxPixelRatio: number): number {
+  const budget = quality === 'low' ? 1.0 : quality === 'standard' ? 1.25 : 1.5;
+  return Math.min(devicePixelRatio || 1, budget, maxPixelRatio);
 }
 
 /** Never leave a dead WebGL canvas looking like an empty playable world. */
