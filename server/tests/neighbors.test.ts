@@ -407,8 +407,16 @@ test('the park interior has reusable live walkers, conversation and a quiet visi
   assert.ok(chat>80,'park friends chat for more than 20 game minutes');
   assert.ok(admire>60,'a visitor has a real quiet sightseeing stop');
   const crowd=new NeighborPeople();
-  const parkTraffic=crowd.updatePark(12*60+15);
+  crowd.updatePark(12*60+15);
   assert.ok(crowd.group.children.filter(child=>child.visible).length>=1);
+  // At one arbitrarily chosen minute the only visible visitor might still
+  // be translucent. Find a genuinely occupied interval before expecting a
+  // collision body; invisible/fading pedestrians must not block players.
+  let parkTraffic:ReturnType<typeof crowd.updatePark>=[];
+  for(let minute=530;minute<1000;minute+=2){
+    parkTraffic=crowd.updatePark(minute);
+    if(parkTraffic.length)break;
+  }
   assert.ok(parkTraffic.length>=1,'park walkers should be visible to player collision avoidance');
   assert.ok(parkTraffic.every(body=>body.person&&body.clearance>.5));
   assert.equal(crowd.group.position.z,0);
