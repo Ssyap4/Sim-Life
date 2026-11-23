@@ -374,19 +374,21 @@ export class PetActor {
         + (dog ? front && i === 0 ? -.42 * foodLook * (0.6 + .4 * Math.sin(t * 6))
           + greeting * -.23 * (0.5 + .5 * Math.sin(t * 9))
           - pawWave * .62 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
-          + playBow * .13
-          - (front ? .78 * begging + .10 * begging * Math.sin(this.idleTime * 8 + i * 2) : 0) : 0
+          + playBow * .13 : 0
           : i === 0 ? -1.25 * grooming * (0.87 + .13 * Math.sin(t * 8))
           - .35 * pounce : 0)
-        - (front ? .30 : -.10) * stretching;
+        - (front ? .30 : -.10) * stretching
+        - (dog && front ? .78 * begging + .10 * begging *
+          Math.sin(this.idleTime * 8 + i * 2) : 0);
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
         (dog ? 0 : .018 * playful * (front ? 1 : 0))
         + (!dog && i === 0 ? grooming * .36 : 0)
         + (dog && i === 0 ? foodLook * .18 * (0.5 + .5 * Math.sin(t * 6))
           + greeting * .09 * (0.5 + .5 * Math.sin(t * 9))
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
-          - playBow * .035 + (front ? .31 * begging : 0) : 0)
-        + (!dog && i < 2 ? pounce * -.045 : 0);
+          - playBow * .035 : 0)
+        + (!dog && i < 2 ? pounce * -.045 : 0)
+        + (dog && front ? .31 * begging : 0);
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
         (!dog && i === 0 ? grooming * .10 : 0) - (dog && front ? .08 * begging : 0);
