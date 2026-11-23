@@ -22,6 +22,7 @@ import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
+import { homeHabitSuggestions } from '../src/shared/personalityHabits';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
 import { otherRole } from './social';
@@ -469,12 +470,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const turn=fullRoutineTurn.get(role)??0;
           fullRoutineTurn.set(role,turn+1);
           if(turn%3===1){
-            const chores=(role==='vlad'
-              ? ['kitchenTidy','tablePlan','kitchenWash','bathTeeth','sofaRest']
-              : ['bathTeeth','tablePlan','kitchenTidy','bathWash','sofaMusic']) as
-              (keyof typeof ACTIONS)[];
-            for(let i=0;i<chores.length;i++){
-              const actionId=chores[(Math.floor(turn/3)+i)%chores.length];
+            const chores=homeHabitSuggestions(state,role,Math.floor(turn/3));
+            for(const actionId of chores){
               const plan=planTask({type:'act',actionId});
               if(!plan || taskAccessError(state,plan.command) ||
                   plan.resource && (homeTasks.reserved(plan.resource) ||
