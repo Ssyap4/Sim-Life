@@ -98,6 +98,36 @@ try{
   }
   // A genuine visible 3D object may never be confused with an empty sticker:
   // the test captures both live world geometry and actual interactive actor frames.
+  // Visual-check the real HUD, then verify that its pause action works at
+  // both supported portrait sizes without overlapping any game-clock labels.
+  for(const [width,height] of [[390,844],[320,568]]){
+    await page.setViewportSize({width,height});
+    await page.waitForTimeout(150);
+    const layout=await page.evaluate(()=>{
+      const rect=selector=>{const r=document.querySelector(selector)?.getBoundingClientRect();return r?{x:r.x,y:r.y,left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}:null};
+      const clock=rect('#life-clock'),pause=rect('#pause-btn'),phone=rect('#phone-btn'),skills=rect('#skills-btn');
+      const overlap=(a,b)=>!!(a&&b&&Math.min(a.right,b.right)>Math.max(a.left,b.left)+1&&Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top)+1);
+      return {clock,pause,phone,skills,compact:document.querySelector('.clock-compact')?.textContent,
+        overlap:overlap(clock,pause)||overlap(phone,pause)||overlap(skills,pause),
+        inside:!!pause&&pause.left>=0&&pause.right<=innerWidth+1&&pause.bottom<=innerHeight+1,
+        scroll:document.documentElement.scrollWidth,viewport:innerWidth};
+    });
+    captures.push({name:'hud-'+width,layout});
+    if(layout.overlap||!layout.inside||layout.scroll>layout.viewport+2||!layout.compact)
+      errors.push('mobile HUD layout '+width+'x'+height+': '+JSON.stringify(layout));
+    await shot('07-hud-'+width+'x'+height);
+    await page.locator('#pause-btn').click();
+    await page.waitForTimeout(300);
+    const pauseVisible=await page.locator('#pause-sheet').evaluate(el=>!el.hidden);
+    if(!pauseVisible)errors.push('pause action did not open real pause sheet on '+width+'x'+height);
+    await shot('08-pause-'+width+'x'+height);
+    if(pauseVisible){
+      await page.locator('#pause-actions button').first().click();
+      await page.waitForTimeout(250);
+      if(await page.locator('#pause-sheet').evaluate(el=>!el.hidden))
+        errors.push('pause did not resume on '+width+'x'+height);
+    }
+  }
   const saved=files.load();
   writeFileSync(join(out,'results.json'),JSON.stringify({errors,captures,
     purchasedFurniture:saved.furnishing.placed.map(x=>({sku:x.sku,x:x.x,z:x.z})),
