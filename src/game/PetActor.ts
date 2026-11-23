@@ -603,14 +603,16 @@ export class PetActor {
       const phase=this.perchProgress;
       const airborne=surface?Math.sin(Math.PI*phase):0;
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
+      const loaf=Math.max(curled,catNap);
+      const coil=Math.max(curled,catNap*.85);
       const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
       this.body.scale.setScalar(1);
       // Rock back onto the hind paws so the forelegs can reach up the post.
-      this.body.rotation.set(-.65*scratching+.16*stretching,0,-.21*curled);
+      this.body.rotation.set(-.65*scratching+.16*stretching,0,-.29*curled-.12*catNap);
       const post=scratching>0?this.scratchPost:undefined;
       const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
       const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
-      this.body.position.set(0,-.025-crouch+lift*.022+.25*scratching,step*scratching);
+      this.body.position.set(0,-.025-crouch+lift*.022+.19*scratching,step*scratching);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
@@ -630,8 +632,25 @@ export class PetActor {
       const contact=post?this.body.worldToLocal(this.perchLocal.set(
         post.x-.135*Math.sin(this.root.rotation.y),.57,
         post.z-.135*Math.cos(this.root.rotation.y))):undefined;
-      this.simbaRig.pose(t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
-        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,airborne,rest,contact);
+      const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
+        t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
+        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
+        airborne,rest,target,loaf,coil);
+      animate(contact);
+      if(post){
+        // The scratch target is a fixed REAL post, not a hand-waved offset.
+        // Keep both rear ankles at floor height even when the torso rears up.
+        const error=.070-this.simbaRig.hindContactHeight();
+        const correction=THREE.MathUtils.clamp(error,-.17,.095)*scratching;
+        if(Math.abs(correction)>.002){
+          this.body.position.y+=correction;
+          this.body.updateWorldMatrix(true,true);
+          const fixed=this.body.worldToLocal(this.perchLocal.set(
+            post.x-.135*Math.sin(this.root.rotation.y),.57,
+            post.z-.135*Math.cos(this.root.rotation.y)));
+          animate(fixed);
+        }
+      }
     }
     this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
 
