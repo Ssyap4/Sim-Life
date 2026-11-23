@@ -49,8 +49,13 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
   if (!a) return 'Неизвестное совместное занятие';
   const restriction=socialRestriction(a,state,from,individual);
   if(restriction) return restriction;
-  const momentProblem=momentDenial(state,from,command);
-  if(momentProblem)return momentProblem;
+  // Early individual finishing of a legitimately accepted shared meal happens
+  // after the first portion is consumed, when the original two-portion trigger
+  // is naturally gone. The server already validated its story on invitation.
+  if(!individual){
+    const momentProblem=momentDenial(state,from,command);
+    if(momentProblem)return momentProblem;
+  }
   const onePortion=individual&&(a.object==='eat'&&state.meals[command.item as RecipeId]>=1||
     a.object==='takeout'&&state.takeout[command.item as keyof GameState["takeout"]]>=1);
   if(needsItem(a)&&!onePortion&&!activityItems(a,state,from).some(item=>item.id===command.item)) return 'Выбранное блюдо, питомец или материал больше недоступны';
