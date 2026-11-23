@@ -69,7 +69,7 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
   if(a.object==='serve'&&readyFoodTableUsage(state)>=TABLE_READY_CAPACITY) return 'На столе нет свободного места';
 }
 
-const petActions:Record<string,Exclude<PetAction,'buyFood'>>={petPlay:'play',petFeed:'feed',petPet:'pet',petBrush:'brush'};
+const petActions:Record<string,Exclude<PetAction,'buyFood'|'call'|'perch'|'fetch'>>={petPlay:'play',petFeed:'feed',petPet:'pet',petBrush:'brush'};
 export function socialResource(a:SocialActivity,item?:string) { return petActions[a.id]?'pet:'+item:a.resource??null; }
 export function socialDuration(a:SocialActivity,command:SocialIntent){
   return 1000*(a.object==='lesson'?Math.max(10,(MATERIAL_BY_ID.get(command.item!)?.minutes??10)*2):a.seconds);
