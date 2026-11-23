@@ -128,7 +128,9 @@ function homePlan(home:NeighborHome,kind:LifeKind,resident:number,day:number,slo
       .hold(kind==='reading'?'sitSip':'sitRest',8+f*4,yard.benchYaw)
       .move(yard.benchApproach).move(stops.porch).move(stops.door);
   } else if(kind==='tea') {
-    s.move(stops.porch).move(yard.benchApproach).move(yard.bench)
+    // A few sips while approaching the bench retain the standing tea gesture.
+    s.move(stops.porch).move(stops.tea).hold('sip',7+3*f,home.yaw)
+      .move(yard.benchApproach).move(yard.bench)
       .hold('sitSip',14+6*f,yard.benchYaw)
       .hold(f>.57?'sitPhone':'sitRest',5+4*f,yard.benchYaw)
       .move(yard.benchApproach).move(stops.porch).move(stops.door);
