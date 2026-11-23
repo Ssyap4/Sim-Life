@@ -44,7 +44,12 @@ export function showGraphicsProblem(canvas: HTMLCanvasElement, reason: string): 
     url.searchParams.set('retry', Date.now().toString(36));
     window.location.assign(url.toString());
   });
-  panel.append(title, detail, retry);
+  const diagnose = document.createElement('a');
+  diagnose.href = '/gpu-check.html';
+  diagnose.textContent = 'Проверить WebGL 1 / 2';
+  diagnose.style.cssText = 'display:inline-block;margin:10px 0 0;color:#305b40;' +
+    'font:700 13px system-ui;text-decoration:underline;touch-action:manipulation';
+  panel.append(title, detail, retry, diagnose);
   parent.append(panel);
 }
 
