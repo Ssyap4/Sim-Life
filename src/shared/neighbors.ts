@@ -13,7 +13,7 @@ export interface NeighborPose {
   gestureBlend: number;
   carrying?: boolean;
   gait?: number;
-  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise';
+  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park';
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;
@@ -50,7 +50,7 @@ export const NEIGHBOR_ROUTE_LENGTH=NEIGHBOR_PATH[3].x-NEIGHBOR_PATH[0].x;
 
 /**
  * Daily schedules are deterministic from the synced household game clock;
- * NPCs have a home, a reason to go out, and an actual return to the door.
+ * Four have homes; other visitors use public streets. Everyone has a destination.
  * No additional server state or household progress is required.
  */
 export function neighborPose(index:number,gameMinute:number):NeighborPose {

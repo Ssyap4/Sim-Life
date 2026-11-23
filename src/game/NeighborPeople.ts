@@ -87,7 +87,7 @@ export class NeighborPeople {
       if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z+this.offset},clearance:.76,person:true,moving:pose.action==='walk'});
       const rig=entry.model;
       const distance=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z-this.offset,camera.position.y*.40):0;
-      if(!rig){if(distance<38)this.request(i,entry);continue;}
+      if(!rig){if(distance<72)this.request(i,entry);continue;}
       rig.root.visible=true;
       const far=distance>29;
       if(far&&seconds-entry.stamp<.10&&seconds>=entry.stamp)continue;
@@ -96,9 +96,9 @@ export class NeighborPeople {
       this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0,!!pose.carrying);
     }
     const loaded=this.entries.filter(entry=>entry.model);
-    if(camera&&loaded.length>7) {
+    if(camera&&loaded.length>10) {
       loaded.sort((a,b)=>a.seen-b.seen);
-      for(const entry of loaded.slice(0,loaded.length-7))if(!entry.mounted.visible)this.dispose(entry);
+      for(const entry of loaded.slice(0,loaded.length-10))if(!entry.mounted.visible)this.dispose(entry);
     }
     for(const [i,door] of this.doors.entries())door.rotation.y=-1.08*neighborDoorOpen(i,gameMinute,NEIGHBORS.length);
     return traffic;

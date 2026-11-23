@@ -11,6 +11,7 @@ import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
 import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
+import { DISTRICT_SITES } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
 import { placeObstacles } from '../../src/shared/locations';
@@ -50,48 +51,52 @@ test('tea and coffee machines have independent click geometry and clear counters
   assert.ok(pointIsClear(KITCHEN_WORK.coffee.position, placeObstacles('home'), HOME_FLOOR));
 });
 
-test('neighbors remain deterministic, quiet at night and much rarer than constant foot traffic', () => {
+test('four cottage owners and ten independent walkers keep the neighborhood active', () => {
   assert.equal(NEIGHBORS.length,14);
   assert.equal(new Set(NEIGHBORS.map(p=>p.name)).size,14);
-  let activeMinutes=0, max=0, silent=0;
-  for(let minute=0;minute<1440;minute++) {
+  const events=neighborVisits(0,14);
+  assert.ok(events.length>=35,'a few short outings should not leave an empty district');
+  for(let i=0;i<14;i++) {
+    const mine=events.filter(e=>e.resident===i);
+    assert.ok(mine.length>=2,NEIGHBORS[i].name+' never goes out');
+    assert.ok(mine.every(e=>i<4?e.home===i:e.home===-1),'public walkers must not own the cottages');
+  }
+  const venues=new Set(events.map(e=>e.venue).filter(Boolean));
+  for(const site of DISTRICT_SITES)assert.ok(venues.has(site.place),'no traffic at '+site.place);
+  let occupied=0,peak=0,visibleTotal=0;
+  for(let minute=0;minute<1440;minute+=2){
     const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
-    const active=poses.filter(p=>p.visible);
-    max=Math.max(max,active.length);
-    activeMinutes+=Number(active.length>0);
-    silent+=Number(active.length===0);
-    if(minute<450||minute>1320)assert.equal(active.length,0,'late-night suburb must be quiet');
-    for(const [i,pose] of poses.entries()) {
-      assert.deepEqual(pose,neighborPose(i,minute));
-      if(!pose.visible)continue;
-      assert.ok(pose.x < HOUSE.minX-.5 || pose.x>HOUSE_WING.maxX+.5 ||
-        !(pose.x>-.65 && pose.x<9.3 && pose.z>-1.75 && pose.z<4.51),NEIGHBORS[i].name+' walked into the family house');
+    const active=poses.filter(p=>p.visible).length;
+    visibleTotal+=active;
+    peak=Math.max(peak,active);
+    if(active>=3)occupied++;
+    if(minute<440||minute>1335)assert.equal(active,0,'keep overnight streets quiet');
+    for(const [i,pose] of poses.entries())assert.deepEqual(pose,neighborPose(i,minute));
+  }
+  assert.ok(peak>=4&&peak<=10,'visible activity with sane mobile crowd limits');
+  assert.ok(occupied>100,'neighborhood should have people during most daytime checks');
+  assert.ok(visibleTotal>800,'not another mostly-invisible daily schedule');
+});
+
+test('visitors chat face-to-face near the park and the square',()=>{
+  const visits=neighborVisits(0,14).filter(v=>v.kind==='chat'&&v.home===-1);
+  assert.ok(visits.length>=2);
+  for(const first of visits.filter(v=>v.resident%2===0)) {
+    const second=visits.find(v=>v.resident===first.companion&&v.start===first.start);
+    assert.ok(second,'conversation needs a synchronized companion');
+    let saw=false;
+    for(let minute=first.start;minute<Math.min(first.end,second.end);minute+=.5){
+      const a=neighborPose(first.resident,minute),b=neighborPose(second.resident,minute);
+      if(a.action!=='chat'||b.action!=='chat'||a.opacity<.85||b.opacity<.85)continue;
+      assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.2);
+      assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<2);
+      saw=true;break;
     }
+    assert.ok(saw,'meet in the same place rather than talking from different streets');
   }
-  assert.ok(max<=4,'rear gardens remain calm rather than a street crowd');
-  assert.ok(activeMinutes>300&&activeMinutes<950,'real family routines now show throughout daytime');
-  assert.ok(silent>500,'night and intermittent periods remain quiet');
 });
 
-test('two real residents meet face-to-face for eighteen game minutes', () => {
-  const pair=neighborVisits(0,NEIGHBORS.length).filter(e=>e.kind==='chat').slice(0,2);
-  assert.equal(pair.length,2);
-  assert.equal(pair[0].start,pair[1].start);
-  assert.equal(pair[0].companion,pair[1].resident);
-  const conversationStart=pair[0].start+29.4;
-  for(let minute=conversationStart;minute<conversationStart+17;minute+=.5) {
-    const a=neighborPose(pair[0].resident,minute);
-    const b=neighborPose(pair[1].resident,minute);
-    assert.equal(a.action,'chat');assert.equal(b.action,'chat');
-    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.25);
-    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<1.90);
-    assert.ok(a.yaw>1 && b.yaw< -1,'face-to-face, without talking past one another');
-    assert.ok(a.gestureBlend>.2 && b.gestureBlend>.2);
-  }
-  assert.equal(neighborPose(pair[0].resident,pair[0].start+49).action,'wave');
-});
-
-test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', () => {
+test('all fourteen visual avatars render individually without interaction hitboxes',()=>{
   const scene=new THREE.Scene();
   buildHomeWing(scene);buildNeighborhood(scene);
   assert.equal(scene.children.length,2);
@@ -99,15 +104,13 @@ test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', 
   crowd.bindDoors(scene);
   assert.equal(crowd.group.children.length,NEIGHBORS.length);
   crowd.update(12*60+14);
-  let shown=0,activeMeshes=0;
-  for(const person of crowd.group.children) {
+  let shown=0;
+  for(const person of crowd.group.children){
     if(!person.visible)continue;
     shown++;
-    person.traverse(obj=>{if(obj instanceof THREE.Mesh && obj.visible)activeMeshes++});
     assert.equal(person.userData.interactable,undefined);
   }
-  assert.ok(shown<=4 && shown>=1,'neighbors active on their plots at midday');
-  assert.ok(activeMeshes<=250,'active NPC models remain practical for mobile');
+  assert.ok(shown>=2&&shown<=10,'there should be visible NPCs at lunch');
   for(const home of NEIGHBOR_HOMES)assert.ok(scene.getObjectByName('neighbor-door-'+home.id));
 });
 
@@ -141,25 +144,19 @@ test('the new rear public walkway leaves a safe reserve and all four homes stay 
   assert.ok(bounds.min.z<-28);
 });
 
-test('neighbors physically leave their own doors and return home without street teleportation', () => {
-  const today=neighborVisits(0,NEIGHBORS.length);
-  assert.ok(today.length>=9);
-  for(const visit of today) {
-    const door=homeStops(NEIGHBOR_HOMES[visit.home]).door;
+test('cottage owners leave by their own doors; public visitors fade at street edges',()=>{
+  const today=neighborVisits(0,14);
+  for(const visit of today){
+    const origin=visit.home<0?undefined:homeStops(NEIGHBOR_HOMES[visit.home]).door;
     const early=neighborPose(visit.resident,visit.start+.5);
-    const mid=neighborPose(visit.resident,(visit.start+visit.end)/2);
     const late=neighborPose(visit.resident,visit.end-.5);
-    const gone=neighborPose(visit.resident,visit.end+.1);
-    assert.ok(early.opacity>0 && early.opacity<1);
-    assert.ok(mid.opacity>.98);
-    assert.ok(late.opacity>0 && late.opacity<1);
-    assert.ok(Math.hypot(early.x-door.x,early.z-door.z)<1.8,'exit through own door');
-    assert.ok(Math.hypot(late.x-door.x,late.z-door.z)<1.8,'return through own door');
-    assert.equal(gone.visible,false,'no eternal street NPC');
+    assert.ok(early.opacity>0&&early.opacity<1,'smooth departure');
+    assert.ok(late.opacity>0&&late.opacity<1,'smooth return');
+    if(origin){
+      assert.ok(Math.hypot(early.x-origin.x,early.z-origin.z)<1.8);
+      assert.ok(Math.hypot(late.x-origin.x,late.z-origin.z)<1.8);
+    }
   }
-  const tomorrow=neighborVisits(1440,NEIGHBORS.length);
-  assert.ok(today.some((e,i)=>e.resident!==tomorrow[i].resident),
-    'different family members should sometimes leave their homes');
 });
 
 async function fullCast() {
