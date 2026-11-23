@@ -5,10 +5,10 @@ import { loft, sculpt } from './SculptMesh';
 import type { PetId } from '../shared/pets';
 
 // Simba is a lean short-haired ginger tabby based on his real photographs.
-const ginger = new THREE.Color(0xd98a48);
-const honey = new THREE.Color(0xe8a75e);
+const ginger = new THREE.Color(0xdd995d);
+const honey = new THREE.Color(0xeab175);
 const cream = new THREE.Color(0xedb576);
-const amber = new THREE.Color(0xb36a35);
+const amber = new THREE.Color(0xb77442);
 const soot = new THREE.Color(0x28252b);
 const silver = new THREE.Color(0x635d65);
 const charcoal = 0x322d34;
@@ -91,7 +91,7 @@ function petEyes(head: THREE.Group, dog: boolean): THREE.Group[] {
     eye.rotation.set(0, side * (dog ? 0.47 : 0.67), side * (dog ? 0.10 : 0.21));
     makeEye(eye, dog ? 0.037 : 0.047, dog ? 0.027 : 0.027, dog ? 0.016 : 0.018,
       dog ? { iris: '#866747', edge: '#40343a', white: '#907c75', pupil: 0.60 }
-        : { iris: '#a28851', edge: '#684634', white: '#9c8757', pupil: 0.29 });
+        : { iris: '#8fa16c', edge: '#5b6b42', white: '#b1ab76', pupil: 0.27 });
     head.add(eye);
     return eye;
   });
@@ -183,7 +183,7 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   ], 30, 24, (x, y, z, a) => {
     const whiskerPad = Math.exp(-(((Math.abs(x) - 0.041) / 0.052) ** 2) - (((y + 0.084) / 0.038) ** 2));
     const socket = Math.exp(-(((Math.abs(x) - 0.114) / 0.056) ** 2) - (((y - 0.025) / 0.034) ** 2));
-    return [x, y, z + Math.max(0, Math.cos(a)) * (0.052 * whiskerPad - 0.012 * socket)];
+    return [x, y, z + Math.max(0, Math.cos(a)) * (0.022 * whiskerPad - 0.009 * socket)];
   }, (color, a, y) => {
     const front = Math.max(0, Math.cos(a));
     const faceStripe = 0.5 + 0.5 * Math.cos(a * 17 - Math.sin(y * 18) * 1.8);
@@ -194,11 +194,11 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
       .lerp(cream, (1 - THREE.MathUtils.smoothstep(y, -.132, -.065)) * front ** 2 * .53);
   });
   sculpt(head, face, 0xffffff, 'fur');
-  const nose = loft([[-0.097, 0.005, 0.008, 0.27], [-0.079, 0.030, 0.014, 0.273],
-    [-0.055, 0.037, 0.012, 0.265], [-0.050, 0.028, 0.008, 0.262]], 16, 9);
-  sculpt(head, nose, 0xad7165, 'skin', false);
-  sculptedCurve(jaw, [[-0.044, -0.109, 0.246], [-0.018, -0.116, 0.235], [0, -0.109, 0.237],
-    [0.018, -0.116, 0.235], [0.044, -0.109, 0.246]], 0.003, 0.003, 0x82594a, 0.84);
+  // Small real-cat pink nose, not a long projecting radial cone between
+  // the eyes. The photographs show a short fine muzzle and flat bridge.
+  detail(head, 0xc78679, [0,-.083,.225], [.029,.017,.017], true);
+  sculptedCurve(jaw, [[-.039,-.111,.208],[-.017,-.117,.216],[0,-.113,.218],
+    [.017,-.117,.216],[.039,-.111,.208]], .0025,.0025,0x926c56,.84);
 
   const lines: number[] = [];
   for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
@@ -211,7 +211,7 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   head.add(new THREE.LineSegments(whiskers, new THREE.LineBasicMaterial({ color: 0xffe6c2 })));
   sculptedCurve(tail, [[0, 0.004, 0.065], [0.04, 0.14, -0.20], [0.13, 0.33, -0.34],
     [0.15, 0.52, -0.41], [0.11, 0.68, -0.40], [0.035, 0.75, -0.38]],
-  .037, .008, 0xde9354, 0.94, true, 0xc47e43, 'fur');
+  .037, .008, 0xe6a26b, 0.94, true, 0xcd8853, 'fur');
   return back;
 }
 
