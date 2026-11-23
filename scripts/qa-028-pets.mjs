@@ -5,6 +5,7 @@ import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {initialState} from '../src/shared/protocol.ts';
+import {checkFurniturePlacement} from '../src/shared/furnishingPlacement.ts';
 import {startServer} from '../server/server.ts';
 import {openServerFiles} from '../server/storage.ts';
 
@@ -16,9 +17,16 @@ const household=initialState();
 household.furnishing.nextId=34;
 household.furnishing.placed=[
   {id:31,sku:'pet-bed-verdell',finish:'sage',x:-2.90,z:3.34,rotation:0},
-  {id:32,sku:'pet-bed-simba',finish:'ivory',x:-.25,z:1.32,rotation:0},
+  {id:32,sku:'pet-bed-simba',finish:'ivory',x:2,z:3,rotation:0},
   {id:33,sku:'pet-scratcher-simba',finish:'walnut',x:1.12,z:1.84,rotation:0},
 ];
+// Do not manufacture impossible photo fixtures: validate all objects via
+// the exact same server-side placement rules the real players use.
+for(const item of household.furnishing.placed){
+  const existing=household.furnishing.placed.filter(other=>other.id!==item.id);
+  const result=checkFurniturePlacement(household,item,existing);
+  if(!result.valid)throw Error('Invalid visual-fixture placement: '+item.sku+': '+result.reason);
+}
 for(const id of ['verdell','simba']){
   Object.assign(household.pets[id],{satiety:94,energy:90,bladder:96,happiness:74,bond:80});
 }
