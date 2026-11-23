@@ -199,6 +199,15 @@ export function petWish(state: GameState, id: PetId): PetWish {
   const hungry = pet.satiety < 35;
   const hasFood = state.petBowls[id] > 0;
   const routine = pet.routine?.kind;
+  if(routine==='come')return {kind:'affection',title:'🐾 Идёт на зов',
+    message:PETS[id].name+' обходит мебель и направляется к хозяину.',
+    advice:'Дай питомцу добраться самостоятельно',urgent:false};
+  if(routine==='fetch'&&id==='verdell')return {kind:'play',title:'🎾 Несёт мяч',
+    message:'Верделл бежит к мячу и возвращается с ним к хозяину.',
+    advice:'Подожди, пока Верделл принесёт игрушку',urgent:false};
+  if(routine==='perch'&&id==='simba')return {kind:'rest',title:'🛋️ Любимое местечко',
+    message:'Симба выбирает удобную подушку и устраивается на ней.',
+    advice:'Можно наблюдать за отдыхом кота',urgent:false};
   let kind: PetWishKind;
   if (routine === 'eat') kind = 'eating';
   else if (pet.satiety < 20) kind = hasFood ? 'hungryReady' : 'hungryEmpty';
