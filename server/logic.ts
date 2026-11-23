@@ -2,7 +2,8 @@ import {
   ACTIONS, points, names, type ActionId, type CharacterId,
   type GameState, type Needs,
 } from '../src/shared/protocol';
-import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
+import { KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat } from '../src/shared/home';
+import { stationById } from '../src/shared/locations';
 import { dishCount, EMPTY_DIRTY_DISHES } from '../src/shared/dirtyDishes';
 import { gameMinutes } from '../src/shared/life';
 import { moveReadyFoodToFridge, moveReadyFoodToTable } from '../src/shared/readyFood';
@@ -204,8 +205,10 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'comfort', 9); change(state, role, 'mood', 5);
       message = name + ': составлен план дня'; break;
   }
-  const point = actionId in KITCHEN_ACTIONS
-    ? KITCHEN_WORK[KITCHEN_ACTIONS[actionId as keyof typeof KITCHEN_ACTIONS]].position : points[def.item];
+  const point=key==='kitchenLeftovers' ? stationById('home','fridge')!.approach :
+    key==='kitchenServe' ? homeSeat('table',role).approach :
+    actionId in KITCHEN_ACTIONS
+      ? KITCHEN_WORK[KITCHEN_ACTIONS[actionId as keyof typeof KITCHEN_ACTIONS]].position : points[def.item];
   Object.assign(state.characters[role], { x: point.x, z: point.z, pose: def.pose });
   state.revision += 1;
   return { ok: true, message, state };
