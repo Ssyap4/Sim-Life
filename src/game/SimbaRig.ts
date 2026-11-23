@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { CAT_REST_POSES, type CatRestPoseId } from '../shared/CatRestPoses';
 
 function joint(model: THREE.Object3D, name: string): THREE.Bone {
   const bone = model.getObjectByName(name);
@@ -67,25 +68,31 @@ export class SimbaRig {
 
   pose(time:number,distance:number,motion:number,crouch:number,reach:number,groom:number,eating:number,
     tailSwing:number,tailFold:number,head:THREE.Euler,ears:readonly THREE.Group[],eyes:readonly THREE.Group[],
-    jump:number,rest:number,scratchContact?:THREE.Vector3,loaf=0,coil=0) {
+    jump:number,rest:number,scratchContact?:THREE.Vector3,loaf=0,coil=0,
+    restPose?:CatRestPoseId,restWeight=0) {
     const breath = Math.sin(time*2.4);
+    const pose=restPose?CAT_REST_POSES[restPose]:undefined;
+    const settle=pose?THREE.MathUtils.clamp(restWeight,0,1):0;
     // A cat resting on a cushion lowers its head and folds the muzzle back
     // toward its chest. Bone targets are rebuilt each frame, never accumulated.
-    this.head.position.y=this.headRest.y-.036*loaf;
-    this.head.position.z=this.headRest.z-.055*coil;
-    this.head.rotation.set(head.x*.76+.12*loaf,head.y*.74+.10*coil,head.z*.74);
-    this.neck.rotation.set(head.x*.24+.11*loaf,head.y*.26,head.z*.18);
-    this.neck.position.y=.02-.095*eating-.05*rest-.035*loaf;
+    this.head.position.y=this.headRest.y-.036*loaf-(pose?.headDrop??0)*settle;
+    this.head.position.z=this.headRest.z-.055*coil-.022*settle;
+    this.head.rotation.set(head.x*.76+.12*loaf+(pose?.headPitch??0)*settle,
+      head.y*.74+.10*coil+(pose?.headTurn??0)*settle,head.z*.74);
+    this.neck.rotation.set(head.x*.24+.11*loaf+.045*settle,head.y*.26,head.z*.18);
+    this.neck.position.y=.02-.095*eating-.05*rest-.035*loaf-.012*settle;
     this.jaw.rotation.x=.12*eating*(.5+.5*Math.sin(time*12));
-    this.spine.rotation.y=.050*motion*Math.sin(distance*12) + rest*.12;
-    this.spine.rotation.x=.085*loaf;
-    this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf;
+    this.spine.rotation.y=.050*motion*Math.sin(distance*12)+rest*.12+
+      (pose?.spineYaw??0)*settle;
+    this.spine.rotation.x=.085*loaf+(pose?.spinePitch??0)*settle;
+    this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf+.04*settle;
     for(let i=0;i<this.tail.length;i++){
       const joint = this.tail[i];
       // Curl the long tail around the hip instead of leaving a rigid rod
       // hanging off a sofa or soft pet mat.
       joint.rotation.y=tailSwing*.25+Math.sin(time*2-i*.55)*.036+
-        tailFold*(i<5?.42:.21)+coil*(i<3?.10:-.085);
+        tailFold*(i<5?.42:.21)+coil*(i<3?.10:-.085)+
+        (pose?.tailCurl??0)*settle*(i<3?.13:.20);
       joint.rotation.x=.095*jump-rest*.12+Math.sin(time*2.2-i*.32)*.026-
         coil*(i>3?.10:.018);
     }
@@ -106,6 +113,14 @@ export class SimbaRig {
       // belly; knees are solved with the same two-bone IK as during walking.
       let pawZ=limb.depth+stride+(limb.front?-.10:.045)*rest+
         (limb.front?-.105:.12)*loaf+wash*.16;
+      if(pose && settle>0){
+        // Unlike the old generic crouch, these are four fixed anatomical
+        // target points: forelegs tuck below the chest, hind legs beside the
+        // belly. Keep knee/ankle IK alive for natural folding, not straight
+        // walking legs floating above the upholstery.
+        pawY=THREE.MathUtils.lerp(pawY,limb.front?pose.forePawY:pose.hindPawY,settle);
+        pawZ=THREE.MathUtils.lerp(pawZ,limb.front?pose.forePawZ:pose.hindPawZ,settle);
+      }
       if(limb.front&&scratchContact){
         this.scratchTarget.copy(scratchContact);
         // The downward stroke follows the world-vertical column through
@@ -117,7 +132,13 @@ export class SimbaRig {
         pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,reach);
         pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,reach);
       }
-      plantPaw(limb,pawY,pawZ,lift*.8-wash*.52-(limb.front?.60*reach:0));
+      plantPaw(limb,pawY,pawZ,
+        (lift*.8-wash*.52-(limb.front?.60*reach:0))*(1-settle));
+      // Opposite fore/knee folds create a recognizable cat loaf silhouette.
+      // Small enough not to twist paw meshes outside the cushion.
+      const side=index<2?-1:1;
+      limb.hip.rotation.z=side*(limb.front?-.09:.07)*settle;
+      limb.knee.rotation.z=side*(limb.front?.05:-.04)*settle;
     }
   }
 
