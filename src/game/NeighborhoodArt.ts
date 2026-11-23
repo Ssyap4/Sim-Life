@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { NEIGHBOR_HOMES, homeStops, type NeighborHome } from '../shared/neighborHomes';
 import { buildNeighborYard } from './NeighborYardArt';
 export { NEIGHBOR_HOMES } from '../shared/neighborHomes';
-import { batchRigidParts, cube, drum, finish, orb, softCube } from './ArtKit';
+import { batchRigidParts, cube, finish, orb, softCube } from './ArtKit';
 
 type Root = THREE.Group;
 type Surface = Parameters<typeof finish>[1];

@@ -59,7 +59,7 @@ function yardBench(root:THREE.Object3D,x:number,z:number,i:number) {
     piece(bench,softCube,[.08,.15,.58],[x0,.64,0],oak);
   root.add(bench);
 }
-function gardenDetails(root:THREE.Object3D,front:number,home:NeighborHome,i:number) {
+function gardenDetails(root:THREE.Object3D,home:NeighborHome,i:number) {
   const w=home.width,face=home.depth/2;
   const palette=[0xa67c59,0x8c9870,0xbba082,0x8b745b][i];
   // Narrow paths weave around beds and seating, leaving the middle open.
@@ -113,5 +113,5 @@ export function buildNeighborYard(root:THREE.Group,home:NeighborHome,i:number) {
     for(const y of [.55,1.18])
       piece(root,cube,[home.width*.27,.054,.05],[home.width*.29,y,front+1.02],0x9a805b);
   }
-  gardenDetails(root,front,home,i);
+  gardenDetails(root,home,i);
 }
