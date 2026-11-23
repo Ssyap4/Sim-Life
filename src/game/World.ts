@@ -111,7 +111,7 @@ export class World {
   private household: GameState | null = null;
   private readonly sleepingOffline = new Set<CharacterId>();
   private readonly homeLeisure = new Set<CharacterId>();
-  private readonly petRoutines = new Map<PetId, number>();
+  private readonly petRoutines = new Map<PetId, string>();
   private localRole: CharacterId = 'vlad';
   private cart: THREE.Group | null = null;
   private cartSize = 0;
@@ -2101,14 +2101,20 @@ export class World {
         }
         continue;
       }
-      if (this.petRoutines.get(id) === routine.until) continue;
-      this.petRoutines.set(id, routine.until);
+      const routineKey=routine.kind+':'+routine.startedAt+':'+routine.until+':' +
+        (routine.perch?.key??'')+':'+(routine.goal?.x??'')+':'+(routine.goal?.z??'');
+      if (this.petRoutines.get(id) === routineKey) continue;
+      this.petRoutines.set(id, routineKey);
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
       pet.root.position.set(route.from.x, 0, route.from.z);
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
         routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined,
-        routine.perch);
+        routine.perch,
+        routine.kind==='fetch'&&routine.fetchPoint?{
+          point:routine.fetchPoint,
+          pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
+        }:undefined);
     }
   }
 
