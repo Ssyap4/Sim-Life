@@ -13,6 +13,9 @@ export const inHomeGrounds = ({x,z}:Point) => x>=HOME_FLOOR.minX && x<=HOME_FLOO
 export const districtPoint = ({x,z}:Point):Point => ({x,z:z+DISTRICT_OFFSET_Z});
 export const HOME_GATE_APPROACH = { x:HOME_YARD.gate.x, z:HOME_YARD.gate.z+.66 };
 export const DISTRICT_FOUNTAIN = { x: -8.6, z: -4.45, radius: 1.69 };
+export const DISTRICT_POND = { x:21.38, z:21.05, radiusX:2.07, radiusZ:1.43 };
+export const inDistrictPond = ({x,z}:Point) =>
+  ((x-DISTRICT_POND.x)/DISTRICT_POND.radiusX)**2 + ((z-DISTRICT_OFFSET_Z-DISTRICT_POND.z)/DISTRICT_POND.radiusZ)**2 <= 1;
 export const DISTRICT_SITES = [
   { place: 'market', x: -23.8, z: 6.65, w: 6.8, d: 5.4, turn: 1, name: 'Супермаркет', sign: 'ПРОДУКТЫ', color: 0x397766 },
   { place: 'cafe', x: -23.8, z: -.50, w: 5.30, d: 4.8, turn: 1, name: 'Кафе «Тёплый угол»', sign: 'ТЁПЛЫЙ УГОЛ', color: 0xa85846 },
@@ -62,6 +65,15 @@ export const DISTRICT_BEDS = [
   { x: -15.4, z: 14.0, w: 1.1, d: 2.2, scheme: 0 },
   { x: -15.4, z: 21.2, w: 1.1, d: 2.2, scheme: 2 },
   { x: -15.4, z: 28.0, w: 1.1, d: 2.0, scheme: 1 },
+  { x: -11.28, z: -2.23, w: 2.40, d: .81, scheme: 3 },
+  { x: -5.43, z: -2.22, w: 1.87, d: .77, scheme: 2 },
+  { x: -15.77, z: 1.43, w: 1.10, d: 1.85, scheme: 1 },
+  { x: -15.47, z: -5.47, w: 1.12, d: 1.78, scheme: 3 },
+  { x: -15.35, z: 10.35, w: 1.17, d: 1.70, scheme: 0 },
+  { x: 15.03, z: 13.95, w: 1.54, d: 1.13, scheme: 1 },
+  { x: 20.94, z: 23.60, w: 2.22, d: .76, scheme: 1 },
+  { x: 21.28, z: 28.50, w: 2.50, d: .93, scheme: 2 },
+  { x: 24.10, z: 29.18, w: 2.09, d: .95, scheme: 3 },
 ] as const;
 
 export const DISTRICT_TREES = [
@@ -74,6 +86,10 @@ export const DISTRICT_TREES = [
   [25.3,7.5,'birch',1.17],[23.3,12.7,'maple',1.10],[10.8,11.55,'ornamental',.80],
   [3.6,12.4,'linden',1.09],[-6.9,13.4,'birch',.83],[-1.7,5.1,'ornamental',.76],
   [-12.35,2.12,'maple',.91],[-13.7,-12.6,'birch',.89],[-10.4,-12.55,'ornamental',.8],
+  [26,-16.7,'spruce',1.08],[26.5,-10.55,'spruce',.95],[25.9,14.6,'spruce',1.16],
+  [14.1,16.25,'birch',.88],[20.60,18.10,'linden',1.05],[23.76,23.62,'birch',.94],[26.9,26.2,'spruce',1.06],
+  [11.35,25.05,'maple',.91],[8.5,19.4,'linden',1.08],[3.25,26.25,'birch',1.02],
+  [-4.95,22.80,'ornamental',.9],[-9.97,28.3,'linden',.96],[-12.98,11.20,'linden',.86],
 ] as const;
 
 export const DISTRICT_BENCH = { x: -8.65, z: -7.77, w: 2.02, d: .68 };
@@ -91,6 +107,16 @@ const yardFence = (x:number,z:number, w:number) => {
   const halfGap = .74, side = w / 2 - halfGap;
   return [-1,1].map(direction => districtRect(x + direction * (side / 2 + halfGap), z, side, .16));
 };
+const pondObstacles = (() => {
+  const {x,z,radiusX,radiusZ}=DISTRICT_POND;
+  const bands=7, depth=radiusZ*2/bands;
+  // Each band covers the widest part of this slice of the elliptical bank.
+  return Array.from({length:bands},(_,i)=>{
+    const near=2*Math.max(0,Math.abs(i-(bands-1)/2)-.5)/bands;
+    const width=2*radiusX*Math.sqrt(1-near*near);
+    return districtRect(x,z-radiusZ+(i+.5)*depth,width,depth,.23);
+  });
+})();
 export const DISTRICT_OBSTACLES: readonly FloorRect[] = [
   ...DISTRICT_SITES.filter(site=>site.place !== 'park').map(site =>
     districtRect(site.x,site.z,Math.abs(site.turn)%2 ? site.d : site.w,Math.abs(site.turn)%2 ? site.w : site.d)),
@@ -101,6 +127,7 @@ export const DISTRICT_OBSTACLES: readonly FloorRect[] = [
   ]),
   districtRect(DISTRICT_FOUNTAIN.x,DISTRICT_FOUNTAIN.z,3.38,2.64),
   districtRect(DISTRICT_FOUNTAIN.x,DISTRICT_FOUNTAIN.z,2.64,3.38),
+  ...pondObstacles,
   ...DISTRICT_BEDS.map(({x,z,w,d})=>districtRect(x,z,w,d)),
   ...DISTRICT_TREES.map(([x,z])=>districtRect(x,z,.46,.46)),
   ...DISTRICT_LAMPS.map(([x,z])=>districtRect(x,z,.29,.29,.19)),

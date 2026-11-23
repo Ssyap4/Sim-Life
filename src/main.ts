@@ -1488,6 +1488,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         if(!showcaseChoices.hidden){showcaseChoices.hidden=true;return true;}
         return false;
       },
+      pondTap() { notify('Пруд можно обойти по берегу'); },
       ground(x, z) {
         if (!active) return;
         locationUI.cancelRoute();

@@ -3,6 +3,9 @@ import { GRILL_RECIPES, type RecipeId } from '../shared/food';
 import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, softCube, type XYZ } from './ArtKit';
 
+import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
+import { paintGround } from './LandscapeGround';
+
 const edging = 0xb29e83;
 const flagstone = 0xc8b59b;
 const lawn = 0x87995b;
@@ -19,20 +22,12 @@ function shape(parent: THREE.Object3D, size: XYZ, position: XYZ, color: number,
 }
 
 function turf() {
-  return paintedMap('home-yard-turf', 320, 192, ctx => {
-    ctx.fillStyle = '#8a9c62';
-    ctx.fillRect(0, 0, 320, 192);
-    let seed = 5371;
-    const scatter = (range: number) => {
-      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-      return seed / 2 ** 32 * range;
-    };
-    for (let i = 0; i < 3900; i++) {
-      const x = scatter(320);
-      const y = scatter(192);
-      ctx.fillStyle = i % 3 ? '#51683928' : '#e1d29255';
-      ctx.fillRect(x, y, 1, 1 + i % 3);
-    }
+  return paintedMap('home-yard-turf', 512, 320, ctx => {
+    paintGround(ctx, {x:0,z:8.73,w:12.18,d:6.80}, [
+      {x:-5.18,z:9.53,w:2.25,d:5.33,ink:[92,131,80],opacity:.47},
+      {x:-2.8,z:9.51,w:4.62,d:2.79,ink:[181,196,123],opacity:.63},
+      {x:3.5,z:10.5,w:2.8,d:3.6,ink:[165,185,116],opacity:.34},
+    ], 5371, 'lawn');
   });
 }
 
@@ -212,23 +207,13 @@ function fence(yard: THREE.Group): void {
 function garden(yard: THREE.Group): void {
   const { x, z: center } = HOME_YARD.planter;
   shape(yard, [.58, .22, 3.8], [x, .115, center], C.walnut, softCube, false, 'wood');
-  for (const [i, z] of [-1.64, -1.09, -.46, .19, .79, 1.39].map(offset => center + offset).entries()) {
-    shape(yard, [.33, .37, .38], [x + .03, .31, z], i % 2 ? C.pine : 0x6e8158, orb);
-    shape(yard, [.24, .29, .26], [x - .12, .43, z + .18], C.leaf, orb);
-    if (i % 2) {
-      for(const [index,[dx,dz]] of [[.16,-.10],[.015,.13],[-.105,-.06]].entries()){
-        const height=.55+index*.045;
-        const bloom=shape(yard,[.025,.19,.028],[x+dx,height-.075,z+dz],0x5a7b56,drum);
-        bloom.rotation.z=.19-index*.15;
-        for(let petal=0;petal<5;petal++){
-          const angle=petal*2*Math.PI/5;
-          shape(yard,[.031,.016,.042],[x+dx+Math.sin(angle)*.038,height,z+dz+Math.cos(angle)*.037],
-            i===3?0xd9948b:0xe7d3a7,orb).rotation.y=angle;
-        }
-        shape(yard,[.025,.018,.025],[x+dx,height+.011,z+dz],0xbf9350,orb);
-      }
-    }
+  shape(yard, [.49,.031,3.69], [x,.219,center], 0x6d503b, softCube);
+  const plants = new PlantBatch();
+  for (const [i, dz] of [-1.58,-.89,-.19,.50,1.24].entries()) {
+    growShrub(plants,x,.225,center+dz,.37,.38,.54,i%3,700+i*71);
+    growFlowers(plants,x+.03,.255,center+dz+.18,.35,.45,i%4,4,737+i*88);
   }
+  plants.attach(yard,'Flowers and shrubs in the family garden');
   // The mailbox and its light are fixed to the gate post, outside the
   // furniture placement surface and the open central lane.
   const { gate }=HOME_YARD;

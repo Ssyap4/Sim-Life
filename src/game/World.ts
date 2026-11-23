@@ -2,7 +2,7 @@ import { HomeEffects } from './HomeEffects';
 import { buildHomeWing } from './HomeWing';
 import { NeighborPeople } from './NeighborPeople';
 import { NEIGHBORS, neighborPose } from '../shared/neighbors';
-import { DISTRICT_OFFSET_Z, districtArrival, districtPoint, districtSite, inHomeGrounds } from '../shared/district';
+import { DISTRICT_OFFSET_Z, districtArrival, districtPoint, districtSite, inDistrictPond, inHomeGrounds } from '../shared/district';
 import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
@@ -194,7 +194,7 @@ export class World {
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
-      dismissTap?: () => boolean }) {
+      dismissTap?: () => boolean; pondTap?: () => void }) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 125, 171);
 
@@ -2088,6 +2088,8 @@ export class World {
       if(point&&pointIsClear(point,this.currentObstacles(),floorFor(this.place))){
         this.touchPulse(clientX,clientY,'walk');
         this.navigation?.ground(point.x,point.z);
+      } else if(point&&this.place==='home'&&inDistrictPond(point)) {
+        this.navigation?.pondTap?.();
       }
     }
   }

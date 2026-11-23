@@ -10,11 +10,12 @@ import { beginShift } from '../jobs';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { createHomeDistrict, createLocation } from '../../src/game/LocationScene';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
-import { Box3, LineSegments, Mesh, Sprite } from 'three';
+import { Box3, InstancedMesh, LineSegments, Matrix4, Mesh, PerspectiveCamera, Sprite } from 'three';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, DELIVERY_FEE, STATIONS, DISTRICT_STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
 import { CASHIER_SPOT } from '../../src/shared/locationLayout';
-import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, sitePoint } from '../../src/shared/district';
+import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_POND, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_PATHS, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, sitePoint } from '../../src/shared/district';
+import { besideTrail } from '../../src/game/DistrictTrail';
 import { NEIGHBOR_HOMES, homeStops } from '../../src/shared/neighborHomes';
 import { doorwayArrival } from '../../src/shared/locations';
 import { HOME_YARD } from '../../src/shared/home';
@@ -112,6 +113,80 @@ test('Home, gate, district and both players share the same walkable coordinates'
     state=at(state,role,'home-doorstep');
     assert.ok(inHomeGrounds(state.characters[role]));
   }
+});
+
+test('The garden walk stays open and plant detail scales down without removing trees',()=>{
+  const route=[{x:14.3,z:7.3},{x:18.8,z:14.3},{x:16.86,z:20.59},{x:21.20,z:26.55},{x:26.05,z:22.33}];
+  for(const [i,point] of route.entries()){
+    assert.ok(besideTrail(point.x,point.z,0));
+    assert.ok(pointIsClear(point,DISTRICT_OBSTACLES,DISTRICT_FLOOR));
+    if(i)assert.ok(findRoute(route[i-1],point,DISTRICT_OBSTACLES,DISTRICT_FLOOR));
+  }
+  for(const [x,z] of DISTRICT_TREES)assert.equal(besideTrail(x,z,.51),false);
+  for(const {x,z} of DISTRICT_BEDS)assert.equal(besideTrail(x,z,.23),false);
+
+  const stage=createHomeDistrict(),camera=new PerspectiveCamera();
+  const matrix=new Matrix4();
+  let tufts=0;
+  stage.root.traverse(object=>{
+    if(!(object instanceof InstancedMesh)||object.name!=='Grass tufts')return;
+    for(let i=0;i<object.count;i++){
+      object.getMatrixAt(i,matrix);
+      const x=matrix.elements[12], z=matrix.elements[14];
+      assert.equal(besideTrail(x,z,.20),false);
+      assert.equal(DISTRICT_PATHS.some(p=>Math.abs(x-p.x)<p.w/2+.22&&Math.abs(z-p.z)<p.d/2+.22),false);
+      tufts++;
+    }
+  });
+  assert.ok(tufts>200);
+  const countVisible=(name:string)=>{
+    let count=0;
+    stage.root.traverseVisible(object=>{ if(object.name===name)count++; });
+    return count;
+  };
+  camera.position.set(20,5,DISTRICT_OFFSET_Z+20);
+  stage.animate(1,camera);
+  assert.ok(countVisible('Tree crowns, branches and bark')>0);
+  assert.ok(countVisible('Flowerbeds and shrubs')>0);
+  camera.position.y=70;
+  stage.animate(2,camera);
+  assert.equal(countVisible('Tree crowns, branches and bark'),0);
+  assert.ok(countVisible('Distant tree crowns')>0);
+  assert.equal(countVisible('Grass tufts'),0);
+});
+
+test('Neither player can enter the garden pond, routes go around it and existing saves reopen on land',()=>{
+  const pond=districtPoint(DISTRICT_POND);
+  const west=districtPoint({x:DISTRICT_POND.x-3.14,z:DISTRICT_POND.z});
+  const east=districtPoint({x:DISTRICT_POND.x+3.30,z:DISTRICT_POND.z});
+  const obstacles=placeObstacles('home'), floor=floorFor('home');
+  const state=initialState();
+  assert.ok(pointIsClear(west,obstacles,floor));
+  assert.ok(pointIsClear(east,obstacles,floor));
+  assert.equal(segmentIsClear(west,east,obstacles,floor),false);
+  for(const role of ['vlad','alina'] as const){
+    Object.assign(state.characters[role],west);
+    for(let i=0;i<12;i++){
+      const angle=i*Math.PI/6;
+      const point={x:pond.x+Math.cos(angle)*DISTRICT_POND.radiusX*.92,
+        z:pond.z+Math.sin(angle)*DISTRICT_POND.radiusZ*.92};
+      assert.equal(applyWorld(state,role,{type:'walk',place:'home',...point}).ok,false);
+    }
+    assert.equal(applyWorld(state,role,{type:'walk',place:'home',...pond}).ok,false);
+    const detour=applyWorld(state,role,{type:'walk',place:'home',...east});
+    assert.ok(detour.ok&&detour.path&&detour.path.length>1);
+    assert.ok(detour.path.every((point,i,path)=>segmentIsClear(path[i-1]??west,point,obstacles,floor)));
+  }
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-district-pond-'));
+  try{
+    const files=openServerFiles(dir);
+    Object.assign(state.characters.vlad,pond);
+    files.save(state);
+    const restored=files.load();
+    assert.ok(pointIsClear(restored.characters.vlad,obstacles,floor));
+    assert.equal(restored.money,state.money);
+    assert.equal(restored.world.places.vlad,'home');
+  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
 test('All four neighbors can reach each public shop doorway without crossing buildings',()=>{

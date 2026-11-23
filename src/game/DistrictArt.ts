@@ -1,44 +1,29 @@
 import * as THREE from 'three';
-import { batchRigidParts, colors as C, cube, finish, plane, torus, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, plane, torus, type XYZ } from './ArtKit';
 import { lettering, painted, part, round, trim, type LocationResources } from './LocationArt';
 import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, HOME_WORLD_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
   DISTRICT_BEDS, DISTRICT_LAMPS, districtStation, districtYaw, sitePoint } from '../shared/district';
 import { buildDistrictFacade, buildRoofBillboard, distantDistrictFacade } from './DistrictBuildings';
-import { buildDistrictPlants, districtPlantGeometry } from './DistrictPlants';
+import { buildDistrictPlants, districtGroundPatches } from './DistrictPlants';
+import { paintGround } from './LandscapeGround';
+import { districtTrailGeometry } from './DistrictTrail';
+import { buildDistrictPond } from './DistrictPond';
 import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { buildNeighborhood } from './NeighborhoodArt';
 
-export { districtPlantGeometry };
-
 function planeSurface(root:THREE.Group,resources:LocationResources,texture:THREE.Texture|null,
-  x:number,z:number,w:number,d:number,y:number,fallback:number,repeat=1) {
+  x:number,z:number,w:number,d:number,y:number,fallback:number,repeat?:number) {
   const material=new THREE.MeshStandardMaterial({map:texture,color:texture?0xffffff:fallback,roughness:.95});
   resources.materials.push(material);
   const geometry=plane.clone();
   const uv=geometry.getAttribute('uv');
-  for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w*repeat,uv.getY(i)*d*repeat);
+  if(repeat!==undefined)for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w*repeat,uv.getY(i)*d*repeat);
   const model=new THREE.Mesh(geometry,material);
   model.rotation.x=-Math.PI/2;model.position.set(x,y,z);model.scale.set(w,d,1);
   root.add(model);
 }
 
-function gardenPaint(resources:LocationResources) {
-  const turf=painted(resources,256,256,ctx=>{
-    ctx.fillStyle='#94a574';ctx.fillRect(0,0,256,256);
-    let seed=719777;
-    for(let i=0;i<4000;i++){
-      seed=(Math.imul(seed,1664525)+1013904223)>>>0;
-      const x=seed%256,z=(seed>>>9)%256;
-      ctx.fillStyle=['#aaba8666','#657e4866','#d3b77938','#51724d45','#b0b37450'][i%5];
-      ctx.fillRect(x,z,1+i%3,1+(i%4));
-    }
-    for(let i=0;i<900;i++){
-      const x=(i*71)%256,y=(i*179+i*i)%256;
-      ctx.strokeStyle=i%2?'#7d936a90':'#c1bb8390';
-      ctx.beginPath();ctx.moveTo(x,y+3);ctx.lineTo(x+i%3-1,y);ctx.stroke();
-    }
-  });
-  if(turf)turf.wrapS=turf.wrapT=THREE.RepeatWrapping;
+function pavingPaint(resources:LocationResources) {
   const stone=painted(resources,256,256,ctx=>{
     ctx.fillStyle='#a7977f';ctx.fillRect(0,0,256,256);
     const shades=['#c6b296','#cfbea0','#b5a38d','#d9c5a9','#c8bba6','#baa88b','#bda98d'];
@@ -54,21 +39,17 @@ function gardenPaint(resources:LocationResources) {
     }
   });
   if(stone)stone.wrapS=stone.wrapT=THREE.RepeatWrapping;
-  return {turf,stone};
+  return stone;
 }
 
 function landscaping(root:THREE.Group,resources:LocationResources) {
-  const {turf,stone}=gardenPaint(resources);
+  const stone=pavingPaint(resources);
   const {minX,maxX,minZ,maxZ}=HOME_WORLD_FLOOR;
   const w=maxX-minX+1.7,d=maxZ-minZ+1.7,z=(minZ+maxZ)/2-DISTRICT_OFFSET_Z;
+  const turf=painted(resources,768,1024,ctx=>paintGround(ctx,{x:0,z,w,d},districtGroundPatches,7122));
   trim(root,[w+.7,.49,d+.7],[0,-.29,z],0x736853);
   trim(root,[w+.32,.15,d+.28],[0,-.14,z],0x998965);
-  planeSurface(root,resources,turf,0,z,w,d,-.020,0x879463,.26);
-  for(const [x,z,w,d,color] of [[-7,-11,9.1,4.1,0x92a17a],[18,3,10,4,0x879572],
-    [-14,-13,6.2,3.6,0x8f9b72],[2,9.1,13.2,3.4,0x919d77],[-15,9.15,4.4,2.1,0x8fa67e]]) {
-    const grass=new THREE.Mesh(new THREE.CircleGeometry(1,20),finish(color,'fabric'));
-    grass.rotation.x=-Math.PI/2; grass.scale.set(w/2,d/2,1);grass.position.set(x,.001,z);root.add(grass);
-  }
+  planeSurface(root,resources,turf,0,z,w,d,-.020,0x91ab76);
   let stoneLayer=.012;
   function path(x:number,z:number,w:number,d:number,wide=false) {
     part(root,[w+.231,.055,d+.231],[x,-.02,z],0xa49a80,cube,'ceramic');
@@ -87,10 +68,21 @@ function landscaping(root:THREE.Group,resources:LocationResources) {
     const porch=sitePoint(site,0,site.d/2+.86);
     path(porch.x,porch.z,Math.abs(site.turn)%2?2.4:2.2,Math.abs(site.turn)%2?2.2:2.46);
   }
+  const trailMaterial = new THREE.MeshStandardMaterial({
+    map:stone,color:stone?0xffffff:0xd4bb93,vertexColors:true,roughness:1,
+  });
+  resources.materials.push(trailMaterial);
+  const trail=new THREE.Mesh(districtTrailGeometry(),trailMaterial);
+  trail.name='Curved garden walk';
+  root.add(trail);
   for(const bed of DISTRICT_BEDS){
-    trim(root,[bed.w,.18,bed.d],[bed.x,.076,bed.z],0xa28c6e);
-    trim(root,[bed.w-.14,.075,bed.d-.12],[bed.x,.17,bed.z],0x766b50);
-    for(const edge of [-1,1])part(root,[bed.w-.08,.048,.065],[bed.x,.172,bed.z+edge*(bed.d/2-.016)],0xc2ad88,cube,'ceramic');
+    trim(root,[bed.w,.15,bed.d],[bed.x,.070,bed.z],0xad886b);
+    trim(root,[bed.w-.12,.065,bed.d-.11],[bed.x,.156,bed.z],0x6e5942);
+    for(const edge of [-1,1]){
+      const edgeColor=0xd5b698;
+      trim(root,[bed.w-.05,.071,.086],[bed.x,.176,bed.z+edge*(bed.d/2-.043)],edgeColor);
+      trim(root,[.086,.074,bed.d-.15],[bed.x+edge*(bed.w/2-.052),.175,bed.z],edgeColor);
+    }
   }
   for(const [x,z] of [[-15.7,-6],[-5.4,1.8],[5.3,-10.9],[17.4,4.0],[10.7,8.8],[-25.8,3.4],[-23.4,-19.0]]){
     for(let i=0;i<4;i++){
@@ -198,6 +190,7 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
   const animateWater=fountain(terrain,resources);
   batchRigidParts(terrain,true);
   const animatePlants=buildDistrictPlants(terrain,resources.materials);
+  const animatePond=buildDistrictPond(terrain,resources);
   const facades=DISTRICT_SITES.map(site=>{
     const building=new THREE.Group();building.name=site.name;
     building.position.set(site.x,0,site.z);building.rotation.y=districtYaw(site);
@@ -223,6 +216,7 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
     },
     animate(seconds:number,camera?:THREE.Camera){
       animateWater(seconds);
+      animatePond(seconds);
       if(!camera)return;
       cameraLocal.copy(camera.position);cameraLocal.z-=DISTRICT_OFFSET_Z;
       const compactLow=Boolean(camera.userData.compactLow);

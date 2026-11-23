@@ -2,14 +2,16 @@ import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { STATIONS, HOME_STATIONS, DISTRICT_STATIONS, type PlaceId, type Station } from '../shared/locations';
 import { DISTRICT_OFFSET_Z } from '../shared/district';
-import { locationGeometry } from './LocationArt';
-import { buildDistrict, districtPlantGeometry } from './DistrictArt';
+import { locationGeometry, painted } from './LocationArt';
+import { buildDistrict } from './DistrictArt';
+import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, landscapeSharedGeometry, PlantBatch } from './LandscapePlants';
+import { paintGround, type GroundArea } from './LandscapeGround';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 import { buildEducationCenter, educationStation } from './EducationArt';
 import { buildCareerPlace, careerStation } from './CareerArt';
 import { careerAt, isCareerPlace } from '../shared/careers';
 
-const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry, ...districtPlantGeometry]);
+const shared = new Set<THREE.BufferGeometry>([cube, softCube, drum, orb, plane, torus, ...locationGeometry, ...landscapeSharedGeometry]);
 const accents = [0xc38367, 0xd4a560, 0x759785, 0x8e9eb5, 0xe1cc9d, 0x9b625a];
 function shape(parent: THREE.Object3D, size: XYZ, pos: XYZ, color: number,
   geometry: THREE.BufferGeometry = softCube, shadow = false): THREE.Mesh {
@@ -21,15 +23,59 @@ function shape(parent: THREE.Object3D, size: XYZ, pos: XYZ, color: number,
   parent.add(mesh);
   return mesh;
 }
-function tree(parent: THREE.Group, x: number, z: number, variation: number) {
-  const tall = 0.96 + variation * 0.13;
-  shape(parent, [0.085, tall * 1.5, 0.086], [x, tall * 0.75, z], C.walnut, drum);
-  for (let i = 0; i < 3; i++) {
-    const angle = i * 2.3;
-    shape(parent, [0.48 - i * 0.055, 0.67, 0.45], [x + Math.cos(angle) * 0.17, tall * (1.24 + i * 0.23), z + Math.sin(angle) * 0.17],
-      [0x728d68, 0x587a61, 0x91a579][i], orb, i === 0);
+const parkPaths = [
+  {x:0,z:3.75,w:12,d:1.36},{x:0,z:.37,w:12,d:1.28},
+  {x:-2.68,z:0,w:1.35,d:8.1},{x:2.52,z:0,w:1.30,d:8.1},
+] as const;
+const parkTrees = [[-5.65,-2.5,'spruce',.75],[5.58,-2.4,'birch',.78],
+  [-5.60,2.7,'linden',.67],[5.69,3.08,'spruce',.71]] as const;
+const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-4.45,2.56,1],[4.83,2.56,0]] as const;
+
+function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture[]; materials:THREE.Material[]}) {
+  const map=painted(resources,512,512,ctx=>paintGround(ctx,{x:0,z:0,w:12,d:10},[
+    {x:-.08,z:-1.94,w:5.3,d:4.4,ink:[79,136,90],opacity:.54},
+    {x:4.46,z:1.54,w:3.0,d:6.5,ink:[171,190,119],opacity:.67},
+    ...parkTrees.map(([x,z])=>({x,z,w:2.62,d:2.5,ink:[59,98,66] as [number,number,number],opacity:.58,border:true})),
+  ],90713));
+  const material=new THREE.MeshStandardMaterial({color:map?0xffffff:0x8fab73,map,roughness:1});
+  resources.materials.push(material);
+  const ground=new THREE.Mesh(plane,material);
+  ground.rotation.x=-Math.PI/2;
+  ground.scale.set(12,10,1);
+  ground.position.y=.002;
+  parent.add(ground);
+  const plants=new PlantBatch();
+  for (const [i,[x,z,kind,size]] of parkTrees.entries()) {
+    growTree(plants,x,z,kind,size,639+i*31);
+    growShrub(plants,x-Math.sign(x)*.48,0,z+.25,.62,.37,.63,i,109+i*221);
+    shape(parent,[.78,.09,.72],[x,.035,z],0x867657,drum);
   }
+  for (const [i,[x,z,hue]] of parkBeds.entries()) {
+    const bed: GroundArea={x,z,w:1.14,d:.52};
+    shape(parent,[bed.w+.08,.13,bed.d+.12],[x,.047,z],0xb49374,softCube);
+    shape(parent,[bed.w,.036,bed.d],[x,.110,z],0x725b43,softCube);
+    growFlowers(plants,x,.121,z,bed.w-.16,bed.d-.12,hue,9,975+i*442);
+  }
+  for(const [i,[x,z]] of [[-1.81,-2.95],[1.78,-2.77],[-1.73,-1.15],[1.68,-.93]].entries()){
+    growShrub(plants,x,0,z,.63,.39,.67,i%4,957+i*82);
+    growFlowers(plants,x+(i%2?.17:-.17),0,z-.23,.47,.52,i%3,5,465+i*84);
+  }
+  plants.attach(parent,'Park trees, flowers and pond planting');
+
+  const random=landscapeRandom(1697);
+  const tufts=[];
+  for(let i=0;i<125;i++){
+    const x=(random()-.5)*11.6,z=(random()-.5)*9.7;
+    if (parkPaths.some(p=>Math.abs(x-p.x)<p.w/2+.18&&Math.abs(z-p.z)<p.d/2+.18)||
+        (Math.abs(x+.08)<1.69&&Math.abs(z+1.94)<1.38)) continue;
+    tufts.push({x,z,size:.46+random()*.72,yaw:random()*Math.PI*2,color:i%3?0x87a962:0x648f59});
+  }
+  const grass=grassMaterial();
+  resources.materials.push(grass.material);
+  addTufts(parent,tufts,grass.material);
+  return (seconds:number)=>{grass.wind.value=seconds;};
 }
+
 function bench(parent: THREE.Group, width: number) {
   shape(parent, [width, 0.12, 0.57], [0, 0.50, 0.055], C.oak, softCube, true);
   for (const x of [-width * 0.40, width * 0.40]) {
@@ -147,6 +193,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const bulbs: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
   const outdoor = place === 'park';
   const floor = new THREE.Group();
+  let animatePark: ((seconds:number)=>void)|undefined;
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
@@ -158,9 +205,8 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor, [12.3, .40, 10.3], [0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [12, .06, 10], [0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (outdoor) {
-      for (const [x, z, w, d] of [
-        [0, 3.75, 12, 1.36], [0, 0.37, 12, 1.28], [-2.68, 0, 1.35, 8.1], [2.52, 0, 1.30, 8.1],
-      ]) shape(floor, [w, .026, d], [x, .014, z], 0xd6c1a0, cube);
+      for (const {x,z,w,d} of parkPaths)
+        shape(floor, [w,.026,d],[x,.014,z],0xd6c1a0,cube);
     } else {
       const seamColor = 0xaf8257;
       for (let i = -5; i <= 5; i++) shape(floor, [.018, .006, 10], [i, .005, 0], seamColor, cube);
@@ -182,17 +228,10 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     }
   }
   if (outdoor) {
-    for (const [x, z, k] of [[-5.65, -2.5, 0], [5.58, -2.4, 2], [-5.60, 2.7, 1], [5.69, 3.08, 0]]) {
-      tree(floor, x, z, k);
-      shape(floor, [.64, .20, .59], [x, .11, z], C.rust, drum);
-    }
-    for (const [x, z] of [[-4.90, -1.85], [4.85, -.58], [-3.93, 3.13], [4.31, 3.18]]) {
-      shape(floor, [.58, .12, .30], [x, .062, z], C.clay);
-      for (let i = 0; i < 4; i++) {
-        shape(floor, [.073, .12, .073], [x + (i - 1.5) * .13, .16, z], C.leaf, orb);
-        shape(floor, [.042, .054, .041], [x + (i - 1.5) * .13, .26 + i%2 * .035, z], i % 2 ? 0xe0b87a : 0xd89d9d, orb);
-      }
-    }
+    const greenery=new THREE.Group();
+    greenery.name='Park landscaping';
+    root.add(greenery);
+    animatePark=parkLandscaping(greenery,resources);
     for (const [x, z] of [[-1.93, -3.84], [1.87, -3.84], [2.9, 4.77]]) {
       shape(floor, [.064, 1.89, .064], [x, .95, z], C.ink, drum);
       const bulb = shape(floor, [.13, .14, .13], [x, 1.98, z], C.paper, orb) as typeof bulbs[number];
@@ -234,7 +273,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
-    animate: animateWork,
+    animate: animateWork ?? animatePark,
     setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();

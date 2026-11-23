@@ -17,30 +17,6 @@ function part(parent: Root, geometry: THREE.BufferGeometry, size: readonly [numb
   return mesh;
 }
 
-function planting(root: Root, x: number, z: number, seed: number, large = false): void {
-  if (large) {
-    part(root, drum, [.16, 1.50, .16], [x, .62, z], 0x806750);
-    for (let i = 0; i < 3; i++) {
-      part(root, orb, [.70 - i * .09, .61, .64], [x + (i - 1) * .32, 1.51 + i * .22, z + (i % 2 ? .16 : -.13)],
-        [0x6c8662, 0x81966a, 0x75916b, 0x9aa476][(seed + i) % 4]);
-    }
-  } else {
-    part(root, orb, [.43, .28, .38], [x, .20, z],
-      [0x708b62, 0x809465, 0x96a078, 0x68825e][seed % 4]);
-    part(root, orb, [.29, .21, .33], [x + .23, .22, z - .13], seed % 2 ? 0x859b6e : 0x66835d);
-  }
-}
-
-function flowerbed(root: Root, x: number, z: number, seed: number): void {
-  part(root, softCube, [1.35, .11, .53], [x, -.025, z], 0x836b53);
-  for (let i = 0; i < 5; i++) {
-    const px = x - .51 + i * .255;
-    part(root, orb, [.22, .20, .21], [px, .18, z + (i % 2 ? -.09 : .075)], 0x658663);
-    part(root, orb, [.075, .065, .075], [px, .37, z + (i % 2 ? -.09 : .075)],
-      [0xeab99b, 0xe6cf99, 0xc7a5ac, 0xf1e3c4][(seed + i) % 4]);
-  }
-}
-
 type Home = NeighborHome;
 function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMaterial): void {
   const house = new THREE.Group();
@@ -107,8 +83,7 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
       part(house, cube, [.20, 1.05, .10], [x + shift, 1.59, face + .075], home.shutters, 'wood');
     }
     part(house, softCube, [1.28, .15, .26], [x, 1.03, face + .24], home.trim, 'wood');
-    part(house, orb, [.29, .19, .21], [x, 1.13, face + .37], 0x6f8964);
-    part(house, orb, [.17, .12, .15], [x + .20, 1.18, face + .40], index % 2 ? 0xd3a4a4 : 0xd3bd8a);
+    part(house, softCube, [1.14, .16, .31], [x, 1.075, face + .31], index % 2 ? 0x9f6e56 : 0x987765, 'ceramic');
   }
 
   // A side window and chimney keep the four silhouettes readable from
@@ -138,17 +113,11 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
       [0xc9b69c, 0xd9c7a9, 0xbca98e][i % 3], 'ceramic');
   }
   for (const side of [-1, 1]) {
-    flowerbed(house, side * (w / 2 - .74), face + 1.47, index + (side + 1) / 2);
-    planting(house, side * (w / 2 + .62), face + 1.94, index + 1);
+    part(house, softCube, [1.37,.12,.62], [side*(w/2-.77),0,face+1.47], 0x8c7054, 'ceramic');
   }
   // Larger personal plot: side borders, letterbox, a garden stool and
   // distinctive outdoor props. Keep the central walking lane unobstructed.
   for (const side of [-1, 1]) {
-    for(let i=0;i<4;i++) {
-      const z=face-1.0+i*1.45;
-      part(house, orb, [.38,.30,.48],
-        [side*(w/2+1.35), .22, z], (i+index)%2 ? 0x82976c : 0x718d67);
-    }
     for(const z of [face-.10,face+2.15,face+4.26]) {
       part(house, softCube, [.12,.83,.14],
         [side*(w/2+1.70),.43,z], 0xb3a184,'wood');
@@ -174,7 +143,6 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
   if(index===0) {
     for(let row=0;row<3;row++) {
       part(house,softCube,[1.13,.14,.43],[-gardenX,.05,gardenZ-1.05+row*.57],0xb28059,'wood');
-      for(let n=0;n<4;n++)part(house,orb,[.11,.085,.075],[-gardenX-.39+n*.26,.16,gardenZ-1.05+row*.57],n%2?0x6e8862:0x879f62);
     }
   } else if(index===1) {
     for(const side of [-1,1])for(let n=0;n<3;n++)
@@ -183,7 +151,7 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
   } else if(index===2) {
     for(const side of [-1,1]){
       part(house, softCube,[.68,.16,.43],[side*gardenX,.08,gardenZ-1.1],0x9a6f55,'wood');
-      flowerbed(house,side*gardenX,gardenZ-.4,side + 2);
+      part(house,softCube,[1.39,.11,.54],[side*gardenX,.022,gardenZ-.4],0x8c7054,'ceramic');
     }
   } else {
     for(const x of [-gardenX-.48,-gardenX+.49])
