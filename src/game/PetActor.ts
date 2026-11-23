@@ -7,7 +7,7 @@ import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
-import { PET_IDLE_SECONDS, choosePetIdle, petIdleWeight,
+import { PET_IDLE_SECONDS, choosePetIdle, petCanWelcome, petIdleWeight,
   type PetIdleContext, type PetIdleGesture } from './PetIdle';
 
 export class PetActor {
@@ -82,7 +82,16 @@ export class PetActor {
     // React once when an owner *arrives* within view, not every frame
     // they remain nearby. The real pet routine is still authoritative.
     if (context.personNearby && !this.ambient.personNearby &&
-        this.clock >= this.nextWelcome) this.welcomeUntil = this.clock + 6;
+        this.clock >= this.nextWelcome && petCanWelcome(context)) {
+      this.welcomeUntil = this.clock + 6;
+      // Owner arrival outranks *only* an old cosmetic loop.
+      if(!this.route.length && !this.reaction &&
+        (this.routine===null || this.routine==='wander')){
+        this.idleGesture=null;
+        this.idleTime=0;
+        this.idleCooldown=0;
+      }
+    }
     this.ambient = context;
   }
 
@@ -266,15 +275,12 @@ export class PetActor {
       }
     } else {
       this.idleCooldown -= dt;
-      const glad = this.ambient.personNearby && this.ambient.satiety >= 30 &&
-        this.ambient.energy >= 38 && this.ambient.happiness >= 62 &&
-        this.ambient.bond >= 52;
-      if (this.clock <= this.welcomeUntil && glad) {
+      if (this.clock <= this.welcomeUntil && petCanWelcome(this.ambient)) {
         // Dog: a joyful bounce; cat: a quieter, unmistakably feline nuzzle.
         this.idleGesture = this.id === 'verdell' ? 'happyHop' : 'nuzzle';
         this.idleTime = 0;
         this.welcomeUntil = -1;
-        this.nextWelcome = this.clock + 50;
+        this.nextWelcome = this.clock + (this.id === 'verdell' ? 60 : 90);
       } else if (this.idleCooldown <= 0) {
         this.idleGesture = choosePetIdle(this.id, this.ambient, this.idleTurn++);
         this.idleTime = 0;

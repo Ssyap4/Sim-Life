@@ -85,6 +85,8 @@ export class Actor {
   private arrivalUntil = -1;
   private greeting = false;
   private nextGreeting = 0;
+  private petArrivalUntil = -1;
+  private nextPetNotice = 0;
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
@@ -94,6 +96,8 @@ export class Actor {
     // genuine gap in proximity, never an automatic social task or kiss.
     if (partnerYaw !== null && this.idleContext.partnerYaw === null)
       this.noticePartnerArrival();
+    if (petYaw !== null && this.idleContext.petYaw === null)
+      this.noticePetArrival();
     this.idleContext.petYaw = petYaw;
     this.idleContext.partnerYaw = partnerYaw;
   }
@@ -104,6 +108,19 @@ export class Actor {
     // otherwise its next 8-second cooldown can swallow the entire hello.
     // Never interrupt a real action, route, need warning, or paired animation.
     this.arrivalUntil=this.clock+6;
+    if(this.pose==='idle' && !this.activity && !this.waypoints.length &&
+      !this.gesture && !this.partnerGesture && !this.needReaction &&
+      !this.carryingBook && this.closingBook<=0){
+      this.idleGesture=null;
+      this.idleGestureTime=0;
+      this.idleCooldown=0;
+    }
+  }
+  private noticePetArrival():void {
+    if(this.clock<this.nextPetNotice || this.greeting ||
+      this.clock<=this.arrivalUntil || this.idleGesture==='noticePartner')return;
+    this.petArrivalUntil=this.clock+4.5;
+    // Never interrupt work, travel, contact or a real need reaction.
     if(this.pose==='idle' && !this.activity && !this.waypoints.length &&
       !this.gesture && !this.partnerGesture && !this.needReaction &&
       !this.carryingBook && this.closingBook<=0){
@@ -513,6 +530,13 @@ export class Actor {
         this.greeting=true;
         this.arrivalUntil=-1;
         this.nextGreeting=this.clock+80;
+      }else if(this.clock<=this.petArrivalUntil &&
+        residentIdleAllowed('noticePet',this.idleContext) &&
+        this.needs!.mood>=35 && this.needs!.energy>=24 && this.needs!.hunger>=20){
+        this.idleGesture='noticePet';
+        this.idleGestureTime=0;
+        this.petArrivalUntil=-1;
+        this.nextPetNotice=this.clock+70;
       }else if (this.idleCooldown <= 0) {
         this.idleGesture = chooseResidentIdle(this.id, this.idleContext, this.idleTurn++);
         this.idleGestureTime = 0;

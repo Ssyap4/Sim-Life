@@ -3,16 +3,18 @@ import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCom
 
 /** Quiet, *real* household work. Suggestions are never executed directly:
  * the server still checks routes, available furniture, needs and reservations. */
-const BANK: Record<CharacterId, Record<'morning'|'day'|'evening', readonly ActionId[]>> = {
+const BANK: Record<CharacterId, Record<'morning'|'day'|'evening'|'night', readonly ActionId[]>> = {
   vlad: {
     morning: ['bathTeeth','bedStretch','kitchenTea','deskJournal','tablePlan','kitchenWash'],
     day: ['deskJournal','tablePlan','kitchenTidy','kitchenTea','deskGames','bathWash'],
     evening: ['tablePlan','sofaRest','deskJournal','kitchenDishes','sofaCall','bathTeeth'],
+    night: ['sofaRest','deskJournal','bathTeeth','kitchenTea','bathWash'],
   },
   alina: {
     morning: ['bathTeeth','bathWash','kitchenTea','bedMake','tablePlan','sofaMusic'],
     day: ['tablePlan','kitchenTidy','sofaMusic','kitchenTea','bathWash','sofaCall'],
     evening: ['sofaMusic','tablePlan','kitchenTea','sofaCall','sofaRest','bathWash'],
+    night: ['sofaMusic','sofaRest','bathWash','kitchenTea','bathTeeth'],
   },
 };
 
@@ -26,19 +28,30 @@ const furnitureHabits: Partial<Record<ActionId, FurnitureUseAction>> = {
 export function homeHabitSuggestions(
   state: GameState, role: CharacterId, turn: number, recent: readonly ActionId[] = [],
 ): ActionId[] {
-  const hour=Math.floor(state.clock.minute/60);
-  const phase=hour>=5&&hour<11?'morning':hour>=18||hour<5?'evening':'day';
+  const hour=((Math.floor(state.clock.minute/60)%24)+24)%24;
+  const phase=hour>=23||hour<5?'night':hour<11?'morning':
+    hour<18?'day':'evening';
   const options=BANK[role][phase];
   const offset=Math.max(0,Math.trunc(Number.isFinite(turn)?turn:0))%options.length;
   const rotated=options.map((_,i)=>options[(i+offset)%options.length]);
   const resident=state.characters[role];
-  const rest:ActionId=resident.energy<45?'sofaRest':
-    role==='alina'&&resident.energy<55?'sofaMusic':'sofaRest';
-  const soothing=resident.energy<55?[rest,...rotated.filter(id=>id!==rest)]:rotated;
-  // Prefer genuinely different actions; still allow repetition when nothing
-  // else is reachable so a small or remodeled home doesn't freeze.
-  return [...soothing.filter(id=>!recent.includes(id)),
-    ...soothing.filter(id=>recent.includes(id))];
+  const personal:ActionId[]=[];
+  // Mild real-world needs shape a preference; critical needs still have
+  // a separate higher-priority, authoritative planner in server/server.ts.
+  if(resident.energy<55)
+    personal.push(role==='vlad'||resident.energy<45?'sofaRest':'sofaMusic');
+  else if(resident.mood<45)
+    personal.push(role==='vlad'?'deskJournal':'sofaMusic');
+  if(resident.social<46 && phase!=='night') personal.push('sofaCall');
+  if(resident.fun<48 && resident.energy>=55 && phase!=='night')
+    personal.push(role==='vlad'?'deskGames':'sofaMusic');
+  if(resident.hygiene<58) personal.push(role==='vlad'?'bathTeeth':'bathWash');
+  if(state.dirtyDishes.table+state.dirtyDishes.yardTable>0)
+    personal.push('kitchenDishes');
+  const candidates=[...new Set([...personal,...rotated])];
+  // Recent tasks rank lower, but small/remodeled homes never lose options.
+  return [...candidates.filter(id=>!recent.includes(id)),
+    ...candidates.filter(id=>recent.includes(id))];
 }
 
 export interface HomeHabitCommand { habit:ActionId; command:TimedCommand }

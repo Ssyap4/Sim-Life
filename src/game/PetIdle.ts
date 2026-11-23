@@ -12,32 +12,40 @@ export interface PetIdleContext {
 
 export const PET_IDLE_SECONDS = 3.4;
 
+/** One welcoming animation on a real arrival, never during distress. */
+export function petCanWelcome(s:PetIdleContext):boolean {
+  return s.personNearby && s.satiety>=30 && s.energy>=38 &&
+    s.happiness>=62 && s.bond>=52;
+}
+
 /** Only picks a client-side animation. Never drives navigation, needs, or food. */
 export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): PetIdleGesture {
+  const slot=Number.isFinite(turn)?Math.abs(Math.trunc(turn)):0;
   if (state.satiety < 25 && state.bowl === 0)
-    return turn % 3 === 2 ? (id === 'simba' ? 'groom' : 'sniff') : 'hungryLook';
-  if (state.energy < 27 && turn % 3 === 0) return 'stretch';
+    return slot % 3 === 2 ? (id === 'simba' ? 'groom' : 'sniff') : 'hungryLook';
+  if (state.energy < 27 && slot % 3 === 0) return 'stretch';
   if (id === 'verdell') {
-    if (state.personNearby && state.bond>=55 && state.happiness>=70 &&
-      state.energy>=35 && state.satiety>=25 && turn%6===4)return 'happyHop';
-    // Verdell's signature two-paw 'bunny' request: only near family,
-    // never during urgent hunger, exhaustion or an authoritative routine.
-    if (state.personNearby && state.bond >= 38 && state.energy >= 32 &&
-      state.satiety >= 25 && turn % 4 === 2) return 'beg';
-    if (state.personNearby && state.happiness >= 43 && turn % 3 !== 2) return 'greet';
-    return turn % 6 === 0 ? 'playBow' : turn % 6 === 1 ? 'observe'
-      : turn % 6 === 2 ? 'pawWave' : turn % 6 === 3 ? 'stretch'
-      : turn % 6 === 4 ? 'sniff' : 'playBow';
+    // He sometimes asks for attention, but mostly sniffs and explores.
+    if (petCanWelcome(state) && slot%11===4) return 'happyHop';
+    if (state.personNearby && state.bond>=38 && state.energy>=32 &&
+      state.satiety>=25 && slot%9===2) return 'beg';
+    if (state.personNearby && state.happiness>=43 && slot%7===0) return 'greet';
+    const quiet:readonly PetIdleGesture[]=[
+      'sniff','observe','pawWave','stretch','playBow','sniff','observe','stretch',
+    ];
+    const gesture=quiet[slot%quiet.length];
+    return gesture==='playBow' && (state.energy<48||state.happiness<47)
+      ? 'observe':gesture;
   }
+  // An independent cat does not nuzzle on every second idle loop.
   if (state.personNearby && state.bond>=48 && state.happiness>=54 &&
-    state.energy>=25 && state.satiety>=25 && turn%5===1)return 'nuzzle';
-  // The cat is independent: grooming and stretching happen often, and
-  // nearby people mostly get a curious, quiet glance.
-  // Lead with a distinctive, recognizable action so the player sees a cat,
-  // not just a walking orange silhouette. Still leave room for variation.
-  return turn % 6 === 0 ? 'groom' : turn % 6 === 1 ? 'stretch'
-    : turn % 6 === 2 ? 'slowBlink' : turn % 6 === 3 ? 'observe'
-    : turn % 6 === 4 ? 'pounce' : 'groom';
+    state.energy>=25 && state.satiety>=25 && slot%8===1)return 'nuzzle';
+  const quiet:readonly PetIdleGesture[]=[
+    'groom','slowBlink','observe','stretch','pounce','groom','observe','slowBlink',
+  ];
+  const gesture=quiet[slot%quiet.length];
+  return gesture==='pounce' && (state.energy<52||state.happiness<55||state.satiety<30)
+    ? 'observe':gesture;
 }
 
 /** Smoothly enters and exits a gesture without a sudden body pop. */
