@@ -13,6 +13,7 @@ import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait'
 import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
+import { characterDemeanor } from './CharacterDemeanor';
 import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
   residentIdleEase, residentIdleTouchWeight,
   type ResidentIdleContext, type ResidentIdleGesture } from './ResidentIdle';
@@ -490,7 +491,8 @@ export class Actor {
       }
     } else {
       this.idleCooldown -= dt;
-      if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)){
+      if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)&&
+        characterDemeanor(this.needs,'idle').friendly){
         this.idleGesture='noticePartner';
         this.idleGestureTime=0;
         this.greeting=true;
@@ -862,6 +864,14 @@ export class Actor {
         }
       }
     }
+
+    // Continuous, small expressions across ordinary idle and walking.
+    // Active cooking, seats, hugs and sleep keep their original authored poses.
+    const demeanor=characterDemeanor(this.needs,asleep?'sleep':
+      this.activity||this.gesture||this.partnerGesture||seated?'busy':motion>.08?'walking':'idle');
+    lean+=demeanor.shoulders;
+    gaze+=demeanor.gaze;
+    expression=Math.min(.78,expression+demeanor.smile);
 
     // Reuse the exact same lightweight articulated rig used by cooking and
     // talking: a few soft arm/head targets, no new meshes or animation files.
