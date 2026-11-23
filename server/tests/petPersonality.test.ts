@@ -93,7 +93,7 @@ test('Dog is sociable while cat stretches, observes and grooms independently', (
   assert.equal(choosePetIdle('verdell', { ...context, satiety: 15, bowl: 0 }, 0), 'hungryLook');
   assert.equal(choosePetIdle('simba', context, 0), 'groom');
   assert.equal(choosePetIdle('simba', context, 1), 'stretch');
-  assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 2), 'groom');
+  assert.equal(choosePetIdle('simba', { ...context, personNearby: false }, 2), 'slowBlink');
   assert.equal(petIdleWeight(0), 0);
   assert.equal(petIdleWeight(PET_IDLE_SECONDS), 0);
   assert.ok(petIdleWeight(.3) > 0 && petIdleWeight(.3) < 1);
