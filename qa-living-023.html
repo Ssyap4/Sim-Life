@@ -59,7 +59,7 @@ for(let i=0;i<4;i++){
   const camera=new THREE.PerspectiveCamera(35,195/422,.1,30);
   const z=pet?2.5:3.55;
   camera.position.set(.25,pet?1.0:1.7,z);
-  camera.lookAt(0,pet?.51:1.04,0);
+  camera.lookAt(0,pet?0.51:1.04,0);
   const x=i%2*195,y=422*(1-Math.floor(i/2));
   renderer.setViewport(x,y,195,422);
   renderer.setScissor(x,y,195,422);
