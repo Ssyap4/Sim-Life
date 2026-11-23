@@ -18,6 +18,7 @@ import { newCoffeeDaily, COFFEE_CUPS_PER_DAY } from '../src/shared/coffee';
 import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
+import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
 import { JOBS, isJobId } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
@@ -43,6 +44,7 @@ const isValidState = (value: unknown): value is GameState => {
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
+  if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
   if (state.autonomy !== undefined && !validAutonomy(state.autonomy)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
@@ -278,6 +280,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         readyFood: data.readyFood ?? [],
         dirtyDishes: data.dirtyDishes ?? { ...EMPTY_DIRTY_DISHES },
         ledger: [...(data.ledger ?? [])],
+        savings: restoreFamilyBudget(data.savings, { ...INITIAL_CLOCK,...data.clock }, data.ledger ?? []),
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },
         readBooks: data.readBooks ?? { vlad: [], alina: [] },
