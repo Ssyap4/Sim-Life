@@ -356,6 +356,16 @@ function drawTaskPanel(): void {
       box.append(form);
     }
     if (role === active) {
+      if(task.paired&&world?.place==='home'){
+        const focus=document.createElement('button');
+        focus.type='button';focus.className='task-focus';focus.dataset.focusShared='';
+        focus.textContent='🎥 К действию';
+        focus.setAttribute('aria-label','Приблизить камеру к совместному занятию');
+        focus.addEventListener('click',()=>{
+          if(!world?.focusSharedActivity())notify('Сначала вернитесь домой к занятию');
+        });
+        box.append(focus);
+      }
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'task-cancel';
