@@ -10,6 +10,7 @@ import {initialFamilyBudget,isSavingsGoal,validFamilyBudget,budgetPeriod,
   restoreFamilyBudget} from '../../src/shared/familyBudget';
 import {openServerFiles} from '../storage';
 import {startServer} from '../server';
+import {advanceLife} from '../life';
 import WebSocket from 'ws';
 import {once} from 'node:events';
 import {contextAvailable,SOCIAL_BY_ID,socialText} from '../../src/shared/socialLife';
@@ -87,6 +88,21 @@ test('Real purchases are tallied by period independent of 40-entry ledger size',
   assert.equal(budgetPeriod(state.clock),1);
   assert.deepEqual(state.savings.spent,{groceries:400,takeout:0,pets:0});
   assert.equal(state.savings.period,1);
+});
+test('Ten-day spending limits reset at exact game-clock boundary without clearing cash or savings',()=>{
+  const original=initialState();
+  original.clock={day:10,minute:1430};
+  original.savings.period=0;
+  original.savings.balance=1200;
+  original.money=8000;
+  original.savings.spent.groceries=6500;
+  const progressed=advanceLife(original,15,['vlad','alina']);
+  assert.equal(progressed.clock.day,11);
+  assert.equal(progressed.savings.period,1);
+  assert.equal(progressed.savings.balance,1200);
+  assert.equal(progressed.money,8000);
+  assert.deepEqual(progressed.savings.spent,{groceries:0,takeout:0,pets:0});
+  assert.equal(original.savings.spent.groceries,6500,'previous state not mutated');
 });
 test('Changing category limit is advisory, not a reset or removal of real expenses',()=>{
   const state=initialState();
