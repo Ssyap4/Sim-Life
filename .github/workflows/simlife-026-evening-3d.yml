@@ -4,6 +4,10 @@ on:
     branches: [feat/life-together-evenings-026]
     paths:
       - src/shared/socialLife.ts
+      - src/shared/familyMoments.ts
+      - src/phoneUI.ts
+      - src/main.ts
+      - src/mobile-ux-020.css
       - src/socialUI.ts
       - server/society.ts
       - server/homeSessions.ts
