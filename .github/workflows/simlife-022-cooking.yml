@@ -1,0 +1,24 @@
+name: Sim-Life restaurant cooking focused QA
+on:
+  push:
+    branches: [feat/restaurant-cooking-022]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cooking-and-market:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npm run check
+      - name: Focused cooking, grocery, legacy saves and 3D model tests
+        run: node --import tsx --test server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/market.test.ts server/tests/grill-delivery-receipt.test.ts server/tests/readyFood.test.ts
+      - name: Production bundle smoke build
+        run: npx vite build
