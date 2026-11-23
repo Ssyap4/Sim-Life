@@ -120,7 +120,14 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
       !FURNITURE_BY_ID.get(other.sku)?.walkable&&
       intersects(physical,furnitureFootprint(other,.018))))
     return deny('Место занято другой мебелью');
-  // Rugs are nonblocking and may overlay furniture and traffic.
+  // Ordinary rugs may be overlapped, but a PET BED must never be installed
+  // underneath a sofa, cabinet, scratcher, or another pet bed.
+  if(product.category==='pets'&&product.walkable&&others.some(other=>{
+    const otherInfo=FURNITURE_BY_ID.get(other.sku);
+    return (otherInfo?.category==='pets'||!otherInfo?.walkable)&&
+      intersects(physical,furnitureFootprint(other,.018));
+  }))return deny('Лежанке нужно свободное место на полу');
+  // Rugs and low pet cushions do not create invisible navigation walls.
   if(product.walkable)return yes;
   if((['vlad','alina'] as const).some(role=>
       state.world.places[role]==='home'&&contains(footprint,state.characters[role],.16)))
