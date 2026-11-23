@@ -14,8 +14,8 @@ const happy:PetIdleContext={
 test('Vlad and Alina receive different articulated personality habits without fake interaction',()=>{
   const vlad=new Set(Array.from({length:48},(_,turn)=>chooseResidentIdle('vlad',noNearby,turn)));
   const alina=new Set(Array.from({length:48},(_,turn)=>chooseResidentIdle('alina',noNearby,turn)));
-  for(const action of ['studyPalm','rubShoulder','steadyBreath'])assert.ok(vlad.has(action),action);
-  for(const action of ['easeWrists','rubShoulder','steadyBreath'])assert.ok(alina.has(action),action);
+  for(const action of ['studyPalm','rubShoulder','steadyBreath'] as const)assert.ok(vlad.has(action),action);
+  for(const action of ['easeWrists','rubShoulder','steadyBreath'] as const)assert.ok(alina.has(action),action);
   assert.equal(vlad.has('fixHair'),false);
   assert.equal(alina.has('studyPalm'),false);
   for(const time of [-1,0,.25,1.8,3.79,3.8,4])
