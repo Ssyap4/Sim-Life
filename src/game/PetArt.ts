@@ -66,8 +66,8 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
 
 function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
   const pivot = new THREE.Group();
-  const height = dog ? 0.126 : 0.206;
-  const width = dog ? 0.084 : 0.088;
+  const height = dog ? 0.126 : 0.172;
+  const width = dog ? 0.084 : 0.078;
   const outside = dog ? soot : ginger;
   const inner = new THREE.Color(dog ? 0x75636c : 0xd18974);
   const shape = loft([
@@ -78,7 +78,7 @@ function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
     THREE.MathUtils.smoothstep(Math.cos(a), 0.43, 0.85) * THREE.MathUtils.smoothstep(y, -0.003, 0.045) *
     (1 - THREE.MathUtils.smoothstep(y, height * 0.76, height * 0.94))));
   sculpt(pivot, shape, 0xffffff, 'fabric', !dog);
-  pivot.position.set(side * (dog ? 0.192 : 0.158), dog ? 0.187 : 0.150, -0.059);
+  pivot.position.set(side * (dog ? 0.192 : 0.132), dog ? 0.187 : 0.148, -0.059);
   pivot.rotation.z = side * (dog ? -0.235 : -0.19);
   head.add(pivot);
   return pivot;
@@ -87,9 +87,9 @@ function ear(head: THREE.Group, side: number, dog: boolean): THREE.Group {
 function petEyes(head: THREE.Group, dog: boolean): THREE.Group[] {
   return [-1, 1].map((side) => {
     const eye = new THREE.Group();
-    eye.position.set(side * (dog ? 0.109 : 0.114), dog ? 0.034 : 0.026, dog ? 0.192 : 0.158);
-    eye.rotation.set(0, side * (dog ? 0.47 : 0.67), side * (dog ? 0.10 : 0.21));
-    makeEye(eye, dog ? 0.037 : 0.047, dog ? 0.027 : 0.027, dog ? 0.016 : 0.018,
+    eye.position.set(side * (dog ? 0.109 : 0.092), dog ? 0.034 : 0.026, dog ? 0.192 : 0.171);
+    eye.rotation.set(0, side * (dog ? 0.47 : 0.48), side * (dog ? 0.10 : 0.16));
+    makeEye(eye, dog ? 0.037 : 0.042, dog ? 0.027 : 0.027, dog ? 0.016 : 0.015,
       dog ? { iris: '#866747', edge: '#40343a', white: '#907c75', pupil: 0.60 }
         : { iris: '#8fa16c', edge: '#5b6b42', white: '#b1ab76', pupil: 0.27 });
     head.add(eye);
