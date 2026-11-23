@@ -445,3 +445,59 @@ test('Accepting a joint invitation while walking uses the freshly stopped reside
       'The synchronized path must start where movement actually stopped');
   }finally{sessions.dispose();}
 });
+
+test('A home evening progresses only after both complete cooking, dinner and a shared rest',()=>{
+  let state=sample();
+  const together=(action:string,item?:string)=>{
+    const command:SocialIntent={type:'together',action,item};
+    const homes=pairScenes(state,'vlad',command);
+    assert.ok(homes,'a real route is required for '+action);
+    const result=completeTogether(state,'vlad',command,[...residents],0,homes);
+    assert.ok(result.ok,action+': '+(result.ok?'':result.reason));
+    state=result.state;
+  };
+  together('eveningPlan','omelette');
+  assert.deepEqual(state.relationship.evening,{
+    recipe:'omelette',phase:'prepare',startedAt:gameMinutes(state.clock),
+  });
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,0);
+  together('tv');
+  assert.equal(state.relationship.evening?.phase,'prepare','relaxing before dinner cannot finish the story');
+  together('cook','omelette');
+  assert.equal(state.relationship.evening?.phase,'dine');
+  together('tv');
+  assert.equal(state.relationship.evening?.phase,'dine');
+  const meals=state.meals.omelette;
+  together('eat','omelette');
+  assert.equal(state.meals.omelette,meals-2);
+  assert.equal(state.relationship.evening?.phase,'unwind');
+  together('tv');
+  assert.equal(state.relationship.evening?.phase,'complete');
+  assert.equal(state.relationship.evening?.completedAt,gameMinutes(state.clock));
+  const memories=state.relationship.memories.filter(m=>m.action==='homeEvening');
+  assert.equal(memories.length,1);
+  assert.match(memories[0].description,/приготовили|поужинали/i);
+  const mood=state.characters.vlad.mood;
+  together('tv');
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1,
+    'finishing a second TV action must not mint a second evening memory');
+  assert.ok(state.characters.vlad.mood>=mood);
+  together('eveningPlan','omelette');
+  assert.equal(state.relationship.evening?.phase,'prepare','both players may choose a new evening');
+  assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+});
+
+test('A declined evening invitation cannot reserve food or create a shared evening',async()=>{
+  const f=await meet();
+  try{
+    const v=await f.connect('vlad'),a=await f.connect('alina');
+    const original=f.files.load();
+    const offer=await propose(v,a,'eveningPlan','omelette');
+    assert.equal(offer.action,'eveningPlan');
+    assert.equal(f.files.load().relationship.evening,undefined);
+    a.send({type:'social_reply',inviteId:offer.id,choice:null});
+    assert.equal((await v.take('social_closed')).phase,'declined');
+    assert.equal(f.files.load().relationship.evening,undefined);
+    assert.deepEqual(f.files.load().pantry,original.pantry);
+  }finally{await f.close();}
+});
