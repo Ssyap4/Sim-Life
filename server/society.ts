@@ -1,12 +1,13 @@
-import { activityItems, needsItem, otherPerson, SOCIAL_BY_ID, socialRestriction,
+import { activityItems, eveningDinnerAction, eveningDishId, eveningMealName, eveningSelection, needsItem, otherPerson, SOCIAL_BY_ID, socialRestriction,
   type PairMotion, type PairPresentation, type Relationship, type SocialActivity, type SocialIntent } from '../src/shared/socialLife';
+import { familyMoments, momentDenial, momentReward } from '../src/shared/familyMoments';
 import { HOME_PLACEMENTS, GRILL_WORK, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { approachFor, floorFor, meeting, placeObstacles, stationById, type PlaceId, type Point } from '../src/shared/locations';
 import { gameMinutes } from '../src/shared/life';
 import { BOOKS, YOUTUBE, type Genre, type BookId, type HomePresentation, type HomeSeat, type Program, type NeedEffects } from '../src/shared/homeLife';
 import type { CharacterId, GameState, TimedCommand } from '../src/shared/protocol';
 import { PETS, type PetId, type PetAction } from '../src/shared/pets';
-import { RECIPES, isGrillRecipe, type RecipeId } from '../src/shared/food';
+import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId } from '../src/shared/food';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { awardCooking, completeStudy, practiceXP, studyDenial } from './education';
 import { evaluateTask, type EvaluatedTask } from './tasks';
@@ -23,7 +24,21 @@ export function validRelationship(value:unknown):value is Relationship {
   if (!value||typeof value!=='object') return false;
   const r=value as Partial<Relationship>;
   const stamp=(at:unknown)=>typeof at==='number'&&Number.isSafeInteger(at)&&at>=0;
-  return (r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
+  const evening=r.evening;
+  const kind=evening?.kind??'cook';
+  const validMeal=kind==='takeout'
+    ? typeof evening?.takeoutItem==='string'&&Object.hasOwn(TAKEOUT,evening.takeoutItem)&&evening.recipe===undefined
+    : (kind==='cook'||kind==='leftovers')&&typeof evening?.recipe==='string'&&
+      Object.hasOwn(RECIPES,evening.recipe)&&evening.takeoutItem===undefined;
+  const validEvening=evening===undefined||(typeof evening==='object'&&evening!==null&&
+    validMeal&&['prepare','dine','unwind','complete'].includes(evening.phase)&&
+    (kind!=='takeout'&&kind!=='leftovers'||evening.phase!=='prepare')&&
+    (evening.occasion===undefined||['comfort','rest','ordinary'].includes(evening.occasion))&&
+    (evening.attentionTo===undefined||['vlad','alina'].includes(evening.attentionTo))&&
+    stamp(evening.startedAt)&&
+    (evening.phase==='complete' ? stamp(evening.completedAt)&&evening.completedAt!==undefined&&evening.completedAt>=evening.startedAt :
+      evening.completedAt===undefined));
+  return validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
     r.memories.every(m=>m&&stamp(m.at)&&typeof m.action==='string'&&['talk','care','home','romance','fun'].includes(m.group)&&
       typeof m.title==='string'&&m.title.length<=120&&typeof m.description==='string'&&m.description.length<=240)&&
     Array.isArray(r.recent)&&r.recent.length<=RECENT_LIMIT&&r.recent.every(e=>e&&stamp(e.at)&&typeof e.action==='string');
@@ -34,6 +49,13 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
   if (!a) return 'Неизвестное совместное занятие';
   const restriction=socialRestriction(a,state,from,individual);
   if(restriction) return restriction;
+  // Early individual finishing of a legitimately accepted shared meal happens
+  // after the first portion is consumed, when the original two-portion trigger
+  // is naturally gone. The server already validated its story on invitation.
+  if(!individual){
+    const momentProblem=momentDenial(state,from,command);
+    if(momentProblem)return momentProblem;
+  }
   const onePortion=individual&&(a.object==='eat'&&state.meals[command.item as RecipeId]>=1||
     a.object==='takeout'&&state.takeout[command.item as keyof GameState["takeout"]]>=1);
   if(needsItem(a)&&!onePortion&&!activityItems(a,state,from).some(item=>item.id===command.item)) return 'Выбранное блюдо, питомец или материал больше недоступны';
@@ -168,7 +190,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   return result as Record<CharacterId,HomePresentation>;
 }
 
-export function addRelationship(state:GameState,a:SocialActivity,choice:number) {
+export function addRelationship(state:GameState,a:SocialActivity,choice:number,storyOnly=false) {
   const profile=state.relationship, now=gameMinutes(state.clock);
   const recent=profile.recent.filter(e=>now-e.at<BOND_WINDOW);
   const same=recent.filter(e=>e.action===a.id).length;
@@ -176,7 +198,7 @@ export function addRelationship(state:GameState,a:SocialActivity,choice:number) 
   profile.recent=[...recent,{action:a.id,at:now}].slice(-RECENT_LIMIT);
   profile.lastTogether=now;
   const quiz=a.id==='riddle'?choice===0:a.id==='homelyQuiz'?choice===1:false;
-  if (a.memorable&&(strength===1||!profile.memories.some(m=>m.action===a.id))&&
+  if (a.memorable&&!storyOnly&&(strength===1||!profile.memories.some(m=>m.action===a.id))&&
       !profile.memories.some(m=>m.action===a.id&&now-m.at<1440)){
     profile.memories.push({action:a.id,group:a.group,at:now,title:a.title,description:a.replies[choice]??a.lines[0]});
     profile.memories=profile.memories.slice(-MEMORY_LIMIT);
@@ -201,6 +223,9 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   if(denial) return fail(denial);
   let state=structuredClone(source);
   let message=a.title+' · готово';
+  // Capture the legitimate opportunity now, before any real task changes pantry,
+  // pet bowls, dirty plates or needs. A forged id was rejected above.
+  const moment=command.moment?familyMoments(source,from).find(m=>m.id===command.moment):undefined;
   const id=command.item!,to=otherPerson(from);
   const run=(role:CharacterId,c:TimedCommand)=>{
     const home=homes[role],end=home.route.path.at(-1)??home.route.from;
@@ -275,7 +300,60 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   }
   if(rejected&&!rejected.ok) return rejected;
   if(remember&&roles.length===2){
-    const {strength,quiz}=addRelationship(state,a,choice);
+    const {strength,quiz}=addRelationship(state,a,choice,!!moment);
+    const now=gameMinutes(state.clock);
+    if(moment)message+=momentReward(state,from,moment);
+    if(a.id==='eveningPlan'){
+      // Every proposed option was revalidated against REAL food and stock in cooperationDenial.
+      const choice=eveningSelection(id)!;
+      const partner=otherPerson(from),responseTo=state.characters[partner];
+      const focus=responseTo.mood<45?'comfort':responseTo.energy<40?'rest':'ordinary';
+      state.relationship.evening={...choice,phase:choice.kind==='cook'?'prepare':'dine',
+        startedAt:now,occasion:focus,attentionTo:focus==='ordinary'?undefined:partner};
+      message='Вечер запланирован · '+eveningMealName(state.relationship.evening)+
+        (choice.kind==='cook'?' · приготовьте вместе':' · уже на столе, зовите друг друга ужинать');
+    } else {
+      const evening=state.relationship.evening;
+      if(evening?.phase==='prepare'&&a.id==='cook'&&id===evening.recipe){
+        evening.phase='dine';
+        message+=' · 🍽️ Ужин готов: пригласите друг друга к столу';
+      } else if(evening?.phase==='dine'&&a.id===eveningDinnerAction(evening)&&id===eveningDishId(evening)){
+        evening.phase='unwind';
+        message+=' · ✨ Теперь можно отдохнуть вдвоём';
+      } else if(evening?.phase==='unwind'&&[
+        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet',
+      ].includes(a.id)){
+        evening.phase='complete';
+        evening.completedAt=now;
+        const meal=eveningMealName(evening).toLowerCase();
+        const opening=evening.kind==='takeout'?'разделили доставку':
+          evening.kind==='leftovers'?'поужинали готовым блюдом':'приготовили ужин';
+        const ending=a.id==='film'?'посмотрели фильм':a.id==='tv'?'посмотрели телевизор':
+          a.id==='youtube'?'посмотрели видео':a.id==='slowDance'?'потанцевали':
+          a.id==='cuddle'?'посидели в обнимку':
+          a.id==='eveningHeartTalk'?'поговорили по душам':
+          a.id==='read'?'почитали рядом':
+          a.id==='petPlay'||a.id==='petPet'?'провели время с '+(PETS[id as PetId]?.name??'питомцем'):
+          'поговорили на диване';
+        // One lasting memory and extra reward per 240 game minutes; ordinary activities still work.
+        const recent=state.relationship.memories.some(m=>m.action==='homeEvening'&&now-m.at<BOND_WINDOW);
+        if(!recent) {
+          const occasion=evening.occasion==='comfort'&&evening.attentionTo?
+            ' Было важно поддержать '+(evening.attentionTo==='alina'?'Алину':'Влада')+'.':
+            evening.occasion==='rest'?' Удалось отвлечься и восстановить силы.':'';
+          state.relationship.memories.push({action:'homeEvening',group:'romance',at:now,
+            title:evening.occasion==='comfort'?'Вечер заботы':'Наш вечер вдвоём',
+            description:'Вместе '+opening+' — '+meal+', а потом '+ending+'.'+occasion});
+          state.relationship.memories=state.relationship.memories.slice(-MEMORY_LIMIT);
+          for(const member of roles)change(state,member,{mood:5,social:4,comfort:4});
+          if(evening.attentionTo==='vlad'||evening.attentionTo==='alina') {
+            if(evening.occasion==='comfort')change(state,evening.attentionTo,{mood:4,social:3});
+            if(evening.occasion==='rest')change(state,evening.attentionTo,{energy:4,comfort:3});
+          }
+        }
+        message+=recent?' · 💛 Ещё один хороший вечер вместе':' · 💛 Тёплый вечер сохранён в воспоминаниях';
+      }
+    }
     for(const role of roles) {
       const response=role===to&&a.group==='care'?
         choice===1?{social:5,mood:2,comfort:5}:choice===2?{social:2,comfort:3}:socialEffects.care:

@@ -1,8 +1,9 @@
 import { dialogue } from './social/dialogue';
 import { BOOKS, GENRES, HOME_SECONDS, type HomeSeat } from './homeLife';
-import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId } from './food';
+import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { MATERIALS } from './educationCatalog';
 import { skillRank } from './education';
+import { recipeAvailability } from './recipeAvailability';
 import { PETS, PET_IDS } from './pets';
 import { gameMinutes } from './life';
 import { serviceAvailable } from './services';
@@ -15,9 +16,40 @@ export const SOCIAL_GROUPS = {
   romance:['♡','Нежность'], fun:['✦','Отдых'],
 } as const;
 export type SocialGroup = keyof typeof SOCIAL_GROUPS;
+export type HomeEveningPhase = 'prepare' | 'dine' | 'unwind' | 'complete';
+/** Shared, saved steps of a real two-player evening; no stages are credited on invite or cancellation. */
+export interface HomeEvening {
+  /** Unspecified kind is the original 0.26 cooked-dinner plan. */
+  kind?: 'cook' | 'leftovers' | 'takeout';
+  recipe?: RecipeId;
+  takeoutItem?: TakeoutId;
+  phase: HomeEveningPhase;
+  startedAt: number;
+  completedAt?: number;
+  /** A grounded, non-punitive mood response to how the family felt when planning. */
+  occasion?: 'comfort' | 'rest' | 'ordinary';
+  attentionTo?: CharacterId;
+}
+export const eveningDishId = (evening:HomeEvening) =>
+  evening.kind==='takeout' ? evening.takeoutItem : evening.recipe;
+export const eveningMealName = (evening:HomeEvening) =>
+  evening.kind==='takeout' ? TAKEOUT[evening.takeoutItem!]?.name??'готовая еда'
+    : RECIPES[evening.recipe!]?.name??'домашнее блюдо';
+export const eveningDinnerAction = (evening:HomeEvening) =>
+  evening.kind==='takeout' ? 'takeout' as const : 'eat' as const;
+export function eveningSelection(item:string) {
+  const [prefix,id]=item.split(':');
+  if(prefix==='takeout'&&Object.hasOwn(TAKEOUT,id))
+    return {kind:'takeout' as const,takeoutItem:id as TakeoutId};
+  if(prefix==='leftovers'&&Object.hasOwn(RECIPES,id))
+    return {kind:'leftovers' as const,recipe:id as RecipeId};
+  if(Object.hasOwn(RECIPES,item))
+    return {kind:'cook' as const,recipe:item as RecipeId};
+  return null;
+}
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll';
-type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue';
+type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'cafeMeal'|'sofa'|'table';
 export type SocialActivity = {
@@ -25,6 +57,16 @@ export type SocialActivity = {
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
 const objects: readonly SocialActivity[] = [
+  {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
+    lines:['Давай устроим домашний вечер: можем приготовить вдвоём, доесть готовое или разделить доставку.',
+      'Хочется провести время вместе. Выберем ужин из того, что уже есть дома?'],
+    replies:['Да! Выберем ужин и спокойно отдохнём.','Давай проведём вечер по-своему.'],
+    motion:'sitTalk',seconds:9,object:'table',resource:'evening-plan'},
+  {id:'eveningHeartTalk',title:'Поговорить по душам после ужина',group:'care',
+    lines:['Как ты сегодня? Давай посидим рядом, без спешки, и поделимся тем, что на душе.',
+      'Мне важно знать, как прошёл твой день. Можно немного поговорить на диване?'],
+    replies:['Расскажу, что меня сегодня порадовало и что тревожило.','Мне хочется просто послушать тебя.'],
+    motion:'sitTalk',seconds:16,object:'sofa',context:'eveningUnwind',memorable:true},
   {id:'cook',title:'Приготовить вместе',group:'home',lines:['Поможешь подготовить продукты? Приготовим одну порцию рецепта на двоих.'],replies:['Я подготовлю ингредиенты.','Давай распределим работу у столешницы.'],motion:'cook',seconds:10,object:'cook',resource:'kitchen',memorable:true},
   {id:'grill',title:'Готовить на гриле вдвоём',group:'home',lines:['Поставим блюдо на гриль? Я буду у жаровни, а ты помоги у стола.'],replies:['Подготовлю посуду во дворе.','Скажи, когда нужна помощь с подачей.'],motion:'grill',seconds:13,object:'grill',resource:'grill',memorable:true},
   {id:'eat',title:'Позвать к столу',group:'home',lines:['На двоих хватит. Поедим вместе?'],replies:['Да, расскажу, как прошёл день.','Хочу попробовать и спокойно посидеть.'],motion:'eat',seconds:10,object:'eat',independent:true,memorable:true},
@@ -74,9 +116,9 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
 export const SOCIAL_ACTIVITIES = [...exchanges,...objects];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const SOCIAL_TTL_MS = 30_000;
-export type SocialIntent = { type:'together'; action:string; item?:string };
+export type SocialIntent = { type:'together'; action:string; item?:string; moment?:string };
 export type SocialCommand =
-  | {type:'social_propose';action:string;item?:string}
+  | {type:'social_propose';action:string;item?:string;moment?:string}
   | {type:'social_reply';inviteId:number;choice:number|null}
   | {type:'social_withdraw';inviteId:number}
   | {type:'social_finish';taskId:number};
@@ -84,7 +126,7 @@ export interface SocialOffer { id:number; from:CharacterId; action:string; title
 export type SocialPhase = 'accepted'|'declined'|'expired'|'cancelled'|'interrupted';
 export interface SocialMemory { at:number; action:string; title:string; description:string; group:SocialGroup }
 export interface Relationship {
-  memories:SocialMemory[]; recent: {action:string;at:number}[]; lastTogether?:number;
+  memories:SocialMemory[]; recent: {action:string;at:number}[]; lastTogether?:number; evening?:HomeEvening;
 }
 export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
@@ -110,6 +152,7 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
   const partner=otherPerson(from);
   switch(a.context){
     case 'tired': return state.characters[partner].energy<58;
+    case 'eveningUnwind':return state.relationship.evening?.phase==='unwind';
     case 'lowBudget': return state.money < 5500;
     case 'savings': return state.savings.balance>=500;
     case 'overBudget': return state.savings.period===budgetPeriod(state.clock)&&
@@ -128,6 +171,11 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
   }
 }
 export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
+  const partner=otherPerson(from);
+  if(a.id==='eveningPlan'&&state.characters[partner].mood<45)
+    return 'Кажется, '+(partner==='alina'?'Алина':'Влад')+' сегодня не в духе. Может, посидим вместе за ужином и поддержим друг друга?';
+  if(a.id==='eveningPlan'&&state.characters[partner].energy<40)
+    return (partner==='alina'?'Алина устала.':'Влад устал.')+' Необязательно долго готовить: можно выбрать уже готовое блюдо и отдохнуть вдвоём.';
   const count=state.relationship.recent.filter(r=>r.action===a.id).length;
   return a.lines[count%a.lines.length].replace('{memory}',state.relationship.memories.at(-1)?.title??'')
     .replace('{lesson}',latestLesson(state,from)?.title??'')
@@ -148,22 +196,36 @@ export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
 }
 
 type Item = {id:string;label:string};
+const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'table'|'fridge')=>
+  state.readyFood.reduce((total,batch)=>total+
+    (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
+      ? batch.portions:0),0);
 const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush']);
-export const needsItem=(a:SocialActivity)=>!!a.object&&pairItems.has(a.object);
+export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
+  if(a.id==='eveningPlan') {
+    const cooked=recipeIds.filter(id=>!isGrillRecipe(id)&&
+      [from,otherPerson(from)].every(role=>recipeAvailability(state,role,id).available))
+      .map(id=>({id,label:'🍳 Приготовим · '+RECIPES[id].name}));
+    // Fresh food on the table is an actual shared stock, not imaginary servings.
+    const ready=recipeIds.filter(id=>state.meals[id]>=2&&freshPortions(state,'meal',id,'table')>=2)
+      .map(id=>({id:'leftovers:'+id,label:'🥘 Уже готово · '+RECIPES[id].name}));
+    const delivery=(Object.keys(TAKEOUT) as TakeoutId[]).filter(id=>state.takeout[id]>=2&&
+      freshPortions(state,'takeout',id,'table')>=2)
+      .map(id=>({id:'takeout:'+id,label:'🍕 Доставка на столе · '+TAKEOUT[id].name}));
+    return [...ready,...delivery,...cooked];
+  }
   switch(a.object){
     case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
       const count=a.object==='eat'?2:1;
-      return recipeIds.filter(id=>state.meals[id]>=count&&state.readyFood.some(batch=>
-        batch.kind==='meal'&&batch.item===id&&batch.storage===(a.object==='serve'?'fridge':'table')&&
-        batch.portions>=count))
+      return recipeIds.filter(id=>state.meals[id]>=count&&
+        freshPortions(state,'meal',id,a.object==='serve'?'fridge':'table')>=count)
         .map(id=>({id,label:RECIPES[id].name}));
     }
     case 'takeout':return Object.entries(TAKEOUT).filter(([id])=>
-      state.takeout[id as keyof typeof TAKEOUT]>=2&&state.readyFood.some(batch=>
-        batch.kind==='takeout'&&batch.item===id&&batch.storage==='table'&&batch.portions>=2))
+      state.takeout[id as keyof typeof TAKEOUT]>=2&&freshPortions(state,'takeout',id,'table')>=2)
       .map(([id,item])=>({id,label:item.name}));
     case 'film':return Object.entries(GENRES).map(([id,label])=>({id,label}));
     case 'lesson':return MATERIALS.filter(m=>m.channel==='tv'&&(!m.price||state.education.licenses.includes(m.id))&&

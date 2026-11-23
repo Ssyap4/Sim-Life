@@ -65,7 +65,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     addDirtyDish(state.dirtyDishes, isGrillRecipe(id) ? 'yardTable' : 'table');
     Object.assign(actor, { ...homeSeat(isGrillRecipe(id) ? 'yardTable' : 'table', role).approach,
       pose: 'sit' as const });
-    message = names[role] + ': поел(а) ' + meal.name;
+    message = names[role] + ': ' + (role==='vlad'?'поел':'поела') + ' ' + meal.name;
   }
   state.revision += 1;
   return { ok: true, state, message };
@@ -88,5 +88,5 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
   addDirtyDish(state.dirtyDishes, 'table');
   Object.assign(actor,{...homeSeat('table',role).approach,pose:'sit' as const});
   state.revision++;
-  return {ok:true,state,message:names[role]+': поел(а) '+meal.name};
+  return {ok:true,state,message:names[role]+': '+(role==='vlad'?'поел':'поела')+' '+meal.name};
 }

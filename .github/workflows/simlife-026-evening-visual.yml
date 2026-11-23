@@ -1,0 +1,43 @@
+name: Sim-Life 0.26 shared evenings mobile visual QA
+on:
+  push:
+    branches: [feat/life-together-evenings-026]
+    paths:
+      - qa-evening-026.html
+      - scripts/qa-026-evening-visual.mjs
+      - src/socialUI.ts
+      - src/shared/socialLife.ts
+      - src/shared/familyMoments.ts
+      - src/phoneUI.ts
+      - src/main.ts
+      - src/style.css
+      - .github/workflows/simlife-026-evening-visual.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  phone-evenings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Serve real phone UI source in an isolated cloud runner
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/qa026-vite.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-evening-026.html >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:4173/qa-evening-026.html >/dev/null
+      - name: Visualize before, during and after a shared evening on phone screens
+        run: node scripts/qa-026-evening-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-026-mobile-evening-cards
+          path: /tmp/simlife-026-evening-visual/
+          retention-days: 7

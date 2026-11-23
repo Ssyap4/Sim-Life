@@ -1,5 +1,6 @@
+import { familyMoments, type FamilyMomentId } from './shared/familyMoments';
 import {
-  activityItems, contextAvailable, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
+  activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
 } from './shared/socialLife';
 import { clockAt, clockLabel, gameMinutes } from './shared/life';
@@ -19,6 +20,11 @@ function button(text:string,click:()=>void,disabled=false){
 }
 export type SocialSend=(message:SocialCommand)=>boolean;
 const contextOrder=(a:SocialActivity,state:GameState,role:CharacterId)=>{
+  const evening=state.relationship.evening;
+  if(evening?.phase==='prepare'&&a.id==='cook'||
+    evening?.phase==='dine'&&a.id===eveningDinnerAction(evening)||
+    evening?.phase==='unwind'&&['film','tv','cuddle','eveningHeartTalk','petPlay'].includes(a.id))return 0;
+  if(a.id==='eveningPlan'&&state.clock.minute>=17*60)return 0;
   if(state.relationship.recent.slice(-3).some(e=>e.action===a.id))return 6;
   if(socialRestriction(a,state,role))return 4;
   if(a.context)return 0;
@@ -64,6 +70,10 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
             for(const {id,label} of activityItems(a,state,role)){
               const option=node('option',label);option.value=id;picker.append(option);
             }
+            const planned=state.relationship.evening;
+            const selected=planned&&eveningDishId(planned);
+            if(selected&&['cook','eat','takeout'].includes(a.id)&&
+              Array.from(picker.options).some(option=>option.value===selected))picker.value=selected;
             card.append(picker);
           }
           const offer=button(a.object?'Предложить занятие':'Предложить и дождаться ответа',()=>{
@@ -83,16 +93,67 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
 }
 
 export function renderRelationship(root:HTMLElement,state:GameState,role:CharacterId,suggest:(group:SocialGroup,id?:string)=>void,
-  onOffer:()=>void,offered:boolean,current:string|undefined){
+  onOffer:()=>void,offered:boolean,current:string|undefined,
+  offerMoment:(id:FamilyMomentId)=>void,partnerOnline:boolean){
   const p=state.relationship, now=gameMinutes(state.clock);
   const pane=node('section','','relationship');
   const cover=node('header','','relationship-hero');
   cover.append(node('small','ДОМ, КОТОРЫЙ МЫ ДЕЛИМ'),node('h2','Влад и Алина'),
     node('p',p.lastTogether!==undefined&&now-p.lastTogether<=1440?'Сегодня уже нашли время друг для друга.':'Вместе можно прожить даже самый обычный день.'));
   pane.append(cover);
+  const evening=p.evening;
+  const story=node('article','','relationship-event');
+  story.append(node('strong','💛 Наш домашний вечер'));
+  if(!evening||evening.phase==='complete'){
+    story.append(node('p',evening?.phase==='complete'
+      ? 'Прошлый вечер удался! Попробуйте новый способ ужина или другое совместное занятие.'
+      : 'Выберите: приготовить вдвоём, разделить готовый ужин или доставку. Затем побудьте вместе.'));
+    story.append(button('Спланировать вечер вдвоём',()=>suggest('home','eveningPlan')));
+  } else {
+    const phaseLabel=evening.phase==='prepare'?'1 из 3 · Готовим':
+      evening.phase==='dine'?'2 из 3 · Ужинаем':'3 из 3 · Отдыхаем';
+    const occasion=evening.occasion==='comfort'?'Сегодня особенно важна поддержка.':
+      evening.occasion==='rest'?'Усталость заметна — хорошо бы отдохнуть вместе.':
+      'Проведите этот вечер так, как нравится вам обоим.';
+    story.append(node('p',phaseLabel+' · '+eveningMealName(evening)));
+    story.append(node('p',evening.phase==='prepare'
+      ? 'Выбранное блюдо нужно приготовить вместе. Продукты спишутся после готовки.'
+      : evening.phase==='dine'
+        ? 'Две настоящие порции ждут на столе. Пригласите друг друга поужинать.'
+        : occasion));
+    if(evening.phase==='prepare'){
+      story.append(button('🍳 Приготовить вместе',()=>suggest('home','cook')));
+    } else if(evening.phase==='dine'){
+      const delivery=eveningDinnerAction(evening)==='takeout';
+      story.append(button(delivery?'🍕 Разделить доставку':'🍽️ Позвать к столу',
+        ()=>suggest('home',delivery?'takeout':'eat')));
+    } else {
+      story.append(button('📺 Посмотреть ТВ вдвоём',()=>suggest('fun','tv')));
+      story.append(button('💛 Поговорить по душам',()=>suggest('care','eveningHeartTalk')));
+      if(activityItems(SOCIAL_BY_ID.get('petPlay')!,state,role).length)
+        story.append(button('🐾 Поиграть с питомцем',()=>suggest('home','petPlay')));
+    }
+    story.append(button('Выбрать другой план',()=>suggest('home','eveningPlan')));
+  }
+  pane.append(node('h3','Планы на вечер'),story);
+  const moments=familyMoments(state,role);
+  if(moments.length){
+    const momentCards=node('section','','relationship-moments');
+    momentCards.append(node('p','Сегодня дома есть повод сделать что-нибудь друг для друга.','relationship-moment-intro'));
+    for(const moment of moments){
+      const card=node('article','','relationship-event relationship-moment');
+      card.append(node('strong',moment.emoji+' '+moment.title),node('p',moment.description));
+      const action=button('Предложить вдвоём',()=>offerMoment(moment.id),!partnerOnline||!!current||offered);
+      action.setAttribute('aria-label','Предложить семейный момент: '+moment.title);
+      card.append(action);
+      if(!partnerOnline)card.append(node('small','Партнёр пока не в сети','social-reason'));
+      momentCards.append(card);
+    }
+    pane.append(node('h3','Поводы дня'),momentCards);
+  }
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
-  const available=SOCIAL_ACTIVITIES.filter(a=>!socialRestriction(a,state,role))
+  const available=SOCIAL_ACTIVITIES.filter(a=>!['eveningPlan','evening','eveningTea'].includes(a.id)&&!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
   const suggestions=node('div','','relationship-suggestions');
   for(const a of [...new Map(available.map(a=>[a.group,a])).keys()].slice(0,4).map(group=>available.find(a=>a.group===group)!)) {

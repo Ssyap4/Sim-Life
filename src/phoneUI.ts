@@ -2,6 +2,7 @@ import { renderRelationship } from './socialUI';
 import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
+import type { FamilyMomentId } from './shared/familyMoments';
 import { createBillingUI, type BillingApp } from './billingUI';
 import { createEducationUI, educationAppointments, type EducationView } from './educationUI';
 import { createCareerUI } from './careerUI';
@@ -38,7 +39,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   sendService: (command: ServiceCommand) => boolean, sendBudget: (command: BudgetCommand) => boolean,
   sendEducation: (command: EducationCommand) => boolean,
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
-  social: {suggest:(group:SocialGroup,id?:string)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
+  social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
   thoughts:ReturnType<typeof createThoughtUI>) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
@@ -174,7 +175,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     }
     if (app === 'relationship') {
       const scroll=info.scrollTop;
-      renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current());
+      renderRelationship(info,state,role,social.suggest,social.offer,social.pending(),social.current(),
+        social.moment,online.includes(role==='vlad'?'alina':'vlad'));
       info.scrollTop=scroll;
     }
     if (app==='calendar') {

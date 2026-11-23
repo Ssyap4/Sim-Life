@@ -1,0 +1,43 @@
+name: Sim-Life 0.26 full 3D shared evening walkthrough
+on:
+  push:
+    branches: [feat/life-together-evenings-026]
+    paths:
+      - src/shared/socialLife.ts
+      - src/shared/familyMoments.ts
+      - src/phoneUI.ts
+      - src/main.ts
+      - src/mobile-ux-020.css
+      - src/socialUI.ts
+      - server/society.ts
+      - server/homeSessions.ts
+      - src/game/**
+      - scripts/qa-026-evening-3d.mjs
+      - .github/workflows/simlife-026-evening-3d.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-real-3d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Build production 3D client with its real models
+        run: npx vite build
+      - name: Drive a real render, real server and two confirmed player sessions in the cloud
+        run: node --import tsx scripts/qa-026-evening-3d.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-026-real-3d-iphone-evening
+          path: /tmp/simlife-026-real-3d/
+          retention-days: 7
+          if-no-files-found: warn
