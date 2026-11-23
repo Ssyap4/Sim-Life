@@ -3,6 +3,7 @@ on:
   push:
     branches: [feat/living-personalities-027]
     paths:
+      - src/game/World.ts
       - src/game/Actor.ts
       - src/game/PetActor.ts
       - src/game/PetIdle.ts
