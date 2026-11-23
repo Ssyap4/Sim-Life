@@ -116,9 +116,11 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
     return deny('Нельзя перекрывать дверь или проход между комнатами');
   if(fixedPhysical(state).some(obstacle=>intersects(physical,obstacle)))
     return deny('Здесь стена, встроенная мебель или сантехника');
-  if(!product.walkable && others.some(other=>
-      !FURNITURE_BY_ID.get(other.sku)?.walkable&&
-      intersects(physical,furnitureFootprint(other,.018))))
+  if(!product.walkable && others.some(other=>{
+      const otherInfo=FURNITURE_BY_ID.get(other.sku);
+      return (!otherInfo?.walkable||otherInfo?.category==='pets') &&
+        intersects(physical,furnitureFootprint(other,.018));
+    }))
     return deny('Место занято другой мебелью');
   // Ordinary rugs may be overlapped, but a PET BED must never be installed
   // underneath a sofa, cabinet, scratcher, or another pet bed.
