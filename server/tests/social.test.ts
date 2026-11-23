@@ -513,8 +513,11 @@ test('A two-phone home evening stays synchronized through every real server acti
       {action:'tv',phase:'complete'},
     ] as const;
     for(const step of stages){
-      if(step.action!=='eveningPlan')await new Promise(resolve=>setTimeout(resolve,650));
-      const offer=await propose(v,a,step.action,'item' in step?step.item:undefined);
+      if(step.action!=='eveningPlan')await new Promise(resolve=>setTimeout(resolve,1000));
+      const offer=await propose(v,a,step.action,'item' in step?step.item:undefined).catch(async error=>{
+        const rejection=await v.take('error').catch(()=>undefined);
+        throw new Error(step.action+': '+(rejection?.reason??String(error)));
+      });
       await accept(v,a,offer.id);
       const first=await started(v,'vlad'),second=await started(v,'alina');
       assert.equal(first.command.type,'together');
