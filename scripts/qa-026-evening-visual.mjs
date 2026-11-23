@@ -8,8 +8,8 @@ const errors=[];
 const results=[];
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader']});
 try{
-  for(const width of [320,390,430]){
-    const page=await browser.newPage({viewport:{width,height:844},
+  for(const [width,height] of [[320,568],[390,844],[430,932]]){
+    const page=await browser.newPage({viewport:{width,height},
       isMobile:true,hasTouch:true,deviceScaleFactor:1});
     page.on('pageerror',error=>errors.push(width+': '+error.message));
     await page.goto('http://127.0.0.1:4173/qa-evening-026.html',
@@ -49,7 +49,7 @@ try{
         clientWidth:document.documentElement.clientWidth,
         storyText:document.querySelector('#relationship')?.textContent,
       }));
-      results.push({width,phase,action,...sizes});
+      results.push({width,height,phase,action,...sizes});
       if(sizes.scrollWidth>width+1)
         errors.push('Horizontal overflow '+width+' '+phase+' '+JSON.stringify(sizes));
       if(phase==='complete'&&!sizes.storyText.includes('Наш вечер вдвоём'))
@@ -79,7 +79,7 @@ try{
       await page.locator('#phone').screenshot({path:path.join(dir,width+'-moment-'+scenario+'.png')});
       const scrollWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
       if(scrollWidth>width+1)errors.push('Horizontal overflow in family moment '+width+' '+scenario);
-      results.push({width,scenario,momentId,scrollWidth});
+      results.push({width,height,scenario,momentId,scrollWidth});
     }
     await page.close();
   }
