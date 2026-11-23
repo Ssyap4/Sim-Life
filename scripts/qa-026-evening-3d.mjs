@@ -45,7 +45,7 @@ const snap=async(name)=>{
 };
 try{
   server=await startServer({port:0,host:'127.0.0.1',dataDir:saves,distDir:resolve('dist'),
-    testNoCodes:true,taskTimeScale:.13});
+    testNoCodes:true,taskTimeScale:.28});
   const base='http://127.0.0.1:'+server.port;
   browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader',
@@ -88,8 +88,13 @@ try{
       errors.push(action+': missing synchronized 3D motion');
     try {
       await waitPacket('task_active',p=>p.role==='vlad'&&p.taskId===first.taskId,20000);
-      await sleep(240);
+      await sleep(150);
       await snap(shot);
+      const close=page.locator('.running-task[data-role="vlad"] [data-focus-shared]');
+      await close.waitFor({state:'visible',timeout:7000});
+      await close.click();
+      await sleep(820);
+      await snap(shot+'-close-up');
     }catch(error){
       errors.push(action+': '+String(error));
       await snap(shot+'-fallback');
