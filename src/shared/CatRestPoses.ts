@@ -35,28 +35,28 @@ export interface CatRestPose {
 /** Distinct hand-authored targets: no random transform per animation frame. */
 export const CAT_REST_POSES:Readonly<Record<CatRestPoseId,CatRestPose>>={
   sofa_loaf:{
-    yaw:Math.PI/2,pitch:.025,roll:.015,sink:.250,length:.87,height:.94,
-    forePawY:-.165,forePawZ:-.075,hindPawY:-.175,hindPawZ:.095,
+    yaw:Math.PI/2,pitch:.025,roll:.015,sink:.235,length:.87,height:.94,
+    forePawY:-.130,forePawZ:-.075,hindPawY:-.140,hindPawZ:.095,
     spineYaw:.13,spinePitch:.045,headPitch:.09,headTurn:.11,headDrop:.038,tailCurl:1,
   },
   sofa_side_rest:{
-    yaw:Math.PI/2,pitch:.045,roll:.15,sink:.265,length:.92,height:.96,
-    forePawY:-.22,forePawZ:.085,hindPawY:-.165,hindPawZ:.115,
+    yaw:Math.PI/2,pitch:.045,roll:.15,sink:.245,length:.92,height:.96,
+    forePawY:-.125,forePawZ:.085,hindPawY:-.135,hindPawZ:.115,
     spineYaw:.15,spinePitch:.055,headPitch:.23,headTurn:.14,headDrop:.075,tailCurl:.92,
   },
   bed_curl:{
-    yaw:Math.PI/2-.26,pitch:.035,roll:.085,sink:.255,length:.82,height:.93,
-    forePawY:-.155,forePawZ:-.105,hindPawY:-.145,hindPawZ:.155,
+    yaw:Math.PI/2-.26,pitch:.035,roll:.085,sink:.240,length:.82,height:.93,
+    forePawY:-.135,forePawZ:-.105,hindPawY:-.145,hindPawZ:.155,
     spineYaw:.29,spinePitch:.085,headPitch:.24,headTurn:.20,headDrop:.090,tailCurl:1.12,
   },
   chair_compact:{
-    yaw:0,pitch:.015,roll:0,sink:.235,length:.71,height:.91,
-    forePawY:-.165,forePawZ:-.080,hindPawY:-.175,hindPawZ:.095,
+    yaw:0,pitch:.015,roll:0,sink:.230,length:.71,height:.91,
+    forePawY:-.130,forePawZ:-.080,hindPawY:-.145,hindPawZ:.095,
     spineYaw:.10,spinePitch:.045,headPitch:.04,headTurn:.08,headDrop:.020,tailCurl:1.14,
   },
   mat_curl:{
-    yaw:0,pitch:.035,roll:.10,sink:.255,length:.83,height:.93,
-    forePawY:-.16,forePawZ:-.095,hindPawY:-.15,hindPawZ:.145,
+    yaw:0,pitch:.035,roll:.10,sink:.240,length:.83,height:.93,
+    forePawY:-.135,forePawZ:-.095,hindPawY:-.145,hindPawZ:.145,
     spineYaw:.22,spinePitch:.070,headPitch:.22,headTurn:.18,headDrop:.070,tailCurl:1.08,
   },
 };
