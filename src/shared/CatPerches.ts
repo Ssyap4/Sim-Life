@@ -1,6 +1,7 @@
 import { FURNITURE_BY_ID, type FurnishingState, type FurnitureProduct } from './furniture';
 import { HOME_PLACEMENTS } from './home';
 import type { FloorPoint } from '../game/navigation';
+import type { CatRestPoseId } from './CatRestPoses';
 
 /** Shared, save-safe contact: a FLOOR approach and a separate real cushion top.
  * Every future purchasable item with a supported shape uses the same rules.
@@ -11,6 +12,9 @@ export interface CatPerch {
   surface: { x:number; y:number; z:number };
   yaw: number;
   kind: 'curl'|'watch';
+  /** Furniture-owned socket: support, heading and eligible authored poses.
+   * Optional only so pre-existing preview routines can still be read. */
+  catAnchor?: {x:number;y:number;z:number;yaw:number;poses:CatRestPoseId[]};
 }
 type PerchFurniture = Pick<FurnitureProduct,'id'|'shape'|'width'|'depth'|'height'>;
 const CAT_SEATS = new Set(['sofa','corner','armchair','ottoman','bench','bed','daybed']);
@@ -55,12 +59,19 @@ function make(key:string,item:PerchFurniture,x:number,z:number,rotation:number,
   const seat=rotate(0,localZ,rotation);
   // Face the ROOM/front edge, never the backrest or wall.
   const heading=rotate(0,sign,rotation);
+  const surface={x:x+seat.x,y:seatHeight(item,starter)+.085,z:z+seat.z};
+  const yaw=Math.atan2(heading.x,heading.z);
+  const poses:CatRestPoseId[]=item.shape==='bed'||item.shape==='daybed'
+    ? ['bed_curl']
+    : item.shape==='sofa'||item.shape==='corner'
+      ? ['sofa_loaf','sofa_side_rest']
+      : ['chair_compact'];
   return {
     key, approach:{x:x+foot.x,z:z+foot.z},
-    surface:{x:x+seat.x,y:seatHeight(item,starter)+.085,z:z+seat.z},
-    yaw:Math.atan2(heading.x,heading.z),
+    surface,yaw,
     kind:item.shape==='bed'||item.shape==='daybed'||item.shape==='sofa'||
       item.shape==='corner'||item.shape==='ottoman'?'curl':'watch',
+    catAnchor:{...surface,yaw,poses},
   };
 }
 /** Stable ID survives reload; recomputed positions invalidate moved/sold items. */
