@@ -1,8 +1,8 @@
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush';
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch'] as const;
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch';
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch'] as const;
 export interface PetRoutine {
   kind: typeof PET_ROUTINES[number];
   target: number;
@@ -11,6 +11,11 @@ export interface PetRoutine {
   route: WalkRoute;
   /** Present ONLY for a real cat-on-furniture routine. Ground navigation stays at approach. */
   perch?: import('./CatPerches').CatPerch;
+  /** Ground destination for a pet called to an owner or fetching a ball. */
+  goal?: FloorPoint;
+  /** Real ball position and path distance before the dog picks it up. */
+  fetchPoint?: FloorPoint;
+  fetchPickupDistance?: number;
 }
 
 export interface PetState {
@@ -90,12 +95,13 @@ export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[
   }
 }
 
-export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target' | 'perch'>) {
+export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target' | 'perch' | 'goal'>) {
   const pet = PETS[id];
   if (routine.kind === 'eat') return { x: pet.bowl.x, z: pet.bowl.z + .51 };
   if (routine.kind === 'sleep') return pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
+  if (routine.kind === 'come' || routine.kind === 'fetch') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }
 
@@ -114,5 +120,8 @@ export const PET_ACTION_NAMES: Record<PetAction, string> = {
   play: 'Поиграть',
   pet: 'Погладить',
   brush: 'Расчесать',
+  call: 'Позвать к себе',
+  perch: 'Попросить полежать на мебели',
+  fetch: 'Принести мячик',
 };
 export const PET_IDS = ['verdell', 'simba'] as const;
