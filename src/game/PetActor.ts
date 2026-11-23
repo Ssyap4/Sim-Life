@@ -345,7 +345,9 @@ export class PetActor {
     const eating = this.reaction === 'feed' ? weight : this.routine === 'eat' ? settled : 0;
     const perched=this.id==='simba' && this.perch && !this.route.length ?
       THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;
-    const sleeping = this.routine === 'sleep' ? settled : perched*.84;
+    const curled=perched*(this.perch?.kind==='curl'?1:0);
+    const lookout=perched*(this.perch?.kind==='watch'?1:0);
+    const sleeping = this.routine === 'sleep' ? settled : curled*.92;
     const toilet = this.routine === 'toilet' ? settled : 0;
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
@@ -368,7 +370,7 @@ export class PetActor {
     if (this.rig.back?.morphTargetInfluences) {
       this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
     }
-    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045;
+    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045 - curled*.13;
     this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15
       + greeting * Math.max(0, Math.sin(t * 7.5)) * .044 - stretching * (dog ? .027 : .032)
       - tiredHungry * .024 + foodLook * .017 * Math.sin(t * 6)
@@ -377,7 +379,7 @@ export class PetActor {
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
       + greeting * .022 * Math.sin(t * 6.5) + happyHop * .075 * Math.sin(this.idleTime*8.2);
     this.body.rotation.x = -.13 * toilet + (dog ? -.10 : .11) * stretching
-      + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49;
+      + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49 + curled*.09;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
       + stretching * (dog ? .055 : .09);
     // Only the lightweight render group moves onto the cushion. The root and
@@ -386,7 +388,11 @@ export class PetActor {
     const surface=this.perch??this.leavingPerch;
     if(!dog && surface && this.perchProgress>0){
       this.root.updateWorldMatrix(true,false);
-      this.perchLocal.set(surface.surface.x,surface.surface.y+.25,surface.surface.z);
+      // surface.y already includes a small clearance over the real cushion.
+      // The paw meshes extend below their pivots; adding +.25 used to leave
+      // Simba ~40 cm ABOVE the sofa in actual WebGL frames. Correct the
+      // foot-to-surface offset instead of visually teleporting the root.
+      this.perchLocal.set(surface.surface.x,surface.surface.y-.125,surface.surface.z);
       this.root.worldToLocal(this.perchLocal);
       const t=this.perchProgress;
       const fraction=t*t*(3-2*t);
@@ -394,8 +400,8 @@ export class PetActor {
       this.body.position.z=this.perchLocal.z*fraction;
       this.body.position.y+=this.perchLocal.y*fraction+
         Math.sin(Math.PI*t)*Math.max(.42,surface.surface.y*.67);
-      this.body.scale.x=1-.08*perched;
-      this.body.scale.z*=1-.18*perched;
+      this.body.scale.x=1-.11*curled;
+      this.body.scale.z*=1-.26*curled;
     }else{
       this.body.position.x=0;
       this.body.position.z=0;
@@ -403,8 +409,10 @@ export class PetActor {
     }
     this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
       - sniffing * .065 - grooming * .034 - stretching * .035
-      - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018;
-    this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053) + nuzzle*.065;
+      - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018
+      - curled*.10;
+    this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053) + nuzzle*.065
+      + curled*.06;
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
         - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
@@ -413,7 +421,7 @@ export class PetActor {
     this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y,
       (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 +
         attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
-        + watching * .24 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
+        + watching * .24 + lookout*.28 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
         + catInterest * Math.sin(t * 1.25) + nuzzle*.26
       + pounce * .19 * Math.sin(this.idleTime*2.1), smooth);
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
@@ -430,9 +438,10 @@ export class PetActor {
     this.tail.rotation.y = dog
       ? (0.09 + 0.47 * weight + greeting * .74 + ownerWag) * flick
       : (0.12 + 0.37 * playful + watching * .16 + catInterest) * flick + 0.038 * Math.sin(t * 3.5)
-        - attention * 0.13 + grooming * .07 * Math.sin(t * 5) + nuzzle*.14*Math.sin(this.idleTime*3.1);
+        - attention * 0.13 + grooming * .07 * Math.sin(t * 5) + nuzzle*.14*Math.sin(this.idleTime*3.1)
+        + curled*1.00;
     this.tail.rotation.x = dog ? 0.025 * pulse - foodLook * .22 - tiredHungry * .11
-      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08;
+      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08 - curled*.92;
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
     for (let i = 0; i < 2; i++) {
@@ -464,7 +473,7 @@ export class PetActor {
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
         (dog ? 0 : .018 * playful * (front ? 1 : 0))
         + (!dog && i === 0 ? grooming * .36 : 0)
-        + (!dog && perched ? .09*perched : 0)
+        + (!dog && curled ? .09*curled : 0)
         + (dog && i === 0 ? foodLook * .18 * (0.5 + .5 * Math.sin(t * 6))
           + greeting * .09 * (0.5 + .5 * Math.sin(t * 9))
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
@@ -473,6 +482,7 @@ export class PetActor {
         + (dog && front ? .47 * begging : 0);
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
+        (!dog && curled ? (front?-.065:.045)*curled : 0) +
         (!dog && i === 0 ? grooming * .10 : 0) + (dog && front ? .075 * begging : 0);
       paw.position.x = (i < 2 ? -1 : 1) * (dog ? .16 : front ? .094 : .109) +
         (!dog && i === 0 ? grooming * .04 : 0)

@@ -19,8 +19,8 @@ const CAT_SEATS = new Set(['sofa','corner','armchair','ottoman','bench','bed','d
  * New SKUs of these shapes automatically acquire safe resting positions. */
 export function catPerchable(item:PerchFurniture):boolean {
   return CAT_SEATS.has(item.shape) &&
-    item.width >= (item.shape==='armchair' ? .80 : item.shape==='ottoman' ? .56 : .95) &&
-    item.depth >= (item.shape==='bench' ? .44 : item.shape==='ottoman' ? .55 : .72);
+    item.width >= (item.shape==='armchair' ? .80 : item.shape==='ottoman' ? .78 : .95) &&
+    item.depth >= (item.shape==='bench' ? .70 : item.shape==='ottoman' ? .78 : .72);
 }
 function seatHeight(item:PerchFurniture,starter:'sofa'|'bed'|null):number {
   if(starter==='sofa')return .84; // actual cushion in InteriorArt
@@ -47,7 +47,7 @@ function make(key:string,item:PerchFurniture,x:number,z:number,rotation:number,
   const sign=starter==='sofa'?-1:1;
   const localZ=sign*(item.shape==='bed'||item.shape==='daybed'
     ? Math.min(.52,item.depth*.24) : item.shape==='sofa'||item.shape==='corner'
-      ? item.depth*.08 : 0);
+      ? item.depth*.14 : 0);
   const foot=rotate(0,sign*(item.depth/2+.67),rotation);
   const seat=rotate(0,localZ,rotation);
   const heading=rotate(0,-sign,rotation);

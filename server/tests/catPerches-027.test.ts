@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {initialState} from '../../src/shared/protocol';
-import {FURNITURE_CATALOG} from '../../src/shared/furniture';
+import {FURNITURE_CATALOG,FURNITURE_BY_ID} from '../../src/shared/furniture';
 import {catPerchCandidates,catPerchable,currentCatPerch} from '../../src/shared/CatPerches';
 import {HOME_FLOOR} from '../../src/shared/home';
 import {placeObstacles} from '../../src/shared/locations';
@@ -47,6 +47,8 @@ test('0.27 v6: future purchased sofas, beds and seats rotate their landing/launc
   assert.equal(currentCatPerch(state.furnishing,locations[0]),null);
   assert.deepEqual(initial.placed.map(p=>p.id),[41,42,43,44,45]);
   assert.equal(FURNITURE_CATALOG.filter(catPerchable).length>12,true);
+  assert.equal(catPerchable(FURNITURE_BY_ID.get('pouf-joy')!),false);
+  assert.equal(catPerchable(FURNITURE_BY_ID.get('bench-mori')!),false);
 });
 
 test('0.27 v6: a server-planned cat jump uses a reachable floor route and saved safe surface',()=>{
@@ -85,6 +87,13 @@ test('0.27 v6: physical cat animation clears furniture on a jump, returns to flo
     highest=Math.max(highest,mesh.getWorldPosition(new THREE.Vector3()).y);
   }
   assert.ok(highest>.95,'The jump must clear the cushion lip');
+  // A real paw's lowest vertex must now land ON the cushion, rather than
+  // staying high above it as the first software-WebGL film exposed.
+  const paw=(cat as unknown as {paws:THREE.Group[]}).paws[0];
+  const bounds=new THREE.Box3().setFromObject(paw,true);
+  const cushionTop=spot.surface.y-.085;
+  assert.ok(Math.abs(bounds.min.y-cushionTop)<.14,
+    'Cat paw must physically touch sofa surface, not levitate: '+bounds.min.y);
   assert.ok(cat.root.position.y===0 && cat.root.position.x===0 && cat.root.position.z===0,
     'Navigation root remains on safe FLOOR point');
   cat.followRoute([new THREE.Vector3(.5,0,0)],'wander');
