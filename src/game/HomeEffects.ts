@@ -4,6 +4,7 @@ import type { Program } from '../shared/homeLife';
 import { GENRES } from '../shared/homeLife';
 import { SKILL_IDS, SKILLS } from '../shared/education';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
+import { drawTvProgramMoment } from './TvProgramMoments';
 
 const themes: Record<Program, [string,string,string,string]> = {
   lesson: ['#365d59','#638980','#eddcb5','Учебное телевидение'],
@@ -213,6 +214,9 @@ export class HomeEffects {
     } else if(program!=='travel' && program!=='tech') {
       silhouette(102+walk,113,36,program==='crime');
     }
+    // Layer richer action over the EXISTING screen scenes; subtitles and 
+    // progress strip stay in their previous positions.
+    drawTvProgramMoment(c,program,t);
     c.fillStyle='#182028'; c.fillRect(0,112,256,32);
     c.fillStyle='#fff3da'; c.font='bold 12px sans-serif'; c.fillText(title,10,132);
     c.fillStyle=light; c.fillRect(10,139,(t*10)%235,1);
