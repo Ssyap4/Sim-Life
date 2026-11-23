@@ -6,6 +6,8 @@ import {storageUsage,FRIDGE_CAPACITY} from '../../src/shared/storageSpace';
 import {applyAction} from '../logic';
 import {choosePetIdle} from '../../src/game/PetIdle';
 import {PetActor} from '../../src/game/PetActor';
+import {Actor} from '../../src/game/Actor';
+import {Vector3} from 'three';
 
 function stocked(portions:number){
   const state=initialState();
@@ -89,4 +91,51 @@ test('Simba head is slimmer than before, without affecting Verdell scale',()=>{
   const head=(cat as unknown as {head:{scale:{x:number;y:number;z:number}}}).head;
   assert.ok(head.scale.x<=.82 && head.scale.y<=.87 && head.scale.z<=.9);
   assert.ok(cat.root.scale.x>dog.root.scale.x);
+});
+
+test('serving two refrigerated portions is a real transfer; serving again respects limits',()=>{
+  const source=initialState();
+  source.meals.omelette=4;
+  addReadyFood(source,'meal','omelette',4,'fridge');
+  const served=applyAction(source,'alina','kitchenServe');
+  assert.equal(served.ok,true);
+  if(!served.ok)return;
+  assert.equal(served.state.meals.omelette,4,'household count unchanged');
+  assert.equal(served.state.readyFood.filter(b=>b.storage==='table')
+    .reduce((total,b)=>total+b.portions,0),2);
+  assert.equal(served.state.readyFood.filter(b=>b.storage==='fridge')
+    .reduce((total,b)=>total+b.portions,0),2);
+  assert.equal(served.state.money,source.money);
+  assert.ok(served.state.readyFood.every(b=>b.expiresAt>0));
+  assert.equal(source.readyFood.length,1,'original save was not mutated');
+  assert.match(served.message,/2 порц/);
+  const again=applyAction(served.state,'vlad','kitchenServe');
+  assert.equal(again.ok,true);
+  if(again.ok)assert.equal(again.state.readyFood.filter(b=>b.storage==='table')
+    .reduce((total,b)=>total+b.portions,0),4);
+});
+test('serving and storage forbid fake food when surfaces are empty or full',()=>{
+  const empty=applyAction(initialState(),'vlad','kitchenServe');
+  assert.equal(empty.ok,false);
+  const full=initialState();
+  full.meals.omelette=14;
+  addReadyFood(full,'meal','omelette',12,'table');
+  addReadyFood(full,'meal','omelette',2,'fridge');
+  const denied=applyAction(full,'vlad','kitchenServe');
+  assert.equal(denied.ok,false);
+  if(!denied.ok)assert.match(denied.reason,/столе недостаточно места/);
+  assert.equal(full.readyFood[1].storage,'fridge');
+});
+test('covered food box is visible while carrying and clears after action cancellation',()=>{
+  const actor=new Actor('vlad',[0,0]);
+  assert.equal(actor.hasFoodContainer(),false);
+  actor.carryFoodContainer();
+  assert.equal(actor.hasFoodContainer(),true);
+  actor.walkPath([new Vector3(1,0,1)],()=>{});
+  assert.equal(actor.hasFoodContainer(),true,'walking keeps existing physical prop');
+  actor.hideFoodContainer();
+  assert.equal(actor.hasFoodContainer(),false);
+  actor.carryFoodContainer();
+  actor.setPose('idle');
+  assert.equal(actor.hasFoodContainer(),false,'cancelling action hides prop');
 });
