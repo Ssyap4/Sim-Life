@@ -136,7 +136,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   pane.append(node('h3','Планы на вечер'),story);
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
-  const available=SOCIAL_ACTIVITIES.filter(a=>!socialRestriction(a,state,role))
+  const available=SOCIAL_ACTIVITIES.filter(a=>a.id!=='eveningPlan'&&!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
   const suggestions=node('div','','relationship-suggestions');
   for(const a of [...new Map(available.map(a=>[a.group,a])).keys()].slice(0,4).map(group=>available.find(a=>a.group===group)!)) {
