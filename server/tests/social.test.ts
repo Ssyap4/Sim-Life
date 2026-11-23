@@ -457,9 +457,10 @@ test('A home evening progresses only after both complete cooking, dinner and a s
     state=result.state;
   };
   together('eveningPlan','omelette');
-  assert.deepEqual(state.relationship.evening,{
-    recipe:'omelette',phase:'prepare',startedAt:gameMinutes(state.clock),
-  });
+  assert.equal(state.relationship.evening?.recipe,'omelette');
+  assert.equal(state.relationship.evening?.kind,'cook');
+  assert.equal(state.relationship.evening?.phase,'prepare');
+  assert.equal(state.relationship.evening?.startedAt,gameMinutes(state.clock));
   assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,0);
   together('tv');
   assert.equal(state.relationship.evening?.phase,'prepare','relaxing before dinner cannot finish the story');
