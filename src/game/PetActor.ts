@@ -297,7 +297,7 @@ export class PetActor {
         dog ? .79+Math.cos(r*4.4)*.08*playful : .73+Math.cos(r*5.8)*.06*playful,
       );
       this.playToy.rotation.y=r*(dog?4.6:2.1);
-      this.playToy.rotation.z=(dog?.22:-.11)*Math.sin(r*5)*playful;
+      this.playToy.rotation.z=(dog ? .22 : -.11)*Math.sin(r*5)*playful;
     }
     const stretch = dog ? 0 : 0.66 * attention + 0.53 * playful - 0.30 * eating;
     if (this.rig.back?.morphTargetInfluences) {
