@@ -19,7 +19,7 @@ try{
       ['none','00-plan','Спланировать вечер вдвоём','eveningPlan'],
       ['prepare','01-prepare','Приготовить вместе','cook'],
       ['dine','02-dinner','Позвать к столу','eat'],
-      ['unwind','03-relax','Отдохнуть вместе','film'],
+      ['unwind','03-relax','Посмотреть ТВ вдвоём','tv'],
       ['complete','04-memories','Спланировать вечер вдвоём','eveningPlan'],
     ]){
       await page.evaluate(phase=>window.testStage(phase),phase);
