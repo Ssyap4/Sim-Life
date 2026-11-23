@@ -64,7 +64,7 @@ export const CAT_REST_POSES:Readonly<Record<CatRestPoseId,CatRestPose>>={
 export function chooseCatRestPose(
   options:readonly CatRestPoseId[]|undefined,key:string,startedAt:number,kind:'curl'|'watch',
 ):CatRestPoseId{
-  const candidates=options?.length?options:
+  const candidates:readonly CatRestPoseId[]=options?.length?options:
     [kind==='watch'?'chair_compact':'sofa_loaf'];
   if(candidates.length===1)return candidates[0]!;
   // Same visual on both devices while alternating two sofa poses on later rests.
