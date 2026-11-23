@@ -22,7 +22,7 @@ import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
-import { homeHabitSuggestions } from '../src/shared/personalityHabits';
+import { homeHabitCommands } from '../src/shared/personalityHabits';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
 import { otherRole } from './social';
@@ -121,6 +121,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const fullRoutineTurn=new Map<CharacterId,number>();
+  // Ephemeral habit memory: never alter saved household state or manual queues.
+  const recentHomeHabits=new Map<CharacterId,import('../src/shared/protocol').ActionId[]>();
 
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
   const storageOpen = new Map<CharacterId, string>();
@@ -475,15 +477,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
           if(turn%3===1&&!sharedWindow){
-            const chores=homeHabitSuggestions(state,role,Math.floor(turn/3));
-            for(const actionId of chores){
-              const plan=planTask({type:'act',actionId});
+            const recent=recentHomeHabits.get(role)??[];
+            const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent);
+            for(const {habit,command} of chores){
+              const plan=planTask(command);
               if(!plan || taskAccessError(state,plan.command) ||
                   plan.resource && (homeTasks.reserved(plan.resource) ||
                     [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
               if(!evaluateTask(state,role,plan.command).ok)continue;
               lastAutoCare.set(role,now);
               beginTask(role,socket,plan,true);
+              // Remember *started* work, not an unavailable suggestion.
+              recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
               started=true;
               break;
             }

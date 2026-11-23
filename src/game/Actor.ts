@@ -90,6 +90,10 @@ export class Actor {
   setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
   /** Local visual awareness only: no game state or social actions are changed. */
   setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
+    // An approaching partner gets one friendly acknowledgement after a
+    // genuine gap in proximity, never an automatic social task or kiss.
+    if (partnerYaw !== null && this.idleContext.partnerYaw === null)
+      this.noticePartnerArrival();
     this.idleContext.petYaw = petYaw;
     this.idleContext.partnerYaw = partnerYaw;
   }

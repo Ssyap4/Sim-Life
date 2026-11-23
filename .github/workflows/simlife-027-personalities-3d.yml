@@ -9,6 +9,8 @@ on:
       - src/game/PetIdle.ts
       - src/game/CharacterDemeanor.ts
       - src/shared/personalityHabits.ts
+      - src/shared/petPersonality.ts
+      - server/pets.ts
       - scripts/qa-027-visual.mjs
       - .github/workflows/simlife-027-personalities-3d.yml
   workflow_dispatch:

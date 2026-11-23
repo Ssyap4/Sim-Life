@@ -40,6 +40,8 @@ export class PetActor {
   private idleTime = 0;
   private idleCooldown: number;
   private idleTurn = 0;
+  private welcomeUntil = -1;
+  private nextWelcome = 0;
 
   constructor(readonly id: PetId) {
     const { x, z } = PETS[id].home;
@@ -76,7 +78,13 @@ export class PetActor {
     this.hungerMarker.material.needsUpdate = true;
   }
 
-  setAmbient(context: PetIdleContext): void { this.ambient = context; }
+  setAmbient(context: PetIdleContext): void {
+    // React once when an owner *arrives* within view, not every frame
+    // they remain nearby. The real pet routine is still authoritative.
+    if (context.personNearby && !this.ambient.personNearby &&
+        this.clock >= this.nextWelcome) this.welcomeUntil = this.clock + 6;
+    this.ambient = context;
+  }
 
   currentIdleGesture(): PetIdleGesture | null { return this.idleGesture; }
 
@@ -258,7 +266,16 @@ export class PetActor {
       }
     } else {
       this.idleCooldown -= dt;
-      if (this.idleCooldown <= 0) {
+      const glad = this.ambient.personNearby && this.ambient.satiety >= 30 &&
+        this.ambient.energy >= 38 && this.ambient.happiness >= 62 &&
+        this.ambient.bond >= 52;
+      if (this.clock <= this.welcomeUntil && glad) {
+        // Dog: a joyful bounce; cat: a quieter, unmistakably feline nuzzle.
+        this.idleGesture = this.id === 'verdell' ? 'happyHop' : 'nuzzle';
+        this.idleTime = 0;
+        this.welcomeUntil = -1;
+        this.nextWelcome = this.clock + 50;
+      } else if (this.idleCooldown <= 0) {
         this.idleGesture = choosePetIdle(this.id, this.ambient, this.idleTurn++);
         this.idleTime = 0;
       }

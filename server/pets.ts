@@ -9,6 +9,7 @@ import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
 import { sampleWalk } from '../src/game/navigation';
 import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
+import { preferredPetWanderTarget } from '../src/shared/petPersonality';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -60,7 +61,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
     else if (pet.bladder <= 63) kind = 'toilet';
     else if (pet.energy <= 63) kind = 'sleep';
-    let target = Math.floor(random() * PET_ROAM.length);
+    let target = kind === 'wander' ? preferredPetWanderTarget(id,now,random)
+      : Math.floor(random() * PET_ROAM.length);
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
     // Two pets must not reserve the exact same roaming destination.
     // Keep real feeding/sleep/toilet destinations unchanged.

@@ -15,6 +15,10 @@ const files=openServerFiles(saves);
 const state=initialState();
 Object.assign(state.characters.vlad,{mood:16,energy:32,hunger:78,fun:49});
 Object.assign(state.characters.alina,{mood:93,energy:93,hunger:81,fun:83});
+// Both residents stand near enough for an actual in-game friendly glance,
+// but far enough apart to keep the existing collision separation stable.
+Object.assign(state.characters.vlad,{x:-1.0,z:2.38});
+Object.assign(state.characters.alina,{x:1.0,z:2.38});
 for(const pet of ['simba','verdell']){
   Object.assign(state.pets[pet],{satiety:85,energy:85,happiness:93,bond:88});
   state.petBowls[pet]=2;
@@ -60,6 +64,8 @@ try{
     if(!data.canvas||!data.lobbyHidden)errors.push(name+': real WebGL/client not running '+JSON.stringify(data));
   };
   await makeShot('01-home-unhappy-vlad-happy-alina');
+  await wait(1300);
+  await makeShot('01b-nearby-family-reaction');
   // Actual existing in-game portrait showcase, not an invented camera API.
   // Capture all four in close-up so a human can inspect faces, shoulders,
   // ears, paws and tail; repeat each to see a real animation progression.
