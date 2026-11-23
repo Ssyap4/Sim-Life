@@ -50,7 +50,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   const tired=state.characters[to];
   if(tired.mood<=38||tired.energy<=38)add({
     id:'roughDay',emoji:'💛',title:'Сегодня нужен отдых',
-    description:personName(to)+' явно устал(а). Можно вместе присесть на диван и спокойно поговорить — без спешки и расходов.',
+    description:personName(to)+(to==='vlad'?' явно устал.':' явно устала.')+' Можно вместе присесть на диван и спокойно поговорить — без спешки и расходов.',
     action:'sofaTalk',bonus:'Забота и небольшой отдых для уставшего партнёра',
   });
   const hungry=PET_IDS.filter(id=>state.pets[id].satiety<45&&state.petBowls[id]===0&&
@@ -63,7 +63,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   });
   if(shiftFinished(state,to,now))add({
     id:'afterShift',emoji:'🏠',title:'Встреча после работы',
-    description:personName(to)+' недавно вернулся(ась) со смены. Давай проведём немного времени на диване и поговорим о прошедшем дне.',
+    description:personName(to)+(to==='vlad'?' недавно вернулся':' недавно вернулась')+' со смены. Давай проведём немного времени на диване и поговорим о прошедшем дне.',
     action:'sofaTalk',bonus:'Немного сил и общения после работы',
   });
   const food=activityItems(SOCIAL_BY_ID.get('eat')!,state,from)[0];
@@ -73,7 +73,6 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
     description:'На столе уже есть два свежих блюда. Можно поужинать вместе — без повторной готовки и без бесплатных порций.',
     action:food?'eat':'takeout',item:(food??delivery).id,bonus:'Настоящие порции, сытость и уют за общим столом',
   });
-  if(shiftFinished(state,to,now)&&false) { /* reserved for a future career event */ }
   if(lessonMilestone(state,to,now)||Object.values(state.careers.residents[to].progress)
     .some(p=>p?.history?.some(e=>e.title==='Повышение'&&e.at<=now&&now-e.at<=720)))add({
     id:'goodNews',emoji:'✨',title:'Есть что отпраздновать',
@@ -101,9 +100,9 @@ export function momentDenial(state:GameState,from:CharacterId,command:SocialInte
     return 'Этот семейный момент сейчас недоступен. Проверьте свежие предложения.';
 }
 
-export function momentReward(state:GameState,from:CharacterId,id:string):string|undefined {
-  const moment=familyMoments(state,from).find(m=>m.id===id);
-  if(!moment)return;
+export function momentReward(state:GameState,from:CharacterId,moment:FamilyMoment):string {
+  // The server captured this fully validated moment BEFORE the real task. By now
+  // the food may be eaten and the bowl full, so never re-evaluate its old trigger.
   const now=gameMinutes(state.clock),to=otherPerson(from);
   state.relationship.memories.push({
     action:FAMILY_MOMENT_PREFIX+moment.id,group:'care',at:now,
