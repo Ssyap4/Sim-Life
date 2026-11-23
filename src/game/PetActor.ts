@@ -85,9 +85,14 @@ export class PetActor {
     this.idleTime = 0;
     this.reaction = action;
     this.reactionTime = 0;
+    this.playToy.visible = false;
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number): void {
+    // A scheduled meal, sleep or walk always overrides a temporary play prop.
+    this.reaction = null;
+    this.reactionTime = 0;
+    this.playToy.visible = false;
     this.idleGesture = null;
     this.idleTime = 0;
     this.route = route;
