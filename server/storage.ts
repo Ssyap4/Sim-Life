@@ -142,6 +142,11 @@ const isValidState = (value: unknown): value is GameState => {
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
         routine.route && point(routine.route.from) && Array.isArray(routine.route.path) && routine.route.path.length <= 60 &&
         routine.route.path.every(p => point(p)) &&
+        ((routine.kind!=='come'&&routine.kind!=='fetch') ||
+          routine.target===0 && point(routine.goal) &&
+          (routine.kind!=='fetch'||point(routine.fetchPoint) &&
+            Number.isFinite(routine.fetchPickupDistance) &&
+            Number(routine.fetchPickupDistance)>=0 && Number(routine.fetchPickupDistance)<=40)) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&
