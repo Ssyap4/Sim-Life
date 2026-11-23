@@ -367,6 +367,11 @@ export class PetActor {
     const curled=perched*(this.perch?.kind==='curl'?1:0);
     const lookout=perched*(this.perch?.kind==='watch'?1:0);
     const sleeping = this.routine === 'sleep' ? settled : curled*.92;
+    // Purchased soft mats need an unmistakably reclined pose, not a pet
+    // standing upright with the sleep icon. Keep the old floor/sofa poses.
+    const matNap=this.onPetBed&&this.routine==='sleep'?settled:0;
+    const dogNap=dog?matNap:0;
+    const catNap=!dog?matNap:0;
     const toilet = this.routine === 'toilet' ? settled : 0;
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
@@ -406,18 +411,22 @@ export class PetActor {
     if (this.rig.back?.morphTargetInfluences) {
       this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
     }
-    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045 - curled*.21;
+    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045 - curled*.21
+      - dogNap*.23 - catNap*.10;
     this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15
-      + (this.onPetBed&&this.routine==='sleep'?.075:0) + scratching*.13
+      + matNap*.14 + scratching*.13
       + greeting * Math.max(0, Math.sin(t * 7.5)) * .044 - stretching * (dog ? .027 : .032)
       - tiredHungry * .024 + foodLook * .017 * Math.sin(t * 6)
       - playBow * .064 + pounce * (.026*Math.sin(Math.PI*this.idleTime/PET_IDLE_SECONDS)-.033)
       + begging * .105 + happyHop * .142 * (0.5 + 0.5 * Math.sin(this.idleTime * 8.2));
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
+      + dogNap*.045 + catNap*.025
       + greeting * .022 * Math.sin(t * 6.5) + happyHop * .075 * Math.sin(this.idleTime*8.2);
-    this.body.rotation.x = -.13 * toilet - scratching*.18 + (dog ? -.10 : .11) * stretching
+    this.body.rotation.x = -.13 * toilet - scratching*.18 + dogNap*.16 + catNap*.08
+      + (dog ? -.10 : .11) * stretching
       + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49 + curled*.04;
-    this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
+    this.body.scale.z = 1 + dogNap*.12 - catNap*.14 +
+      (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
       + stretching * (dog ? .055 : .09);
     // Only the lightweight render group moves onto the cushion. The root and
     // all pathfinding/collision points remain safely on the floor approach.
@@ -444,11 +453,13 @@ export class PetActor {
       this.body.position.z=0;
       this.body.scale.x=1;
     }
-    this.head.position.y = (dog ? .728 : .542) + scratching*.08 + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
+    this.head.position.y = (dog ? .728 : .542) - dogNap*.17 - catNap*.11 +
+      scratching*.08 + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
       - sniffing * .065 - grooming * .034 - stretching * .035
       - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018
       - curled*.12;
-    this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053) + nuzzle*.065
+    this.head.position.z = (dog ? .241 : .405) + dogNap*.06 - catNap*.08 +
+      eating * (dog ? 0.027 : 0.053) + nuzzle*.065
       - curled*.075;
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
@@ -502,7 +513,8 @@ export class PetActor {
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
       paw.rotation.x = pawLift * playful + (scratching&&front ? -.68*scratching*(.55+.45*Math.sin(t*12+i*Math.PI)) : 0) + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
-        sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31)
+        sleeping * (front ? -.55 : .37) + dogNap*(front?-.43:.22) +
+        catNap*(front?-.24:.10) + toilet * (front ? .02 : .31)
         + (!dog && perched ? (front?-.47:.24)*perched : 0)
         + (dog ? front && i === 0 ? -.42 * foodLook * (0.6 + .4 * Math.sin(t * 6))
           + greeting * -.23 * (0.5 + .5 * Math.sin(t * 9))
