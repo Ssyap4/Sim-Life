@@ -27,7 +27,7 @@ export function validRelationship(value:unknown):value is Relationship {
   const validEvening=evening===undefined||(typeof evening==='object'&&evening!==null&&
     Object.hasOwn(RECIPES,evening.recipe)&&['prepare','dine','unwind','complete'].includes(evening.phase)&&
     stamp(evening.startedAt)&&
-    (evening.phase==='complete' ? stamp(evening.completedAt)&&evening.completedAt!>=evening.startedAt :
+    (evening.phase==='complete' ? stamp(evening.completedAt)&&evening.completedAt!==undefined&&evening.completedAt>=evening.startedAt :
       evening.completedAt===undefined));
   return validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
     r.memories.every(m=>m&&stamp(m.at)&&typeof m.action==='string'&&['talk','care','home','romance','fun'].includes(m.group)&&
