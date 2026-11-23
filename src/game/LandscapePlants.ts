@@ -217,7 +217,7 @@ const flowerPalettes = [
 ] as const;
 
 export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, w: number, d: number,
-  palette: number, count: number, seed: number, distant = false) {
+  palette: number, count: number, seed: number, distant = false, canPlant?: (x:number,z:number)=>boolean) {
   const rng = landscapeRandom(seed);
   const hues = flowerPalettes[palette % flowerPalettes.length];
   const stems = distant ? Math.ceil(count * .46) : count;
@@ -225,6 +225,7 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
     const a = i * 2.39996 + rng() * .7, r = Math.sqrt((i + .5) / stems) * .49;
     const px = x + Math.sin(a) * w * r, pz = z + Math.cos(a) * d * r;
     const h = .19 + rng() * (palette === 2 ? .32 : .18);
+    if(canPlant&&!canPlant(px,pz))continue;
     const tip: XYZ = [px + Math.sin(a) * .04,y + h,pz + Math.cos(a) * .04];
     if(distant) {
       batch.cluster(hues[i%3],tip,[.092,palette===2?.14:.045,.084],a,true);

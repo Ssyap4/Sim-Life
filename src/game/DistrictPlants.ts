@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DISTRICT_BEDS, DISTRICT_TREES, DISTRICT_PATHS, DISTRICT_PLAZA, DISTRICT_FLOOR, DISTRICT_OBSTACLES,
-  DISTRICT_SITES, DISTRICT_POND, sitePoint } from '../shared/district';
+  DISTRICT_SITES, DISTRICT_POND, districtPoint, inDistrictPond, sitePoint } from '../shared/district';
 import { NEIGHBOR_HOMES, homePoint, homeStops } from '../shared/neighborHomes';
 import { pointIsClear } from './navigation';
 import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, PlantBatch,
@@ -87,6 +87,8 @@ for (const [x,z,hue] of [
 function within(x:number,z:number,area:GroundArea,padding=0) {
   return Math.abs(x-area.x)<area.w/2+padding && Math.abs(z-area.z)<area.d/2+padding;
 }
+const canPlantOnGround = (x:number,z:number) =>
+  !besideTrail(x,z,.17) && !paved.some(p=>within(x,z,p,.08)) && !inDistrictPond(districtPoint({x,z}));
 
 const plots: GroundPatch[] = [
   {x:-9,z:-3.8,w:17,d:14,ink:[154,183,114],opacity:.60},
@@ -134,8 +136,9 @@ export function buildDistrictPlants(root:THREE.Group, materialPool:THREE.Materia
     const {beds,distantBeds}=sector(g.x,g.z);
     const edge=i<publicGardens.length?.22:0;
     const args=[g.x,g.y,g.z,g.w-edge,Math.max(.21,g.d-edge),g.palette,g.count,i*875+43] as const;
-    growFlowers(beds,...args);
-    growFlowers(distantBeds,...args,true);
+    const allowed=g.y<.1?canPlantOnGround:undefined;
+    growFlowers(beds,...args,false,allowed);
+    growFlowers(distantBeds,...args,true,allowed);
   }
   for (const [i,s] of shrubs.entries()) {
     const {beds,distantBeds}=sector(s.x,s.z);
