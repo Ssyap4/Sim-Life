@@ -1,7 +1,7 @@
 import { GROCERIES, TAKEOUT, GROCERY_CATEGORIES, type IngredientId, type TakeoutId } from './food';
 import { PETS, type PetId } from './pets';
 
-export type MarketCategory = 'dairy' | 'bakery' | 'meat' | 'vegetables' | 'pantry' | 'fruit' | 'grill' | 'takeout' | 'pets';
+export type MarketCategory = 'dairy' | 'bakery' | 'meat' | 'vegetables' | 'pantry' | 'fruit' | 'fish' | 'grill' | 'takeout' | 'pets';
 export interface MarketProduct {
   id: string;
   stockKey: string;
