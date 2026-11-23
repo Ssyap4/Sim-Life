@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NEIGHBOR_HOMES, homeStops, type NeighborHome } from '../shared/neighborHomes';
+import { buildNeighborYard } from './NeighborYardArt';
 export { NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { batchRigidParts, cube, drum, finish, orb, softCube } from './ArtKit';
 
@@ -127,38 +128,14 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
   part(house, softCube, [.12, .85, .14], [mailX,.42,face+3.88], 0x8a725d,'wood');
   part(house, softCube, [.39, .28, .33], [mailX,.87,face+3.88], home.roof, 'metal');
   part(house, cube, [.27,.025,.033], [mailX,.88,face+4.06], home.trim,'ceramic');
-  part(house, cube, [.48,.055,.34], [-w*.36,.51,face+2.46], 0xb99b78,'wood');
-  for(const dx of [-.18,.18]) {
-    part(house, cube, [.06,.49,.07], [-w*.36+dx,.25,face+2.46], 0x99785d,'wood');
-  }
-  part(house, drum, [.13,.17,.13], [-w*.36,.65,face+2.46], 0xe6cfaa,'ceramic');
+  // New distinct outdoor rooms replace the formerly repeated stool.
   if (index === 1 || index === 2) {
     // A modest secondary volume gives the orchard and rear home different
     // silhouettes without introducing heavy unique meshes.
     part(house, cube, [1.85, 1.76, 2.03], [w / 2 + .61, .89, -d * .18], home.plaster, 'ceramic');
     part(house, cube, [2.18, .19, 2.42], [w / 2 + .61, 1.88, -d * .18], home.roof, 'ceramic');
   }
-  const gardenZ = face + 2.10;
-  const gardenX = w * .37;
-  if(index===0) {
-    for(let row=0;row<3;row++) {
-      part(house,softCube,[1.13,.14,.43],[-gardenX,.05,gardenZ-1.05+row*.57],0xb28059,'wood');
-    }
-  } else if(index===1) {
-    for(const side of [-1,1])for(let n=0;n<3;n++)
-      part(house,softCube,[.52,.12,.43],[side*(gardenX-.20+n*.22),.03,gardenZ-1.13+n*.29],0xd0c3a4,'ceramic');
-    part(house, softCube,[.28,.51,.32],[gardenX,.26,gardenZ-.10],0x877b66,'ceramic');
-  } else if(index===2) {
-    for(const side of [-1,1]){
-      part(house, softCube,[.68,.16,.43],[side*gardenX,.08,gardenZ-1.1],0x9a6f55,'wood');
-      part(house,softCube,[1.39,.11,.54],[side*gardenX,.022,gardenZ-.4],0x8c7054,'ceramic');
-    }
-  } else {
-    for(const x of [-gardenX-.48,-gardenX+.49])
-      part(house,cube,[.074,.75,.49],[x,.40,gardenZ-1.2],0x637b74,'metal');
-    part(house,softCube,[1.15,.09,.51],[-gardenX,.54,gardenZ-1.18],0xb38b63,'wood');
-    part(house,softCube,[1.16,.21,.095],[-gardenX,.74,gardenZ-1.38],0xb38b63,'wood');
-  }
+  buildNeighborYard(house,home,index);
   batchRigidParts(house, true);
   root.add(house);
 }
