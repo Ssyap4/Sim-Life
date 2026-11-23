@@ -1,5 +1,6 @@
 import { GAME_BY_ID, type ComputerGame, type VideoClipId } from '../shared/computerGames';
 import type { CharacterId } from '../shared/protocol';
+import { drawComputerDetails } from './ComputerScreenDetails';
 
 export type ComputerScene = {
   mode: 'idle'|'game'|'video'|'code'|'hair'|'study'|'browser'|'mail'|'notes';
@@ -204,7 +205,10 @@ export function drawComputerScene(c:CanvasRenderingContext2D,scene:ComputerScene
   paint(c,bg as unknown as string,0,0,W,H);
   const game=scene.mode==='game' && scene.game ? GAME_BY_ID.get(scene.game) : undefined;
   if(game)gamePicture(c,game,t);
-  else if(scene.mode!=='idle')workPicture(c,scene,t);
+  else if(scene.mode!=='idle'){
+    workPicture(c,scene,t);
+    drawComputerDetails(c,scene,t);
+  }
   else{
     for(let i=0;i<7;i++){
       dot(c,33+i*37,42+Math.sin(t*.43+i)*6,12+(i%2)*3,scene.role==='alina'?'#a781b251':'#66b5c13a');
