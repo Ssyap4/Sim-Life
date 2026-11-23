@@ -2154,7 +2154,7 @@ export class World {
         ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
       // Read support height once per route from the rotated physical model.
       // The server's X/Z, floor approach and attachment key still apply.
-      const perch=routine.perch;
+      const perch=routine.perch?currentCatPerch(state.furnishing,routine.perch):null;
       const bed=routine.kind==='sleep'?routine.equipment:undefined;
       let supportHeight: number | undefined;
       let support:THREE.Object3D|undefined;
@@ -2190,11 +2190,12 @@ export class World {
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
         scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
-        routine.perch,
+        perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined);
+        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined,
+        routine.startedAt);
     }
   }
 
