@@ -6,6 +6,7 @@ import { skillRank } from './education';
 import { PETS, PET_IDS } from './pets';
 import { gameMinutes } from './life';
 import { serviceAvailable } from './services';
+import { SPENDING_CATEGORIES, SPENDING_KEYS,budgetPeriod } from './familyBudget';
 import type { CharacterId, GameState } from './protocol';
 import type { Point } from './locations';
 
@@ -16,7 +17,7 @@ export const SOCIAL_GROUPS = {
 export type SocialGroup = keyof typeof SOCIAL_GROUPS;
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll';
-type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry';
+type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'cafeMeal'|'sofa'|'table';
 export type SocialActivity = {
@@ -47,6 +48,10 @@ const objects: readonly SocialActivity[] = [
   {id:'sofaTalk',title:'Поговорить на диване',group:'care',lines:['Давай сядем на диван. Можно спокойно поговорить, если хочется.'],replies:['Расскажу, что у меня на уме.','Давай начнём с тишины.'],motion:'sitTalk',seconds:14,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
   {id:'eveningTea',title:'Обсудить вечер за столом',group:'talk',lines:['Посидим за столом и выберем, как провести вечер?'],replies:['Давай сначала выберем время для отдыха.','Я бы начал с чего-нибудь совсем простого.'],motion:'sitTalk',seconds:12,object:'table'},
+  {id:'moneyReview',title:'Спланировать бюджет вдвоём',group:'home',
+    lines:['Давай сядем за стол и сверим семейные деньги, накопления и предстоящие расходы.'],
+    replies:['Сначала посмотрим, что осталось на жизнь.','Проверим счета и нашу копилку.'],
+    motion:'sitTalk',seconds:17,object:'table',memorable:true},
 ];
 const patterns: Record<string,PairMotion> = {
   shift:'explain',story:'explain',decision:'explain',mood:'listen',setback:'listen',quiet:'listen',listen:'listen',help:'listen',
@@ -56,7 +61,8 @@ const patterns: Record<string,PairMotion> = {
 const contexts: Record<string,Context> = {shift:'shift',promotion:'promotion',achievement:'achievement',memory:'memory',
   filmTalk:'film',afterWork:'shift',tired:'tired',
   shortBudget:'lowBudget',moneyCare:'lowBudget',petHungerHelp:'hungryPet',
-  readyDinner:'readyFood',foodFreshness:'readyFood',emptyShelves:'lowPantry'};
+  readyDinner:'readyFood',foodFreshness:'readyFood',emptyShelves:'lowPantry',
+  savingMilestone:'savings',overspending:'overBudget',billAlert:'billDue'};
 const special = ['comfortHug','shoulder','softHug','closeHug','kiss','cheek','slowDance','promotion','afterWork','storyGame'];
 const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(group=>dialogue[group].trim().split('\n').map((row):SocialActivity=>{
   const [id,title,a,b,...replies]=row.split('|');
@@ -105,6 +111,10 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
   switch(a.context){
     case 'tired': return state.characters[partner].energy<58;
     case 'lowBudget': return state.money < 5500;
+    case 'savings': return state.savings.balance>=500;
+    case 'overBudget': return state.savings.period===budgetPeriod(state.clock)&&
+      SPENDING_KEYS.some(id=>state.savings.spent[id]>state.savings.limits[id]);
+    case 'billDue': return state.billing.bills.some(b=>b.paidAt===null);
     case 'hungryPet': return state.pets.verdell.satiety < 45 || state.pets.simba.satiety < 45;
     case 'readyFood': return state.readyFood.some(batch => batch.kind === 'meal' && batch.portions > 0);
     case 'lowPantry': return ['eggs','bread','milk','chicken','potato','rice'].filter(key=>
@@ -123,7 +133,18 @@ export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
     .replace('{lesson}',latestLesson(state,from)?.title??'')
     .replace('{balance}',Math.round(state.money).toLocaleString('ru-RU'))
     .replace('{pet}',state.pets.verdell.satiety <= state.pets.simba.satiety
-      ? 'Верделл' : 'Симба');
+      ? 'Верделл' : 'Симба')
+    .replaceAll('{savings}',state.savings.balance.toLocaleString('ru-RU')+' ₽')
+    .replaceAll('{goal}',state.savings.goal==='reserve'?'подушка безопасности':
+      state.savings.goal==='home'?'обновление дома':
+      state.savings.goal==='alinaStudio'?'студия Алины':
+      state.savings.goal==='vladStudio'?'студия Влада':'совместный отдых')
+    .replaceAll('{category}',SPENDING_CATEGORIES[
+      SPENDING_KEYS.find(id=>state.savings.spent[id]>state.savings.limits[id])??'takeout'].label.toLowerCase())
+    .replaceAll('{spent}',(state.savings.spent[
+      SPENDING_KEYS.find(id=>state.savings.spent[id]>state.savings.limits[id])??'takeout']).toLocaleString('ru-RU'))
+    .replaceAll('{debt}',state.billing.bills.filter(b=>b.paidAt===null)
+      .reduce((total,b)=>total+b.amount,0).toLocaleString('ru-RU')+' ₽');
 }
 
 type Item = {id:string;label:string};
