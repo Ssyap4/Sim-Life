@@ -65,3 +65,28 @@ test('Personal servings are bounded by real resized tabletops, not centered in s
     }
   }
 });
+
+
+test('restaurant recipes have distinct bounded 3D food geometry, not generic fallback portions',()=>{
+  const root=new THREE.Group();
+  const ids=['lasagna','mushroomRisotto','beefStroganoff','salmonLemon',
+    'creamyChicken','shrimpLinguine','duckOrange','pepperMedallions','pannaCotta',
+    'cremeBrulee','lambRosemary','beefWellington','seaBassRisotto','chocolateFondant'] as RecipeId[];
+  const signatures=new Set<string>();
+  for(const id of ids){
+    selectIndoorDish(root,id);
+    const meshList:THREE.Mesh[]=[];
+    root.traverse(obj=>{if(obj instanceof THREE.Mesh)meshList.push(obj);});
+    assert.ok(meshList.length>=2,id+' should have separate colors/shapes');
+    const bounds=new THREE.Box3().setFromObject(root);
+    const size=new THREE.Vector3();bounds.getSize(size);
+    assert.ok(size.x>0.08&&size.z>0.08&&size.x<0.4&&size.z<0.4&&size.y<0.24,id+' tabletop bounds');
+    const signature=meshList.map(mesh=>{
+      const p=mesh.geometry.getAttribute('position');
+      return [p.count,mesh.geometry.index?.count??0,...Array.from(p.array).slice(0,12).map(n=>Math.round(n*1000))].join(':');
+    }).join('|');
+    assert.ok(!signatures.has(signature),id+' needs its own geometry, not a re-skinned copy');
+    signatures.add(signature);
+  }
+  assert.equal(signatures.size,ids.length);
+});
