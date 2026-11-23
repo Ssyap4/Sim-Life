@@ -3,7 +3,7 @@ import { findRoute } from '../game/navigation';
 import type { NeighborAction, NeighborPose, NeighborProfile } from './neighbors';
 import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, yardFeatures, type NeighborPoint, type NeighborHome } from './neighborHomes';
 
-type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number; inside?: boolean };
+type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number; inside?: boolean; seat?: number; lookYaw?: number };
 type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond' |
   'reading' | 'barbecue' | 'vegetables' | 'flowers' | 'relax';
 export type NeighborVisit = { resident: number; home: number; start: number; end: number; kind: LifeKind; companion?: number; venue?: string };
@@ -58,6 +58,16 @@ class Sequence {
     this.steps.push({...to,t:from.t+Math.max(.65,dist(from,to)/this.pace),
       action:'walk',yaw:yawTo(from,to),inside:false});
     return this;
+  }
+  sit(yard:ReturnType<typeof yardFeatures>):this {
+    this.move(yard.benchSide).move(yard.benchApproach);
+    this.hold('look',.60,yard.benchYaw);
+    this.steps.push({...yard.bench,t:this.elapsed+1.25,action:'sitRest',yaw:yard.benchYaw,seat:1});
+    return this;
+  }
+  stand(yard:ReturnType<typeof yardFeatures>):this {
+    this.steps.push({...yard.benchApproach,t:this.elapsed+1.15,action:'sitRest',yaw:yard.benchYaw,seat:0});
+    return this.move(yard.benchSide);
   }
   hold(action:NeighborAction,duration:number,yaw=this.last.yaw,inside=!!this.last.inside):this {
     this.steps.push({...this.last,t:this.elapsed+duration,action,yaw,inside});
@@ -123,17 +133,17 @@ function homePlan(home:NeighborHome,kind:LifeKind,resident:number,day:number,slo
       .hold('prepareGrill',7+f*3,yard.grillYaw).hold('grill',19+f*9,yard.grillYaw)
       .hold('taste',4+f*3,yard.grillYaw).move(stops.porch).move(stops.door);
   } else if(kind==='reading'||kind==='relax') {
-    s.move(stops.porch).move(yard.benchApproach).move(yard.bench)
+    s.move(stops.porch).sit(yard)
       .hold(kind==='reading'?'sitRead':'sitPhone',16+f*9,yard.benchYaw)
       .hold(kind==='reading'?'sitSip':'sitRest',8+f*4,yard.benchYaw)
-      .move(yard.benchApproach).move(stops.porch).move(stops.door);
+      .stand(yard).move(stops.porch).move(stops.door);
   } else if(kind==='tea') {
     // A few sips while approaching the bench retain the standing tea gesture.
     s.move(stops.porch).move(stops.tea).hold('sip',7+3*f,home.yaw)
-      .move(yard.benchApproach).move(yard.bench)
+      .sit(yard)
       .hold('sitSip',14+6*f,yard.benchYaw)
       .hold(f>.57?'sitPhone':'sitRest',5+4*f,yard.benchYaw)
-      .move(yard.benchApproach).move(stops.porch).move(stops.door);
+      .stand(yard).move(stops.porch).move(stops.door);
   } else if(kind==='mail') {
     s.move(stops.porch).move(stops.gate).move(stops.mail).hold('mail',9,home.yaw)
       .move(stops.gate).hold('stretch',6).move(stops.porch).hold('look',4).move(stops.door);
@@ -176,19 +186,20 @@ function gardenConversation(hostIndex:number,guestIndex:number,day:number):[Plan
   const lane=publicRoute(homeStopsGuest.sidewalk,homeStopsHost.sidewalk);
   if(!lane)return null;
   const hostSequence=new Sequence(homeStopsHost.door,2.35);
-  hostSequence.move(homeStopsHost.porch).move(yard.benchApproach).move(yard.bench);
+  hostSequence.move(homeStopsHost.porch).sit(yard);
   const guestSequence=new Sequence(homeStopsGuest.door,2.32);
   guestSequence.move(homeStopsGuest.porch).move(homeStopsGuest.gate);
   follow(guestSequence,lane);
   guestSequence.move(homeStopsHost.gate).move(homeStopsHost.porch).move(yard.guestSpot);
   const ready=Math.max(hostSequence.elapsed,guestSequence.elapsed)+3.5;
   const minutes=23+variation(day,hostIndex,guestIndex)*6;
-  hostSequence.until(ready,'sitRest').hold('sitChat',minutes,yawTo(yard.bench,yard.guestSpot));
+  hostSequence.until(ready,'sitRest').hold('sitChat',minutes,yard.benchYaw);
+  hostSequence.last.lookYaw=yawTo(yard.bench,yard.guestSpot)-yard.benchYaw;
   guestSequence.until(ready,'look').hold('chat',minutes,yawTo(yard.guestSpot,yard.bench));
   guestSequence.hold('wave',2.4).move(homeStopsHost.porch).move(homeStopsHost.gate);
   reverse(guestSequence,lane);
   guestSequence.move(homeStopsGuest.gate).move(homeStopsGuest.porch).move(homeStopsGuest.door);
-  hostSequence.hold('sitRest',11).move(yard.benchApproach)
+  hostSequence.hold('sitRest',11).stand(yard)
     .move(homeStopsHost.porch).move(homeStopsHost.door);
   return [
     {resident:hostIndex,home:hostIndex,start:0,end:0,kind:'chat',
@@ -370,7 +381,13 @@ export function livingNeighborPose(index:number,gameMinute:number,profiles:reado
   while(step<keys.length-1&&keys[step].t<local)step++;
   const from=keys[step-1],to=keys[step],range=Math.max(.0001,to.t-from.t),frac=clamp01((local-from.t)/range);
   let x=to.x,z=to.z,yaw=to.yaw,action:NeighborAction=to.action,blend=0,gait=0;
-  if(to.action==='walk'){
+  const seat=(from.seat??0)+((to.seat??0)-(from.seat??0))*smooth(frac);
+  if((from.seat??0)!==(to.seat??0)){
+    action='look';
+    const shift=smooth(frac);
+    x=from.x+(to.x-from.x)*shift;
+    z=from.z+(to.z-from.z)*shift;
+  } else if(to.action==='walk'){
     x=from.x+(to.x-from.x)*frac;
     z=from.z+(to.z-from.z)*frac;
     gait=(from.action==='walk'?1:smooth((local-from.t)/.58))*
@@ -383,7 +400,7 @@ export function livingNeighborPose(index:number,gameMinute:number,profiles:reado
   const fadeIn=smooth(local/1.6),fadeOut=smooth((plan.end-time)/1.6);
   const indoor=from.inside&&to.inside?0:to.inside?1-smooth(frac):from.inside?smooth(frac):1;
   const opacity=fadeIn*fadeOut*indoor;
-  return {x,z,yaw,action,visible:opacity>.001,opacity,gestureBlend:blend,
+  return {x,z,yaw,action,visible:opacity>.001,opacity,gestureBlend:blend,seat,lookYaw:(to.lookYaw??0)*blend,
     intent:plan.kind,gait,carrying:plan.kind==='errand'&&local>(plan.end-plan.start)*.54&&
       local<plan.steps[plan.steps.length-1].t-.7};
 }

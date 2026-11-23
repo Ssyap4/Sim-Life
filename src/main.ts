@@ -114,7 +114,7 @@ app.innerHTML = `
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
-      <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small><button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled>⏸</button></span>
+      <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small><button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled>Ⅱ</button></span>
       <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span class="need-glyph" aria-hidden="true"><i></i><i></i><i></i></span><span class="hud-label"> Потребности</span></button>
       <button id="map-btn" type="button" disabled><svg class="ui-outline-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span class="hud-label"> Карта</span></button>
       <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><svg class="ui-outline-icon" aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="6.5" cy="7.2" rx="1.2" ry="1.8"/><ellipse cx="11" cy="5.3" rx="1.3" ry="1.9"/><ellipse cx="15.6" cy="6.4" rx="1.3" ry="1.9"/><ellipse cx="19" cy="10.2" rx="1.2" ry="1.8"/><path d="M9.3 12.2c1.7-2.2 3.9-2.4 5.5-.2l2.4 3c2.3 2.9.1 5.8-3 4.5a5.1 5.1 0 0 0-4.2 0c-3 1.3-5.3-1.7-3.1-4.4z"/></svg><small class="pet-alert" hidden></small></button>
@@ -556,7 +556,8 @@ function renderPause(): void {
   const desc = document.querySelector<HTMLElement>('#pause-description')!;
   const actions = document.querySelector<HTMLElement>('#pause-actions')!;
   toggle.disabled = !active;
-  toggle.textContent = timeStatus.paused ? '▶' : '⏸';
+  toggle.textContent = '';
+  toggle.dataset.paused = String(timeStatus.paused);
   toggle.setAttribute('aria-label', timeStatus.paused ? 'Продолжить игру' : 'Поставить игру на паузу');
   const request = timeStatus.pauseRequestedBy;
   sheet.hidden = !timeStatus.paused && !request;
@@ -1465,12 +1466,17 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       : null;
     const modelsStartedMs = performance.now();
     const useBlender = params.get('characters') !== 'procedural';
+    const simbaModel=import('./game/SimbaRig').then(({loadSimbaRig})=>loadSimbaRig()).catch(error=>{
+      console.warn('Не удалось загрузить модель Симбы',error);
+      return undefined;
+    });
     const characters = useBlender ? await import('./game/BlenderCharacter')
       .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='tee' ? ['alina-tee-upper'] : []))
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};
       }) : {};
+    const simbaRig = await simbaModel;
     const modelsReadyMs = performance.now();
     world = new World(canvas, (id) => {
       if (id === 'vlad' || id === 'alina') openSocialActions(id);
@@ -1530,7 +1536,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           locationUI.closeMap();
         }
       },
-    });
+    }, simbaRig);
     world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
       const model=state?.furnishing.placed.find(item=>item.id===id);
       if(model&&isSleepBed(model))openPurchasedBedActions(id);

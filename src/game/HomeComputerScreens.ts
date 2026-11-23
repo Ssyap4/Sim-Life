@@ -29,19 +29,16 @@ export class HomeComputerScreens {
       texture.minFilter=THREE.LinearFilter;
       texture.magFilter=THREE.LinearFilter;
       const laptopScreen=device==='laptop';
-      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(laptopScreen?.464:.994,laptopScreen?.256:.634),
-        new THREE.MeshBasicMaterial({map:texture,toneMapped:false,side:THREE.DoubleSide,depthWrite:false}));
-      if (laptopScreen) {
-        // Follow the same lid tilt as CareerArt; remain just in front of its static screen.
-        mesh.position.set(0,1.059,-.008);
-        mesh.rotation.x=-.2;
-      } else {
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(laptopScreen?.456:.994,laptopScreen?.2565:.634),
+        new THREE.MeshBasicMaterial({map:texture,toneMapped:false,side:laptopScreen?THREE.FrontSide:THREE.DoubleSide,depthWrite:laptopScreen}));
+      const surface=laptopScreen?parent.getObjectByName('Laptop display surface'):parent;
+      if (!laptopScreen) {
         mesh.position.set(0,1.52,-.211);
         this.desktopPanel=mesh;
       }
       mesh.renderOrder=5;
       mesh.castShadow=false;mesh.receiveShadow=false;
-      parent.add(mesh);
+      surface?.add(mesh);
       return {canvas,ctx,texture,lastFrame:-1,lastMode:''};
     };
     this.screens={desktop:add(desktop,'desktop'),laptop:add(laptop,'laptop')};

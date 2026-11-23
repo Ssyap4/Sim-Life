@@ -37,6 +37,8 @@ export function homeStops(home: NeighborHome) {
  * This is presentation data only; no friendship/inventory/save migration. */
 export const YARD_STYLES = ['tomato','herbs','flowers','cabbage'] as const;
 export type YardStyle = typeof YARD_STYLES[number];
+export const NEIGHBOR_BENCH_TOP = .591;
+
 export function yardFeatures(home: NeighborHome, index: number) {
   const front=home.depth/2;
   const style=YARD_STYLES[index%YARD_STYLES.length];
@@ -53,7 +55,8 @@ export function yardFeatures(home: NeighborHome, index: number) {
     patchArea:{...patch,w:1.13+(index%2)*.20,d:.97+(index%3)*.08},
     flowerArea:{...flowers,w:1.17,d:.56},
     grillPad:{...grill,w:1.50,d:1.26},
-    benchApproach:homePoint(home,-home.width*.15,front+2.27),
+    benchApproach:homePoint(home,benchLocal.x,benchLocal.z+.86),
+    benchSide:homePoint(home,benchLocal.x+1.19,benchLocal.z+.86),
     guestSpot:homePoint(home,-home.width*.09,front+3.15),
     grillApproach:homePoint(home,home.width*.12,front+2.67),
     patchApproach:homePoint(home,home.width*.12,front+1.53),

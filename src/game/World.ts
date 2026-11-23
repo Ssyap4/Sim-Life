@@ -31,6 +31,7 @@ import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import type { SimbaRig } from './SimbaRig';
 import { currentCatPerch } from '../shared/CatPerches';
 import {currentPetEquipment} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
@@ -201,7 +202,7 @@ export class World {
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
-      dismissTap?: () => boolean; pondTap?: () => void }) {
+      dismissTap?: () => boolean; pondTap?: () => void }, simbaRig?: SimbaRig) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 125, 171);
 
@@ -253,7 +254,7 @@ export class World {
     this.createDirtyDishes();
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
-    this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
+    this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -966,11 +967,16 @@ export class World {
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }break;
       }
-      case 'feed':actor.playPetActivity('feed');break;
+      case 'feed': {
+        const bowl=pair.pet&&pair.pet in PETS?PETS[pair.pet as PetId].bowl:undefined;
+        if(leads&&bowl)actor.playPetActivity('feed',new THREE.Vector3(bowl.x,.28,bowl.z));
+        else actor.playPartnerGesture('listen',false);
+        break;
+      }
       case 'pet':{
         const action=stage.action==='petPlay'?'play':stage.action==='petBrush'?'brush':'pet';
         const pet=pair.pet&&pair.pet in this.pets?this.pets[pair.pet as PetId]:undefined;
-        const petContact=pet?.root.position.clone().add(new THREE.Vector3(0,pair.pet==='verdell'?.49:.43,0));
+        const petContact=pet ? (target:THREE.Vector3)=>pet.coatContact(target) : undefined;
         if(leads) {
           actor.playPetActivity(action,petContact);
           pet?.react(action);
@@ -994,6 +1000,8 @@ export class World {
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
+      case 'hug':case 'closeHug':
+        actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       default:actor.playPartnerGesture(pair.motion,leads);
     }
   }
@@ -1277,7 +1285,9 @@ export class World {
     const walking = target && this.walkTo(role, target, () => {
       if (!current()) return;
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
-      actor.playPetActivity(action);
+      actor.playPetActivity(action,filling
+        ? new THREE.Vector3(position.x,.28,position.z)
+        : (hand:THREE.Vector3)=>pet.coatContact(hand));
       // The animal eats during its own routine, not when the player pours food.
       if (!filling) pet.react(action);
     });
@@ -2099,7 +2109,7 @@ export class World {
         if (pet.root.visible) {
           pet.stop();
           const position = state.pets[id].position;
-          pet.root.position.set(position.x, 0, position.z);
+          pet.syncGround(position.x,position.z);
         }
         continue;
       }
@@ -2110,16 +2120,43 @@ export class World {
       this.petRoutines.set(id, routineKey);
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
-      pet.root.position.set(route.from.x, 0, route.from.z);
+      pet.syncGround(route.from.x,route.from.z);
       const scratchFace=routine.kind==='scratch'&&routine.equipment&&routine.goal
         ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
+      // Read support height once per route from the rotated physical model.
+      // The server's X/Z, floor approach and attachment key still apply.
+      const perch=routine.perch;
+      const bed=routine.kind==='sleep'?routine.equipment:undefined;
+      let supportHeight: number | undefined;
+      let support:THREE.Object3D|undefined;
+      if(perch){
+        const [scope,id]=perch.key.split(':');
+        support=scope==='starter'&&(id==='sofa'||id==='bed')?this.staticFixtureModels.get(id)
+          :this.furnishingModels.get(Number(id));
+      }else if(bed) {
+        support=this.furnishingModels.get(bed.id);
+      }
+      if(support){
+        support.updateWorldMatrix(true,true);
+        const at=perch?.surface??bed!;
+        const origin=new THREE.Vector3(at.x,perch?perch.surface.y+.11:.25,at.z);
+        const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),0,.42);
+        // The middle ray may hit a seam between two sofa cushions.
+        const side=perch?.yaw??0;
+        const sideways=new THREE.Vector3(Math.cos(side),0,-Math.sin(side));
+        for(const offset of [0,-.13,.13]){
+          ray.ray.origin.copy(origin).addScaledVector(sideways,offset);
+          const y=ray.intersectObject(support,true)[0]?.point.y;
+          if(y!==undefined)supportHeight=Math.max(supportHeight??0,y);
+        }
+      }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
         scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         routine.perch,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!routine.equipment&&routine.kind==='sleep');
+        }:undefined,!!bed,supportHeight);
     }
   }
 

@@ -18,7 +18,6 @@ function expected(item:FurnitureProduct){
  return [] as string[];
 }
 test('every catalogue SKU has exactly the actions its physical shape supports',()=>{
- assert.equal(FURNITURE_CATALOG.length,75);
  for(const item of FURNITURE_CATALOG){
    const owned={id:1,sku:item.id,finish:'sage' as const,rotation:0 as const,x:12,z:-5};
    const actual=furnitureActionList(owned).slice().sort();

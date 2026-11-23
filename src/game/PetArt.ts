@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { batchRigidParts, finish, orb, sculptedCurve } from './ArtKit';
 import { makeEye } from './EyeArt';
-import { loft, sculpt } from './SculptMesh';
+import { hingedLimb, loft, sculpt } from './SculptMesh';
 import type { PetId } from '../shared/pets';
 
 // Simba is a lean short-haired ginger tabby based on his real photographs.
@@ -21,6 +21,7 @@ type PetRig = {
   eyes: THREE.Group[];
   jaw: THREE.Group;
   back?: THREE.Mesh;
+  knees?: THREE.Bone[];
 };
 
 function detail(parent: THREE.Group, color: number, position: THREE.Vector3Tuple,
@@ -32,7 +33,7 @@ function detail(parent: THREE.Group, color: number, position: THREE.Vector3Tuple
   return mesh;
 }
 
-function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
+function paws(body: THREE.Group, dog: boolean, knees: THREE.Bone[]): THREE.Group[] {
   const result: THREE.Group[] = [];
   for (const side of [-1, 1]) for (const back of [false, true]) {
     const pivot = new THREE.Group();
@@ -54,7 +55,8 @@ function paws(body: THREE.Group, dog: boolean): THREE.Group[] {
       else color.copy(ginger).lerp(cream, 0.5 * (1 - THREE.MathUtils.smoothstep(y, -0.22, -0.14)))
         .lerp(amber, (0.5 + 0.5 * Math.cos(y * 77)) ** 6 * THREE.MathUtils.smoothstep(y, -0.2, -0.09) * 0.42);
     });
-    sculpt(pivot, leg, 0xffffff, 'fur', back);
+    if(dog)knees.push(hingedLimb(pivot,leg,-base*.52,0xffffff,'fur'));
+    else sculpt(pivot, leg, 0xffffff, 'fur', back);
     const spacing = dog ? .16 : back ? .109 : .094;
     const along = dog ? (back ? -.32 : .24) : (back ? -.395 : .285);
     pivot.position.set(side * spacing, base, along);
@@ -235,9 +237,10 @@ export function buildPetArt(body: THREE.Group, head: THREE.Group, tail: THREE.Gr
   head.add(jaw);
   const back = dog ? undefined : tabby(body, head, tail, jaw);
   if (dog) spitz(body, head, tail, jaw);
-  feet.push(...paws(body, dog));
+  const knees: THREE.Bone[] = [];
+  feet.push(...paws(body, dog, knees));
   const ears = [-1, 1].map(side => ear(head, side, dog));
   const eyes = petEyes(head, dog);
   for (const part of [head, body, jaw]) batchRigidParts(part);
-  return { ears, eyes, jaw, back };
+  return { ears, eyes, jaw, back, knees };
 }
