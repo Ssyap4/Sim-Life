@@ -8,6 +8,8 @@ on:
       - .github/workflows/simlife-023-portrait.yml
       - src/game/Actor.ts
       - src/game/PetActor.ts
+      - src/game/PetArt.ts
+      - src/game/PetToys.ts
       - src/game/ResidentIdle.ts
       - src/game/PetIdle.ts
   workflow_dispatch:
