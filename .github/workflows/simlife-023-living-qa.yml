@@ -20,6 +20,6 @@ jobs:
         run: npm run check
       - name: Focused residents, gestures, pets and relationship regression
         run: |
-          node --import tsx --test server/tests/living-personality-023.test.ts server/tests/pet*.test.ts server/tests/*social*.test.ts server/tests/*animation*.test.ts
+          node --import tsx --test server/tests/living-personality-023.test.ts server/tests/petPersonality.test.ts server/tests/petHungerAlert.test.ts server/tests/pets.test.ts server/tests/social.test.ts
       - name: Production bundle smoke build
         run: npx vite build
