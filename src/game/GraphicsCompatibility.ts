@@ -54,7 +54,7 @@ export function clearGraphicsProblem(canvas: HTMLCanvasElement): void {
 
 /** A single small readback, only after rendering, detects a silent white frame.
  * Never poll readPixels every animation frame on a budget Android GPU. */
-export function isBlankGraphicsFrame(gl: WebGL2RenderingContext, width: number, height: number): boolean {
+export function isBlankGraphicsFrame(gl: WebGLRenderingContext, width: number, height: number): boolean {
   if (gl.isContextLost() || width < 32 || height < 32) return true;
   const pixel = new Uint8Array(4);
   const positions: readonly [number, number][] = [[.24,.28],[.50,.46],[.76,.68]];
