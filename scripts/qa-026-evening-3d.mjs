@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {initialState} from '../src/shared/protocol.ts';
 import {startServer} from '../server/server.ts';
+import {familyMoments,FAMILY_MOMENT_PREFIX} from '../src/shared/familyMoments.ts';
 import {openServerFiles} from '../server/storage.ts';
 
 const out='/tmp/simlife-026-real-3d';
@@ -121,6 +122,34 @@ try{
     if(action==='eat'&&files.load().meals.omelette!==0)
       errors.push('Consumed dinner portions are still on the table');
     await sleep(700);
+  }
+  // A second real WebSocket story begins from the actual TWO dirty dinner plates.
+  // The helper uses the existing kitchen route, and no extra inventory is made.
+  const dirtyBefore=files.load().dirtyDishes.table;
+  const occasion=familyMoments(files.load(),'alina').find(m=>m.id==='dishesTogether');
+  if(!occasion)errors.push('Expected real kitchen-cleanup family moment after shared dinner');
+  else {
+    buddy.send(JSON.stringify({type:'social_propose',action:occasion.action,moment:occasion.id}));
+    const offer=(await waitPacket('social_pending',p=>p.offer.action==='dishes')).offer;
+    await page.locator('#social-invite:not([hidden])').waitFor({timeout:12000});
+    if(!offer.title.includes('После ужина'))errors.push('The offer lost its situational family title');
+    await snap('07-dishes-story-offer');
+    await page.locator('#social-invite [data-social-reply="0"]').click();
+    await waitPacket('social_closed',p=>p.inviteId===offer.id&&p.phase==='accepted',15000);
+    const vlad=await waitPacket('task_started',p=>p.role==='vlad'&&p.command.type==='together'&&p.command.moment==='dishesTogether');
+    const alina=await waitPacket('task_started',p=>p.role==='alina'&&p.command.type==='together'&&p.command.moment==='dishesTogether');
+    await waitPacket('task_active',p=>p.role==='alina'&&p.taskId===alina.taskId,30000);
+    const focus=await page.evaluate(()=>{const el=document.querySelector('[data-focus-shared]');if(!el)return false;el.click();return true;});
+    if(!focus)errors.push('No shared camera button during real moment cleanup');
+    await sleep(3500);
+    await snap('08-real-kitchen-chore-close-up');
+    if((await waitPacket('task_ended',p=>p.role==='alina'&&p.taskId===alina.taskId,90000)).outcome!=='completed')
+      errors.push('Real kitchen moment was not completed');
+    await waitPacket('task_ended',p=>p.role==='vlad'&&p.taskId===vlad.taskId,12000);
+    const afterward=files.load();
+    if(dirtyBefore<2||afterward.dirtyDishes.table!==0)errors.push('Dirty table dishes were not actually removed');
+    if(afterward.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'dishesTogether').length!==1)
+      errors.push('Family moment memory not saved exactly once');
   }
   await page.locator('#phone-btn').click();
   await sleep(350);
