@@ -28,5 +28,9 @@ jobs:
         run: npm run check
       - name: Check routes, saves, shops and living NPCs
         run: npx tsx --test server/tests/locations.test.ts server/tests/neighbors.test.ts server/tests/camera-detail-021.test.ts
-      - name: Check joined family spontaneous chat remains reachable
-        run: node --import tsx --test --test-name-pattern="Shared spontaneous conversation" server/tests/autonomy.test.ts
+      - name: Check joined family spontaneous chat remains reachable (three clean runs)
+        run: |
+          for iteration in 1 2 3; do
+            echo "Autonomous shared-chat run $iteration"
+            node --import tsx --test --test-name-pattern="Shared spontaneous conversation" server/tests/autonomy.test.ts
+          done

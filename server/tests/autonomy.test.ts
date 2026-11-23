@@ -32,11 +32,11 @@ async function enter(port:number,role:CharacterId,code:string):Promise<WebSocket
   assert.equal((await promise).type,'ready');
   return ws;
 }
-async function setup(seed?:GameState,fast=false,idleMs=60){
+async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400){
   const dir=mkdtempSync(join(tmpdir(),'sim-life-017-autonomy-'));
   if(seed)openServerFiles(dir).save(seed);
   const clock={now:0};
-  const ticking=fast?setInterval(()=>{clock.now+=2400;},20):undefined;
+  const ticking=fast?setInterval(()=>{clock.now+=clockStepMs;},20):undefined;
   const server=await startServer({port:0,dataDir:dir,taskTimeScale:.08,
     ...(fast?{lifeClock:{now:()=>clock.now,tickMs:20},
       autonomyTiming:{idleMs,careCooldownMs:120,leisureCooldownMs:200}}:{})});
@@ -195,15 +195,15 @@ test('Full autonomy performs harmless leisure without spending money and yields 
 test('Shared spontaneous conversation requires both residents in full mode and stops when either takes control',async()=>{
   const seed=initialState();
   seed.autonomy={vlad:'full',alina:'full'};
-  // Artificial game time advances by ~60 game min per real second in setup().
-  // Make the first idle decision land INSIDE the server's 125-minute chat
-  // window rather than making a race-prone assumption about 08:00.
+  // Shared chat is scheduled within a 125-game-minute window. This test
+  // accelerates the clock only 9x rather than 120x: scheduling two WebSocket
+  // clients must not depend on CI machine speed to stay in that window.
   seed.clock.minute=410;
   assert.ok(planLeisure(seed,'vlad','chat'),'shared chat needs a reachable Vlad meeting spot');
   assert.ok(planLeisure(seed,'alina','chat'),'shared chat needs a reachable Alina meeting spot');
-  // Under full-suite CI load the second socket can connect >200ms after the
-  // first. Don't start a shared autonomous chat before both users joined.
-  const ctx=await setup(seed,true,1100);
+  // Both clients join, then clear a short idle delay with a 9x game clock.
+  // The server's pairing grace protects the small difference in login ticks.
+  const ctx=await setup(seed,true,250,180);
   try{
     const [vlad,alina]=await Promise.all([ctx.join('vlad'),ctx.join('alina')]);
     const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
