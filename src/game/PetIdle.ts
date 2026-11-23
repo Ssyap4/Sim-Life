@@ -1,6 +1,6 @@
 import type { PetId } from '../shared/pets';
 
-export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook';
+export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook' | 'playBow' | 'pawWave' | 'slowBlink' | 'pounce';
 export interface PetIdleContext {
   satiety: number;
   energy: number;
@@ -19,14 +19,17 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
   if (state.energy < 27 && turn % 3 === 0) return 'stretch';
   if (id === 'verdell') {
     if (state.personNearby && state.happiness >= 43 && turn % 3 !== 2) return 'greet';
-    return turn % 4 === 0 ? 'stretch' : turn % 4 === 1 ? 'observe' : 'sniff';
+    return turn % 6 === 0 ? 'playBow' : turn % 6 === 1 ? 'observe'
+      : turn % 6 === 2 ? 'pawWave' : turn % 6 === 3 ? 'stretch'
+      : turn % 6 === 4 ? 'sniff' : 'playBow';
   }
   // The cat is independent: grooming and stretching happen often, and
   // nearby people mostly get a curious, quiet glance.
   // Lead with a distinctive, recognizable action so the player sees a cat,
   // not just a walking orange silhouette. Still leave room for variation.
-  return turn % 4 === 0 || turn % 4 === 2 ? 'groom'
-    : turn % 4 === 1 ? 'stretch' : 'observe';
+  return turn % 6 === 0 ? 'groom' : turn % 6 === 1 ? 'stretch'
+    : turn % 6 === 2 ? 'slowBlink' : turn % 6 === 3 ? 'observe'
+    : turn % 6 === 4 ? 'pounce' : 'groom';
 }
 
 /** Smoothly enters and exits a gesture without a sudden body pop. */
