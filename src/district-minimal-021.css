@@ -142,3 +142,15 @@
   #app .phone-case{border-width:4px;border-radius:20px}
   #app .phone-grid{gap:8px}
 }
+
+/* Thin monochrome navigation glyphs in place of mixed colorful emoji. */
+#app .ui-outline-icon{
+  display:inline-block;width:20px;height:20px;
+  fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;
+  vertical-align:middle;pointer-events:none;flex:none;
+}
+#app #pets-btn .ui-outline-icon{width:21px;height:21px}
+#app #pets-btn .ui-outline-icon ellipse{fill:currentColor;stroke:none}
+#app #map-btn .ui-outline-icon{width:20px;height:20px}
+#app .showcase-toggle .ui-outline-icon{width:18px;height:18px}
