@@ -4,6 +4,9 @@ import {
 } from '../src/shared/protocol';
 import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
 import { dishCount, EMPTY_DIRTY_DISHES } from '../src/shared/dirtyDishes';
+import { gameMinutes } from '../src/shared/life';
+import { moveReadyFoodToFridge } from '../src/shared/readyFood';
+import { storageCanFit } from '../src/shared/storageSpace';
 
 export type ActionResult =
   | { ok: true; message: string; state: GameState }
@@ -92,6 +95,36 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'comfort', Math.min(12, count * 3));
       change(state, role, 'energy', -2);
       message = name + ': вымыта посуда — ' + count + ' шт.';
+      break;
+    }
+    case 'kitchenLeftovers': {
+      // Real kitchen chore: move at most four existing, fresh portions, oldest
+      // first. A fridge without room is respected; nothing is conjured,
+      // duplicated, revived after expiry, or charged to the household.
+      const now = gameMinutes(state.clock);
+      const portions = state.readyFood.filter(batch=>batch.storage==='table' &&
+        batch.portions>0 && batch.expiresAt>now)
+        .sort((a,b)=>a.expiresAt-b.expiresAt);
+      if(!portions.length)return {ok:false,reason:'На столе нет свежих готовых порций'};
+      let moved=0,blocked='';
+      for(const entry of portions){
+        for(let i=0;i<entry.portions && moved<4;i++){
+          const candidate=structuredClone(state);
+          if(!moveReadyFoodToFridge(candidate,entry.kind,entry.item))break;
+          const fit=storageCanFit(state,candidate);
+          if(!fit.ok){blocked=fit.reason;break;}
+          state.readyFood=candidate.readyFood;
+          state.meals=candidate.meals;
+          state.takeout=candidate.takeout;
+          moved++;
+        }
+        if(moved===4||blocked)break;
+      }
+      if(!moved)return {ok:false,reason:blocked||'Нечего убирать в холодильник'};
+      change(state,role,'energy',-2);
+      change(state,role,'comfort',Math.min(6,2+moved));
+      message=name+': в холодильник убрано '+moved+' порц.'+
+        (blocked?' Остальная еда пока осталась на столе.':'');
       break;
     }
     case 'kitchenTidy':
