@@ -147,14 +147,22 @@ function visitorPlan(resident:number,day:number,round:number):Plan|null {
   return {resident,home:-1,start:0,end:0,kind:venue.place==='park'?'park':'errand',venue:venue.place,steps:s.steps};
 }
 function publicConversation(day:number,first:number,second:number,spot:NeighborPoint):[Plan,Plan]|null {
-  const points=[{x:spot.x-.80,z:spot.z},{x:spot.x+.80,z:spot.z}];
-  const people=[first,second],sequences:Sequence[]=[],paths:NeighborPoint[][]=[];
+  const left={x:spot.x-.80,z:spot.z},right={x:spot.x+.80,z:spot.z};
+  const people=[first,second];
+  const entries=people.map(id=>STREET_ENTRIES[(id+1)%STREET_ENTRIES.length]);
+  // Assign opposite ends of the meeting to the nearest approach: otherwise
+  // two friends can cross through one another as they walk to chat.
+  const crossed=dist(entries[0],right)+dist(entries[1],left)<
+    dist(entries[0],left)+dist(entries[1],right);
+  const points=crossed?[right,left]:[left,right];
+  const sequences:Sequence[]=[],paths:NeighborPoint[][]=[];
   for(let i=0;i<2;i++){
     const entry=STREET_ENTRIES[(people[i]+1)%STREET_ENTRIES.length];
     const path=publicRoute(entry,points[i]);
     if(!path)return null;
     paths.push(path);
     const s=new Sequence(entry,2.44+.08*variation(day,people[i],4));
+    if(i===1)s.hold('look',3); // Do not simultaneously funnel onto a narrow approach.
     follow(s,path);
     sequences.push(s);
   }
@@ -183,6 +191,8 @@ function sampleSteps(steps:readonly Stop[],local:number):NeighborPoint {
 function dayPlans(day:number,count:number):Plan[] {
   if(cachedDay===day&&cachedCount===count)return cachedPlans;
   const plans:Plan[]=[];
+  const proposals:{group:Plan[];preferred:number}[]=[];
+  const queue=(group:Plan[],preferred:number):void=>{proposals.push({group,preferred});};
   const add=(group:Plan[],preferred:number):void=>{
     for(const delay of [0,4,-4,9,-9,15,-15,23,-23,32,-32,43,-43,56,-56]){
       const start=preferred+delay;
@@ -208,7 +218,7 @@ function dayPlans(day:number,count:number):Plan[] {
     const kind=HOUSE_ROUTINES[home][round];
     const start=451+round*99+home*15+Math.floor(variation(day,round,home)*7);
     const s=homePlan(NEIGHBOR_HOMES[home],kind,home,day,round+home);
-    add([{resident:home,home,start:0,end:0,kind,steps:s.steps,
+    queue([{resident:home,home,start:0,end:0,kind,steps:s.steps,
       venue:kind==='park'?'park':kind==='errand'?
         DISTRICT_SITES[(home+round+home)%DISTRICT_SITES.length].place:undefined}],start);
   }
@@ -218,7 +228,7 @@ function dayPlans(day:number,count:number):Plan[] {
     const left={x:center.x-.78,z:center.z},right={x:center.x+.78,z:center.z};
     const first=houseMeeting(NEIGHBOR_HOMES[a],left,right);
     const second=houseMeeting(NEIGHBOR_HOMES[b],right,left);
-    add([{resident:a,home:a,start:0,end:0,kind:'chat',companion:b,steps:first.steps},
+    queue([{resident:a,home:a,start:0,end:0,kind:'chat',companion:b,steps:first.steps},
       {resident:b,home:b,start:0,end:0,kind:'chat',companion:a,steps:second.steps}],start);
   }
   // Ten public residents are independent of the cottage door schedule.
@@ -228,13 +238,17 @@ function dayPlans(day:number,count:number):Plan[] {
       if((person-RESIDENT_COUNT)%2 || person+1>=count)continue;
       const pair=(person-RESIDENT_COUNT)/2;
       const talk=publicConversation(day,person,person+1,MEETING_SPOTS[pair%2]);
-      if(talk)add(talk,766+pair*22);
+      if(talk)queue(talk,766+pair*22);
     }else {
       const trip=visitorPlan(person,day,round);
-      if(trip)add([trip],463+round*157+(person-RESIDENT_COUNT)*9+
+      if(trip)queue([trip],463+round*157+(person-RESIDENT_COUNT)*9+
         Math.floor(variation(day,round,person)*7));
     }
   }
+  // Schedule in time order; reserving the entire day for house chores first
+  // was starving daytime public traffic even though visitors had valid routes.
+  proposals.sort((a,b)=>a.preferred-b.preferred);
+  for(const p of proposals)add(p.group,p.preferred);
   plans.sort((a,b)=>a.start-b.start||a.resident-b.resident);
   cachedDay=day;cachedCount=count;cachedPlans=plans;
   return plans;

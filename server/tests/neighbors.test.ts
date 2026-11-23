@@ -110,7 +110,10 @@ test('all fourteen visual avatars render individually without interaction hitbox
     shown++;
     assert.equal(person.userData.interactable,undefined);
   }
-  assert.ok(shown>=2&&shown<=10,'there should be visible NPCs at lunch');
+  const lunchtime=Array.from({length:61},(_,i)=>690+i*2)
+    .map(minute=>NEIGHBORS.filter((_,i)=>neighborPose(i,minute).visible).length);
+  assert.ok(Math.max(...lunchtime)>=3,'lunchtime should have multiple passers-by');
+  assert.ok(shown>=1&&shown<=10,'somebody should be out even between busy waves');
   for(const home of NEIGHBOR_HOMES)assert.ok(scene.getObjectByName('neighbor-door-'+home.id));
 });
 
@@ -312,7 +315,9 @@ test('oncoming neighbors use separate lanes and never overlap on a simulated ful
       if(poses[i].opacity<.60 || poses[j].opacity<.60)continue;
       const distance=Math.hypot(poses[i].x-poses[j].x,poses[i].z-poses[j].z);
       closest=Math.min(closest,distance);
-      assert.ok(distance>.57,NEIGHBORS[i].name+' and '+NEIGHBORS[j].name+' intersected');
+      assert.ok(distance>.57,NEIGHBORS[i].name+' and '+NEIGHBORS[j].name+
+        ' intersected at '+minute.toFixed(2)+' positions '+
+        JSON.stringify([poses[i].x,poses[i].z,poses[j].x,poses[j].z]));
       checked++;
     }
   }
