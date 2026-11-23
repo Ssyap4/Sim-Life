@@ -199,3 +199,24 @@ test('0.27 v3: partner greeting replaces only cosmetic idle and bypasses its coo
   active.update(.05);
   assert.equal(active.currentIdleGesture(),null,'Never interrupt actual work');
 });
+
+test('0.27 v4: real wave IK brings the visible wrist up beside the face, not behind the torso',()=>{
+  const resident=new Actor('vlad',[1,2]);
+  resident.setNeeds({mood:92,energy:91,hunger:82,bladder:92,hygiene:90});
+  const rig=(resident as unknown as {rig:{head:THREE.Object3D;wrists:THREE.Object3D[]}}).rig;
+  resident.root.updateWorldMatrix(true,true);
+  const initialWrist=rig.wrists[1].getWorldPosition(new THREE.Vector3());
+  const initialHead=rig.head.getWorldPosition(new THREE.Vector3());
+  resident.setIdleSurroundings(null,.37);
+  const start=resident.root.position.clone();
+  for(let i=0;i<32;i++)resident.update(.05);
+  resident.root.updateWorldMatrix(true,true);
+  const wrist=rig.wrists[1].getWorldPosition(new THREE.Vector3());
+  const head=rig.head.getWorldPosition(new THREE.Vector3());
+  assert.equal(resident.currentIdleGesture(),'noticePartner');
+  assert.ok(wrist.y>initialWrist.y+.22,
+    'Raised wrist should actually appear at shoulder/face height');
+  assert.ok(wrist.distanceTo(head)<initialWrist.distanceTo(initialHead)-.25,
+    'Wrist should approach the face rather than disappear behind the body');
+  assert.ok(resident.root.position.distanceTo(start)<1e-8);
+});

@@ -1124,10 +1124,8 @@ export class Actor {
             // No extra social action, root displacement or forced embrace.
             const wave=residentIdleEase(phase,.32,.86)*
               (1-residentIdleEase(phase,2.12,2.96));
-            const flutter=Math.sin(phase*9.4)*.032*wave;
-            rightY=THREE.MathUtils.lerp(rightY,.225+flutter,wave);
-            rightZ=THREE.MathUtils.lerp(rightZ,.355,wave);
-            armSpread=THREE.MathUtils.lerp(armSpread,-.22,wave*.5);
+            // The raised hand is solved at the wrist below, not by a
+            // shoulder-only twist (which could flip the arm behind the body).
             idleChestYaw+=yaw*.18*wave;
             idleHeadYaw+=yaw*.08*wave;
             expression+=.10*wave;
@@ -1372,6 +1370,23 @@ export class Actor {
           this.handDirection.set(contactHand === 0 ? -0.18 : 0.11,
             -0.18, -1).applyAxisAngle(up, this.root.rotation.y),
           handBlend);
+      }
+    }
+    // A readable little hello needs the *hand* beside the face, with an
+    // elbow that bends correctly. Shoulder angles alone once sent the whole
+    // arm behind Vlad on actual 390x844 WebGL frames. Reuse the existing
+    // two-bone IK and hand orientation; no extra bone, mesh or server action.
+    if (this.idleGesture === 'noticePartner' && this.greeting) {
+      const phase = this.idleGestureTime;
+      const wave = residentIdleEase(phase, .32, .91) *
+        (1 - residentIdleEase(phase, 2.13, 3.07));
+      if (wave > .004) {
+        const flutter = Math.sin(phase * 8.6);
+        data.head.localToWorld(this.target.set(
+          .28 + .024 * flutter, -.016 + .024 * Math.sin(phase * 8.6), .205));
+        this.reach(1, this.target, Math.min(1, wave * alpha * 8.0));
+        this.aimHand(1, this.handDirection.set(.13, .90, .22)
+          .applyAxisAngle(up, this.root.rotation.y), Math.min(1, wave * alpha * 6.1));
       }
     }
     if (this.activity === 'reach' && this.pan) {
