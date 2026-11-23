@@ -125,7 +125,7 @@ export function renderFamilyBudget(state:GameState,send:(command:BudgetCommand)=
       const due=status.nextDue;
       return n+(status.enabled&&status.autoRenew&&due!==null&&
         due>=budget.period*BILLING_PERIOD&&due<(budget.period+1)*BILLING_PERIOD
-        ? (service.price??service.range?.[1]??0):0);
+        ? (id==='utilities'?SERVICES.utilities.range[1]:service.price??0):0);
     },0);
   if(owed>0 || mandatory>state.money){
     const warning=el('p','billing-budget-warning',
