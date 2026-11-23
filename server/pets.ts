@@ -11,6 +11,9 @@ import { GAME_MINUTES_PER_REAL_SECOND, gameMinutes } from '../src/shared/life';
 import { sampleWalk, segmentIsClear, pointIsClear, type FloorPoint, type WalkRoute } from '../src/game/navigation';
 import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
 import { preferredPetWanderTarget } from '../src/shared/petPersonality';
+import {petBeds,petScratchers,petEquipmentRef,currentPetEquipment,
+  type PetEquipmentRef} from '../src/shared/petFurniture';
+import {FURNITURE_BY_ID} from '../src/shared/furniture';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
@@ -109,6 +112,48 @@ function dogFetchRoute(state:GameState,role:CharacterId) {
   return null;
 }
 
+
+/** A pet mat is a walkable, genuine placed object, not a hard-coded sleep point.
+ * Favorite beds are preferred, but inaccessible spots must be skipped. */
+function findPetBed(state:GameState,id:PetId) {
+  const pet=state.pets[id];
+  const beds=petBeds(state.furnishing,id).sort((a,b)=>
+    Number(b.id===pet.favoriteBedId)-Number(a.id===pet.favoriteBedId) ||
+    Math.hypot(a.x-pet.position.x,a.z-pet.position.z)-
+      Math.hypot(b.x-pet.position.x,b.z-pet.position.z));
+  const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+  const other=state.pets[id==='verdell'?'simba':'verdell'];
+  for(const item of beds){
+    const goal={x:item.x,z:item.z};
+    if(Math.hypot(other.position.x-goal.x,other.position.z-goal.z)<.46)continue;
+    if(other.routine?.equipment?.id===item.id)continue;
+    if(!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;
+    const route=planPetRoute(pet.position,goal,geometry);
+    if(route&&arrivesAt(route,goal))
+      return {route,goal,equipment:petEquipmentRef(item)};
+  }
+  return null;
+}
+/** A cat walks to the OPEN side of an installed scratcher, not through the post. */
+function findScratcher(state:GameState) {
+  const pet=state.pets.simba;
+  const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+  const points=[[0,.84],[.84,0],[-.84,0],[0,-.84],[.68,.68],[-.68,.68]];
+  const posts=[...petScratchers(state.furnishing)].sort((a,b)=>
+    Math.hypot(a.x-pet.position.x,a.z-pet.position.z)-
+    Math.hypot(b.x-pet.position.x,b.z-pet.position.z));
+  for(const post of posts){
+    for(const [dx,dz] of points){
+      const goal={x:post.x+dx,z:post.z+dz};
+      if(!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;
+      const route=planPetRoute(pet.position,goal,geometry);
+      if(route&&arrivesAt(route,goal))
+        return {route,goal,equipment:petEquipmentRef(post)};
+    }
+  }
+  return null;
+}
+
 /** Called on the clock's isolated state. Routes are cosmetic, supplies are authoritative. */
 export function runPetRoutines(state: GameState, minutes: number, now: number,
   occupied: ReadonlySet<PetId>, random = Math.random): void {
@@ -119,6 +164,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
     const previous = pet.routine;
+    if(pet.favoriteBedId!==undefined && !petBeds(state.furnishing,id)
+      .some(item=>item.id===pet.favoriteBedId))delete pet.favoriteBedId;
     if (previous) pet.position = sampleWalk(previous.route, (now - previous.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
     if ((id === 'verdell' && state.world.dogWalker) || occupied.has(id)) {
       delete pet.routine;
@@ -128,10 +175,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     // contact immediately. Never let an obsolete surface survive the tick.
     const invalidPerch=previous?.kind==='perch' &&
       (id!=='simba'||!previous.perch||!currentCatPerch(state.furnishing,previous.perch));
+    const invalidEquipment=previous?.equipment &&
+      !currentPetEquipment(state.furnishing,previous.equipment);
     // A pre-update saved 'eat' route cannot mime eating from an empty bowl.
-    const urgentInterrupt=previous && ['come','fetch','perch'].includes(previous.kind) &&
+    const urgentInterrupt=previous && ['come','fetch','perch','scratch'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
@@ -140,8 +189,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.happiness = clamp(pet.happiness + 3);
     } else if (previous?.kind === 'toilet') {
       pet.bladder = 100;
-    } else if (previous?.kind === 'sleep') {
+    } else if (previous?.kind === 'sleep' && !invalidEquipment) {
       pet.energy = clamp(pet.energy + 33);
+      if(previous.equipment)pet.favoriteBedId=previous.equipment.id;
+    } else if (previous?.kind==='scratch' && !invalidEquipment && previous.until<=now) {
+      pet.happiness=clamp(pet.happiness+9);
+      pet.bond=clamp(pet.bond+2);
     } else if (previous?.kind==='come' && previous.until<=now) {
       pet.bond=clamp(pet.bond+3);
       pet.happiness=clamp(pet.happiness+2);
@@ -164,6 +217,20 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if (previous?.kind === 'wander' && previous.target === target) target = (target + 1) % PET_ROAM.length;
     let chosenPerch:CatPerch|undefined;
     let chosenRoute:PetRoutine['route']|undefined;
+    let chosenGoal:FloorPoint|undefined;
+    let chosenEquipment:PetEquipmentRef|undefined;
+    if(kind==='sleep'){
+      const bed=findPetBed(state,id);
+      if(bed){chosenRoute=bed.route;chosenGoal=bed.goal;chosenEquipment=bed.equipment;}
+    }
+    // Occasional voluntary scratching is only a real action if there is
+    // an installed and reachable scratcher; no virtual scratchers.
+    if(id==='simba'&&kind==='wander'&&previous?.kind!=='scratch'&&
+      pet.energy>=45&&pet.satiety>=45&&pet.bladder>=55&&random()<.16){
+      const post=findScratcher(state);
+      if(post){kind='scratch';target=0;chosenRoute=post.route;
+        chosenGoal=post.goal;chosenEquipment=post.equipment;}
+    }
     // Real, server-owned little feline excursions. Never during hunger,
     // fatigue, toilet trips, play, or immediately after another perching.
     if(id==='simba' && kind==='wander' && previous?.kind!=='perch' &&
@@ -191,11 +258,15 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
-      : kind === 'sleep' ? 16 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
-    const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target }),
+      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+    const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    pet.routine = route ? { kind, target, startedAt: now, until: now + duration, route,
-      ...(chosenPerch?{perch:chosenPerch}:{}) } : undefined;
+    const travel=route&& (chosenEquipment||chosenPerch)
+      ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
+    pet.routine = route ? { kind, target, startedAt: now, until: now + duration+travel, route,
+      ...(chosenPerch?{perch:chosenPerch}:{}),
+      ...(chosenGoal?{goal:chosenGoal}:{}),
+      ...(chosenEquipment?{equipment:chosenEquipment}:{}) } : undefined;
   }
 }
 /** Pets are family members. No real-time health penalties or forced purchases. */
@@ -206,7 +277,7 @@ export function applyPetAction(
   action: string,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
-  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch'].includes(action))
+  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -218,7 +289,7 @@ export function applyPetAction(
 
   // Commands are issued while the player stays put. They MUST NOT call
   // petCarePoint / teleport the human beside the animal.
-  if(kind==='call'||kind==='perch'||kind==='fetch'){
+  if(kind==='call'||kind==='perch'||kind==='fetch'||kind==='mat'||kind==='scratch'){
     if(next.world.places[role]!=='home')
       return {ok:false,reason:'Позвать питомца можно только из дома или своего двора'};
     if(actor.pose==='sleep'||actor.pose==='work')
@@ -228,7 +299,22 @@ export function applyPetAction(
     if(data.routine?.kind==='eat'||data.routine?.kind==='toilet')
       return {ok:false,reason:'Не будем отвлекать '+spec.name+' от важного дела'};
     const now=Math.floor(gameMinutes(next.clock));
-    if(kind==='perch'){
+    if(kind==='mat'){
+      const chosen=findPetBed(next,id);
+      if(!chosen)return {ok:false,reason:'Сначала купи и поставь подходящую лежанку для '+spec.name};
+      const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+      data.routine={kind:'sleep',target:0,startedAt:now,until:now+travel+19,
+        route:chosen.route,goal:chosen.goal,equipment:chosen.equipment};
+      message=spec.name+' идёт на настоящую лежанку отдыхать';
+    }else if(kind==='scratch'){
+      if(id!=='simba')return {ok:false,reason:'Когтеточка предназначена для Симбы'};
+      const chosen=findScratcher(next);
+      if(!chosen)return {ok:false,reason:'Сначала купи и установи когтеточку в доступном месте'};
+      const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+      data.routine={kind:'scratch',target:0,startedAt:now,until:now+travel+13,
+        route:chosen.route,goal:chosen.goal,equipment:chosen.equipment};
+      message='Симба идёт к своей когтеточке и точит коготки';
+    }else if(kind==='perch'){
       if(id!=='simba')return {ok:false,reason:'Верделл предпочитает отдыхать на полу'};
       const chosen=safeCatPerch(next,data.position,true);
       if(!chosen)return {ok:false,reason:'Нет свободной доступной мягкой мебели для Симбы'};
