@@ -23,6 +23,7 @@ import {initialState} from './src/shared/protocol.ts';
 import {renderRelationship,showSocialMenu} from './src/socialUI.ts';
 import {gameMinutes} from './src/shared/life.ts';
 import {levelXP} from './src/shared/education.ts';
+import {addReadyFood} from './src/shared/readyFood.ts';
 const state=initialState();
 state.clock.minute=19*60;
 state.pantry.eggs=8;state.pantry.milk=8;
@@ -42,6 +43,11 @@ function render(){
   renderRelationship(relationship,state,'vlad',suggest,()=>{},false,undefined);
 }
 window.testStage=phase=>{
+  state.readyFood=[];state.meals.omelette=0;
+  if(['dine','unwind','complete'].includes(phase)){
+    state.meals.omelette=2;
+    addReadyFood(state,'meal','omelette',2,'table');
+  }
   state.relationship.evening=phase==='none'?undefined:{
     recipe:'omelette',phase,startedAt:gameMinutes(state.clock)-45,
     ...(phase==='complete'?{completedAt:gameMinutes(state.clock)}:{}),
