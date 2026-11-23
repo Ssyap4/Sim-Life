@@ -1,0 +1,33 @@
+name: Sim-Life 0.21 full release gate
+on:
+  push:
+    branches: [feat/world-character-overhaul-021]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check all TypeScript
+        run: npm run check
+      - name: Run the COMPLETE regression suite (isolated cloud runner)
+        run: node --import tsx --test --test-concurrency=2 server/tests/*.test.ts
+        timeout-minutes: 23
+      - name: Furniture and placement audit
+        run: npm run audit:furniture
+        timeout-minutes: 4
+      - name: Production bundle
+        run: npx vite build
+      - name: Verify build outputs
+        run: |
+          test -s dist/index.html
+          test -n "$(find dist/assets -name 'index-*.js' -print -quit)"
