@@ -99,9 +99,18 @@ export class Actor {
   }
   currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
   noticePartnerArrival():void {
-    // Give a newly arrived partner a moment to finish their step before
-    // the greeting can begin, but never queue an animation over real work.
-    if(this.clock>=this.nextGreeting)this.arrivalUntil=this.clock+6;
+    if(this.clock<this.nextGreeting)return;
+    // A meeting may supersede an existing purely decorative hair/idle gesture,
+    // otherwise its next 8-second cooldown can swallow the entire hello.
+    // Never interrupt a real action, route, need warning, or paired animation.
+    this.arrivalUntil=this.clock+6;
+    if(this.pose==='idle' && !this.activity && !this.waypoints.length &&
+      !this.gesture && !this.partnerGesture && !this.needReaction &&
+      !this.carryingBook && this.closingBook<=0){
+      this.idleGesture=null;
+      this.idleGestureTime=0;
+      this.idleCooldown=0;
+    }
   }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }

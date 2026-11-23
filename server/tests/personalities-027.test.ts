@@ -182,3 +182,20 @@ test('0.27 v3: Verdell has a narrower visible ruff and a recognizable hop withou
   assert.ok(maxLift>.16,'Happy welcome should be readable on a mobile screen');
   assert.ok(dog.root.position.equals(start));
 });
+
+test('0.27 v3: partner greeting replaces only cosmetic idle and bypasses its cooldown',()=>{
+  const person=new Actor('alina',[1,2]);
+  person.setNeeds({mood:94,energy:90,hunger:90,bladder:92,hygiene:89});
+  for(let i=0;i<130;i++)person.update(.06);
+  assert.ok(person.currentIdleGesture(),'An old hair/idle gesture should already be active');
+  person.setIdleSurroundings(null,null);
+  person.setIdleSurroundings(null,.35);
+  person.update(.05);
+  assert.equal(person.currentIdleGesture(),'noticePartner');
+  const active=new Actor('alina',[1,2]);
+  active.setNeeds({mood:94,energy:90,hunger:90,bladder:92,hygiene:89});
+  active.setPose('work');
+  active.setIdleSurroundings(null,.35);
+  active.update(.05);
+  assert.equal(active.currentIdleGesture(),null,'Never interrupt actual work');
+});
