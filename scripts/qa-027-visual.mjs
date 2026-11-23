@@ -57,9 +57,18 @@ try{
     if(!data.canvas||!data.lobbyHidden)errors.push(name+': real WebGL/client not running '+JSON.stringify(data));
   };
   await makeShot('01-home-unhappy-vlad-happy-alina');
-  for(let i=2;i<=5;i++){
-    await wait(3200);
-    await makeShot('0'+i+'-living-characters-and-pets');
+  // Actual existing in-game portrait showcase, not an invented camera API.
+  // Capture all four in close-up so a human can inspect faces, shoulders,
+  // ears, paws and tail; repeat each to see a real animation progression.
+  for(const [index,subject] of ['vlad','alina','verdell','simba'].entries()){
+    await page.locator('#showcase-toggle').click();
+    await page.locator('[data-showcase="'+subject+'"]').click();
+    await page.waitForTimeout(900);
+    if(!await page.locator('#app').evaluate(el=>el.classList.contains('inspecting')))
+      errors.push('The actual 3D character inspection camera did not activate for '+subject);
+    await makeShot('0'+(index*2+2)+'-'+subject+'-close-up');
+    await wait(subject==='simba'?4900:subject==='verdell'?4200:3000);
+    await makeShot('0'+(index*2+3)+'-'+subject+'-gesture');
   }
   const final=files.load();
   if(final.characters.vlad.mood>18||final.characters.alina.mood<80)
