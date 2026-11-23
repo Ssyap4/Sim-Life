@@ -6,6 +6,7 @@ on:
       - .github/workflows/simlife-025-release.yml
       - package.json
       - package-lock.json
+      - server/tests/player-copy-020.test.ts
       - docs/RELEASE_025.md
   workflow_dispatch:
 permissions:
