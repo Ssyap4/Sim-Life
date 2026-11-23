@@ -55,8 +55,8 @@ for (const [i,home] of NEIGHBOR_HOMES.entries()) {
   for (const side of [-1,1]) {
     // Raised kitchen plot takes over the right front bed; left side remains
     // an ornamental strip. No duplicate flower patch underneath vegetables.
-    if(side===-1)gardens.push({...homePoint(home,side*(home.width/2-.77),face+1.47),w:1.24,d:.55,
-      palette:i,y:.26,count:13});
+    if(side===-1&&i!==2)gardens.push({...homePoint(home,side*(home.width/2-.77),face+1.47),w:1.24,d:.55,
+      palette:i,y:.08,count:13});
     gardens.push({...homePoint(home,side*home.width*.30,face+.33),w:1.08,d:.28,palette:i,y:1.10,count:6});
     for (let k=0;k<4;k++) shrubs.push({...homePoint(home,side*(home.width/2+1.35),face-1+k*1.45),
       w:.70,d:.98,height:.55,palette:i,y:0});

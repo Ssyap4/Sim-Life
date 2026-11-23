@@ -113,9 +113,10 @@ function cottage(root:Root,home:Home,index:number,glass?:THREE.MeshStandardMater
     part(house, softCube, [1.02, .065, .33], [((i % 2) - .5) * .045, .02, z],
       [0xc9b69c, 0xd9c7a9, 0xbca98e][i % 3], 'ceramic');
   }
-  for (const side of [-1, 1]) {
-    part(house, softCube, [1.37,.12,.62], [side*(w/2-.77),0,face+1.47], 0x8c7054, 'ceramic');
-  }
+  // Left ornamental bed remains at three homes. Raised vegetables replace
+  // the right bed; Victoria gets a larger dedicated flower planter instead.
+  if(index!==2)part(house,softCube,[1.37,.12,.62],
+    [-1*(w/2-.77),0,face+1.47],0x8c7054,'ceramic');
   // Larger personal plot: side borders, letterbox, a garden stool and
   // distinctive outdoor props. Keep the central walking lane unobstructed.
   for (const side of [-1, 1]) {

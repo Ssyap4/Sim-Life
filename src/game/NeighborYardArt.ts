@@ -31,6 +31,18 @@ function gardenBarbecue(root:THREE.Object3D,x:number,z:number,i:number) {
   piece(barbecue,cube,[.68,.04,.46],[0,.94,0],0x282d2b,'metal');
   for(let n=0;n<5;n++)
     piece(barbecue,cube,[.055,.022,.48],[(n-2)*.13,.969,0],0xa7ada4,'metal');
+  // Food is physically recognizable at mobile zoom; dishes vary by lot.
+  for(let n=0;n<3;n++){
+    if(i%2===0){
+      const skewer=piece(barbecue,drum,[.070,.27,.073],
+        [(n-1)*.17,1.008,.005+(n%2)*.085],n%2?0xb45d37:0x936142,'ceramic');
+      skewer.rotation.x=Math.PI/2;
+    } else {
+      const vegetable=piece(barbecue,drum,[.068,.16,.068],
+        [(n-1)*.18,1.008,(n%2)*.14-.07],n%2?0xe0aa54:0x819854,'ceramic');
+      vegetable.rotation.x=Math.PI/2;
+    }
+  }
   piece(barbecue,cube,[.79,.07,.38],[0,.26,0],0x7c6150);
   for(let n=0;n<3;n++){
     const twig=piece(barbecue,drum,[.08,.36,.08],[(n-1)*.19,.30,.03],0x79513a);

@@ -1,4 +1,4 @@
-import { NEIGHBOR_HOMES, REAR_WALK_Z } from './neighborHomes';
+import { NEIGHBOR_HOMES, REAR_WALK_Z, yardFeatures } from './neighborHomes';
 import type { PlaceId, Point } from './locations';
 import type { CharacterId } from './protocol';
 import type { FloorRect } from '../game/navigation';
@@ -121,10 +121,18 @@ export const DISTRICT_OBSTACLES: readonly FloorRect[] = [
   ...DISTRICT_SITES.filter(site=>site.place !== 'park').map(site =>
     districtRect(site.x,site.z,Math.abs(site.turn)%2 ? site.d : site.w,Math.abs(site.turn)%2 ? site.w : site.d)),
   districtRect(20,-10.22,1.15,.35),districtRect(20,-6.88,1.15,.35),
-  ...NEIGHBOR_HOMES.flatMap((home,i)=>[
-    districtRect(home.x,home.z,home.width + (i===3 ? 1.1 : .25),home.depth+.25),
-    ...yardFence(home.x,home.z+home.depth/2+4.35,home.width),
-  ]),
+  ...NEIGHBOR_HOMES.flatMap((home,i)=>{
+    const yard=yardFeatures(home,i);
+    return [
+      districtRect(home.x,home.z,home.width+(i===3?1.1:.25),home.depth+.25),
+      ...yardFence(home.x,home.z+home.depth/2+4.35,home.width),
+      // Reserve real solid objects while keeping the shared centre walkway
+      // open. NPC seating is a controlled animation on its own bench surface.
+      districtRect(yard.grill.x,yard.grill.z,.81,.57,.07),
+      districtRect(yard.patch.x,yard.patch.z,yard.patchArea.w,yard.patchArea.d,.05),
+      districtRect(yard.bench.x,yard.bench.z,1.54,.44,.06),
+    ];
+  }),
   districtRect(DISTRICT_FOUNTAIN.x,DISTRICT_FOUNTAIN.z,3.38,2.64),
   districtRect(DISTRICT_FOUNTAIN.x,DISTRICT_FOUNTAIN.z,2.64,3.38),
   ...pondObstacles,

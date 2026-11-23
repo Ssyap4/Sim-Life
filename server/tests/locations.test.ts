@@ -16,7 +16,7 @@ import { CAFE_MENU, DELIVERY_FEE, STATIONS, DISTRICT_STATIONS, approachFor, floo
 import { CASHIER_SPOT } from '../../src/shared/locationLayout';
 import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_POND, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_PATHS, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, sitePoint } from '../../src/shared/district';
 import { besideTrail } from '../../src/game/DistrictTrail';
-import { NEIGHBOR_HOMES, homeStops } from '../../src/shared/neighborHomes';
+import { NEIGHBOR_HOMES, homeStops, yardFeatures } from '../../src/shared/neighborHomes';
 import { doorwayArrival } from '../../src/shared/locations';
 import { HOME_YARD } from '../../src/shared/home';
 import { GROCERIES } from '../../src/shared/food';
@@ -192,6 +192,30 @@ test('Neither player can enter the garden pond, routes go around it and existing
     assert.equal(restored.money,state.money);
     assert.equal(restored.world.places.vlad,'home');
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Four playable cottage yards protect furniture and crop plots without blocking paths',()=>{
+  const reserved:{x:number;z:number}[]=[];
+  for(const [i,home] of NEIGHBOR_HOMES.entries()){
+    const yard=yardFeatures(home,i),stops=homeStops(home);
+    for(const [name,point] of Object.entries({bench:yard.bench,grill:yard.grill,patch:yard.patch})){
+      assert.equal(pointIsClear(point,DISTRICT_OBSTACLES,DISTRICT_FLOOR),false,
+        home.id+' '+name+' needs a solid footprint');
+      reserved.push(point);
+    }
+    for(const [name,point] of Object.entries({
+      gate:stops.gate,sidewalk:stops.sidewalk,porch:stops.porch,
+      bookApproach:yard.benchApproach,grillApproach:yard.grillApproach,
+      cropApproach:yard.patchApproach,flowerApproach:yard.flowerApproach,guest:yard.guestSpot,
+    })){
+      assert.ok(pointIsClear(point,DISTRICT_OBSTACLES,DISTRICT_FLOOR),
+        home.id+' '+name+' is blocked');
+      assert.ok(findRoute(stops.sidewalk,point,DISTRICT_OBSTACLES,DISTRICT_FLOOR),
+        home.id+' '+name+' cannot be approached');
+    }
+  }
+  assert.equal(reserved.length,12);
+  assert.ok(pointIsClear({x:0,z:-15.35},DISTRICT_OBSTACLES,DISTRICT_FLOOR));
 });
 
 test('All four neighbors can reach each public shop doorway without crossing buildings',()=>{
