@@ -1,0 +1,39 @@
+name: Sim-Life 0.21 isolated mobile visual review
+on:
+  push:
+    branches: [feat/world-character-overhaul-021]
+    paths:
+      - .github/workflows/simlife-021-mobile-visual.yml
+      - scripts/qa-021-mobile-visual.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - name: Start isolated test server
+        run: |
+          mkdir -p "$RUNNER_TEMP/simlife-mobile-save"
+          HOST=127.0.0.1 PORT=3150 SIM_LIFE_TEST_NO_CODES=1 SIM_LIFE_DATA_DIR="$RUNNER_TEMP/simlife-mobile-save" npm start > "$RUNNER_TEMP/simlife-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3150/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:3150/health
+      - name: Capture and inspect phone viewport
+        run: node scripts/qa-021-mobile-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-021-mobile-visual
+          path: /tmp/simlife-021-mobile-visual/
+          if-no-files-found: warn
+          retention-days: 7
