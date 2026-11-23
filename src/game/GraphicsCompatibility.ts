@@ -11,10 +11,35 @@ export function graphicsProfile(userAgent: string, query: string) {
     android,
     firefox,
     safe,
+    full: mode === 'full',
     antialias: !safe,
     powerPreference: (safe ? 'default' : 'low-power') as 'default' | 'low-power',
     maxPixelRatio: safe ? 1 : 1.5,
   };
+}
+
+export type GraphicsQuality = 'standard' | 'high' | 'low';
+
+/** Explicit quality overrides must not be undone by the mobile FPS governor. */
+export function chooseGraphicsQuality(frameMs: number, profile: {safe: boolean; full: boolean}): GraphicsQuality {
+  if (profile.safe) return 'low';
+  if (profile.full) return 'high';
+  return frameMs > 24 ? 'low' : frameMs < 17.8 ? 'high' : 'standard';
+}
+
+/** Preserve the existing adaptive iPhone/Firefox path except for explicit gfx=full. */
+export function worldPixelRatio(
+  compact: boolean, devicePixelRatio: number, initialRatio: number,
+  home: boolean, quality: GraphicsQuality, profile: {full: boolean; maxPixelRatio: number},
+): number {
+  const deviceRatio = devicePixelRatio || 1;
+  if (profile.full) return Math.min(deviceRatio, profile.maxPixelRatio);
+  const requested = compact
+    ? Math.min(deviceRatio, quality === 'low' ? (home ? .88 : 1)
+      : home ? (quality === 'high' ? 1.26 : 1.11)
+        : quality === 'high' ? 1.45 : initialRatio)
+    : initialRatio;
+  return Math.min(requested, profile.maxPixelRatio);
 }
 
 /** Never leave a dead WebGL canvas looking like an empty playable world. */
