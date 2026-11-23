@@ -205,6 +205,13 @@ export function petWish(state: GameState, id: PetId): PetWish {
   if(routine==='fetch'&&id==='verdell')return {kind:'play',title:'🎾 Несёт мяч',
     message:'Верделл бежит к мячу и возвращается с ним к хозяину.',
     advice:'Подожди, пока Верделл принесёт игрушку',urgent:false};
+  if(routine==='scratch'&&id==='simba')return {kind:'play',title:'🐾 Точит коготки',
+    message:'Симба добрался до настоящей когтеточки и разминает лапы.',
+    advice:'Когтеточка работает, пока она стоит в доме',urgent:false};
+  if(routine==='sleep'&&pet.routine?.equipment)return {kind:'sleeping',
+    title:'🧺 Отдыхает на лежанке',
+    message:PETS[id].name+' устроился на купленной мягкой лежанке.',
+    advice:'Пусть спокойно восстановит силы',urgent:false};
   if(routine==='perch'&&id==='simba')return {kind:'rest',title:'🛋️ Любимое местечко',
     message:'Симба выбирает удобную подушку и устраивается на ней.',
     advice:'Можно наблюдать за отдыхом кота',urgent:false};
