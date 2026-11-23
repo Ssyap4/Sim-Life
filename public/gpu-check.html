@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim-Life GPU Check</title><style>
+:root{font-family:system-ui,sans-serif;color:#243d30;background:#f2f5ed}body{margin:0;padding:18px;max-width:650px}h1{font-size:23px;margin:4px 0}p{font-size:14px;line-height:1.5}
+article{padding:12px;border-radius:12px;background:white;margin:12px 0;box-shadow:0 2px 10px #16392616}
+strong{font-size:19px}.ok{color:#16713b}.bad{color:#a62c24}.muted{color:#596b61}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}button,a{display:inline-block;padding:10px;margin:3px;border:0;border-radius:9px;background:#365f46;color:white;font-size:14px;text-decoration:none}
+canvas{width:64px;height:64px;border:1px solid #ccc;margin:4px}#extra{font-size:12px;word-break:break-all}
+</style></head><body>
+<h1>Sim-Life: GPU Check</h1>
+<p>Simple graphics check for Android. No game, no account or save files are loaded. Screenshot the results and send them in chat.</p>
+<article><strong id="summary">Checking graphics...</strong><p id="hint"></p></article>
+<article><b>WebGL 2</b><pre id="two">Checking...</pre><b>WebGL 1</b><pre id="one">Checking...</pre></article>
+<article><b>Browser and display</b><pre id="extra"></pre></article>
+<button id="refresh">Run check again</button><a href="/">Back to game</a>
+<script>
+'use strict';
+document.querySelector('#refresh').addEventListener('click',()=>location.reload());
+const results={};
+function test(kind,label){
+ const output=document.querySelector('#'+label);
+ const canvas=document.createElement('canvas');
+ canvas.width=canvas.height=64;
+ const messages=[];
+ canvas.addEventListener('webglcontextcreationerror',e=>messages.push(e.statusMessage||'creationerror'));
+ let gl=null;
+ try{gl=canvas.getContext(kind,{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'default'});}catch(e){messages.push(String(e));}
+ if(!gl){results[label]='UNAVAILABLE';output.textContent='UNAVAILABLE\n'+messages.join('\n');output.className='bad';return;}
+ const attrs=gl.getContextAttributes();
+ let pixels='not measured';
+ try{
+  gl.viewport(0,0,64,64);gl.clearColor(.18,.59,.32,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  const p=new Uint8Array(4);gl.readPixels(32,32,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);
+  pixels=Array.from(p).join(',');
+ }catch(e){pixels='ERROR: '+String(e);}
+ const version=gl.getParameter(gl.VERSION);
+ const renderer=gl.getParameter(gl.RENDERER);
+ const texture=gl.getParameter(gl.MAX_TEXTURE_SIZE);
+ const error=gl.getError();
+ results[label]={version,renderer,texture,pixels,error,antialias:attrs?.antialias,contextLost:gl.isContextLost()};
+ output.textContent='AVAILABLE\nVersion: '+version+'\nRenderer: '+renderer+
+  '\nTexture limit: '+texture+'\nPixel: '+pixels+'\nGL error: '+error+
+  '\nContext lost: '+gl.isContextLost()+'\nMSAA: '+attrs?.antialias;
+ output.className='ok';
+}
+test('webgl2','two');
+test('webgl','one');
+const info={userAgent:navigator.userAgent,viewport:innerWidth+'x'+innerHeight,pixelRatio:devicePixelRatio,
+ secureContext:isSecureContext,online:navigator.onLine};
+document.querySelector('#extra').textContent=Object.entries(info).map(([k,v])=>k+': '+v).join('\n');
+const summary=document.querySelector('#summary'),hint=document.querySelector('#hint');
+if(results.two!=='UNAVAILABLE'){
+ summary.textContent='WebGL 2: AVAILABLE';summary.className='ok';
+ hint.textContent='Your browser can create WebGL 2. If Sim-Life is blank, the issue may be scene rendering or GPU instability rather than missing WebGL 2.';
+}else if(results.one!=='UNAVAILABLE'){
+ summary.textContent='WebGL 2: NOT SUPPORTED';summary.className='bad';
+ hint.textContent='WebGL 1 works, but Sim-Life uses Three.js 0.187 and requires WebGL 2. This phone/browser cannot launch the current 3D renderer.';
+}else{
+ summary.textContent='WebGL 1 and 2: UNAVAILABLE';summary.className='bad';
+ hint.textContent='The browser cannot create a GPU context. Check Chrome, Android System WebView and hardware acceleration / system updates.';
+}
+</script></body></html>
