@@ -15,6 +15,14 @@ export const SOCIAL_GROUPS = {
   romance:['♡','Нежность'], fun:['✦','Отдых'],
 } as const;
 export type SocialGroup = keyof typeof SOCIAL_GROUPS;
+export type HomeEveningPhase = 'prepare' | 'dine' | 'unwind' | 'complete';
+/** Shared, saved steps of a real two-player evening; no stages are credited on invite or cancellation. */
+export interface HomeEvening {
+  recipe: RecipeId;
+  phase: HomeEveningPhase;
+  startedAt: number;
+  completedAt?: number;
+}
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue';
@@ -25,6 +33,11 @@ export type SocialActivity = {
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
 const objects: readonly SocialActivity[] = [
+  {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
+    lines:['Давай сегодня приготовим что-нибудь вдвоём, поужинаем и проведём вечер вместе.',
+      'Хочется спокойного вечера: выбрать блюдо, накрыть стол и потом отдохнуть рядом.'],
+    replies:['Я за! Выберем блюдо и начнём.','Давай устроим наш маленький праздник дома.'],
+    motion:'sitTalk',seconds:9,object:'table',resource:'evening-plan'},
   {id:'cook',title:'Приготовить вместе',group:'home',lines:['Поможешь подготовить продукты? Приготовим одну порцию рецепта на двоих.'],replies:['Я подготовлю ингредиенты.','Давай распределим работу у столешницы.'],motion:'cook',seconds:10,object:'cook',resource:'kitchen',memorable:true},
   {id:'grill',title:'Готовить на гриле вдвоём',group:'home',lines:['Поставим блюдо на гриль? Я буду у жаровни, а ты помоги у стола.'],replies:['Подготовлю посуду во дворе.','Скажи, когда нужна помощь с подачей.'],motion:'grill',seconds:13,object:'grill',resource:'grill',memorable:true},
   {id:'eat',title:'Позвать к столу',group:'home',lines:['На двоих хватит. Поедим вместе?'],replies:['Да, расскажу, как прошёл день.','Хочу попробовать и спокойно посидеть.'],motion:'eat',seconds:10,object:'eat',independent:true,memorable:true},
@@ -84,7 +97,7 @@ export interface SocialOffer { id:number; from:CharacterId; action:string; title
 export type SocialPhase = 'accepted'|'declined'|'expired'|'cancelled'|'interrupted';
 export interface SocialMemory { at:number; action:string; title:string; description:string; group:SocialGroup }
 export interface Relationship {
-  memories:SocialMemory[]; recent: {action:string;at:number}[]; lastTogether?:number;
+  memories:SocialMemory[]; recent: {action:string;at:number}[]; lastTogether?:number; evening?:HomeEvening;
 }
 export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
@@ -149,9 +162,12 @@ export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
 
 type Item = {id:string;label:string};
 const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush']);
-export const needsItem=(a:SocialActivity)=>!!a.object&&pairItems.has(a.object);
+export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
+  if(a.id==='eveningPlan') return recipeIds.filter(id=>!isGrillRecipe(id)&&
+    ingredientList(id).every(([ingredient,amount])=>state.pantry[ingredient]>=amount))
+    .map(id=>({id,label:RECIPES[id].name}));
   switch(a.object){
     case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
