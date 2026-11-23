@@ -110,7 +110,7 @@ test('restaurant dishes progressively unlock at levels 7 through 20 with real in
     if(cooked.ok) {
       assert.equal(cooked.state.meals[id],RECIPES[id].servings,id);
       assert.equal(cooked.state.readyFood.at(-1)?.item,id);
-      for(const [key,qty] of ingredientList(id))
+      for(const [key] of ingredientList(id))
         assert.equal(cooked.state.pantry[key],0,id+': '+key);
     }
   }
