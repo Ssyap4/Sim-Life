@@ -1,9 +1,8 @@
 import {
-  activityItems, contextAvailable, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
+  activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
 } from './shared/socialLife';
 import { clockAt, clockLabel, gameMinutes } from './shared/life';
-import { RECIPES } from './shared/food';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',style='')=>{
@@ -22,8 +21,8 @@ export type SocialSend=(message:SocialCommand)=>boolean;
 const contextOrder=(a:SocialActivity,state:GameState,role:CharacterId)=>{
   const evening=state.relationship.evening;
   if(evening?.phase==='prepare'&&a.id==='cook'||
-    evening?.phase==='dine'&&a.id==='eat'||
-    evening?.phase==='unwind'&&['film','tv','cuddle'].includes(a.id))return 0;
+    evening?.phase==='dine'&&a.id===eveningDinnerAction(evening)||
+    evening?.phase==='unwind'&&['film','tv','cuddle','eveningHeartTalk','petPlay'].includes(a.id))return 0;
   if(a.id==='eveningPlan'&&state.clock.minute>=17*60)return 0;
   if(state.relationship.recent.slice(-3).some(e=>e.action===a.id))return 6;
   if(socialRestriction(a,state,role))return 4;
@@ -70,9 +69,10 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
             for(const {id,label} of activityItems(a,state,role)){
               const option=node('option',label);option.value=id;picker.append(option);
             }
-            const planned=state.relationship.evening?.recipe;
-            if(planned&&['cook','eat'].includes(a.id)&&
-              Array.from(picker.options).some(option=>option.value===planned))picker.value=planned;
+            const planned=state.relationship.evening;
+            const selected=planned&&eveningDishId(planned);
+            if(selected&&['cook','eat','takeout'].includes(a.id)&&
+              Array.from(picker.options).some(option=>option.value===selected))picker.value=selected;
             card.append(picker);
           }
           const offer=button(a.object?'Предложить занятие':'Предложить и дождаться ответа',()=>{
@@ -104,22 +104,33 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   story.append(node('strong','💛 Наш домашний вечер'));
   if(!evening||evening.phase==='complete'){
     story.append(node('p',evening?.phase==='complete'
-      ? 'Прошлый вечер удался! Можно запланировать новый — с другим блюдом и занятиями.'
-      : 'Выберите рецепт, приготовьте его вместе, поужинайте и завершите вечер общим отдыхом.'));
+      ? 'Прошлый вечер удался! Попробуйте новый способ ужина или другое совместное занятие.'
+      : 'Выберите: приготовить вдвоём, разделить готовый ужин или доставку. Затем побудьте вместе.'));
     story.append(button('Спланировать вечер вдвоём',()=>suggest('home','eveningPlan')));
   } else {
-    const dish=SOCIAL_BY_ID.get('cook')?.title??'Приготовить вместе';
-    const names={prepare:'1 из 3 · Приготовление',dine:'2 из 3 · Ужин',unwind:'3 из 3 · Время вместе'};
-    const descriptions={
-      prepare:'Приготовьте выбранный рецепт вместе. Продукты спишутся только после завершения.',
-      dine:'Блюдо уже готово. Пригласите друг друга поужинать за столом.',
-      unwind:'Поужинали! Завершите вечер общим фильмом, ТВ или объятиями на диване.',
-    };
-    story.append(node('p',names[evening.phase]+' · '+RECIPES[evening.recipe].name),
-      node('p',descriptions[evening.phase]));
-    const action=evening.phase==='prepare'?'cook':evening.phase==='dine'?'eat':'tv';
-    const title=evening.phase==='prepare'?dish:evening.phase==='dine'?'Позвать к столу':'Посмотреть ТВ вдвоём';
-    story.append(button(title,()=>suggest(evening.phase==='unwind'?'fun':'home',action)));
+    const phaseLabel=evening.phase==='prepare'?'1 из 3 · Готовим':
+      evening.phase==='dine'?'2 из 3 · Ужинаем':'3 из 3 · Отдыхаем';
+    const occasion=evening.occasion==='comfort'?'Сегодня особенно важна поддержка.':
+      evening.occasion==='rest'?'Усталость заметна — хорошо бы отдохнуть вместе.':
+      'Проведите этот вечер так, как нравится вам обоим.';
+    story.append(node('p',phaseLabel+' · '+eveningMealName(evening)));
+    story.append(node('p',evening.phase==='prepare'
+      ? 'Выбранное блюдо нужно приготовить вместе. Продукты спишутся после готовки.'
+      : evening.phase==='dine'
+        ? 'Две настоящие порции ждут на столе. Пригласите друг друга поужинать.'
+        : occasion));
+    if(evening.phase==='prepare'){
+      story.append(button('🍳 Приготовить вместе',()=>suggest('home','cook')));
+    } else if(evening.phase==='dine'){
+      const delivery=eveningDinnerAction(evening)==='takeout';
+      story.append(button(delivery?'🍕 Разделить доставку':'🍽️ Позвать к столу',
+        ()=>suggest('home',delivery?'takeout':'eat')));
+    } else {
+      story.append(button('📺 Посмотреть ТВ вдвоём',()=>suggest('fun','tv')));
+      story.append(button('💛 Поговорить по душам',()=>suggest('care','eveningHeartTalk')));
+      if(activityItems(SOCIAL_BY_ID.get('petPlay')!,state,role).length)
+        story.append(button('🐾 Поиграть с питомцем',()=>suggest('home','petPlay')));
+    }
     story.append(button('Выбрать другой план',()=>suggest('home','eveningPlan')));
   }
   pane.append(node('h3','Планы на вечер'),story);
