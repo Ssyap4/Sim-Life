@@ -469,7 +469,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // both residents could only repeat TV/computer/pet interactions.
           const turn=fullRoutineTurn.get(role)??0;
           fullRoutineTurn.set(role,turn+1);
-          if(turn%3===1){
+          // Keep a short natural chat window from being consumed by a new
+          // solo chore. Critical needs still execute before this block.
+          const partner=otherRole(role);
+          const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
+            Math.floor(clockMinutes(state.clock)/125)%3===0;
+          if(turn%3===1&&!sharedWindow){
             const chores=homeHabitSuggestions(state,role,Math.floor(turn/3));
             for(const actionId of chores){
               const plan=planTask({type:'act',actionId});
@@ -532,7 +537,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           (queuedTasks.get(other)?.length??0)===0&&!state.activeShifts[other]&&
           !state.careers.residents[other].shift&&!walkingHome.has(other)&&
           !storageOpen.has(other)&&!leisure.has(other)&&
-          age>=otherIdleThreshold-2400&&age<otherIdleThreshold){
+          (age>=0&&age<otherIdleThreshold ||
+           now-(lastAutoCare.get(other)??0)<leisureCooldownMs &&
+           leisureCooldownMs-(now-(lastAutoCare.get(other)??0))<=3000)){
         return;
       }
     }
