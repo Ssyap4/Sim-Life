@@ -13,8 +13,8 @@ mkdirSync(out,{recursive:true});
 const saves=mkdtempSync(join(tmpdir(),'sim-life-027-personalities-'));
 const files=openServerFiles(saves);
 const state=initialState();
-Object.assign(state.characters.vlad,{mood:16,energy:32,hunger:78,fun:49});
-Object.assign(state.characters.alina,{mood:93,energy:93,hunger:81,fun:83});
+Object.assign(state.characters.vlad,{mood:93,energy:93,hunger:78,fun:83});
+Object.assign(state.characters.alina,{mood:16,energy:32,hunger:81,fun:49});
 // Both residents stand near enough for an actual in-game friendly glance,
 // but far enough apart to keep the existing collision separation stable.
 Object.assign(state.characters.vlad,{x:-1.0,z:2.38});
@@ -81,8 +81,10 @@ try{
     if(data.width>data.viewport+2)errors.push(name+': horizontal overflow');
     if(!data.canvas||!data.lobbyHidden)errors.push(name+': real WebGL/client not running '+JSON.stringify(data));
   };
-  await makeShot('01-home-unhappy-vlad-happy-alina');
+  await makeShot('01-home-happy-vlad-unhappy-alina');
   await makeShot('01b-separated-before-approach');
+  // The mood fixture is intentionally reversed here: Vlad must be friendly
+  // enough to wave; a genuinely unhappy person should not be forced to smile.
   // A normal authenticated second player walks toward Vlad. This is a real
   // websocket command, not a direct tweak to a 3D rig or production debug hook.
   // Lock the real existing portrait inspection camera on STATIONARY Vlad
@@ -119,7 +121,7 @@ try{
     await makeShot('0'+(index*2+3)+'-'+subject+'-gesture');
   }
   const final=files.load();
-  if(final.characters.vlad.mood>18||final.characters.alina.mood<80)
+  if(final.characters.vlad.mood<80||final.characters.alina.mood>18)
     errors.push('Fixture lost emotional difference before capturing');
   if(!final.pets.simba||!final.pets.verdell)errors.push('Pets are missing from authoritative state');
   writeFileSync(join(out,'results.json'),JSON.stringify({errors,results,
