@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim-Life · residents and pets portrait QA</title>
+<style>
+body{margin:0;background:#e5ddd2;color:#2c2926;font:13px system-ui}
+header{height:42px;text-align:center;line-height:42px;font-weight:700}
+#scene{width:390px;height:844px;margin:auto;position:relative}
+canvas{width:390px;height:844px;display:block}
+.tag{position:absolute;background:#fff9ecdf;border-radius:8px;padding:5px 8px;font-weight:600}
+</style></head><body>
+<header>Влад, Алина, Верделл и Симба</header>
+<div id="scene"><canvas width="390" height="844"></canvas></div>
+<script type="module">
+import * as THREE from 'three';
+import {Actor} from './src/game/Actor.ts';
+import {PetActor} from './src/game/PetActor.ts';
+import {loadResidents} from './src/game/BlenderCharacter.ts';
+const canvas=document.querySelector('canvas');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(390,844,false);
+renderer.setPixelRatio(1);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff,0xc1b9ac,2));
+const key=new THREE.DirectionalLight(0xfff9f0,2);key.position.set(-1,4,3);scene.add(key);
+const models=await loadResidents();
+document.body.dataset.loadedModels=String(Number(!!models.vlad)+Number(!!models.alina));
+const vlad=new Actor('vlad',[0,0],models.vlad);
+const alina=new Actor('alina',[0,0],models.alina);
+const verdell=new PetActor('verdell');
+const simba=new PetActor('simba');
+for(const person of [vlad,alina])person.setNeeds({
+  hunger:85,energy:85,bladder:85,hygiene:85,mood:90,
+});
+const ambient={satiety:80,energy:80,happiness:85,bond:65,bowl:2,personNearby:false};
+verdell.setAmbient(ambient);simba.setAmbient(ambient);
+const subjects=[vlad,alina,verdell,simba];
+const names=['Влад','Алина','Верделл','Симба'];
+const stage=document.getElementById('scene');
+for(let i=0;i<4;i++){
+  const t=document.createElement('span');
+  t.className='tag';t.textContent=names[i];
+  t.style.left=(i%2*195+8)+'px';t.style.top=(Math.floor(i/2)*422+9)+'px';
+  stage.append(t);
+}
+// Advance deterministic local *visual* time, with no server connection or state mutation.
+for(let frame=0;frame<420;frame++){
+  for(const person of [vlad,alina])person.update(1/12);
+  for(const pet of [verdell,simba])pet.update(1/12);
+}
+const hashes=[];
+for(let i=0;i<4;i++){
+  const obj=subjects[i].root;
+  const dog=i===2, cat=i===3,pet=dog||cat;
+  scene.add(obj);
+  obj.position.set(0,0,0);
+  obj.rotation.y=0;
+  const camera=new THREE.PerspectiveCamera(35,195/422,.1,30);
+  const z=pet?2.5:3.55;
+  camera.position.set(.25,pet?1.0:1.7,z);
+  camera.lookAt(0,pet?0.51:1.04,0);
+  const x=i%2*195,y=422*(1-Math.floor(i/2));
+  renderer.setViewport(x,y,195,422);
+  renderer.setScissor(x,y,195,422);
+  renderer.setScissorTest(true);
+  renderer.setClearColor(i%2?0xf5eee9:0xecebe4);
+  renderer.clear(true,true,true);
+  renderer.render(scene,camera);
+  const pixels=new Uint8Array(80*110*4);
+  renderer.getContext().readPixels(x+58,y+150,80,110,renderer.getContext().RGBA,renderer.getContext().UNSIGNED_BYTE,pixels);
+  let hash=2166136261;
+  for(let n=0;n<pixels.length;n+=4)hash=Math.imul(hash^pixels[n],16777619)>>>0;
+  hashes.push(hash.toString(16));
+  scene.remove(obj);
+}
+document.body.dataset.rendered='4';
+document.body.dataset.hashes=hashes.join(',');
+document.body.dataset.ready='true';
+</script></body></html>

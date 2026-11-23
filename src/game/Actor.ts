@@ -981,6 +981,50 @@ export class Actor {
           expression = THREE.MathUtils.lerp(expression, 0.12, w);
           break;
         }
+        case 'studyPalm': {
+          const examine=residentIdleEase(phase,.67,1.5)*(1-residentIdleEase(phase,2.5,3.42));
+          rightY=THREE.MathUtils.lerp(rightY,-.10,w);
+          rightZ=THREE.MathUtils.lerp(rightZ,.26,w);
+          leftY=THREE.MathUtils.lerp(leftY,-.37,w*.6);
+          idleHeadYaw=.10*w;
+          gaze+=.18*w;
+          idleEyePitch+=.08*examine;
+          expression+=.025*w;
+          break;
+        }
+        case 'rubShoulder': {
+          const press=residentIdleEase(phase,.54,1.14)*(1-residentIdleEase(phase,2.85,3.45));
+          rightY=THREE.MathUtils.lerp(rightY,-.01,w);
+          rightZ=THREE.MathUtils.lerp(rightZ,.23,w);
+          idleHeadRoll=.055*w;
+          idleHeadYaw=-.07*w;
+          idleChestRoll=-.025*press;
+          gaze+=.05*press;
+          break;
+        }
+        case 'easeWrists': {
+          const movement=Math.sin(phase*4.1)*w;
+          leftY=THREE.MathUtils.lerp(leftY,-.18,w);
+          rightY=THREE.MathUtils.lerp(rightY,-.19+.024*movement,w);
+          leftZ=THREE.MathUtils.lerp(leftZ,.32,w);
+          rightZ=THREE.MathUtils.lerp(rightZ,.34,w);
+          idleHeadYaw=-.12*w;
+          gaze+=.12*w;
+          expression+=.042*w;
+          break;
+        }
+        case 'steadyBreath': {
+          const inhale=Math.sin(Math.PI*residentIdleEase(phase,.45,3.2))*w;
+          idleChestRoll=(this.id==='vlad'?.035:-.035)*inhale;
+          idleHeadRoll=-idleChestRoll*.55;
+          idleChestYaw=.016*inhale;
+          lean-=.052*inhale;
+          leftY=THREE.MathUtils.lerp(leftY,-.45,w*.45);
+          rightY=THREE.MathUtils.lerp(rightY,-.45,w*.45);
+          armSpread=THREE.MathUtils.lerp(armSpread,.065,w);
+          expression=THREE.MathUtils.lerp(expression,.17,w);
+          break;
+        }
         case 'noticePet': {
           // A real pet nearby catches the gaze. Mild head/chest rotation and
           // a fond downward glance, never a fake petting/feed action.
@@ -1219,6 +1263,17 @@ export class Actor {
         data.head.localToWorld(this.target.set(-0.184 + 0.028 * sweep,
           0.019 + 0.124 * sweep, 0.144 - 0.031 * sweep));
         contactHand = 0;
+      } else if (this.idleGesture === 'studyPalm') {
+        data.chest.localToWorld(this.target.set(0.17,1.22,0.37));
+        contactHand=1;
+      } else if (this.idleGesture === 'rubShoulder') {
+        data.chest.localToWorld(this.target.set(-0.19,1.40,0.21));
+        contactHand=1;
+      } else if (this.idleGesture === 'easeWrists') {
+        data.chest.localToWorld(this.target.set(-0.07,1.20,0.37));
+        this.reach(0,this.target,reachBlend);
+        data.chest.localToWorld(this.target.set(-0.045,1.205,0.39));
+        contactHand=1;
       } else if (this.idleGesture === 'adjustSleeve') {
         // Present the left cuff in front of the chest, then briefly tug it
         // with the other hand. Both targets are within reachable distance

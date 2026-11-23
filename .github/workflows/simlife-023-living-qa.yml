@@ -1,0 +1,25 @@
+name: Sim-Life 0.23 living residents focused QA
+on:
+  push:
+    branches: [feat/living-residents-pets-023]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  residents-and-pets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Strict TypeScript
+        run: npm run check
+      - name: Focused residents, gestures, pets and relationship regression
+        run: |
+          node --import tsx --test server/tests/living-personality-023.test.ts server/tests/petPersonality.test.ts server/tests/petHungerAlert.test.ts server/tests/pets.test.ts server/tests/social.test.ts
+      - name: Production bundle smoke build
+        run: npx vite build

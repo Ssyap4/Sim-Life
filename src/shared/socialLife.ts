@@ -16,7 +16,7 @@ export const SOCIAL_GROUPS = {
 export type SocialGroup = keyof typeof SOCIAL_GROUPS;
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll';
-type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired';
+type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'cafeMeal'|'sofa'|'table';
 export type SocialActivity = {
@@ -54,7 +54,9 @@ const patterns: Record<string,PairMotion> = {
   slowDance:'slowDance',dance:'dance',highFive:'highFive',joke:'laugh',tease:'laugh',petComedy:'laugh',storyGame:'explain',
 };
 const contexts: Record<string,Context> = {shift:'shift',promotion:'promotion',achievement:'achievement',memory:'memory',
-  filmTalk:'film',afterWork:'shift',tired:'tired'};
+  filmTalk:'film',afterWork:'shift',tired:'tired',
+  shortBudget:'lowBudget',moneyCare:'lowBudget',petHungerHelp:'hungryPet',
+  readyDinner:'readyFood',foodFreshness:'readyFood',emptyShelves:'lowPantry'};
 const special = ['comfortHug','shoulder','softHug','closeHug','kiss','cheek','slowDance','promotion','afterWork','storyGame'];
 const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(group=>dialogue[group].trim().split('\n').map((row):SocialActivity=>{
   const [id,title,a,b,...replies]=row.split('|');
@@ -102,6 +104,11 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
   const partner=otherPerson(from);
   switch(a.context){
     case 'tired': return state.characters[partner].energy<58;
+    case 'lowBudget': return state.money < 5500;
+    case 'hungryPet': return state.pets.verdell.satiety < 45 || state.pets.simba.satiety < 45;
+    case 'readyFood': return state.readyFood.some(batch => batch.kind === 'meal' && batch.portions > 0);
+    case 'lowPantry': return ['eggs','bread','milk','chicken','potato','rice'].filter(key=>
+      state.pantry[key as keyof typeof state.pantry] > 0).length < 3;
     case 'shift': return !!recentCareer(state,a.id==='shift'?from:partner,['Смена завершена','Досрочный уход'],720);
     case 'promotion': return !!recentCareer(state,partner,['Повышение'],1440);
     case 'achievement': return !!latestLesson(state,from);
@@ -113,7 +120,10 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
 export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
   const count=state.relationship.recent.filter(r=>r.action===a.id).length;
   return a.lines[count%a.lines.length].replace('{memory}',state.relationship.memories.at(-1)?.title??'')
-    .replace('{lesson}',latestLesson(state,from)?.title??'');
+    .replace('{lesson}',latestLesson(state,from)?.title??'')
+    .replace('{balance}',Math.round(state.money).toLocaleString('ru-RU'))
+    .replace('{pet}',state.pets.verdell.satiety <= state.pets.simba.satiety
+      ? 'Верделл' : 'Симба');
 }
 
 type Item = {id:string;label:string};
