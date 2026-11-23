@@ -23,6 +23,21 @@ for (const id of ['vlad', 'alina'] as const) {
     assert.equal(new Set(skins.map(mesh => mesh.skeleton)).size, 1);
     assert.notEqual(skins[0].skeleton.bones[0], spareSkins[0].skeleton.bones[0]);
     assert.equal(skins[0].geometry, spareSkins[0].geometry);
+    if (id === 'alina') {
+      const shirt = new Actor(id, [3.17, 3.65], createBlenderCharacter(gltf, id, ['alina-tee-upper']));
+      const shirtSkins = shirt.root.getObjectsByProperty('isSkinnedMesh', true) as THREE.SkinnedMesh[];
+      const visible = (parts: THREE.SkinnedMesh[], garment: string) =>
+        parts.find(part => part.userData.garmentId === `alina-${garment}`)?.visible;
+      assert.equal(visible(skins, 'signature-upper'), true);
+      assert.equal(visible(skins, 'tee-upper'), false);
+      assert.equal(visible(shirtSkins, 'signature-upper'), false);
+      assert.equal(visible(shirtSkins, 'tee-upper'), true);
+      assert.equal(visible(shirtSkins, 'signature-lower'), true);
+      assert.equal(visible(shirtSkins, 'signature-footwear'), true);
+      assert.equal(skins.find(part => part.userData.bodyRegion === 'forearms')?.visible, false);
+      assert.equal(shirtSkins.find(part => part.userData.bodyRegion === 'forearms')?.visible, true);
+      assert.equal(new Set(shirtSkins.map(mesh => mesh.skeleton)).size, 1);
+    }
 
     const keys = [new THREE.Vector3(3.37, 1.116, 1.896), new THREE.Vector3(3.03, 1.116, 1.896)] as const;
     actor.setFurniturePose('work', new THREE.Vector3(3.2, id === 'vlad' ? -.24 : -.19, 2.47), Math.PI, keys);

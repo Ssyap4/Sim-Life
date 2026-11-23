@@ -129,8 +129,9 @@ export function initialCareers(): CareersState {
   return { nextId: 1, residents: { vlad: resident(), alina: resident() } };
 }
 export type CareerCommand =
+  | { type:'career_start'; via?:string }
   | { type: 'career_hire'; career: CareerId }
-  | { type: 'career_resign' | 'career_start' | 'career_leave' | 'career_overtime' | 'career_promote' }
+  | { type: 'career_resign' | 'career_leave' | 'career_overtime' | 'career_promote' }
   | { type: 'career_approach'; nonce: number; device?: import('./computer').ComputerDevice }
   | { type: 'career_choose'; nonce: number; choice: number }
   | { type: 'career_verify'; nonce: number; choice: number; step: number };

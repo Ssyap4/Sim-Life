@@ -1,5 +1,5 @@
 import { FURNITURE_BY_ID, type FurnitureShape, type PlacedFurniture } from './furniture';
-import { HOME_FLOOR } from './home';
+import { HOME_WORLD_FLOOR } from './district';
 import { placeObstacles } from './locations';
 import type { CharacterId, GameState } from './protocol';
 import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
@@ -128,8 +128,8 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   let selected:WalkRoute|null=null,shortest=Infinity;
   for(const [x,z] of approaches){
     const target=rotate(item,x,z);
-    if(!pointIsClear(target,obstacles,HOME_FLOOR))continue;
-    const route=planWalk(from,target,obstacles,HOME_FLOOR);
+    if(!pointIsClear(target,obstacles,HOME_WORLD_FLOOR))continue;
+    const route=planWalk(from,target,obstacles,HOME_WORLD_FLOOR);
     if(!route)continue;
     let len=0,prev=route.from;
     for(const point of route.path){len+=Math.hypot(point.x-prev.x,point.z-prev.z);prev=point;}

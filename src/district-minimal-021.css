@@ -1,0 +1,156 @@
+/* Sim-Life 0.21: restrained editorial UI, unchanged hitboxes and panel structure.
+   No layout reshuffle: 320–430px mobile portrait remains the reference. */
+#app{
+  --ui-ink:#293633;--ui-muted:#687671;--ui-accent:#365b50;
+  --ui-line:rgba(80,102,93,.20);--ui-panel:rgba(250,251,248,.96);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--ui-ink);
+}
+#app .brand-icon,#app .auth-emblem{
+  background:#304a43;box-shadow:none;color:#f5f8f3;border-radius:10px;
+  font-weight:650;
+}
+#app .brand-kicker{
+  color:#6d7d75;font-size:9px;letter-spacing:1.65px;font-weight:700;
+}
+#app .brand h1{
+  color:#243731;font-size:23px;letter-spacing:.035em;font-weight:750;
+  margin:-3px 0 0;
+}
+#app .version{
+  color:#55675e;background:rgba(249,250,246,.86);border:1px solid var(--ui-line);
+  border-radius:7px;box-shadow:none;font-size:9px;letter-spacing:1px;font-weight:650;
+}
+#app .money-panel,#app .person,#app .life-strip,
+#app .bottom-bar,#app .task-panel,#app .needs-panel,#app .thought-panel,
+#app .actions,#app .location-panel{
+  background:var(--ui-panel);border:1px solid var(--ui-line);
+  box-shadow:0 5px 18px rgba(29,48,40,.11);border-radius:12px;
+  color:var(--ui-ink);
+}
+#app .money-panel strong{color:#294f43;font-weight:750;letter-spacing:-.01em}
+#app .person.active{
+  background:#f4f7f3;border-color:#62887a;box-shadow:inset 0 0 0 1px rgba(72,116,94,.28);
+}
+#app .person-info strong{color:#243831;font-weight:750}
+#app .avatar{border-radius:9px;font-weight:700}
+#app .avatar-vlad{background:#537267}
+#app .avatar-alina{background:#8a766c}
+#app .life-strip button:not(:disabled),#app .home-buttons .market-btn,
+#app .showcase-toggle,#app .thought-trigger,#app .camera-dock .camera-reset,
+#app .life-strip .pets-hud-btn,#app .action-button{
+  border:1px solid var(--ui-line);border-radius:10px;
+  background:#f8f9f5;color:#30483f;
+  box-shadow:none;text-shadow:none;font-weight:700;
+}
+#app #needs-toggle[aria-expanded="true"],
+#app .camera-dock .camera-follow[aria-pressed="true"],
+#app .wish-choice[aria-pressed="true"]{
+  background:#355c4e;color:#f9fbf8;border-color:#355c4e;
+}
+#app .camera-dock .camera-reset{
+  color:#30483f;font-family:inherit;font-size:23px;
+}
+#app .status-line,#app .tip{
+  background:rgba(249,250,247,.94);border:1px solid var(--ui-line);
+  color:var(--ui-muted);box-shadow:0 4px 16px rgba(25,44,34,.09);
+  border-radius:10px;font-weight:600;
+}
+#app .thought-panel,#app .pause-card,#app .auth-card,
+#app .market-card,#app .jobs-card,#app .phone-case,#app .skills-sheet{
+  border-color:var(--ui-line);box-shadow:0 14px 42px rgba(29,43,38,.18);
+}
+#app .pause-card,#app .auth-card{background:#fafbf8;border-radius:16px}
+#app .pause-card strong,#app .auth-card h2{color:#283d35}
+#app .pause-card .pause-emblem{
+  background:#e7eee7;color:#365c4d;border-radius:12px;
+}
+#app .need-row,#app .needs-header,#app .thought-heading{color:#32483e}
+#app .need-glyph{
+  display:inline-flex;align-items:flex-end;justify-content:center;
+  width:21px;height:19px;gap:3px;vertical-align:-3px;
+}
+#app .need-glyph i{
+  display:block;width:4px;border-radius:2px 2px 1px 1px;
+  background:currentColor;
+}
+#app .need-glyph i:nth-child(1){height:8px;opacity:.65}
+#app .need-glyph i:nth-child(2){height:15px}
+#app .need-glyph i:nth-child(3){height:11px;opacity:.80}
+#app .vignette{
+  background:linear-gradient(to bottom,rgba(30,43,37,.07),transparent 24%,transparent 76%,rgba(25,43,36,.11));
+}
+#app .thought-panel .wish-choice,#app .thought-panel .wish-detail,
+#app .thought-panel .thought-phrase,#app .thought-panel .thought-more{
+  border-color:var(--ui-line);border-radius:9px;
+  background:#f3f5f0;color:#365348;
+}
+#app :is(button,a,[role="button"]):focus-visible{
+  outline:2px solid #537967;outline-offset:2px;
+}
+@media(max-width:640px) and (orientation:portrait){
+  #app .life-strip .need-glyph{width:21px;height:19px}
+  #app .money-panel,#app .person,#app .life-strip,
+  #app .bottom-bar,#app .thought-panel,#app .needs-panel{box-shadow:0 3px 12px rgba(29,43,36,.10)}
+}
+@media(prefers-reduced-motion:reduce){
+  #app .person,#app button{transition:none}
+}
+
+/* Bring phone apps and full-screen sheets into the same quiet visual system. */
+#app .phone-case,#app [data-owner=alina] .phone-case{
+  --phone-accent:#365b4d;--phone-light:#eaf0ea;
+  background:#f8faf7;color:#2e4139;border:5px solid #2d433c;
+  border-radius:23px;box-shadow:0 17px 46px rgba(24,37,31,.26);
+}
+#app .phone-header{
+  background:#e8eee8;border-bottom:1px solid var(--ui-line);
+  color:#385a4d;font-weight:650;
+}
+#app .phone-header button{
+  color:#37584b;background:#f9faf8;border:1px solid var(--ui-line);
+  border-radius:9px;
+}
+#app .phone-grid{background:#f3f5f1}
+#app .phone-grid button{
+  background:#fafbf8;border:1px solid var(--ui-line);
+  border-radius:11px;color:#355849;font-weight:700;box-shadow:none;
+}
+#app .phone-info article{
+  background:#edf2ec;border:1px solid rgba(67,99,78,.12);
+  border-radius:10px;
+}
+#app .market-card,#app .jobs-card,#app .furnish-case{
+  background:#f9faf7;color:#314239;
+}
+#app .market-header,#app .jobs-head,#app .furnish-head{
+  background:#edf1eb;color:#30483f;
+}
+#app .market-tab,#app .market-filter,#app .pet-tab,
+#app .thought-switch button,#app .wish-choice{
+  box-shadow:none;border-color:var(--ui-line);
+  font-weight:700;
+}
+#app .auth-card .enter-button,#app #pause-actions button:not(.pause-secondary){
+  background:#36594b;color:#f9fcf8;border-radius:10px;box-shadow:none;
+}
+#app .auth-card .role-option.selected{
+  border-color:#658578;background:#eaf0e9;
+}
+#app .need-row i.need-low{background:#c47c70}
+@media(max-width:640px) and (orientation:portrait){
+  #app .phone-case{border-width:4px;border-radius:20px}
+  #app .phone-grid{gap:8px}
+}
+
+/* Thin monochrome navigation glyphs in place of mixed colorful emoji. */
+#app .ui-outline-icon{
+  display:inline-block;width:20px;height:20px;
+  fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;
+  vertical-align:middle;pointer-events:none;flex:none;
+}
+#app #pets-btn .ui-outline-icon{width:21px;height:21px}
+#app #pets-btn .ui-outline-icon ellipse{fill:currentColor;stroke:none}
+#app #map-btn .ui-outline-icon{width:20px;height:20px}
+#app .showcase-toggle .ui-outline-icon{width:18px;height:18px}

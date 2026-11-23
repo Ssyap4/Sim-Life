@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -48,7 +49,9 @@ test('each real home opens its independent 3D hinge as a family NPC emerges and 
  const crowd=new NeighborPeople();
  crowd.bindDoors(scene);
  const events=neighborVisits(0,NEIGHBORS.length);
- assert.equal(new Set(events.map(e=>e.home)).size,4);
+ // The public ten NPCs deliberately have home=-1 in 0.21.
+ assert.equal(new Set(events.filter(e=>e.home>=0).map(e=>e.home)).size,4);
+ assert.ok(events.some(e=>e.home===-1),'public pedestrians must remain independent of houses');
  for(let home=0;home<NEIGHBOR_HOMES.length;home++){
    const first=events.find(e=>e.home===home)!;
    const door=scene.getObjectByName('neighbor-door-'+NEIGHBOR_HOMES[home].id) as THREE.Group;
@@ -63,12 +66,14 @@ test('each real home opens its independent 3D hinge as a family NPC emerges and 
  }
 });
 
-test('neighbors actually appear across morning, afternoon and evening, with garden routines more common than street trips',()=>{
+test('four household NPCs do varied yard chores while public NPCs keep streets lively',()=>{
  const visits=neighborVisits(0,NEIGHBORS.length);
  assert.ok(visits.length>=27,'dozens of small household scenes across the day');
- const homeRoutines=visits.filter(v=>['garden','tea','mail','exercise'].includes(v.kind));
- const trips=visits.filter(v=>['errand','stroll'].includes(v.kind));
- assert.ok(homeRoutines.length>trips.length*6);
+ const homeRoutines=visits.filter(v=>v.home>=0 &&
+   ['garden','tea','mail','exercise','reading','barbecue','vegetables','flowers','relax'].includes(v.kind));
+ const trips=visits.filter(v=>v.home===-1);
+ assert.ok(homeRoutines.length>=14,'owned properties need frequent home-life activities');
+ assert.ok(trips.length>=10,'public pedestrian traffic must not disappear');
  let active=0,quietAtNight=0;
  const periods=[[500,570],[790,900],[1110,1250]];
  for(const [start,end] of periods){
@@ -79,28 +84,32 @@ test('neighbors actually appear across morning, afternoon and evening, with gard
  for(let m=0;m<1440;m++){
    const current=NEIGHBORS.filter((_,i)=>neighborPose(i,m).visible);
    active+=Number(current.length>0);
-   if(m<448||m>1320){assert.equal(current.length,0);quietAtNight++;}
-   assert.ok(current.length<=4,'small village, not a crowded city');
+   if(m<448||m>1335){assert.equal(current.length,0);quietAtNight++;}
+   assert.ok(current.length<=10,'mobile scene should avoid simultaneous NPC crowds');
  }
- assert.ok(active>300 && active<950,'local lives should be visible but leave quiet gaps');
+ assert.ok(active>500 && active<1350,'neighbourhood should look lively without permanent crowding');
  assert.ok(quietAtNight>500);
 });
 
-test('fourteen unique NPC models still have articulated heads and real textured-eye geometry',()=>{
- const crowd=new NeighborPeople();
- assert.equal(crowd.group.children.length,14);
- let faces=0,eyes=0;
- for(const rig of crowd.group.children){
-   const head=rig.getObjectByName('neighbor-head') as THREE.Group;
-   assert.ok(head);
-   let face=false,eye=false;
-   head.traverse(part=>{
-    if(!(part instanceof THREE.Mesh))return;
-    const verts=part.geometry.getAttribute('position')?.count??0;
-    if(verts>450)face=true;
-    if(verts===85)eye=true;
-   });
-   faces+=Number(face);eyes+=Number(eye);
- }
- assert.equal(faces,14);assert.equal(eyes,14);
+test('Fourteen individual GLBs retain shared skeleton chains, portrait morphs and affordable geometry',()=>{
+  const faces=new Set<string>();
+  for(const [index,profile] of NEIGHBORS.entries()){
+    const file=String(index+1).padStart(2,'0');
+    const bytes=readFileSync(new URL('../../src/assets/neighbors/neighbor-'+file+'.glb',import.meta.url));
+    const manifest=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    const rig=manifest.nodes.find((node:{name:string})=>node.name==='Resident');
+    assert.equal(rig.extras.name,profile.name);
+    assert.equal(rig.extras.neighborIndex,index);
+    assert.equal(manifest.skins.length,1);
+    for(const name of ['ArmL','ElbowR','WristL','KneeR','AnkleL','Head','Hair'])
+      assert.ok(manifest.nodes.some((node:{name:string})=>node.name===name),name+' '+profile.name);
+    const portrait=manifest.meshes.find((mesh:{extras?:{targetNames?:string[]}})=>mesh.extras?.targetNames?.includes('CloseLids'));
+    assert.ok(portrait && portrait.extras.targetNames.includes('Smile'));
+    const buffer=manifest.bufferViews[manifest.accessors[portrait.primitives[0].attributes.POSITION].bufferView];
+    const offset=28+bytes.readUInt32LE(12)+(buffer.byteOffset??0);
+    faces.add(bytes.subarray(offset,offset+buffer.byteLength).toString('base64'));
+    assert.ok(bytes.length<600*1024,profile.name);
+    assert.ok(manifest.meshes.length<=5,profile.name);
+  }
+  assert.equal(faces.size,14);
 });

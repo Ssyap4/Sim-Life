@@ -1,7 +1,10 @@
 import { livingNeighborPose } from './neighborLife';
-export { neighborVisits, neighborDoorOpen } from './neighborLife';
+export { neighborVisits, neighborDoorOpen, parkNeighborPose } from './neighborLife';
 
-export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' | 'water' | 'sip' | 'mail' | 'carry';
+export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' |
+  'water' | 'sip' | 'mail' | 'carry' | 'admire' | 'prune' | 'tend' | 'harvest' |
+  'prepareGrill' | 'grill' | 'taste' | 'sitRead' | 'sitPhone' | 'sitSip' | 'sitRest' |
+  'photograph' | 'checkWatch' | 'greet' | 'laugh' | 'listen' | 'sitChat';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';
 export type OutfitStyle = 'hoodie' | 'jacket' | 'coat' | 'sweater' | 'dress' | 'shirt' | 'vest' | 'overalls';
 export type AccessoryStyle = 'none' | 'backpack' | 'tote';
@@ -12,6 +15,9 @@ export interface NeighborPose {
   /** 0 walking, 1 fully settled in a gesture; blends at both ends. */
   gestureBlend: number;
   carrying?: boolean;
+  gait?: number;
+  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond' |
+    'reading' | 'barbecue' | 'vegetables' | 'flowers' | 'relax';
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;
@@ -48,7 +54,7 @@ export const NEIGHBOR_ROUTE_LENGTH=NEIGHBOR_PATH[3].x-NEIGHBOR_PATH[0].x;
 
 /**
  * Daily schedules are deterministic from the synced household game clock;
- * NPCs have a home, a reason to go out, and an actual return to the door.
+ * Four have homes; other visitors use public streets. Everyone has a destination.
  * No additional server state or household progress is required.
  */
 export function neighborPose(index:number,gameMinute:number):NeighborPose {

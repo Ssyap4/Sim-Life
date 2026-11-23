@@ -12,14 +12,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from compact import compact
 
 
-def export(path):
+def export(path, selection=False, animate=True):
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     bpy.context.scene.frame_set(1)
     bpy.ops.export_scene.gltf(
         filepath=str(path),
         export_format='GLB',
-        export_animations=True,
+        export_animations=animate,
+        use_selection=selection,
         export_animation_mode='ACTIONS',
         export_extras=True,
         export_materials='EXPORT',

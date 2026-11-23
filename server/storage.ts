@@ -1,3 +1,4 @@
+import { DISTRICT_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
@@ -122,7 +123,7 @@ const isValidState = (value: unknown): value is GameState => {
   const petFood = state.petFood as Record<string, number> | undefined;
   const petBowls = state.petBowls as Record<string, number> | undefined;
   const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
-    const { minX, maxX, minZ, maxZ } = floorFor(place);
+    const { minX, maxX, minZ, maxZ } = String(place)==='street' ? DISTRICT_FLOOR : floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
       p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (place === 'home' ? maxZ : Math.max(maxZ, 5));
   };
@@ -167,9 +168,13 @@ const previousSeats = [
 ] as const;
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
-  furnishing: FurnishingState): CharacterState {
+  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | undefined): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
-  if (place === 'street' || place === 'market') {
+  if (String(place)==='street' && (districtLayout===undefined || districtLayout===1)) {
+    Object.assign(resident,restoreDistrictPosition(resident,role,districtLayout),{pose:'idle'});
+    place='home';
+  }
+  if (place === 'market') {
     // Preserve saved positions except where a newly added solid occupies them.
     const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
     return { ...resident, x: point.x, z: point.z };
@@ -177,8 +182,13 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
   if (place !== 'home') return resident;
   const movedSeat = previousSeats.find(seat =>
     resident.pose === seat.pose && Math.hypot(resident.x - seat.x, resident.z - seat.z) < .12);
+  const nearEntrance = districtLayout===2 && !inHomeGrounds(resident)
+    ? DISTRICT_SITES.map(site=>districtArrival(site.place,role))
+      .sort((a,b)=>Math.hypot(a.x-resident.x,a.z-resident.z)-Math.hypot(b.x-resident.x,b.z-resident.z))[0]
+    : spawn('home',role);
   const point = movedSeat ? points[movedSeat.item]
-    : nearestClearPoint(resident, placeObstacles('home', furnishing), HOME_FLOOR) ?? spawn('home', role);
+    : nearestClearPoint(resident, placeObstacles('home', furnishing),
+      (districtLayout===undefined || districtLayout===1) && inHomeGrounds(resident) ? HOME_FLOOR : floorFor('home')) ?? nearEntrance;
   return { ...resident, x: point.x, z: point.z };
 }
 
@@ -236,23 +246,31 @@ export function openServerFiles(dataDir: string): ServerFiles {
         soldFixtures:data.furnishing?.soldFixtures ?? []};
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
+      const districtLayout = data.world?.districtLayout;
+      const migratedDistrict = districtLayout!==3;
+      const bagAtHouse = (role:CharacterId) => data.world?.places[role]==='home' &&
+        ((districtLayout===undefined || districtLayout===1) || inHomeGrounds(data.characters[role]));
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
-          ...data.world,
+          ...data.world, districtLayout: 3,
+          places: {
+            vlad: String(data.world.places.vlad)==='street'?'home':data.world.places.vlad,
+            alina: String(data.world.places.alina)==='street'?'home':data.world.places.alina,
+          },
           // Old staged bags had already been credited to pantry / ready food.
           // Remove them without ever granting the same purchase twice.
           tableBags: 0,
           bags: {
-            vlad: data.world.places.vlad === 'home' ? 0 : data.world.bags.vlad,
-            alina: data.world.places.alina === 'home' ? 0 : data.world.bags.alina,
+            vlad: bagAtHouse('vlad') ? 0 : data.world.bags.vlad,
+            alina: bagAtHouse('alina') ? 0 : data.world.bags.alina,
           },
         } : initialWorld(),
         clock: { ...INITIAL_CLOCK, ...data.clock },
         characters: {
-          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing),
-          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing),
+          vlad: restoreResident(data.characters.vlad, 'vlad', data.world?.places.vlad ?? 'home',savedFurnishing,districtLayout),
+          alina: restoreResident(data.characters.alina, 'alina', data.world?.places.alina ?? 'home',savedFurnishing,districtLayout),
         },
         pantry: { ...EMPTY_PANTRY, ...data.pantry },
         meals: { ...EMPTY_MEALS, ...data.meals },
@@ -282,10 +300,14 @@ export function openServerFiles(dataDir: string): ServerFiles {
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
       const migratedBags = !!data.world && ((data.world.tableBags ?? 0) > 0 ||
-        (data.world.places.vlad === 'home' && data.world.bags.vlad > 0) ||
-        (data.world.places.alina === 'home' && data.world.bags.alina > 0));
+        (bagAtHouse('vlad') && data.world.bags.vlad > 0) ||
+        (bagAtHouse('alina') && data.world.bags.alina > 0));
       if(migratedBags){
         const backup=join(dataDir,'household.pre-auto-groceries.json');
+        if(!existsSync(backup))copyFileSync(statePath,backup);
+      }
+      if(migratedDistrict){
+        const backup=join(dataDir,districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(data.furnishing?.soldFixtures===undefined){
@@ -306,7 +328,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
           data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
           data.dirtyDishes === undefined || data.computerLibrary === undefined ||
-          migratedFood || recoveredCareer || migratedBags)
+          migratedFood || recoveredCareer || migratedBags || migratedDistrict)
         this.save(household);
       return household;
     },

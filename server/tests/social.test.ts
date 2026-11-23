@@ -136,8 +136,8 @@ test('An invitation is revalidated after sleep, work or a transition',async()=>{
   try{
     const v=await f.connect('vlad'),a=await f.connect('alina');
     const offer=await propose(v,a,'day');
-    a.send({type:'travel',place:'street'});
-    await a.take('snapshot',p=>p.state.world.places.alina==='street');
+    a.send({type:'travel',place:'market'});
+    await a.take('snapshot',p=>p.state.world.places.alina==='market');
     a.send({type:'social_reply',inviteId:offer.id,choice:0});
     assert.equal((await v.take('social_closed')).phase,'interrupted');
     assert.deepEqual(f.files.load().relationship,sample().relationship);
@@ -314,7 +314,7 @@ test('Routes stay walkable for both partners in the home, cafe and park',()=>{
 });
 
 test('Physical contact ends its walking phase outside the ordinary body collision threshold',()=>{
-  for(const place of ['home','street','park'] as const){
+  for(const place of ['home','park'] as const){
     const state=sample();
     for(const role of residents){state.world.places[role]=place;Object.assign(state.characters[role],spawn(place,role));}
     for(const action of ['softHug','closeHug','kiss','cheek','hands','shoulder','hair','highFive','slowDance']){

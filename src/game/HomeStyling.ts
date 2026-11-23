@@ -188,7 +188,6 @@ function petNooks(home: THREE.Group): void {
 
 export function decorateHome(scene: THREE.Scene): THREE.Group {
   const home = new THREE.Group();
-  shape(scene, cube, [90, .06, 90], [0, -.67, 0], 0xa5b8a5);
 
   const width = HOUSE.maxX - HOUSE.minX;
   const depth = HOUSE.maxZ - HOUSE.minZ;

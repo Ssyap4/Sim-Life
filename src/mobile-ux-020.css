@@ -17,6 +17,7 @@
 /* A separate camera dock avoids squeezing the already full top HUD. */
 .camera-dock {
   position:absolute;z-index:6;
+  display:flex;flex-direction:column;gap:8px;
   left:max(11px,env(safe-area-inset-left));
   bottom:max(111px,calc(env(safe-area-inset-bottom) + 105px));
   pointer-events:none;
@@ -29,6 +30,7 @@
   box-shadow:0 5px 16px rgba(47,72,52,.20);
 }
 .camera-dock .camera-reset:active{transform:scale(.96)}
+.camera-dock .camera-follow[aria-pressed="true"] {background:#416b53;color:#fff;}
 @media(max-width:640px) and (orientation:portrait) {
   /* Real action buttons stay unchanged, just make dismissal and scrolling easy. */
   .actions, .location-panel {

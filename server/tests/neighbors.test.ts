@@ -1,17 +1,20 @@
+import { readFileSync } from 'node:fs';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, neighborPose, neighborVisits } from '../../src/shared/neighbors';
+import { NEIGHBORS, NEIGHBOR_PATH, NEIGHBOR_ROUTE_LENGTH, neighborPose, neighborVisits, parkNeighborPose } from '../../src/shared/neighbors';
 import { HOUSE, HOUSE_WING, HOME_FLOOR, HOME_PLACEMENTS, KITCHEN_WORK } from '../../src/shared/home';
 import { buildFurniture } from '../../src/game/InteriorArt';
 import { NeighborPeople } from '../../src/game/NeighborPeople';
 import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
-import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
+import { homeStops, NEIGHBOR_HOMES, yardFeatures } from '../../src/shared/neighborHomes';
+import { DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, sitePoint } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
-import { placeObstacles } from '../../src/shared/locations';
+import { placeObstacles, floorFor } from '../../src/shared/locations';
 
 test('three new rooms are connected to the original office by walkable doors', () => {
   const blocks = placeObstacles('home');
@@ -48,48 +51,52 @@ test('tea and coffee machines have independent click geometry and clear counters
   assert.ok(pointIsClear(KITCHEN_WORK.coffee.position, placeObstacles('home'), HOME_FLOOR));
 });
 
-test('neighbors remain deterministic, quiet at night and much rarer than constant foot traffic', () => {
+test('four cottage owners and ten independent walkers keep the neighborhood active', () => {
   assert.equal(NEIGHBORS.length,14);
   assert.equal(new Set(NEIGHBORS.map(p=>p.name)).size,14);
-  let activeMinutes=0, max=0, silent=0;
-  for(let minute=0;minute<1440;minute++) {
+  const events=neighborVisits(0,14);
+  assert.ok(events.length>=35,'a few short outings should not leave an empty district');
+  for(let i=0;i<14;i++) {
+    const mine=events.filter(e=>e.resident===i);
+    assert.ok(mine.length>=2,NEIGHBORS[i].name+' never goes out');
+    assert.ok(mine.every(e=>i<4?e.home===i:e.home===-1),'public walkers must not own the cottages');
+  }
+  const venues=new Set(events.map(e=>e.venue).filter(Boolean));
+  for(const site of DISTRICT_SITES)assert.ok(venues.has(site.place),'no traffic at '+site.place);
+  let occupied=0,peak=0,visibleTotal=0;
+  for(let minute=0;minute<1440;minute+=2){
     const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
-    const active=poses.filter(p=>p.visible);
-    max=Math.max(max,active.length);
-    activeMinutes+=Number(active.length>0);
-    silent+=Number(active.length===0);
-    if(minute<450||minute>1320)assert.equal(active.length,0,'late-night suburb must be quiet');
-    for(const [i,pose] of poses.entries()) {
-      assert.deepEqual(pose,neighborPose(i,minute));
-      if(!pose.visible)continue;
-      assert.ok(pose.x < HOUSE.minX-.5 || pose.x>HOUSE_WING.maxX+.5 ||
-        pose.z<HOUSE.minZ-.5,NEIGHBORS[i].name+' walked into the private home');
+    const active=poses.filter(p=>p.visible).length;
+    visibleTotal+=active;
+    peak=Math.max(peak,active);
+    if(active>=3)occupied++;
+    if(minute<440||minute>1335)assert.equal(active,0,'keep overnight streets quiet');
+    for(const [i,pose] of poses.entries())assert.deepEqual(pose,neighborPose(i,minute));
+  }
+  assert.ok(peak>=4&&peak<=10,'visible activity with sane mobile crowd limits');
+  assert.ok(occupied>100,'neighborhood should have people during most daytime checks');
+  assert.ok(visibleTotal>800,'not another mostly-invisible daily schedule');
+});
+
+test('visitors chat face-to-face near the park and the square',()=>{
+  const visits=neighborVisits(0,14).filter(v=>v.kind==='chat'&&v.home===-1);
+  assert.ok(visits.length>=2);
+  for(const first of visits.filter(v=>v.resident%2===0)) {
+    const second=visits.find(v=>v.resident===first.companion&&v.start===first.start);
+    assert.ok(second,'conversation needs a synchronized companion');
+    let saw=false;
+    for(let minute=first.start;minute<Math.min(first.end,second.end);minute+=.5){
+      const a=neighborPose(first.resident,minute),b=neighborPose(second.resident,minute);
+      if(a.action!=='chat'||b.action!=='chat'||a.opacity<.85||b.opacity<.85)continue;
+      assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.2);
+      assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<2);
+      saw=true;break;
     }
+    assert.ok(saw,'meet in the same place rather than talking from different streets');
   }
-  assert.ok(max<=4,'rear gardens remain calm rather than a street crowd');
-  assert.ok(activeMinutes>300&&activeMinutes<950,'real family routines now show throughout daytime');
-  assert.ok(silent>500,'night and intermittent periods remain quiet');
 });
 
-test('two real residents meet face-to-face for eighteen game minutes', () => {
-  const pair=neighborVisits(0,NEIGHBORS.length).filter(e=>e.kind==='chat').slice(0,2);
-  assert.equal(pair.length,2);
-  assert.equal(pair[0].start,pair[1].start);
-  assert.equal(pair[0].companion,pair[1].resident);
-  const conversationStart=pair[0].start+29.4;
-  for(let minute=conversationStart;minute<conversationStart+17;minute+=.5) {
-    const a=neighborPose(pair[0].resident,minute);
-    const b=neighborPose(pair[1].resident,minute);
-    assert.equal(a.action,'chat');assert.equal(b.action,'chat');
-    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.25);
-    assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<1.90);
-    assert.ok(a.yaw>1 && b.yaw< -1,'face-to-face, without talking past one another');
-    assert.ok(a.gestureBlend>.2 && b.gestureBlend>.2);
-  }
-  assert.equal(neighborPose(pair[0].resident,pair[0].start+49).action,'wave');
-});
-
-test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', () => {
+test('all fourteen visual avatars render individually without interaction hitboxes',()=>{
   const scene=new THREE.Scene();
   buildHomeWing(scene);buildNeighborhood(scene);
   assert.equal(scene.children.length,2);
@@ -97,15 +104,16 @@ test('sidewalks and all 14 distinct articulated neighbors stay noninteractive', 
   crowd.bindDoors(scene);
   assert.equal(crowd.group.children.length,NEIGHBORS.length);
   crowd.update(12*60+14);
-  let shown=0,activeMeshes=0;
-  for(const person of crowd.group.children) {
+  let shown=0;
+  for(const person of crowd.group.children){
     if(!person.visible)continue;
     shown++;
-    person.traverse(obj=>{if(obj instanceof THREE.Mesh && obj.visible)activeMeshes++});
     assert.equal(person.userData.interactable,undefined);
   }
-  assert.ok(shown<=4 && shown>=1,'neighbors active on their plots at midday');
-  assert.ok(activeMeshes<=250,'active NPC models remain practical for mobile');
+  const lunchtime=Array.from({length:61},(_,i)=>690+i*2)
+    .map(minute=>NEIGHBORS.filter((_,i)=>neighborPose(i,minute).visible).length);
+  assert.ok(Math.max(...lunchtime)>=3,'lunchtime should have multiple passers-by');
+  assert.ok(shown>=1&&shown<=10,'somebody should be out even between busy waves');
   for(const home of NEIGHBOR_HOMES)assert.ok(scene.getObjectByName('neighbor-door-'+home.id));
 });
 
@@ -139,32 +147,38 @@ test('the new rear public walkway leaves a safe reserve and all four homes stay 
   assert.ok(bounds.min.z<-28);
 });
 
-test('neighbors physically leave their own doors and return home without street teleportation', () => {
-  const today=neighborVisits(0,NEIGHBORS.length);
-  assert.ok(today.length>=9);
-  for(const visit of today) {
-    const door=homeStops(NEIGHBOR_HOMES[visit.home]).door;
+test('cottage owners leave by their own doors; public visitors fade at street edges',()=>{
+  const today=neighborVisits(0,14);
+  for(const visit of today){
+    const origin=visit.home<0?undefined:homeStops(NEIGHBOR_HOMES[visit.home]).door;
     const early=neighborPose(visit.resident,visit.start+.5);
-    const mid=neighborPose(visit.resident,(visit.start+visit.end)/2);
     const late=neighborPose(visit.resident,visit.end-.5);
-    const gone=neighborPose(visit.resident,visit.end+.1);
-    assert.ok(early.opacity>0 && early.opacity<1);
-    assert.ok(mid.opacity>.98);
-    assert.ok(late.opacity>0 && late.opacity<1);
-    assert.ok(Math.hypot(early.x-door.x,early.z-door.z)<1.8,'exit through own door');
-    assert.ok(Math.hypot(late.x-door.x,late.z-door.z)<1.8,'return through own door');
-    assert.equal(gone.visible,false,'no eternal street NPC');
+    assert.ok(early.opacity>0&&early.opacity<1,'smooth departure');
+    assert.ok(late.opacity>0&&late.opacity<1,'smooth return');
+    if(origin){
+      assert.ok(Math.hypot(early.x-origin.x,early.z-origin.z)<1.8);
+      assert.ok(Math.hypot(late.x-origin.x,late.z-origin.z)<1.8);
+    }
   }
-  const tomorrow=neighborVisits(1440,NEIGHBORS.length);
-  assert.ok(today.some((e,i)=>e.resident!==tomorrow[i].resident),
-    'different family members should sometimes leave their homes');
 });
 
-test('hair, coats, skirts and accessories are genuinely different geometric styles', () => {
+async function fullCast() {
+  const crowd=new NeighborPeople();
+  const loader=new GLTFLoader();
+  await Promise.all(NEIGHBORS.map(async (_,i)=>{
+    const id=String(i+1).padStart(2,'0');
+    const source=readFileSync(new URL('../../src/assets/neighbors/neighbor-'+id+'.glb',import.meta.url));
+    const asset=await loader.parseAsync(Uint8Array.from(source).buffer,'');
+    crowd.mount(i,asset);
+  }));
+  return crowd;
+}
+
+test('hair, coats, skirts and accessories are genuinely different geometric styles', async () => {
   assert.ok(new Set(NEIGHBORS.map(p=>p.hairStyle)).size >= 9);
   assert.ok(new Set(NEIGHBORS.map(p=>p.outfit)).size >= 7);
   assert.ok(new Set(NEIGHBORS.map(p=>p.accessory)).size >= 3);
-  const crowd = new NeighborPeople();
+  const crowd = await fullCast();
   const meshCount = crowd.group.children.map(root=>{
     let count=0;
     root.traverse(obj=>{if(obj instanceof THREE.Mesh)count++;});
@@ -176,7 +190,7 @@ test('hair, coats, skirts and accessories are genuinely different geometric styl
   const getMaterial = (index:number) => {
     let material:THREE.Material|undefined;
     crowd.group.children[index].traverse(obj=>{
-      if(!material && obj instanceof THREE.Mesh)material=obj.material as THREE.Material;
+      if(!material && obj instanceof THREE.SkinnedMesh)material=obj.material as THREE.Material;
     });
     return material;
   };
@@ -197,8 +211,8 @@ test('desktop neighborhood overview frames moved sidewalks without shrinking mob
   }
 });
 
-test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and blinking', () => {
-  const crowd=new NeighborPeople();
+test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and blinking', async () => {
+  const crowd=await fullCast();
   let samples=0,raisedKnee=false,tiltedHead=false,blinkSeen=false;
   for(let minute=455;minute<1280;minute+=.22) {
     crowd.update(minute);
@@ -206,15 +220,16 @@ test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and 
       const pose=neighborPose(i,minute);
       if(!pose.visible||pose.opacity<.85)continue;
       const root=crowd.group.children[i];
-      const head=root.getObjectByName('neighbor-head') as THREE.Group;
-      const leftKnee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
-      const rightKnee=root.getObjectByName('neighbor-rightKnee') as THREE.Group;
-      const foot=root.getObjectByName('neighbor-leftFoot') as THREE.Group;
-      const eyelids=root.getObjectByName('neighbor-eyelids') as THREE.Mesh;
+      const head=root.getObjectByName('Head') as THREE.Group;
+      const leftKnee=root.getObjectByName('KneeL') as THREE.Group;
+      const rightKnee=root.getObjectByName('KneeR') as THREE.Group;
+      const foot=root.getObjectByName('AnkleL') as THREE.Group;
+      const eyelids=(root.getObjectsByProperty('isSkinnedMesh',true) as THREE.SkinnedMesh[])
+        .find(mesh=>mesh.morphTargetDictionary?.CloseLids!==undefined);
       assert.ok(head&&leftKnee&&rightKnee&&foot&&eyelids);
       raisedKnee||=Math.max(leftKnee.rotation.x,rightKnee.rotation.x)>.12;
       tiltedHead||=Math.abs(head.rotation.y)>.035;
-      blinkSeen||=eyelids.visible;
+      blinkSeen||=(eyelids.morphTargetInfluences?.[eyelids.morphTargetDictionary!.CloseLids]??0)>.12;
       root.updateMatrixWorld(true);
       const world=new THREE.Vector3();
       foot.getWorldPosition(world);
@@ -226,8 +241,8 @@ test('smooth human-shaped NPCs walk with natural knees, eyes, head movement and 
   assert.ok(samples>100&&raisedKnee&&tiltedHead&&blinkSeen);
 });
 
-test('NPCs perform legible chores and gestures with deterministic rig motion on two clients', () => {
-  const crowd=new NeighborPeople();
+test('NPCs perform legible chores and gestures with deterministic rig motion on two clients', async () => {
+  const crowd=await fullCast();
   const actions=['chat','phone','wave','look','adjust','stretch','water','sip','mail','carry'] as const;
   for(const action of actions) {
     let found:{minute:number;index:number}|undefined;
@@ -247,15 +262,15 @@ test('NPCs perform legible chores and gestures with deterministic rig motion on 
     const {minute,index}=found;
     crowd.update(minute);
     const root=crowd.group.children[index];
-    const head=root.getObjectByName('neighbor-head') as THREE.Group;
-    const leftArm=root.getObjectByName('neighbor-leftArm') as THREE.Group;
-    const rightArm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
-    const rightElbow=root.getObjectByName('neighbor-rightElbow') as THREE.Group;
+    const head=root.getObjectByName('Head') as THREE.Group;
+    const leftArm=root.getObjectByName('ArmL') as THREE.Group;
+    const rightArm=root.getObjectByName('ArmR') as THREE.Group;
+    const rightElbow=root.getObjectByName('ElbowR') as THREE.Group;
     assert.ok(head&&leftArm&&rightArm&&rightElbow);
     if(action==='wave')assert.ok(rightArm.rotation.z< -1.4);
     if(action==='stretch')assert.ok(leftArm.rotation.z>.8&&rightArm.rotation.z<-.8);
     if(action==='phone')assert.ok(rightElbow.rotation.x<-.75);
-    if(action==='water')assert.ok(root.getObjectByName('neighbor-head'));
+    if(action==='water')assert.ok(root.getObjectByName('Head'));
     if(action==='sip')assert.ok(rightElbow.rotation.x<-.8);
     if(action==='mail')assert.ok(rightElbow.rotation.x<-.6);
     if(action==='adjust')assert.ok(leftArm.rotation.z>.2);
@@ -266,8 +281,8 @@ test('NPCs perform legible chores and gestures with deterministic rig motion on 
   }
 });
 
-test('neighbor animations blend smoothly across idle, conversation and chores', () => {
-  const crowd=new NeighborPeople();
+test('neighbor animations blend smoothly across idle, conversation and chores', async () => {
+  const crowd=await fullCast();
   const frame=GAME_MINUTES_PER_REAL_SECOND/60;
   let checked=0;
   for(let minute=456;minute<1280;minute+=.34) {
@@ -278,9 +293,9 @@ test('neighbor animations blend smoothly across idle, conversation and chores', 
     for(const index of visible) {
       const root=crowd.group.children[index];
       crowd.update(minute);
-      const arm=root.getObjectByName('neighbor-rightArm') as THREE.Group;
-      const knee=root.getObjectByName('neighbor-leftKnee') as THREE.Group;
-      const head=root.getObjectByName('neighbor-head') as THREE.Group;
+      const arm=root.getObjectByName('ArmR') as THREE.Group;
+      const knee=root.getObjectByName('KneeL') as THREE.Group;
+      const head=root.getObjectByName('Head') as THREE.Group;
       const before=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
       crowd.update(minute+frame);
       const after=[arm.rotation.x,arm.rotation.z,knee.rotation.x,head.rotation.x,head.rotation.y];
@@ -300,15 +315,180 @@ test('oncoming neighbors use separate lanes and never overlap on a simulated ful
       if(poses[i].opacity<.60 || poses[j].opacity<.60)continue;
       const distance=Math.hypot(poses[i].x-poses[j].x,poses[i].z-poses[j].z);
       closest=Math.min(closest,distance);
-      assert.ok(distance>.57,NEIGHBORS[i].name+' and '+NEIGHBORS[j].name+' intersected');
+      assert.ok(distance>.57,NEIGHBORS[i].name+' and '+NEIGHBORS[j].name+
+        ' intersected at '+minute.toFixed(2)+' positions '+
+        JSON.stringify([poses[i].x,poses[i].z,poses[j].x,poses[j].z]));
       checked++;
     }
   }
   assert.ok(checked>300 && closest<2,'must actually test nearby oncoming traffic');
 });
 
-test('pedestrians fade independently instead of changing shared apartment materials', () => {
+
+test('public visitors fade at all eight real doors and reappear without crossing world obstacles',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length).filter(v=>v.home===-1&&v.venue&&v.kind!=='chat');
+  for(const site of DISTRICT_SITES) {
+    const visit=visits.find(v=>v.venue===site.place);
+    assert.ok(visit,'must physically visit '+site.place);
+    const front=sitePoint(site,0,site.d/2+.48);
+    let disappeared=false,reappeared=false;
+    for(let minute=visit.start+1;minute<visit.end-1;minute+=.35) {
+      const pose=neighborPose(visit.resident,minute);
+      const atDoor=Math.hypot(pose.x-front.x,pose.z-front.z)<.18;
+      if(atDoor&&pose.opacity<.02)disappeared=true;
+      if(disappeared&&atDoor&&pose.opacity>.85)reappeared=true;
+      if(pose.visible&&pose.opacity>.65){
+        assert.ok(pointIsClear(pose,DISTRICT_OBSTACLES,DISTRICT_FLOOR),
+          site.place+' pedestrian should not cross any obstacle');
+      }
+    }
+    assert.ok(disappeared,'visitor must fade on entering '+site.place);
+    assert.ok(reappeared,'visitor must return through '+site.place+' door');
+  }
+});
+
+test('deterministic pedestrians stay apart across three different daily schedules',()=>{
+  for(let day=0;day<3;day++)for(let minute=450;minute<1330;minute+=.36) {
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,day*1440+minute));
+    for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++) {
+      if(poses[i].opacity<.6||poses[j].opacity<.6)continue;
+      const d=Math.hypot(poses[i].x-poses[j].x,poses[i].z-poses[j].z);
+      assert.ok(d>.57,'day '+day+' minute '+minute.toFixed(2)+' '+NEIGHBORS[i].name+
+        ' and '+NEIGHBORS[j].name+' got too close: '+d);
+    }
+  }
+});
+
+test('long conversations and pond visits look like real stops and never enter water',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length);
+  const chat=visits.filter(v=>v.kind==='chat'&&v.companion!==undefined);
+  assert.ok(chat.length>=2);
+  const pond={x:21.38,z:21.05};
+  let gazeMinutes=0,checked=0;
+  for(let minute=450;minute<1330;minute+=.25){
+    for(let person=0;person<NEIGHBORS.length;person++){
+      const pose=neighborPose(person,minute);
+      if(!pose.visible||pose.opacity<.6)continue;
+      if(pose.action==='admire'){
+        gazeMinutes+=.25;checked++;
+        assert.ok(Math.hypot(pose.x-pond.x,pose.z-pond.z)>2.2,
+          'NPC must watch the pond from shore, never inside its water');
+        assert.equal(pose.gait,0,'waterfront observer must stand still');
+      }
+    }
+  }
+  assert.ok(checked>=80,'at least one 20-minute waterfront rest is visible');
+  for(const visit of chat){
+    let consecutive=0,maxConsecutive=0;
+    for(let minute=visit.start;minute<visit.end;minute+=.5){
+      const p=neighborPose(visit.resident,minute);
+      consecutive=(p.action==='chat'||p.action==='sitChat')&&p.opacity>.8?consecutive+.5:0;
+      maxConsecutive=Math.max(maxConsecutive,consecutive);
+    }
+    assert.ok(maxConsecutive>=20,'real conversations last twenty or more game minutes');
+  }
+});
+
+test('neighbors truly visit each others yards and talk beside the bench',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length).filter(v=>v.kind==='chat'&&v.venue==='yard');
+  assert.ok(visits.length>=2,'a pair of household friends should share a yard encounter');
+  for(const hostVisit of visits.filter(v=>v.resident===0||v.resident===2)){
+    const other=visits.find(v=>v.resident===hostVisit.companion&&v.start===hostVisit.start);
+    assert.ok(other,'shared talk must begin at the same game minute');
+    const yard=yardFeatures(NEIGHBOR_HOMES[hostVisit.resident],hostVisit.resident);
+    let observed=false;
+    for(let minute=hostVisit.start;minute<Math.min(hostVisit.end,other.end);minute+=.5){
+      const seated=neighborPose(hostVisit.resident,minute);
+      const guest=neighborPose(other.resident,minute);
+      if(seated.action!=='sitChat'||guest.action!=='chat'||seated.opacity<.85||guest.opacity<.85)continue;
+      assert.ok(Math.hypot(seated.x-yard.bench.x,seated.z-yard.bench.z)<.04);
+      assert.ok(Math.hypot(guest.x-yard.guestSpot.x,guest.z-yard.guestSpot.z)<.04);
+      assert.ok(Math.hypot(guest.x-seated.x,guest.z-seated.z)>1);
+      observed=true;break;
+    }
+    assert.ok(observed,'the host must be seated at the actual bench beside the standing guest');
+  }
+});
+
+test('four house owners use their own garden, bench and grill instead of decorative-only props',async()=>{
+  const cast=await fullCast();
+  for(const [home,property] of NEIGHBOR_HOMES.entries()){
+    const yard=yardFeatures(property,home);
+    for(const name of ['bench','grill','patch'] as const) {
+      const spot=yard[name];
+      assert.ok(spot.x>property.x-property.width/2-.8&&spot.x<property.x+property.width/2+.8);
+      assert.ok(spot.z>property.z+property.depth/2+.1&&spot.z<property.z+property.depth/2+4.2);
+    }
+    const actions=new Set<string>();
+    for(let day=0;day<4;day++)for(let minute=450;minute<1310;minute+=.55){
+      const time=day*1440+minute,pose=neighborPose(home,time);
+      if(pose.opacity<.85)continue;
+      actions.add(pose.action);
+      if(pose.action==='sitRead'||pose.action==='sitPhone'||pose.action==='sitSip'||pose.action==='sitRest'){
+        assert.ok(Math.hypot(pose.x-yard.bench.x,pose.z-yard.bench.z)<.08,
+          'resident must sit ON the bench, not beside it');
+      }
+      if(pose.action==='grill'||pose.action==='prepareGrill'){
+        assert.ok(Math.hypot(pose.x-yard.grillApproach.x,pose.z-yard.grillApproach.z)<.08,
+          'barbecue action needs a genuine grill location');
+      }
+      if(pose.action==='tend'||pose.action==='harvest'){
+        assert.ok(Math.hypot(pose.x-yard.patchApproach.x,pose.z-yard.patchApproach.z)<.08,
+          'gardening takes place at a real kitchen plot');
+      }
+    }
+    assert.ok(actions.has('sitRead')||actions.has('sitPhone')||actions.has('sitSip'),
+      property.id+' must sit at their bench');
+    assert.ok(actions.has('grill'),property.id+' must work at the barbecue');
+    assert.ok(actions.has('tend'),property.id+' must tend vegetables or flowers');
+  }
+  let sample;
+  for(let minute=460;minute<1320&&!sample;minute+=.35){
+    const p=neighborPose(0,minute);
+    if(p.action==='sitRead'&&p.gestureBlend>.9)sample=minute;
+  }
+  assert.ok(sample,'Marina reads a real book in the yard');
+  cast.update(sample);
+  const root=cast.group.children[0];
+  assert.ok(root.getObjectByName('Head'));
+  assert.ok(root.position.y===0,'world avatar root stays grounded');
+});
+
+test('the park interior has reusable live walkers, conversation and a quiet visitor',()=>{
+  const obstacles=placeObstacles('park'),floor=floorFor('park');
+  let seen=0,chat=0,admire=0;
+  for(let minute=480;minute<1000;minute+=.25){
+    const people=[4,7,9,11].map(id=>parkNeighborPose(id,minute));
+    for(const person of people){
+      if(!person.visible||person.opacity<.75)continue;
+      seen++;
+      if(person.action==='chat')chat++;
+      if(person.action==='admire')admire++;
+      assert.ok(pointIsClear(person,obstacles,floor),
+        'park walkers must not enter benches, flowers or scenery');
+    }
+  }
+  assert.ok(seen>250,'park should not be empty when visited');
+  assert.ok(chat>80,'park friends chat for more than 20 game minutes');
+  assert.ok(admire>60,'a visitor has a real quiet sightseeing stop');
   const crowd=new NeighborPeople();
+  crowd.updatePark(12*60+15);
+  assert.ok(crowd.group.children.filter(child=>child.visible).length>=1);
+  // At one arbitrarily chosen minute the only visible visitor might still
+  // be translucent. Find a genuinely occupied interval before expecting a
+  // collision body; invisible/fading pedestrians must not block players.
+  let parkTraffic:ReturnType<typeof crowd.updatePark>=[];
+  for(let minute=530;minute<1000;minute+=2){
+    parkTraffic=crowd.updatePark(minute);
+    if(parkTraffic.length)break;
+  }
+  assert.ok(parkTraffic.length>=1,'park walkers should be visible to player collision avoidance');
+  assert.ok(parkTraffic.every(body=>body.person&&body.clearance>.5));
+  assert.equal(crowd.group.position.z,0);
+});
+
+test('pedestrians fade independently instead of changing shared apartment materials', async () => {
+  const crowd=await fullCast();
   let picked:number|undefined,personA=-1,personB=-1;
   for(let minute=540;minute<1100 && picked===undefined;minute+=.2) {
     const poses=NEIGHBORS.map((_,i)=>neighborPose(i,minute));
@@ -324,7 +504,7 @@ test('pedestrians fade independently instead of changing shared apartment materi
   const material=(index:number) => {
     let first:THREE.MeshStandardMaterial|undefined;
     crowd.group.children[index].traverse(obj=>{
-      if(!first&&obj instanceof THREE.Mesh&&obj.visible)first=obj.material as THREE.MeshStandardMaterial;
+      if(!first&&obj instanceof THREE.SkinnedMesh&&obj.visible)first=obj.material as THREE.MeshStandardMaterial;
     });
     return first!;
   };

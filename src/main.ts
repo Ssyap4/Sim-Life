@@ -36,6 +36,7 @@ import './minimal-hud.css';
 import './visual-polish-020.css';
 import './mobile-controls-020.css';
 import './mobile-ux-020.css';
+import './district-minimal-021.css';
 import { installMobileInput } from './mobileInput';
 import { installMobileBack } from './mobileBack';
 import { subtleHaptic } from './mobileHaptics';
@@ -104,17 +105,17 @@ app.innerHTML = `
   <header class="top-ui">
     <div class="brand-row">
       <div class="brand">
-        <div class="brand-icon">⌂</div>
-        <div><span class="brand-kicker">НАШ МАЛЕНЬКИЙ МИР</span><h1>Sim-Life <span class="heart">♥</span></h1></div>
+        <div class="brand-icon" aria-hidden="true">⌂</div>
+        <div><span class="brand-kicker">СИМУЛЯТОР ЖИЗНИ</span><h1>SIM LIFE</h1></div>
       </div>
-      <div class="version">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
+      <div class="version">ДОМ · РАЙОН</div>
     </div>
     <div class="money-panel" role="group" aria-label="Семейный бюджет"><span>Семейный бюджет</span><strong id="money">— ₽</strong></div>
     <div class="life-strip">
       <span id="life-clock"><span data-game-time>☀️ 1 марта · 08:00</span><small data-game-season>Весна · год 1</small><button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled>⏸</button></span>
-      <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span aria-hidden="true">💗</span><span class="hud-label"> Потребности</span></button>
-      <button id="map-btn" type="button" disabled><span aria-hidden="true">🗺️</span><span class="hud-label"> Карта</span></button>
-      <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><span aria-hidden="true">🐾</span><small class="pet-alert" hidden></small></button>
+      <button id="needs-toggle" type="button" aria-label="Потребности" aria-expanded="false" aria-controls="needs-panel"><span class="need-glyph" aria-hidden="true"><i></i><i></i><i></i></span><span class="hud-label"> Потребности</span></button>
+      <button id="map-btn" type="button" disabled><svg class="ui-outline-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span class="hud-label"> Карта</span></button>
+      <button id="pets-btn" class="pets-hud-btn" type="button" disabled aria-label="Питомцы Верделл и Симба" title="Питомцы"><svg class="ui-outline-icon" aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="6.5" cy="7.2" rx="1.2" ry="1.8"/><ellipse cx="11" cy="5.3" rx="1.3" ry="1.9"/><ellipse cx="15.6" cy="6.4" rx="1.3" ry="1.9"/><ellipse cx="19" cy="10.2" rx="1.2" ry="1.8"/><path d="M9.3 12.2c1.7-2.2 3.9-2.4 5.5-.2l2.4 3c2.3 2.9.1 5.8-3 4.5a5.1 5.1 0 0 0-4.2 0c-3 1.3-5.3-1.7-3.1-4.4z"/></svg><small class="pet-alert" hidden></small></button>
     </div>
     <div class="characters" id="characters">
       <button class="person" data-id="vlad" type="button" aria-pressed="false">
@@ -129,7 +130,7 @@ app.innerHTML = `
     <div class="status-line" id="status" role="status">Подключение к общему дому…</div>
     <div class="showcase-ui">
       <button id="showcase-return" class="showcase-toggle" type="button" hidden>← Весь дом</button>
-      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false" aria-label="Рассмотреть героев"><span aria-hidden="true">🔎</span><span class="hud-label" id="showcase-label"> Рассмотреть героев</span></button>
+      <button id="showcase-toggle" class="showcase-toggle" type="button" aria-controls="showcase-choices" aria-expanded="false" aria-label="Рассмотреть героев"><svg class="ui-outline-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.1 15.1 4.6 4.6"/></svg><span class="hud-label" id="showcase-label"> Рассмотреть героев</span></button>
       <div id="showcase-choices" class="showcase-choices" hidden>
         <button type="button" data-showcase="vlad">👨 Влад</button>
         <button type="button" data-showcase="alina">👩 Алина</button>
@@ -139,11 +140,11 @@ app.innerHTML = `
       </div>
     </div>
   </header>
-  <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button></div>
+  <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button><button id="camera-follow" class="camera-reset camera-follow" type="button" aria-label="Следовать за персонажем" aria-pressed="false" title="Следовать за персонажем">◎</button></div>
   <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
-    <div class="needs-header"><strong>💗 Самочувствие семьи</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
+    <div class="needs-header"><strong>Состояние и потребности</strong><button id="needs-close" type="button" aria-label="Закрыть потребности">×</button></div>
     <div id="needs-content"></div>
   </section>
   <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
@@ -178,14 +179,14 @@ app.innerHTML = `
         <span class="tip-icon">✦</span>
         <span>Тап по предмету · Щипок для масштаба</span>
       </div>
-      <div class="footer-row"><span>♥ Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
+      <div class="footer-row"><span>Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
     </div>
   </footer>
   <section id="auth" class="auth-screen" aria-labelledby="auth-title">
     <form id="auth-form" class="auth-card">
       <span class="auth-emblem">⌂</span>
-      <div class="brand-kicker">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
-      <h2 id="auth-title">С возвращением домой ♥</h2>
+      <div class="brand-kicker">SIM LIFE · НАШ ДОМ</div>
+      <h2 id="auth-title">С возвращением домой</h2>
       <p>У каждого свой персонаж, но один дом, семейный бюджет и общий прогресс.</p>
       <div class="role-choices">
         <button data-role="vlad" class="role-option selected" type="button">💻 <b>Влад</b><span>Разработчик</span></button>
@@ -269,6 +270,7 @@ document.querySelector<HTMLButtonElement>('#camera-reset')!.addEventListener('cl
   if(!showcaseReturn.hidden)focusModel(null);
   world.resetCamera();
 });
+document.querySelector<HTMLButtonElement>('#camera-follow')!.addEventListener('click',()=>world?.toggleFollowPlayer());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
   if (event.key === 'Escape') {
@@ -686,7 +688,8 @@ const orderDelivery = (lines: BasketLine[]) => {
 const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'));
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
-  (room, exam) => openEducation(exam ? 'exam' : 'center', room));
+  (room, exam) => openEducation(exam ? 'exam' : 'center', room),
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'));
 
 function signOut(): void {
   net.forgetDevice();
@@ -741,7 +744,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
   () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.education(command),
-  () => net.world({ type: 'travel', place: 'education' }),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
+  () => locationUI.go('education'),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
     suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
     offer(){phone.close();socialInvite.unfold();},
     pending:()=>socialInvite.pending,
@@ -788,7 +791,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   career: command => net.career(command),
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
-  travel: () => net.world({type:'travel',place:'education'}),
+  travel: () => locationUI.go('education'),
   service: command => net.service(command),
   checkout: lines => orderDelivery(lines),
   furnishing:()=>furnishing.open(),
@@ -1432,7 +1435,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     const modelsStartedMs = performance.now();
     const useBlender = params.get('characters') !== 'procedural';
     const characters = useBlender ? await import('./game/BlenderCharacter')
-      .then(({ loadResidents }) => loadResidents())
+      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='tee' ? ['alina-tee-upper'] : []))
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};
@@ -1455,6 +1458,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     }, characters, diagnostics?.onFrame, {
       station(id) {
         if (!active) return;
+        locationUI.cancelRoute();
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
         if (world.place === 'home' && id === HOME_LAPTOP) {
@@ -1485,8 +1489,10 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         if(!showcaseChoices.hidden){showcaseChoices.hidden=true;return true;}
         return false;
       },
+      pondTap() { notify('Пруд можно обойти по берегу'); },
       ground(x, z) {
         if (!active) return;
+        locationUI.cancelRoute();
         if (net.world({ type: 'walk', place: world.place, x, z })) {
           actionsEl.hidden = true;
           locationUI.close();

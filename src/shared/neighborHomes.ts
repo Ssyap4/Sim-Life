@@ -32,3 +32,34 @@ export function homeStops(home: NeighborHome) {
     sidewalk,
   };
 }
+
+/** Four distinct private yards, with matching art AND activity locations.
+ * This is presentation data only; no friendship/inventory/save migration. */
+export const YARD_STYLES = ['tomato','herbs','flowers','cabbage'] as const;
+export type YardStyle = typeof YARD_STYLES[number];
+export function yardFeatures(home: NeighborHome, index: number) {
+  const front=home.depth/2;
+  const style=YARD_STYLES[index%YARD_STYLES.length];
+  const benchLocal={x:-home.width*.30,z:front+3.02};
+  const grillLocal={x:home.width*.34,z:front+2.89};
+  const patchLocal={x:home.width*.31,z:front+1.54};
+  const flowerLocal={x:-home.width*.32,z:front+1.53};
+  const bench=homePoint(home,benchLocal.x,benchLocal.z);
+  const grill=homePoint(home,grillLocal.x,grillLocal.z);
+  const patch=homePoint(home,patchLocal.x,patchLocal.z);
+  const flowers=homePoint(home,flowerLocal.x,flowerLocal.z);
+  return {
+    style,bench,grill,patch,flowers,
+    patchArea:{...patch,w:1.13+(index%2)*.20,d:.97+(index%3)*.08},
+    flowerArea:{...flowers,w:1.17,d:.56},
+    grillPad:{...grill,w:1.50,d:1.26},
+    benchApproach:homePoint(home,-home.width*.15,front+2.27),
+    guestSpot:homePoint(home,-home.width*.09,front+3.15),
+    grillApproach:homePoint(home,home.width*.12,front+2.67),
+    patchApproach:homePoint(home,home.width*.12,front+1.53),
+    flowerApproach:homePoint(home,-home.width*.15,front+1.38),
+    benchYaw:home.yaw,
+    plantYaw:home.yaw-Math.PI/2,
+    grillYaw:home.yaw+Math.PI/2,
+  };
+}

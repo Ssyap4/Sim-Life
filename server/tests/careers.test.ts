@@ -1,3 +1,4 @@
+import { districtArrival, districtStation } from '../../src/shared/district';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { once } from 'node:events';
@@ -93,12 +94,30 @@ test('All four contracts are available only to their approved resident, persist 
     assert.equal(beginShift(state,owner,'ozon').ok,false);
     state.careers.residents[owner].progress[id]!.rank=1;
     state = command(state,owner,{type:'career_leave'});
-    assert.equal(state.world.places[owner],'street');
+    assert.equal(state.world.places[owner],'home');
     state = command(state,owner,{type:'career_resign'});
     state = command(state,owner,{type:'career_hire',career:id});
     assert.equal(state.careers.residents[owner].progress[id]!.rank,1);
     assert.equal(state.money,10000);
     assert.equal(applyCareer(state,owner,{type:'career_start'},now(state)).ok,false);
+  }
+});
+
+test('The four district workplaces open a real contracted shift at their door and return the worker to it',()=>{
+  const calendar={it:0,detail:1,marketing:1,clinic:0};
+  for(const id of CAREER_IDS){
+    const {owner,place}=CAREERS[id];
+    const via=districtStation(place);
+    const contracted=hire(id,calendar[id]);
+    assert.equal(applyCareer(contracted,owner,{type:'career_start',via},now(contracted)).ok,false);
+    const approach=applyWorld(contracted,owner,{type:'approach',place:'home',station:via});
+    assert.ok(approach.ok && approach.path?.length);
+    const began=command(approach.state,owner,{type:'career_start',via});
+    assert.equal(began.world.places[owner],place);
+    const finished=command(began,owner,{type:'career_leave'});
+    const {x,z}=finished.characters[owner];
+    assert.deepEqual({x,z},districtArrival(place,owner));
+    assert.equal(finished.world.places[owner],'home');
   }
 });
 
@@ -272,7 +291,7 @@ test('Migration preserves the family and access, and rescues a resident from a c
     const recovered=files.load();
     assert.equal(recovered.money,18512);
     assert.equal(recovered.careers.residents.vlad.shift,null);
-    assert.equal(recovered.world.places.vlad,'street');
+    assert.equal(recovered.world.places.vlad,'home');
     assert.deepEqual(recovered.education,stable.education);
     assert.deepEqual(recovered.pets,stable.pets);
     assert.deepEqual(openServerFiles(dir).access,files.access);

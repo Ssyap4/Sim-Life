@@ -1,3 +1,4 @@
+import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
 import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
@@ -379,8 +380,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return distance+Math.hypot(point.x-prev.x,point.z-prev.z);
       },0);
       // Leave a small grace period for mobile animation interpolation.
-      if(now-walk.started>=length/HOME_WALK_SPEED*1000+700)
+      const arrival=walk.started+length/HOME_WALK_SPEED*1000;
+      if(now>=arrival+700){
         walkingHome.delete(role);
+        lastIntent.set(role,Math.max(lastIntent.get(role)??0,arrival));
+      }
     }
   };
   const lifeTicker = setInterval(() => {
@@ -394,10 +398,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const mode=state.autonomy[role];
       // Offline players, manual tasks, work, sleep, travelling and interactive
       // storage sessions are never taken over by the automatic decision engine.
-      if(state.world.places[role]!=='home'||sleepers.has(role)||
+      if(state.world.places[role]!=='home'||!inHomeGrounds(state.characters[role])||sleepers.has(role)||
         running.has(role)||homeTasks.busy(role)||(queuedTasks.get(role)?.length??0)>0||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
-        (mode!=='off'&&walkingHome.has(role))||
+        walkingHome.has(role)||
         now-(lastIntent.get(role)??now)<Math.min(idleAutonomyMs,mode==='off'?idleAutonomyMs:5500))continue;
       // Off means the exact existing 0.16 background routine, not a frozen
       // resident: rare idle walks and rescue only when a vital need reaches 8%.
@@ -513,6 +517,27 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     if(!available.length)return;
+    // A full-autonomy pair may become idle on adjacent 20ms ticks because
+    // their login/manual-intent timestamps differ. Without a short pairing
+    // grace the first player starts a 20-second solo activity and the shared
+    // chat never happens. Wait only when the other FULL-mode player is
+    // physically at home, unoccupied and about to clear their idle timer;
+    // never commandeer a busy or manually controlled resident.
+    if(available.length===1&&state.autonomy[available[0]]==='full'&&
+        Math.floor(clockMinutes(state.clock)/125)%3===0){
+      const other=otherRole(available[0]);
+      const age=now-(lastIntent.get(other)??now);
+      const otherIdleThreshold=Math.min(idleAutonomyMs,5500);
+      if(active.has(other)&&state.autonomy[other]==='full'&&
+          state.world.places[other]==='home'&&inHomeGrounds(state.characters[other])&&
+          !sleepers.has(other)&&!running.has(other)&&!homeTasks.busy(other)&&
+          (queuedTasks.get(other)?.length??0)===0&&!state.activeShifts[other]&&
+          !state.careers.residents[other].shift&&!walkingHome.has(other)&&
+          !storageOpen.has(other)&&!leisure.has(other)&&
+          age>=otherIdleThreshold-2400&&age<otherIdleThreshold){
+        return;
+      }
+    }
     // Only two idle residents who explicitly opted into FULL autonomy may
     // perform a shared spontaneous chat; neither character is commandeered
     // from manual control, study, sleep or any other task.
@@ -1156,8 +1181,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         if(message.type==='travel'||message.type==='walk')clearQueue(role);
-        const from = state.characters[role];
-        const result = applyWorld(state, role, message, active.has(otherRole(role)));
+        const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;
+        const travelSource=interrupted?structuredClone(state):state;
+        if(interrupted){
+          const distance=Math.max(0,pauseTimers.now()-interrupted.started)/1000*HOME_WALK_SPEED;
+          Object.assign(travelSource.characters[role],sampleWalk(interrupted.route,distance).from,{pose:'idle'});
+        }
+        const from = travelSource.characters[role];
+        const result = applyWorld(travelSource, role, message, active.has(otherRole(role)));
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }

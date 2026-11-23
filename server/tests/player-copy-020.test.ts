@@ -8,13 +8,15 @@ const content=(path:string)=>readFileSync(resolve(root,path),'utf8');
 test('user-facing home copy never mentions old development releases or private filesystem',()=>{
   const text=content('src/main.ts');
   assert.doesNotMatch(text,/0\.16|ВИЗУАЛЬНЫЙ ПРЕДПРОСМОТР|Тестовая версия:|Код из server-data|Коды созданы на компьютере/);
-  assert.match(text,/НАША МАЛЕНЬКАЯ ИСТОРИЯ/);
+  assert.match(text,/СИМУЛЯТОР ЖИЗНИ/);
+  assert.match(text,/<h1>SIM LIFE<\/h1>/);
   assert.match(text,/Выбери героя, чтобы вернуться домой/);
 });
 test('phone and thought lessons explain current autonomy rather than old version numbers',()=>{
   for(const filename of ['src/phoneUI.ts','src/shared/thoughtHelp.ts'])
     assert.doesNotMatch(content(filename),/(?:как в|поведение) 0\.\d+/);
 });
-test('package version matches approved user release',()=>{
-  assert.equal(JSON.parse(content('package.json')).version,'0.20.0');
+test('package and lockfile versions mark the 0.21 release candidate',()=>{
+  assert.equal(JSON.parse(content('package.json')).version,'0.21.0');
+  assert.equal(JSON.parse(content('package-lock.json')).version,'0.21.0');
 });

@@ -1,3 +1,4 @@
+import { districtArrival, districtStation, inHomeGrounds } from '../src/shared/district';
 import {
   CAREERS, CAREER_STATIONS, CLINIC_MODULES, DETAIL_SERVICES, dayOf, initialCareers, isCareer, isCareerPlace,
   newCareerProgress, shiftWindow, type CareerProgress, type CareerShift, type CareersState,
@@ -73,10 +74,10 @@ function settle(state: GameState, role: CharacterId, now: number, early: boolean
   r.shift = null;
   if (shift.mode === 'office') {
     const partnerRole = role === 'vlad' ? 'alina' : 'vlad';
-    const partner = state.world.places[partnerRole] === 'street' ? state.characters[partnerRole] : undefined;
-    const entry = spawn('street', role);
-    Object.assign(character, partner ? unoccupiedDestination(entry, partner, placeObstacles('street'), floorFor('street')) ?? entry : entry);
-    state.world.places[role] = 'street';
+    const partner = state.world.places[partnerRole] === 'home' ? state.characters[partnerRole] : undefined;
+    const entry = districtArrival(CAREERS[shift.career].place,role);
+    Object.assign(character, partner ? unoccupiedDestination(entry, partner, placeObstacles('home'), floorFor('home')) ?? entry : entry);
+    state.world.places[role] = 'home';
   }
   character.pose = 'idle';
   return explanation;
@@ -287,11 +288,19 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
   if (command.type === 'career_start') {
     if (shift || occupied || state.activeShifts[role]) return fail('Заверши текущее действие или смену');
     const window = shiftWindow(id,dayOf(now));
+    if (command.via !== undefined) {
+      const entrance = stationById('home',command.via);
+      const character = state.characters[role];
+      if (window.mode !== 'office' || state.world.places[role] !== 'home' ||
+          command.via !== districtStation(spec.place) || !entrance ||
+          Math.hypot(character.x-entrance.approach.x,character.z-entrance.approach.z)>1.12)
+        return fail('На смену можно войти через вход своего рабочего места');
+    }
     if (!window.open) return fail('По твоему расписанию сегодня выходной');
     if (owner.lastDay >= window.day) return fail('Сегодня уже была рабочая смена');
     if (now < window.start || now > window.end - 60) return fail('Приходи в рабочее окно, до конца должно остаться минимум 60 минут');
     if (state.characters[role].energy < 20 || state.characters[role].hunger < 15) return fail('Перед сменой нужны еда и отдых');
-    if (window.mode === 'remote' && (state.world.places[role] !== 'home' || !serviceAvailable(state.billing,'internet',now)))
+    if (window.mode === 'remote' && (state.world.places[role] !== 'home' || !inHomeGrounds(state.characters[role]) || !serviceAvailable(state.billing,'internet',now)))
       return fail('Для удалённой смены нужно находиться дома и иметь действующий интернет');
     owner.shift = { id:state.careers.nextId++, career:id, mode:window.mode, day:window.day, startedAt:now, regularEnd:window.end,
       endsAt:window.end, late:Math.max(0,now-window.start), overtime:false, completed:0, missed:0, score:0, nextTaskAt:now };
@@ -404,8 +413,8 @@ export function recoverCareers(state: GameState): boolean {
       actor.shift = null; changed = true;
     }
     if (isCareerPlace(place) && !actor.shift) {
-      state.world.places[role] = 'street';
-      Object.assign(state.characters[role],spawn('street',role),{pose:'idle'}); changed = true;
+      state.world.places[role] = 'home';
+      Object.assign(state.characters[role],districtArrival(place,role),{pose:'idle'}); changed = true;
     }
   }
   return changed;

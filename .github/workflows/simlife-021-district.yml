@@ -1,0 +1,36 @@
+name: Sim-Life 0.21 focused checks
+
+on:
+  push:
+    branches:
+      - feat/world-character-overhaul-021
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  district:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci
+      - name: Check TypeScript
+        run: npm run check
+      - name: Check routes, saves, shops and living NPCs
+        run: npx tsx --test server/tests/locations.test.ts server/tests/neighbors.test.ts server/tests/camera-detail-021.test.ts
+      - name: Stress-check paired autonomy chat across eight fresh server runs
+        run: |
+          for iteration in 1 2 3 4 5 6 7 8; do
+            echo "Autonomous shared-chat run $iteration"
+            node --import tsx --test --test-name-pattern="Shared spontaneous conversation" server/tests/autonomy.test.ts
+          done

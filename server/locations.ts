@@ -1,7 +1,9 @@
+import { districtPoint, inHomeGrounds } from '../src/shared/district';
+import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import {
   CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
-  approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById,
+  approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById, doorwayArrival,
   type LocalActivity, type Point, type Station, type WorldState,
 } from '../src/shared/locations';
 import type { CharacterId, GameState } from '../src/shared/protocol';
@@ -30,8 +32,8 @@ export function validWorld(value: unknown): value is WorldState {
   if (!value || typeof value !== 'object') return false;
   const w = value as Partial<WorldState>;
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  return !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
-    isPlace(w.places![role]) && count(w.sequence![role]) && count(w.bags![role])) &&
+  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
+    (isPlace(w.places![role]) || (w.districtLayout===undefined || w.districtLayout===1) && String(w.places![role])==='street') && count(w.sequence![role]) && count(w.bags![role])) &&
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
@@ -87,17 +89,12 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
-    if (command.place === 'home') {
-      // Checkout already wrote the goods to the family fridge/cupboard stock.
-      // Do not add them again: only remove the carried bag on arrival.
-      next.world.bags[role] = 0;
-      next.world.tableBags = 0;
-    }
     if (command.dog === true) {
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
     }
-    const spawnPoint = spawn(command.place, role);
+    const spawnPoint = command.via !== undefined || command.place === 'home'
+      ? doorwayArrival(command.place,place,role) : spawn(command.place, role);
     const other = neighborAt(command.place);
     const arrival = other
       ? unoccupiedDestination(spawnPoint, other, placeObstacles(command.place,source.furnishing), floorFor(command.place))
@@ -106,8 +103,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     Object.assign(next.characters[role], arrival, { pose: 'idle' });
     if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
-    return done(next, command.place === 'home' && source.world.bags[role] > 0
-      ? 'Дом · Покупки убраны в холодильник и кухонные шкафчики' : PLACES[command.place].name);
+    return done(next, PLACES[command.place].name);
   }
 
   if (command.type === 'walk' || command.type === 'approach') {
@@ -121,14 +117,25 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const obstacles = placeObstacles(place,source.furnishing);
     const floor = floorFor(place);
     const other = neighborAt(place);
-    const target = other && pointIsClear(requested, obstacles, floor)
-      ? unoccupiedDestination(requested, other, obstacles, floor) : requested;
+    const body = other && Math.hypot(other.x-requested.x,other.z-requested.z)<1.05 ? other
+      : place === 'home' && !inHomeGrounds(requested) ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
+        .filter(person=>person.visible && person.opacity>.35).map(districtPoint)
+        .find(person=>Math.hypot(person.x-requested.x,person.z-requested.z)<.82)
+        : undefined;
+    const target = body && !station && pointIsClear(requested, obstacles, floor)
+      ? unoccupiedDestination(requested, body, obstacles, floor)
+      : other && station ? unoccupiedDestination(requested,other,obstacles,floor) : requested;
     const origin = nearestClearPoint(source.characters[role], obstacles, floor);
     const path = origin && target && pointIsClear(target, obstacles, floor)
       ? findRoute(origin, target, obstacles, floor) : null;
     if (!path || !target) return fail('Сюда нельзя пройти');
     const next = structuredClone(source);
     Object.assign(next.characters[role], target, { pose: 'idle' });
+    if(place==='home'&&inHomeGrounds(target)){
+      // Checkout has already credited the purchases. Reaching home only puts the carrier away.
+      next.world.bags[role]=0;
+      next.world.tableBags=0;
+    }
     if (career) delete next.careers.residents[role].shift!.station;
     if (next.world.dogWalker === role) setDogParkPosition(next);
     next.revision++;
