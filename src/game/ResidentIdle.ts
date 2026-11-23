@@ -4,7 +4,8 @@ import type { CharacterId } from '../shared/protocol';
 // change server needs, or pretend to complete a social/pet interaction.
 export type ResidentIdleGesture =
   'think' | 'fixHair' | 'lookAround' | 'adjustSleeve' | 'shiftWeight' |
-  'stretchNeck' | 'noticePet' | 'noticePartner';
+  'stretchNeck' | 'noticePet' | 'noticePartner' | 'studyPalm' |
+  'rubShoulder' | 'easeWrists' | 'steadyBreath';
 
 export interface ResidentIdleContext {
   // Relative direction of a nearby visible pet/partner. Null when out of range.
@@ -16,12 +17,14 @@ export const RESIDENT_IDLE_SECONDS = 3.8;
 
 const vladCycle: readonly ResidentIdleGesture[] = [
   'think', 'lookAround', 'adjustSleeve', 'shiftWeight',
-  'stretchNeck', 'think', 'lookAround', 'adjustSleeve',
+  'stretchNeck', 'studyPalm', 'lookAround', 'rubShoulder',
+  'steadyBreath', 'think', 'lookAround', 'adjustSleeve',
 ];
 
 const alinaCycle: readonly ResidentIdleGesture[] = [
   'fixHair', 'lookAround', 'shiftWeight', 'adjustSleeve',
-  'stretchNeck', 'fixHair', 'lookAround', 'shiftWeight',
+  'stretchNeck', 'easeWrists', 'lookAround', 'steadyBreath',
+  'rubShoulder', 'fixHair', 'lookAround', 'shiftWeight',
 ];
 
 export function residentIdleAllowed(gesture: ResidentIdleGesture, context: ResidentIdleContext): boolean {
