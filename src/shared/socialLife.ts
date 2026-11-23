@@ -196,6 +196,10 @@ export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
 }
 
 type Item = {id:string;label:string};
+const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'table'|'fridge')=>
+  state.readyFood.reduce((total,batch)=>total+
+    (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
+      ? batch.portions:0),0);
 const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush']);
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
@@ -205,11 +209,10 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
       [from,otherPerson(from)].every(role=>recipeAvailability(state,role,id).available))
       .map(id=>({id,label:'🍳 Приготовим · '+RECIPES[id].name}));
     // Fresh food on the table is an actual shared stock, not imaginary servings.
-    const ready=recipeIds.filter(id=>state.meals[id]>=2&&state.readyFood.some(b=>
-      b.kind==='meal'&&b.item===id&&b.storage==='table'&&b.portions>=2&&b.expiresAt>gameMinutes(state.clock)))
+    const ready=recipeIds.filter(id=>state.meals[id]>=2&&freshPortions(state,'meal',id,'table')>=2)
       .map(id=>({id:'leftovers:'+id,label:'🥘 Уже готово · '+RECIPES[id].name}));
-    const delivery=(Object.keys(TAKEOUT) as TakeoutId[]).filter(id=>state.takeout[id]>=2&&state.readyFood.some(b=>
-      b.kind==='takeout'&&b.item===id&&b.storage==='table'&&b.portions>=2&&b.expiresAt>gameMinutes(state.clock)))
+    const delivery=(Object.keys(TAKEOUT) as TakeoutId[]).filter(id=>state.takeout[id]>=2&&
+      freshPortions(state,'takeout',id,'table')>=2)
       .map(id=>({id:'takeout:'+id,label:'🍕 Доставка на столе · '+TAKEOUT[id].name}));
     return [...ready,...delivery,...cooked];
   }
@@ -217,14 +220,12 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
     case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
       const count=a.object==='eat'?2:1;
-      return recipeIds.filter(id=>state.meals[id]>=count&&state.readyFood.some(batch=>
-        batch.kind==='meal'&&batch.item===id&&batch.storage===(a.object==='serve'?'fridge':'table')&&
-        batch.portions>=count))
+      return recipeIds.filter(id=>state.meals[id]>=count&&
+        freshPortions(state,'meal',id,a.object==='serve'?'fridge':'table')>=count)
         .map(id=>({id,label:RECIPES[id].name}));
     }
     case 'takeout':return Object.entries(TAKEOUT).filter(([id])=>
-      state.takeout[id as keyof typeof TAKEOUT]>=2&&state.readyFood.some(batch=>
-        batch.kind==='takeout'&&batch.item===id&&batch.storage==='table'&&batch.portions>=2))
+      state.takeout[id as keyof typeof TAKEOUT]>=2&&freshPortions(state,'takeout',id,'table')>=2)
       .map(([id,item])=>({id,label:item.name}));
     case 'film':return Object.entries(GENRES).map(([id,label])=>({id,label}));
     case 'lesson':return MATERIALS.filter(m=>m.channel==='tv'&&(!m.price||state.education.licenses.includes(m.id))&&
