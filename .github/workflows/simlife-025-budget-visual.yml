@@ -1,0 +1,43 @@
+name: Sim-Life 0.25 mobile budget and pet portrait QA
+on:
+  push:
+    branches: [feat/family-finance-home-025]
+    paths:
+      - qa-budget-025.html
+      - scripts/qa-025-family-budget-visual.mjs
+      - qa-pets-024.html
+      - src/budgetUI.ts
+      - src/billingUI.ts
+      - src/style.css
+      - src/game/PetArt.ts
+      - src/game/PetActor.ts
+      - .github/workflows/simlife-025-budget-visual.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-budget-pets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Serve actual 0.25 source in isolated cloud
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/qa025-vite.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-budget-025.html >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:4173/qa-budget-025.html >/dev/null
+      - name: Phone, PC, saving controls, cat muzzle and dog bunny
+        run: node scripts/qa-025-family-budget-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-025-finance-and-pets
+          path: /tmp/simlife-025-visual/
+          retention-days: 7
