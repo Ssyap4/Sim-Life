@@ -1650,7 +1650,7 @@ export class World {
         clearance: PET_PERSON_CLEARANCE,
       });
     }
-    if(this.place==='home')for(const body of this.neighborBodies){
+    if(this.place==='home'||this.place==='park')for(const body of this.neighborBodies){
       if(Math.hypot(body.position.x-from.x,body.position.z-from.z)<2.8)bodies.push(body);
     }
     const actor = this.actors[role];
@@ -2217,7 +2217,7 @@ export class World {
     if ((this.place==='home'||this.place==='park')&&this.household) {
       this.neighborMinute += dt*GAME_MINUTES_PER_REAL_SECOND;
       if(this.place==='home')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera);
-      else this.neighbors.updatePark(this.neighborMinute,this.camera);
+      else this.neighborBodies=this.neighbors.updatePark(this.neighborMinute,this.camera);
     }
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];

@@ -407,8 +407,10 @@ test('the park interior has reusable live walkers, conversation and a quiet visi
   assert.ok(chat>80,'park friends chat for more than 20 game minutes');
   assert.ok(admire>60,'a visitor has a real quiet sightseeing stop');
   const crowd=new NeighborPeople();
-  crowd.updatePark(12*60+15);
+  const parkTraffic=crowd.updatePark(12*60+15);
   assert.ok(crowd.group.children.filter(child=>child.visible).length>=1);
+  assert.ok(parkTraffic.length>=1,'park walkers should be visible to player collision avoidance');
+  assert.ok(parkTraffic.every(body=>body.person&&body.clearance>.5));
   assert.equal(crowd.group.position.z,0);
 });
 

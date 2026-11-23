@@ -85,6 +85,8 @@ export class NeighborPeople {
       entry.seen=seconds;
       entry.mounted.position.set(pose.x,0,pose.z);
       entry.mounted.rotation.y=pose.yaw;
+      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z},
+        clearance:.76,person:true,moving:pose.action==='walk'});
       if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z+this.offset},clearance:.76,person:true,moving:pose.action==='walk'});
       const rig=entry.model;
       const distance=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z-this.offset,camera.position.y*.40):0;
@@ -107,8 +109,9 @@ export class NeighborPeople {
 
   /** Four background park walkers when players enter the separate park
    * interior. The SAME GLB rigs are moved between scenes, never duplicated. */
-  updatePark(gameMinute:number,camera?:THREE.Camera):void {
+  updatePark(gameMinute:number,camera?:THREE.Camera):TrafficBody[] {
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
+    const traffic:TrafficBody[]=[];
     this.group.position.z=0;
     for(const [i,entry] of this.entries.entries()){
       const pose=parkNeighborPose(i,gameMinute);
@@ -127,6 +130,7 @@ export class NeighborPeople {
       setFade(rig,pose.opacity);
       this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0);
     }
+    return traffic;
   }
 
   private dispose(entry:Entry):void {
