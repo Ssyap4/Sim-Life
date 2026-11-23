@@ -139,7 +139,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   const moments=familyMoments(state,role);
   if(moments.length){
     const momentCards=node('section','','relationship-moments');
-    momentCards.append(node('p','Никаких случайных штрафов: эти поводы появились из реальной жизни семьи.','relationship-moment-intro'));
+    momentCards.append(node('p','Сегодня дома есть повод сделать что-нибудь друг для друга.','relationship-moment-intro'));
     for(const moment of moments){
       const card=node('article','','relationship-event relationship-moment');
       card.append(node('strong',moment.emoji+' '+moment.title),node('p',moment.description));
@@ -153,7 +153,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   }
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
-  const available=SOCIAL_ACTIVITIES.filter(a=>a.id!=='eveningPlan'&&!socialRestriction(a,state,role))
+  const available=SOCIAL_ACTIVITIES.filter(a=>!['eveningPlan','evening','eveningTea'].includes(a.id)&&!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
   const suggestions=node('div','','relationship-suggestions');
   for(const a of [...new Map(available.map(a=>[a.group,a])).keys()].slice(0,4).map(group=>available.find(a=>a.group===group)!)) {
