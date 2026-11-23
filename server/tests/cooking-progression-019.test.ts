@@ -12,7 +12,12 @@ test('every kitchen/grill recipe has an ordered, reachable cooking tier', () => 
   assert.deepEqual([...COOKING_ORDER].sort(), (Object.keys(RECIPES) as RecipeId[]).sort());
   assert.equal(COOKING_ORDER[0], 'toast');
   assert.equal(COOKING_RECIPES.toast.minLevel, 0);
-  assert.equal(COOKING_RECIPES.grillSteak.minLevel, 18);
+  assert.equal(COOKING_RECIPES.grillSteak.minLevel, 6);
+  assert.equal(COOKING_RECIPES.pancakes.minLevel,3);
+  assert.equal(COOKING_RECIPES.buckwheatChicken.minLevel,2);
+  assert.equal(COOKING_RECIPES.homemadePizza.minLevel,4);
+  assert.equal(COOKING_RECIPES.beefWellington.minLevel,18);
+  assert.equal(COOKING_RECIPES.chocolateFondant.minLevel,20);
   for (const id of COOKING_ORDER) {
     const recipe = COOKING_RECIPES[id];
     assert.ok(recipe.minLevel >= 0 && recipe.minLevel <= 20);
@@ -30,12 +35,12 @@ test('server locks higher recipes by personal skill before spending ingredients 
   const before = structuredClone(initial);
   const locked = recipeAvailability(initial, 'vlad', id);
   assert.equal(locked.available, false);
-  if (!locked.available) assert.match(locked.reason, /уровня 18/);
+  if (!locked.available) assert.match(locked.reason, /уровня 6/);
   const refused = applyFoodAction(initial,'vlad',{type:'cook',recipe:id});
   assert.equal(refused.ok,false);
   assert.deepEqual(initial.pantry, before.pantry);
   assert.deepEqual(initial.readyFood, before.readyFood);
-  initial.education.characters.vlad.xp.cooking = levelXP(18);
+  initial.education.characters.vlad.xp.cooking = levelXP(6);
   const available = recipeAvailability(initial,'vlad',id);
   assert.equal(available.available,true);
   const cooked = applyFoodAction(initial,'vlad',{type:'cook',recipe:id});
@@ -65,8 +70,8 @@ test('successful cooking grants personal XP; repetition and overqualification re
   assert.equal(other.xp.cooking,0,'cooking experience is personal');
   const helping=cookingExperience(other,'alina','toast',true);
   assert.ok(helping<cookingExperience(other,'alina','toast'));
-  assert.equal(cookingEnergy(0,'grillSteak'),8);
-  assert.ok(cookingEnergy(20,'grillSteak')<8);
+  assert.equal(cookingEnergy(0,'grillSteak'),5);
+  assert.ok(cookingEnergy(20,'grillSteak')<5);
   profile.xp.cooking=maximumXP;
   assert.equal(skillRank(profile.xp.cooking).level,20);
   assert.equal(awardCooking(state,'vlad','toast'),0);
@@ -82,4 +87,31 @@ test('basic cooking works at level 0 but intermediate kitchen recipes require tr
   assert.equal(recipeAvailability(state,'alina','pastaBolognese').available,false);
   state.education.characters.alina.xp.cooking=levelXP(12);
   assert.notEqual(cookingExperience(state.education.characters.alina,'alina','pastaBolognese'),0);
+});
+
+
+test('restaurant dishes progressively unlock at levels 7 through 20 with real ingredient requirements', () => {
+  const advanced = ['lasagna','mushroomRisotto','beefStroganoff','salmonLemon',
+    'creamyChicken','shrimpLinguine','duckOrange','pepperMedallions','pannaCotta',
+    'cremeBrulee','lambRosemary','beefWellington','seaBassRisotto','chocolateFondant'] as RecipeId[];
+  for (const [i,id] of advanced.entries()) {
+    const required=i+7;
+    assert.equal(COOKING_RECIPES[id].minLevel,required,id);
+    const state=initialState();
+    for(const [key,qty] of ingredientList(id))state.pantry[key]=qty;
+    if(required>0) {
+      state.education.characters.alina.xp.cooking=levelXP(required-1);
+      assert.equal(recipeAvailability(state,'alina',id).available,false,id+' locked');
+    }
+    state.education.characters.alina.xp.cooking=levelXP(required);
+    assert.equal(recipeAvailability(state,'alina',id).available,true,id+' unlocked');
+    const cooked=applyFoodAction(state,'alina',{type:'cook',recipe:id});
+    assert.ok(cooked.ok,id+': '+(!cooked.ok?cooked.reason:''));
+    if(cooked.ok) {
+      assert.equal(cooked.state.meals[id],RECIPES[id].servings,id);
+      assert.equal(cooked.state.readyFood.at(-1)?.item,id);
+      for(const [key,qty] of ingredientList(id))
+        assert.equal(cooked.state.pantry[key],0,id+': '+key);
+    }
+  }
 });
