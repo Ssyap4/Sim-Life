@@ -3,6 +3,7 @@ import {
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
 } from './shared/socialLife';
 import { clockAt, clockLabel, gameMinutes } from './shared/life';
+import { RECIPES } from './shared/food';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',style='')=>{
@@ -110,11 +111,11 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     const dish=SOCIAL_BY_ID.get('cook')?.title??'Приготовить вместе';
     const names={prepare:'1 из 3 · Приготовление',dine:'2 из 3 · Ужин',unwind:'3 из 3 · Время вместе'};
     const descriptions={
-      prepare:'Приготовьте выбранный рецепт ВДВОЁМ. Продукты спишутся только после завершения.',
+      prepare:'Приготовьте выбранный рецепт вместе. Продукты спишутся только после завершения.',
       dine:'Блюдо уже готово. Пригласите друг друга поужинать за столом.',
       unwind:'Поужинали! Завершите вечер общим фильмом, ТВ или объятиями на диване.',
     };
-    story.append(node('p',names[evening.phase]+' · '+evening.recipe),
+    story.append(node('p',names[evening.phase]+' · '+RECIPES[evening.recipe].name),
       node('p',descriptions[evening.phase]));
     const action=evening.phase==='prepare'?'cook':evening.phase==='dine'?'eat':'film';
     const title=evening.phase==='prepare'?dish:evening.phase==='dine'?'Позвать к столу':'Отдохнуть вместе';
