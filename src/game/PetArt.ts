@@ -194,9 +194,18 @@ function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
       .lerp(cream, (1 - THREE.MathUtils.smoothstep(y, -.132, -.065)) * front ** 2 * .53);
   });
   sculpt(head, face, 0xffffff, 'fur');
-  // Small real-cat pink nose, not a long projecting radial cone between
-  // the eyes. The photographs show a short fine muzzle and flat bridge.
-  detail(head, 0xc78679, [0,-.083,.225], [.029,.017,.017], true);
+  // Simba's old 3D nose was an ellipsoid poking out of his fine muzzle.
+  // Draw a flat, small cat-nose triangle against the head's surface instead:
+  // zero spherical geometry, no ball silhouette at any viewing angle.
+  const noseShape=new THREE.Shape();
+  noseShape.moveTo(-.022,-.083);
+  noseShape.lineTo(.022,-.083);
+  noseShape.lineTo(0,-.102);
+  noseShape.closePath();
+  const nose=new THREE.Mesh(new THREE.ShapeGeometry(noseShape),
+    new THREE.MeshBasicMaterial({color:0xb77769,side:THREE.DoubleSide}));
+  nose.position.z=.220;
+  head.add(nose);
   sculptedCurve(jaw, [[-.039,-.111,.208],[-.017,-.117,.216],[0,-.113,.218],
     [.017,-.117,.216],[.039,-.111,.208]], .0025,.0025,0x926c56,.84);
 
