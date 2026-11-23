@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SimbaRig } from './SimbaRig';
 import type { CatPerch } from '../shared/CatPerches';
+import { CAT_REST_POSES, chooseCatRestPose, type CatRestPoseId } from '../shared/CatRestPoses';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
@@ -17,6 +18,8 @@ export class PetActor {
   private readonly body = new THREE.Group();
   private perch:CatPerch|null=null;
   private leavingPerch:CatPerch|null=null;
+  private perchRestPose:CatRestPoseId='sofa_loaf';
+  private leavingRestPose:CatRestPoseId='sofa_loaf';
   private perchProgress=0;
   private perchHeight: number | undefined;
   private leavingPerchHeight: number | undefined;
@@ -144,11 +147,12 @@ export class PetActor {
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
     perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
-    scratchPost?:FloorPoint): void {
+    scratchPost?:FloorPoint,restSeed=0): void {
     if(this.perch?.key!==perch?.key)this.releasePerch();
     if(this.id==='simba' && routine==='perch' && perch){
       this.perch=perch;
       this.perchHeight=supportHeight;
+      this.perchRestPose=chooseCatRestPose(perch.catAnchor?.poses,perch.key,restSeed,perch.kind);
     }
     // A scheduled meal, sleep or walk always overrides a temporary play prop.
     this.reaction = null;
@@ -176,6 +180,7 @@ export class PetActor {
   private releasePerch(): void {
     if(this.perch && !this.leavingPerch && this.perchProgress>0){
       this.leavingPerch=this.perch;
+      this.leavingRestPose=this.perchRestPose;
       this.leavingPerchHeight=this.perchHeight;
     }
     this.perch=null;
@@ -414,6 +419,13 @@ export class PetActor {
     const matNap=this.onPetBed&&this.routine==='sleep'?settled:0;
     const dogNap=dog?matNap:0;
     const catNap=!dog?matNap:0;
+    // The furniture chooses the actual stable skeletal pose; no frame-to-frame
+    // randomization, no generic standing posture on a cushion.
+    const restPoseId:CatRestPoseId|undefined=surface
+      ? (descending?this.leavingRestPose:this.perchRestPose)
+      : catNap>0?'mat_curl':undefined;
+    const restPreset=restPoseId?CAT_REST_POSES[restPoseId]:undefined;
+    const restWeight=surface?perched:catNap;
     const toilet = this.routine === 'toilet' ? settled : 0;
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
@@ -603,22 +615,29 @@ export class PetActor {
       const phase=this.perchProgress;
       const airborne=surface?Math.sin(Math.PI*phase):0;
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
-      const loaf=Math.max(curled,catNap);
-      const coil=Math.max(curled,catNap*.85);
+      const loaf=Math.max(curled,lookout*.72,catNap);
+      const coil=Math.max(curled,lookout*.36,catNap*.85);
       const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
-      this.body.scale.setScalar(1);
+      // A real curled cat is a skeletal pose, not a stretched walking mesh.
+      // Keep the silhouette recognizable; the bones do the actual tucking.
+      this.body.scale.set(1,
+        1+((restPreset?.height??1)-1)*restWeight,
+        1+((restPreset?.length??1)-1)*restWeight);
       // Rock back onto the hind paws so the forelegs can reach up the post.
       // Gentle spinal side-rest, not a full body roll: a 40° roll made
       // the skinned knees point upwards like a beetle when resting on mats.
       // Bend the IK legs below the breast while the belly stays supported.
-      this.body.rotation.set(-.65*scratching+.16*stretching+.035*loaf,0,
-        -.36*curled-.23*catNap);
+      this.body.rotation.set(
+        THREE.MathUtils.lerp(-.65*scratching+.16*stretching,restPreset?.pitch??0,restWeight),
+        0,(restPreset?.roll??0)*restWeight);
       const post=scratching>0?this.scratchPost:undefined;
       const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
       const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
       // Lift only enough to clear the upholstery after bending the knees.
-      this.body.position.set(0,-.025-crouch+lift*.022+.19*scratching+
-        .055*loaf,step*scratching);
+      const groundBodyY=-.025-crouch+lift*.022+.19*scratching;
+      this.body.position.set(0,
+        THREE.MathUtils.lerp(groundBodyY, -(restPreset?.sink??0),restWeight),
+        step*scratching);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
@@ -631,7 +650,7 @@ export class PetActor {
         const turn=THREE.MathUtils.smootherstep(phase,.78,1);
         const forward=surface.yaw-this.root.rotation.y;
         const runUp=descending?forward:forward+Math.PI;
-        const final=forward+(surface.kind==='curl'?Math.PI/2:0);
+        const final=forward+(restPreset?.yaw??(surface.kind==='curl'?Math.PI/2:0));
         this.body.rotation.y=THREE.MathUtils.lerp(runUp,final,turn);
         this.body.rotation.x+=airborne*(.12-phase*.26);
       }
@@ -641,7 +660,7 @@ export class PetActor {
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
         t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
-        airborne,rest,target,loaf,coil);
+        airborne,rest,target,loaf,coil,restPoseId,restWeight);
       animate(contact);
       if(post){
         // The scratch target is a fixed REAL post, not a hand-waved offset.
