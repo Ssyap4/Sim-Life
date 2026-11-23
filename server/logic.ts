@@ -5,7 +5,7 @@ import {
 import { KITCHEN_ACTIONS, KITCHEN_WORK } from '../src/shared/home';
 import { dishCount, EMPTY_DIRTY_DISHES } from '../src/shared/dirtyDishes';
 import { gameMinutes } from '../src/shared/life';
-import { moveReadyFoodToFridge } from '../src/shared/readyFood';
+import { moveReadyFoodToFridge, moveReadyFoodToTable } from '../src/shared/readyFood';
 import { storageCanFit } from '../src/shared/storageSpace';
 
 export type ActionResult =
@@ -95,6 +95,35 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'comfort', Math.min(12, count * 3));
       change(state, role, 'energy', -2);
       message = name + ': вымыта посуда — ' + count + ' шт.';
+      break;
+    }
+    case 'kitchenServe': {
+      // Lay the table with up to two real servings from the coldest/oldest
+      // available batches, with the same freshness and table capacity rules
+      // used by selecting an individual meal in the fridge UI.
+      const now=gameMinutes(state.clock);
+      const portions=state.readyFood.filter(batch=>batch.storage==='fridge' &&
+        batch.portions>0 && batch.expiresAt>now)
+        .sort((a,b)=>a.expiresAt-b.expiresAt);
+      if(!portions.length)return {ok:false,reason:'В холодильнике нет готовых порций'};
+      let moved=0,blocked='';
+      for(const entry of portions){
+        for(let i=0;i<entry.portions&&moved<2;i++){
+          const candidate=structuredClone(state);
+          if(!moveReadyFoodToTable(candidate,entry.kind,entry.item))break;
+          const fit=storageCanFit(state,candidate);
+          if(!fit.ok){blocked=fit.reason;break;}
+          state.readyFood=candidate.readyFood;
+          state.meals=candidate.meals;
+          state.takeout=candidate.takeout;
+          moved++;
+        }
+        if(moved===2||blocked)break;
+      }
+      if(!moved)return {ok:false,reason:blocked||'Не удалось накрыть стол'};
+      change(state,role,'energy',-1);
+      change(state,role,'comfort',2);
+      message=name+': на стол поставлено '+moved+' порц.';
       break;
     }
     case 'kitchenLeftovers': {
