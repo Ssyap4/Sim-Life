@@ -1,4 +1,5 @@
 import { createSocialOffer, showSocialMenu } from './socialUI';
+import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
@@ -757,6 +758,13 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
   () => {marketUI.close();jobsUI.close();},command=>net.service(command),command=>net.budget(command),command=>net.education(command),
   () => locationUI.go('education'),command=>net.career(command),enabled=>net.setShiftSpeed(enabled),{
     suggest(group,id){ if(!active)return;phone.close();openSocialActions(otherPerson(active),group,id); },
+    moment(id){
+      if(!active||!state)return;
+      const story=familyMoments(state,active).find(candidate=>candidate.id===id);
+      if(!story)return;
+      if(net.social({type:'social_propose',action:story.action,item:story.item,moment:story.id}))
+        phone.close();
+    },
     offer(){phone.close();socialInvite.unfold();},
     pending:()=>socialInvite.pending,
     current(){
