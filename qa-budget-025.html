@@ -1,0 +1,41 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sim-Life 0.25 · Семейный бюджет</title>
+<link rel="stylesheet" href="/src/style.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#e8e5df;font:13px system-ui;color:#273b32;overflow-x:hidden}
+h1{text-align:center;font-size:19px;margin:14px 0 8px}
+p.intro{text-align:center;color:#52695a;margin:6px 10px 14px}
+#phone{width:min(calc(100vw - 20px),370px);max-width:100%;margin:auto;border:7px solid #273932;
+ border-radius:23px;padding:12px;background:#f6f6ef;box-shadow:0 5px 20px #1b281c25}
+#computer{width:min(calc(100vw - 20px),720px);margin:20px auto;background:#f7f8f6;
+ border:1px solid #a9b9a9;border-radius:12px;padding:14px}
+#phone h2,#computer h2{text-align:center;font-size:14px;margin:0 0 12px}
+</style></head><body>
+<h1>Финансы Sim-Life 0.25</h1><p class="intro">Копилка, две студии и реальные рублёвые решения</p>
+<section id="phone"><h2>📱 Игровой телефон · Влад</h2><div id="phone-content"></div></section>
+<section id="computer"><h2>💻 Семейные финансы · Алина</h2><div id="computer-content" class="computer-window-body"></div></section>
+<script type="module">
+import {createBillingUI} from './src/billingUI.ts';
+import {initialState} from './src/shared/protocol.ts';
+import {addLedger} from './src/shared/economy.ts';
+const state=initialState();
+state.money=19000;
+state.savings.balance=12000;
+state.savings.goal='alinaStudio';
+state.savings.target=150000;
+addLedger(state,'vlad','expense','groceries',4200,'Продукты на неделю');
+addLedger(state,'alina','expense','takeout',3600,'Доставка роллов и пиццы');
+addLedger(state,'vlad','expense','pets',720,'Корм для Симбы и Верделла');
+addLedger(state,'family','income','work',21000,'Зарплата за смену');
+const commands=[];
+const send=command=>{commands.push(command);document.body.dataset.sent=JSON.stringify(commands);return true;};
+for(const id of ['phone-content','computer-content']){
+  const panel=createBillingUI(document.getElementById(id),send,send);
+  panel.renderPage(state,'finance');
+}
+document.body.dataset.ready='true';
+document.body.dataset.savings=String(state.savings.balance);
+document.body.dataset.phoneControls=String(document.querySelectorAll('#phone-content [data-budget-goal]').length);
+</script></body></html>
