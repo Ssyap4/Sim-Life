@@ -812,3 +812,30 @@ test('Declined story invites cannot change resources; accepted live two-phone st
     assert.equal(rejoined.ready.state.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'dishesTogether').length,1);
   }finally{await f.close();}
 });
+
+test('A story dinner keeps its one memory when partners finish their real portions at different times',async()=>{
+  const state=sample(),f=await meet({state,scale:.09});
+  try{
+    const v=await f.connect('vlad'),a=await f.connect('alina');
+    v.send({type:'social_propose',action:'eat',item:'omelette',moment:'shareDinner'});
+    const {offer}=await v.take('social_pending');
+    await a.take('social_pending');
+    await accept(v,a,offer.id);
+    const first=await started(v,'vlad'),peer=await started(a,'alina');
+    await v.take('task_active',p=>p.taskId===first.taskId);
+    await new Promise(r=>setTimeout(r,Math.round(first.durationMs*.77)));
+    v.send({type:'social_finish',taskId:first.taskId});
+    assert.equal((await ended(v,'vlad',first.taskId)).outcome,'completed');
+    assert.equal(f.files.load().meals.omelette,1);
+    assert.equal(f.files.load().relationship.memories.filter(m=>
+      m.action===FAMILY_MOMENT_PREFIX+'shareDinner').length,0,
+      'not until the other player also finishes');
+    assert.equal((await ended(a,'alina',peer.taskId)).outcome,'completed');
+    const saved=f.files.load();
+    assert.equal(saved.meals.omelette,0);
+    assert.equal(saved.dirtyDishes.table,2);
+    assert.equal(saved.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'shareDinner').length,1);
+    assert.equal(saved.relationship.memories.filter(m=>m.action==='eat').length,0,
+      'one story memory rather than two cards for the same dinner');
+  }finally{await f.close();}
+});
