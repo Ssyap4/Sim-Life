@@ -18,6 +18,7 @@ import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
+import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
@@ -147,6 +148,10 @@ export class World {
   private paused = false;
   private visualSeconds = 0;
   private quality: 'standard'|'high'|'low' = 'standard';
+  private readonly graphics = graphicsProfile(navigator.userAgent, window.location.search);
+  private graphicsLost = false;
+  private graphicsChecked = false;
+  private graphicsStartedAt = performance.now();
   private smoothedFrameMs = 16.7;
   private lastQualityUpdate = performance.now();
   private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
@@ -209,7 +214,31 @@ export class World {
     this.tapLayer.className='world-tap-feedback';
     this.tapLayer.setAttribute('aria-hidden','true');
     this.canvas.parentElement?.append(this.tapLayer);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+    // Android WebViews are especially vulnerable to framebuffer/context loss.
+    // Disable costly MSAA and cap resolution there; retain the iPhone path.
+    this.quality = this.graphics.safe ? 'low' : 'standard';
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas,
+        antialias: this.graphics.antialias,
+        powerPreference: this.graphics.powerPreference,
+        stencil: false,
+      });
+    } catch (error) {
+      showGraphicsProblem(canvas, 'Браузер не смог создать WebGL-контекст.');
+      throw error;
+    }
+    canvas.addEventListener('webglcontextlost', event => {
+      event.preventDefault(); // permit the browser to restore the context
+      this.graphicsLost = true;
+      showGraphicsProblem(canvas, 'Графический контекст был потерян.');
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.graphicsLost = false;
+      this.graphicsChecked = false;
+      this.graphicsStartedAt = performance.now();
+      clearGraphicsProblem(canvas);
+      this.refreshViewport();
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -2302,11 +2331,12 @@ export class World {
     const compact = this.compactPortrait.matches;
     const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
     const district = this.place==='home';
-    const pixelRatio = compact
+    let pixelRatio = compact
       ? Math.min(window.devicePixelRatio || 1, this.quality==='low' ? (district?.88:1)
         : district ? (this.quality==='high'?1.26:1.11)
           : this.quality==='high' ? 1.45 : initialRatio)
       : initialRatio;
+    pixelRatio = Math.min(pixelRatio, this.graphics.maxPixelRatio);
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -2348,6 +2378,7 @@ export class World {
 
   private animate = (): void => {
     requestAnimationFrame(this.animate);
+    if (this.graphicsLost) return;
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
@@ -2578,7 +2609,24 @@ export class World {
     }
     if(this.place==='home')this.district.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
-    this.renderer.render(this.scene, this.camera);
+    try {
+      this.renderer.render(this.scene, this.camera);
+      if (this.graphics.safe && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
+        this.graphicsChecked = true;
+        const gl = this.renderer.getContext();
+        if (gl.isContextLost()) {
+          this.graphicsLost = true;
+          showGraphicsProblem(this.canvas, 'Android потерял графический контекст.');
+        } else if (!this.renderer.info.render.calls ||
+            isBlankGraphicsFrame(gl, this.canvas.width, this.canvas.height)) {
+          showGraphicsProblem(this.canvas, 'Браузер не выводит кадры 3D-сцены.');
+        }
+      }
+    } catch (error) {
+      this.graphicsLost = true;
+      console.error('WebGL rendering failed', error);
+      showGraphicsProblem(this.canvas, 'Видеодрайвер прервал отрисовку.');
+    }
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };
 }
