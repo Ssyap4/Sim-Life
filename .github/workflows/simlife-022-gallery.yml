@@ -1,0 +1,37 @@
+name: Sim-Life 0.22 restaurant plate visual QA
+on:
+  push:
+    branches: [feat/restaurant-cooking-022]
+    paths:
+      - qa-cooking-022.html
+      - scripts/qa-022-cooking-visual.mjs
+      - .github/workflows/simlife-022-gallery.yml
+      - src/game/MealArt.ts
+permissions:
+  contents: read
+jobs:
+  restaurant-visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Serve isolated dish gallery from actual source models
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/restaurant-gallery.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-cooking-022.html >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:4173/qa-cooking-022.html >/dev/null
+      - name: Render distinct 3D plate models and capture screenshot
+        run: node scripts/qa-022-cooking-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-022-restaurant-gallery
+          path: /tmp/simlife-022-restaurant-gallery/
+          retention-days: 7
