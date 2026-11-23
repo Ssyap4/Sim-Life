@@ -148,8 +148,13 @@ test('The garden walk stays open and plant detail scales down without removing t
   stage.animate(1,camera);
   assert.ok(countVisible('Tree crowns, branches and bark')>0);
   assert.ok(countVisible('Flowerbeds and shrubs')>0);
+  // Medium altitude deliberately keeps full-quality vegetation in 0.21.
   camera.position.y=70;
   stage.animate(2,camera);
+  assert.ok(countVisible('Tree crowns, branches and bark')>0);
+  // Only a genuinely far overhead map should switch to distant crowns.
+  camera.position.y=115;
+  stage.animate(3,camera);
   assert.equal(countVisible('Tree crowns, branches and bark'),0);
   assert.ok(countVisible('Distant tree crowns')>0);
   assert.equal(countVisible('Grass tufts'),0);
