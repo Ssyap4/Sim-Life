@@ -35,12 +35,39 @@ export const GROCERIES = {
   beansJardin: { name:'Jardin Espresso Di Milano · зерно 500 г', emoji:'🫘', price:2200, quantity:30, unit:'порц.', category:'pantry' },
   beansLavazza: { name:'Lavazza Qualità Oro · зерно 500 г', emoji:'🫘', price:2450, quantity:30, unit:'порц.', category:'pantry' },
   beansBushido: { name:'Bushido Red Katana · зерно 500 г', emoji:'🫘', price:2700, quantity:30, unit:'порц.', category:'pantry' },
+
+  // New restaurant recipes use real, recognizable ingredients. Quantities are gameplay portions.
+  lasagnaSheets: { name:'Листы для лазаньи · 250 г', emoji:'🍝', price:210, quantity:5, unit:'порц.', category:'pantry' },
+  mushroom: { name:'Шампиньоны · 300 г', emoji:'🍄', price:220, quantity:4, unit:'порц.', category:'vegetables' },
+  cream: { name:'Сливки 20% · 500 мл', emoji:'🥛', price:230, quantity:5, unit:'порц.', category:'dairy' },
+  garlic: { name:'Чеснок · 3 головки', emoji:'🧄', price:90, quantity:8, unit:'зубч.', category:'vegetables' },
+  parmesan: { name:'Пармезан · 150 г', emoji:'🧀', price:450, quantity:5, unit:'порц.', category:'dairy' },
+  arborio: { name:'Рис арборио · 500 г', emoji:'🍚', price:320, quantity:5, unit:'порц.', category:'pantry' },
+  broth: { name:'Овощной бульон · 500 мл', emoji:'🥣', price:140, quantity:5, unit:'порц.', category:'pantry' },
+  salmon: { name:'Филе лосося · 500 г', emoji:'🐟', price:1100, quantity:3, unit:'порц.', category:'fish' },
+  lemon: { name:'Лимоны · 2 шт.', emoji:'🍋', price:140, quantity:2, unit:'шт.', category:'fruit' },
+  herbs: { name:'Свежий укроп · пучок', emoji:'🌿', price:100, quantity:4, unit:'порц.', category:'vegetables' },
+  shrimp: { name:'Очищенные креветки · 400 г', emoji:'🦐', price:650, quantity:4, unit:'порц.', category:'fish' },
+  duck: { name:'Утиная грудка · 600 г', emoji:'🦆', price:1000, quantity:3, unit:'порц.', category:'meat' },
+  orange: { name:'Апельсины · 1 кг', emoji:'🍊', price:230, quantity:6, unit:'шт.', category:'fruit' },
+  honey: { name:'Мёд · 250 г', emoji:'🍯', price:240, quantity:8, unit:'порц.', category:'pantry' },
+  peppercorn: { name:'Чёрный перец горошком · 60 г', emoji:'🫙', price:130, quantity:12, unit:'порц.', category:'pantry' },
+  gelatin: { name:'Желатин · 20 г', emoji:'🍮', price:110, quantity:8, unit:'порц.', category:'pantry' },
+  berries: { name:'Ягодная смесь · 300 г', emoji:'🫐', price:330, quantity:4, unit:'порц.', category:'fruit' },
+  vanilla: { name:'Ваниль · 10 г', emoji:'🌼', price:220, quantity:8, unit:'порц.', category:'pantry' },
+  lamb: { name:'Каре ягнёнка · 500 г', emoji:'🥩', price:1150, quantity:3, unit:'порц.', category:'meat' },
+  rosemary: { name:'Розмарин · 20 г', emoji:'🌿', price:130, quantity:5, unit:'порц.', category:'vegetables' },
+  puffPastry: { name:'Слоёное тесто · 500 г', emoji:'🥐', price:200, quantity:3, unit:'порц.', category:'bakery' },
+  dijonMustard: { name:'Дижонская горчица · 200 г', emoji:'🫙', price:210, quantity:8, unit:'порц.', category:'pantry' },
+  seaBass: { name:'Филе сибаса · 500 г', emoji:'🐟', price:950, quantity:3, unit:'порц.', category:'fish' },
+  saffron: { name:'Шафран · 1 г', emoji:'🌸', price:850, quantity:6, unit:'порц.', category:'pantry' },
+  darkChocolate: { name:'Тёмный шоколад · 200 г', emoji:'🍫', price:280, quantity:4, unit:'порц.', category:'pantry' },
 } as const;
 export type IngredientId = keyof typeof GROCERIES;
 export type Pantry = Record<IngredientId, number>;
 export const GROCERY_CATEGORIES = {
   dairy:'Молочные и яйца', bakery:'Хлеб', meat:'Мясо и колбаса',
-  vegetables:'Овощи', pantry:'Крупы и бакалея', fruit:'Фрукты', grill:'Для мангала',
+  vegetables:'Овощи', pantry:'Крупы и бакалея', fruit:'Фрукты', fish:'Рыба и морепродукты', grill:'Для мангала',
 } as const;
 
 export const RECIPES = {
@@ -63,6 +90,20 @@ export const RECIPES = {
   grillSteak: { name:'Стейки на углях',emoji:'🥩', ingredients:{ beef:2,onion:1,oil:1 }, servings:2,hunger:49,mood:10, appliance:'grill' },
   grillVegetables: { name:'Овощи на решётке',emoji:'🍅', ingredients:{ tomato:2,carrot:2,onion:1,oil:1 }, servings:2,hunger:27,mood:8, appliance:'grill' },
   grillBurgers: { name:'Бургеры с гриля',emoji:'🍔', ingredients:{ mince:2,bread:2,cheese:1,tomato:1 }, servings:2,hunger:44,mood:10, appliance:'grill' },
+  lasagna: { name:'Лазанья болоньезе',emoji:'🍝', ingredients:{ lasagnaSheets:2,mince:2,tomato:2,onion:1,cheese:1,milk:1,flour:1 }, servings:3,hunger:42,mood:8 },
+  mushroomRisotto: { name:'Ризотто с грибами',emoji:'🍄', ingredients:{ arborio:2,mushroom:2,broth:2,parmesan:1,butter:1,onion:1 }, servings:2,hunger:40,mood:8 },
+  beefStroganoff: { name:'Бефстроганов с грибами',emoji:'🥘', ingredients:{ beef:2,mushroom:2,sourCream:1,onion:1,butter:1 }, servings:2,hunger:43,mood:8 },
+  salmonLemon: { name:'Запечённый лосось с лимоном',emoji:'🐟', ingredients:{ salmon:2,lemon:1,butter:1,herbs:1 }, servings:2,hunger:41,mood:8 },
+  creamyChicken: { name:'Курица в сливочно-грибном соусе',emoji:'🍗', ingredients:{ chicken:2,mushroom:2,cream:2,garlic:1,butter:1 }, servings:2,hunger:41,mood:8 },
+  shrimpLinguine: { name:'Лингвини с креветками',emoji:'🍤', ingredients:{ pasta:2,shrimp:2,garlic:2,tomato:1,lemon:1,oil:1 }, servings:2,hunger:42,mood:8 },
+  duckOrange: { name:'Утиная грудка с апельсином',emoji:'🦆', ingredients:{ duck:2,orange:2,honey:1,butter:1 }, servings:2,hunger:42,mood:8 },
+  pepperMedallions: { name:'Медальоны в перечном соусе',emoji:'🥩', ingredients:{ beef:2,cream:2,peppercorn:1,butter:1,potato:2 }, servings:2,hunger:43,mood:8 },
+  pannaCotta: { name:'Панна-котта с ягодным соусом',emoji:'🍮', ingredients:{ cream:2,gelatin:1,vanilla:1,sugar:1,berries:2 }, servings:3,hunger:30,mood:8 },
+  cremeBrulee: { name:'Крем-брюле с карамельной корочкой',emoji:'🍮', ingredients:{ cream:2,eggs:3,sugar:2,vanilla:1 }, servings:3,hunger:30,mood:8 },
+  lambRosemary: { name:'Каре ягнёнка с розмарином',emoji:'🍖', ingredients:{ lamb:2,rosemary:1,garlic:2,butter:1 }, servings:2,hunger:44,mood:8 },
+  beefWellington: { name:'Говядина Веллингтон',emoji:'🥩', ingredients:{ beef:3,puffPastry:2,mushroom:2,dijonMustard:1,eggs:1 }, servings:3,hunger:45,mood:8 },
+  seaBassRisotto: { name:'Сибас с шафрановым ризотто',emoji:'🐟', ingredients:{ seaBass:2,arborio:2,broth:2,parmesan:1,saffron:1,butter:1 }, servings:2,hunger:44,mood:8 },
+  chocolateFondant: { name:'Шоколадный фондан с ягодами',emoji:'🍫', ingredients:{ darkChocolate:2,eggs:2,butter:2,sugar:1,flour:1,berries:1 }, servings:2,hunger:32,mood:8 },
 } as const;
 export type RecipeId = keyof typeof RECIPES;
 export type CookedMeals = Record<RecipeId, number>;
