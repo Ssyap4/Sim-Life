@@ -335,6 +335,7 @@ export class PetActor {
       ? (35 - this.ambient.satiety) / 35 : 0;
     const dog = this.id === 'verdell';
     const catInterest = !dog && this.ambient.personNearby && this.routine !== 'sleep' &&
+      this.routine !== 'perch' &&
       this.routine !== 'eat' && this.routine !== 'toilet' ? .22 : 0;
     const t = this.clock + (dog ? 0 : 1.75);
     const r = this.reactionTime;
@@ -423,12 +424,12 @@ export class PetActor {
         attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
         + watching * .24 + lookout*.28 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
         + catInterest * Math.sin(t * 1.25) + nuzzle*.26
-      + pounce * .19 * Math.sin(this.idleTime*2.1), smooth);
+      + pounce * .19 * Math.sin(this.idleTime*2.1) + curled*.26, smooth);
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
       (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14)
       + greeting * .12 + grooming * -.16 + watching * .07
       + pawWave * .11 + begging * .07 * Math.sin(this.idleTime * 4.1)
-      + nuzzle*.13*Math.sin(this.idleTime*3.0), smooth);
+      + nuzzle*.13*Math.sin(this.idleTime*3.0) + curled*.06, smooth);
     this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12));
     const ownerWag = dog && this.ambient.personNearby && this.ambient.satiety >= 25 &&
       this.routine !== 'sleep' && this.routine !== 'eat' && this.routine !== 'toilet' ? .48 : 0;
@@ -439,14 +440,14 @@ export class PetActor {
       ? (0.09 + 0.47 * weight + greeting * .74 + ownerWag) * flick
       : (0.12 + 0.37 * playful + watching * .16 + catInterest) * flick + 0.038 * Math.sin(t * 3.5)
         - attention * 0.13 + grooming * .07 * Math.sin(t * 5) + nuzzle*.14*Math.sin(this.idleTime*3.1)
-        + curled*1.25;
+        + curled*2.50;
     this.tail.rotation.x = dog ? 0.025 * pulse - foodLook * .22 - tiredHungry * .11
-      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08 - curled*.55;
+      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08 - curled*.82;
     // The lean cat's long tail relaxes along the seat instead of continuing
     // to stick straight up like a flagpole while he sleeps.
     if(!dog){
-      this.tail.position.y=.422-curled*.10;
-      this.tail.scale.y=1-curled*.26;
+      this.tail.position.y=.422-curled*.14;
+      this.tail.scale.y=1-curled*.36;
     }
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
