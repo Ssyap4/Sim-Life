@@ -601,8 +601,9 @@ export class PetActor {
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
       const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
       this.body.scale.setScalar(1);
-      this.body.rotation.set(-.17*scratching+.16*stretching,0,-.21*curled);
-      this.body.position.set(0,-.025-crouch+lift*.022,0);
+      // Rock back onto the hind paws so the forelegs can reach up the post.
+      this.body.rotation.set(-.65*scratching+.16*stretching,0,-.21*curled);
+      this.body.position.set(0,-.025-crouch+lift*.022+.25*scratching,.16*scratching);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
@@ -620,7 +621,7 @@ export class PetActor {
         this.body.rotation.x+=airborne*(.12-phase*.26);
       }
       this.simbaRig.pose(t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
-        this.tail.rotation.y,rest,this.head.rotation,this.rig.ears,this.rig.eyes,airborne,rest);
+        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,airborne,rest);
     }
     this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
 

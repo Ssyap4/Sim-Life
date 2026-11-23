@@ -73,7 +73,7 @@ export class SimbaRig {
     this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest);
     for(let i=0;i<this.tail.length;i++){
       const joint = this.tail[i];
-      joint.rotation.y=tailSwing*.25+Math.sin(time*2-i*.55)*.048+tailFold*(i<5?.57:.26);
+      joint.rotation.y=tailSwing*.25+Math.sin(time*2-i*.55)*.048+tailFold*(i<5?.47:.23);
       joint.rotation.x=.095*jump-rest*.12+Math.sin(time*2.2-i*.32)*.037;
     }
     for(let i=0;i<2;i++){
