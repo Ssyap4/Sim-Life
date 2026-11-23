@@ -10,7 +10,7 @@ import { NeighborPeople } from '../../src/game/NeighborPeople';
 import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
-import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
+import { homeStops, NEIGHBOR_HOMES, yardFeatures } from '../../src/shared/neighborHomes';
 import { DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, sitePoint } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
@@ -387,6 +387,50 @@ test('long conversations and pond visits look like real stops and never enter wa
     }
     assert.ok(maxConsecutive>=20,'real conversations last twenty or more game minutes');
   }
+});
+
+test('four house owners use their own garden, bench and grill instead of decorative-only props',async()=>{
+  const cast=await fullCast();
+  for(const [home,property] of NEIGHBOR_HOMES.entries()){
+    const yard=yardFeatures(property,home);
+    for(const name of ['bench','grill','patch'] as const) {
+      const spot=yard[name];
+      assert.ok(spot.x>property.x-property.width/2-.8&&spot.x<property.x+property.width/2+.8);
+      assert.ok(spot.z>property.z+property.depth/2+.1&&spot.z<property.z+property.depth/2+4.2);
+    }
+    const actions=new Set<string>();
+    for(let day=0;day<4;day++)for(let minute=450;minute<1310;minute+=.55){
+      const time=day*1440+minute,pose=neighborPose(home,time);
+      if(pose.opacity<.85)continue;
+      actions.add(pose.action);
+      if(pose.action==='sitRead'||pose.action==='sitPhone'||pose.action==='sitSip'||pose.action==='sitRest'){
+        assert.ok(Math.hypot(pose.x-yard.bench.x,pose.z-yard.bench.z)<.08,
+          'resident must sit ON the bench, not beside it');
+      }
+      if(pose.action==='grill'||pose.action==='prepareGrill'){
+        assert.ok(Math.hypot(pose.x-yard.grillApproach.x,pose.z-yard.grillApproach.z)<.08,
+          'barbecue action needs a genuine grill location');
+      }
+      if(pose.action==='tend'||pose.action==='harvest'){
+        assert.ok(Math.hypot(pose.x-yard.patchApproach.x,pose.z-yard.patchApproach.z)<.08,
+          'gardening takes place at a real kitchen plot');
+      }
+    }
+    assert.ok(actions.has('sitRead')||actions.has('sitPhone')||actions.has('sitSip'),
+      property.id+' must sit at their bench');
+    assert.ok(actions.has('grill'),property.id+' must work at the barbecue');
+    assert.ok(actions.has('tend'),property.id+' must tend vegetables or flowers');
+  }
+  let sample;
+  for(let minute=460;minute<1320&&!sample;minute+=.35){
+    const p=neighborPose(0,minute);
+    if(p.action==='sitRead'&&p.gestureBlend>.9)sample=minute;
+  }
+  assert.ok(sample,'Marina reads a real book in the yard');
+  cast.update(sample);
+  const root=cast.group.children[0];
+  assert.ok(root.getObjectByName('Head'));
+  assert.ok(root.position.y===0,'world avatar root stays grounded');
 });
 
 test('the park interior has reusable live walkers, conversation and a quiet visitor',()=>{

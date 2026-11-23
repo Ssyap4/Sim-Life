@@ -157,12 +157,16 @@ export class NeighborPeople {
     const leftBend=Math.max(0,leftStep)*.40*walking;
     const rightBend=Math.max(0,rightStep)*.40*walking;
 
-    rig.leftLeg.rotation.x=leftHip;
-    rig.rightLeg.rotation.x=rightHip;
-    rig.leftKnee.rotation.x=leftBend;
-    rig.rightKnee.rotation.x=rightBend;
-    rig.leftFoot.rotation.x=-leftBend*.65-leftHip*.28;
-    rig.rightFoot.rotation.x=-rightBend*.65-rightHip*.28;
+    // Bench posture is a real, blended pelvis/leg pose, not standing with a
+    // book hovering over a bench. Standing returns smoothly at gesture ends.
+    const seated=(action==='sitRead'||action==='sitPhone'||action==='sitSip'||action==='sitRest')?blend:0;
+    rig.root.position.y=-.36*seated;
+    rig.leftLeg.rotation.x=leftHip-1.05*seated;
+    rig.rightLeg.rotation.x=rightHip-1.05*seated;
+    rig.leftKnee.rotation.x=leftBend+1.43*seated;
+    rig.rightKnee.rotation.x=rightBend+1.43*seated;
+    rig.leftFoot.rotation.x=-leftBend*.65-leftHip*.28-.21*seated;
+    rig.rightFoot.rotation.x=-rightBend*.65-rightHip*.28-.21*seated;
 
     // Small spinal counter-rotation and breathing prevent a rigid full-body
     // shuffle while keeping the avatar vertical and the feet near the ground.
@@ -222,6 +226,73 @@ export class NeighborPeople {
       lz=THREE.MathUtils.lerp(lz,.045,blend);
       rz=THREE.MathUtils.lerp(rz,-.045,blend);
       rig.torso.rotation.z+=blend*Math.sin(t*.27+index)*.012;
+    } else if(action==='sitRead') {
+      const pageTurn=Math.sin(t*.46+index)*.09;
+      lx=THREE.MathUtils.lerp(lx,-.63,blend);
+      rx=THREE.MathUtils.lerp(rx,-.69+pageTurn,blend);
+      le=THREE.MathUtils.lerp(le,-1.12,blend);
+      re=THREE.MathUtils.lerp(re,-1.08,blend);
+      headX=THREE.MathUtils.lerp(headX,.13+Math.sin(t*.39+index)*.028,blend);
+      headY=THREE.MathUtils.lerp(headY,.02,blend);
+    } else if(action==='sitPhone') {
+      rx=THREE.MathUtils.lerp(rx,-.67,blend);
+      re=THREE.MathUtils.lerp(re,-1.16,blend);
+      lx=THREE.MathUtils.lerp(lx,-.18,blend);
+      le=THREE.MathUtils.lerp(le,-.23,blend);
+      headX=THREE.MathUtils.lerp(headX,.18,blend);
+      headY=THREE.MathUtils.lerp(headY,-.09+Math.sin(t*.27)*.025,blend);
+    } else if(action==='sitSip') {
+      const sip=(Math.sin(t*.62+index)+1)*.5;
+      rx=THREE.MathUtils.lerp(rx,-.42-.16*sip,blend);
+      re=THREE.MathUtils.lerp(re,-.85-.29*sip,blend);
+      headX=THREE.MathUtils.lerp(headX,.08,blend);
+    } else if(action==='sitRest') {
+      lx=THREE.MathUtils.lerp(lx,.11,blend);
+      rx=THREE.MathUtils.lerp(rx,.11,blend);
+      headY=THREE.MathUtils.lerp(headY,Math.sin(t*.32+index)*.10,blend);
+      rig.torso.rotation.x-=blend*.07;
+    } else if(action==='prepareGrill'||action==='grill') {
+      const flip=action==='grill'?Math.sin(t*1.18+index)*.23:0;
+      rx=THREE.MathUtils.lerp(rx,-.58+flip,blend);
+      re=THREE.MathUtils.lerp(re,-.75-.15*Math.abs(flip),blend);
+      lx=THREE.MathUtils.lerp(lx,-.30,blend);
+      le=THREE.MathUtils.lerp(le,-.35,blend);
+      headX=THREE.MathUtils.lerp(headX,.15,blend);
+      rig.torso.rotation.x+=blend*.034;
+    } else if(action==='taste'){
+      rx=THREE.MathUtils.lerp(rx,-.51,blend);
+      re=THREE.MathUtils.lerp(re,-1.11,blend);
+      headX=THREE.MathUtils.lerp(headX,.065,blend);
+    } else if(action==='tend'||action==='prune'||action==='harvest'){
+      const work=Math.sin(t*(action==='prune'?1.45:1.2)+index)*.11;
+      rx=THREE.MathUtils.lerp(rx,-.72+work,blend);
+      re=THREE.MathUtils.lerp(re,-.62,blend);
+      lx=THREE.MathUtils.lerp(lx,-.32,blend);
+      le=THREE.MathUtils.lerp(le,-.45,blend);
+      headX=THREE.MathUtils.lerp(headX,.21,blend);
+      rig.torso.rotation.x+=blend*.10;
+    } else if(action==='photograph') {
+      rx=THREE.MathUtils.lerp(rx,-.83,blend);
+      lx=THREE.MathUtils.lerp(lx,-.82,blend);
+      re=THREE.MathUtils.lerp(re,-1.36,blend);
+      le=THREE.MathUtils.lerp(le,-1.33,blend);
+      headX=THREE.MathUtils.lerp(headX,-.065,blend);
+    } else if(action==='checkWatch') {
+      lx=THREE.MathUtils.lerp(lx,-.80,blend);
+      le=THREE.MathUtils.lerp(le,-.97,blend);
+      headX=THREE.MathUtils.lerp(headX,.16,blend);
+      headY=THREE.MathUtils.lerp(headY,.13,blend);
+    } else if(action==='laugh'||action==='listen'){
+      headX=THREE.MathUtils.lerp(headX,action==='laugh'?-.11:.06,blend);
+      headY=THREE.MathUtils.lerp(headY,Math.sin(t*.92+index)*.07,blend);
+      rig.torso.rotation.x-=blend*(action==='laugh'?.05:.013);
+      rx=THREE.MathUtils.lerp(rx,-.19,blend);
+      re=THREE.MathUtils.lerp(re,-.31,blend);
+    } else if(action==='greet'){
+      rx=THREE.MathUtils.lerp(rx,-.30,blend);
+      rz=THREE.MathUtils.lerp(rz,-1.28,blend);
+      re=THREE.MathUtils.lerp(re,-.38,blend);
+      headY=THREE.MathUtils.lerp(headY,.06,blend);
     } else if(action==='wave') {
       rx=THREE.MathUtils.lerp(rx,-.10,blend);
       rz=THREE.MathUtils.lerp(rz,-2.04,blend);
@@ -287,10 +358,14 @@ export class NeighborPeople {
     rig.leftElbow.rotation.set(le,0,lez);
     rig.rightElbow.rotation.set(re,0,rez);
     rig.head.rotation.set(headX,headY,headZ);
-    rig.phone.visible=action==='phone'&&blend>.10;
+    rig.phone.visible=(action==='phone'||action==='sitPhone'||action==='photograph')&&blend>.10;
+    rig.book.visible=action==='sitRead'&&blend>.12;
+    rig.tongs.visible=(action==='grill'||action==='prepareGrill')&&blend>.12;
+    rig.trowel.visible=(action==='tend'||action==='prune')&&blend>.12;
+    rig.basket.visible=action==='harvest'&&blend>.12;
     rig.wateringCan.visible=action==='water'&&blend>.12;
     rig.wateringCan.rotation.z=-.25-.3*Math.sin(t*1.2);
-    rig.cup.visible=action==='sip'&&blend>.12;
+    rig.cup.visible=(action==='sip'||action==='sitSip'||action==='taste')&&blend>.12;
     rig.letter.visible=action==='mail'&&blend>.12;
     rig.marketBag.visible=carrying||action==='carry'&&blend>.12;
     rig.tote.visible=profile.accessory==='tote' && (carrying||action==='chat'&&blend>.1);
@@ -300,6 +375,8 @@ export class NeighborPeople {
     const blinkPeriod=3.45+(index%4)*.56;
     const blinkPhase=THREE.MathUtils.euclideanModulo(t+index*.87,blinkPeriod);
     const blink=blinkPhase<.155 ? Math.sin(Math.PI*blinkPhase/.155) : 0;
-    paintNeighborExpression(rig.face,blink,action==='chat'?blend*(.44+.20*Math.sin(t*2.7+index)):.05);
+    paintNeighborExpression(rig.face,blink,
+      action==='chat'||action==='laugh'||action==='greet'?
+        blend*(.42+.23*Math.sin(t*2.1+index)):action==='sitRead'?.08:.05);
   }
 }

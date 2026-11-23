@@ -12,6 +12,7 @@ export interface NeighborRig {
   leftKnee:THREE.Bone; rightKnee:THREE.Bone;
   leftFoot:THREE.Bone; rightFoot:THREE.Bone;
   phone:THREE.Mesh; wateringCan:THREE.Group; cup:THREE.Group;
+  book:THREE.Group; tongs:THREE.Group; trowel:THREE.Group; basket:THREE.Group;
   letter:THREE.Mesh; marketBag:THREE.Group; tote:THREE.Group;
   face:THREE.SkinnedMesh;
   materials:THREE.MeshStandardMaterial[];
@@ -60,12 +61,32 @@ export function createNeighborModel(asset:GLTF,index:number):NeighborRig {
   hands[0].add(tote);
   detail(tote,softCube,NEIGHBORS[index].accent,[.183,.193,.085],[-.004,-.116,.033]);
   detail(tote,softCube,0x928679,[.023,.14,.024],[-.079,-.034,.034]);
+  const book=new THREE.Group();
+  book.position.set(-.023,-.065,.08);hands[0].add(book);
+  for(const side of [-1,1]){
+    const panel=detail(book,softCube,index%2?0xc5b69a:0xdbd1b8,
+      [.094,.011,.128],[side*.045,.008,-.023]);
+    panel.rotation.z=side*.14;
+  }
+  detail(book,softCube,0x876a51,[.018,.011,.128],[0,.006,-.024]);
+  const tongs=new THREE.Group();tongs.position.set(.012,-.11,.062);hands[1].add(tongs);
+  for(const side of [-1,1]){
+    const grip=detail(tongs,cube,0xb3b8b1,[.016,.20,.019],[side*.026,-.077,0]);
+    grip.rotation.z=side*.15;
+    detail(tongs,cube,0x515854,[.052,.045,.021],[side*.038,-.179,0]);
+  }
+  const trowel=new THREE.Group();trowel.position.set(.015,-.087,.044);hands[1].add(trowel);
+  detail(trowel,cube,0xa07857,[.024,.19,.028],[0,-.068,0]);
+  detail(trowel,softCube,0x718980,[.088,.105,.025],[0,-.175,.009]);
+  const basket=new THREE.Group();basket.position.set(-.043,-.113,.025);hands[0].add(basket);
+  detail(basket,drum,0x9a7652,[.16,.15,.12],[0,-.078,0]);
+  detail(basket,drum,0xcbb493,[.165,.023,.122],[0,-.003,0]);
   const materials:THREE.MeshStandardMaterial[]=[];
   for(const mesh of skins){
     if(mesh.material instanceof THREE.MeshStandardMaterial) materials.push(mesh.material);
     mesh.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,1,0),1.76);
   }
-  return {root, face, materials,phone,letter,wateringCan,cup,marketBag,tote,
+  return {root, face, materials,phone,letter,wateringCan,cup,marketBag,tote,book,tongs,trowel,basket,
     leftArm:joint('ArmL'),rightArm:joint('ArmR'),leftLeg:joint('ThighL'),rightLeg:joint('ThighR'),
     leftElbow:joint('ElbowL'),rightElbow:joint('ElbowR'),leftKnee:joint('KneeL'),rightKnee:joint('KneeR'),
     leftFoot:joint('AnkleL'),rightFoot:joint('AnkleR'),torso:joint('Chest'),head:joint('Head')};

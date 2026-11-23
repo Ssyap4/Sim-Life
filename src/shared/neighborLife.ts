@@ -1,19 +1,24 @@
 import { DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_SITES, DISTRICT_POND, sitePoint } from './district';
 import { findRoute } from '../game/navigation';
 import type { NeighborAction, NeighborPose, NeighborProfile } from './neighbors';
-import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, type NeighborPoint, type NeighborHome } from './neighborHomes';
+import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, yardFeatures, type NeighborPoint, type NeighborHome } from './neighborHomes';
 
 type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number; inside?: boolean };
-type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond';
+type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond' |
+  'reading' | 'barbecue' | 'vegetables' | 'flowers' | 'relax';
 export type NeighborVisit = { resident: number; home: number; start: number; end: number; kind: LifeKind; companion?: number; venue?: string };
 type Plan = NeighborVisit & { steps: Stop[] };
 const DAY = 1440;
 export const RESIDENT_COUNT = 4;
 const HOUSE_ROUTINES: readonly (readonly LifeKind[])[] = [
-  ['garden','mail','stroll','tea','garden','errand','tea','stroll','garden'],
-  ['tea','exercise','errand','garden','mail','stroll','garden','park','tea'],
-  ['mail','garden','stroll','tea','exercise','errand','garden','tea','stroll'],
-  ['garden','tea','park','mail','stroll','garden','tea','errand','exercise'],
+  // Marina likes flowers, books and long quiet evenings on the bench.
+  ['garden','reading','vegetables','barbecue','flowers','errand','tea','stroll','mail'],
+  // Denis looks after herbs, keeps the grill and often checks his phone.
+  ['tea','vegetables','barbecue','flowers','mail','stroll','reading','park','exercise'],
+  // Victoria grows flowers and sometimes reads outside after a coffee.
+  ['mail','garden','stroll','tea','exercise','barbecue','flowers','reading','vegetables'],
+  // Artyom has a small cabbage patch and a barbecue beside his bench.
+  ['vegetables','tea','barbecue','mail','stroll','flowers','reading','errand','relax'],
 ];
 // The ten visitors are not owners of the cottages: they enter the visible
 // neighbourhood from the ends of the public streets.
@@ -103,16 +108,33 @@ function enterVenue(s:Sequence,day:number,seed:number):void {
 }
 function homePlan(home:NeighborHome,kind:LifeKind,resident:number,day:number,slot:number):Sequence {
   const stops=homeStops(home),f=variation(day,slot,resident+2);
+  const yard=yardFeatures(home,resident);
   const s=new Sequence(stops.door,2.25+.35*f);
-  if(kind==='garden') {
-    s.move(stops.porch).move(stops.flower).hold('water',11+6*f,home.yaw-.48)
-      .hold('look',3+f*3).move(stops.mail).hold('mail',4+f*3,home.yaw).move(stops.door);
+  if(kind==='garden'||kind==='flowers') {
+    s.move(stops.porch).move(yard.flowerApproach).hold('prune',6+f*5,yard.plantYaw)
+      .hold('water',11+f*8,yard.plantYaw).hold('admire',4+f*3,yard.plantYaw)
+      .move(stops.porch).move(stops.door);
+  } else if(kind==='vegetables') {
+    s.move(stops.porch).move(yard.patchApproach)
+      .hold('tend',6+f*4,yard.plantYaw).hold('water',10+f*6,yard.plantYaw)
+      .hold('harvest',6+f*6,yard.plantYaw).move(stops.porch).move(stops.door);
+  } else if(kind==='barbecue') {
+    s.move(stops.porch).move(yard.grillApproach)
+      .hold('prepareGrill',7+f*3,yard.grillYaw).hold('grill',19+f*9,yard.grillYaw)
+      .hold('taste',4+f*3,yard.grillYaw).move(stops.porch).move(stops.door);
+  } else if(kind==='reading'||kind==='relax') {
+    s.move(stops.porch).move(yard.benchApproach).move(yard.bench)
+      .hold(kind==='reading'?'sitRead':'sitPhone',16+f*9,yard.benchYaw)
+      .hold(kind==='reading'?'sitSip':'sitRest',8+f*4,yard.benchYaw)
+      .move(yard.benchApproach).move(stops.porch).move(stops.door);
   } else if(kind==='tea') {
-    s.move(stops.porch).move(stops.tea).hold('sip',13+6*f,home.yaw)
-      .hold(f>.57?'phone':'look',5+4*f).move(stops.flower).hold('look',4,home.yaw-.45).move(stops.door);
+    s.move(stops.porch).move(yard.benchApproach).move(yard.bench)
+      .hold('sitSip',14+6*f,yard.benchYaw)
+      .hold(f>.57?'sitPhone':'sitRest',5+4*f,yard.benchYaw)
+      .move(yard.benchApproach).move(stops.porch).move(stops.door);
   } else if(kind==='mail') {
-    s.move(stops.porch).move(stops.mail).hold('mail',9,home.yaw)
-      .move(stops.flower).hold('stretch',6).move(stops.porch).hold('look',4).move(stops.door);
+    s.move(stops.porch).move(stops.gate).move(stops.mail).hold('mail',9,home.yaw)
+      .move(stops.gate).hold('stretch',6).move(stops.porch).hold('look',4).move(stops.door);
   } else if(kind==='exercise') {
     s.move(stops.porch).move(stops.gate).hold('stretch',10,home.yaw)
       .hold('look',5).move(stops.flower).hold('adjust',6).move(stops.door);
@@ -167,7 +189,9 @@ function visitorPlan(resident:number,day:number,round:number):Plan|null {
       reverse(s,stroll);
     }
   }
-  if((resident+round)%3===0)s.hold('phone',4);
+  if((resident+round)%5===0)s.hold('checkWatch',3.5);
+  if((resident+round)%4===0)s.hold('photograph',5);
+  else if((resident+round)%3===0)s.hold('phone',4);
   reverse(s,path);
   return {resident,home:-1,start:0,end:0,kind:venue.place==='park'?'park':'errand',venue:venue.place,steps:s.steps};
 }
@@ -194,8 +218,11 @@ function publicConversation(day:number,first:number,second:number,spot:NeighborP
   const ready=Math.max(...sequences.map(s=>s.elapsed))+4;
   const conversationMinutes=22+variation(day,first,second)*8;
   for(let i=0;i<2;i++){
-    sequences[i].until(ready,'look').hold('chat',conversationMinutes,yawTo(points[i],points[1-i]))
-      .hold('wave',3,yawTo(points[i],points[1-i]));
+    sequences[i].until(ready,'look')
+      .hold(i===0?'greet':'wave',2.4,yawTo(points[i],points[1-i]))
+      .hold('chat',conversationMinutes,yawTo(points[i],points[1-i]))
+      .hold(i===0?'laugh':'listen',3,yawTo(points[i],points[1-i]))
+      .hold('wave',2,yawTo(points[i],points[1-i]));
     reverse(sequences[i],paths[i]);
   }
   return [
