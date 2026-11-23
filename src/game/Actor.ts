@@ -63,7 +63,7 @@ export class Actor {
   private pose: Pose = 'idle';
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
-  private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; time:number }|null=null;
+  private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; partner?:Actor; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
   private cookingRecipe: RecipeId | undefined;
@@ -149,10 +149,11 @@ export class Actor {
   watch(reaction: number): void { this.reaction = reaction; this.playDomesticActivity('watch'); }
 
   private readonly poseOffset = new THREE.Vector3();
+  private seatBlend = 0;
   private keys: HandTargets | undefined;
   private pan: THREE.Vector3 | undefined;
   private gestureTarget: THREE.Vector3 | undefined;
-  private petContact: THREE.Vector3 | undefined;
+  private petContact: THREE.Vector3 | ((target:THREE.Vector3)=>THREE.Vector3) | undefined;
   private readonly target = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
   private readonly elbowAxis = new THREE.Vector3();
@@ -333,10 +334,10 @@ export class Actor {
     this.foodContainer.visible = false;
   }
 
-  playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3): void {
+  playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3 | ((target:THREE.Vector3)=>THREE.Vector3)): void {
     this.setPose('idle');
     this.activity = kind;
-    this.petContact = petContact?.clone();
+    this.petContact = petContact instanceof THREE.Vector3 ? petContact.clone() : petContact;
     this.activityTime = 0;
   }
 
@@ -354,8 +355,8 @@ export class Actor {
     this.heart.visible = kind === 'hug';
   }
 
-  playPartnerGesture(motion:PairMotion,leads:boolean,target?:THREE.Vector3):void {
-    this.partnerGesture={motion,leads,target,time:0};
+  playPartnerGesture(motion:PairMotion,leads:boolean,target?:THREE.Vector3,partner?:Actor):void {
+    this.partnerGesture={motion,leads,target,partner,time:0};
     this.idleGesture=null;
   }
 
@@ -408,7 +409,7 @@ export class Actor {
 
   /** Solve the shoulder and elbow in the plane through the wrist target.
    * The elbow points down and gently out, so it clears the torso and worktop. */
-  private reach(index: 0 | 1, goal: THREE.Vector3, alpha: number): void {
+  private reach(index: 0 | 1, goal: THREE.Vector3, alpha: number, lateralElbow = .44): void {
     const arm = index === 0 ? this.leftArm : this.rightArm;
     const { chest, elbows, upperArm, lowerArm } = this.rig;
     const offset = chest.worldToLocal(this.direction.copy(goal)).sub(arm.position);
@@ -416,7 +417,7 @@ export class Actor {
     if (extent < 0.001) return;
     const distance = THREE.MathUtils.clamp(extent, Math.abs(upperArm - lowerArm) + 0.003, upperArm + lowerArm - 0.002);
     const direction = offset.divideScalar(extent);
-    const bend = this.elbowAxis.set(index === 0 ? -0.44 : 0.44, -1, -0.16);
+    const bend = this.elbowAxis.set(index === 0 ? -lateralElbow : lateralElbow, -1, -0.16);
     bend.addScaledVector(direction, -bend.dot(direction)).normalize();
     const along = (upperArm * upperArm + distance * distance - lowerArm * lowerArm) / (2 * distance);
     const lift = Math.sqrt(Math.max(0, upperArm * upperArm - along * along));
@@ -467,6 +468,8 @@ export class Actor {
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
     const asleep = this.pose === 'sleep';
+    this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
+    const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
     const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed';
     const breath = Math.sin(t * (asleep ? 1.35 : 1.85));
     let lean = this.pose === 'work' ? 0.26 : this.activity === 'cook' ? 0.14 : care ? 0.48 : 0;
@@ -603,6 +606,7 @@ export class Actor {
     let crouch = 0;
     let bite = 0;
     const a = this.activityTime;
+    const activityEase = this.activity ? THREE.MathUtils.smoothstep(a,.02,.42) : 0;
     const kitchenStep = this.activity === 'cook' ? kitchenMove(this.cookingRecipe,a) : undefined;
     const barbecueStep = this.activity === 'grill' ? grillMove(this.cookingRecipe,a) : undefined;
     if (this.activity) {
@@ -783,8 +787,8 @@ export class Actor {
           // Short, repeatable strokes, with the body leaning toward the pet.
           // No navigation or physics movement: only bones and a held prop.
           const stroke = Math.sin(a * 6.2);
-          crouch = .20;
-          lean = .38 + .016 * stroke;
+          crouch = .32;
+          lean = .44 + .016 * stroke;
           gaze = .29;
           leftY = -.31;
           leftZ = .31;
@@ -802,7 +806,7 @@ export class Actor {
           gaze = 0.24;
           break;
         default:
-          crouch = this.activity === 'feed' ? 0.28 : 0.21;
+          crouch = this.activity === 'feed' ? 0.42 : 0.32;
           leftY = -0.49;
           rightY = -0.455 + Math.sin(a * 4) * 0.034;
           leftZ = 0.20;
@@ -860,15 +864,19 @@ export class Actor {
         case 'hug':case 'closeHug': {
           const weight=contact;
           leftY=rightY=-.54+.47*weight; leftZ=rightZ=.39*weight;
-          armSpread+=.39*weight; embrace=weight*.12; lean=.18*weight;
-          partnerForward=.085*weight;
+          armSpread+=.32*weight; embrace=weight*.091; lean=.14*weight;
+          partnerForward=.071*weight;
+          partnerReach=weight;
+          partnerRoll=.018*Math.sin(sec*1.65)*weight;
           expression=.13+.45*weight; partnerHead=(pair.leads?-.11:.14)*weight;
           break;
         }
         case 'kiss':case 'cheek':
-          lean+=(pair.motion==='kiss'?.23:pair.leads?.19:.045)*contact;
-          partnerForward=(pair.motion==='kiss'?.128:pair.leads?.154:.055)*contact;
+          lean+=(pair.motion==='kiss'?.19:pair.leads?.17:.035)*contact;
+          partnerForward=(pair.motion==='kiss'?.12:pair.leads?.146:.048)*contact;
           partnerHead=(pair.motion==='cheek'?.21:.17)*(pair.leads?-1:1)*contact;
+          partnerRoll=(pair.leads?-.041:.028)*contact;
+          crouch+=(this.id==='vlad'?.034:0)*contact;
           gaze+=(pair.leads?-.075:.055)*contact; expression+=.28*rise;
           leftY+=.07*contact; rightY+=.11*contact;
           break;
@@ -1200,29 +1208,25 @@ export class Actor {
       wrist.rotation.z = THREE.MathUtils.lerp(wrist.rotation.z, 0, alpha);
     }
 
+    this.figureBase.lerp(this.poseOffset, 1 - Math.exp(-dt * 8));
     for (let i = 0; i < 2; i++) {
       const upper = i === 0 ? this.leftLeg : this.rightLeg;
       const knee = data.knees[i];
-      let toePitch = 0;
-      if (seated) {
-        const thigh = this.pose === 'work' ? -1.34 : -1.37;
-        upper.rotation.x = THREE.MathUtils.lerp(upper.rotation.x, thigh + i * 0.06, alpha);
-        knee.rotation.x = THREE.MathUtils.lerp(knee.rotation.x, 0.16 - thigh - i * 0.065, alpha);
-      } else {
-        const foot = walkFootTarget(this.gait, i as 0 | 1,
-          data.thighLength + data.shinLength, strideLength, motion, stanceDrop, this.crouchBlend);
-        toePitch = foot.toePitch;
-        // Frame-rate independent damping: do not snap legs between poses.
-        const legBlend = 1 - Math.exp(-dt * (12 + 15 * motion));
-        this.bend(upper, knee, data.thighLength, data.shinLength, foot.y, foot.z, 1, legBlend);
+      const legLength=data.thighLength+data.shinLength;
+      const foot=walkFootTarget(this.gait,i as 0 | 1,legLength,strideLength,motion,stanceDrop,this.crouchBlend);
+      const legBlend=1-Math.exp(-dt*(12+15*motion));
+      if(this.seatBlend>.001){
+        foot.y-=this.figureBase.y;
+        foot.z+=this.seatBlend*(data.thighLength*.84-i*.027)-weightTransfer*.036;
+        foot.toePitch*=1-this.seatBlend;
       }
+      this.bend(upper,knee,data.thighLength,data.shinLength,foot.y,foot.z,1,legBlend);
       const ankle = data.ankles[i];
       ankle.rotation.x = THREE.MathUtils.lerp(ankle.rotation.x,
-        asleep ? -0.10 : toePitch - upper.rotation.x - knee.rotation.x,
-        1 - Math.exp(-dt * (12 + 15 * motion)));
+        asleep ? -0.10 : foot.toePitch - upper.rotation.x - knee.rotation.x,legBlend);
     }
 
-    const idleLook = seated || asleep || this.activity || this.gesture || this.idleGesture ? 0 : Math.sin(t * 0.53) ** 7;
+    const idleLook = seated || asleep || this.activity || this.gesture || this.idleGesture || pair ? 0 : Math.sin(t * 0.53) ** 7;
     if (data.animateFace) {
       const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
         (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion) + idleEyeYaw;
@@ -1245,15 +1249,16 @@ export class Actor {
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
-    data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x, lean + motion * 0.025, alpha);
+    const taskRhythm=Math.sin(a*2.3)*.012*activityEase;
+    data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x,
+      lean + motion * .025 + weightTransfer*.18 + taskRhythm,alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
       motion * 0.055 * Math.cos(stridePhase) + idleChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
-      0.016 * Math.sin(t * 0.71) + motion * 0.027 * Math.sin(stridePhase) + restlessSway + idleChestRoll + partnerRoll, alpha);
+      .016*Math.sin(t*.71)+motion*.027*Math.sin(stridePhase)+restlessSway+idleChestRoll+partnerRoll+taskRhythm*.65,alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
     data.chest.position.y = (1 - Math.cos(data.chest.rotation.x)) * data.waistY + 0.006 * breath;
 
-    this.figureBase.lerp(this.poseOffset, 1 - Math.exp(-dt * 8));
     this.figure.position.copy(this.figureBase);
     // Close the visual gap during a hug while the path endpoints stay fixed.
     this.figure.position.z += embrace;
@@ -1322,16 +1327,22 @@ export class Actor {
         .015+.035*Math.sin(a*2.5),.10+.012*Math.sin(a*5.2),-.03),alpha);
       this.aimHand(1,this.handDirection.set(0,-.5,-1)
         .applyAxisAngle(up,this.root.rotation.y),alpha);
-    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet')) {
+    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet' || this.activity === 'feed' || this.activity === 'play')) {
       // Follow the actual animal's saved position; strokes travel across the
       // coat rather than moving a hand in place beside the standing resident.
       const brushing = this.activity === 'brush';
       const stroke = Math.sin(a * (brushing ? 6.2 : 3.7));
       const lateral = brushing ? .065 : .023;
-      this.target.copy(this.petContact);
+      if(typeof this.petContact==='function')this.petContact(this.target);
+      else this.target.copy(this.petContact);
       this.target.x += lateral * stroke * Math.cos(this.root.rotation.y);
       this.target.z -= lateral * stroke * Math.sin(this.root.rotation.y);
-      this.target.y += .018 * Math.sin(a * (brushing ? 4.3 : 2.9));
+      if(brushing||this.activity==='pet'){
+        this.target.x += stroke*.08*Math.sin(this.root.rotation.y);
+        this.target.z += stroke*.08*Math.cos(this.root.rotation.y);
+      }
+      this.target.y += .043 + .019 * Math.sin(a * (brushing ? 4.3 : 2.9))
+        + (this.activity==='play'?.11*(.5+.5*Math.sin(a*4)):0);
       this.reach(1,this.target,Math.min(1,alpha * 2.8));
       this.aimHand(1,this.handDirection.set(0,-1,-.25).applyAxisAngle(up,this.root.rotation.y),alpha);
     } else if (this.gestureTarget && highFive > 0) {
@@ -1339,6 +1350,22 @@ export class Actor {
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);
       this.reach(hand, this.target, highFive);
       this.aimHand(hand, this.handDirection.copy(up), highFive);
+    } else if(pair?.partner&&partnerReach>0.002&&(pair.motion==='hug'||pair.motion==='closeHug')) {
+      // Opposite shoulders face each other. Place each wrist at the side
+      // of the partner's upper arm and keep the elbow outside both torsos.
+      const partner=pair.partner;
+      const blend=Math.min(1,alpha*4*partnerReach);
+      for(const hand of [0,1] as const){
+        const shoulder=hand===0?partner.rightArm:partner.leftArm;
+        this.target.copy(shoulder.position);
+        this.target.x+=(hand===0?.085:-.085);
+        this.target.y-=hand===0?.14:.23;
+        this.target.z-=.052;
+        partner.rig.chest.localToWorld(this.target);
+        this.reach(hand,this.target,blend,1.1);
+        this.aimHand(hand,this.handDirection.set(hand===0?.8:-.8,-.33,.40)
+          .applyAxisAngle(up,this.root.rotation.y),blend);
+      }
     } else if(pair?.target&&partnerReach>0.002) {
       const hand=pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
       this.reach(hand,this.target.copy(pair.target),Math.min(1,alpha*4*partnerReach));

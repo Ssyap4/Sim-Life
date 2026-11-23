@@ -2,7 +2,7 @@ import { DISTRICT_OFFSET_Z } from '../shared/district';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { NEIGHBORS, neighborDoorOpen, neighborPose, parkNeighborPose } from '../shared/neighbors';
-import { NEIGHBOR_HOMES } from '../shared/neighborHomes';
+import { NEIGHBOR_BENCH_TOP, NEIGHBOR_HOMES } from '../shared/neighborHomes';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import type { NeighborAction } from '../shared/neighbors';
 import { createNeighborModel, paintNeighborExpression, type NeighborRig } from './NeighborModel';
@@ -95,7 +95,7 @@ export class NeighborPeople {
       if(far&&seconds-entry.stamp<.10&&seconds>=entry.stamp)continue;
       entry.stamp=seconds;
       setFade(rig,pose.opacity);
-      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0,!!pose.carrying);
+      this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0,!!pose.carrying,pose.seat,pose.lookYaw);
     }
     const loaded=this.entries.filter(entry=>entry.model);
     if(camera&&loaded.length>10) {
@@ -144,7 +144,7 @@ export class NeighborPeople {
     model.root.removeFromParent();entry.model=null;
   }
 
-  private animateRig(rig:NeighborRig,action:NeighborAction,blend:number,t:number,index:number,walking:number,carrying=false):void {
+  private animateRig(rig:NeighborRig,action:NeighborAction,blend:number,t:number,index:number,walking:number,carrying=false,seated=0,lookYaw=0):void {
     // A smaller stride plus knee flex and ankle roll replaces the old rigid,
     // marching legs. Every angle is computed from the shared game clock.
     const profile=NEIGHBORS[index];
@@ -157,17 +157,24 @@ export class NeighborPeople {
     const leftBend=Math.max(0,leftStep)*.40*walking;
     const rightBend=Math.max(0,rightStep)*.40*walking;
 
-    // Bench posture is a real, blended pelvis/leg pose, not standing with a
-    // book hovering over a bench. Standing returns smoothly at gesture ends.
-    const seated=(action==='sitRead'||action==='sitPhone'||action==='sitSip'||
-      action==='sitRest'||action==='sitChat')?blend:0;
-    rig.root.position.y=-.36*seated;
-    rig.leftLeg.rotation.x=leftHip-1.05*seated;
-    rig.rightLeg.rotation.x=rightHip-1.05*seated;
-    rig.leftKnee.rotation.x=leftBend+1.43*seated;
-    rig.rightKnee.rotation.x=rightBend+1.43*seated;
-    rig.leftFoot.rotation.x=-leftBend*.65-leftHip*.28-.21*seated;
-    rig.rightFoot.rotation.x=-rightBend*.65-rightHip*.28-.21*seated;
+    // The rig's hip dimensions differ across the cast. Sit on the wood slats
+    // and solve the shin angle from the floor, then level the feet.
+    const hipHeight=rig.leftLeg.position.y;
+    const seatedHip=NEIGHBOR_BENCH_TOP+.113;
+    const thigh=Math.abs(rig.leftKnee.position.y);
+    const shin=Math.abs(rig.leftFoot.position.y);
+    const footHeight=hipHeight-thigh-shin;
+    const hipAngle=-Math.acos(THREE.MathUtils.clamp((seatedHip-footHeight-shin*.98)/thigh,.02,.82));
+    const shinAngle=Math.acos(THREE.MathUtils.clamp((seatedHip-footHeight-thigh*Math.cos(hipAngle))/shin,0,1));
+    const kneeAngle=shinAngle-hipAngle;
+    rig.root.position.y=(seatedHip-hipHeight)*seated;
+    rig.root.position.z=.09*seated;
+    rig.leftLeg.rotation.x=leftHip+hipAngle*seated;
+    rig.rightLeg.rotation.x=rightHip+hipAngle*seated;
+    rig.leftKnee.rotation.x=leftBend+kneeAngle*seated;
+    rig.rightKnee.rotation.x=rightBend+kneeAngle*seated;
+    rig.leftFoot.rotation.x=-leftBend*.65-leftHip*.28-shinAngle*seated;
+    rig.rightFoot.rotation.x=-rightBend*.65-rightHip*.28-shinAngle*seated;
 
     // Small spinal counter-rotation and breathing prevent a rigid full-body
     // shuffle while keeping the avatar vertical and the feet near the ground.
@@ -369,6 +376,8 @@ export class NeighborPeople {
     rig.leftElbow.rotation.set(le,0,lez);
     rig.rightElbow.rotation.set(re,0,rez);
     rig.head.rotation.set(headX,headY,headZ);
+    if (lookYaw) rig.head.rotation.y=THREE.MathUtils.clamp(rig.head.rotation.y+lookYaw,-.38,.38);
+
     rig.phone.visible=(action==='phone'||action==='sitPhone'||action==='photograph')&&blend>.10;
     rig.book.visible=action==='sitRead'&&blend>.12;
     rig.tongs.visible=(action==='grill'||action==='prepareGrill')&&blend>.12;

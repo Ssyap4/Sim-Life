@@ -1,7 +1,7 @@
 name: Sim-Life 0.28 Pets real mobile QA
 on:
   push:
-    branches: [feat/pets-daily-life-028]
+    branches: [feat/pets-daily-life-028, feat/pets-animation-polish-028]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,7 +17,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npx tsx --test server/tests/petCommands-028.test.ts server/tests/petFurniture-028.test.ts server/tests/catPerches-027.test.ts server/tests/pets.test.ts server/tests/petNavigation.test.ts
+      - run: npm test
+      - run: npx tsx --test server/tests/petCommands-028.test.ts server/tests/petFurniture-028.test.ts server/tests/catPerches-027.test.ts server/tests/pets.test.ts server/tests/petNavigation.test.ts server/tests/petArt-028.test.ts server/tests/androidGraphics-028.test.ts
       - run: npm run audit:furniture
       - run: npx vite build
   real-iphone-webgl:
@@ -33,12 +34,42 @@ jobs:
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install --with-deps chromium
       - run: npx vite build
-      - name: Inspect actual movable pet furniture and server commands on 390x844
+      - name: Inspect Simba GLB, pet furniture, commands and mobile HUD on 390x844 / 320x568
         run: node --import tsx scripts/qa-028-pets.mjs
+      - name: Film Android WebGL safe mode, canvas recovery and mobile HUD
+        run: node --import tsx scripts/qa-028-android.mjs
+      - name: Film cat landing on a real purchased rotated sofa
+        run: node --import tsx scripts/qa-027-cat-perch.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: simlife-028-pets-real-iphone-frames
-          path: /tmp/simlife-028-pets-mobile
+          path: |
+            /tmp/simlife-028-pets-mobile
+            /tmp/simlife-027-cat-perches-iphone
+            /tmp/simlife-028-android-webgl
+          retention-days: 7
+          if-no-files-found: warn
+
+  real-people-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - name: Capture real two-person synchronized gestures and in-world laptop
+        run: node --import tsx scripts/qa-028-people.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-028-real-couple-and-laptop
+          path: /tmp/simlife-028-people-real-3d
           retention-days: 7
           if-no-files-found: warn

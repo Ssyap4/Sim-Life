@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { batchRigidParts,cube,softCube,drum,orb,finish } from './ArtKit';
-import { yardFeatures,type NeighborHome } from '../shared/neighborHomes';
+import { NEIGHBOR_BENCH_TOP,yardFeatures,type NeighborHome } from '../shared/neighborHomes';
 
 type Dimension=readonly [number,number,number];
 function piece(root:THREE.Object3D,geometry:THREE.BufferGeometry,size:Dimension,
@@ -62,7 +62,7 @@ function yardBench(root:THREE.Object3D,x:number,z:number,i:number) {
   const metal=[0x4d5f55,0x545e61,0x64735d,0x4e5850][i];
   piece(bench,softCube,[1.65,.11,.62],[0,.50,0],oak);
   for(const dz of [-.16,.16])
-    piece(bench,cube,[1.61,.038,.080],[0,.572,dz],0xc19b75);
+    piece(bench,cube,[1.61,.038,.080],[0,NEIGHBOR_BENCH_TOP-.019,dz],0xc19b75);
   for(const x0 of [-.69,.69]){
     piece(bench,cube,[.072,.53,.09],[x0,.27,.075],metal,'metal');
     piece(bench,cube,[.076,.90,.09],[x0,.65,-.26],metal,'metal');

@@ -18,6 +18,7 @@ import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
+import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
@@ -31,6 +32,7 @@ import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import type { SimbaRig } from './SimbaRig';
 import { currentCatPerch } from '../shared/CatPerches';
 import {currentPetEquipment} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
@@ -146,6 +148,10 @@ export class World {
   private paused = false;
   private visualSeconds = 0;
   private quality: 'standard'|'high'|'low' = 'standard';
+  private readonly graphics = graphicsProfile(navigator.userAgent, window.location.search);
+  private graphicsLost = false;
+  private graphicsChecked = false;
+  private graphicsStartedAt = performance.now();
   private smoothedFrameMs = 16.7;
   private lastQualityUpdate = performance.now();
   private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
@@ -201,14 +207,38 @@ export class World {
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
-      dismissTap?: () => boolean; pondTap?: () => void }) {
+      dismissTap?: () => boolean; pondTap?: () => void }, simbaRig?: SimbaRig) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 125, 171);
 
     this.tapLayer.className='world-tap-feedback';
     this.tapLayer.setAttribute('aria-hidden','true');
     this.canvas.parentElement?.append(this.tapLayer);
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+    // Android WebViews are especially vulnerable to framebuffer/context loss.
+    // Disable costly MSAA and cap resolution there; retain the iPhone path.
+    this.quality = this.graphics.safe ? 'low' : 'standard';
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas,
+        antialias: this.graphics.antialias,
+        powerPreference: this.graphics.powerPreference,
+        stencil: false,
+      });
+    } catch (error) {
+      showGraphicsProblem(canvas, 'Браузер не смог создать WebGL-контекст.');
+      throw error;
+    }
+    canvas.addEventListener('webglcontextlost', event => {
+      event.preventDefault(); // permit the browser to restore the context
+      this.graphicsLost = true;
+      showGraphicsProblem(canvas, 'Графический контекст был потерян.');
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.graphicsLost = false;
+      this.graphicsChecked = false;
+      this.graphicsStartedAt = performance.now();
+      clearGraphicsProblem(canvas);
+      this.refreshViewport();
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -253,7 +283,7 @@ export class World {
     this.createDirtyDishes();
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
-    this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba') };
+    this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -966,11 +996,16 @@ export class World {
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }break;
       }
-      case 'feed':actor.playPetActivity('feed');break;
+      case 'feed': {
+        const bowl=pair.pet&&pair.pet in PETS?PETS[pair.pet as PetId].bowl:undefined;
+        if(leads&&bowl)actor.playPetActivity('feed',new THREE.Vector3(bowl.x,.28,bowl.z));
+        else actor.playPartnerGesture('listen',false);
+        break;
+      }
       case 'pet':{
         const action=stage.action==='petPlay'?'play':stage.action==='petBrush'?'brush':'pet';
         const pet=pair.pet&&pair.pet in this.pets?this.pets[pair.pet as PetId]:undefined;
-        const petContact=pet?.root.position.clone().add(new THREE.Vector3(0,pair.pet==='verdell'?.49:.43,0));
+        const petContact=pet ? (target:THREE.Vector3)=>pet.coatContact(target) : undefined;
         if(leads) {
           actor.playPetActivity(action,petContact);
           pet?.react(action);
@@ -994,6 +1029,8 @@ export class World {
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
+      case 'hug':case 'closeHug':
+        actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       default:actor.playPartnerGesture(pair.motion,leads);
     }
   }
@@ -1277,7 +1314,9 @@ export class World {
     const walking = target && this.walkTo(role, target, () => {
       if (!current()) return;
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
-      actor.playPetActivity(action);
+      actor.playPetActivity(action,filling
+        ? new THREE.Vector3(position.x,.28,position.z)
+        : (hand:THREE.Vector3)=>pet.coatContact(hand));
       // The animal eats during its own routine, not when the player pours food.
       if (!filling) pet.react(action);
     });
@@ -2099,7 +2138,7 @@ export class World {
         if (pet.root.visible) {
           pet.stop();
           const position = state.pets[id].position;
-          pet.root.position.set(position.x, 0, position.z);
+          pet.syncGround(position.x,position.z);
         }
         continue;
       }
@@ -2110,16 +2149,52 @@ export class World {
       this.petRoutines.set(id, routineKey);
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
-      pet.root.position.set(route.from.x, 0, route.from.z);
+      pet.syncGround(route.from.x,route.from.z);
       const scratchFace=routine.kind==='scratch'&&routine.equipment&&routine.goal
         ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
+      // Read support height once per route from the rotated physical model.
+      // The server's X/Z, floor approach and attachment key still apply.
+      const perch=routine.perch;
+      const bed=routine.kind==='sleep'?routine.equipment:undefined;
+      let supportHeight: number | undefined;
+      let support:THREE.Object3D|undefined;
+      if(perch){
+        const [scope,id]=perch.key.split(':');
+        support=scope==='starter'&&(id==='sofa'||id==='bed')?this.staticFixtureModels.get(id)
+          :this.furnishingModels.get(Number(id));
+      }else if(bed) {
+        support=this.furnishingModels.get(bed.id);
+      }
+      if(support){
+        support.updateWorldMatrix(true,true);
+        const at=perch?.surface??bed!;
+        const origin=new THREE.Vector3(at.x,perch?perch.surface.y+.11:.25,at.z);
+        const ray=new THREE.Raycaster(origin,new THREE.Vector3(0,-1,0),0,.42);
+        // Probe the seat itself, not a nearby tall armrest or back. The old
+        // maximum-of-three could raise Simba onto a piece of the backrest.
+        const side=perch?.yaw??0;
+        const sideways=new THREE.Vector3(Math.cos(side),0,-Math.sin(side));
+        const expected=perch?perch.surface.y-.085:0.16;
+        const heights:number[]=[];
+        for(const offset of [0,-.13,.13,-.23,.23]){
+          ray.ray.origin.copy(origin).addScaledVector(sideways,offset);
+          const y=ray.intersectObject(support,true)[0]?.point.y;
+          if(y!==undefined&&(!perch||Math.abs(y-expected)<.21))
+            heights.push(y);
+        }
+        // Median support resists cushion seams and decorative raised details.
+        if(heights.length){
+          heights.sort((a,b)=>a-b);
+          supportHeight=heights[Math.floor(heights.length/2)];
+        }
+      }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
         scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         routine.perch,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!routine.equipment&&routine.kind==='sleep');
+        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined);
     }
   }
 
@@ -2256,11 +2331,12 @@ export class World {
     const compact = this.compactPortrait.matches;
     const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
     const district = this.place==='home';
-    const pixelRatio = compact
+    let pixelRatio = compact
       ? Math.min(window.devicePixelRatio || 1, this.quality==='low' ? (district?.88:1)
         : district ? (this.quality==='high'?1.26:1.11)
           : this.quality==='high' ? 1.45 : initialRatio)
       : initialRatio;
+    pixelRatio = Math.min(pixelRatio, this.graphics.maxPixelRatio);
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -2302,6 +2378,7 @@ export class World {
 
   private animate = (): void => {
     requestAnimationFrame(this.animate);
+    if (this.graphicsLost) return;
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
@@ -2532,7 +2609,24 @@ export class World {
     }
     if(this.place==='home')this.district.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
-    this.renderer.render(this.scene, this.camera);
+    try {
+      this.renderer.render(this.scene, this.camera);
+      if (this.graphics.safe && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
+        this.graphicsChecked = true;
+        const gl = this.renderer.getContext();
+        if (gl.isContextLost()) {
+          this.graphicsLost = true;
+          showGraphicsProblem(this.canvas, 'Android потерял графический контекст.');
+        } else if (!this.renderer.info.render.calls ||
+            isBlankGraphicsFrame(gl, this.canvas.width, this.canvas.height)) {
+          showGraphicsProblem(this.canvas, 'Браузер не выводит кадры 3D-сцены.');
+        }
+      }
+    } catch (error) {
+      this.graphicsLost = true;
+      console.error('WebGL rendering failed', error);
+      showGraphicsProblem(this.canvas, 'Видеодрайвер прервал отрисовку.');
+    }
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };
 }

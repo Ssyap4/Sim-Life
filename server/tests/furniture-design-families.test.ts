@@ -4,12 +4,14 @@ import * as THREE from 'three';
 import { FURNITURE_CATALOG,FURNITURE_STYLES,furnitureStyle } from '../../src/shared/furniture';
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 
-test('the 75 products have stable unique IDs, five populated style families and six categories',()=>{
-  assert.equal(FURNITURE_CATALOG.length,75);
+test('the 0.28 catalogue has unique IDs, five style families and all seven categories',()=>{
+  assert.equal(FURNITURE_CATALOG.length,78);
   const ids=new Set(FURNITURE_CATALOG.map(item=>item.id));
-  assert.equal(ids.size,75);
-  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,75);
-  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.category)).size,6);
+  assert.equal(ids.size,FURNITURE_CATALOG.length);
+  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,FURNITURE_CATALOG.length);
+  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.category)).size,7);
+  assert.deepEqual(FURNITURE_CATALOG.filter(item=>item.category==='pets').map(item=>item.id).sort(),
+    ['pet-bed-simba','pet-bed-verdell','pet-scratcher-simba']);
   const styles=new Map(Object.keys(FURNITURE_STYLES).map(k=>[k,0]));
   for(const item of FURNITURE_CATALOG){
     const style=furnitureStyle(item.id);
@@ -56,7 +58,7 @@ import {
 } from '../../src/shared/furniture';
 
 test('old and new models are interleaved by furniture type, never appended as separate batches',()=>{
-  assert.equal(SORTED_FURNITURE_CATALOG.length,75);
+  assert.equal(SORTED_FURNITURE_CATALOG.length,FURNITURE_CATALOG.length);
   assert.deepEqual(
     new Set(SORTED_FURNITURE_CATALOG.map(x=>x.id)),
     new Set(FURNITURE_CATALOG.map(x=>x.id))

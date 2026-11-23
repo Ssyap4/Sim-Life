@@ -4,8 +4,7 @@ import * as THREE from 'three';
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 import { FURNITURE_CATALOG, FINISH_IDS } from '../../src/shared/furniture';
 
-test('all 75 shop models stay in their documented physical footprint',()=>{
-  assert.equal(FURNITURE_CATALOG.length,75);
+test('all shop models stay in their documented physical footprint',()=>{
   for(const item of FURNITURE_CATALOG){
     const model=buildFurnishingModel(item.id,'oak');
     const bounds=new THREE.Box3().setFromObject(model);

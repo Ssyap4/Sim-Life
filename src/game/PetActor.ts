@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SimbaRig } from './SimbaRig';
 import type { CatPerch } from '../shared/CatPerches';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
@@ -17,6 +18,10 @@ export class PetActor {
   private perch:CatPerch|null=null;
   private leavingPerch:CatPerch|null=null;
   private perchProgress=0;
+  private perchHeight: number | undefined;
+  private leavingPerchHeight: number | undefined;
+  private readonly pendingGround = new THREE.Vector3();
+  private hasPendingGround = false;
   private readonly perchLocal=new THREE.Vector3();
   private readonly head = new THREE.Group();
   private readonly tail = new THREE.Group();
@@ -41,6 +46,8 @@ export class PetActor {
   private fetchSpot:FloorPoint|null=null;
   private fetchPickedUp=false;
   private onPetBed=false;
+  private petBedHeight=0;
+  private scratchPost:FloorPoint | undefined;
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
     satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
@@ -52,7 +59,7 @@ export class PetActor {
   private welcomeUntil = -1;
   private nextWelcome = 0;
 
-  constructor(readonly id: PetId) {
+  constructor(readonly id: PetId, private readonly simbaRig?: SimbaRig) {
     const { x, z } = PETS[id].home;
     this.root.position.set(x, 0, z);
     this.root.add(this.body);
@@ -62,7 +69,12 @@ export class PetActor {
     this.root.add(this.playToy,this.fetchTargetToy);
     const dog = id === 'verdell';
     this.idleCooldown = dog ? 3.5 : 5;
-    this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
+    if (simbaRig) {
+      this.rig={ears:[new THREE.Group(),new THREE.Group()],eyes:[new THREE.Group(),new THREE.Group()],jaw:new THREE.Group()};
+      this.body.add(simbaRig.model);
+    } else {
+      this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
+    }
     this.body.add(this.head, this.tail);
     this.root.scale.setScalar(dog ? verdellScale : simbaScale);
     // Real Simba: fine, narrow face, short coat and a longer ginger body.
@@ -106,6 +118,19 @@ export class PetActor {
     this.ambient = context;
   }
 
+  coatContact(target: THREE.Vector3): THREE.Vector3 {
+    return this.body.localToWorld(target.set(0,this.id==='verdell'?.59:.58,.17));
+  }
+
+  syncGround(x: number, z: number): void {
+    if (this.perchProgress>0) {
+      this.pendingGround.set(x,0,z);
+      this.hasPendingGround=true;
+      return;
+    }
+    this.root.position.set(x,0,z);
+  }
+
   currentIdleGesture(): PetIdleGesture | null { return this.idleGesture; }
 
   react(action: PetAction): void {
@@ -118,14 +143,12 @@ export class PetActor {
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
-    perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false): void {
-    if(this.perch && (!perch || this.perch.key!==perch.key)){
-      this.leavingPerch=this.perch;
-      this.perch=null;
-    }
+    perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
+    scratchPost?:FloorPoint): void {
+    if(this.perch?.key!==perch?.key)this.releasePerch();
     if(this.id==='simba' && routine==='perch' && perch){
       this.perch=perch;
-      this.leavingPerch=null;
+      this.perchHeight=supportHeight;
     }
     // A scheduled meal, sleep or walk always overrides a temporary play prop.
     this.reaction = null;
@@ -133,6 +156,8 @@ export class PetActor {
     this.playToy.visible = false;
     this.fetchTargetToy.visible=false;
     this.onPetBed=onPetBed;
+    this.petBedHeight=onPetBed?(supportHeight??0):0;
+    this.scratchPost=scratchPost;
     this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
@@ -148,14 +173,20 @@ export class PetActor {
     this.yieldingTo = null;
   }
 
-  stop(): void {
-    if(this.perch){
+  private releasePerch(): void {
+    if(this.perch && !this.leavingPerch && this.perchProgress>0){
       this.leavingPerch=this.perch;
-      this.perch=null;
+      this.leavingPerchHeight=this.perchHeight;
     }
+    this.perch=null;
+  }
+
+  stop(): void {
+    this.releasePerch();
     this.route = [];
     this.fetchSpot=null;
     this.onPetBed=false;
+    this.scratchPost=undefined;
     this.fetchTargetToy.visible=false;
     this.fetchPickedUp=false;
     this.playToy.visible=false;
@@ -214,7 +245,14 @@ export class PetActor {
     const descending=this.id==='simba' && !!this.leavingPerch && this.perchProgress>0;
     if(descending){
       this.perchProgress=Math.max(0,this.perchProgress-dt/.88);
-      if(this.perchProgress<=0)this.leavingPerch=null;
+      if(this.perchProgress<=0){
+        this.leavingPerch=null;
+        this.leavingPerchHeight=undefined;
+        if(this.hasPendingGround){
+          this.root.position.copy(this.pendingGround);
+          this.hasPendingGround=false;
+        }
+      }
     }
     if (this.route.length && !descending) {
       const target = this.route[0];
@@ -237,7 +275,7 @@ export class PetActor {
           this.root.rotation.y += delta * (1 - Math.exp(-dt * 13));
           this.root.position.set(next.x, 0, next.z);
           this.distance += traveled;
-          pace = .76;
+          pace = this.routine==='fetch'?.95:.76;
         }
       }
       const remaining = Math.hypot(target.x - this.root.position.x,
@@ -292,7 +330,7 @@ export class PetActor {
       }
     }
     if (this.routine) travel = this.distance;
-    if(this.id==='simba' && this.perch && !this.route.length && !this.reaction){
+    if(this.id==='simba' && this.perch && !this.route.length && !this.reaction && !descending){
       this.perchProgress=Math.min(1,this.perchProgress+dt/.95);
       const targetYaw=this.perch.yaw;
       const delta=THREE.MathUtils.euclideanModulo(targetYaw-this.root.rotation.y+Math.PI,2*Math.PI)-Math.PI;
@@ -361,11 +399,15 @@ export class PetActor {
     const scratching=!dog && this.routine==='scratch' && !this.route.length
       ? Math.min(1,this.settled*2):0;
     const settled = Math.min(1, this.settled * 3);
+    const pickup=dog&&this.routine==='fetch'&&this.fetchSpot&&!this.fetchPickedUp
+      ? 1-THREE.MathUtils.smoothstep(Math.hypot(this.root.position.x-this.fetchSpot.x,
+        this.root.position.z-this.fetchSpot.z),.22,.85) : 0;
     const eating = this.reaction === 'feed' ? weight : this.routine === 'eat' ? settled : 0;
-    const perched=this.id==='simba' && this.perch && !this.route.length ?
+    const surface=(descending?this.leavingPerch:this.perch);
+    const perched=this.id==='simba' && surface && (descending||!this.route.length) ?
       THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;
-    const curled=perched*(this.perch?.kind==='curl'?1:0);
-    const lookout=perched*(this.perch?.kind==='watch'?1:0);
+    const curled=perched*(surface?.kind==='curl'?1:0);
+    const lookout=perched*(surface?.kind==='watch'?1:0);
     const sleeping = this.routine === 'sleep' ? settled : curled*.92;
     // Purchased soft mats need an unmistakably reclined pose, not a pet
     // standing upright with the sleep icon. Keep the old floor/sofa poses.
@@ -431,7 +473,6 @@ export class PetActor {
     // Only the lightweight render group moves onto the cushion. The root and
     // all pathfinding/collision points remain safely on the floor approach.
     // The first/last second is a visible parabolic jump or controlled descent.
-    const surface=this.perch??this.leavingPerch;
     if(!dog && surface && this.perchProgress>0){
       this.root.updateWorldMatrix(true,false);
       // surface.y already includes a small clearance over the real cushion.
@@ -457,7 +498,7 @@ export class PetActor {
       scratching*.08 + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
       - sniffing * .065 - grooming * .034 - stretching * .035
       - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018
-      - curled*.12;
+      - curled*.12 - pickup*.33;
     this.head.position.z = (dog ? .241 : .405) + dogNap*.06 - catNap*.08 +
       eating * (dog ? 0.027 : 0.053) + nuzzle*.065
       - curled*.075;
@@ -465,7 +506,7 @@ export class PetActor {
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
         - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
         + sniffing * .43 + grooming * .35 - stretching * .24
-        + foodLook * .37 + greeting * -.15 + tiredHungry * .12, smooth);
+        + pickup*.72 + foodLook * .37 + greeting * -.15 + tiredHungry * .12, smooth);
     this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y,
       (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 +
         attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
@@ -535,6 +576,15 @@ export class PetActor {
           - playBow * .035 + happyHop * .11 : 0)
         + (!dog && i < 2 ? pounce * -.045 : 0)
         + (dog && front ? .47 * begging : 0);
+      if(dog){
+        const phase=travel*19+(i===0||i===3?Math.PI:0);
+        const swing=Math.max(0,-Math.cos(phase));
+        const flex=swing*pace*.60 + dogNap*.69 + sleeping*.37
+          + (front ? .62*begging + .19*pawWave : .24*toilet);
+        const knee=this.rig.knees?.[i];
+        if(knee)knee.rotation.x=flex*(front?1:-1);
+        paw.position.y+=swing*pace*.045;
+      }
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
         (!dog && curled ? (front?-.13:.09)*curled : 0) +
@@ -543,5 +593,72 @@ export class PetActor {
         (!dog && i === 0 ? grooming * .04 : 0)
         - (dog && front ? (i<2?-1:1)*.048*begging : 0);
     }
+    if(carrying){
+      // The ball follows the animated muzzle through head turns, bobs and bends.
+      this.head.updateWorldMatrix(true,false);
+      this.playToy.position.copy(this.root.worldToLocal(this.head.localToWorld(this.perchLocal.set(0,-.139,.365))));
+    }
+    if(this.simbaRig){
+      const rest=Math.max(sleeping*.94,catNap,lookout*.60);
+      const phase=this.perchProgress;
+      const airborne=surface?Math.sin(Math.PI*phase):0;
+      const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
+      const loaf=Math.max(curled,catNap);
+      const coil=Math.max(curled,catNap*.85);
+      const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
+      this.body.scale.setScalar(1);
+      // Rock back onto the hind paws so the forelegs can reach up the post.
+      // Gentle spinal side-rest, not a full body roll: a 40° roll made
+      // the skinned knees point upwards like a beetle when resting on mats.
+      // Bend the IK legs below the breast while the belly stays supported.
+      this.body.rotation.set(-.65*scratching+.16*stretching+.035*loaf,0,
+        -.36*curled-.23*catNap);
+      const post=scratching>0?this.scratchPost:undefined;
+      const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
+      const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
+      // Lift only enough to clear the upholstery after bending the knees.
+      this.body.position.set(0,-.025-crouch+lift*.022+.19*scratching+
+        .055*loaf,step*scratching);
+      if(surface&&phase>0){
+        const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
+        const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
+        const height=(descending?this.leavingPerchHeight:this.perchHeight)??surface.surface.y-.085;
+        this.perchLocal.set(surface.surface.x,height,surface.surface.z);
+        this.root.worldToLocal(this.perchLocal);
+        this.body.position.x=this.perchLocal.x*horizontal;
+        this.body.position.z=this.perchLocal.z*horizontal;
+        this.body.position.y+=this.perchLocal.y*vertical+airborne*.31;
+        const turn=THREE.MathUtils.smootherstep(phase,.78,1);
+        const forward=surface.yaw-this.root.rotation.y;
+        const runUp=descending?forward:forward+Math.PI;
+        const final=forward+(surface.kind==='curl'?Math.PI/2:0);
+        this.body.rotation.y=THREE.MathUtils.lerp(runUp,final,turn);
+        this.body.rotation.x+=airborne*(.12-phase*.26);
+      }
+      const contact=post?this.body.worldToLocal(this.perchLocal.set(
+        post.x-.135*Math.sin(this.root.rotation.y),.57,
+        post.z-.135*Math.cos(this.root.rotation.y))):undefined;
+      const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
+        t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
+        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
+        airborne,rest,target,loaf,coil);
+      animate(contact);
+      if(post){
+        // The scratch target is a fixed REAL post, not a hand-waved offset.
+        // Keep both rear ankles at floor height even when the torso rears up.
+        const error=.070-this.simbaRig.hindContactHeight();
+        const correction=THREE.MathUtils.clamp(error,-.17,.095)*scratching;
+        if(Math.abs(correction)>.002){
+          this.body.position.y+=correction;
+          this.body.updateWorldMatrix(true,true);
+          const fixed=this.body.worldToLocal(this.perchLocal.set(
+            post.x-.135*Math.sin(this.root.rotation.y),.57,
+            post.z-.135*Math.cos(this.root.rotation.y)));
+          animate(fixed);
+        }
+      }
+    }
+    this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
+
   }
 }

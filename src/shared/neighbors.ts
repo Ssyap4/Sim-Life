@@ -14,6 +14,8 @@ export interface NeighborPose {
   opacity: number;
   /** 0 walking, 1 fully settled in a gesture; blends at both ends. */
   gestureBlend: number;
+  seat?: number;
+  lookYaw?: number;
   carrying?: boolean;
   gait?: number;
   intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond' |

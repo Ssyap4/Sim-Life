@@ -31,7 +31,14 @@ function screen(root: THREE.Group, pos: XYZ, laptop: boolean, accent: number) {
   if (laptop) {
     trim(root,[.55,.03,.37],[x,y,z+.13],frame);
     const lid = trim(root,[.55,.35,.04],[x,y+.165,z-.055],frame); lid.rotation.x = -.2;
-    part(root,[.47,.264,.019],[x,y+.184,z-.032],accent).rotation.x = -.2;
+    const display = part(root,[.47,.264,.019],[x,y+.184,z-.032],accent);
+    display.rotation.x = lid.rotation.x;
+    const displaySurface = new THREE.Object3D();
+    displaySurface.name = 'Laptop display surface';
+    displaySurface.position.copy(display.position);
+    displaySurface.rotation.copy(display.rotation);
+    displaySurface.translateZ(.0102);
+    root.add(displaySurface);
     for (let i=0;i<4;i++) part(root,[.40,.007,.018],[x,y+.02,z+.038+i*.045],0xbecac5);
     part(root,[.16,.007,.078],[x,y+.018,z+.235],0x778b8e);
   } else {
