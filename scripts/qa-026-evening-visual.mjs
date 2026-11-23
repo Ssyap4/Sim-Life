@@ -42,7 +42,7 @@ try{
       const sizes=await page.evaluate(()=>({
         scrollWidth:document.documentElement.scrollWidth,
         clientWidth:document.documentElement.clientWidth,
-        storyText:document.querySelector('#relationship')?.textContent?.slice(0,300),
+        storyText:document.querySelector('#relationship')?.textContent,
       }));
       results.push({width,phase,action,...sizes});
       if(sizes.scrollWidth>width+1)
