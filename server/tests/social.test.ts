@@ -839,3 +839,20 @@ test('A story dinner keeps its one memory when partners finish their real portio
       'one story memory rather than two cards for the same dinner');
   }finally{await f.close();}
 });
+test('Alina gets natural feminine wording for real achievements, and saved story text stays valid',()=>{
+  const state=sample(),now=gameMinutes(state.clock);
+  const progress=newCareerProgress();
+  progress.history.push({id:1,at:now,title:'Повышение',text:'Новая должность'});
+  state.careers.residents.alina.progress.marketing=progress;
+  const story=familyMoments(state,'vlad').find(m=>m.id==='goodNews');
+  assert.ok(story,'an actual career promotion should generate a contextual family story');
+  assert.match(story.description,/Алина добилась нового результата/);
+  const intent:SocialIntent={type:'together',action:'highFive',moment:'goodNews'};
+  const homes=pairScenes(state,'vlad',intent)!;
+  const response=completeTogether(state,'vlad',intent,[...residents],0,homes);
+  if(!response.ok)assert.fail(response.reason);
+  const saved=response.state;
+  assert.equal(validRelationship(saved.relationship),true,
+    'a real achievement memory must survive persisted household validation');
+  assert.equal(saved.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'goodNews').length,1);
+});
