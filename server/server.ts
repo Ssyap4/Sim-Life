@@ -1062,7 +1062,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (message.type==='budget_deposit'||message.type==='budget_withdraw'||
           message.type==='budget_goal'||message.type==='budget_limit'){
-        const result=applyBudgetCommand(state,role,message);
+        // Transport packets are untrusted: the budget handler checks types,
+        // bounds, ownership and funds before touching household state.
+        const result=applyBudgetCommand(state,role,
+          message as unknown as import('../src/shared/familyBudget').BudgetCommand);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         try{files.save(result.state);}
         catch{packet(socket,{type:'error',reason:'Не удалось сохранить семейный бюджет'});return;}
