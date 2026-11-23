@@ -220,11 +220,15 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
   palette: number, count: number, seed: number, distant = false, canPlant?: (x:number,z:number)=>boolean) {
   const rng = landscapeRandom(seed);
   const hues = flowerPalettes[palette % flowerPalettes.length];
+  // Each bed has a dominant botanical character rather than one stamp
+  // repeated everywhere. Occasional companion stems break up uniform rows.
+  const dominant=Math.floor(rng()*4);
   const stems = distant ? Math.ceil(count * .46) : count;
   for (let i = 0; i < stems; i++) {
     const a = i * 2.39996 + rng() * .7, r = Math.sqrt((i + .5) / stems) * .49;
     const px = x + Math.sin(a) * w * r, pz = z + Math.cos(a) * d * r;
-    const h = .19 + rng() * (palette === 2 ? .32 : .18);
+    const kind=(dominant+(i%7===0?1:0))%4; // daisies, tall spikes, tulips, pompons
+    const h=.17+rng()*(kind===1?.36:kind===2?.23:.19);
     if(canPlant&&!canPlant(px,pz))continue;
     const tip: XYZ = [px + Math.sin(a) * .04,y + h,pz + Math.cos(a) * .04];
     if(distant) {
@@ -233,20 +237,44 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
     }
     batch.stem(0x578252, [px,y,pz], tip, .011);
     batch.blade(0x7fa85d, [px,y + h * .39,pz], [.048,.052,.12], a + 1.15, -.46);
-    if (palette === 2) {
-      for (let j = 0; j < 5; j++) {
-        const angle = a + j * 2.4, radius = .036 - j * .004;
-        batch.bud(hues[j % 3], [tip[0] + Math.sin(angle) * radius,tip[1] + j * .041,tip[2] + Math.cos(angle) * radius],
-          [.044 - j * .003,.025,.041 - j * .003], angle, .38);
+    if(kind===1) {
+      // Lupine-like upright spikes that rise above shorter bedding flowers.
+      for(let j=0;j<6;j++){
+        const angle=a+j*2.39996,radius=.041-j*.004;
+        batch.bud(hues[j%3],
+          [tip[0]+Math.sin(angle)*radius,tip[1]-j*.033,tip[2]+Math.cos(angle)*radius],
+          [.034-j*.002,.034,.036-j*.002],angle,.31);
       }
       continue;
     }
-    for (let j = 0; j < 5; j++) {
-      const angle = a + j * Math.PI * 2 / 5, r = palette === 0 ? .061 : .046;
-      batch.bud(hues[(i + (j % 4 === 0 ? 1 : 0)) % 2], [tip[0] + Math.sin(angle) * r,tip[1] + (palette === 0 ? 0 : .032),tip[2] + Math.cos(angle) * r],
-        [.040,.025,.063], angle, palette === 0 ? -.15 : -.65);
+    if(kind===2){
+      // Three tall cup petals, a pointed tulip silhouette.
+      for(let j=0;j<3;j++){
+        const angle=a+j*2.0944;
+        batch.bud(hues[(i+j)%3],
+          [tip[0]+Math.sin(angle)*.027,tip[1]+.02,tip[2]+Math.cos(angle)*.026],
+          [.044,.078,.035],angle,.20);
+      }
+      continue;
     }
-    batch.bud(palette === 0 ? 0xf1a52b : hues[2], [tip[0],tip[1] + .030,tip[2]], [.035,.022,.035]);
+    if(kind===3){
+      // Round clustered pompons rather than identical flat daisies.
+      for(let j=0;j<7;j++){
+        const angle=a+j*2.39996;
+        batch.bud(hues[(j+i)%3],
+          [tip[0]+Math.sin(angle)*.036,tip[1]+(j%3)*.026,tip[2]+Math.cos(angle)*.036],
+          [.032,.032,.032],angle);
+      }
+      continue;
+    }
+    for(let j=0;j<6;j++){
+      const angle=a+j*Math.PI/3,r=palette===0?.062:.050;
+      batch.bud(hues[(i+j%3)%3],
+        [tip[0]+Math.sin(angle)*r,tip[1]+.018,tip[2]+Math.cos(angle)*r],
+        [.036,.024,.055],angle,-.20);
+    }
+    batch.bud(palette===0?0xf1a52b:hues[2],
+      [tip[0],tip[1]+.030,tip[2]],[.033,.022,.033]);
   }
 }
 
