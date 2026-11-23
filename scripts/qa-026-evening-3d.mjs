@@ -96,6 +96,15 @@ try{
         button.click();return true;
       });
       if(!focused)errors.push(action+': shared camera control missing while task active');
+      const layout=await page.evaluate(()=>{
+        const camera=document.querySelector('.camera-dock')?.getBoundingClientRect();
+        const card=document.querySelector('#task-panel')?.getBoundingClientRect();
+        if(!camera||!card)return null;
+        return {overlap:camera.left<card.right&&camera.right>card.left&&
+          camera.top<card.bottom&&camera.bottom>card.top,
+          cameraBottom:Math.round(camera.bottom),taskTop:Math.round(card.top)};
+      });
+      if(!layout||layout.overlap)errors.push(action+': camera dock obscures task card '+JSON.stringify(layout));
       // At production pace, residents can really reach their stations and perform
       // the gestures before the shot. A scaled 0.28 run only captured walking.
       await sleep(action==='tv'?6500:action==='cook'?4400:action==='eat'?3600:3000);
