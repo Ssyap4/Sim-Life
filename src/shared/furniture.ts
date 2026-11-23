@@ -1,6 +1,6 @@
 import type { FloorRect } from '../game/navigation';
 
-export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor';
+export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor' | 'pets';
 export type FurnitureStyle = 'scandi' | 'cozy' | 'industrial' | 'classic' | 'designer';
 export type FurnitureShape = 'sofa' | 'corner' | 'armchair' | 'ottoman' | 'bench' |
   'bed' | 'daybed' | 'wardrobe' | 'dresser' | 'shelves' | 'sideboard' |
@@ -16,7 +16,7 @@ export interface FurnitureProduct {
 }
 export const FURNITURE_CATEGORIES: Record<FurnitureCategory,string> = {
   seating:'Диваны и кресла',sleep:'Спальня',storage:'Хранение',
-  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',
+  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',pets:'Для питомцев',
 };
 export const FURNITURE_FINISHES: Record<FurnitureFinish,{name:string;main:number;light:number;dark:number;fabric:number}> = {
   oak:{name:'Светлый дуб',main:0xc49d72,light:0xe5d0a8,dark:0x765642,fabric:0xdcc8aa},
@@ -136,18 +136,24 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('rug-round','Ковёр «Солнце»','decor','rug',6900,1.64,1.64,.035,'🧶','Круглый ковёр с концентрическими полосами.',true),
   product('mirror-round','Зеркало «Луна»','decor','mirror',8500,1.05,.19,1.29,'🪞','Круглое зеркало на лаконичной напольной стойке.'),
   product('mirror-window','Зеркало «Окно»','decor','mirror',14500,1.01,.24,1.92,'🪞','Арочное зеркало с металлическими перемычками.'),
+  // Real pet accessories use the existing buy/delivery/placement/move/sell pipeline.
+  // Low washable cushions are walkable (no fake invisible collision walls).
+  product('pet-bed-verdell','Лежанка Верделла «Облачко»','pets','rug',4900,1.08,.94,.15,'🐕','Уютная низкая лежанка с мягкими бортиками; Верделл может на ней спать.',true),
+  product('pet-bed-simba','Лежанка Симбы «Полумесяц»','pets','rug',4500,1.14,.90,.15,'🐈','Мягкая лежанка для кота; Симба выбирает её для отдыха.',true),
+  product('pet-scratcher-simba','Когтеточка «Рыжий инспектор»','pets','plant',6900,.78,.72,1.12,'🐾','Устойчивая когтеточка со столбиком и подвесной игрушкой.'),
 ] as const;
 export const FURNITURE_BY_ID = new Map(FURNITURE_CATALOG.map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.
-export type FurnitureDisplayGroup = Exclude<FurnitureShape,'corner'>;
+export type FurnitureDisplayGroup = Exclude<FurnitureShape,'corner'> | 'pet-care';
 export const FURNITURE_DISPLAY_GROUPS: readonly FurnitureDisplayGroup[] = [
   'sofa','armchair','ottoman','bench',
   'bed','daybed',
   'wardrobe','dresser','nightstand','sideboard','shelves',
   'table','desk','chair','stool',
   'lamp',
+  'pet-care',
   'plant','rug','mirror',
 ];
 export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
@@ -167,13 +173,14 @@ export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
   chair:'Стулья',
   stool:'Табуреты',
   lamp:'Светильники и торшеры',
+  'pet-care':'Лежанки и когтеточки',
   plant:'Растения',
   rug:'Ковры',
   mirror:'Зеркала',
 };
 const furnitureGroupRank = new Map(FURNITURE_DISPLAY_GROUPS.map((group,index)=>[group,index]));
-export function furnitureDisplayGroup(product:Pick<FurnitureProduct,'shape'>):FurnitureDisplayGroup {
-  return product.shape==='corner'?'sofa':product.shape;
+export function furnitureDisplayGroup(product:Pick<FurnitureProduct,'shape'> & Partial<Pick<FurnitureProduct,'category'>>):FurnitureDisplayGroup {
+  return product.category==='pets'?'pet-care':product.shape==='corner'?'sofa':product.shape;
 }
 export function compareFurnitureProducts(a:FurnitureProduct,b:FurnitureProduct):number {
   const groupA=furnitureDisplayGroup(a),groupB=furnitureDisplayGroup(b);
