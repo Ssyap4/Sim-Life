@@ -1,0 +1,24 @@
+name: Sim-Life 0.24 — home, media and pets
+on:
+  push:
+    branches: [feat/deep-home-media-pets-024]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  home-media-pets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Strict TypeScript and contract checks
+        run: npm run check
+      - name: Only changed / dependent home, pet, media tests
+        run: node --import tsx --test server/tests/home-media-pets-024.test.ts server/tests/living-personality-023.test.ts server/tests/petPersonality.test.ts server/tests/readyFood.test.ts server/tests/tasks.test.ts server/tests/social.test.ts
+      - name: Client production bundle
+        run: npx vite build
