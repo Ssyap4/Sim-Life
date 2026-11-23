@@ -195,6 +195,10 @@ test('Full autonomy performs harmless leisure without spending money and yields 
 test('Shared spontaneous conversation requires both residents in full mode and stops when either takes control',async()=>{
   const seed=initialState();
   seed.autonomy={vlad:'full',alina:'full'};
+  // Artificial game time advances by ~60 game min per real second in setup().
+  // Make the first idle decision land INSIDE the server's 125-minute chat
+  // window rather than making a race-prone assumption about 08:00.
+  seed.clock.minute=410;
   assert.ok(planLeisure(seed,'vlad','chat'),'shared chat needs a reachable Vlad meeting spot');
   assert.ok(planLeisure(seed,'alina','chat'),'shared chat needs a reachable Alina meeting spot');
   // Under full-suite CI load the second socket can connect >200ms after the
