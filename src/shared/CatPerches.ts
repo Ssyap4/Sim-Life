@@ -45,9 +45,12 @@ function make(key:string,item:PerchFurniture,x:number,z:number,rotation:number,
   // sofa from InteriorArt faces the other direction; the built-in bed
   // has its foot at +Z. A safe landing is always on the *front* cushion.
   const sign=starter==='sofa'?-1:1;
-  const localZ=sign*(item.shape==='bed'||item.shape==='daybed'
-    ? Math.min(.52,item.depth*.24) : item.shape==='sofa'||item.shape==='corner'
-      ? item.depth*.14 : 0);
+  // Rest deep INSIDE the cushion, not right on its front lip. Simba's
+  // nose/tail would otherwise dangle beyond a compact sofa after landing.
+  const localZ=item.shape==='bed'||item.shape==='daybed'
+    ? sign*Math.min(.52,item.depth*.24)
+    : item.shape==='sofa'||item.shape==='corner'||item.shape==='armchair'
+      ? -sign*Math.min(.10,item.depth*.09) : 0;
   const foot=rotate(0,sign*(item.depth/2+.67),rotation);
   const seat=rotate(0,localZ,rotation);
   // Face the ROOM/front edge, never the backrest or wall.

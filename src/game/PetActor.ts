@@ -370,7 +370,7 @@ export class PetActor {
     if (this.rig.back?.morphTargetInfluences) {
       this.rig.back.morphTargetInfluences[0] = 0.17 + 0.15 * pulse + stretch + stretching * .45;
     }
-    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045 - curled*.13;
+    this.body.scale.y = 1 + pulse * (dog ? 0.016 : 0.011) - eating * 0.045 - curled*.21;
     this.body.position.y = 0.081 + (dog ? lift * 0.083 : lift * 0.031 - playful * 0.028) - sleeping * .15
       + greeting * Math.max(0, Math.sin(t * 7.5)) * .044 - stretching * (dog ? .027 : .032)
       - tiredHungry * .024 + foodLook * .017 * Math.sin(t * 6)
@@ -379,7 +379,7 @@ export class PetActor {
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
       + greeting * .022 * Math.sin(t * 6.5) + happyHop * .075 * Math.sin(this.idleTime*8.2);
     this.body.rotation.x = -.13 * toilet + (dog ? -.10 : .11) * stretching
-      + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49 + curled*.09;
+      + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49 + curled*.04;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
       + stretching * (dog ? .055 : .09);
     // Only the lightweight render group moves onto the cushion. The root and
@@ -400,8 +400,8 @@ export class PetActor {
       this.body.position.z=this.perchLocal.z*fraction;
       this.body.position.y+=this.perchLocal.y*fraction+
         Math.sin(Math.PI*t)*Math.max(.42,surface.surface.y*.67);
-      this.body.scale.x=1-.11*curled;
-      this.body.scale.z*=1-.26*curled;
+      this.body.scale.x=1-.09*curled;
+      this.body.scale.z*=1-.37*curled;
     }else{
       this.body.position.x=0;
       this.body.position.z=0;
@@ -410,9 +410,9 @@ export class PetActor {
     this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
       - sniffing * .065 - grooming * .034 - stretching * .035
       - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018
-      - curled*.10;
+      - curled*.12;
     this.head.position.z = (dog ? .241 : .405) + eating * (dog ? 0.027 : 0.053) + nuzzle*.065
-      + curled*.06;
+      - curled*.075;
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
       pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
         - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
@@ -439,9 +439,15 @@ export class PetActor {
       ? (0.09 + 0.47 * weight + greeting * .74 + ownerWag) * flick
       : (0.12 + 0.37 * playful + watching * .16 + catInterest) * flick + 0.038 * Math.sin(t * 3.5)
         - attention * 0.13 + grooming * .07 * Math.sin(t * 5) + nuzzle*.14*Math.sin(this.idleTime*3.1)
-        + curled*1.00;
+        + curled*1.25;
     this.tail.rotation.x = dog ? 0.025 * pulse - foodLook * .22 - tiredHungry * .11
-      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08 - curled*.92;
+      : 0.09 * pulse - attention * 0.10 - tiredHungry * .08 - curled*.55;
+    // The lean cat's long tail relaxes along the seat instead of continuing
+    // to stick straight up like a flagpole while he sleeps.
+    if(!dog){
+      this.tail.position.y=.422-curled*.10;
+      this.tail.scale.y=1-curled*.26;
+    }
     const blinkPhase = t % (dog ? 5.3 : 6.4);
     const blink = blinkPhase < 0.22 ? 1 - 0.9 * Math.sin(blinkPhase / 0.22 * Math.PI) : 1;
     for (let i = 0; i < 2; i++) {
@@ -482,7 +488,7 @@ export class PetActor {
         + (dog && front ? .47 * begging : 0);
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
-        (!dog && curled ? (front?-.065:.045)*curled : 0) +
+        (!dog && curled ? (front?-.13:.09)*curled : 0) +
         (!dog && i === 0 ? grooming * .10 : 0) + (dog && front ? .075 * begging : 0);
       paw.position.x = (i < 2 ? -1 : 1) * (dog ? .16 : front ? .094 : .109) +
         (!dog && i === 0 ? grooming * .04 : 0)
