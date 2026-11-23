@@ -19,10 +19,14 @@ try{
       ['none','00-plan','Спланировать вечер вдвоём','eveningPlan'],
       ['prepare','01-prepare','Приготовить вместе','cook'],
       ['dine','02-dinner','Позвать к столу','eat'],
+      ['dine:leftovers','02b-leftovers','Позвать к столу','eat'],
+      ['dine:takeout','02c-takeout','Разделить доставку','takeout'],
       ['unwind','03-relax','Посмотреть ТВ вдвоём','tv'],
+      ['unwind:takeout','03b-talk','Поговорить по душам','eveningHeartTalk'],
       ['complete','04-memories','Спланировать вечер вдвоём','eveningPlan'],
     ]){
-      await page.evaluate(phase=>window.testStage(phase),phase);
+      const [stage,mealKind='cook']=phase.split(':');
+      await page.evaluate(([stage,mealKind])=>window.testStage(stage,mealKind),[stage,mealKind]);
       const button=page.locator('#relationship button').filter({hasText:buttonName}).first();
       if(await button.count()!==1){
         errors.push('Missing step button '+width+' '+phase);
@@ -32,10 +36,11 @@ try{
       const expanded=page.locator('#social [data-social-action="'+action+'"]');
       if(await expanded.count()!==1 || await expanded.getAttribute('aria-expanded')!=='true')
         errors.push('Expected expanded action '+width+' '+phase+' '+action);
-      if(phase==='prepare'||phase==='dine'){
+      if(stage==='prepare'||stage==='dine'){
         const picker=page.locator('#social [data-social-item="'+action+'"]');
-        if(await picker.count()!==1||await picker.inputValue()!=='omelette')
-          errors.push('Evening recipe was not preselected '+width+' '+phase);
+        const expected=mealKind==='takeout'?'pizzaCheese':'omelette';
+        if(await picker.count()!==1||await picker.inputValue()!==expected)
+          errors.push('Evening food was not preselected '+width+' '+phase);
       }
       await page.locator('#phone').screenshot({
         path:path.join(dir,width+'-'+file+'.png')});
