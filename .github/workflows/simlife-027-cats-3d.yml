@@ -1,0 +1,41 @@
+name: Sim-Life 0.27 real Simba furniture-jump 3D
+on:
+  push:
+    branches: [feat/living-personalities-027]
+    paths:
+      - src/shared/CatPerches.ts
+      - src/shared/pets.ts
+      - src/shared/furniture.ts
+      - src/game/PetActor.ts
+      - src/game/PetNavigation.ts
+      - src/game/World.ts
+      - server/pets.ts
+      - server/storage.ts
+      - scripts/qa-027-cat-perch.mjs
+      - .github/workflows/simlife-027-cats-3d.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physical-furniture-3d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - name: Film actual purchased sofa and Simba from 36 real WebGL phone frames
+        run: node --import tsx scripts/qa-027-cat-perch.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-027-cat-jump-real-iphone
+          path: /tmp/simlife-027-cat-perches-iphone
+          retention-days: 7
+          if-no-files-found: warn
