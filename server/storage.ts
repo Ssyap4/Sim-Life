@@ -24,6 +24,7 @@ import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, P
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { currentCatPerch } from '../src/shared/CatPerches';
+import {currentPetEquipment,petBeds,PET_BED_SKUS,CAT_SCRATCHER_SKU} from '../src/shared/petFurniture';
 import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
@@ -137,16 +138,25 @@ const isValidState = (value: unknown): value is GameState => {
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')) &&
+      (pet.favoriteBedId===undefined||Number.isSafeInteger(pet.favoriteBedId)&&pet.favoriteBedId>0) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
         routine.until > routine.startedAt && Number.isSafeInteger(routine.target) && routine.target >= 0 && routine.target < PET_ROAM.length &&
         routine.route && point(routine.route.from) && Array.isArray(routine.route.path) && routine.route.path.length <= 60 &&
         routine.route.path.every(p => point(p)) &&
-        ((routine.kind!=='come'&&routine.kind!=='fetch') ||
+        ((routine.kind!=='come'&&routine.kind!=='fetch'&&routine.kind!=='scratch') ||
           routine.target===0 && point(routine.goal) &&
           (routine.kind!=='fetch'||point(routine.fetchPoint) &&
             Number.isFinite(routine.fetchPickupDistance) &&
             Number(routine.fetchPickupDistance)>=0 && Number(routine.fetchPickupDistance)<=40)) &&
+        (routine.equipment===undefined||routine.equipment&&
+          Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
+          Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
+          [0,1,2,3].includes(routine.equipment.rotation)&&
+          (routine.kind==='scratch'&&id==='simba'&&routine.equipment.sku===CAT_SCRATCHER_SKU||
+          routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
+          routine.target===0&&point(routine.goal)) &&
+        (routine.kind!=='scratch'||routine.equipment!==undefined) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&
@@ -214,13 +224,18 @@ function restorePet(id: PetId, saved: PetState | undefined,
   // Repair only the spatial data; never reset affection, hunger or food stock.
   pet.position = nearestClearPoint(pet.position, safeHome.obstacles, safeHome.floor)
     ?? INITIAL_PETS[id].position;
+  if(pet.favoriteBedId!==undefined&& (!furnishing||
+    !petBeds(furnishing,id).some(item=>item.id===pet.favoriteBedId)))
+    delete pet.favoriteBedId;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&
       (id!=='simba'||!pet.routine.perch||!furnishing||!currentCatPerch(furnishing,pet.routine.perch));
+    const invalidEquipment=pet.routine.equipment &&
+      (!furnishing||!currentPetEquipment(furnishing,pet.routine.equipment));
     const expected = petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
-    if (invalidPerch || Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
+    if (invalidPerch || invalidEquipment || Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
       !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||
       !route.path.every((point, index) =>
         segmentIsClear(route.path[index - 1] ?? route.from, point, safeHome.obstacles, safeHome.floor))) {
