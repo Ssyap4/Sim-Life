@@ -3,6 +3,7 @@ import { BOOKS, GENRES, HOME_SECONDS, type HomeSeat } from './homeLife';
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { MATERIALS } from './educationCatalog';
 import { skillRank } from './education';
+import { recipeAvailability } from './recipeAvailability';
 import { PETS, PET_IDS } from './pets';
 import { gameMinutes } from './life';
 import { serviceAvailable } from './services';
@@ -201,7 +202,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
   if(a.id==='eveningPlan') {
     const cooked=recipeIds.filter(id=>!isGrillRecipe(id)&&
-      ingredientList(id).every(([ingredient,amount])=>state.pantry[ingredient]>=amount))
+      [from,otherPerson(from)].every(role=>recipeAvailability(state,role,id).available))
       .map(id=>({id,label:'🍳 Приготовим · '+RECIPES[id].name}));
     // Fresh food on the table is an actual shared stock, not imaginary servings.
     const ready=recipeIds.filter(id=>state.meals[id]>=2&&state.readyFood.some(b=>
