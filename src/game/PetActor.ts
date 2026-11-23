@@ -608,11 +608,18 @@ export class PetActor {
       const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
       this.body.scale.setScalar(1);
       // Rock back onto the hind paws so the forelegs can reach up the post.
-      this.body.rotation.set(-.65*scratching+.16*stretching,0,-.29*curled-.12*catNap);
+      // A genuine side-loaf: rotate the skinned torso onto its flank while
+      // folding the legs below it. The previous 12° roll still looked like
+      // a cat STANDING on all fours, even though its paws passed geometry QA.
+      this.body.rotation.set(-.65*scratching+.16*stretching+.09*loaf,0,
+        -.67*curled-.64*catNap);
       const post=scratching>0?this.scratchPost:undefined;
       const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
       const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
-      this.body.position.set(0,-.025-crouch+lift*.022+.19*scratching,step*scratching);
+      // Rolling onto the flank changes the lower hull relative to the paws.
+      // A measured clearance offset keeps the cat supported by the cushion.
+      this.body.position.set(0,-.025-crouch+lift*.022+.19*scratching+
+        .14*loaf,step*scratching);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
