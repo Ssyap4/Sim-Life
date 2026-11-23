@@ -46,7 +46,7 @@ const snap=async(name)=>{
 };
 try{
   server=await startServer({port:0,host:'127.0.0.1',dataDir:saves,distDir:resolve('dist'),
-    testNoCodes:true,taskTimeScale:2.3});
+    testNoCodes:true,taskTimeScale:1});
   const base='http://127.0.0.1:'+server.port;
   browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader',
