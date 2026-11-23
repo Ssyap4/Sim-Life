@@ -74,7 +74,10 @@ test('Shared roaming targets differ, while feeding routes and supplies remain au
   state.pets.simba.bladder=90;
   state.pets.verdell.satiety=90;
   state.pets.simba.satiety=90;
-  runPetRoutines(state,0,480,new Set(),()=>.31);
+  // v0.27 can choose a legal furniture perch before ordinary wandering.
+  // Keep this test focused on shared roaming destinations by selecting a
+  // deterministic roll outside the optional cat-perch probability.
+  runPetRoutines(state,0,480,new Set(),()=>.71);
   assert.equal(state.pets.verdell.routine?.kind,'wander');
   assert.equal(state.pets.simba.routine?.kind,'wander');
   assert.notEqual(state.pets.verdell.routine?.target,state.pets.simba.routine?.target);
