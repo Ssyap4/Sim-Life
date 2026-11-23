@@ -47,6 +47,24 @@ try{
     await page.locator('#needs-toggle').click();
     await page.waitForTimeout(250);
     await page.screenshot({path:path.join(dir,'needs-'+width+'x'+height+'.png'),animations:'disabled'});
+    await page.locator('#needs-close').click();
+    if(width===390){
+      const follow=page.locator('#camera-follow');
+      await follow.click();
+      await page.waitForTimeout(300);
+      if(await follow.getAttribute('aria-pressed')!=='true')failures.push('camera follow cannot be activated');
+      await follow.click();
+      await page.waitForTimeout(300);
+      if(await follow.getAttribute('aria-pressed')!=='false')failures.push('free camera cannot be restored');
+      // Rapid double-taps on the actual 3D canvas must not select page text.
+      await page.locator('#game-canvas').click({position:{x:12,y:180},clickCount:2});
+      const selected=await page.evaluate(()=>window.getSelection()?.toString()||'');
+      if(selected.length)failures.push('mobile double-tap selected page text');
+    }
+    await page.locator('#phone-btn').click();
+    await page.locator('#phone-overlay').waitFor({state:'visible',timeout:12000});
+    await page.waitForTimeout(300);
+    await page.screenshot({path:path.join(dir,'phone-'+width+'x'+height+'.png'),animations:'disabled'});
     await page.close();
   }
   fs.writeFileSync(path.join(dir,'errors.txt'),failures.join('\n')||'No page errors or viewport overflow detected\n');
