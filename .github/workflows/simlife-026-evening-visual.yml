@@ -7,6 +7,9 @@ on:
       - scripts/qa-026-evening-visual.mjs
       - src/socialUI.ts
       - src/shared/socialLife.ts
+      - src/shared/familyMoments.ts
+      - src/phoneUI.ts
+      - src/main.ts
       - src/style.css
       - .github/workflows/simlife-026-evening-visual.yml
   workflow_dispatch:
