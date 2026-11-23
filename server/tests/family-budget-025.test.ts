@@ -9,6 +9,10 @@ import {addLedger} from '../../src/shared/economy';
 import {initialFamilyBudget,isSavingsGoal,validFamilyBudget,budgetPeriod,
   restoreFamilyBudget} from '../../src/shared/familyBudget';
 import {openServerFiles} from '../storage';
+import {startServer} from '../server';
+import WebSocket from 'ws';
+import {once} from 'node:events';
+import {contextAvailable,SOCIAL_BY_ID,socialText} from '../../src/shared/socialLife';
 
 test('Savings deposits and withdrawals conserve household wealth without fake ledger expenses',()=>{
   const state=initialState();
@@ -147,4 +151,92 @@ test('Savings history rejects malformed or duplicated movements',()=>{
   state.history.push({...state.history[0]});
   assert.equal(validFamilyBudget(state),false);
   assert.equal(restoreFamilyBudget(undefined,{day:1,minute:480},[]).balance,0);
+});
+
+test('Family budget dialogue follows actual goals, exceeded categories and unpaid invoices',()=>{
+  const state=initialState();
+  const savings=SOCIAL_BY_ID.get('savingMilestone')!;
+  const exceeded=SOCIAL_BY_ID.get('overspending')!;
+  const overdue=SOCIAL_BY_ID.get('billAlert')!;
+  assert.equal(contextAvailable(savings,state,'vlad'),false);
+  assert.equal(contextAvailable(exceeded,state,'vlad'),false);
+  assert.equal(contextAvailable(overdue,state,'vlad'),false);
+  const deposited=applyBudgetCommand(state,'alina',{type:'budget_deposit',amount:1500});
+  assert.equal(deposited.ok,true);
+  if(!deposited.ok)return;
+  assert.equal(contextAvailable(savings,deposited.state,'vlad'),true);
+  assert.ok(!socialText(savings,deposited.state,'alina').includes('{savings}'));
+  addLedger(deposited.state,'vlad','expense','takeout',4500,'Заказ еды');
+  assert.equal(contextAvailable(exceeded,deposited.state,'alina'),true);
+  assert.ok(!socialText(exceeded,deposited.state,'alina').includes('{category}'));
+  deposited.state.billing.bills.push({
+    id:'bill-025',service:'mobile',amount:1200,
+    issuedAt:0,paidAt:null,
+  });
+  assert.equal(contextAvailable(overdue,deposited.state,'vlad'),true);
+  assert.ok(socialText(overdue,deposited.state,'vlad').includes('₽'));
+  const together=SOCIAL_BY_ID.get('moneyReview');
+  assert.equal(together?.object,'table');
+  assert.equal(together?.group,'home');
+  assert.equal(together?.motion,'sitTalk');
+  assert.ok(together?.memorable);
+});
+
+test('Two authenticated residents cannot transfer the same household cash twice',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'simlife-budget-network-'));
+  let running:Awaited<ReturnType<typeof startServer>>|undefined;
+  const sockets:WebSocket[]=[];
+  try{
+    const files=openServerFiles(dir);
+    const state=initialState();
+    state.money=1000;
+    files.save(state);
+    running=await startServer({port:0,dataDir:dir,taskTimeScale:.03});
+    const connect=async(role:'vlad'|'alina')=>{
+      const socket=new WebSocket('ws://127.0.0.1:'+running!.port+'/sync');
+      sockets.push(socket);
+      const packets:any[]=[];
+      socket.on('message',data=>packets.push(JSON.parse(data.toString())));
+      await once(socket,'open');
+      socket.send(JSON.stringify({type:'auth',role,code:files.access[role]}));
+      for(let i=0;i<240;i++){
+        if(packets.some(p=>p.type==='ready'))return {socket,packets};
+        await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      throw Error('Auth failed for '+role);
+    };
+    const [vlad,alina]=await Promise.all([connect('vlad'),connect('alina')]);
+    // Same game tick: socket messages are validated against the latest saved
+    // state, not each client's optimistic local copy.
+    vlad.socket.send(JSON.stringify({type:'budget_deposit',amount:800}));
+    alina.socket.send(JSON.stringify({type:'budget_deposit',amount:800}));
+    let resolved=false;
+    for(let i=0;i<240;i++){
+      const saved=files.load();
+      if(saved.savings.balance===800&&
+        [...vlad.packets,...alina.packets].some(p=>p.type==='error')){
+        resolved=true;break;
+      }
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    assert.equal(resolved,true,'one rejected and one accepted');
+    const saved=files.load();
+    assert.equal(saved.money,200);
+    assert.equal(saved.savings.balance,800);
+    assert.equal(saved.savings.history.length,1);
+    assert.equal(saved.money+saved.savings.balance,1000);
+    const accepted=Number(vlad.packets.some(p=>p.type==='billing_event'))+
+      Number(alina.packets.some(p=>p.type==='billing_event'));
+    assert.ok(accepted>=1,'both residents observe a single authoritative transaction');
+    vlad.socket.send(JSON.stringify({type:'budget_withdraw',amount:'800'}));
+    for(let i=0;i<100;i++){
+      if(vlad.packets.filter(p=>p.type==='error').length>=1)break;
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    assert.equal(files.load().savings.balance,800,'string amount rejected at server');
+  }finally{
+    for(const socket of sockets)socket.terminate();
+    if(running)await running.close();
+    rmSync(dir,{recursive:true,force:true});
+  }
 });
