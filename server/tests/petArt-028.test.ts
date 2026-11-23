@@ -36,10 +36,13 @@ test('the exported Simba rig plants its paws and reaches a physical cushion befo
       return new THREE.Box3().setFromObject(scene, true);
     };
     assert.ok(Math.abs(bounds().min.y) < .055, `ground height ${bounds().min.y}`);
+    const awakeHead = scene.getObjectByName('Head')!.position.y;
     const cushion = perch.surface.y - .055;
     simba.followRoute([], 'perch', undefined, perch, undefined, false, cushion);
     for (let i = 0; i < 35; i++) simba.update(.04);
     assert.ok(Math.abs(bounds().min.y - cushion) < .095, `cushion height ${bounds().min.y} vs ${cushion}`);
+    assert.ok(scene.getObjectByName('Head')!.position.y < awakeHead-.015,
+      'lying on upholstery must tuck the real rig head toward its chest');
     assert.deepEqual(simba.root.position.toArray(), [perch.approach.x, 0, perch.approach.z]);
 
     const exit = new THREE.Vector3(perch.approach.x + 1, 0, perch.approach.z);
@@ -62,5 +65,9 @@ test('Simba reaches the installed scratching post from the saved floor approach'
   const paw = scene.getObjectByName('ForeLPaw')!.getWorldPosition(new THREE.Vector3());
   assert.ok(paw.y>.40 && paw.y<.75);
   assert.ok(Math.hypot(paw.x-post.x,paw.z-post.z)<.22, 'the forepaw must reach the rope');
+  const rearL=scene.getObjectByName('HindLPaw')!.getWorldPosition(new THREE.Vector3());
+  const rearR=scene.getObjectByName('HindRPaw')!.getWorldPosition(new THREE.Vector3());
+  for(const hind of [rearL,rearR])assert.ok(hind.y>=-.035&&hind.y<.18,
+    'hind paws must bear weight close to the floor, not hover during scratching: '+hind.y);
   assert.equal(simba.root.position.z,post.z+.84);
 });
