@@ -1,0 +1,38 @@
+name: Sim-Life 0.27 real 3D mobile personalities
+on:
+  push:
+    branches: [feat/living-personalities-027]
+    paths:
+      - src/game/Actor.ts
+      - src/game/PetActor.ts
+      - src/game/PetIdle.ts
+      - src/game/CharacterDemeanor.ts
+      - src/shared/personalityHabits.ts
+      - scripts/qa-027-visual.mjs
+      - .github/workflows/simlife-027-personalities-3d.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-mobile-3d:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - name: Render real household, both characters and pets on portrait viewport
+        run: node --import tsx scripts/qa-027-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-027-personalities-3d-iphone
+          path: /tmp/simlife-027-real-personalities
+          retention-days: 7
+          if-no-files-found: warn
