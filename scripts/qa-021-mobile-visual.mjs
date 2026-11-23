@@ -19,6 +19,16 @@ try{
     await page.locator('#auth').waitFor({state:'hidden',timeout:20000});
     await page.waitForTimeout(2000);
     await page.screenshot({path:path.join(dir,'game-'+width+'x'+height+'.png'),animations:'disabled'});
+    if(width===390){
+      await page.locator('#map-btn').click();
+      await page.getByRole('button',{name:/Общий вид района/}).click();
+      await page.waitForTimeout(2200);
+      await page.screenshot({path:path.join(dir,'district-overview-390.png'),animations:'disabled'});
+      await page.locator('#map-btn').click();
+      await page.getByRole('button',{name:/Камера к торговой улице/}).click();
+      await page.waitForTimeout(2200);
+      await page.screenshot({path:path.join(dir,'district-shops-390.png'),animations:'disabled'});
+    }
     const measure=await page.evaluate(()=>{
       const needs=document.querySelector('#needs-toggle');
       const rect=needs.getBoundingClientRect();
