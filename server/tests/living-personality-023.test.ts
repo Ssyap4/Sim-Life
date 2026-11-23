@@ -59,7 +59,7 @@ test('New couple conversations are complete and do not duplicate existing action
   const ids=SOCIAL_ACTIVITIES.map(a=>a.id);
   assert.equal(ids.length,new Set(ids).size,'unique social action identifiers');
   for(const id of ['shortBudget','ourSavings','petHungerHelp','readyDinner',
-    'splitHousework','studioDreamAlina','studioDreamVlad','morningHello','petOlympics']){
+    'splitHousework','alinaStudioDream','vladStudioDream','morningHello','petOlympics']){
     const a=SOCIAL_BY_ID.get(id);
     assert.ok(a,id);
     assert.ok(a.lines.length>=2,id);
