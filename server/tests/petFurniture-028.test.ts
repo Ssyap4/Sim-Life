@@ -9,6 +9,7 @@ import {FURNITURE_BY_ID,FURNITURE_CATALOG, type PlacedFurniture} from '../../src
 import {checkFurniturePlacement} from '../../src/shared/furnishingPlacement';
 import {petBeds,petScratchers,currentPetEquipment,petEquipmentRef} from '../../src/shared/petFurniture';
 import {buildFurnishingModel} from '../../src/game/FurnishingArt';
+import {PetActor} from '../../src/game/PetActor';
 import {applyFurnishing} from '../furnishing';
 import {applyPetAction,runPetRoutines} from '../pets';
 import {openServerFiles} from '../storage';
@@ -159,4 +160,22 @@ test('0.28: sold or repositioned beds are invalid on reload, legacy save unaffec
   assert.equal(files.load().version,2);
   assert.equal(files.load().pets.simba.favoriteBedId,undefined);
  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('0.28: real purchased mats produce a lowered, tucked sleeping 3D pose',()=>{
+ for(const id of ['verdell','simba'] as const){
+  const animal=new PetActor(id);
+  animal.followRoute([],'sleep',undefined,undefined,undefined,true);
+  for(let frame=0;frame<22;frame++)animal.update(.07);
+  const body=animal.root.children[0] as THREE.Group;
+  assert.equal(animal.root.position.y,0,'navigation root stays on floor');
+  assert.ok(body.scale.y<.94, id+' must lie low instead of standing on the cushion');
+  assert.ok(body.position.y>-.1, 'belly should not sink through installed cushion');
+  if(id==='verdell')assert.ok(body.scale.z>1.07,'spitz must stretch along its mat');
+  if(id==='simba')assert.ok(body.scale.z<.91,'cat must curl more compactly on its mat');
+  animal.stop();
+  animal.update(.6);
+  assert.ok(body.scale.y>.97,'after sleep, the old standing proportions return');
+ }
 });
