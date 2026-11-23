@@ -1407,3 +1407,37 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 @media(prefers-reduced-motion:reduce) {
   .thought-panel { animation:none; }
 }
+
+/* Family cash planning works in both narrow iPhone and PC windows. */
+.billing-family-budget{color:#2f433c}
+.billing-family-budget h3{font-size:15px;margin:0 0 7px}
+.billing-budget-hint{font-size:11.5px;line-height:1.45;color:#5d7165;margin:7px 0}
+.billing-budget-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0}
+.billing-budget-summary div{background:#eff3e9;border-radius:9px;padding:9px;min-width:0}
+.billing-budget-summary div:last-child{grid-column:1/-1;background:#e3efe2}
+.billing-budget-summary small,.billing-budget-summary strong{display:block;overflow-wrap:anywhere}
+.billing-budget-summary small{font-size:11px;color:#597064}
+.billing-budget-summary strong{font-size:16px;margin-top:4px}
+.billing-budget-goal,.billing-budget-transfers,.billing-budget-plan,.billing-budget-history{
+ border-top:1px solid #e2e8db;padding-top:12px;margin-top:12px;min-width:0}
+.billing-budget-goal>strong,.billing-budget-transfers>strong{display:block;font-size:13px;margin:4px 0 8px}
+.billing-budget-select,.billing-budget-input{height:43px;min-width:0;border:1px solid #cbd9cb;border-radius:9px;background:#fffefa;color:#25483b;font:inherit;padding:6px 8px;width:100%}
+.billing-budget-select{max-width:100%;margin-bottom:8px}
+.billing-budget-edit{display:flex;gap:6px;align-items:center;min-width:0;margin-top:7px;flex-wrap:wrap}
+.billing-budget-edit .billing-budget-input{flex:1 1 84px;max-width:100%;font-variant-numeric:tabular-nums}
+.billing-budget-edit>.billing-button{flex:1 1 90px;margin:0;white-space:normal;font-size:11px;padding:7px 8px}
+.billing-budget-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px}
+.billing-budget-quick>.billing-button{min-width:0;margin-top:0;font-size:11px;padding:7px 4px}
+.billing-budget-track{height:8px;border-radius:10px;background:#e2e7d8;overflow:hidden;margin:8px 0}
+.billing-budget-fill{height:100%;background:#649781;border-radius:10px;transition:width .18s ease-out}
+.billing-budget-fill.over{background:#b8785a}
+.billing-budget-warning{border-radius:8px;padding:9px;background:#f8ead5;color:#82512c;line-height:1.4;font-size:11px}
+.billing-budget-category{padding:10px 0;border-bottom:1px solid #e2e8db}
+.billing-budget-category>strong,.billing-budget-category>small{display:block;line-height:1.35}
+.billing-budget-category>small{margin-top:3px;color:#697970}
+.billing-budget-history>.billing-row{grid-template-columns:minmax(0,1fr)auto}
+.computer-window-body .billing-family-budget{background:#fffefa}
+@media(max-width:360px){
+ .billing-budget-edit>.billing-button{font-size:10.5px}
+ .billing-budget-summary strong{font-size:14px}
+}
