@@ -23,8 +23,11 @@ files.save(state);
 const errors=[],results=[];
 let server,browser,buddy;
 try{
+  // Freeze only the cloud visual fixture's SERVER tick. Actors and pets
+  // still animate normally in real client time, but unrelated legacy
+  // autonomous leisure cannot seat Alina at the computer during a mood study.
   server=await startServer({port:0,host:'127.0.0.1',dataDir:saves,distDir:resolve('dist'),testNoCodes:true,
-    taskTimeScale:1});
+    taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000}});
   browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader',
     '--disable-dev-shm-usage',
