@@ -32,6 +32,7 @@ import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import { currentCatPerch } from '../shared/CatPerches';
+import {currentPetEquipment} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -111,7 +112,7 @@ export class World {
   private household: GameState | null = null;
   private readonly sleepingOffline = new Set<CharacterId>();
   private readonly homeLeisure = new Set<CharacterId>();
-  private readonly petRoutines = new Map<PetId, number>();
+  private readonly petRoutines = new Map<PetId, string>();
   private localRole: CharacterId = 'vlad';
   private cart: THREE.Group | null = null;
   private cartSize = 0;
@@ -2089,8 +2090,9 @@ export class World {
       this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
       const candidate = state.pets[id].routine;
-      const routine = candidate?.kind==='perch' &&
-        (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch))
+      const routine = candidate && (candidate.kind==='perch' &&
+        (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch)) ||
+        candidate.equipment&&!currentPetEquipment(state.furnishing,candidate.equipment))
         ? undefined : candidate;
       if (!pet.root.visible || !routine) {
         this.petRoutines.delete(id);
@@ -2101,14 +2103,23 @@ export class World {
         }
         continue;
       }
-      if (this.petRoutines.get(id) === routine.until) continue;
-      this.petRoutines.set(id, routine.until);
+      const routineKey=routine.kind+':'+routine.startedAt+':'+routine.until+':' +
+        (routine.perch?.key??'')+':'+(routine.goal?.x??'')+':'+(routine.goal?.z??'')+
+        ':'+(routine.equipment?.id??'');
+      if (this.petRoutines.get(id) === routineKey) continue;
+      this.petRoutines.set(id, routineKey);
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
       pet.root.position.set(route.from.x, 0, route.from.z);
+      const scratchFace=routine.kind==='scratch'&&routine.equipment&&routine.goal
+        ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined,
-        routine.perch);
+        scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
+        routine.perch,
+        routine.kind==='fetch'&&routine.fetchPoint?{
+          point:routine.fetchPoint,
+          pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
+        }:undefined,!!routine.equipment&&routine.kind==='sleep');
     }
   }
 

@@ -164,7 +164,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
   | { type: 'brew_coffee'; blend: InstantCoffeeId }
-  | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood'> };
+  | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch'> };
 
 export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'movie_invite'; genre: Genre }

@@ -2,6 +2,8 @@ import {
   PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petHungerLevel, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
+import { catPerchCandidates } from './shared/CatPerches';
+import {petBeds,petScratchers} from './shared/petFurniture';
 import { petWish } from './shared/petWishes';
 
 /** Small touch-friendly family panel driven by persistent server state. */
@@ -53,6 +55,13 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const beds=petBeds(state.furnishing,selected);
+  const petFurniture=document.createElement('p');
+  petFurniture.className='pet-note';
+  const favorite=beds.some(item=>item.id===stats.favoriteBedId);
+  petFurniture.textContent='🏡 Лежанки: '+beds.length+(favorite?' · есть любимая':'')+
+    (selected==='simba'?' · когтеточки: '+petScratchers(state.furnishing).length:'');
+  container.appendChild(petFurniture);
   const wish = petWish(state, selected);
   const thoughts = document.createElement('section');
   thoughts.className = 'pet-wish' + (wish.urgent ? ' pet-wish-urgent' : '');
@@ -105,7 +114,7 @@ export function renderPetChoices(
   const actions: Array<{ action: PetAction; icon: string; hint: string; disabled: boolean }> = [
     {
       action: 'feed', icon: '🥣',
-      hint: '−1 насыпание из пачки · +3 порции в миску · питомец ест сам при сытости <20%',
+      hint: '−1 насыпание из пачки · +3 порции в миску · питомец ест сам при сытости 40% и ниже',
       disabled: state.petFood[selected] < 1 || state.petBowls[selected] > 0,
     },
     {
@@ -121,6 +130,28 @@ export function renderPetChoices(
       disabled: state.money < pet.foodPrice || state.petFood[selected] > PET_FOOD_MAX_REFILLS - pet.foodAmount,
     },
   ];
+  // These are new server-owned routes, not copies of the existing pet/play actions.
+  actions.unshift({
+    action:'mat',icon:'🧺',hint:'Сам идёт на реально купленную и установленную лежанку',
+    disabled:!beds.length||stats.satiety<40||stats.bladder<35||stats.energy<20,
+  });
+  if(selected==='simba')actions.unshift({
+    action:'scratch',icon:'🐾',hint:'Симба идёт к установленной когтеточке и точит когти',
+    disabled:!petScratchers(state.furnishing).length||stats.satiety<40||stats.bladder<35||stats.energy<20,
+  });
+  actions.unshift({
+    action:'call',icon:'📣',hint:'Питомец сам подходит к хозяину, обходя мебель',
+    disabled:stats.satiety<40||stats.bladder<35||stats.energy<20,
+  });
+  if(selected==='simba')actions.splice(1,0,{
+    action:'perch',icon:'🛋️',hint:'Запрыгнуть на доступную кровать, диван или кресло',
+    disabled:stats.satiety<40||stats.bladder<35||stats.energy<20||
+      catPerchCandidates(state.furnishing).length===0,
+  });
+  else actions.splice(1,0,{
+    action:'fetch',icon:'🎾',hint:'Пробежать к мячику и принести его обратно',
+    disabled:stats.satiety<40||stats.bladder<35||stats.energy<42,
+  });
   for (const row of actions) {
     const button = document.createElement('button');
     button.type = 'button';

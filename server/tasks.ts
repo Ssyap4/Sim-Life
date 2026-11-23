@@ -21,7 +21,7 @@ import { applyAction } from './logic';
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
-export type CareAction = Exclude<PetAction, 'buyFood'>;
+export type CareAction = Exclude<PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch'>;
 export interface TaskPlan {
   command: TimedCommand;
   label: string;

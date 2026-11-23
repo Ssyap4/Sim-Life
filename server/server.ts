@@ -1171,7 +1171,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         'play_game','computer_video','study','local_activity','act','furniture_use',
         'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',
         'pet_action',
-      ].includes(message.type)&&!(message.type==='pet_action'&&message.action==='buyFood');
+      ].includes(message.type)&&!(message.type==='pet_action'&&
+        ['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)));
       if(sleepers.has(role)&&queueable){
         const plan=planTask(message);
         if(!plan){packet(socket,{type:'error',reason:'Неизвестное действие'});return;}
@@ -1257,17 +1258,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
 
       if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
-          (message.type === 'pet_action' && message.action !== 'buyFood')) {
+          (message.type === 'pet_action' && !['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
         submitTimed(role, socket, plan);
         return;
       }
 
-      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && message.action === 'buyFood')) {
+      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && ['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)))) {
         const now = pauseTimers.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
-          packet(socket, { type: 'error', reason: 'Немного подожди перед следующей покупкой' });
+          packet(socket, { type: 'error', reason: 'Немного подожди перед следующей командой' });
           return;
         }
         const result = message.type === 'checkout'
@@ -1294,7 +1295,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         } else {
           all({ type: 'pet_event', role,
             pet: message.pet as import('../src/shared/pets').PetId,
-            action: 'buyFood', message: result.message });
+            action: message.action as import('../src/shared/pets').PetAction, message: result.message });
         }
         all({ type: 'snapshot', state });
         return;
