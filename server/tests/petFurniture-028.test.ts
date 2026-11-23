@@ -15,7 +15,7 @@ import {openServerFiles} from '../storage';
 
 const items:PlacedFurniture[]=[
  {id:31,sku:'pet-bed-verdell',finish:'sage',x:-2.90,z:3.34,rotation:0},
- {id:32,sku:'pet-bed-simba',finish:'ivory',x:-.25,z:1.32,rotation:0},
+ {id:32,sku:'pet-bed-simba',finish:'ivory',x:2,z:3,rotation:0},
  {id:33,sku:'pet-scratcher-simba',finish:'walnut',x:1.12,z:1.84,rotation:0},
 ];
 function furnished():GameState{
