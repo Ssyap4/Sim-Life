@@ -690,3 +690,23 @@ test('Two live players can share a delivered dinner, talk honestly and reconnect
     assert.equal(again.ready.state.takeout.pizzaCheese,0);
   }finally{await f.close();}
 });
+
+test('Two separate single-portion batches can be shared without duplicating food',()=>{
+  let state=sample();
+  state.readyFood=[];state.meals.omelette=2;
+  addReadyFood(state,'meal','omelette',1,'table');
+  addReadyFood(state,'meal','omelette',1,'table');
+  assert.ok(activityItems(SOCIAL_BY_ID.get('eveningPlan')!,state,'alina').some(x=>x.id==='leftovers:omelette'));
+  assert.ok(activityItems(SOCIAL_BY_ID.get('eat')!,state,'alina').some(x=>x.id==='omelette'));
+  for(const [action,item] of [['eveningPlan','leftovers:omelette'],['eat','omelette']] as const){
+    const command:SocialIntent={type:'together',action,item};
+    const homes=pairScenes(state,'vlad',command)!;
+    const result=completeTogether(state,'vlad',command,[...residents],0,homes);
+    if(!result.ok)assert.fail(result.reason);
+    state=result.state;
+  }
+  assert.equal(state.meals.omelette,0);
+  assert.equal(state.readyFood.filter(b=>b.kind==='meal'&&b.item==='omelette'&&b.storage==='table').length,0);
+  assert.equal(state.dirtyDishes.table,2);
+  assert.equal(state.relationship.evening?.phase,'unwind');
+});
