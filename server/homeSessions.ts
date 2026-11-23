@@ -16,6 +16,7 @@ import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
 import { gains } from './needs';
+import { familyMoments } from '../src/shared/familyMoments';
 import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
 import { completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
 import type { PetId } from '../src/shared/pets';
@@ -524,15 +525,18 @@ export function createHomeSessions(hooks: Hooks) {
       const a=cook?SOCIAL_BY_ID.get(isGrillRecipe(cook.command.recipe)?'grill':'cook'):
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
       if(!a)return error(socket,'Неизвестное совместное занятие');
+      if('moment' in message&&typeof message.moment!=='string')return error(socket,'Неверный семейный момент');
       const cmd:SocialIntent={type:'together',action:a.id,
-        item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined)};
+        item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined),
+        ...(typeof message.moment==='string'?{moment:message.moment}:{})};
       const reason=cooperationDenial(hooks.state(),role,cmd);
       if(reason)return error(socket,reason);
       const resource=socialResource(a,cmd.item);
       if(!cook&&resource&&(reserved(resource)||hooks.resourceBusy(resource)))return error(socket,'Объект уже используется');
       const ttl=hooks.socialTtlMs??SOCIAL_TTL_MS;
-      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cook?'Помочь с готовкой':a.title,
-        text:cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':socialText(a,hooks.state(),role),
+      const story=cmd.moment?familyMoments(hooks.state(),role).find(m=>m.id===cmd.moment):undefined;
+      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cook?'Помочь с готовкой':story?.title??a.title,
+        text:cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
         replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:now()+ttl,remainingMs:ttl};
       socialInvite={offer,command:cmd,cookTask:cook?.id,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
       lastProposal[role]=now();
