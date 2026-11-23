@@ -18,7 +18,9 @@ Object.assign(state.characters.alina,{mood:93,energy:93,hunger:81,fun:83});
 // Both residents stand near enough for an actual in-game friendly glance,
 // but far enough apart to keep the existing collision separation stable.
 Object.assign(state.characters.vlad,{x:-1.0,z:2.38});
-Object.assign(state.characters.alina,{x:1.0,z:2.38});
+// A real walk brings Alina into Vlad's sight AFTER the portrait camera settles.
+// Triggering the greeting at initial page load had hidden its 3-second wave.
+Object.assign(state.characters.alina,{x:4.2,z:2.38});
 for(const pet of ['simba','verdell']){
   Object.assign(state.pets[pet],{satiety:85,energy:85,happiness:93,bond:88});
   state.petBowls[pet]=2;
@@ -48,7 +50,23 @@ try{
 
   buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');
   await once(buddy,'open');
+  const seen=[];
+  const waitBuddy=(accepted,timeout=7000)=>new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{buddy.off('message',receive);reject(Error('Timed out waiting for real Alina server packet'));},timeout);
+    function receive(raw){
+      const packet=JSON.parse(raw.toString());
+      if(!accepted(packet))return;
+      clearTimeout(timer);buddy.off('message',receive);resolve(packet);
+    }
+    buddy.on('message',receive);
+  });
+  const ready=waitBuddy(packet=>packet.type==='ready');
   buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
+  await ready;
+  buddy.on('message',raw=>{
+    const packet=JSON.parse(raw.toString());
+    if(['world_path','world_position','error'].includes(packet.type))seen.push(packet);
+  });
   const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await wait(550);
   const makeShot=async name=>{
@@ -64,8 +82,29 @@ try{
     if(!data.canvas||!data.lobbyHidden)errors.push(name+': real WebGL/client not running '+JSON.stringify(data));
   };
   await makeShot('01-home-unhappy-vlad-happy-alina');
-  await wait(300);
-  await makeShot('01b-nearby-family-reaction');
+  await makeShot('01b-separated-before-approach');
+  // A normal authenticated second player walks toward Vlad. This is a real
+  // websocket command, not a direct tweak to a 3D rig or production debug hook.
+  // Lock the real existing portrait inspection camera on STATIONARY Vlad
+  // *before* Alina enters his proximity radius. Capture every part of the wave.
+  await page.locator('#showcase-toggle').click();
+  await page.locator('[data-showcase="vlad"]').click();
+  await page.waitForTimeout(2000);
+  if(!await page.locator('#app').evaluate(el=>el.classList.contains('inspecting')))
+    errors.push('Vlad inspection camera failed before greeting film');
+  await makeShot('01c-vlad-before-approach');
+  const approaching=waitBuddy(p=>p.type==='world_path'&&p.role==='alina');
+  buddy.send(JSON.stringify({type:'walk',place:'home',x:1.0,z:2.38}));
+  const path=await approaching;
+  if(!path.path?.length)errors.push('Real approaching Alina has no server route');
+  // 24 actual rendered WebGL frames at a fixed phone viewpoint, 250ms apart.
+  // This gives reviewers an actual motion strip, not two unrelated portraits.
+  for(let frame=0;frame<24;frame++){
+    await wait(240);
+    await makeShot('01d-real-greeting-'+String(frame).padStart(2,'0'));
+  }
+  if(seen.some(p=>p.type==='error'))errors.push('Alina walk was rejected: '+JSON.stringify(seen.filter(p=>p.type==='error')));
+  results.push({name:'real-approach-path',points:path.path?.length??0});
   // Actual existing in-game portrait showcase, not an invented camera API.
   // Capture all four in close-up so a human can inspect faces, shoulders,
   // ears, paws and tail; repeat each to see a real animation progression.
@@ -83,7 +122,9 @@ try{
   if(final.characters.vlad.mood>18||final.characters.alina.mood<80)
     errors.push('Fixture lost emotional difference before capturing');
   if(!final.pets.simba||!final.pets.verdell)errors.push('Pets are missing from authoritative state');
-  writeFileSync(join(out,'results.json'),JSON.stringify({errors,results},null,2));
+  writeFileSync(join(out,'results.json'),JSON.stringify({errors,results,
+    actualApproach:seen.filter(p=>p.type==='world_path'),frameCount:24,
+  },null,2));
   if(errors.length)throw Error(errors.join('\n'));
 }finally{
   try{buddy?.close();}catch{}
