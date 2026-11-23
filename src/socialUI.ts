@@ -1,3 +1,4 @@
+import { familyMoments, type FamilyMomentId } from './shared/familyMoments';
 import {
   activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
@@ -92,7 +93,8 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
 }
 
 export function renderRelationship(root:HTMLElement,state:GameState,role:CharacterId,suggest:(group:SocialGroup,id?:string)=>void,
-  onOffer:()=>void,offered:boolean,current:string|undefined){
+  onOffer:()=>void,offered:boolean,current:string|undefined,
+  offerMoment:(id:FamilyMomentId)=>void,partnerOnline:boolean){
   const p=state.relationship, now=gameMinutes(state.clock);
   const pane=node('section','','relationship');
   const cover=node('header','','relationship-hero');
@@ -134,6 +136,21 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     story.append(button('Выбрать другой план',()=>suggest('home','eveningPlan')));
   }
   pane.append(node('h3','Планы на вечер'),story);
+  const moments=familyMoments(state,role);
+  if(moments.length){
+    const momentCards=node('section','','relationship-moments');
+    momentCards.append(node('p','Никаких случайных штрафов: эти поводы появились из реальной жизни семьи.','relationship-moment-intro'));
+    for(const moment of moments){
+      const card=node('article','','relationship-event relationship-moment');
+      card.append(node('strong',moment.emoji+' '+moment.title),node('p',moment.description));
+      const action=button('Предложить вдвоём',()=>offerMoment(moment.id),!partnerOnline||!!current||offered);
+      action.setAttribute('aria-label','Предложить семейный момент: '+moment.title);
+      card.append(action);
+      if(!partnerOnline)card.append(node('small','Партнёр пока не в сети','social-reason'));
+      momentCards.append(card);
+    }
+    pane.append(node('h3','Поводы дня'),momentCards);
+  }
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
   const available=SOCIAL_ACTIVITIES.filter(a=>a.id!=='eveningPlan'&&!socialRestriction(a,state,role))
