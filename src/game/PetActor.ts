@@ -37,6 +37,9 @@ export class PetActor {
   private yieldingTo: FloorPoint | null = null;
   private readonly hungerMarker = petHungerSprite();
   private readonly playToy: THREE.Group;
+  private readonly fetchTargetToy: THREE.Group;
+  private fetchSpot:FloorPoint|null=null;
+  private fetchPickedUp=false;
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
     satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
@@ -53,7 +56,9 @@ export class PetActor {
     this.root.position.set(x, 0, z);
     this.root.add(this.body);
     this.playToy=createPetPlayToy(id);
-    this.root.add(this.playToy);
+    this.fetchTargetToy=this.playToy.clone(true);
+    this.fetchTargetToy.visible=false;
+    this.root.add(this.playToy,this.fetchTargetToy);
     const dog = id === 'verdell';
     this.idleCooldown = dog ? 3.5 : 5;
     this.rig = buildPetArt(this.body, this.head, this.tail, this.paws, id);
@@ -112,7 +117,7 @@ export class PetActor {
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
-    perch?:CatPerch): void {
+    perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number}): void {
     if(this.perch && (!perch || this.perch.key!==perch.key)){
       this.leavingPerch=this.perch;
       this.perch=null;
@@ -125,8 +130,12 @@ export class PetActor {
     this.reaction = null;
     this.reactionTime = 0;
     this.playToy.visible = false;
+    this.fetchTargetToy.visible=false;
+    this.fetchSpot=fetch?.point??null;
+    this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
     this.idleTime = 0;
+    this.distance=0;
     this.route = route;
     this.routine = routine;
     this.facing = facing;
@@ -143,6 +152,10 @@ export class PetActor {
       this.perch=null;
     }
     this.route = [];
+    this.fetchSpot=null;
+    this.fetchTargetToy.visible=false;
+    this.fetchPickedUp=false;
+    this.playToy.visible=false;
     this.routine = null;
     this.facing = undefined;
     this.settled = 0;
@@ -355,9 +368,22 @@ export class PetActor {
     const pulse = Math.sin(t * (dog ? 2.6 : 1.9));
     const playBeat = Math.sin(r * (dog ? 8 : 5.9));
     const lift = Math.max(0, playBeat) * playful;
-    // Toys accompany genuine player-initiated play, not fake background rewards.
-    // Model animation never changes server routes or animal needs.
-    this.playToy.visible=playful>.07;
+    // A fetched ball starts at an actual reachable spot in WORLD space.
+    // It stays on the ground until the dog physically reaches it, then
+    // travels with the mouth on the return leg (no second ghost ball).
+    if(dog&&this.routine==='fetch'&&this.fetchSpot){
+      if(!this.fetchPickedUp && Math.hypot(this.root.position.x-this.fetchSpot.x,
+        this.root.position.z-this.fetchSpot.z)<.29)this.fetchPickedUp=true;
+      this.fetchTargetToy.visible=!this.fetchPickedUp;
+      if(!this.fetchPickedUp){
+        this.root.updateWorldMatrix(true,false);
+        this.fetchTargetToy.position.copy(this.root.worldToLocal(
+          new THREE.Vector3(this.fetchSpot.x,.125,this.fetchSpot.z)));
+        this.fetchTargetToy.rotation.set(0,0,0);
+      }
+    }else this.fetchTargetToy.visible=false;
+    const carrying=dog&&this.routine==='fetch'&&this.fetchPickedUp;
+    this.playToy.visible=playful>.07||carrying;
     if(this.playToy.visible){
       this.playToy.position.set(
         (dog ? .11 : .15)+Math.sin(r*(dog?4.4:5.5))*.095*playful,
@@ -366,6 +392,10 @@ export class PetActor {
       );
       this.playToy.rotation.y=r*(dog?4.6:2.1);
       this.playToy.rotation.z=(dog ? .22 : -.11)*Math.sin(r*5)*playful;
+      if(carrying){
+        this.playToy.position.set(0,.38,.51);
+        this.playToy.rotation.set(0,0,0);
+      }
     }
     const stretch = dog ? 0 : 0.66 * attention + 0.53 * playful - 0.30 * eating;
     if (this.rig.back?.morphTargetInfluences) {
