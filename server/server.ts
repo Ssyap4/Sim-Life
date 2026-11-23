@@ -517,6 +517,27 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     if(!available.length)return;
+    // A full-autonomy pair may become idle on adjacent 20ms ticks because
+    // their login/manual-intent timestamps differ. Without a short pairing
+    // grace the first player starts a 20-second solo activity and the shared
+    // chat never happens. Wait only when the other FULL-mode player is
+    // physically at home, unoccupied and about to clear their idle timer;
+    // never commandeer a busy or manually controlled resident.
+    if(available.length===1&&state.autonomy[available[0]]==='full'&&
+        Math.floor(clockMinutes(state.clock)/125)%3===0){
+      const other=otherRole(available[0]);
+      const age=now-(lastIntent.get(other)??now);
+      const otherIdleThreshold=Math.min(idleAutonomyMs,5500);
+      if(active.has(other)&&state.autonomy[other]==='full'&&
+          state.world.places[other]==='home'&&inHomeGrounds(state.characters[other])&&
+          !sleepers.has(other)&&!running.has(other)&&!homeTasks.busy(other)&&
+          (queuedTasks.get(other)?.length??0)===0&&!state.activeShifts[other]&&
+          !state.careers.residents[other].shift&&!walkingHome.has(other)&&
+          !storageOpen.has(other)&&!leisure.has(other)&&
+          age>=otherIdleThreshold-2400&&age<otherIdleThreshold){
+        return;
+      }
+    }
     // Only two idle residents who explicitly opted into FULL autonomy may
     // perform a shared spontaneous chat; neither character is commandeered
     // from manual control, study, sleep or any other task.

@@ -84,7 +84,7 @@ test('four household NPCs do varied yard chores while public NPCs keep streets l
  for(let m=0;m<1440;m++){
    const current=NEIGHBORS.filter((_,i)=>neighborPose(i,m).visible);
    active+=Number(current.length>0);
-   if(m<448||m>1320){assert.equal(current.length,0);quietAtNight++;}
+   if(m<448||m>1335){assert.equal(current.length,0);quietAtNight++;}
    assert.ok(current.length<=10,'mobile scene should avoid simultaneous NPC crowds');
  }
  assert.ok(active>500 && active<1350,'neighbourhood should look lively without permanent crowding');

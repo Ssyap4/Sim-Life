@@ -195,12 +195,13 @@ test('Full autonomy performs harmless leisure without spending money and yields 
 test('Shared spontaneous conversation requires both residents in full mode and stops when either takes control',async()=>{
   const seed=initialState();
   seed.autonomy={vlad:'full',alina:'full'};
+  assert.ok(planLeisure(seed,'vlad','chat'),'shared chat needs a reachable Vlad meeting spot');
+  assert.ok(planLeisure(seed,'alina','chat'),'shared chat needs a reachable Alina meeting spot');
   // Under full-suite CI load the second socket can connect >200ms after the
   // first. Don't start a shared autonomous chat before both users joined.
   const ctx=await setup(seed,true,1100);
   try{
-    const vlad=await ctx.join('vlad');
-    const alina=await ctx.join('alina');
+    const [vlad,alina]=await Promise.all([ctx.join('vlad'),ctx.join('alina')]);
     const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
     const event=await started;
     if(event.type!=='home_leisure')return;
