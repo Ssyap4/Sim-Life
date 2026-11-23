@@ -13,7 +13,6 @@ import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
 import { preferredPetWanderTarget } from '../src/shared/petPersonality';
 import {petBeds,petScratchers,petEquipmentRef,currentPetEquipment,
   type PetEquipmentRef} from '../src/shared/petFurniture';
-import {FURNITURE_BY_ID} from '../src/shared/furniture';
 
 export type PetResult =
   | { ok: true; state: GameState; message: string }
