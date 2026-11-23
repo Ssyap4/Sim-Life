@@ -653,3 +653,40 @@ test('The ending bonus and special memory cannot be farmed by repeating evenings
   assert.equal(state.relationship.evening?.phase,'complete');
   assert.equal(state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
 });
+
+test('Two live players can share a delivered dinner, talk honestly and reconnect without duplicate portions',async()=>{
+  const state=sample();
+  state.readyFood=[];state.meals.omelette=0;
+  state.takeout.pizzaCheese=2;
+  addReadyFood(state,'takeout','pizzaCheese',2,'table');
+  state.characters.alina.mood=28;
+  const f=await meet({state,scale:.022});
+  try{
+    const v=await f.connect('vlad'),a=await f.connect('alina');
+    const actions=[
+      {action:'eveningPlan',item:'takeout:pizzaCheese',phase:'dine'},
+      {action:'takeout',item:'pizzaCheese',phase:'unwind'},
+      {action:'eveningHeartTalk',phase:'complete'},
+    ];
+    for(const step of actions){
+      await new Promise(resolve=>setTimeout(resolve,750));
+      const offer=await propose(v,a,step.action,step.item);
+      await accept(v,a,offer.id);
+      const first=await started(v,'vlad'),second=await started(v,'alina');
+      assert.equal((await ended(v,'vlad',first.taskId)).outcome,'completed');
+      assert.equal((await ended(a,'alina',second.taskId)).outcome,'completed');
+      assert.equal(f.files.load().relationship.evening?.phase,step.phase);
+    }
+    const saved=f.files.load();
+    assert.equal(saved.takeout.pizzaCheese,0);
+    assert.equal(saved.dirtyDishes.table,2);
+    assert.equal(saved.money,state.money);
+    assert.equal(saved.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+    assert.equal(saved.relationship.evening?.occasion,'comfort');
+    a.ws.close();
+    await once(a.ws,'close');
+    const again=await f.connect('alina');
+    assert.equal(again.ready.state.relationship.evening?.phase,'complete');
+    assert.equal(again.ready.state.takeout.pizzaCheese,0);
+  }finally{await f.close();}
+});
