@@ -8,8 +8,12 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
   process.exit(1);
 }
 const dataDir = resolve(process.env.SIM_LIFE_DATA_DIR || 'server-data');
+const testNoCodes=process.env.SIM_LIFE_TEST_NO_CODES==='1';
 startServer({ port, host, dataDir, distDir: resolve('dist'),
-  testNoCodes:process.env.SIM_LIFE_TEST_NO_CODES==='1' })
+  testNoCodes,
+  // Fresh private test households have 100k to try products and mechanics.
+  // Never change the starting balance of normal/production households.
+  previewStartMoney:testNoCodes?100_000:undefined })
   .then((server) => {
     console.log('🏡 Sim-Life server: http://127.0.0.1:' + server.port);
     if(process.env.SIM_LIFE_TEST_NO_CODES==='1')
