@@ -10,7 +10,7 @@ import { NeighborPeople } from '../../src/game/NeighborPeople';
 import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
-import { homeStops, NEIGHBOR_HOMES, yardFeatures } from '../../src/shared/neighborHomes';
+import { homeStops, NEIGHBOR_HOMES, yardFeatures, NEIGHBOR_BENCH_TOP } from '../../src/shared/neighborHomes';
 import { DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, sitePoint } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
@@ -408,6 +408,34 @@ test('neighbors truly visit each others yards and talk beside the bench',()=>{
     }
     assert.ok(observed,'the host must be seated at the actual bench beside the standing guest');
   }
+});
+
+test('the actual skinned neighbor rigs keep hips ON the wooden slats and shoes near the ground',async()=>{
+  const crowd=await fullCast();
+  let checked=0;
+  for(let home=0;home<NEIGHBOR_HOMES.length;home++){
+    let seatedMinute:number|undefined;
+    for(let day=0;day<4&&seatedMinute===undefined;day++)
+      for(let minute=450;minute<1310;minute+=.37){
+        const sample=day*1440+minute;
+        const pose=neighborPose(home,sample);
+        if(pose.visible&&pose.opacity>.9&&pose.seat!==undefined&&pose.seat>.995&&
+          pose.action.startsWith('sit')&&pose.gestureBlend>.9){seatedMinute=sample;break;}
+      }
+    assert.ok(seatedMinute!==undefined,'must film each owner truly seated at home');
+    crowd.update(seatedMinute);
+    crowd.group.updateMatrixWorld(true);
+    const owner=crowd.group.children[home];
+    const hip=owner.getObjectByName('ThighL')!.getWorldPosition(new THREE.Vector3());
+    const footL=owner.getObjectByName('AnkleL')!.getWorldPosition(new THREE.Vector3());
+    const footR=owner.getObjectByName('AnkleR')!.getWorldPosition(new THREE.Vector3());
+    assert.ok(Math.abs(hip.y-(NEIGHBOR_BENCH_TOP+.113))<.16,
+      'NPC hip must be supported by the bench, not inside it or floating: '+hip.y);
+    for(const foot of [footL,footR])
+      assert.ok(foot.y>-.13&&foot.y<.28,'NPC shoe must remain close to garden floor: '+foot.y);
+    checked++;
+  }
+  assert.equal(checked,4);
 });
 
 test('four house owners use their own garden, bench and grill instead of decorative-only props',async()=>{
