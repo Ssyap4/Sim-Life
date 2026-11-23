@@ -3,8 +3,8 @@ import type { RecipeId, TakeoutId } from '../shared/food';
 export type KitchenMove = 'chop' | 'whisk' | 'knead' | 'stir' | 'flip' | 'plate';
 export type GrillMove = 'turn' | 'flip' | 'toss' | 'assemble' | 'plate';
 
-const WHISK = new Set<RecipeId>(['omelette', 'pancakes', 'porridge']);
-const KNEAD = new Set<RecipeId>(['homemadePizza', 'sandwich', 'toast']);
+const WHISK = new Set<RecipeId>(['omelette', 'pancakes', 'porridge', 'cremeBrulee', 'pannaCotta', 'chocolateFondant']);
+const KNEAD = new Set<RecipeId>(['homemadePizza', 'sandwich', 'toast', 'lasagna', 'beefWellington']);
 const FLIP = new Set<RecipeId>(['omelette', 'pancakes', 'friedPotatoes', 'toast']);
 
 /** Compact recipe-driven phases. Only the pose changes; the server still owns
@@ -33,7 +33,7 @@ export function mealUtensil(dish: RecipeId | TakeoutId | undefined): 'hands'|'sp
   if(dish==='toast'||dish==='sandwich'||dish==='homemadePizza'||
     dish==='shawarma'||dish==='burgerCombo'||dish==='pizzaCheese'||
     dish==='pizzaPepperoni'||dish==='pizzaBig'||dish==='grillBurgers') return 'hands';
-  if(dish==='porridge'||dish==='chickenSoup'||dish==='beefStew')return 'spoon';
+  if(dish==='porridge'||dish==='chickenSoup'||dish==='beefStew'||dish==='mushroomRisotto'||dish==='seaBassRisotto'||dish==='pannaCotta'||dish==='cremeBrulee'||dish==='chocolateFondant')return 'spoon';
   return 'fork';
 }
 
