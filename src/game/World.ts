@@ -1053,6 +1053,26 @@ export class World {
           role==='vlad'?'code':'hair';
         this.computerScreens.task(role,command.computer??'desktop',{mode,role,...(mode==='game'?{game:GAME_BY_ID.keys().next().value}: {})});
       }
+      if (command.actionId === 'kitchenLeftovers') {
+        // Pick up REAL table portions, walk them to the fridge, and only
+        // register the move when the authoritative server finishes the task.
+        if (!this.household?.readyFood.some(batch=>batch.storage==='table' &&
+            batch.portions>0 && batch.expiresAt>gameMinutes(this.household!.clock))) return false;
+        const actor=this.actors[role];
+        const fridge=stationById('home','fridge')!;
+        return this.walkTo(role,homeSeat('table',role).approach,()=>{
+          if(!current())return;
+          actor.playDomesticActivity('reach');
+          this.preparations.set(role,{remaining:.75,next:()=>{
+            if(!current())return;
+            void this.walkTo(role,fridge.approach,()=>{
+              if(!current())return;
+              actor.faceTowards(new THREE.Vector3(fridge.center.x,.93,fridge.center.z));
+              actor.playDomesticActivity('tidy');
+            });
+          }});
+        });
+      }
       if (command.actionId === 'kitchenDishes') {
         // One errand collects plates at the used tables, then brings them to
         // the kitchen sink. Both players see the same server-backed counters.
