@@ -22,6 +22,21 @@ test('iPhone rendering is not silently degraded and safe mode remains opt-in',()
   assert.equal(graphicsProfile(ua,'').antialias,true);
   assert.equal(graphicsProfile(ua,'?gfx=safe').safe,true);
 });
+test('Android Firefox uses exactly the same WebGL graphics profile as iPhone',()=>{
+  const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17 Safari/604.1';
+  const firefox='Mozilla/5.0 (Android 10; Mobile; rv:158.0) Gecko/158.0 Firefox/158.0';
+  const original=graphicsProfile(iphone,'');
+  for(const query of ['', '?gfx=full']){
+    const current=graphicsProfile(firefox,query);
+    assert.equal(current.android,true);
+    assert.equal(current.firefox,true);
+    assert.equal(current.safe,false);
+    for(const key of ['safe','antialias','powerPreference','maxPixelRatio'] as const)
+      assert.equal(current[key],original[key],key+' should match iPhone');
+  }
+  assert.equal(graphicsProfile(firefox,'?gfx=safe').safe,true,
+    'user-requested emergency safe mode must remain available');
+});
 test('detects silent white GPU frame without flagging a valid sky background',()=>{
   const rgba=[255,255,255,255];
   const gl={
