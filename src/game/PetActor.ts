@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { CatPerch } from '../shared/CatPerches';
 import { PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
@@ -13,6 +14,10 @@ import { PET_IDLE_SECONDS, choosePetIdle, petCanWelcome, petIdleWeight,
 export class PetActor {
   readonly root = new THREE.Group();
   private readonly body = new THREE.Group();
+  private perch:CatPerch|null=null;
+  private leavingPerch:CatPerch|null=null;
+  private perchProgress=0;
+  private readonly perchLocal=new THREE.Vector3();
   private readonly head = new THREE.Group();
   private readonly tail = new THREE.Group();
   private readonly paws: THREE.Group[] = [];
@@ -106,7 +111,16 @@ export class PetActor {
     this.playToy.visible = false;
   }
 
-  followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number): void {
+  followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
+    perch?:CatPerch): void {
+    if(this.perch && (!perch || this.perch.key!==perch.key)){
+      this.leavingPerch=this.perch;
+      this.perch=null;
+    }
+    if(this.id==='simba' && routine==='perch' && perch){
+      this.perch=perch;
+      this.leavingPerch=null;
+    }
     // A scheduled meal, sleep or walk always overrides a temporary play prop.
     this.reaction = null;
     this.reactionTime = 0;
@@ -124,6 +138,10 @@ export class PetActor {
   }
 
   stop(): void {
+    if(this.perch){
+      this.leavingPerch=this.perch;
+      this.perch=null;
+    }
     this.route = [];
     this.routine = null;
     this.facing = undefined;
@@ -175,7 +193,14 @@ export class PetActor {
         this.lastProgressGap = Infinity;
       }
     }
-    if (this.route.length) {
+    // Descend to the same clear FLOOR approach before any new route moves.
+    // This prevents an instant disappearance through the sofa on cancellation.
+    const descending=this.id==='simba' && !!this.leavingPerch && this.perchProgress>0;
+    if(descending){
+      this.perchProgress=Math.max(0,this.perchProgress-dt/.88);
+      if(this.perchProgress<=0)this.leavingPerch=null;
+    }
+    if (this.route.length && !descending) {
       const target = this.route[0];
       const dx = target.x - this.root.position.x, dz = target.z - this.root.position.z;
       const distance = Math.hypot(dx, dz);
@@ -243,7 +268,7 @@ export class PetActor {
         if (!this.route.length && this.routine === 'wander')
           this.idleCooldown = Math.min(this.idleCooldown, .65);
       }
-    } else if (this.routine) {
+    } else if (this.routine && !descending) {
       this.settled += dt;
       if (this.facing !== undefined) {
         const delta = this.facing - this.root.rotation.y;
@@ -251,6 +276,12 @@ export class PetActor {
       }
     }
     if (this.routine) travel = this.distance;
+    if(this.id==='simba' && this.perch && !this.route.length && !this.reaction){
+      this.perchProgress=Math.min(1,this.perchProgress+dt/.95);
+      const targetYaw=this.perch.yaw;
+      const delta=THREE.MathUtils.euclideanModulo(targetYaw-this.root.rotation.y+Math.PI,2*Math.PI)-Math.PI;
+      this.root.rotation.y+=delta*(1-Math.exp(-dt*4.5));
+    }
     this.clock += dt;
     if (this.hungerMarker?.visible) {
       this.hungerMarker.position.y = (this.id === 'verdell' ? 1.43 : 1.44) + Math.sin(this.clock * 3.1) * 0.045;
@@ -312,7 +343,9 @@ export class PetActor {
     const playful = this.reaction === 'play' ? weight : 0;
     const settled = Math.min(1, this.settled * 3);
     const eating = this.reaction === 'feed' ? weight : this.routine === 'eat' ? settled : 0;
-    const sleeping = this.routine === 'sleep' ? settled : 0;
+    const perched=this.id==='simba' && this.perch && !this.route.length ?
+      THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;
+    const sleeping = this.routine === 'sleep' ? settled : perched*.84;
     const toilet = this.routine === 'toilet' ? settled : 0;
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
@@ -347,6 +380,27 @@ export class PetActor {
       + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
       + stretching * (dog ? .055 : .09);
+    // Only the lightweight render group moves onto the cushion. The root and
+    // all pathfinding/collision points remain safely on the floor approach.
+    // The first/last second is a visible parabolic jump or controlled descent.
+    const surface=this.perch??this.leavingPerch;
+    if(!dog && surface && this.perchProgress>0){
+      this.root.updateWorldMatrix(true,false);
+      this.perchLocal.set(surface.surface.x,surface.surface.y+.25,surface.surface.z);
+      this.root.worldToLocal(this.perchLocal);
+      const t=this.perchProgress;
+      const fraction=t*t*(3-2*t);
+      this.body.position.x=this.perchLocal.x*fraction;
+      this.body.position.z=this.perchLocal.z*fraction;
+      this.body.position.y+=this.perchLocal.y*fraction+
+        Math.sin(Math.PI*t)*Math.max(.42,surface.surface.y*.67);
+      this.body.scale.x=1-.08*perched;
+      this.body.scale.z*=1-.18*perched;
+    }else{
+      this.body.position.x=0;
+      this.body.position.z=0;
+      this.body.scale.x=1;
+    }
     this.head.position.y = (dog ? .728 : .542) + attention * (dog ? 0.038 : 0.057) - eating * (dog ? 0.056 : 0.073)
       - sniffing * .065 - grooming * .034 - stretching * .035
       - playBow * .065 + pawWave * .018 + pounce * .06 + begging * .032 + nuzzle*.018;
@@ -397,6 +451,7 @@ export class PetActor {
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
       paw.rotation.x = pawLift * playful + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
         sleeping * (front ? -.55 : .37) + toilet * (front ? .02 : .31)
+        + (!dog && perched ? (front?-.47:.24)*perched : 0)
         + (dog ? front && i === 0 ? -.42 * foodLook * (0.6 + .4 * Math.sin(t * 6))
           + greeting * -.23 * (0.5 + .5 * Math.sin(t * 9))
           - pawWave * .62 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
@@ -409,6 +464,7 @@ export class PetActor {
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
         (dog ? 0 : .018 * playful * (front ? 1 : 0))
         + (!dog && i === 0 ? grooming * .36 : 0)
+        + (!dog && perched ? .09*perched : 0)
         + (dog && i === 0 ? foodLook * .18 * (0.5 + .5 * Math.sin(t * 6))
           + greeting * .09 * (0.5 + .5 * Math.sin(t * 9))
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
