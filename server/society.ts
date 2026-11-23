@@ -23,7 +23,13 @@ export function validRelationship(value:unknown):value is Relationship {
   if (!value||typeof value!=='object') return false;
   const r=value as Partial<Relationship>;
   const stamp=(at:unknown)=>typeof at==='number'&&Number.isSafeInteger(at)&&at>=0;
-  return (r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
+  const evening=r.evening;
+  const validEvening=evening===undefined||(typeof evening==='object'&&evening!==null&&
+    Object.hasOwn(RECIPES,evening.recipe)&&['prepare','dine','unwind','complete'].includes(evening.phase)&&
+    stamp(evening.startedAt)&&
+    (evening.phase==='complete' ? stamp(evening.completedAt)&&evening.completedAt!>=evening.startedAt :
+      evening.completedAt===undefined));
+  return validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
     r.memories.every(m=>m&&stamp(m.at)&&typeof m.action==='string'&&['talk','care','home','romance','fun'].includes(m.group)&&
       typeof m.title==='string'&&m.title.length<=120&&typeof m.description==='string'&&m.description.length<=240)&&
     Array.isArray(r.recent)&&r.recent.length<=RECENT_LIMIT&&r.recent.every(e=>e&&stamp(e.at)&&typeof e.action==='string');
@@ -276,6 +282,34 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   if(rejected&&!rejected.ok) return rejected;
   if(remember&&roles.length===2){
     const {strength,quiz}=addRelationship(state,a,choice);
+    const now=gameMinutes(state.clock);
+    if(a.id==='eveningPlan'){
+      // A shared plan starts only after BOTH players finish the table conversation.
+      state.relationship.evening={recipe:id as RecipeId,phase:'prepare',startedAt:now};
+      message='Вечер запланирован · '+RECIPES[id as RecipeId].name+' · теперь приготовьте ужин вдвоём';
+    } else {
+      const evening=state.relationship.evening;
+      if(evening?.phase==='prepare'&&a.id==='cook'&&id===evening.recipe){
+        evening.phase='dine';
+        message+=' · 🍽️ Ужин готов: пригласите друг друга к столу';
+      } else if(evening?.phase==='dine'&&a.id==='eat'&&id===evening.recipe){
+        evening.phase='unwind';
+        message+=' · ✨ Теперь можно отдохнуть вдвоём';
+      } else if(evening?.phase==='unwind'&&['film','tv','youtube','cuddle','sofaTalk','slowDance'].includes(a.id)){
+        evening.phase='complete';
+        evening.completedAt=now;
+        const meal=RECIPES[evening.recipe].name.toLowerCase();
+        const ending=a.id==='film'?'посмотрели фильм':a.id==='tv'?'посмотрели телевизор':
+          a.id==='youtube'?'посмотрели видео':a.id==='slowDance'?'потанцевали':
+          a.id==='cuddle'?'посидели в обнимку':'поговорили на диване';
+        state.relationship.memories.push({action:'homeEvening',group:'romance',at:now,
+          title:'Наш вечер вдвоём',
+          description:'Вместе приготовили '+meal+', поужинали и '+ending+'.'});
+        state.relationship.memories=state.relationship.memories.slice(-MEMORY_LIMIT);
+        for(const member of roles)change(state,member,{mood:5,social:4,comfort:4});
+        message+=' · 💛 Домашний вечер удался! Воспоминание сохранено';
+      }
+    }
     for(const role of roles) {
       const response=role===to&&a.group==='care'?
         choice===1?{social:5,mood:2,comfort:5}:choice===2?{social:2,comfort:3}:socialEffects.care:
