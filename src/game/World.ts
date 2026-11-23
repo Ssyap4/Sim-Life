@@ -373,6 +373,26 @@ export class World {
 
   toggleFollowPlayer(): void { this.setFollowPlayer(!this.followingPlayer); }
 
+  /** Explicit, one-tap close-up for shared actions. Never steals the free camera automatically. */
+  focusSharedActivity(): boolean {
+    if(this.place!=='home'||!this.actors.vlad.root.visible||!this.actors.alina.root.visible)return false;
+    if(this.followingPlayer)this.setFollowPlayer(false);
+    this.inspected=null;
+    this.followSubject=null;
+    this.neighborhoodView=false;
+    this.updateViewLens();
+    const v=this.actors.vlad.root.position,a=this.actors.alina.root.position;
+    const gap=Math.hypot(v.x-a.x,v.z-a.z);
+    const target=new THREE.Vector3((v.x+a.x)/2,1.06,(v.z+a.z)/2);
+    const distance=THREE.MathUtils.clamp(6.9+gap*1.25,7.4,16.2);
+    const angle=new THREE.Vector3(.46,.76,1).normalize();
+    this.controls.minDistance=3.4;
+    this.controls.maxDistance=96;
+    this.controls.maxPolarAngle=1.4;
+    this.cameraMove={target,position:target.clone().addScaledVector(angle,distance)};
+    return true;
+  }
+
   setActive(id: CharacterId): void {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
