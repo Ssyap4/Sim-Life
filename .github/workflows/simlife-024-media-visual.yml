@@ -1,0 +1,41 @@
+name: Sim-Life 0.24 phone media visual QA
+on:
+  push:
+    branches: [feat/deep-home-media-pets-024]
+    paths:
+      - qa-media-024.html
+      - scripts/qa-024-media-visual.mjs
+      - src/game/HomeEffects.ts
+      - src/game/TvProgramMoments.ts
+      - src/game/ComputerScreenArt.ts
+      - src/game/ComputerScreenDetails.ts
+      - .github/workflows/simlife-024-media-visual.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  phone-media:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Serve genuine computer and TV canvas drawings from source
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/media-gallery.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-media-024.html >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:4173/qa-media-024.html >/dev/null
+      - name: Compare 12 animated scenes and screenshot phone gallery
+        run: node scripts/qa-024-media-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-024-live-computer-and-tv
+          path: /tmp/simlife-024-media/
+          retention-days: 7
