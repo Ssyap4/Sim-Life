@@ -16,14 +16,14 @@ import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
 import { gains } from './needs';
-import { familyMoments } from '../src/shared/familyMoments';
+import { familyMoments, momentReward, type FamilyMoment } from '../src/shared/familyMoments';
 import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
 import { completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
 import type { PetId } from '../src/shared/pets';
 
 type Started = Extract<ServerPacket, { type: 'task_started' }>;
 type Participant = { role: CharacterId; socket: WebSocket; packet: Started; arriveMs: number };
-type Cooperation = { from:CharacterId; choice:number };
+type Cooperation = { from:CharacterId; choice:number; moment?:FamilyMoment };
 type Session = {
   plan: TaskPlan;
   participants: Participant[];
@@ -314,7 +314,11 @@ export function createHomeSessions(hooks: Hooks) {
     const {from,choice}=session.cooperation!;
     const result=completeTogether(before,from,command,roles,choice,socialHomes(session));
     if(!result.ok){end(session,'failed',result.reason);return;}
-    if(session.finishedTogether&&roles.length===1) addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice);
+    if(session.finishedTogether&&roles.length===1){
+      const completedMoment=session.cooperation?.moment;
+      addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice,!!completedMoment);
+      if(completedMoment)result.message+=momentReward(result.state,from,completedMoment);
+    }
     try{hooks.save(result.state);}
     catch{end(session,'failed','Не удалось сохранить совместное занятие');return;}
     broadcastSnapshot();
@@ -389,7 +393,10 @@ export function createHomeSessions(hooks: Hooks) {
       if (pet) hooks.pausePet?.(pet);
     }
     const travel = Math.max(0,...participants.map(p => p.arriveMs));
-    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study, cooperation,
+    const story=command.type==='together'&&cooperation&&command.moment
+      ?familyMoments(hooks.state(),cooperation.from).find(m=>m.id===command.moment):undefined;
+    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,
+      cooperation:cooperation?{...cooperation,moment:story}:undefined,
       duration, timer: schedule(() => {
         if(cooperation&&command.type==='together'){
           const reason=cooperationDenial(hooks.state(),cooperation.from,command);
