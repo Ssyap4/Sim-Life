@@ -41,6 +41,8 @@ export const GROCERY_DETAILS: Record<IngredientId,{area:StorageArea;description:
   beansLavazza:{area:'cupboard',description:'Зерновой кофе для будущих кофемашин. Подходит для любых напитков после покупки техники.'},
   beansBushido:{area:'cupboard',description:'Премиальные зёрна для будущих кофемашин. Сейчас напитки из зёрен недоступны.'},
   lasagnaSheets:{area:'cupboard',description:'Сухие листы пасты для многослойной лазаньи.'},
+  tenderloin:{area:'fridge',description:'Говяжья вырезка для медальонов и настоящей говядины Веллингтон.'},
+  linguine:{area:'cupboard',description:'Длинная паста для лингвини с креветками.'},
   mushroom:{area:'fridge',description:'Свежие шампиньоны для ризотто, соусов и мясных блюд.'},
   cream:{area:'fridge',description:'Пастеризованные сливки для соусов и сложных десертов.'},
   garlic:{area:'cupboard',description:'Чеснок для ароматных мясных и рыбных блюд.'},
