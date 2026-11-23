@@ -76,7 +76,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   if(lessonMilestone(state,to,now)||Object.values(state.careers.residents[to].progress)
     .some(p=>p?.history?.some(e=>e.title==='Повышение'&&e.at<=now&&now-e.at<=720)))add({
     id:'goodNews',emoji:'✨',title:'Есть что отпраздновать',
-    description:personName(to)+' добился нового результата в работе или учёбе. Дай пять и порадуйся вместе!',
+    description:personName(to)+(to==='vlad'?' добился':' добилась')+' нового результата в работе или учёбе. Дай пять и порадуйся вместе!',
     action:'highFive',bonus:'Общий радостный момент',
   });
   if(state.dirtyDishes.table+state.dirtyDishes.yardTable>0)add({
