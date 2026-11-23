@@ -32,11 +32,12 @@ async function enter(port:number,role:CharacterId,code:string):Promise<WebSocket
   assert.equal((await promise).type,'ready');
   return ws;
 }
-async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400){
+async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400,holdClockUntilJoined=false){
   const dir=mkdtempSync(join(tmpdir(),'sim-life-017-autonomy-'));
   if(seed)openServerFiles(dir).save(seed);
   const clock={now:0};
-  const ticking=fast?setInterval(()=>{clock.now+=clockStepMs;},20):undefined;
+  let clockEnabled=!holdClockUntilJoined;
+  const ticking=fast?setInterval(()=>{if(clockEnabled)clock.now+=clockStepMs;},20):undefined;
   const server=await startServer({port:0,dataDir:dir,taskTimeScale:.08,
     ...(fast?{lifeClock:{now:()=>clock.now,tickMs:20},
       autonomyTiming:{idleMs,careCooldownMs:120,leisureCooldownMs:200}}:{})});
@@ -44,6 +45,7 @@ async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400){
   const sockets:WebSocket[]=[];
   return {
     dir,server,keys,sockets,
+    startClock(){clockEnabled=true;},
     async join(role:CharacterId){const ws=await enter(server.port,role,keys[role]);sockets.push(ws);return ws;},
     async close(){if(ticking)clearInterval(ticking);for(const ws of sockets)ws.terminate();await server.close();
       rmSync(dir,{recursive:true,force:true});},
@@ -203,10 +205,14 @@ test('Shared spontaneous conversation requires both residents in full mode and s
   assert.ok(planLeisure(seed,'alina','chat'),'shared chat needs a reachable Alina meeting spot');
   // Both clients join, then clear a short idle delay with a 9x game clock.
   // The server's pairing grace protects the small difference in login ticks.
-  const ctx=await setup(seed,true,250,180);
+  const ctx=await setup(seed,true,250,180,true);
   try{
     const [vlad,alina]=await Promise.all([ctx.join('vlad'),ctx.join('alina')]);
     const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
+    // Both sockets and the event listener are ready before game-time moves.
+    // This tests a synchronized conversation, not the relative speed of two
+    // unrelated WebSocket handshakes on a busy CI runner.
+    ctx.startClock();
     const event=await started;
     if(event.type!=='home_leisure')return;
     assert.deepEqual(event.roles,['vlad','alina']);
