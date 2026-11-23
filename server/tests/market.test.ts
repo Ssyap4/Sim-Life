@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GROCERIES, RECIPES, TAKEOUT, recipePortionCost } from '../../src/shared/food';
+import { GROCERIES, RECIPES, TAKEOUT, ingredientList, recipePortionCost } from '../../src/shared/food';
+import { GROCERY_DETAILS } from '../../src/shared/storageSpace';
 import { MARKET_PRODUCTS } from '../../src/shared/market';
 import { initialState } from '../../src/shared/protocol';
 import { checkout } from '../market';
@@ -127,4 +128,25 @@ test('Older saves gain pantry items, takeout, ledger and shift data without rese
     files.save(state);
     assert.equal(files.load().money,13245);
   } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('restaurant ingredients are real grocery products in market and delivery catalogue',()=>{
+  const advanced=['lasagna','mushroomRisotto','beefStroganoff','salmonLemon',
+    'creamyChicken','shrimpLinguine','duckOrange','pepperMedallions','pannaCotta',
+    'cremeBrulee','lambRosemary','beefWellington','seaBassRisotto','chocolateFondant'] as const;
+  const state=initialState();
+  for (const id of advanced){
+    for (const [ingredient] of ingredientList(id)){
+      assert.ok(GROCERIES[ingredient],id+': '+ingredient);
+      assert.ok(GROCERY_DETAILS[ingredient],id+' storage: '+ingredient);
+      assert.ok(MARKET_PRODUCTS.some(p=>p.id==='grocery:'+ingredient),id+' market: '+ingredient);
+      assert.equal(typeof state.pantry[ingredient],'number',id+' saved: '+ingredient);
+    }
+  }
+  assert.equal(MARKET_PRODUCTS.find(p=>p.id==='grocery:salmon')?.category,'fish');
+  assert.equal(MARKET_PRODUCTS.find(p=>p.id==='grocery:arborio')?.category,'pantry');
+  const cart=checkout(state,'vlad',[{id:'grocery:mushroom',quantity:1}]);
+  assert.equal(cart.ok,true);
+  if(cart.ok)assert.equal(cart.state.pantry.mushroom,GROCERIES.mushroom.quantity);
 });
