@@ -47,6 +47,7 @@ export class PetActor {
   private fetchPickedUp=false;
   private onPetBed=false;
   private petBedHeight=0;
+  private scratchPost:FloorPoint | undefined;
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
     satiety: 80, energy: 80, happiness: 80, bond: 40, bowl: 0, personNearby: false,
@@ -142,7 +143,8 @@ export class PetActor {
   }
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
-    perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number): void {
+    perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
+    scratchPost?:FloorPoint): void {
     if(this.perch?.key!==perch?.key)this.releasePerch();
     if(this.id==='simba' && routine==='perch' && perch){
       this.perch=perch;
@@ -155,6 +157,7 @@ export class PetActor {
     this.fetchTargetToy.visible=false;
     this.onPetBed=onPetBed;
     this.petBedHeight=onPetBed?(supportHeight??0):0;
+    this.scratchPost=scratchPost;
     this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
@@ -183,6 +186,7 @@ export class PetActor {
     this.route = [];
     this.fetchSpot=null;
     this.onPetBed=false;
+    this.scratchPost=undefined;
     this.fetchTargetToy.visible=false;
     this.fetchPickedUp=false;
     this.playToy.visible=false;
@@ -603,7 +607,10 @@ export class PetActor {
       this.body.scale.setScalar(1);
       // Rock back onto the hind paws so the forelegs can reach up the post.
       this.body.rotation.set(-.65*scratching+.16*stretching,0,-.21*curled);
-      this.body.position.set(0,-.025-crouch+lift*.022+.25*scratching,.16*scratching);
+      const post=scratching>0?this.scratchPost:undefined;
+      const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
+      const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
+      this.body.position.set(0,-.025-crouch+lift*.022+.25*scratching,step*scratching);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
@@ -620,8 +627,11 @@ export class PetActor {
         this.body.rotation.y=THREE.MathUtils.lerp(runUp,final,turn);
         this.body.rotation.x+=airborne*(.12-phase*.26);
       }
+      const contact=post?this.body.worldToLocal(this.perchLocal.set(
+        post.x-.135*Math.sin(this.root.rotation.y),.57,
+        post.z-.135*Math.cos(this.root.rotation.y))):undefined;
       this.simbaRig.pose(t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
-        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,airborne,rest);
+        this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,airborne,rest,contact);
     }
     this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
 

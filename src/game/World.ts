@@ -2156,7 +2156,7 @@ export class World {
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!bed,supportHeight);
+        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined);
     }
   }
 

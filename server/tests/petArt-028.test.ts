@@ -8,10 +8,14 @@ import { SimbaRig } from '../../src/game/SimbaRig';
 import { catPerchCandidates } from '../../src/shared/CatPerches';
 import { initialState } from '../../src/shared/protocol';
 
-test('the exported Simba rig plants its paws and reaches a physical cushion before resuming its route', async () => {
+async function loadModel() {
   const file = new URL('../../src/assets/pets/simba.glb', import.meta.url);
   const bytes = await readFile(file);
-  const { scene } = await new GLTFLoader().parseAsync(Uint8Array.from(bytes).buffer, '');
+  return (await new GLTFLoader().parseAsync(Uint8Array.from(bytes).buffer, '')).scene;
+}
+
+test('the exported Simba rig plants its paws and reaches a physical cushion before resuming its route', async () => {
+  const scene = await loadModel();
   let triangles = 0, meshes = 0;
   scene.traverse(part => {
     if (part instanceof THREE.SkinnedMesh) {
@@ -46,4 +50,17 @@ test('the exported Simba rig plants its paws and reaches a physical cushion befo
     assert.ok(simba.root.position.distanceTo(exit) < .04);
     simba.stop();
   }
+});
+
+test('Simba reaches the installed scratching post from the saved floor approach', async () => {
+  const scene = await loadModel();
+  const simba = new PetActor('simba', new SimbaRig(scene));
+  const post = {x:1.12,z:1.84};
+  simba.syncGround(post.x,post.z+.84);
+  simba.followRoute([], 'scratch', Math.PI, undefined, undefined, false, undefined, post);
+  for (let i = 0; i < 45; i++) simba.update(.04);
+  const paw = scene.getObjectByName('ForeLPaw')!.getWorldPosition(new THREE.Vector3());
+  assert.ok(paw.y>.40 && paw.y<.75);
+  assert.ok(Math.hypot(paw.x-post.x,paw.z-post.z)<.22, 'the forepaw must reach the rope');
+  assert.equal(simba.root.position.z,post.z+.84);
 });

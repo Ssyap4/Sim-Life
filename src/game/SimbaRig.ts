@@ -41,6 +41,7 @@ export class SimbaRig {
   private readonly eyes: THREE.Bone[];
   private readonly tail: THREE.Bone[];
   private readonly feet: Leg[];
+  private readonly scratchTarget = new THREE.Vector3();
 
   constructor(readonly model: THREE.Group) {
     this.head = joint(model,'Head');
@@ -63,7 +64,7 @@ export class SimbaRig {
 
   pose(time:number,distance:number,motion:number,crouch:number,reach:number,groom:number,eating:number,
     tailSwing:number,tailFold:number,head:THREE.Euler,ears:readonly THREE.Group[],eyes:readonly THREE.Group[],
-    jump:number,rest:number) {
+    jump:number,rest:number,scratchContact?:THREE.Vector3) {
     const breath = Math.sin(time*2.4);
     this.head.rotation.set(head.x*.76,head.y*.74,head.z*.74);
     this.neck.rotation.set(head.x*.24,head.y*.26,head.z*.18);
@@ -86,10 +87,21 @@ export class SimbaRig {
       const lift = Math.sin(Math.PI*swing)*.074*motion;
       const stride=.29*(phase<.64 ? .5-phase/.64 : -.5+swing)*motion;
       const wash=index===0?groom:0;
-      const scratch=limb.front?reach*(.72+.28*Math.sin(time*13+index*Math.PI/2)):0;
-      plantPaw(limb, limb.height+crouch+lift+jump*.13+wash*.26+scratch*.30,
-        limb.depth+stride+(limb.front?-.10:.045)*rest+wash*.16+scratch*.23,
-        lift*.8-wash*.52-scratch*.45);
+      const stroke=Math.sin(time*13+index*Math.PI/2);
+      let pawY=limb.height+crouch+lift+jump*.13+wash*.26;
+      let pawZ=limb.depth+stride+(limb.front?-.10:.045)*rest+wash*.16;
+      if(limb.front&&scratchContact){
+        this.scratchTarget.copy(scratchContact);
+        // The downward stroke follows the world-vertical column through
+        // the reared body's local plane.
+        this.scratchTarget.y+=stroke*.065;
+        this.scratchTarget.z+=stroke*.050;
+        this.model.localToWorld(this.scratchTarget);
+        limb.hip.parent!.worldToLocal(this.scratchTarget).sub(limb.hip.position);
+        pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,reach);
+        pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,reach);
+      }
+      plantPaw(limb,pawY,pawZ,lift*.8-wash*.52-(limb.front?.60*reach:0));
     }
   }
 }
