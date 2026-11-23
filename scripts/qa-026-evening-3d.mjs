@@ -88,12 +88,15 @@ try{
       errors.push(action+': missing synchronized 3D motion');
     try {
       await waitPacket('task_active',p=>p.role==='vlad'&&p.taskId===first.taskId,20000);
-      await sleep(150);
-      await snap(shot);
-      const close=page.locator('.running-task[data-role="vlad"] [data-focus-shared]');
-      await close.waitFor({state:'visible',timeout:7000});
-      await close.click();
-      await sleep(820);
+      // The task card is short-lived in accelerated QA. Click synchronously BEFORE
+      // taking any slow software-WebGL screenshot, not after the task has ended.
+      const focused=await page.evaluate(()=>{
+        const button=document.querySelector('.running-task[data-role="vlad"] [data-focus-shared]');
+        if(!(button instanceof HTMLButtonElement))return false;
+        button.click();return true;
+      });
+      if(!focused)errors.push(action+': shared camera control missing while task active');
+      await sleep(490);
       await snap(shot+'-close-up');
     }catch(error){
       errors.push(action+': '+String(error));
