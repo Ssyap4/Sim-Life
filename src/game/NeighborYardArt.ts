@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cube,softCube,drum,orb,finish } from './ArtKit';
+import { batchRigidParts,cube,softCube,drum,orb,finish } from './ArtKit';
 import { yardFeatures,type NeighborHome } from '../shared/neighborHomes';
 
 type Dimension=readonly [number,number,number];
@@ -49,6 +49,9 @@ function gardenBarbecue(root:THREE.Object3D,x:number,z:number,i:number) {
     twig.rotation.z=.9+(n-1)*.16;
   }
   piece(barbecue,cube,[.15,.034,.43],[.49,.75,0],0x9c8e75,'metal');
+  // Solid parts are static; keep a named group for identity but merge the
+  // metal, timber and ceramic surfaces into a handful of draw calls.
+  batchRigidParts(barbecue,true);
   root.add(barbecue);
 }
 function yardBench(root:THREE.Object3D,x:number,z:number,i:number) {
@@ -69,6 +72,7 @@ function yardBench(root:THREE.Object3D,x:number,z:number,i:number) {
     piece(bench,softCube,[1.65,.115,.086],[0,y,-.27],oak);
   if(i===1||i===3)for(const x0 of [-.81,.81])
     piece(bench,softCube,[.08,.15,.58],[x0,.64,0],oak);
+  batchRigidParts(bench,true);
   root.add(bench);
 }
 function gardenDetails(root:THREE.Object3D,home:NeighborHome,i:number) {

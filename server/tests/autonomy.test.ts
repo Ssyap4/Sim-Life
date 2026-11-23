@@ -195,12 +195,13 @@ test('Full autonomy performs harmless leisure without spending money and yields 
 test('Shared spontaneous conversation requires both residents in full mode and stops when either takes control',async()=>{
   const seed=initialState();
   seed.autonomy={vlad:'full',alina:'full'};
-  // Give both browser clients time to connect before the first idle decision.
-  const ctx=await setup(seed,true,200);
+  // Under full-suite CI load the second socket can connect >200ms after the
+  // first. Don't start a shared autonomous chat before both users joined.
+  const ctx=await setup(seed,true,1100);
   try{
     const vlad=await ctx.join('vlad');
     const alina=await ctx.join('alina');
-    const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',4200);
+    const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
     const event=await started;
     if(event.type!=='home_leisure')return;
     assert.deepEqual(event.roles,['vlad','alina']);
