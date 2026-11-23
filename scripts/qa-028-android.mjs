@@ -67,6 +67,7 @@ try{
     const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');
     const loss=gl?.getExtension('WEBGL_lose_context');
     if(!loss)return false;
+    window.__qaWebglLoss=loss;
     loss.loseContext();
     return true;
   });
@@ -75,9 +76,9 @@ try{
       await page.locator('#graphics-recovery').waitFor({state:'visible',timeout:10000});
       await page.screenshot({path:join(out,'02-android-webgl-context-lost.png')});
       await page.evaluate(()=>{
-        const canvas=document.querySelector('#game-canvas');
-        const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');
-        gl?.getExtension('WEBGL_lose_context')?.restoreContext();
+        // Restoring a newly queried extension while the context is lost
+        // can return null in Chromium. Retain the original extension.
+        window.__qaWebglLoss?.restoreContext();
       });
       await page.locator('#graphics-recovery').waitFor({state:'detached',timeout:15000});
       await page.waitForTimeout(950);
