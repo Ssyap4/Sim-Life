@@ -36,10 +36,37 @@ jobs:
       - run: npx vite build
       - name: Inspect Simba GLB, pet furniture, commands and mobile HUD on 390x844 / 320x568
         run: node --import tsx scripts/qa-028-pets.mjs
+      - name: Film cat landing on a real purchased rotated sofa
+        run: node --import tsx scripts/qa-027-cat-perch.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: simlife-028-pets-real-iphone-frames
-          path: /tmp/simlife-028-pets-mobile
+          path: |
+            /tmp/simlife-028-pets-mobile
+            /tmp/simlife-027-cat-perches-iphone
+          retention-days: 7
+          if-no-files-found: warn
+
+  real-people-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - name: Capture real two-person synchronized gestures and in-world laptop
+        run: node --import tsx scripts/qa-028-people.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-028-real-couple-and-laptop
+          path: /tmp/simlife-028-people-real-3d
           retention-days: 7
           if-no-files-found: warn
