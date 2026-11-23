@@ -53,6 +53,8 @@ export interface ServerOptions {
   socialTtlMs?: number;
   /** Localhost-only, separate-save convenience mode for private previews. */
   testNoCodes?:boolean;
+  /** Money only for a brand-new, isolated no-code preview household. */
+  previewStartMoney?:number;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
   /** Isolated integration tests can shorten the real-world autonomy delays. */
@@ -90,10 +92,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     !resolve(options.dataDir).toLowerCase().endsWith('sim-life\\server-data');
   if(options.testNoCodes===true&&!previewNoCodes)
     throw new Error('Passwordless test mode requires a dedicated preview port and isolated household data');
+  if(options.previewStartMoney!==undefined && (!previewNoCodes ||
+    !Number.isSafeInteger(options.previewStartMoney) || options.previewStartMoney<0))
+    throw new Error('Preview starting money requires a valid, isolated no-code test server');
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
+  // Fresh preview builds can start with test spending money without changing
+  // the production economy or overwriting any existing household progress.
+  const freshPreview = previewNoCodes && options.previewStartMoney!==undefined &&
+    !existsSync(resolve(files.dataDir,'household.json'));
   let state: GameState = files.load();
+  if(freshPreview){
+    state.money=options.previewStartMoney!;
+    files.save(state);
+  }
   const spoiledOnBoot = expireReadyFood(state);
   const serviceUpdatesOnBoot = settleFamilyServices(state, false, false);
   if (spoiledOnBoot.length || serviceUpdatesOnBoot.length) {
