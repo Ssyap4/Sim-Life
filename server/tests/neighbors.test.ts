@@ -11,7 +11,7 @@ import { neighborhoodOutline, portraitHomeFrame } from '../../src/game/HomeFrame
 import { GAME_MINUTES_PER_REAL_SECOND } from '../../src/shared/life';
 import { buildNeighborhood } from '../../src/game/NeighborhoodArt';
 import { homeStops, NEIGHBOR_HOMES } from '../../src/shared/neighborHomes';
-import { DISTRICT_SITES } from '../../src/shared/district';
+import { DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, sitePoint } from '../../src/shared/district';
 import { buildHomeWing } from '../../src/game/HomeWing';
 import { findRoute, pointIsClear, segmentIsClear } from '../../src/game/navigation';
 import { placeObstacles } from '../../src/shared/locations';
@@ -322,6 +322,41 @@ test('oncoming neighbors use separate lanes and never overlap on a simulated ful
     }
   }
   assert.ok(checked>300 && closest<2,'must actually test nearby oncoming traffic');
+});
+
+
+test('public visitors fade at all eight real doors and reappear without crossing world obstacles',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length).filter(v=>v.home===-1&&v.venue&&v.kind!=='chat');
+  for(const site of DISTRICT_SITES) {
+    const visit=visits.find(v=>v.venue===site.place);
+    assert.ok(visit,'must physically visit '+site.place);
+    const front=sitePoint(site,0,site.d/2+.48);
+    let disappeared=false,reappeared=false;
+    for(let minute=visit.start+1;minute<visit.end-1;minute+=.35) {
+      const pose=neighborPose(visit.resident,minute);
+      const atDoor=Math.hypot(pose.x-front.x,pose.z-front.z)<.18;
+      if(atDoor&&pose.opacity<.02)disappeared=true;
+      if(disappeared&&atDoor&&pose.opacity>.85)reappeared=true;
+      if(pose.visible&&pose.opacity>.65){
+        assert.ok(pointIsClear(pose,DISTRICT_OBSTACLES,DISTRICT_FLOOR),
+          site.place+' pedestrian should not cross any obstacle');
+      }
+    }
+    assert.ok(disappeared,'visitor must fade on entering '+site.place);
+    assert.ok(reappeared,'visitor must return through '+site.place+' door');
+  }
+});
+
+test('deterministic pedestrians stay apart across three different daily schedules',()=>{
+  for(let day=0;day<3;day++)for(let minute=450;minute<1330;minute+=.36) {
+    const poses=NEIGHBORS.map((_,i)=>neighborPose(i,day*1440+minute));
+    for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++) {
+      if(poses[i].opacity<.6||poses[j].opacity<.6)continue;
+      const d=Math.hypot(poses[i].x-poses[j].x,poses[i].z-poses[j].z);
+      assert.ok(d>.57,'day '+day+' minute '+minute.toFixed(2)+' '+NEIGHBORS[i].name+
+        ' and '+NEIGHBORS[j].name+' got too close: '+d);
+    }
+  }
 });
 
 test('pedestrians fade independently instead of changing shared apartment materials', async () => {
