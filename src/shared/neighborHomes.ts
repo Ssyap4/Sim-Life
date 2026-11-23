@@ -54,6 +54,7 @@ export function yardFeatures(home: NeighborHome, index: number) {
     flowerArea:{...flowers,w:1.17,d:.56},
     grillPad:{...grill,w:1.50,d:1.26},
     benchApproach:homePoint(home,-home.width*.15,front+2.27),
+    guestSpot:homePoint(home,-home.width*.09,front+3.15),
     grillApproach:homePoint(home,home.width*.12,front+2.67),
     patchApproach:homePoint(home,home.width*.12,front+1.53),
     flowerApproach:homePoint(home,-home.width*.15,front+1.38),

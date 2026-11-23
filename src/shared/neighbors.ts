@@ -4,7 +4,7 @@ export { neighborVisits, neighborDoorOpen, parkNeighborPose } from './neighborLi
 export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' |
   'water' | 'sip' | 'mail' | 'carry' | 'admire' | 'prune' | 'tend' | 'harvest' |
   'prepareGrill' | 'grill' | 'taste' | 'sitRead' | 'sitPhone' | 'sitSip' | 'sitRest' |
-  'photograph' | 'checkWatch' | 'greet' | 'laugh' | 'listen';
+  'photograph' | 'checkWatch' | 'greet' | 'laugh' | 'listen' | 'sitChat';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';
 export type OutfitStyle = 'hoodie' | 'jacket' | 'coat' | 'sweater' | 'dress' | 'shirt' | 'vest' | 'overalls';
 export type AccessoryStyle = 'none' | 'backpack' | 'tote';

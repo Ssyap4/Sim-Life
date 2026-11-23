@@ -159,7 +159,8 @@ export class NeighborPeople {
 
     // Bench posture is a real, blended pelvis/leg pose, not standing with a
     // book hovering over a bench. Standing returns smoothly at gesture ends.
-    const seated=(action==='sitRead'||action==='sitPhone'||action==='sitSip'||action==='sitRest')?blend:0;
+    const seated=(action==='sitRead'||action==='sitPhone'||action==='sitSip'||
+      action==='sitRest'||action==='sitChat')?blend:0;
     rig.root.position.y=-.36*seated;
     rig.leftLeg.rotation.x=leftHip-1.05*seated;
     rig.rightLeg.rotation.x=rightHip-1.05*seated;
@@ -246,6 +247,16 @@ export class NeighborPeople {
       rx=THREE.MathUtils.lerp(rx,-.42-.16*sip,blend);
       re=THREE.MathUtils.lerp(re,-.85-.29*sip,blend);
       headX=THREE.MathUtils.lerp(headX,.08,blend);
+    } else if(action==='sitChat') {
+      const speaker=THREE.MathUtils.smoothstep(.5+.5*Math.sin(t*.51+index*2),.4,.67);
+      const emphasis=speaker*Math.max(0,Math.sin(t*1.1+index));
+      rx=THREE.MathUtils.lerp(rx,-.30-.26*emphasis,blend);
+      re=THREE.MathUtils.lerp(re,-.44-.32*emphasis,blend);
+      lx=THREE.MathUtils.lerp(lx,-.18,blend);
+      le=THREE.MathUtils.lerp(le,-.25,blend);
+      headX=THREE.MathUtils.lerp(headX,(1-speaker)*Math.sin(t*.71)*.033,blend);
+      headY=THREE.MathUtils.lerp(headY,.15+Math.sin(t*.29)*.035,blend);
+      rig.torso.rotation.x-=blend*.035;
     } else if(action==='sitRest') {
       lx=THREE.MathUtils.lerp(lx,.11,blend);
       rx=THREE.MathUtils.lerp(rx,.11,blend);
@@ -376,7 +387,7 @@ export class NeighborPeople {
     const blinkPhase=THREE.MathUtils.euclideanModulo(t+index*.87,blinkPeriod);
     const blink=blinkPhase<.155 ? Math.sin(Math.PI*blinkPhase/.155) : 0;
     paintNeighborExpression(rig.face,blink,
-      action==='chat'||action==='laugh'||action==='greet'?
+      action==='chat'||action==='sitChat'||action==='laugh'||action==='greet'?
         blend*(.42+.23*Math.sin(t*2.1+index)):action==='sitRead'?.08:.05);
   }
 }

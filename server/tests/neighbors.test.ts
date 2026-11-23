@@ -389,6 +389,27 @@ test('long conversations and pond visits look like real stops and never enter wa
   }
 });
 
+test('neighbors truly visit each others yards and talk beside the bench',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length).filter(v=>v.kind==='chat'&&v.venue==='yard');
+  assert.ok(visits.length>=2,'a pair of household friends should share a yard encounter');
+  for(const hostVisit of visits.filter(v=>v.resident===0||v.resident===2)){
+    const other=visits.find(v=>v.resident===hostVisit.companion&&v.start===hostVisit.start);
+    assert.ok(other,'shared talk must begin at the same game minute');
+    const yard=yardFeatures(NEIGHBOR_HOMES[hostVisit.resident],hostVisit.resident);
+    let observed=false;
+    for(let minute=hostVisit.start;minute<Math.min(hostVisit.end,other.end);minute+=.5){
+      const seated=neighborPose(hostVisit.resident,minute);
+      const guest=neighborPose(other.resident,minute);
+      if(seated.action!=='sitChat'||guest.action!=='chat'||seated.opacity<.85||guest.opacity<.85)continue;
+      assert.ok(Math.hypot(seated.x-yard.bench.x,seated.z-yard.bench.z)<.04);
+      assert.ok(Math.hypot(guest.x-yard.guestSpot.x,guest.z-yard.guestSpot.z)<.04);
+      assert.ok(Math.hypot(guest.x-seated.x,guest.z-seated.z)>1);
+      observed=true;break;
+    }
+    assert.ok(observed,'the host must be seated at the actual bench beside the standing guest');
+  }
+});
+
 test('four house owners use their own garden, bench and grill instead of decorative-only props',async()=>{
   const cast=await fullCast();
   for(const [home,property] of NEIGHBOR_HOMES.entries()){

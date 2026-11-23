@@ -167,6 +167,37 @@ function houseMeeting(home:NeighborHome,meeting:NeighborPoint,other:NeighborPoin
   returnHome(s,home,path);
   return s;
 }
+/** Guests can visit a friend's actual yard, while the owner sits on their
+ * bench. Route is continuous via the two real gates and public walkway. */
+function gardenConversation(hostIndex:number,guestIndex:number,day:number):[Plan,Plan]|null {
+  const host=NEIGHBOR_HOMES[hostIndex],guest=NEIGHBOR_HOMES[guestIndex];
+  const homeStopsHost=homeStops(host),homeStopsGuest=homeStops(guest);
+  const yard=yardFeatures(host,hostIndex);
+  const lane=publicRoute(homeStopsGuest.sidewalk,homeStopsHost.sidewalk);
+  if(!lane)return null;
+  const hostSequence=new Sequence(homeStopsHost.door,2.35);
+  hostSequence.move(homeStopsHost.porch).move(yard.benchApproach).move(yard.bench);
+  const guestSequence=new Sequence(homeStopsGuest.door,2.32);
+  guestSequence.move(homeStopsGuest.porch).move(homeStopsGuest.gate);
+  follow(guestSequence,lane);
+  guestSequence.move(homeStopsHost.gate).move(homeStopsHost.porch).move(yard.guestSpot);
+  const ready=Math.max(hostSequence.elapsed,guestSequence.elapsed)+3.5;
+  const minutes=23+variation(day,hostIndex,guestIndex)*6;
+  hostSequence.until(ready,'sitRest').hold('sitChat',minutes,yawTo(yard.bench,yard.guestSpot));
+  guestSequence.until(ready,'look').hold('chat',minutes,yawTo(yard.guestSpot,yard.bench));
+  guestSequence.hold('wave',2.4).move(homeStopsHost.porch).move(homeStopsHost.gate);
+  reverse(guestSequence,lane);
+  guestSequence.move(homeStopsGuest.gate).move(homeStopsGuest.porch).move(homeStopsGuest.door);
+  hostSequence.hold('sitRest',11).move(yard.benchApproach)
+    .move(homeStopsHost.porch).move(homeStopsHost.door);
+  return [
+    {resident:hostIndex,home:hostIndex,start:0,end:0,kind:'chat',
+      companion:guestIndex,venue:'yard',steps:hostSequence.steps},
+    {resident:guestIndex,home:guestIndex,start:0,end:0,kind:'chat',
+      companion:hostIndex,venue:'yard',steps:guestSequence.steps},
+  ];
+}
+
 function visitorPlan(resident:number,day:number,round:number):Plan|null {
   const origin=STREET_ENTRIES[(resident+round)%STREET_ENTRIES.length];
   const venue=DISTRICT_SITES[(resident-RESIDENT_COUNT+round*3)%DISTRICT_SITES.length];
@@ -279,12 +310,16 @@ function dayPlans(day:number,count:number):Plan[] {
   }
   for(const [a,b,start] of [[0,1,806],[2,3,1042]] as const){
     if(count<=b)continue;
-    const center={x:a===0?-13.55:13.45,z:REAR_WALK_Z};
-    const left={x:center.x-.78,z:center.z},right={x:center.x+.78,z:center.z};
-    const first=houseMeeting(NEIGHBOR_HOMES[a],left,right);
-    const second=houseMeeting(NEIGHBOR_HOMES[b],right,left);
-    queue([{resident:a,home:a,start:0,end:0,kind:'chat',companion:b,steps:first.steps},
-      {resident:b,home:b,start:0,end:0,kind:'chat',companion:a,steps:second.steps}],start);
+    const gardenMeeting=gardenConversation(a,b,day);
+    if(gardenMeeting)queue(gardenMeeting,start);
+    else {
+      const center={x:a===0?-13.55:13.45,z:REAR_WALK_Z};
+      const left={x:center.x-.78,z:center.z},right={x:center.x+.78,z:center.z};
+      const first=houseMeeting(NEIGHBOR_HOMES[a],left,right);
+      const second=houseMeeting(NEIGHBOR_HOMES[b],right,left);
+      queue([{resident:a,home:a,start:0,end:0,kind:'chat',companion:b,steps:first.steps},
+        {resident:b,home:b,start:0,end:0,kind:'chat',companion:a,steps:second.steps}],start);
+    }
   }
   // Ten public residents are independent of the cottage door schedule.
   // Each visits several buildings per day, with two public meeting areas.
