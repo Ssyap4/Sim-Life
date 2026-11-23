@@ -27,4 +27,4 @@ jobs:
       - name: Check TypeScript
         run: npm run check
       - name: Check routes, saves, shops and living NPCs
-        run: npx tsx --test server/tests/locations.test.ts server/tests/neighbors.test.ts
+        run: npx tsx --test server/tests/locations.test.ts server/tests/neighbors.test.ts server/tests/camera-detail-021.test.ts

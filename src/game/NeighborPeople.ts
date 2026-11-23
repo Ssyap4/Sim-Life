@@ -165,14 +165,33 @@ export class NeighborPeople {
       headX=THREE.MathUtils.lerp(headX,.18,blend);
       headY=THREE.MathUtils.lerp(headY,-.10,blend);
     } else if(action==='chat') {
-      const talk=Math.sin(t*2.7+index*1.65);
-      rx=THREE.MathUtils.lerp(rx,-.24-.16*talk,blend);
-      re=THREE.MathUtils.lerp(re,-.43-.22*Math.max(0,talk),blend);
-      lx=THREE.MathUtils.lerp(lx,-.16+.11*talk,blend);
-      le=THREE.MathUtils.lerp(le,-.28,blend);
-      rz=THREE.MathUtils.lerp(rz,-.16-.10*Math.sin(t*.97+index),blend);
-      headX=THREE.MathUtils.lerp(headX,.055*Math.sin(t*2.1+index),blend);
-      headY=THREE.MathUtils.lerp(headY,.09*Math.sin(t*.8+index),blend);
+      // Take turns speaking and listening. Gesture bursts have a slow envelope
+      // instead of every neighbor flapping both arms for half a minute.
+      const turn=.5+.5*Math.sin(t*.42+index*2.1);
+      const speaking=THREE.MathUtils.smoothstep(turn,.36,.67);
+      const gesture=Math.max(0,Math.sin(t*1.45+index*1.9));
+      const emphasis=speaking*(.20+.80*gesture);
+      rx=THREE.MathUtils.lerp(rx,-.13-.39*emphasis,blend);
+      re=THREE.MathUtils.lerp(re,-.24-.42*emphasis,blend);
+      lx=THREE.MathUtils.lerp(lx,-.12-.19*emphasis,blend);
+      le=THREE.MathUtils.lerp(le,-.17-.20*speaking,blend);
+      rz=THREE.MathUtils.lerp(rz,-.06-.23*emphasis,blend);
+      // Listener nods while the speaker leans in a little.
+      const nod=(1-speaking)*Math.sin(t*1.04+index*.61)*.040;
+      headX=THREE.MathUtils.lerp(headX,-.02+nod,blend);
+      headY=THREE.MathUtils.lerp(headY,.050*Math.sin(t*.36+index),blend);
+      rig.torso.rotation.x-=blend*(.012+.024*speaking);
+      rig.torso.rotation.z+=blend*.018*Math.sin(t*.63+index);
+    } else if(action==='admire') {
+      // Quietly watch the water: relaxed shoulders, slow shifting stance and
+      // a gentle sweep of the gaze; no phone or fake swimming animation.
+      headY=THREE.MathUtils.lerp(headY,Math.sin(t*.26+index*.5)*.17,blend);
+      headX=THREE.MathUtils.lerp(headX,-.06+Math.sin(t*.30+index)*.014,blend);
+      lx=THREE.MathUtils.lerp(lx,-.09,blend);
+      rx=THREE.MathUtils.lerp(rx,-.08,blend);
+      lz=THREE.MathUtils.lerp(lz,.045,blend);
+      rz=THREE.MathUtils.lerp(rz,-.045,blend);
+      rig.torso.rotation.z+=blend*Math.sin(t*.27+index)*.012;
     } else if(action==='wave') {
       rx=THREE.MathUtils.lerp(rx,-.10,blend);
       rz=THREE.MathUtils.lerp(rz,-2.04,blend);

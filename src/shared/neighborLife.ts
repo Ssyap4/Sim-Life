@@ -1,10 +1,10 @@
-import { DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_SITES, sitePoint } from './district';
+import { DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_SITES, DISTRICT_POND, sitePoint } from './district';
 import { findRoute } from '../game/navigation';
 import type { NeighborAction, NeighborPose, NeighborProfile } from './neighbors';
 import { NEIGHBOR_HOMES, REAR_WALK_Z, homeStops, type NeighborPoint, type NeighborHome } from './neighborHomes';
 
 type Stop = NeighborPoint & { t: number; action: NeighborAction; yaw: number; inside?: boolean };
-type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park';
+type LifeKind = 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond';
 export type NeighborVisit = { resident: number; home: number; start: number; end: number; kind: LifeKind; companion?: number; venue?: string };
 type Plan = NeighborVisit & { steps: Stop[] };
 const DAY = 1440;
@@ -24,6 +24,13 @@ const STREET_ENTRIES: readonly NeighborPoint[] = [
 const MEETING_SPOTS: readonly NeighborPoint[] = [
   {x:16.65,z:-8.45}, // near the pine park
   {x:-8.45,z:-.52},   // fountain square
+];
+// Shore viewpoints, not the water or the flowerbeds. Validate through the
+// same server-compatible A* before assigning a public outing.
+const POND_LOOKOUTS:readonly NeighborPoint[]=[
+  {x:DISTRICT_POND.x-3.45,z:DISTRICT_POND.z+.35},
+  {x:DISTRICT_POND.x+3.32,z:DISTRICT_POND.z-.45},
+  {x:DISTRICT_POND.x-.60,z:DISTRICT_POND.z-3.0},
 ];
 const clamp01=(n:number)=>Math.max(0,Math.min(1,n));
 const smooth=(n:number)=>{const t=clamp01(n);return t*t*(3-2*t);};
@@ -112,13 +119,16 @@ function homePlan(home:NeighborHome,kind:LifeKind,resident:number,day:number,slo
   } else {
     const place=DISTRICT_SITES[(resident+slot)%DISTRICT_SITES.length];
     const destination=kind==='park'?DISTRICT_SITES[DISTRICT_SITES.length-1]:place;
-    const target=kind==='stroll'?MEETING_SPOTS[slot%2]:
+    const pondStop=kind==='stroll'&&slot%2===0;
+    const target=kind==='stroll'?(pondStop?POND_LOOKOUTS[0]:MEETING_SPOTS[slot%2]):
       sitePoint(destination,0,destination.d/2+.48);
     const path=publicRoute(stops.sidewalk,target);
     if(!path)return homePlan(home,'garden',resident,day,slot);
     leaveHouse(s,home,path);
-    if(kind==='stroll')s.hold('look',9+f*7).hold('phone',4+f*5);
-    else enterVenue(s,day,slot+resident);
+    if(kind==='stroll'){
+      if(pondStop)s.hold('admire',20+f*10,yawTo(s.last,DISTRICT_POND));
+      else s.hold('look',9+f*7).hold('phone',4+f*5);
+    }else enterVenue(s,day,slot+resident);
     returnHome(s,home,path);
     if(kind==='errand')s.hold('carry',2.4);
   }
@@ -129,7 +139,7 @@ function houseMeeting(home:NeighborHome,meeting:NeighborPoint,other:NeighborPoin
   const path=publicRoute(stops.sidewalk,meeting);
   if(!path)return homePlan(home,'tea',0,0,0);
   leaveHouse(s,home,path);
-  s.until(29,'look').hold('chat',18,yawTo(meeting,other)).hold('wave',3,yawTo(meeting,other));
+  s.until(29,'look').hold('chat',24,yawTo(meeting,other)).hold('wave',3,yawTo(meeting,other));
   returnHome(s,home,path);
   return s;
 }
@@ -142,6 +152,21 @@ function visitorPlan(resident:number,day:number,round:number):Plan|null {
   const s=new Sequence(origin,2.4+variation(day,resident,round)*.37);
   follow(s,path);
   enterVenue(s,day,resident*7+round);
+  // A detour to the pond is an actual walked route, with a 20–30 minute
+  // waterfront pause. Other visitors linger by the park before returning.
+  const pondTrip=(round===1||round===3)&&resident%3===round%3;
+  const lookout=POND_LOOKOUTS[(resident+round)%POND_LOOKOUTS.length];
+  const leisureTarget=pondTrip?lookout:venue.place==='park'?MEETING_SPOTS[0]:null;
+  if(leisureTarget){
+    const stroll=publicRoute(destination,leisureTarget);
+    if(stroll){
+      follow(s,stroll);
+      if(pondTrip)s.hold('admire',20+variation(day,resident,round+51)*10,
+        yawTo(s.last,DISTRICT_POND));
+      else s.hold('look',13+variation(day,resident,round+51)*7);
+      reverse(s,stroll);
+    }
+  }
   if((resident+round)%3===0)s.hold('phone',4);
   reverse(s,path);
   return {resident,home:-1,start:0,end:0,kind:venue.place==='park'?'park':'errand',venue:venue.place,steps:s.steps};
@@ -167,8 +192,9 @@ function publicConversation(day:number,first:number,second:number,spot:NeighborP
     sequences.push(s);
   }
   const ready=Math.max(...sequences.map(s=>s.elapsed))+4;
+  const conversationMinutes=22+variation(day,first,second)*8;
   for(let i=0;i<2;i++){
-    sequences[i].until(ready,'look').hold('chat',20,yawTo(points[i],points[1-i]))
+    sequences[i].until(ready,'look').hold('chat',conversationMinutes,yawTo(points[i],points[1-i]))
       .hold('wave',3,yawTo(points[i],points[1-i]));
     reverse(sequences[i],paths[i]);
   }

@@ -359,6 +359,36 @@ test('deterministic pedestrians stay apart across three different daily schedule
   }
 });
 
+test('long conversations and pond visits look like real stops and never enter water',()=>{
+  const visits=neighborVisits(0,NEIGHBORS.length);
+  const chat=visits.filter(v=>v.kind==='chat'&&v.companion!==undefined);
+  assert.ok(chat.length>=2);
+  const pond={x:21.38,z:21.05};
+  let gazeMinutes=0,checked=0;
+  for(let minute=450;minute<1330;minute+=.25){
+    for(let person=0;person<NEIGHBORS.length;person++){
+      const pose=neighborPose(person,minute);
+      if(!pose.visible||pose.opacity<.6)continue;
+      if(pose.action==='admire'){
+        gazeMinutes+=.25;checked++;
+        assert.ok(Math.hypot(pose.x-pond.x,pose.z-pond.z)>2.2,
+          'NPC must watch the pond from shore, never inside its water');
+        assert.equal(pose.gait,0,'waterfront observer must stand still');
+      }
+    }
+  }
+  assert.ok(checked>=80,'at least one 20-minute waterfront rest is visible');
+  for(const visit of chat){
+    let consecutive=0,maxConsecutive=0;
+    for(let minute=visit.start;minute<visit.end;minute+=.5){
+      const p=neighborPose(visit.resident,minute);
+      consecutive=p.action==='chat'&&p.opacity>.8?consecutive+.5:0;
+      maxConsecutive=Math.max(maxConsecutive,consecutive);
+    }
+    assert.ok(maxConsecutive>=20,'real conversations last twenty or more game minutes');
+  }
+});
+
 test('pedestrians fade independently instead of changing shared apartment materials', async () => {
   const crowd=await fullCast();
   let picked:number|undefined,personA=-1,personB=-1;

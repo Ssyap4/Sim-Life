@@ -1,7 +1,7 @@
 import { livingNeighborPose } from './neighborLife';
 export { neighborVisits, neighborDoorOpen } from './neighborLife';
 
-export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' | 'water' | 'sip' | 'mail' | 'carry';
+export type NeighborAction = 'walk' | 'look' | 'phone' | 'chat' | 'wave' | 'adjust' | 'stretch' | 'water' | 'sip' | 'mail' | 'carry' | 'admire';
 export type HairStyle = 'short' | 'swept' | 'bob' | 'long' | 'ponytail' | 'bun' | 'curly' | 'cap' | 'buzz' | 'braid';
 export type OutfitStyle = 'hoodie' | 'jacket' | 'coat' | 'sweater' | 'dress' | 'shirt' | 'vest' | 'overalls';
 export type AccessoryStyle = 'none' | 'backpack' | 'tote';
@@ -13,7 +13,7 @@ export interface NeighborPose {
   gestureBlend: number;
   carrying?: boolean;
   gait?: number;
-  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park';
+  intent?: 'garden' | 'tea' | 'mail' | 'errand' | 'stroll' | 'chat' | 'exercise' | 'park' | 'pond';
 }
 export interface NeighborProfile {
   name: string; hair: number; clothes: number; trousers: number;
