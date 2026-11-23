@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { graphicsProfile, isBlankGraphicsFrame } from '../../src/game/GraphicsCompatibility';
+import { graphicsProfile, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from '../../src/game/GraphicsCompatibility';
 
 test('Android Chrome and in-app WebViews select low-memory WebGL by default',()=>{
   for(const ua of [
@@ -37,6 +37,29 @@ test('Android Firefox uses exactly the same WebGL graphics profile as iPhone',()
   assert.equal(graphicsProfile(firefox,'?gfx=safe').safe,true,
     'user-requested emergency safe mode must remain available');
 });
+test('gfx=full stays crisp even when mobile FPS governor sees slow frames',()=>{
+  const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1';
+  const firefox = 'Mozilla/5.0 (Android 10; Mobile; rv:158.0) Gecko/158.0 Firefox/158.0';
+  for (const ua of [iphone, firefox]) {
+    const full = graphicsProfile(ua, '?gfx=full');
+    assert.equal(full.full, true);
+    assert.equal(full.safe, false);
+    assert.equal(full.antialias, true);
+    for (const frameMs of [16, 25, 55, 120])
+      assert.equal(chooseGraphicsQuality(frameMs, full), 'high');
+    assert.equal(worldPixelRatio(true, 2.5, 1.25, true, 'high', full), 1.5);
+    assert.equal(worldPixelRatio(true, 1.3, 1.25, true, 'high', full), 1.3);
+  }
+  const normal = graphicsProfile(firefox, '');
+  assert.equal(normal.full, false);
+  assert.equal(chooseGraphicsQuality(30, normal), 'low');
+  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'low', normal), .88);
+  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'standard', normal), 1.11);
+  const safe = graphicsProfile(firefox, '?gfx=safe');
+  assert.equal(chooseGraphicsQuality(12, safe), 'low');
+  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'low', safe), .88);
+});
+
 test('detects silent white GPU frame without flagging a valid sky background',()=>{
   const rgba=[255,255,255,255];
   const gl={

@@ -18,7 +18,7 @@ import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
-import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame } from './GraphicsCompatibility';
+import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
@@ -216,7 +216,7 @@ export class World {
     this.canvas.parentElement?.append(this.tapLayer);
     // Android WebViews are especially vulnerable to framebuffer/context loss.
     // Disable costly MSAA and cap resolution there; retain the iPhone path.
-    this.quality = this.graphics.safe ? 'low' : 'standard';
+    this.quality = this.graphics.safe ? 'low' : this.graphics.full ? 'high' : 'standard';
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas,
         antialias: this.graphics.antialias,
@@ -2330,13 +2330,8 @@ export class World {
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
     const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
-    const district = this.place==='home';
-    let pixelRatio = compact
-      ? Math.min(window.devicePixelRatio || 1, this.quality==='low' ? (district?.88:1)
-        : district ? (this.quality==='high'?1.26:1.11)
-          : this.quality==='high' ? 1.45 : initialRatio)
-      : initialRatio;
-    pixelRatio = Math.min(pixelRatio, this.graphics.maxPixelRatio);
+    const pixelRatio = worldPixelRatio(compact, window.devicePixelRatio, initialRatio,
+      this.place === 'home', this.quality, this.graphics);
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -2389,8 +2384,7 @@ export class World {
     this.smoothedFrameMs = this.smoothedFrameMs * .97 + Math.min(frameMs, 150) * .03;
     if (!this.paused && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
       this.lastQualityUpdate = now;
-      const nextQuality = this.smoothedFrameMs > 24 ? 'low'
-        : this.smoothedFrameMs < 17.8 ? 'high' : 'standard';
+      const nextQuality = chooseGraphicsQuality(this.smoothedFrameMs, this.graphics);
       if (nextQuality !== this.quality) {
         this.quality = nextQuality;
         this.refreshViewport();
