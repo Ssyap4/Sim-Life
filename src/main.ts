@@ -8,6 +8,7 @@ import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
+import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { BOOKS, GENRES } from './shared/homeLife';
@@ -1408,9 +1409,20 @@ function openActions(item: ItemId): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'action-button';
+    const now=state?gameMinutes(state.clock):0;
+    const freshTable=state?.readyFood.filter(b=>b.storage==='table'&&b.expiresAt>now)
+      .reduce((total,b)=>total+b.portions,0)??0;
+    const freshFridge=state?.readyFood.filter(b=>b.storage==='fridge'&&b.expiresAt>now)
+      .reduce((total,b)=>total+b.portions,0)??0;
     button.textContent = actionId === 'kitchenDishes' && state
-      ? definition.label + ' · ' + dishCount(state.dirtyDishes) + ' шт.' : definition.label;
+      ? definition.label + ' · ' + dishCount(state.dirtyDishes) + ' шт.' :
+      actionId==='kitchenLeftovers' ? definition.label+' · '+freshTable+' на столе' :
+      actionId==='kitchenServe' ? definition.label+' · '+freshFridge+' в холодильнике' : definition.label;
     if (actionId === 'kitchenDishes') button.disabled = !state || dishCount(state.dirtyDishes) === 0;
+    if (actionId === 'kitchenLeftovers') button.disabled = !state||!freshTable||
+      storageUsage(state).fridge>=FRIDGE_CAPACITY;
+    if (actionId === 'kitchenServe') button.disabled = !state||!freshFridge||
+      readyFoodTableUsage(state)>=TABLE_READY_CAPACITY;
     button.addEventListener('click', () => {
       actionsEl.hidden = true;
       const denial = state && taskAccessError(state, {type:'act', actionId:actionId as ActionId});
