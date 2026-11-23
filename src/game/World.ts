@@ -439,12 +439,18 @@ export class World {
     const band = this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);
-    if (person && this.place === 'home' && !this.canSeeCharacter(bounds,this.cameraMove)) {
-      // Doorposts and tall furniture can hide a resident behind the default angle.
-      for (const direction of [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]] as const) {
-        const alternative = frame(new THREE.Vector3(...direction));
+    if (this.place === 'home' && !this.canSeeCharacter(bounds,this.cameraMove)) {
+      // Both humans AND small pets need a clear line of sight. In particular,
+      // a low Spitz behind the dining table otherwise shows just two ears.
+      // Try alternate azimuths before a mildly raised view of the same model.
+      const directions = person
+        ? [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]]
+        : [[-.92,.43,.24],[.90,.55,.35],[-.8,.65,-.7],[.7,.85,-.6],
+          [-.68,1.15,.3],[.45,1.30,1]];
+      for (const direction of directions) {
+        const alternative=frame(new THREE.Vector3(...direction));
         if (!this.canSeeCharacter(bounds,alternative)) continue;
-        this.cameraMove = alternative;
+        this.cameraMove=alternative;
         break;
       }
     }
