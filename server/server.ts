@@ -1172,7 +1172,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',
         'pet_action',
       ].includes(message.type)&&!(message.type==='pet_action'&&
-        ['buyFood','call','perch','fetch'].includes(message.action));
+        ['buyFood','call','perch','fetch'].includes(String(message.action)));
       if(sleepers.has(role)&&queueable){
         const plan=planTask(message);
         if(!plan){packet(socket,{type:'error',reason:'Неизвестное действие'});return;}
@@ -1258,14 +1258,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
 
       if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
-          (message.type === 'pet_action' && !['buyFood','call','perch','fetch'].includes(message.action))) {
+          (message.type === 'pet_action' && !['buyFood','call','perch','fetch'].includes(String(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
         submitTimed(role, socket, plan);
         return;
       }
 
-      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && ['buyFood','call','perch','fetch'].includes(message.action))) {
+      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && ['buyFood','call','perch','fetch'].includes(String(message.action)))) {
         const now = pauseTimers.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
           packet(socket, { type: 'error', reason: 'Немного подожди перед следующей командой' });
