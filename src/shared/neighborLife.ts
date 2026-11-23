@@ -192,8 +192,8 @@ function dayPlans(day:number,count:number):Plan[] {
       const collision=prepared.some(p=>plans.some(other=>{
         const from=Math.max(p.start,other.start),until=Math.min(p.end,other.end);
         if(from>=until)return false;
-        for(let time=from;time<until;time+=1.1){
-          if(dist(sampleSteps(p.steps,time-p.start),sampleSteps(other.steps,time-other.start))<.89)return true;
+        for(let time=from;time<until;time+=.20){
+          if(dist(sampleSteps(p.steps,time-p.start),sampleSteps(other.steps,time-other.start))<1.20)return true;
         }
         return false;
       }));
