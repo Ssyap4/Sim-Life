@@ -31,6 +31,7 @@ import { servingOffset } from './CookingChoreography';
 import { buildCookingStation } from './KitchenArt';
 import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
+import { currentCatPerch } from '../shared/CatPerches';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -2076,7 +2077,10 @@ export class World {
     for (const id of PET_IDS) {
       this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
-      const routine = state.pets[id].routine;
+      const candidate = state.pets[id].routine;
+      const routine = candidate?.kind==='perch' &&
+        (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch))
+        ? undefined : candidate;
       if (!pet.root.visible || !routine) {
         this.petRoutines.delete(id);
         if (pet.root.visible) {
@@ -2092,7 +2096,8 @@ export class World {
       const route = sampleWalk(routine.route, distance);
       pet.root.position.set(route.from.x, 0, route.from.z);
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined);
+        routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined,
+        routine.perch);
     }
   }
 
