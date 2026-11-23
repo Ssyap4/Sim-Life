@@ -519,9 +519,16 @@ export class Actor {
       leftZ = rightZ = 0.29;
     }
     if (this.pose === 'work') {
-      gaze += 0.032 * Math.sin(t * 1.18);
-      const leftTap = Math.max(0, Math.sin(t * 9.0)) ** 2;
-      const rightTap = Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
+      // Existing keyboard placement is untouched. Add believable cycles:
+      // bursts of typing, a short pause to check the monitor, then typing.
+      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
+      const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
+        (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
+      gaze += 0.032*Math.sin(t*1.18) - .10*pause;
+      lean+=.035*pause;
+      const beats=1-pause;
+      const leftTap = beats * Math.max(0, Math.sin(t * 9.0)) ** 2;
+      const rightTap = beats * Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
       leftY = 0.097 - leftTap * 0.022;
       rightY = 0.100 - rightTap * 0.022;
       leftZ = 0.48 + leftTap * 0.025;
@@ -597,12 +604,22 @@ export class Actor {
           lean = .16;
           gaze = .18;
           break;
-        case 'watch':
-          gaze = -.05 + Math.sin(a*1.22)*.047;
-          lean = -.07;
-          expression = this.reaction > 0 ? .15+Math.max(0,Math.sin(a*.93))*.53 : .03;
-          if (this.reaction < 0) gaze += Math.max(0,Math.sin(a*2.4))*.16;
+        case 'watch': {
+          // Keep the established sofa pose. React with small gestures to the
+          // genre, without popping up or resetting another character's seat.
+          const beat=Math.max(0,Math.sin(a*.93));
+          const laugh=this.reaction>0?beat*beat:0;
+          const tense=this.reaction<0?Math.max(0,Math.sin(a*2.4)):0;
+          const relax=.5+.5*Math.sin(a*.46+(this.id==='vlad'?0:1.4));
+          gaze=-.05+Math.sin(a*1.22)*.047+.16*tense-.035*laugh;
+          lean=-.07 + tense*.048 - laugh*.038;
+          leftY=-.43 + laugh*.09 - tense*.04;
+          rightY=-.40 + laugh*.19 - tense*.06;
+          leftZ=.26 + laugh*.035;rightZ=.26 + laugh*.11;
+          armSpread=-.06+relax*.025;
+          expression=this.reaction>0?.15+laugh*.5:this.reaction<0?.035:.08;
           break;
+        }
         case 'shower':
           leftY = .20 + Math.sin(a * 4) * .13;
           rightY = .23 - Math.sin(a * 4) * .14;
@@ -1165,7 +1182,10 @@ export class Actor {
     this.figure.position.z += partnerForward;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
-      const beats = 0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85));
+      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
+      const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
+        (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
+      const beats = (0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85)))*(1-pause);
       for (const i of [0, 1] as const) {
         const tap = beats * Math.max(0, Math.sin(t * (i === 0 ? 8.5 : 10.2) + i * 1.3)) ** 2;
         this.target.copy(typing[i]);
