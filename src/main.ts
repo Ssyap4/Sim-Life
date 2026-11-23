@@ -185,7 +185,7 @@ app.innerHTML = `
   <section id="auth" class="auth-screen" aria-labelledby="auth-title">
     <form id="auth-form" class="auth-card">
       <span class="auth-emblem">⌂</span>
-      <div class="brand-kicker">НАША МАЛЕНЬКАЯ ИСТОРИЯ</div>
+      <div class="brand-kicker">SIM LIFE · НАШ ДОМ</div>
       <h2 id="auth-title">С возвращением домой</h2>
       <p>У каждого свой персонаж, но один дом, семейный бюджет и общий прогресс.</p>
       <div class="role-choices">

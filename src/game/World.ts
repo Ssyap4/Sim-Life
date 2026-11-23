@@ -312,7 +312,7 @@ export class World {
       const touch = event.pointerType === 'touch';
       gate.down(contact(event));
       if (event.isPrimary) {
-        this.controls.enablePan = touch || this.place === 'home';
+        this.controls.enablePan = touch || this.place==='home' || this.place==='park';
         this.controls.dampingFactor = TOUCH_CAMERA_DAMPING;
         this.updatePanFeel();
       }
@@ -1824,7 +1824,7 @@ export class World {
     this.camera.far=place==='home'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'home' ? 110 : 18;
-    this.controls.enablePan = place === 'home' || place === 'market' || place === 'education' || isCareerPlace(place);
+    this.controls.enablePan = place === 'home' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
     this.controls.minDistance = 10;

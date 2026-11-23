@@ -96,3 +96,49 @@
 @media(prefers-reduced-motion:reduce){
   #app .person,#app button{transition:none}
 }
+
+/* Bring phone apps and full-screen sheets into the same quiet visual system. */
+#app .phone-case,#app [data-owner=alina] .phone-case{
+  --phone-accent:#365b4d;--phone-light:#eaf0ea;
+  background:#f8faf7;color:#2e4139;border:5px solid #2d433c;
+  border-radius:23px;box-shadow:0 17px 46px rgba(24,37,31,.26);
+}
+#app .phone-header{
+  background:#e8eee8;border-bottom:1px solid var(--ui-line);
+  color:#385a4d;font-weight:650;
+}
+#app .phone-header button{
+  color:#37584b;background:#f9faf8;border:1px solid var(--ui-line);
+  border-radius:9px;
+}
+#app .phone-grid{background:#f3f5f1}
+#app .phone-grid button{
+  background:#fafbf8;border:1px solid var(--ui-line);
+  border-radius:11px;color:#355849;font-weight:700;box-shadow:none;
+}
+#app .phone-info article{
+  background:#edf2ec;border:1px solid rgba(67,99,78,.12);
+  border-radius:10px;
+}
+#app .market-card,#app .jobs-card,#app .furnish-case{
+  background:#f9faf7;color:#314239;
+}
+#app .market-header,#app .jobs-head,#app .furnish-head{
+  background:#edf1eb;color:#30483f;
+}
+#app .market-tab,#app .market-filter,#app .pet-tab,
+#app .thought-switch button,#app .wish-choice{
+  box-shadow:none;border-color:var(--ui-line);
+  font-weight:700;
+}
+#app .auth-card .enter-button,#app #pause-actions button:not(.pause-secondary){
+  background:#36594b;color:#f9fcf8;border-radius:10px;box-shadow:none;
+}
+#app .auth-card .role-option.selected{
+  border-color:#658578;background:#eaf0e9;
+}
+#app .need-row i.need-low{background:#c47c70}
+@media(max-width:640px) and (orientation:portrait){
+  #app .phone-case{border-width:4px;border-radius:20px}
+  #app .phone-grid{gap:8px}
+}
