@@ -46,7 +46,7 @@ const snap=async(name)=>{
 };
 try{
   server=await startServer({port:0,host:'127.0.0.1',dataDir:saves,distDir:resolve('dist'),
-    testNoCodes:true,taskTimeScale:1});
+    testNoCodes:true,taskTimeScale:.35});
   const base='http://127.0.0.1:'+server.port;
   browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader',
@@ -77,7 +77,6 @@ try{
     ['02','kiss',null],
     ['03','petPet','simba'],
   ]){
-    const marker=queue.length;
     buddy.send(JSON.stringify({type:'social_propose',action,...(item?{item}:{})}));
     const invitation=await waitPacket('social_pending',p=>p.offer.action===action,12000);
     await page.locator('#social-invite:not([hidden])').waitFor({timeout:14000});
@@ -108,7 +107,10 @@ try{
   buddy.send(JSON.stringify({type:'play_game',device:'laptop',game:'paw-house'}));
   const laptop=await waitPacket('task_started',
     p=>p.role==='alina'&&p.command.type==='play_game',20000);
-  await waitPacket('task_active',p=>p.role==='alina'&&p.taskId===laptop.taskId,40000);
+  // Solo laptop tasks use the regular task runner: unlike co-op tasks,
+  // they do not emit the co-op-only `task_active` packet. Let the REAL actor
+  // approach the physical machine before filming its animated display.
+  await sleep(3400);
   await page.locator('#showcase-toggle').click();
   await page.locator('[data-showcase="alina"]').click();
   for(let frame=0;frame<3;frame++){
