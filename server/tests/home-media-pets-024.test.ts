@@ -79,7 +79,7 @@ test('Verdell asks with BOTH front paws and his back feet stay at the same locat
     body:{rotation:{x:number}};paws:{position:{y:number};rotation:{x:number}}[]
   };
   assert.ok(rig.body.rotation.x<-.15,'body sits upright on rear paws');
-  assert.ok(rig.paws[0].position.y>.4 && rig.paws[2].position.y>.4,'two front paws raised');
+  assert.ok(rig.paws[0].position.y>.59 && rig.paws[2].position.y>.59,'two front paws clearly raised');
   assert.equal(dog.root.position.x,root.x);
   assert.equal(dog.root.position.z,root.z);
   dog.followRoute([], 'eat');
