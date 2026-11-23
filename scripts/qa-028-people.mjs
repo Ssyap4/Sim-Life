@@ -86,16 +86,23 @@ try{
     const second=await waitPacket('task_started',p=>p.role==='alina'&&p.command.type==='together'&&p.command.action===action,16000);
     if(!first.home?.pair||!second.home?.pair)
       errors.push(action+': missing server-defined synchronized pair animation');
-    await waitPacket('task_active',p=>p.role==='vlad'&&p.taskId===first.taskId,40000);
+    // Focus while both participants are STILL WALKING. A 5-second kiss can
+    // finish before SwiftShader's first screenshot if focus is delayed until
+    // the active event has already arrived.
+    await page.locator('.running-task[data-role="vlad"] [data-focus-shared]')
+      .waitFor({state:'visible',timeout:10000});
     const focused=await page.evaluate(()=>{
       const el=document.querySelector('.running-task[data-role="vlad"] [data-focus-shared]');
       if(!(el instanceof HTMLButtonElement))return false;
       el.click();return true;
     });
-    if(!focused)errors.push(action+': no in-game shared camera');
-    for(let frame=0;frame<3;frame++){
-      await sleep(800);
-      await snap(idx+'-'+action+'-couple-'+frame);
+    if(!focused)errors.push(action+': no in-game shared camera while approach begins');
+    await waitPacket('task_active',p=>p.role==='vlad'&&p.taskId===first.taskId,40000);
+    await sleep(200);
+    await snap(idx+'-'+action+'-contact');
+    if(action==='petPet'){
+      await sleep(400);
+      await snap(idx+'-'+action+'-contact-second');
     }
     const finished=await waitPacket('task_ended',p=>p.role==='vlad'&&p.taskId===first.taskId,90000);
     if(finished.outcome!=='completed')errors.push(action+': '+finished.outcome+' '+finished.message);
