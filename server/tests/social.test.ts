@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
 import { activityItems, contextAvailable, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, type SocialIntent } from '../../src/shared/socialLife';
+import { familyMoments, momentDenial, FAMILY_MOMENT_PREFIX } from '../../src/shared/familyMoments';
 import { ingredientList } from '../../src/shared/food';
 import { levelXP } from '../../src/shared/education';
 import { clockAt, gameMinutes } from '../../src/shared/life';
@@ -709,4 +710,105 @@ test('Two separate single-portion batches can be shared without duplicating food
   assert.equal(state.readyFood.filter(b=>b.kind==='meal'&&b.item==='omelette'&&b.storage==='table').length,0);
   assert.equal(state.dirtyDishes.table,2);
   assert.equal(state.relationship.evening?.phase,'unwind');
+});
+
+test('Daily family moments follow real needs without changing the household while merely looking',()=>{
+  const state=sample(),initial=structuredClone(state);
+  state.characters.alina.energy=26;
+  state.pets.simba.satiety=18;
+  state.petFood.simba=2;state.petBowls.simba=0;
+  const moments=familyMoments(state,'vlad');
+  assert.deepEqual(moments.map(m=>m.id),['roughDay','petNeedsUs']);
+  assert.match(moments[0].description,/Алина/);
+  assert.match(moments[1].description,/Симба/);
+  assert.deepEqual(state.relationship,initial.relationship,'opening stories does not create a memory');
+  assert.deepEqual(familyMoments(state,'vlad'),moments,'no unseeded random story selection');
+  assert.equal(momentDenial(state,'vlad',{type:'together',action:'petFeed',item:'simba',moment:'petNeedsUs'}),undefined);
+  assert.match(momentDenial(state,'vlad',{type:'together',action:'tv',moment:'petNeedsUs'})!,/недоступен/);
+  assert.match(momentDenial(state,'vlad',{type:'together',action:'petFeed',item:'verdell',moment:'petNeedsUs'})!,/недоступен/);
+});
+
+test('Helping a hungry pet twice is not rewarded twice and actually uses a finite pet-food pack',()=>{
+  let state=sample();
+  state.pets.simba.satiety=18;state.petFood.simba=2;state.petBowls.simba=0;
+  const moment=familyMoments(state,'vlad').find(m=>m.id==='petNeedsUs');
+  assert.ok(moment);
+  const before=state.petFood.simba;
+  const command:SocialIntent={type:'together',action:'petFeed',item:'simba',moment:'petNeedsUs'};
+  const homes=pairScenes(state,'vlad',command);
+  assert.ok(homes);
+  const result=completeTogether(state,'vlad',command,[...residents],0,homes);
+  if(!result.ok)assert.fail(result.reason);
+  state=result.state;
+  assert.equal(state.petFood.simba,before-1);
+  assert.ok(state.petBowls.simba>0);
+  assert.equal(state.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'petNeedsUs').length,1);
+  assert.equal(state.relationship.memories.filter(m=>m.action==='petFeed').length,0,
+    'the real chore and story must not create two duplicate memories');
+  assert.equal(familyMoments(state,'vlad').some(m=>m.id==='petNeedsUs'),false);
+  const replay=completeTogether(state,'vlad',command,[...residents],0,homes);
+  assert.equal(replay.ok,false,'the same daily context cannot mint a second bonus');
+  assert.equal(state.petFood.simba,before-1);
+});
+
+test('Real dirty dishes and ready food unlock distinct events; two moments per in-game day cap rewards',()=>{
+  let state=sample();
+  state.dirtyDishes.table=3;
+  assert.deepEqual(familyMoments(state,'vlad').map(m=>m.id),['shareDinner','dishesTogether']);
+  const serve=familyMoments(state,'vlad')[0];
+  const command:SocialIntent={type:'together',action:serve.action,item:serve.item,moment:serve.id};
+  const homes=pairScenes(state,'vlad',command)!;
+  const meal=completeTogether(state,'vlad',command,[...residents],0,homes);
+  if(!meal.ok)assert.fail(meal.reason);
+  state=meal.state;
+  assert.equal(state.meals.omelette,0,'two real portions were eaten');
+  assert.equal(state.dirtyDishes.table,5,'two additional used dishes remain on the table');
+  const chores:SocialIntent={type:'together',action:'dishes',moment:'dishesTogether'};
+  const route=pairScenes(state,'vlad',chores)!;
+  const cleaned=completeTogether(state,'vlad',chores,[...residents],0,route);
+  if(!cleaned.ok)assert.fail(cleaned.reason);
+  state=cleaned.state;
+  assert.equal(state.dirtyDishes.table,0);
+  assert.equal(state.relationship.memories.filter(m=>m.action.startsWith(FAMILY_MOMENT_PREFIX)).length,2);
+  assert.equal(familyMoments(state,'vlad').length,0,'do not clutter the phone after two earned daily stories');
+  state.clock=clockAt(gameMinutes(state.clock)+1440);
+  state.dirtyDishes.table=1;
+  assert.ok(familyMoments(state,'vlad').some(m=>m.id==='dishesTogether'),
+    'a new day can introduce the same real chore again');
+});
+
+test('Declined story invites cannot change resources; accepted live two-phone story saves after its real chore',async()=>{
+  const state=sample();
+  state.dirtyDishes.table=2;
+  const f=await meet({state,scale:.025});
+  try {
+    const v=await f.connect('vlad'),a=await f.connect('alina');
+    const submit=()=>{
+      v.send({type:'social_propose',action:'dishes',moment:'dishesTogether'});
+      return v.take('social_pending');
+    };
+    const offer=(await submit()).offer;
+    assert.match(offer.title,/После ужина/);
+    assert.equal((await a.take('social_pending')).offer.id,offer.id);
+    a.send({type:'social_reply',inviteId:offer.id,choice:null});
+    assert.equal((await v.take('social_closed')).phase,'declined');
+    assert.equal(f.files.load().dirtyDishes.table,2);
+    assert.equal(f.files.load().relationship.memories.length,0);
+    await new Promise(resolve=>setTimeout(resolve,750));
+    v.send({type:'social_propose',action:'dishes',moment:'petNeedsUs'});
+    await v.take('error'); // forged story id/action combination
+    const valid=(await submit()).offer;
+    await a.take('social_pending',p=>p.offer.id===valid.id);
+    await accept(v,a,valid.id);
+    const first=await started(v,'vlad'),peer=await started(a,'alina');
+    assert.equal((await ended(v,'vlad',first.taskId)).outcome,'completed');
+    assert.equal((await ended(a,'alina',peer.taskId)).outcome,'completed');
+    const finished=f.files.load();
+    assert.equal(finished.dirtyDishes.table,0);
+    assert.equal(finished.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'dishesTogether').length,1);
+    assert.equal(finished.relationship.memories.filter(m=>m.action==='dishes').length,0);
+    a.ws.close();await once(a.ws,'close');
+    const rejoined=await f.connect('alina');
+    assert.equal(rejoined.ready.state.relationship.memories.filter(m=>m.action===FAMILY_MOMENT_PREFIX+'dishesTogether').length,1);
+  }finally{await f.close();}
 });
