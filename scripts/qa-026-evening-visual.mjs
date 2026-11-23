@@ -55,6 +55,32 @@ try{
       if(phase==='complete'&&!sizes.storyText.includes('Наш вечер вдвоём'))
         errors.push('Completed memory absent '+width);
     }
+    for(const [scenario,label,momentId] of [
+      ['tired','💛 Сегодня нужен отдых','roughDay'],
+      ['pet','🐾 Кто-то ждёт ужина','petNeedsUs'],
+      ['dinner','🍽️ Пора за общий стол','shareDinner'],
+      ['dishes','🧽 После ужина — вдвоём','dishesTogether'],
+      ['budget','📺 Хороший вечер без расходов','simpleEvening'],
+    ]){
+      await page.evaluate(scenario=>window.testMoment(scenario),scenario);
+      const card=page.locator('#relationship .relationship-moment');
+      if(await card.count()!==1)errors.push('Expected one grounded moment '+width+' '+scenario+' got '+await card.count());
+      if(!(await card.first().textContent()??'').includes(label))
+        errors.push('Wrong moment '+width+' '+scenario);
+      const proposal=card.first().getByRole('button',{name:'Предложить семейный момент'});
+      if(await proposal.count()!==1||await proposal.isDisabled())
+        errors.push('Moment proposal not available '+width+' '+scenario);
+      else{
+        await proposal.click();
+        const sent=await page.evaluate(()=>JSON.parse(document.body.dataset.sent||'[]'));
+        if(sent.length!==1||sent[0]?.moment!==momentId||sent[0]?.type!=='social_propose')
+          errors.push('Moment invite payload mismatch '+width+' '+scenario+' '+JSON.stringify(sent));
+      }
+      await page.locator('#phone').screenshot({path:path.join(dir,width+'-moment-'+scenario+'.png')});
+      const scrollWidth=await page.evaluate(()=>document.documentElement.scrollWidth);
+      if(scrollWidth>width+1)errors.push('Horizontal overflow in family moment '+width+' '+scenario);
+      results.push({width,scenario,momentId,scrollWidth});
+    }
     await page.close();
   }
   fs.writeFileSync(path.join(dir,'results.json'),JSON.stringify({results,errors},null,2));
