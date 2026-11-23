@@ -7,8 +7,8 @@ import {
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 import { addLedger } from '../src/shared/economy';
 import { placeObstacles } from '../src/shared/locations';
-import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
-import { sampleWalk, segmentIsClear, pointIsClear } from '../src/game/navigation';
+import { GAME_MINUTES_PER_REAL_SECOND, gameMinutes } from '../src/shared/life';
+import { sampleWalk, segmentIsClear, pointIsClear, type FloorPoint, type WalkRoute } from '../src/game/navigation';
 import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
 import { preferredPetWanderTarget } from '../src/shared/petPersonality';
 
@@ -31,6 +31,84 @@ export function pausePetRoutine(state: GameState, id: PetId, now: number): void 
   delete pet.routine;
 }
 
+
+/** The length of a real obstacle-avoiding route, not a straight-line guess. */
+function routeLength(route:WalkRoute):number {
+  let distance=0,prev=route.from;
+  for(const point of route.path){
+    distance+=Math.hypot(point.x-prev.x,point.z-prev.z);
+    prev=point;
+  }
+  return distance;
+}
+function arrivesAt(route:WalkRoute,point:FloorPoint):boolean {
+  const end=route.path.at(-1)??route.from;
+  return Math.hypot(end.x-point.x,end.z-point.z)<.035;
+}
+/** A call finds an unobstructed floor point near, but not INSIDE, the owner. */
+function ownerPetPoint(state:GameState,id:PetId,role:CharacterId) {
+  const actor=state.characters[role];
+  const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+  const other=state.pets[id==='verdell'?'simba':'verdell'].position;
+  const offsets=[[0,1],[1,0],[-1,0],[0,-1],[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
+  for(const [dx,dz] of offsets){
+    const point={x:actor.x+dx,z:actor.z+dz};
+    if(!pointIsClear(point,geometry.obstacles,geometry.floor)||
+      Math.hypot(point.x-other.x,point.z-other.z)<.62)continue;
+    const route=planPetRoute(state.pets[id].position,point,geometry);
+    if(route&&arrivesAt(route,point))return {point,route,geometry};
+  }
+  return null;
+}
+/** Both automatic and manual climbs must have a real floor launch, empty
+ * furniture, clear arc and an obstacle-safe floor route. */
+function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0) {
+  const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+  const places=catPerchCandidates(state.furnishing);
+  const ordered=nearest
+    ? [...places].sort((a,b)=>Math.hypot(a.approach.x-from.x,a.approach.z-from.z)-
+      Math.hypot(b.approach.x-from.x,b.approach.z-from.z))
+    : places.map((_,i)=>places[(i+first)%places.length]);
+  for(const site of ordered){
+    if((['vlad','alina'] as const).some(role=>{
+      const person=state.characters[role];
+      const bed=person.sleepingOn??'starter';
+      return person.pose==='sleep' &&
+        (site.key==='starter:bed'&&bed==='starter'||
+          site.key.startsWith('placed:')&&typeof bed==='number'&&'placed:'+bed===site.key) ||
+        person.pose!=='idle'&&Math.hypot(person.x-site.surface.x,person.z-site.surface.z)<2.25;
+    }))continue;
+    if(!pointIsClear(site.approach,geometry.obstacles,geometry.floor))continue;
+    const other=placeObstacles('home',state.furnishing).filter(rect=>
+      !(site.surface.x>=rect.minX-.02&&site.surface.x<=rect.maxX+.02&&
+        site.surface.z>=rect.minZ-.02&&site.surface.z<=rect.maxZ+.02));
+    if(!segmentIsClear(site.approach,site.surface,other,HOME_FLOOR))continue;
+    const route=planPetRoute(from,site.approach,geometry);
+    if(route&&arrivesAt(route,site.approach))return {site,route};
+  }
+  return null;
+}
+/** The ball must have a real two-leg route: dog -> toy -> owner.
+ * A failed leg never triggers pretend fetching or rewards. */
+function dogFetchRoute(state:GameState,role:CharacterId) {
+  const near=ownerPetPoint(state,'verdell',role);
+  if(!near)return null;
+  const actor=state.characters[role];
+  const offsets=[[0,2.3],[2.3,0],[-2.3,0],[0,-2.3],[1.7,1.7],[-1.7,1.7],[1.7,-1.7],[-1.7,-1.7]];
+  for(const [dx,dz] of offsets){
+    const point={x:actor.x+dx,z:actor.z+dz};
+    if(!pointIsClear(point,near.geometry.obstacles,near.geometry.floor))continue;
+    const out=planPetRoute(state.pets.verdell.position,point,near.geometry);
+    const back=planPetRoute(point,near.point,near.geometry);
+    if(!out||!back||!arrivesAt(out,point)||!arrivesAt(back,near.point))continue;
+    const route:WalkRoute={from:out.from,path:[...out.path,...back.path]};
+    const pickupDistance=routeLength(out);
+    if(route.path.length>55||pickupDistance<.3||routeLength(route)>34)continue;
+    return {route,goal:near.point,fetchPoint:point,fetchPickupDistance:pickupDistance};
+  }
+  return null;
+}
+
 /** Called on the clock's isolated state. Routes are cosmetic, supplies are authoritative. */
 export function runPetRoutines(state: GameState, minutes: number, now: number,
   occupied: ReadonlySet<PetId>, random = Math.random): void {
@@ -51,7 +129,9 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const invalidPerch=previous?.kind==='perch' &&
       (id!=='simba'||!previous.perch||!currentCatPerch(state.furnishing,previous.perch));
     // A pre-update saved 'eat' route cannot mime eating from an empty bowl.
-    if (previous && previous.until > now && !invalidPerch &&
+    const urgentInterrupt=previous && ['come','fetch','perch'].includes(previous.kind) &&
+      (pet.satiety<20||pet.energy<15||pet.bladder<18);
+    if (previous && previous.until > now && !invalidPerch && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
@@ -62,6 +142,13 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bladder = 100;
     } else if (previous?.kind === 'sleep') {
       pet.energy = clamp(pet.energy + 33);
+    } else if (previous?.kind==='come' && previous.until<=now) {
+      pet.bond=clamp(pet.bond+3);
+      pet.happiness=clamp(pet.happiness+2);
+    } else if (previous?.kind==='fetch' && previous.until<=now) {
+      pet.bond=clamp(pet.bond+5);
+      pet.happiness=clamp(pet.happiness+10);
+      pet.energy=clamp(pet.energy-5);
     } else if (previous?.kind==='perch' && !invalidPerch && previous.until<=now) {
       // Real completed resting on an installed sofa/bed restores a modest
       // amount of energy. An invalidated/sold cushion gives no reward.
@@ -81,37 +168,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     // fatigue, toilet trips, play, or immediately after another perching.
     if(id==='simba' && kind==='wander' && previous?.kind!=='perch' &&
       pet.energy>=66 && pet.satiety>=50 && pet.bladder>=66 && random()<.42){
-      const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
-      const candidates=catPerchCandidates(state.furnishing);
-      const first=candidates.length?Math.floor(random()*candidates.length):0;
-      for(let i=0;i<candidates.length;i++){
-        const site=candidates[(first+i)%candidates.length];
-        // A resident sleeping or working on a sofa/bed owns that space.
-        if((['vlad','alina'] as const).some(role=>{
-          const human=state.characters[role];
-          const sleepingOn=human.sleepingOn??'starter';
-          const bedOccupied=human.pose==='sleep' &&
-            (site.key==='starter:bed' && sleepingOn==='starter' ||
-              site.key.startsWith('placed:') && typeof sleepingOn==='number' &&
-                'placed:'+sleepingOn===site.key);
-          return bedOccupied || human.pose!=='idle' &&
-            Math.hypot(human.x-site.surface.x,human.z-site.surface.z)<2.25;
-        }))continue;
-        if(!pointIsClear(site.approach,geometry.obstacles,geometry.floor))continue;
-        // The launch-to-landing arc may pass over the chosen object but may
-        // not cut through a completely unrelated wall or neighboring item.
-        const otherObstacles=placeObstacles('home',state.furnishing).filter(rect=>
-          !(site.surface.x>=rect.minX-.02 && site.surface.x<=rect.maxX+.02 &&
-            site.surface.z>=rect.minZ-.02 && site.surface.z<=rect.maxZ+.02));
-        if(!segmentIsClear(site.approach,site.surface,otherObstacles,HOME_FLOOR))continue;
-        const route=planPetRoute(pet.position,site.approach,geometry);
-        const end=route?.path.at(-1)??route?.from;
-        if(!route||!end||Math.hypot(end.x-site.approach.x,end.z-site.approach.z)>.02)continue;
-        chosenPerch=site;
-        chosenRoute=route;
+      const sites=catPerchCandidates(state.furnishing);
+      const first=sites.length?Math.floor(random()*sites.length):0;
+      const picked=safeCatPerch(state,pet.position,false,first);
+      if(picked){
+        chosenPerch=picked.site;
+        chosenRoute=picked.route;
         kind='perch';
-        target=0; // compatibility with older numeric routine validation
-        break;
+        target=0;
       }
     }
     // Two pets must not reserve the exact same roaming destination.
@@ -142,7 +206,7 @@ export function applyPetAction(
   action: string,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
-  if (!['buyFood', 'feed', 'play', 'pet', 'brush'].includes(action))
+  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -151,6 +215,47 @@ export function applyPetAction(
   const spec = PETS[id];
   const actor = next.characters[role];
   let message = '';
+
+  // Commands are issued while the player stays put. They MUST NOT call
+  // petCarePoint / teleport the human beside the animal.
+  if(kind==='call'||kind==='perch'||kind==='fetch'){
+    if(next.world.places[role]!=='home')
+      return {ok:false,reason:'Позвать питомца можно только из дома или своего двора'};
+    if(actor.pose==='sleep'||actor.pose==='work')
+      return {ok:false,reason:'Сначала закончи текущие дела'};
+    if(data.satiety<40||data.bladder<35||data.energy<20)
+      return {ok:false,reason:spec.name+' сейчас нуждается в еде, отдыхе или туалете'};
+    if(data.routine?.kind==='eat'||data.routine?.kind==='toilet')
+      return {ok:false,reason:'Не будем отвлекать '+spec.name+' от важного дела'};
+    const now=Math.floor(gameMinutes(next.clock));
+    if(kind==='perch'){
+      if(id!=='simba')return {ok:false,reason:'Верделл предпочитает отдыхать на полу'};
+      const chosen=safeCatPerch(next,data.position,true);
+      if(!chosen)return {ok:false,reason:'Нет свободной доступной мягкой мебели для Симбы'};
+      const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+      data.routine={kind:'perch',target:0,startedAt:now,until:now+travel+27,
+        route:chosen.route,perch:chosen.site};
+      message='Симба идёт к '+(chosen.site.key.startsWith('starter:')?'домашней мебели':'купленной мебели')+
+        ', чтобы запрыгнуть и отдохнуть';
+    }else if(kind==='call'){
+      const chosen=ownerPetPoint(next,id,role);
+      if(!chosen)return {ok:false,reason:'Нет безопасного пути от питомца к хозяину'};
+      const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+      data.routine={kind:'come',target:0,startedAt:now,until:now+travel+8,
+        goal:chosen.point,route:chosen.route};
+      message=names[role]+' зовёт '+spec.name+': питомец идёт по дому к хозяину';
+    }else{
+      if(id!=='verdell')return {ok:false,reason:'Симба предпочитает играть с мышкой'};
+      if(data.energy<42)return {ok:false,reason:'Верделл устал — сначала пусть отдохнёт'};
+      const chosen=dogFetchRoute(next,role);
+      if(!chosen)return {ok:false,reason:'Для броска мячика нет свободного безопасного места'};
+      const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+      data.routine={kind:'fetch',target:0,startedAt:now,until:now+travel+9,...chosen};
+      message=names[role]+' бросает мячик — Верделл бежит за ним и несёт обратно!';
+    }
+    next.revision++;
+    return {ok:true,state:next,message};
+  }
 
   switch (kind) {
     case 'buyFood':
