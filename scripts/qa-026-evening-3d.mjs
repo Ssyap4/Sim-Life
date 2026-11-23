@@ -45,7 +45,7 @@ const snap=async(name)=>{
 };
 try{
   server=await startServer({port:0,host:'127.0.0.1',dataDir:saves,distDir:resolve('dist'),
-    testNoCodes:true,taskTimeScale:.28});
+    testNoCodes:true,taskTimeScale:1});
   const base='http://127.0.0.1:'+server.port;
   browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader',
@@ -96,13 +96,15 @@ try{
         button.click();return true;
       });
       if(!focused)errors.push(action+': shared camera control missing while task active');
-      await sleep(490);
+      // At production pace, residents can really reach their stations and perform
+      // the gestures before the shot. A scaled 0.28 run only captured walking.
+      await sleep(action==='tv'?6500:action==='cook'?4400:action==='eat'?3600:3000);
       await snap(shot+'-close-up');
     }catch(error){
       errors.push(action+': '+String(error));
       await snap(shot+'-fallback');
     }
-    const ending=await waitPacket('task_ended',p=>p.role==='vlad'&&p.taskId===first.taskId,30000);
+    const ending=await waitPacket('task_ended',p=>p.role==='vlad'&&p.taskId===first.taskId,90000);
     if(ending.outcome!=='completed')errors.push(action+' ended: '+ending.outcome+' '+ending.message);
     await waitPacket('task_ended',p=>p.role==='alina'&&p.taskId===peer.taskId,10000);
     const current=files.load().relationship.evening;
