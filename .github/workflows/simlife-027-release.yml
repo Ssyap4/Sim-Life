@@ -1,0 +1,39 @@
+name: Sim-Life 0.27 final release regression
+on:
+  push:
+    branches: [feat/living-personalities-027]
+    paths:
+      - .github/workflows/simlife-027-release.yml
+      - package.json
+      - package-lock.json
+      - docs/RELEASE_027.md
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-release-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Locked dependencies
+        run: npm ci
+      - name: Strict TypeScript
+        run: npm run check
+      - name: ALL server, pet, UI logic, migration and household regression tests
+        run: node --import tsx --test --test-concurrency=2 server/tests/*.test.ts
+        timeout-minutes: 25
+      - name: Furniture catalog and navigation audit
+        run: npm run audit:furniture
+      - name: Production browser client build
+        run: npx vite build
+      - name: Version, output, and real-save isolation
+        run: |
+          node -e "if(require('./package.json').version!=='0.27.0')process.exit(1)"
+          test -z "$(git ls-files server-data)"
+          test -s dist/index.html
+          test -n "$(find dist/assets -name 'index-*.js' -print -quit)"
