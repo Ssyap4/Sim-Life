@@ -378,7 +378,7 @@ export class PetActor {
           : i === 0 ? -1.25 * grooming * (0.87 + .13 * Math.sin(t * 8))
           - .35 * pounce : 0)
         - (front ? .30 : -.10) * stretching
-        - (dog && front ? .78 * begging + .10 * begging *
+        - (dog && front ? 1.06 * begging + .14 * begging *
           Math.sin(this.idleTime * 8 + i * 2) : 0);
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
         (dog ? 0 : .018 * playful * (front ? 1 : 0))
@@ -388,12 +388,13 @@ export class PetActor {
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
           - playBow * .035 : 0)
         + (!dog && i < 2 ? pounce * -.045 : 0)
-        + (dog && front ? .31 * begging : 0);
+        + (dog && front ? .47 * begging : 0);
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
-        (!dog && i === 0 ? grooming * .10 : 0) - (dog && front ? .08 * begging : 0);
+        (!dog && i === 0 ? grooming * .10 : 0) + (dog && front ? .075 * begging : 0);
       paw.position.x = (i < 2 ? -1 : 1) * (dog ? .16 : front ? .094 : .109) +
-        (!dog && i === 0 ? grooming * .04 : 0);
+        (!dog && i === 0 ? grooming * .04 : 0)
+        - (dog && front ? (i<2?-1:1)*.048*begging : 0);
     }
   }
 }
