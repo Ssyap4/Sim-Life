@@ -29,6 +29,13 @@
   color:#466c55;font:900 25px/1 'Nunito',sans-serif;
   box-shadow:0 5px 16px rgba(47,72,52,.20);
 }
+/* Lift the camera buttons clear of the shared-action progress sheet in portrait.
+   Otherwise both camera controls sit directly over its first lines on an iPhone 11. */
+@media(max-width:640px) and (orientation:portrait){
+  #app:has(#task-panel:not([hidden])) .camera-dock{
+    bottom:clamp(252px,34dvh,330px);
+  }
+}
 .camera-dock .camera-reset:active{transform:scale(.96)}
 .camera-dock .camera-follow[aria-pressed="true"] {background:#416b53;color:#fff;}
 @media(max-width:640px) and (orientation:portrait) {
