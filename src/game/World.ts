@@ -1065,8 +1065,10 @@ export class World {
           actor.playDomesticActivity('reach');
           this.preparations.set(role,{remaining:.75,next:()=>{
             if(!current())return;
+            actor.carryFoodContainer();
             void this.walkTo(role,fridge.approach,()=>{
               if(!current())return;
+              actor.hideFoodContainer();
               actor.faceTowards(new THREE.Vector3(fridge.center.x,.93,fridge.center.z));
               actor.playDomesticActivity('tidy');
             });
