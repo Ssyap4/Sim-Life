@@ -85,9 +85,8 @@ export class NeighborPeople {
       entry.seen=seconds;
       entry.mounted.position.set(pose.x,0,pose.z);
       entry.mounted.rotation.y=pose.yaw;
-      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z},
+      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z+this.offset},
         clearance:.76,person:true,moving:pose.action==='walk'});
-      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z+this.offset},clearance:.76,person:true,moving:pose.action==='walk'});
       const rig=entry.model;
       const distance=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z-this.offset,camera.position.y*.40):0;
       if(!rig){if(distance<72)this.request(i,entry);continue;}
@@ -120,6 +119,8 @@ export class NeighborPeople {
       entry.seen=seconds;
       entry.mounted.position.set(pose.x,0,pose.z);
       entry.mounted.rotation.y=pose.yaw;
+      if(pose.opacity>.35)traffic.push({position:{x:pose.x,z:pose.z},
+        clearance:.76,person:true,moving:pose.action==='walk'});
       const rig=entry.model;
       if(!rig){
         const d=camera?Math.hypot(camera.position.x-pose.x,camera.position.z-pose.z,camera.position.y*.35):0;
