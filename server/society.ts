@@ -185,7 +185,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   return result as Record<CharacterId,HomePresentation>;
 }
 
-export function addRelationship(state:GameState,a:SocialActivity,choice:number) {
+export function addRelationship(state:GameState,a:SocialActivity,choice:number,storyOnly=false) {
   const profile=state.relationship, now=gameMinutes(state.clock);
   const recent=profile.recent.filter(e=>now-e.at<BOND_WINDOW);
   const same=recent.filter(e=>e.action===a.id).length;
@@ -193,7 +193,7 @@ export function addRelationship(state:GameState,a:SocialActivity,choice:number) 
   profile.recent=[...recent,{action:a.id,at:now}].slice(-RECENT_LIMIT);
   profile.lastTogether=now;
   const quiz=a.id==='riddle'?choice===0:a.id==='homelyQuiz'?choice===1:false;
-  if (a.memorable&&(strength===1||!profile.memories.some(m=>m.action===a.id))&&
+  if (a.memorable&&!storyOnly&&(strength===1||!profile.memories.some(m=>m.action===a.id))&&
       !profile.memories.some(m=>m.action===a.id&&now-m.at<1440)){
     profile.memories.push({action:a.id,group:a.group,at:now,title:a.title,description:a.replies[choice]??a.lines[0]});
     profile.memories=profile.memories.slice(-MEMORY_LIMIT);
@@ -295,7 +295,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   }
   if(rejected&&!rejected.ok) return rejected;
   if(remember&&roles.length===2){
-    const {strength,quiz}=addRelationship(state,a,choice);
+    const {strength,quiz}=addRelationship(state,a,choice,!!moment);
     const now=gameMinutes(state.clock);
     if(moment)message+=momentReward(state,from,moment);
     if(a.id==='eveningPlan'){
