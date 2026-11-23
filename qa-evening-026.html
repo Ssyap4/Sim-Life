@@ -81,6 +81,7 @@ window.testMoment=kind=>{
   if(kind==='dinner'){state.meals.omelette=2;addReadyFood(state,'meal','omelette',2,'table');}
   if(kind==='dishes')state.dirtyDishes.table=3;
   if(kind==='budget')state.money=3500;
+  sent.length=0;
   document.body.dataset.sent='[]';
   render();
 };
