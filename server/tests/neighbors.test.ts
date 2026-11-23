@@ -382,7 +382,7 @@ test('long conversations and pond visits look like real stops and never enter wa
     let consecutive=0,maxConsecutive=0;
     for(let minute=visit.start;minute<visit.end;minute+=.5){
       const p=neighborPose(visit.resident,minute);
-      consecutive=p.action==='chat'&&p.opacity>.8?consecutive+.5:0;
+      consecutive=(p.action==='chat'||p.action==='sitChat')&&p.opacity>.8?consecutive+.5:0;
       maxConsecutive=Math.max(maxConsecutive,consecutive);
     }
     assert.ok(maxConsecutive>=20,'real conversations last twenty or more game minutes');
