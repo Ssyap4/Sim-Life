@@ -54,6 +54,36 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
   const dot=(x:number,y:number,z:number,r=.014,color=D)=>
     ball(r,r,r,x,y,z,color,'metal');
   const s=sku;
+  // Pet accessories have the EXACT same lightweight model in catalogue cards,
+  // placement preview and the installed house. They are not reskinned rugs.
+  if(s==='pet-bed-verdell'||s==='pet-bed-simba'){
+    const cat=s==='pet-bed-simba';
+    box(w*.96,.032,d*.95,0,.023,0,D,'fabric',true);
+    ball(w*.42,.063,d*.38,0,.075,0,F);
+    for(const side of [-1,1]){
+      ball(w*.11,.075,d*.35,side*w*.39,.079,0,cat?M:L);
+      ball(w*.35,.071,d*.12,0,.079,side*d*.37,cat?M:L);
+    }
+    for(const x of [-.07,.07])for(const z of [-.045,.045])
+      ball(.020,.004,.018,x,.137,z,D);
+    ball(.035,.005,.028,0,.138,.075,D);
+    return root;
+  }
+  if(s==='pet-scratcher-simba'){
+    box(w*.94,.075,d*.94,0,.041,0,D,'wood',true);
+    cyl(.105,h*.73,.105,0,h*.43,0,0xb59a70,'fabric');
+    for(let i=0;i<9;i++){
+      const yy=h*(.13+i*.073),a=i*1.1;
+      line(Math.cos(a)*.113,yy,Math.sin(a)*.113,
+        Math.cos(a+1.1)*.113,yy+h*.045,Math.sin(a+1.1)*.113,
+        .014,0xdfc8a0,'fabric');
+    }
+    box(w*.68,.058,d*.69,0,h*.84,0,M,'fabric',true);
+    ball(w*.27,.027,d*.27,0,h*.90,0,F);
+    line(w*.22,h*.85,d*.22,w*.28,h*.62,d*.26,.009,D);
+    ball(.047,.051,.047,w*.28,h*.57,d*.26,0xd58f78);
+    return root;
+  }
   // ----------------------------- UPHOLSTERY -----------------------------
   if(item.shape==='sofa'||item.shape==='corner'||item.shape==='armchair'){
     const chair=item.shape==='armchair',chaise=item.shape==='corner';
