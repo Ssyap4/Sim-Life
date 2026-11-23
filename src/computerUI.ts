@@ -3,6 +3,7 @@ import { createBillingUI, type BillingApp } from './billingUI';
 import { createMarketUI } from './marketUI';
 import type { BasketLine } from './shared/market';
 import type { ServiceCommand } from './shared/services';
+import type { BudgetCommand } from './shared/familyBudget';
 import { createEducationUI, type EducationView } from './educationUI';
 import { MATERIAL_BY_ID } from './shared/educationCatalog';
 import { serviceAvailable } from './shared/services';
@@ -32,6 +33,7 @@ type Callbacks = {
   vote(enabled: boolean): boolean;
   travel(): boolean;
   service(command: ServiceCommand): boolean;
+  budget(command: BudgetCommand): boolean;
   checkout(lines: BasketLine[]): boolean;
   furnishing():void;
 };
@@ -98,7 +100,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const userLabel = root.querySelector<HTMLElement>('[data-computer-user]')!;
   const session = root.querySelector<HTMLElement>('[data-computer-session]')!;
   const closeButton = root.querySelector<HTMLButtonElement>('[data-computer-close]')!;
-  const billing = createBillingUI(content,callbacks.service);
+  const billing = createBillingUI(content,callbacks.service,callbacks.budget);
   const shopRoot = section('section','market-overlay computer-market-root');
   shopRoot.hidden = true;
   const shop = createMarketUI(shopRoot,callbacks.checkout,()=>show('mobile'),()=>show('browser'));
