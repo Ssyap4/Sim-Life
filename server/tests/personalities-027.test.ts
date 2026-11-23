@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import * as THREE from 'three';
 import assert from 'node:assert/strict';
 import {initialState} from '../../src/shared/protocol';
 import {characterDemeanor} from '../../src/game/CharacterDemeanor';
@@ -144,4 +145,40 @@ test('0.27 v2: greetings are proximity-triggered, need-gated, and never move roo
   assert.equal(cat.currentIdleGesture(),'nuzzle');
   assert.notEqual(starving.currentIdleGesture(),'happyHop');
   assert.ok(dog.root.position.equals(before[0])&&cat.root.position.equals(before[1]));
+});
+
+test('0.27 v3: hello wave visibly changes the shoulder rig without shifting navigation',()=>{
+  const friendly=new Actor('alina',[1,2]);
+  const neutral=new Actor('alina',[1,2]);
+  for(const actor of [friendly,neutral])
+    actor.setNeeds({mood:91,energy:88,hunger:86,bladder:89,hygiene:84});
+  friendly.setIdleSurroundings(null,null);
+  friendly.setIdleSurroundings(null,.38);
+  const start=friendly.root.position.clone();
+  for(let i=0;i<32;i++){friendly.update(.055);neutral.update(.055);}
+  const arm=(friendly as unknown as {rightArm:THREE.Object3D}).rightArm;
+  const ordinary=(neutral as unknown as {rightArm:THREE.Object3D}).rightArm;
+  assert.equal(friendly.currentIdleGesture(),'noticePartner');
+  assert.ok(arm.quaternion.angleTo(ordinary.quaternion)>.12,
+    'The new wave must actually raise the visible arm, not only change expression');
+  assert.ok(friendly.root.position.distanceTo(start)<1e-8);
+});
+
+test('0.27 v3: Verdell has a narrower visible ruff and a recognizable hop without moving his feet roots',()=>{
+  const dog=new PetActor('verdell');
+  const coat=dog.root.children[0].children.find(part=>part instanceof THREE.Mesh) as THREE.Mesh;
+  assert.ok(coat?.geometry,'The real Spitz coat must exist');
+  coat.geometry.computeBoundingBox();
+  const bounds=coat.geometry.boundingBox!;
+  assert.ok(bounds.max.x-bounds.min.x<.75,
+    'The old sphere-like heavy coat should not come back');
+  const start=dog.root.position.clone();
+  dog.setAmbient({satiety:84,energy:85,happiness:91,bond:81,bowl:2,personNearby:true});
+  let maxLift=0;
+  for(let i=0;i<75;i++){
+    dog.update(.04);
+    maxLift=Math.max(maxLift,dog.root.children[0].position.y);
+  }
+  assert.ok(maxLift>.16,'Happy welcome should be readable on a mobile screen');
+  assert.ok(dog.root.position.equals(start));
 });

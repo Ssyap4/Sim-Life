@@ -334,9 +334,9 @@ export class PetActor {
       + greeting * Math.max(0, Math.sin(t * 7.5)) * .044 - stretching * (dog ? .027 : .032)
       - tiredHungry * .024 + foodLook * .017 * Math.sin(t * 6)
       - playBow * .064 + pounce * (.026*Math.sin(Math.PI*this.idleTime/PET_IDLE_SECONDS)-.033)
-      + begging * .105 + happyHop * .053 * (0.5 + 0.5 * Math.sin(this.idleTime * 8.2));
+      + begging * .105 + happyHop * .142 * (0.5 + 0.5 * Math.sin(this.idleTime * 8.2));
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
-      + greeting * .022 * Math.sin(t * 6.5) + happyHop * .058 * Math.sin(this.idleTime*8.2);
+      + greeting * .022 * Math.sin(t * 6.5) + happyHop * .075 * Math.sin(this.idleTime*8.2);
     this.body.rotation.x = -.13 * toilet + (dog ? -.10 : .11) * stretching
       + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49;
     this.body.scale.z = 1 + (dog ? 0.006 * pulse : -0.033 * playful + 0.024 * attention)
@@ -394,7 +394,7 @@ export class PetActor {
         + (dog ? front && i === 0 ? -.42 * foodLook * (0.6 + .4 * Math.sin(t * 6))
           + greeting * -.23 * (0.5 + .5 * Math.sin(t * 9))
           - pawWave * .62 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
-          + playBow * .13 : 0
+          + playBow * .13 - happyHop * .28 : 0
           : i === 0 ? -1.25 * grooming * (0.87 + .13 * Math.sin(t * 8))
           - .35 * pounce : 0)
         - (front ? .30 : -.10) * stretching
@@ -406,7 +406,7 @@ export class PetActor {
         + (dog && i === 0 ? foodLook * .18 * (0.5 + .5 * Math.sin(t * 6))
           + greeting * .09 * (0.5 + .5 * Math.sin(t * 9))
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
-          - playBow * .035 : 0)
+          - playBow * .035 + happyHop * .11 : 0)
         + (!dog && i < 2 ? pounce * -.045 : 0)
         + (dog && front ? .47 * begging : 0);
       // A lifted paw reaches the cat's face, rather than twitching on the floor.

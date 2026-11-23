@@ -99,7 +99,9 @@ export class Actor {
   }
   currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
   noticePartnerArrival():void {
-    if(this.clock>=this.nextGreeting)this.arrivalUntil=this.clock+4;
+    // Give a newly arrived partner a moment to finish their step before
+    // the greeting can begin, but never queue an animation over real work.
+    if(this.clock>=this.nextGreeting)this.arrivalUntil=this.clock+6;
   }
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
@@ -501,7 +503,7 @@ export class Actor {
         this.idleGestureTime=0;
         this.greeting=true;
         this.arrivalUntil=-1;
-        this.nextGreeting=this.clock+65;
+        this.nextGreeting=this.clock+80;
       }else if (this.idleCooldown <= 0) {
         this.idleGesture = chooseResidentIdle(this.id, this.idleContext, this.idleTurn++);
         this.idleGestureTime = 0;
@@ -1108,9 +1110,18 @@ export class Actor {
           rightY = THREE.MathUtils.lerp(rightY, -0.43, w * 0.42);
           rightZ = THREE.MathUtils.lerp(rightZ, 0.18 + .017 * nod, w * 0.52);
           if(this.greeting){
-            const wave=residentIdleEase(phase,.35,.9)*(1-residentIdleEase(phase,1.9,2.8));
-            rightY+=.37*wave;
-            rightZ+=(.15+.09*Math.sin(phase*10))*wave;
+            // A single calm hello, readable even at a normal phone camera
+            // distance. Arm rises beside the shoulder, then settles.
+            // No extra social action, root displacement or forced embrace.
+            const wave=residentIdleEase(phase,.32,.86)*
+              (1-residentIdleEase(phase,2.12,2.96));
+            const flutter=Math.sin(phase*9.4)*.032*wave;
+            rightY=THREE.MathUtils.lerp(rightY,.225+flutter,wave);
+            rightZ=THREE.MathUtils.lerp(rightZ,.355,wave);
+            armSpread=THREE.MathUtils.lerp(armSpread,-.22,wave*.5);
+            idleChestYaw+=yaw*.18*wave;
+            idleHeadYaw+=yaw*.08*wave;
+            expression+=.10*wave;
           }
           break;
         }

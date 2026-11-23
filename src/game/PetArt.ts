@@ -98,13 +98,14 @@ function petEyes(head: THREE.Group, dog: boolean): THREE.Group[] {
 }
 
 function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THREE.Group): void {
-  // The silhouette is a single coat. Changes in the radial profile suggest
-  // the way a dense ruff falls over the chest without separate fur spikes.
+  // The low-cost coat has a clear waist and narrower shoulders. The previous
+  // almost spherical 0.96-high ruff swallowed the paws/head in mobile shots.
+  // Keep the fluffy chest, but leave a readable neck and four walking legs.
   const fur = loft([
-    [0.123, 0.199, 0.306, -0.127], [0.179, 0.273, 0.392, -0.10],
-    [0.33, 0.323, 0.466, -0.067], [0.48, 0.343, 0.481, -0.039],
-    [0.62, 0.345, 0.436, 0.029], [0.78, 0.258, 0.301, 0.093],
-    [0.913, 0.160, 0.168, 0.163], [0.963, 0.004, 0.004, 0.196],
+    [0.123, 0.181, 0.278, -0.127], [0.179, 0.238, 0.344, -0.10],
+    [0.33, 0.282, 0.406, -0.067], [0.48, 0.301, 0.422, -0.039],
+    [0.62, 0.302, 0.395, 0.029], [0.74, 0.240, 0.297, 0.093],
+    [0.835, 0.134, 0.154, 0.163], [0.876, 0.004, 0.004, 0.196],
   ], 36, 30, (x, y, z, a) => {
     const chest = Math.max(0, Math.cos(a));
     const taper = Math.sin(Math.PI * THREE.MathUtils.smoothstep(y, 0.14, 0.94));
@@ -144,8 +145,11 @@ function spitz(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THR
   detail(head, 0x211d20, [0, -0.067, 0.314], [0.043, 0.025, 0.024], true);
   detail(head, 0x161417, [0, -0.103, 0.278], [0.054, 0.014, 0.036]);
   detail(jaw, 0x272128, [0, -0.124, 0.247], [0.078, 0.037, 0.055]);
-  sculptedCurve(tail, [[0, 0, 0.045], [0.017, 0.057, -0.022],
-    [0.024, 0.092, -0.101], [0.014, 0.084, -0.170]], 0.057, 0.009, charcoal, 0.72, true, undefined, 'fur');
+  // Spitz's fluffy curled tail now rises above the rump instead of being
+  // buried as a tiny dark stump behind the coat. Same cheap swept mesh.
+  sculptedCurve(tail, [[0, 0.018, 0.045], [0.018, 0.155, -0.060],
+    [0.056, 0.300, -0.132], [0.096, 0.366, -0.058],
+    [0.066, 0.304, 0.045]], 0.065, 0.014, charcoal, 0.72, true, undefined, 'fur');
 }
 
 function tabby(body: THREE.Group, head: THREE.Group, tail: THREE.Group, jaw: THREE.Group): THREE.Mesh {

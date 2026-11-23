@@ -19,6 +19,6 @@ jobs:
       - name: Strict TypeScript
         run: npm run check
       - name: Character rig, context and actual server autonomy checks
-        run: node --import tsx --test server/tests/personalities-027.test.ts server/tests/autonomy.test.ts server/tests/player-copy-020.test.ts server/tests/pets.test.ts server/tests/petNavigation.test.ts
+        run: node --import tsx --test server/tests/personalities-027.test.ts server/tests/autonomy.test.ts server/tests/player-copy-020.test.ts server/tests/pets.test.ts server/tests/petNavigation.test.ts server/tests/personalities-027-v3.test.ts
       - name: Production client build
         run: npx vite build

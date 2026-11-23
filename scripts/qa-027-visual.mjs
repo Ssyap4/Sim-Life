@@ -50,7 +50,7 @@ try{
   await once(buddy,'open');
   buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
   const wait=ms=>new Promise(r=>setTimeout(r,ms));
-  await wait(1100);
+  await wait(550);
   const makeShot=async name=>{
     await page.screenshot({path:join(out,name+'.png'),timeout:26000});
     const data=await page.evaluate(()=>({
@@ -64,12 +64,12 @@ try{
     if(!data.canvas||!data.lobbyHidden)errors.push(name+': real WebGL/client not running '+JSON.stringify(data));
   };
   await makeShot('01-home-unhappy-vlad-happy-alina');
-  await wait(1300);
+  await wait(300);
   await makeShot('01b-nearby-family-reaction');
   // Actual existing in-game portrait showcase, not an invented camera API.
   // Capture all four in close-up so a human can inspect faces, shoulders,
   // ears, paws and tail; repeat each to see a real animation progression.
-  for(const [index,subject] of ['vlad','alina','verdell','simba'].entries()){
+  for(const [index,subject] of ['alina','vlad','verdell','simba'].entries()){
     await page.locator('#showcase-toggle').click();
     await page.locator('[data-showcase="'+subject+'"]').click();
     await page.waitForTimeout(900);
