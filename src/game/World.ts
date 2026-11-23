@@ -173,6 +173,10 @@ export class World {
   };
   private followSubject: THREE.Object3D | null = null;
   private followingPlayer = false;
+  private followingPair = false;
+  private readonly pairCameraTarget = new THREE.Vector3();
+  private readonly pairCameraEye = new THREE.Vector3();
+  private readonly pairCameraDirection = new THREE.Vector3(.46,.76,1).normalize();
   private readonly followPoint = new THREE.Vector3();
   private readonly followDelta = new THREE.Vector3();
   private cameraMove: Frame | null = null;
@@ -327,7 +331,7 @@ export class World {
         event.stopPropagation();
         return;
       }
-      if (this.followingPlayer && (event.buttons || event.pointerType === 'touch')) this.setFollowPlayer(false);
+      if ((this.followingPlayer || this.followingPair) && (event.buttons || event.pointerType === 'touch')) this.setFollowPlayer(false);
       if (motion.twistRadians)
         this.controls.rotateLeft(-motion.twistRadians);
       if (event.pointerType === 'mouse' && this.furnishingGhost &&
@@ -351,12 +355,13 @@ export class World {
     const cancel = (event: PointerEvent) => gate.cancel(event.pointerId);
     this.canvas.addEventListener('pointercancel', cancel, { capture: true });
     this.canvas.addEventListener('wheel', () => {
-      if (this.followingPlayer) this.setFollowPlayer(false);
+      if (this.followingPlayer || this.followingPair) this.setFollowPlayer(false);
     }, { passive: true });
     this.canvas.addEventListener('lostpointercapture', cancel);
   }
 
   setFollowPlayer(enabled: boolean): void {
+    this.followingPair = false;
     this.followingPlayer = enabled;
     const button = document.querySelector<HTMLButtonElement>('#camera-follow');
     button?.setAttribute('aria-pressed', String(enabled));
@@ -384,12 +389,13 @@ export class World {
     const v=this.actors.vlad.root.position,a=this.actors.alina.root.position;
     const gap=Math.hypot(v.x-a.x,v.z-a.z);
     const target=new THREE.Vector3((v.x+a.x)/2,1.06,(v.z+a.z)/2);
-    const distance=THREE.MathUtils.clamp(6.9+gap*1.25,7.4,16.2);
-    const angle=new THREE.Vector3(.46,.76,1).normalize();
+    // A portrait display needs extra framing width to keep both residents visible.
+    const distance=THREE.MathUtils.clamp(8.3+gap*1.3,9.1,17.5);
     this.controls.minDistance=3.4;
     this.controls.maxDistance=96;
     this.controls.maxPolarAngle=1.4;
-    this.cameraMove={target,position:target.clone().addScaledVector(angle,distance)};
+    this.followingPair=true;
+    this.cameraMove={target,position:target.clone().addScaledVector(this.pairCameraDirection,distance)};
     return true;
   }
 
@@ -405,6 +411,7 @@ export class World {
   }
 
   showcase(subject: CharacterId | PetId | null): void {
+    this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.neighborhoodView=false;
     this.inspected = subject;
@@ -508,6 +515,7 @@ export class World {
 
   /** One deliberate, predictable camera reset at any location. */
   resetCamera():void {
+    this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.savedCameras.delete(this.place);
     if(this.place==='home')this.frameDistrictResident();
@@ -976,6 +984,8 @@ export class World {
     if (!home) return false;
     this.homeTasks.delete(role);
     this.pairStages.delete(role);
+    // Hold the last framing when the shared action ends, then return to free camera.
+    if(this.pairStages.size===0)this.followingPair=false;
     this.homeEffects.television(role);
     if (home.station === 'shower' || home.station === 'bathtub' || home.station === 'wcBasin')
       this.homeEffects.water(home.station,false);
@@ -2452,6 +2462,23 @@ export class World {
       if (this.cameraMove) {
         this.cameraMove.target.add(this.followDelta);
         this.cameraMove.position.add(this.followDelta);
+      }
+    }
+    if(this.followingPair){
+      // Actors may move several metres between the opt-in tap and reaching
+      // their station. Follow their midpoint rather than a frozen click position.
+      if(this.place!=='home'||!this.actors.vlad.root.visible||!this.actors.alina.root.visible){
+        this.followingPair=false;
+      }else{
+        const v=this.actors.vlad.root.position,a=this.actors.alina.root.position;
+        const gap=Math.hypot(v.x-a.x,v.z-a.z);
+        this.pairCameraTarget.set((v.x+a.x)/2,1.06,(v.z+a.z)/2);
+        this.pairCameraEye.copy(this.pairCameraTarget).addScaledVector(
+          this.pairCameraDirection,THREE.MathUtils.clamp(8.3+gap*1.3,9.1,17.5));
+        const fraction=1-Math.exp(-dt*5.5);
+        this.controls.target.lerp(this.pairCameraTarget,fraction);
+        this.camera.position.lerp(this.pairCameraEye,fraction);
+        this.cameraMove=null;
       }
     }
     if (this.cameraMove) {
