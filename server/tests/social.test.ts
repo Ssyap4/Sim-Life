@@ -501,3 +501,35 @@ test('A declined evening invitation cannot reserve food or create a shared eveni
     assert.deepEqual(f.files.load().pantry,original.pantry);
   }finally{await f.close();}
 });
+
+test('A two-phone home evening stays synchronized through every real server action',async()=>{
+  const f=await meet({scale:.018});
+  try{
+    const v=await f.connect('vlad'),a=await f.connect('alina');
+    const stages=[
+      {action:'eveningPlan',item:'omelette',phase:'prepare'},
+      {action:'cook',item:'omelette',phase:'dine'},
+      {action:'eat',item:'omelette',phase:'unwind'},
+      {action:'tv',phase:'complete'},
+    ] as const;
+    for(const step of stages){
+      const offer=await propose(v,a,step.action,'item' in step?step.item:undefined);
+      await accept(v,a,offer.id);
+      const first=await started(v,'vlad'),second=await started(v,'alina');
+      assert.equal(first.command.type,'together');
+      assert.equal((await ended(v,'vlad',first.taskId)).outcome,'completed');
+      assert.equal((await ended(a,'alina',second.taskId)).outcome,'completed');
+      assert.equal(f.files.load().relationship.evening?.phase,step.phase,step.action);
+      await a.take('snapshot',packet=>packet.state.relationship.evening?.phase===step.phase);
+    }
+    const saved=f.files.load();
+    assert.equal(saved.relationship.memories.filter(memory=>memory.action==='homeEvening').length,1);
+    assert.equal(saved.meals.omelette,2,'new cooking should make two portions, then joint dining consumes two');
+    assert.equal(saved.pantry.eggs,7-2,'only one ingredient set is charged for cooking');
+    a.ws.close();
+    await once(a.ws,'close');
+    const rejoined=await f.connect('alina');
+    assert.equal(rejoined.ready.state.relationship.evening?.phase,'complete');
+    assert.equal(rejoined.ready.state.relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+  }finally{await f.close();}
+});
