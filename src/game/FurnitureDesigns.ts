@@ -482,11 +482,16 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
       if(!day&&s!=='bed-solo')feet(.10,.11,.057);
     }
     box(w*.90,.15,d*.87,0,mattress,0,0xf0ece2,'fabric',true);
-    box(w*.87,.047,d*.58,0,mattress+.09,d*.19,F,'fabric',true);
-    const pillows=w>1.45?2:1;
-    for(let i=0;i<pillows;i++){
-      const x=(i-(pillows-1)/2)*w*.43;
-      box((w*.69)/pillows,.075,d*.16,x,mattress+.12,-d*.34,L,'fabric',true);
+    if(day){
+      box(w*.58,.047,d*.87,w*.19,mattress+.09,0,F,'fabric',true);
+      box(w*.16,.075,d*.69,-w*.34,mattress+.12,0,L,'fabric',true);
+    }else{
+      box(w*.87,.047,d*.58,0,mattress+.09,d*.19,F,'fabric',true);
+      const pillows=w>1.45?2:1;
+      for(let i=0;i<pillows;i++){
+        const x=(i-(pillows-1)/2)*w*.43;
+        box((w*.69)/pillows,.075,d*.16,x,mattress+.12,-d*.34,L,'fabric',true);
+      }
     }
     if(canopy){
       for(const x of [-w*.46,w*.46])for(const z of [-d*.46,d*.46])

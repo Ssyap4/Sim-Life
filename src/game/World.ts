@@ -520,12 +520,16 @@ export class World {
       ? this.household?.pets.simba.routine?.perch : undefined;
     const perch = candidate && this.household &&
       currentCatPerch(this.household.furnishing,candidate) ? candidate : null;
-    const angle = perch
+    const resting=person&&this.actors[subject].isSleeping();
+    // A low standing-portrait camera hides the sleeping body behind the bed.
+    // Inspect from above and from the foot, respecting a rotated mattress.
+    const bedAngle=resting?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
+    const angle = bedAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)
       : subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
-        : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
+        : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1));
     const band = this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);

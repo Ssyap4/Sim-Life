@@ -1,5 +1,6 @@
 import { HOME_JOBS } from "../shared/jobs";
 import * as THREE from 'three';
+import {sleepPosture} from './SleepPosture';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PairMotion } from '../shared/socialLife';
 import type { PetAction } from '../shared/pets';
@@ -63,6 +64,7 @@ export class Actor {
   private waypoints: THREE.Vector3[] = [];
   private callback: Arrival | null = null;
   private pose: Pose = 'idle';
+  private restTime=0;
   private gesture: SocialKind | null = null;
   private gestureTime = 0;
   private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; partner?:Actor; time:number }|null=null;
@@ -302,6 +304,7 @@ export class Actor {
     this.homeWorkStyle=undefined;
     this.waypoints = [];
     this.callback = null;
+    if(this.pose!==pose)this.restTime=0;
     this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;
     this.gesture = null;
     this.partnerGesture = null;
@@ -526,6 +529,9 @@ export class Actor {
     const seated = this.pose === 'sit' || this.pose === 'work';
     const asleep = this.pose === 'sleep';
     const reclining=this.partnerGesture?.motion==='bedRest';
+    const resting=asleep||reclining;
+    this.restTime=resting?this.restTime+dt:0;
+    const rest=resting?sleepPosture(this.id,this.restTime,reclining):null;
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
     const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat'||this.activity==='bathe';
@@ -1299,7 +1305,7 @@ export class Actor {
     // two-handed counter work just because World supplied a focus point.
     const counter = this.pan && this.activity && COUNTER_ACTIONS.has(this.activity as DomesticMotion)
       ? this.pan : undefined;
-    if (!typing && !stirring && !counter) {
+    if (!rest && !typing && !stirring && !counter) {
       this.bend(armA, data.elbows[0], data.upperArm, data.lowerArm, leftY, leftZ, -1, alpha);
       this.bend(armB, data.elbows[1], data.upperArm, data.lowerArm, rightY, rightZ, -1, alpha);
       armA.rotation.y = THREE.MathUtils.lerp(armA.rotation.y, 0, alpha);
@@ -1307,8 +1313,19 @@ export class Actor {
       armA.rotation.z = THREE.MathUtils.lerp(armA.rotation.z, armSpread, alpha);
       armB.rotation.z = THREE.MathUtils.lerp(armB.rotation.z, -armZ, alpha);
     }
+    if(rest){
+      // Direct authored local joint angles supersede the standing two-bone
+      // targets: elbows fold toward the body, not through the mattress.
+      for(const i of [0,1] as const){
+        const arm=i===0?armA:armB,p=rest.arms[i];
+        arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,p.x,alpha);
+        arm.rotation.y=THREE.MathUtils.lerp(arm.rotation.y,p.y,alpha);
+        arm.rotation.z=THREE.MathUtils.lerp(arm.rotation.z,p.z,alpha);
+        data.elbows[i].rotation.x=THREE.MathUtils.lerp(data.elbows[i].rotation.x,p.bend,alpha);
+      }
+    }
     if (!typing && !stirring && !counter) for (const wrist of data.wrists) {
-      wrist.rotation.x = THREE.MathUtils.lerp(wrist.rotation.x, this.activity === 'eat' ? 0.12 : 0, alpha);
+      wrist.rotation.x = THREE.MathUtils.lerp(wrist.rotation.x, rest?rest.arms[data.wrists.indexOf(wrist)].end:this.activity === 'eat' ? 0.12 : 0, alpha);
       wrist.rotation.y = THREE.MathUtils.lerp(wrist.rotation.y, 0, alpha);
       wrist.rotation.z = THREE.MathUtils.lerp(wrist.rotation.z, 0, alpha);
     }
@@ -1325,10 +1342,20 @@ export class Actor {
         foot.z+=this.seatBlend*(data.thighLength*.84-i*.027)-weightTransfer*.036;
         foot.toePitch*=1-this.seatBlend;
       }
-      this.bend(upper,knee,data.thighLength,data.shinLength,foot.y,foot.z,1,legBlend);
+      if(rest){
+        const p=rest.legs[i];
+        upper.rotation.x=THREE.MathUtils.lerp(upper.rotation.x,p.x,legBlend);
+        upper.rotation.y=THREE.MathUtils.lerp(upper.rotation.y,p.y,legBlend);
+        upper.rotation.z=THREE.MathUtils.lerp(upper.rotation.z,p.z,legBlend);
+        knee.rotation.x=THREE.MathUtils.lerp(knee.rotation.x,p.bend,legBlend);
+      }else{
+        this.bend(upper,knee,data.thighLength,data.shinLength,foot.y,foot.z,1,legBlend);
+        upper.rotation.y=THREE.MathUtils.lerp(upper.rotation.y,0,legBlend);
+        upper.rotation.z=THREE.MathUtils.lerp(upper.rotation.z,0,legBlend);
+      }
       const ankle = data.ankles[i];
       ankle.rotation.x = THREE.MathUtils.lerp(ankle.rotation.x,
-        asleep ? -0.10 : foot.toePitch - upper.rotation.x - knee.rotation.x,legBlend);
+        rest?rest.legs[i].end:foot.toePitch - upper.rotation.x - knee.rotation.x,legBlend);
     }
 
     // Speech overlay only on the face/head: preserve utensils, hands, legs, route and furniture pose.
@@ -1350,18 +1377,18 @@ export class Actor {
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
-    const look = 0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
+    const look = rest?rest.headYaw+(reclining?partnerYaw:0):0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
-    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55 + chatNod, alpha);
+    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, (rest?rest.headPitch:gaze + 0.022 * breath - lean * 0.55 + chatNod), alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
-      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + demeanor.tilt*moodWeight, alpha);
+      rest?rest.headRoll:0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + demeanor.tilt*moodWeight, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
     const taskRhythm=Math.sin(a*2.3)*.012*activityEase;
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x,
-      lean + motion * .025 + weightTransfer*.18 + taskRhythm,alpha);
+      rest?rest.chestPitch+.011*breath:lean + motion * .025 + weightTransfer*.18 + taskRhythm,alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
       motion * 0.055 * Math.cos(stridePhase) + idleChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
@@ -1375,7 +1402,9 @@ export class Actor {
     this.figure.position.y -= stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
-    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep||reclining ? -Math.PI / 2 : 0, alpha);
+    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, resting ? -Math.PI / 2 : 0, alpha);
+    this.figure.rotation.y = THREE.MathUtils.lerp(this.figure.rotation.y,rest?.roll??0,alpha);
+    if(rest)this.figure.position.y+=rest.lift+.004*breath;
     if (typing) {
       const spec=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]:undefined;
       const variant=spec?.animation??0;
