@@ -4,6 +4,7 @@ import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy
 import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
@@ -23,8 +24,8 @@ import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { gains } from './needs';
 import { familyMoments, momentReward, type FamilyMoment } from '../src/shared/familyMoments';
-import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
-import { completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
+import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, contextAvailable, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
+import { parkConversation, completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
 import type { PetId } from '../src/shared/pets';
 
 type Started = Extract<ServerPacket, { type: 'task_started' }>;
@@ -95,7 +96,7 @@ export function createHomeSessions(hooks: Hooks) {
   const sessions = new Map<CharacterId, Session>();
   let invite: Invite | null = null;
   let nextInviteId = 0;
-  let socialInvite: { offer:SocialOffer; command:SocialIntent; timer:ReturnType<typeof setTimeout>; cookTask?:number } | null=null;
+  let socialInvite: { offer:SocialOffer; command:SocialIntent; timer:ReturnType<typeof setTimeout>; cookTask?:number; parkSession?:Session } | null=null;
   const lastProposal: Partial<Record<CharacterId,number>>={};
   function closeSocial(phase:SocialPhase,message:string,reply?:string) {
     if(!socialInvite)return;
@@ -133,7 +134,7 @@ export function createHomeSessions(hooks: Hooks) {
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
       if(!choice)return null;
-      const seated=['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
+      const seated=(isLeisureAction(command.action)&&LEISURE[command.action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
         'tablePlan','youtube','movie','free_tv'].includes(command.action)||
         (command.action==='read_book'&&FURNITURE_BY_ID.get(choice.item.sku)?.shape!=='shelves');
       return {route:choice.route,station:'furniture',furnitureId:choice.item.id,
@@ -531,13 +532,18 @@ export function createHomeSessions(hooks: Hooks) {
     hooks.all({type:'task_ended',role,taskId:member.packet.taskId,outcome:'completed',message:result.message,effects:gains(before,result.state,role)});
   }
 
+  const parkSessionFor=(role:CharacterId):Session|undefined=>{
+    const session=sessions.get(role),command=session?.plan.command;
+    return session&&session.activeAt!==null&&session.participants.length===2&&sessions.get(otherRole(role))===session&&command?.type==='together'&&['picnic','parkSwing'].includes(SOCIAL_BY_ID.get(command.action)?.object??'')&&hooks.state().world.places[role]==='park'&&hooks.state().world.places[otherRole(role)]==='park'?session:undefined;
+  };
   function social(role:CharacterId,socket:WebSocket,message:Record<string,unknown>) {
     if(message.type==='social_finish'){finishSocial(role,socket,message.taskId);return;}
     if(message.type==='social_propose'){
       if(invite||socialInvite)return error(socket,'Другое приглашение уже ждёт ответа');
       const partner=otherRole(role), helper=message.action==='joinCook', cook=helper?cookFor(partner):undefined;
       if(helper&&!cook)return error(socket,'Партнёр сейчас не готовит');
-      if(!available(role)||(!cook&&!available(partner)))return error(socket,'Оба игрока должны быть в сети и свободны');
+      const parkSession=typeof message.action==='string'&&SOCIAL_BY_ID.get(message.action)?.object==='parkTalk'?parkSessionFor(role):undefined;
+      if(!parkSession&&(!available(role)||(!cook&&!available(partner))))return error(socket,'Оба игрока должны быть в сети и свободны');
       if(now()-(lastProposal[role]??0)<600)return error(socket,'Подожди перед следующим приглашением');
       const a=cook?SOCIAL_BY_ID.get(isGrillRecipe(cook.command.recipe)?'grill':'cook'):
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
@@ -546,7 +552,7 @@ export function createHomeSessions(hooks: Hooks) {
       const cmd:SocialIntent={type:'together',action:a.id,
         item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined),
         ...(typeof message.moment==='string'?{moment:message.moment}:{})};
-      const reason=cooperationDenial(hooks.state(),role,cmd);
+      const reason=parkSession?(contextAvailable(a,hooks.state(),role)?undefined:'Тема пока не подходит к ситуации'):cooperationDenial(hooks.state(),role,cmd);
       if(reason)return error(socket,reason);
       const resource=socialResource(a,cmd.item);
       if(!cook&&resource&&(reserved(resource)||hooks.resourceBusy(resource)))return error(socket,'Объект уже используется');
@@ -555,25 +561,31 @@ export function createHomeSessions(hooks: Hooks) {
       const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cook?'Помочь с готовкой':story?.title??a.title,
         text:cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
         replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:now()+ttl,remainingMs:ttl};
-      socialInvite={offer,command:cmd,cookTask:cook?.id,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
+      socialInvite={offer,command:cmd,cookTask:cook?.id,parkSession,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
       lastProposal[role]=now();
       hooks.all({type:'social_pending',offer});
       return;
     }
     if(!socialInvite||message.inviteId!==socialInvite.offer.id)return error(socket,'Это приглашение уже закрыто');
-    const {offer,command,cookTask}=socialInvite;
+    const {offer,command,cookTask,parkSession}=socialInvite;
     if(now()>=offer.expiresAt)return closeSocial('expired','Время ответа истекло');
     if(message.type==='social_withdraw'&&offer.from===role)return closeSocial('cancelled','Приглашение отозвано');
     if(message.type!=='social_reply'||offer.from===role)return error(socket,'Ответить может только приглашённый игрок');
     if(message.choice===null)return closeSocial('declined','Приглашение отклонено');
     if(typeof message.choice!=='number'||!Number.isInteger(message.choice)||message.choice<0||message.choice>=offer.replies.length)
       return error(socket,'Выбери один из ответов');
+    if(parkSession){
+      const a=SOCIAL_BY_ID.get(offer.action)!;
+      if(parkSessionFor(role)!==parkSession||!contextAvailable(a,hooks.state(),offer.from))return closeSocial('interrupted','Совместный отдых закончился');
+      try{hooks.save(parkConversation(hooks.state(),offer.from,a,message.choice));}catch{return closeSocial('interrupted','Не удалось сохранить разговор');}
+      broadcastSnapshot();closeSocial('accepted','Разговор во время отдыха',offer.replies[message.choice]);return;
+    }
     if(cookTask&&cookFor(role)?.id!==cookTask)return closeSocial('interrupted','Эта готовка уже завершена');
     if((!cookTask&&!available(role))||!available(offer.from))return closeSocial('interrupted','Кто-то уже занят или вышел из игры');
     const reason=cooperationDenial(hooks.state(),offer.from,command);
     if(reason)return closeSocial('interrupted',reason);
     const a=SOCIAL_BY_ID.get(offer.action)!;
-    const plan={command,label:a.title,durationMs:socialDuration(a,command),resource:socialResource(a,command.item)};
+    const plan={command,label:a.title,durationMs:socialDuration(a,command,hooks.state()),resource:socialResource(a,command.item)};
     if(cookTask){
       if(!pairScenes(hooks.state(),role,command))return closeSocial('interrupted','У столешницы нет двух свободных подходов');
       cancel(role,'Готовка продолжится вдвоём',cookTask);

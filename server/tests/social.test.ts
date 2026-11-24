@@ -302,12 +302,16 @@ test('Context prompts use actual milestones and have enough independently author
 test('Routes stay walkable for both partners in the home, cafe and park',()=>{
   const state=sample();state.dirtyDishes.table=2;state.world.tableBags=1;
   for(const a of SOCIAL_ACTIVITIES.filter(a=>a.object)){
-    const candidates=a.object==='parkRest'?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
+    const candidates=['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
     for(const place of candidates){
       for(const role of residents){state.world.places[role]=place;Object.assign(state.characters[role],spawn(place,role));}
+      if(a.object==='leisure'){state.furnishing.placed=[{id:1,sku:'leisure-chess',finish:'sage',rotation:0,x:10,z:8.6}];state.furnishing.nextId=2;}
+      if(a.object==='parkTalk')for(const role of residents){const seat=stationById('park','park-swing')!;Object.assign(state.characters[role],approachFor(seat,role),{pose:'sit'});}
+      if(a.object==='picnic')state.world.picnic={portions:{vlad:[{kind:'meal',item:'omelette',expiresAt:9999}],alina:[{kind:'meal',item:'omelette',expiresAt:9999}]}};
       if(a.object==='cafeTalk')for(const role of residents){const table=stationById('cafe','cafe-left')!;Object.assign(state.characters[role],approachFor(table,role),{pose:'sit'});}
       const item=activityItems(a,state,'vlad')[0]?.id??(a.object==='takeout'?'pizza':a.object==='grill'?'grillSausage':undefined);
       const result=pairScenes(state,'vlad',{type:'together',action:a.id,item});
+      if(a.object==='leisure')state.furnishing.placed=[];
       assert.ok(result,a.id+' '+place);
       const endpoints=residents.map(role=>result[role].pair?.stroll?.at(-1)??result[role].route.path.at(-1)??result[role].route.from);
       assert.notDeepEqual(endpoints[0],endpoints[1]);

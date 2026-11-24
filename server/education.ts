@@ -1,3 +1,4 @@
+import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import {
   CLASS_WINDOW, SKILL_IDS, SKILLS, classDates, educationalXP, initialEducation, isSkillId,
   maximumXP, missingKnowledge, nextClassSlots, repeatFactor, skillRank, talent,
@@ -261,6 +262,11 @@ export function awardActivity(state: GameState, role: CharacterId, command: Time
   if (command.type === 'read_book' && Object.hasOwn(BOOKS, command.book))
     practiceXP(state, role, 'book:' + command.book, readingSkill(command.book), label, 10, 8);
   else if (command.type === 'cook') awardCooking(state, role, command.recipe);
+  else if(command.type==='furniture_use'&&isLeisureAction(command.action)){
+    const skill=LEISURE[command.action].skill;if(skill)practiceXP(state,role,'leisure:'+command.action,skill,label,12,8);
+  }
+  else if (command.type === 'local_activity' && command.action === 'badminton')
+    practiceXP(state, role, 'badminton:' + command.station, 'fitness', label, 12, 8);
   else if (command.type === 'local_activity' && command.action === 'exercise')
     practiceXP(state, role, 'exercise:' + command.station, 'fitness', label, 9, 8);
   else if (command.type === 'act' && Object.hasOwn(routines, command.actionId)) {

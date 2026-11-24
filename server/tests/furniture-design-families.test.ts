@@ -4,12 +4,12 @@ import * as THREE from 'three';
 import { FURNITURE_CATALOG,FURNITURE_STYLES,furnitureStyle } from '../../src/shared/furniture';
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 
-test('the 0.28 catalogue has unique IDs, five style families and all seven categories',()=>{
-  assert.equal(FURNITURE_CATALOG.length,81);
+test('the 0.32 catalogue has unique IDs, five style families and all eight categories',()=>{
+  assert.equal(FURNITURE_CATALOG.length,88);
   const ids=new Set(FURNITURE_CATALOG.map(item=>item.id));
   assert.equal(ids.size,FURNITURE_CATALOG.length);
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,FURNITURE_CATALOG.length);
-  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.category)).size,7);
+  assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.category)).size,8);
   assert.deepEqual(FURNITURE_CATALOG.filter(item=>item.category==='pets').map(item=>item.id).sort(),
     ['pet-bed-simba','pet-bed-verdell','pet-house-cabin','pet-house-soft','pet-house-tower','pet-scratcher-simba']);
   const styles=new Map(Object.keys(FURNITURE_STYLES).map(k=>[k,0]));

@@ -1,10 +1,10 @@
 import type { FloorRect } from '../game/navigation';
 
-export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor' | 'pets';
+export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor' | 'pets' | 'leisure';
 export type FurnitureStyle = 'scandi' | 'cozy' | 'industrial' | 'classic' | 'designer';
 export type FurnitureShape = 'sofa' | 'corner' | 'armchair' | 'ottoman' | 'bench' |
   'bed' | 'daybed' | 'wardrobe' | 'dresser' | 'shelves' | 'sideboard' |
-  'table' | 'desk' | 'chair' | 'stool' | 'nightstand' | 'lamp' | 'plant' | 'rug' | 'mirror';
+  'table' | 'desk' | 'chair' | 'stool' | 'nightstand' | 'lamp' | 'plant' | 'rug' | 'mirror' | 'leisure';
 export type FurnitureFinish = 'oak' | 'walnut' | 'ivory' | 'sage' | 'terracotta' | 'slate' | 'blush' | 'midnight';
 export type Rotation = 0 | 1 | 2 | 3;
 export interface FurnitureProduct {
@@ -16,7 +16,7 @@ export interface FurnitureProduct {
 }
 export const FURNITURE_CATEGORIES: Record<FurnitureCategory,string> = {
   seating:'Диваны и кресла',sleep:'Спальня',storage:'Хранение',
-  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',pets:'Для питомцев',
+  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',pets:'Для питомцев',leisure:'Досуг и отдых',
 };
 export const FURNITURE_FINISHES: Record<FurnitureFinish,{name:string;main:number;light:number;dark:number;fabric:number}> = {
   oak:{name:'Светлый дуб',main:0xc49d72,light:0xe5d0a8,dark:0x765642,fabric:0xdcc8aa},
@@ -136,6 +136,13 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('rug-round','Ковёр «Солнце»','decor','rug',6900,1.64,1.64,.035,'🧶','Круглый ковёр с концентрическими полосами.',true),
   product('mirror-round','Зеркало «Луна»','decor','mirror',8500,1.05,.19,1.29,'🪞','Круглое зеркало на лаконичной напольной стойке.'),
   product('mirror-window','Зеркало «Окно»','decor','mirror',14500,1.01,.24,1.92,'🪞','Арочное зеркало с металлическими перемычками.'),
+  product('leisure-board','Набор настольных игр со столиком','leisure','leisure',1200,1.16,1.80,1.09,'🎲','Игровой столик с двумя сиденьями, кубиками и фишками.'),
+  product('leisure-darts','Напольный дартс','leisure','leisure',2500,.85,.55,1.83,'🎯','Мишень на устойчивой стойке. Оставь свободное место для бросков.'),
+  product('leisure-chess','Шахматный столик','leisure','leisure',3500,1.16,1.80,1.09,'♟️','Шахматная доска и два места напротив друг друга.'),
+  product('leisure-hammock','Гамак на стойке','leisure','leisure',5900,2.60,1.08,1.30,'🌴','Тканевый гамак для спокойного отдыха во дворе.'),
+  product('leisure-swing','Садовые качели','leisure','leisure',18900,2.35,1.38,2.10,'🌿','Двухместное подвесное сиденье под навесом.'),
+  product('leisure-tennis','Стол для настольного тенниса','leisure','leisure',24900,1.55,2.40,.95,'🏓','Стол, сетка, ракетки и место для игры с двух сторон.'),
+  product('leisure-billiards','Бильярдный стол','leisure','leisure',69900,1.47,2.42,.92,'🎱','Зелёное сукно, лузы, шары и кии.'),
   // Real pet accessories use the existing buy/delivery/placement/move/sell pipeline.
   // Low washable cushions are walkable (no fake invisible collision walls).
   product('pet-bed-verdell','Лежанка Верделла «Облачко»','pets','rug',4900,1.08,.94,.15,'🐕','Уютная низкая лежанка с мягкими бортиками; Верделл может на ней спать.',true),
@@ -164,7 +171,7 @@ export const FURNITURE_DISPLAY_GROUPS: readonly FurnitureDisplayGroup[] = [
   'wardrobe','dresser','nightstand','sideboard','shelves',
   'table','desk','chair','stool',
   'lamp',
-  'pet-care',
+  'leisure','pet-care',
   'plant','rug','mirror',
 ];
 export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
@@ -184,6 +191,7 @@ export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
   chair:'Стулья',
   stool:'Табуреты',
   lamp:'Светильники и торшеры',
+  leisure:'Игры и отдых',
   'pet-care':'Домики, лежанки и когтеточки',
   plant:'Растения',
   rug:'Ковры',

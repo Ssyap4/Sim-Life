@@ -37,6 +37,10 @@ export class PetActor {
   private tailPhase = 0;
   private reaction: PetAction | null = null;
   private reactionTime = 0;
+  private parkRollTime=0;
+  private parkStick=false;
+  setParkStick():void{this.parkStick=true;}
+  parkRoll():void{this.stop();this.parkRollTime=6;}
   private route: THREE.Vector3[] = [];
   private routine: PetRoutine['kind'] | null = null;
   private facing: number | undefined;
@@ -71,6 +75,12 @@ export class PetActor {
     this.root.add(this.body);
     this.playToy=createPetPlayToy(id);
     this.fetchTargetToy=this.playToy.clone(true);
+    if(id==='verdell')for(const group of [this.playToy,this.fetchTargetToy]){
+      const stick=new THREE.Group();stick.name='Park stick';stick.visible=false;
+      const mat=new THREE.MeshStandardMaterial({color:0x89613d,roughness:1});
+      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.021,.027,.48,7),mat);shaft.rotation.z=Math.PI/2;stick.add(shaft);
+      const twig=new THREE.Mesh(new THREE.CylinderGeometry(.011,.016,.15,6),mat);twig.position.set(.12,.045,0);twig.rotation.z=-.65;stick.add(twig);group.add(stick);
+    }
     this.fetchTargetToy.visible=false;
     this.root.add(this.playToy,this.fetchTargetToy);
     const dog = id === 'verdell';
@@ -204,7 +214,7 @@ export class PetActor {
     this.petBedHeight=onPetBed?(supportHeight??0):0;
     this.scratchPost=scratchPost;
     this.toyIndex=routine==='toy'?toyIndex:undefined;
-    this.fetchSpot=fetch?.point??null;
+    this.parkStick=false;this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
     this.idleTime = 0;
@@ -231,7 +241,7 @@ export class PetActor {
   stop(): void {
     this.releasePerch();
     this.route = [];
-    this.fetchSpot=null;
+    this.parkStick=false;this.fetchSpot=null;
     this.onPetBed=false;
     this.scratchPost=undefined;
     this.toyIndex=undefined;
@@ -250,6 +260,7 @@ export class PetActor {
 
   update(dt: number, travel = 0, pace = 0,
     traffic?: { blockers: readonly FloorPoint[]; otherPet?: FloorPoint; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
+    this.parkRollTime=Math.max(0,this.parkRollTime-dt);
     this.rerouteCooldown = Math.max(0, this.rerouteCooldown - dt);
     // A person can physically close the courtyard doorway. Waiting without
     // walking in place is preferable to repeatedly rubbing along the walls.
@@ -500,6 +511,7 @@ export class PetActor {
       }
     }else this.fetchTargetToy.visible=false;
     const carrying=dog&&this.routine==='fetch'&&this.fetchPickedUp;
+    if(dog)for(const group of [this.playToy,this.fetchTargetToy])for(const child of group.children)child.visible=child.name==='Park stick'?this.parkStick:!this.parkStick;
     this.playToy.visible=(playful>.07&&!toyPlay)||carrying;
     if(this.playToy.visible){
       this.playToy.position.set(
@@ -529,6 +541,7 @@ export class PetActor {
     this.body.rotation.z = playBeat * playful * (dog ? 0.050 : 0.023) + sleeping * .13
       + dogNap*.045 + catNap*.025
       + greeting * .022 * Math.sin(t * 6.5) + happyHop * .075 * Math.sin(this.idleTime*8.2);
+    if(this.parkRollTime>0&&dog){const progress=6-this.parkRollTime;const w=Math.min(1,progress/.6,this.parkRollTime/.6);this.body.rotation.z+=w*(Math.PI+.45*Math.sin(progress*5));this.body.position.y+=w*.32;}
     this.body.rotation.x = -.13 * toilet - scratching*.18 + dogNap*.16 + catNap*.08
       + (dog ? -.10 : .11) * stretching
       + greeting * .085 + playBow * .17 + pounce * -.11 - begging * .49 + curled*.04;

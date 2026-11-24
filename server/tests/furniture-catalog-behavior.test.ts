@@ -1,3 +1,4 @@
+import {leisureAction} from '../../src/shared/leisure';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {initialState} from '../../src/shared/protocol';
@@ -8,6 +9,7 @@ const seats=new Set<FurnitureShape>(['armchair','ottoman','bench','chair','stool
 const containers=new Set<FurnitureShape>(['wardrobe','dresser','nightstand','sideboard']);
 function expected(item:FurnitureProduct){
  const shape=item.shape;
+ if(shape==='leisure')return [leisureAction(item.id)!];
  if(shape==='bed'||shape==='daybed')return [] as string[];
  if(shape==='sofa'||shape==='corner')return ['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie','read_book'];
  if(seats.has(shape))return ['officeChairSit','read_book'];

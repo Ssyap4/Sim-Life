@@ -10,6 +10,11 @@ import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
+import { tennisPlayer,tennisBall } from '../shared/tableTennis';
+import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
+import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
+import { isLeisureAction } from '../shared/leisure';
+import { picnicPortions } from '../shared/picnic';
 import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
@@ -124,6 +129,8 @@ export class World {
   private cart: THREE.Group | null = null;
   private cartSize = 0;
   private dogTravel = 0;
+  private parkDogUntil=0;
+  private parkDogToiletStamp=0;
   private dogTrail: Point[] = [];
   private lastDogPoint: Point | null = null;
   place: PlaceId = 'home';
@@ -161,6 +168,8 @@ export class World {
   private lastQualityUpdate = performance.now();
   private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
   private socialSequence = 0;
+  private badmintonStarted:number|null=null;
+  private tennisStarted:number|null=null;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly kitchenEffects = buildCookingStation(this.homeScene);
@@ -595,7 +604,7 @@ export class World {
       const seat = [...(this.place==='district'?this.district?.entries.keys()??[]:this.remote?.stations.keys()??[])].map(key => stationById(this.place, key)!)
         .find(s => {
           const point = approachFor(s, id);
-          return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
+          return (s.action.kind === 'rest' || s.action.kind === 'dine' || s.action.kind === 'swing' || s.action.kind === 'picnic') && Math.hypot(x - point.x, z - point.z) < .22;
         });
       if (pose === 'sit' && seat) this.sitAt(id, seat);
       else this.actors[id].setPose('idle');
@@ -839,6 +848,12 @@ export class World {
           else if(['deskJournal','tablePlan'].includes(command.action))actor.playDomesticActivity('journal');
           else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
             actor.playDomesticActivity('games');
+          else if(isLeisureAction(command.action)){
+            if(command.action==='boardGame'||command.action==='chessGame')actor.playDomesticActivity('chess');
+            else if(command.action==='dartsGame')actor.playDomesticActivity('darts');
+            else if(command.action==='pingPong')actor.playDomesticActivity('pingPong');
+            else if(command.action==='billiards')actor.playDomesticActivity('billiards');
+          }
           else if(command.action==='tidy')actor.playDomesticActivity('tidy');
           else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
           else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
@@ -893,11 +908,13 @@ export class World {
     return true;
   }
 
-  activateHomeTask(role: CharacterId): void {
+  activateHomeTask(role: CharacterId,elapsedMs=0): void {
     const home = this.homeTasks.get(role);
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
+      if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
+      if(pair.action==='parkBadminton'&&this.badmintonStarted===null)this.badmintonStarted=this.visualSeconds-elapsedMs/1000;
       this.playPair(role);
       this.playPair(role==='vlad'?'alina':'vlad');
       return;
@@ -944,19 +961,34 @@ export class World {
     const stage=this.pairStages.get(role), home=this.homeTasks.get(role), pair=home?.pair;
     if(!stage?.active||!stage.arrived||stage.playing||!pair)return;
     const other=role==='vlad'?'alina':'vlad', opposite=this.pairStages.get(other);
-    if(isContact(pair.motion)&&opposite&&(!opposite.active||!opposite.arrived))return;
+    if((isContact(pair.motion)||pair.motion==='badminton'||pair.item==='pingPong')&&opposite&&(!opposite.active||!opposite.arrived))return;
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
-    if(pair.seat) {
+    if(home.furniturePose&&home.furnitureSeat){const p=home.furniturePose;actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
+    else if(pair.seat) {
       const seat=homeSeat(pair.seat,role);
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
     }else if(pair.station){
       const station=stationById(this.place,pair.station);
-      if(station)this.sitAt(role,station);
+      if(station&&station.action.kind!=='badminton')this.sitAt(role,station);
+      else if(focus)actor.faceTowards(focus);
     }else if(focus)actor.faceTowards(focus);
     const leads=pair.from===role;
     switch(pair.motion){
+      case 'leisure':{
+        if(pair.item==='boardGame'||pair.item==='chessGame')actor.playDomesticActivity('chess');
+        else if(pair.item==='dartsGame')actor.playDomesticActivity('darts');
+        else if(pair.item==='pingPong'){
+          const model=home.furnitureId===undefined?undefined:this.furnishingModels.get(home.furnitureId);
+          if(model){const side=role==='vlad'?-1:1;actor.root.rotation.y=model.rotation.y+(side>0?Math.PI:0);}
+          actor.playDomesticActivity('pingPong');
+        }
+        else if(pair.item==='billiards')actor.playDomesticActivity('billiards');
+        break;
+      }
+      case 'badminton':if(focus)actor.faceTowards(new THREE.Vector3(actor.root.position.x,0,focus.z));actor.playDomesticActivity('badminton');break;
+      case 'chess':actor.playDomesticActivity('chess');break;
       case 'stroll':
         actor.walkPath((pair.stroll??[]).map(p=>new THREE.Vector3(p.x,0,p.z)),()=>actor.playPartnerGesture('talk',leads));break;
       case 'watch':
@@ -997,11 +1029,11 @@ export class World {
           const seat=homeSeat(pair.seat,role).position;
           const x=pair.seat==='yardTable'?seat.x:seat.x+(role==='vlad'?-.56:.56);
           const plate=this.showMeal(role,x,DINING_TOP+.02,seat.z-.14,pair.item as RecipeId|undefined);
-          actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
+          actor.playActivity('eat',plate,pair.item as RecipeId|undefined,this.place==='park');
         }else if(pair.station) {
           const site=stationById(this.place,pair.station)!;
-          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.40:.40),1.01,site.center.z-.10,pair.item as CafeItem|undefined);
-          actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
+          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.40:.40),site.action.kind==='picnic'?.21:1.01,site.center.z-.10,pair.item as CafeItem|RecipeId|TakeoutId|undefined);
+          actor.playActivity('eat',plate,pair.item as RecipeId|undefined,this.place==='park');
         }break;
       }
       case 'feed': {
@@ -1048,6 +1080,8 @@ export class World {
     if (!home) return false;
     this.homeTasks.delete(role);
     this.pairStages.delete(role);
+    if(![...this.homeTasks.values()].some(h=>h.pair?.item==='pingPong'))this.tennisStarted=null;
+    if(![...this.pairStages.values()].some(p=>p.action==='parkBadminton'))this.badmintonStarted=null;
     // Hold the last framing when the shared action ends, then return to free camera.
     if(this.pairStages.size===0)this.followingPair=false;
     this.homeEffects.television(role);
@@ -1081,13 +1115,19 @@ export class World {
       if (!station) return false;
       const actor = this.actors[role];
       const start = () => {
-        if (command.action === 'rest' || command.action === 'dine') this.sitAt(role, station);
+        if (command.action === 'rest' || command.action === 'dine' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);
+        if(command.action==='badminton'){actor.faceTowards(new THREE.Vector3(station.center.x,0,station.center.z));actor.playDomesticActivity('badminton');}
+        if(command.action==='campIgnite'||isCampRecipe(command.action)){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);}
+        if(command.action==='picnic'&&this.household){
+          const dish=picnicPortions(this.household,role)[0];
+          if(dish){const plate=this.showMeal(role,station.center.x+(role==='vlad'?-.40:.40),.21,station.center.z-.10,dish.item as RecipeId|TakeoutId);actor.playActivity('eat',plate,dish.item as RecipeId|TakeoutId,true);}
+        }
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');
         if (command.action === 'unpack') actor.playDomesticActivity('tidy');
-        if (command.action === 'dog') {
+        if(isParkDogAction(command.action)){
           actor.faceTowards(this.pets.verdell.root.position);
-          actor.playPetActivity('play');
-          this.pets.verdell.react('play');
+          if(command.action!=='dogToilet')actor.playPetActivity('play');
+          this.playParkDog(command.action,role);
         }
         if (command.action === 'dine' && (this.household?.world.cafe[role]?.pickedUp || this.household?.world.cafe[role]?.table===station.id)) {
           const plate=this.showMeal(role, station.center.x + (role === 'vlad' ? -.40 : .40), 1.01, station.center.z - .10,this.household?.world.cafe[role]?.item);
@@ -1809,15 +1849,47 @@ export class World {
       this.collisionFlow[role],this.movementDt,yieldToOncoming);
   }
 
+  parkConversation():void{if(this.place==='park')for(const role of ['vlad','alina'] as const)this.actors[role].parkConversation();}
+  private playParkDog(action:string,role:CharacterId):void{
+    const dog=this.pets.verdell,actor=this.actors[role],obstacles=this.currentObstacles(),floor=floorFor('park');
+    const start=nearestClearPoint(dog.root.position,obstacles,floor);if(!start)return;
+    const owner=nearestClearPoint({x:actor.root.position.x-.55,z:actor.root.position.z+.35},obstacles,floor);if(!owner)return;
+    const goal=nearestClearPoint({x:owner.x-2.0,z:owner.z+1.3},obstacles,floor);if(!goal)return;
+    this.parkDogUntil=this.visualSeconds+(action==='dogToilet'?6:15);
+    this.dogTrail=[];this.lastDogPoint=null;
+    if(action==='dogRoll'){dog.parkRoll();return;}
+    if(action==='dogToilet'){
+      const route=findRoute(start,goal,obstacles,floor);if(route)dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'toilet');return;
+    }
+    if(action==='dogFetch'||action==='dogChase'){
+      const first=findRoute(start,goal,obstacles,floor),second=findRoute(goal,owner,obstacles,floor);if(first&&second){
+        const points=[...first,...second].map(p=>new THREE.Vector3(p.x,0,p.z));
+        if(action==='dogFetch'){dog.followRoute(points,'fetch',undefined,undefined,{point:goal,pickupRemaining:1});dog.setParkStick();}
+        else{const loop=findRoute(owner,goal,obstacles,floor);dog.followRoute([...points,...(loop??[]).map(p=>new THREE.Vector3(p.x,0,p.z)),...second.map(p=>new THREE.Vector3(p.x,0,p.z))],'wander');}
+        return;
+      }
+    }
+    dog.react('play');
+  }
+
   private sitAt(role: CharacterId, station: Station): void {
     const actor = this.actors[role];
+    if(station.action.kind==='picnic'){
+      actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.50:.50),role==='vlad'?-.76:-.71,station.center.z+.39),Math.PI);return;
+    }
+    if(station.action.kind==='swing'){
+      actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.47:.47),0,station.center.z-.035),0);
+      const pivot=this.remote?.stations.get(station.id)?.getObjectByName('Leisure swing pivot');
+      if(pivot)actor.markParkSwing(pivot.getWorldPosition(new THREE.Vector3()),.6075);
+      return;
+    }
     const cafe = station.action.kind === 'dine';
     actor.setFurniturePose('sit', new THREE.Vector3(approachFor(station, role).x,
       role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);
   }
 
   private showMeal(role: CharacterId, x: number, y: number, z: number,
-    dish?:RecipeId|TakeoutId|CafeItem): THREE.Vector3 {
+    dish?:RecipeId|TakeoutId|CafeItem|CampRecipe): THREE.Vector3 {
     const meal = this.meals.get(role)!;
     meal.position.set(x, y, z);
     const grilled = dish!==undefined && isGrillRecipe(dish as RecipeId);
@@ -1930,7 +2002,7 @@ export class World {
     this.sleepingOffline.clear();
     for (const pet of Object.values(this.pets)) pet.stop();
     this.dogTrail = [];
-    this.lastDogPoint = null;
+    this.lastDogPoint = null;this.parkDogUntil=0;this.parkDogToiletStamp=0;
     this.remote?.root.removeFromParent();
     this.remote?.dispose();
     this.remoteMeshes = [];
@@ -1945,7 +2017,7 @@ export class World {
       for(const [id,group] of this.district.entries)this.trackStation(this.remoteMeshes,id,group);
     }
     // The same rigs are reparented; they never render in two scenes on one device.
-    if(place==='park'||place==='district'||place==='home')this.scene.add(this.neighbors.group);
+    if(place==='district'||place==='home')this.scene.add(this.neighbors.group);
     else this.neighbors.group.removeFromParent();
     this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
@@ -1968,7 +2040,7 @@ export class World {
     this.frameDistrictResident();
     this.neighborBodies=[];
     this.computerScreens.resetPreviews();
-    this.pairStages.clear();
+    this.pairStages.clear();this.badmintonStarted=null;this.tennisStarted=null;
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
@@ -2449,7 +2521,7 @@ export class World {
       const visit=courierVisit(this.household.world,this.neighborMinute);
       if(this.place==='home')this.neighborBodies=this.neighbors.updateCourier(this.neighborMinute,visit);
       else if(this.place==='district')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1,visit??undefined);
-      else if(this.place==='park')this.neighborBodies=this.neighbors.updatePark(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1);
+      else if(this.place==='park')this.neighborBodies=[];
     }
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
@@ -2474,13 +2546,29 @@ export class World {
       }
       actor.setIdleSurroundings(petYaw, partnerYaw);
       if (!actor.isWalking()) resetResidentTraffic(this.collisionFlow[id]);
+      if(this.place==='park'&&actor.isParkSwing())actor.parkSwing(Math.sin(this.visualSeconds*1.7)*.15);
+      if(this.place==='park'&&this.badmintonStarted!==null&&this.pairStages.get(id)?.action==='parkBadminton'&&this.pairStages.get(id)?.playing){
+        const s=stationById('park','park-badminton')!,f=badmintonPlayer(id,this.visualSeconds-this.badmintonStarted,this.homeTasks.get(id)?.pair?.badmintonWinner);
+        actor.setBadmintonFrame(s.center.x+f.x,s.center.z+f.z,f.hit,f.height,f.aim);
+      }
+      if(this.place==='home'&&this.tennisStarted!==null&&this.pairStages.get(id)?.playing){
+        const h=this.homeTasks.get(id),model=h?.furnitureId!==undefined?this.furnishingModels.get(h.furnitureId):undefined;
+        if(model&&h?.pair?.item==='pingPong'){
+          const f=tennisPlayer(id,this.visualSeconds-this.tennisStarted,h.pair.tennisWinner);
+          const end=h.route.path.at(-1)??h.route.from,base=model.worldToLocal(new THREE.Vector3(end.x,0,end.z));
+          let p=model.localToWorld(new THREE.Vector3(base.x+f.x,0,base.z));
+          if(!pointIsClear(p,this.currentObstacles(),floorFor('home')))p=new THREE.Vector3(end.x,0,end.z);
+          const target=f.strike?model.localToWorld(new THREE.Vector3(f.strike.x,f.strike.y,f.strike.z)):undefined;
+          actor.setTennisFrame(p.x,p.z,f.hit,target);
+        }
+      }
       actor.update(dt, this.steering[id]);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
       const elapsed = actor.eatingElapsed();
       const plate = this.meals.get(id)!;
       if (plate.visible && elapsed !== null) {
-        const scale = mealServingScale(elapsed);
+        const scale = mealServingScale(elapsed,this.place==='park'?PICNIC_SECONDS:undefined);
         plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }
@@ -2540,7 +2628,14 @@ export class World {
     const walker = this.household?.world.dogWalker;
     const dog = this.pets.verdell;
     let pace = 0;
-    if (walker && dog.root.visible && (this.place === 'park'||this.place==='district')) {
+    if(this.place==='park'&&walker&&dog.root.visible){
+      const stamp=this.household?.world.parkDog?.toiletUntil??0;
+      if(stamp&&stamp!==this.parkDogToiletStamp&&this.household&&stamp>clockMinutes(this.household.clock)){
+        this.parkDogToiletStamp=stamp;this.playParkDog('dogToilet',walker);
+      }
+      if(this.parkDogUntil&&this.visualSeconds>=this.parkDogUntil){dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;}
+    }
+    if (walker && dog.root.visible && (this.place === 'park'||this.place==='district') && !(this.place==='park'&&this.parkDogUntil>this.visualSeconds)) {
       const actor = this.actors[walker].root;
       const { x, z } = actor.position;
       const previous = this.lastDogPoint;
@@ -2660,11 +2755,25 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if (this.place === 'home') {
+      for(const [id,model] of this.furnishingModels){const ball=model.getObjectByName('Table tennis live ball');if(!ball)continue;
+        const h=[...this.homeTasks.values()].find(h=>h.furnitureId===id&&h.pair?.item==='pingPong');
+        const playing=this.tennisStarted!==null&&!!h&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='leisureTogether');
+        ball.visible=playing;const resting=model.getObjectByName('Table tennis resting equipment');if(resting)resting.visible=!playing;
+        if(playing){const f=tennisBall(this.visualSeconds-this.tennisStarted!,h!.pair!.tennisWinner);ball.position.set(f.x,f.y,f.z);}
+      }
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
+    if(this.place==='park'&&this.remote){
+      const pivot=this.remote.stations.get('park-swing')?.getObjectByName('Leisure swing pivot');
+      if(pivot)pivot.rotation.x=(['vlad','alina'] as const).some(r=>this.actors[r].root.visible&&this.actors[r].isParkSwing())?Math.sin(this.visualSeconds*1.7)*.15:0;
+      const flames=this.remote.stations.get('park-fire')?.getObjectByName('Park campfire flames');
+      if(flames){flames.visible=!!this.household&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock);flames.scale.set(1+.07*Math.sin(this.visualSeconds*7),.87+.16*Math.sin(this.visualSeconds*11),1);}
+      const shuttle=this.remote.stations.get('park-badminton')?.getObjectByName('Park shuttlecock');
+      if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),new THREE.Vector3(f.dx,f.dy,f.dz).normalize());}}
+    }
     try {
       this.renderer.render(this.scene, this.camera);
       if (this.graphics.safe && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {

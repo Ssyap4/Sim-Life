@@ -1,4 +1,7 @@
-import { cafeSeatAt, CAFE_TALK_SECONDS } from './locations';
+import { BADMINTON_SECONDS } from './badminton';
+import { PICNIC_SECONDS } from './park';
+import { picnicPortions } from './picnic';
+import { cafeSeatAt, CAFE_TALK_SECONDS, stationById, approachFor } from './locations';
 import { dialogue } from './social/dialogue';
 import { BOOKS, GENRES, HOME_SECONDS, type HomeSeat } from './homeLife';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
@@ -48,16 +51,20 @@ export function eveningSelection(item:string) {
     return {kind:'cook' as const,recipe:item as RecipeId};
   return null;
 }
+import { LEISURE, leisureAction } from './leisure';
+import { FURNITURE_BY_ID } from './furniture';
+import { furnitureUseLocation } from './furnitureUse';
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
-  'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll';
+  'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'cafeMeal'|'cafeTalk'|'sofa'|'table';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
 const objects: readonly SocialActivity[] = [
+  {id:'leisureTogether',title:'Провести досуг вдвоём',group:'home',lines:['Давай поиграем или отдохнём вместе!'],replies:['С удовольствием!','Давай!'],motion:'leisure',seconds:28,object:'leisure',memorable:true},
   {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
     lines:['Давай устроим домашний вечер: можем приготовить вдвоём, доесть готовое или разделить доставку.',
       'Хочется провести время вместе. Выберем ужин из того, что уже есть дома?'],
@@ -86,6 +93,9 @@ const objects: readonly SocialActivity[] = [
   {id:'petPet',title:'Уделить питомцу внимание',group:'care',lines:['Подойдём тихо? Пусть питомец сам решит, сколько внимания ему нужно.'],replies:['Я буду рядом и поглажу после тебя.','Можно немного понаблюдать, а потом подойти.'],motion:'pet',seconds:8,object:'petPet'},
   {id:'petBrush',title:'Расчесать питомца вместе',group:'home',lines:['Подержишь внимание питомца, пока я возьму щётку?'],replies:['Да, побуду рядом с другой стороны.','Хорошо, поможем ему привыкнуть к щётке.'],motion:'pet',seconds:10,object:'petBrush',memorable:true},
   {id:'walk',title:'Прогуляться вместе',group:'fun',lines:['Пройдёмся вместе? Выберем такой темп, чтобы было удобно обоим.'],replies:['Давай пройдём по дорожке.','Хочу немного свежего воздуха.'],motion:'stroll',seconds:22,object:'walk',memorable:true},
+  {id:'parkSwing',title:'Отдохнуть на качелях вдвоём',group:'fun',lines:['Покачаемся вместе?'],replies:['Давай!','Хорошая идея.'],motion:'sitTalk',seconds:24,object:'parkSwing',memorable:true},
+  {id:'parkBadminton',title:'Играть в бадминтон вдвоём',group:'fun',lines:['Поиграем с воланчиком?'],replies:['Хорошо, начинай.','Давай, посмотрим кто выиграет.'],motion:'badminton',seconds:BADMINTON_SECONDS,object:'parkBadminton',memorable:true},
+  {id:'picnic',title:'Устроить пикник вдвоём',group:'fun',lines:['Достанем еду из корзины и пообедаем на свежем воздухе?'],replies:['Да, приятного аппетита!','Давай отдохнём вместе.'],motion:'eat',seconds:PICNIC_SECONDS,object:'picnic',memorable:true},
   {id:'parkRest',title:'Отдохнуть на скамье',group:'fun',lines:['Передохнём в парке? На скамье есть место для двоих.'],replies:['С удовольствием.','Давай послушаем, что вокруг.'],motion:'sitTalk',seconds:14,object:'parkRest',memorable:true},
   {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, приятного аппетита!','Давай поедим и поболтаем.'],motion:'eat',seconds:MEAL_EAT_SECONDS,object:'cafeMeal',independent:true,memorable:true},
   {id:'cafeTalk',title:'Как прошёл день?',group:'talk',lines:['Расскажи, как проходит твой день? Пока ждём заказ, можно спокойно поговорить.','Хорошо иногда выбраться из дома вдвоём. О чём думаешь?'],replies:['Расскажу с удовольствием.','Давай просто поболтаем о приятном.'],motion:'sitTalk',seconds:CAFE_TALK_SECONDS,object:'cafeTalk'},
@@ -130,7 +140,9 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
     motion==='hug'||motion==='closeHug'||motion==='kiss'||motion==='cheek'||motion==='highFive'?5:8,context:contexts[id],
     memorable:special.includes(id)};
 }));
-export const SOCIAL_ACTIVITIES = [...exchanges,...objects];
+export const PARK_TALK_TOPICS=exchanges.filter(a=>['talk','listen','explain','laugh','sitTalk'].includes(a.motion)).map(a=>({...a,id:'parkTalk:'+a.id,object:'parkTalk' as const,motion:'sitTalk' as const,seconds:18}));
+export const PICNIC_TALK_TOPICS=PARK_TALK_TOPICS.map(a=>({...a,id:'picnicTalk:'+a.id.slice(9),object:'picnic' as const,motion:'eat' as const,seconds:PICNIC_SECONDS,memorable:true}));
+export const SOCIAL_ACTIVITIES = [...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
@@ -150,7 +162,7 @@ export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
   motion:PairMotion; place:GameState['world']['places'][CharacterId]; from:CharacterId; target?:Point;
   seat?:HomeSeat; station?:string; pet?:string; item?:string; stroll?:Point[];
-  offsetMs?:number; carry?:'book'|'plate';
+  offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId; tennisWinner?:CharacterId;
 }
 
 export function otherPerson(role:CharacterId):CharacterId { return role==='vlad'?'alina':'vlad'; }
@@ -218,9 +230,10 @@ const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'
   state.readyFood.reduce((total,batch)=>total+
     (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
       ? batch.portions:0),0);
-const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush']);
+const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
+  if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
   if(a.id==='eveningPlan') {
     const cooked=recipeIds.filter(id=>!isGrillRecipe(id)&&
@@ -264,9 +277,12 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (!contextAvailable(a,state,from)) return 'Этот разговор пока не подходит к ситуации';
   const name=a.object;
   if (name==='walk'&&place!=='home'&&place!=='park') return 'Для прогулки нужен двор или парк';
+  if((name==='parkBadminton'||name==='parkSwing'||name==='parkTalk'||name==='picnic')&&place!=='park')return 'Это занятие доступно в парке';
+  if(name==='parkTalk'&&!['park-swing','park-picnic'].some(id=>[from,to].every(r=>{const s=stationById('park',id)!,p=approachFor(s,r),c=state.characters[r];return c.pose==='sit'&&Math.hypot(p.x-c.x,p.z-c.z)<.28;})))return 'Сядьте вместе на качели или у пледа';
+  if(name==='picnic'&&!(individual?[from]:[from,to]).every(role=>picnicPortions(state,role).length))return 'Положите свежие порции для каждого в корзину';
   if (name==='parkRest'&&place!=='park') return 'Скамья находится в парке';
   if (name==='cafeMeal'&&place!=='cafe') return 'Столик находится в кафе';
-  if (name&&name!=='walk'&&name!=='parkRest'&&name!=='cafeMeal'&&name!=='cafeTalk'&&place!=='home') return 'Это занятие доступно дома';
+  if (name&&name!=='walk'&&name!=='parkRest'&&name!=='parkBadminton'&&name!=='parkSwing'&&name!=='parkTalk'&&name!=='picnic'&&name!=='cafeMeal'&&name!=='cafeTalk'&&place!=='home') return 'Это занятие доступно дома';
   if(name==='cafeTalk'){
     const first=cafeSeatAt(state,from),second=cafeSeatAt(state,to);
     if(!first||first.id!==second?.id)return 'Сядьте за один столик в кафе';

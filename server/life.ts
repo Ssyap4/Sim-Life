@@ -34,6 +34,13 @@ export function advanceLife(source: GameState, gameMinutes: number,
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
     if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8);
   }
+  const walker=state.world.dogWalker;
+  if(walker&&online.includes(walker)&&state.world.places[walker]==='park'){
+    const visit=state.world.parkDog??={minutes:0,toilets:0};visit.minutes+=gameMinutes;
+    if(visit.toilets<2&&visit.minutes>=(visit.toilets===0?8:45)){
+      visit.toilets++;visit.toiletUntil=(state.clock.day-1)*1440+state.clock.minute+3;state.pets.verdell.bladder=100;
+    }
+  }
   protectNeeds(state);
   state.revision++;
   return state;

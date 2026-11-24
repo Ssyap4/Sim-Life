@@ -1,4 +1,7 @@
-import { CAFE_TALK_TOPICS } from './shared/socialLife';
+import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
+import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
+import type { LocalActivity } from './shared/locations';
+import { CAFE_TALK_TOPICS, PARK_TALK_TOPICS, PICNIC_TALK_TOPICS, contextAvailable } from './shared/socialLife';
 import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
@@ -147,12 +150,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const options = element('div', 'world-station-options');
     const now = clockMinutes(place.clock);
     const kind = station.action.kind;
-    const local = (label: string, action: 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack') =>
+    const local = (label: string, action: LocalActivity) =>
       button(label, () => { if (send({ type: 'local_activity', station: station.id, action })) close(); });
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
     } else if (kind === 'shelf' || kind === 'checkout') {
@@ -167,6 +170,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(element('small', '', 'Выбранные товары оплачиваются на кассе.'));
       } else {
         for (const line of lines) options.append(productRow(line.id));
+        if(!place.world.picnic)options.append(button('🧺 Корзина для пикника · '+formatRub(PICNIC_BASKET_PRICE),()=>send({type:'picnic_buy'}),place.money<PICNIC_BASKET_PRICE));
         const sequence = place.world.sequence[role];
         const pay = button(pending === null ? 'Оплатить · ' + formatRub(basketPrice(lines)) : 'Подтверждаем…',
           () => transaction({ type: 'store_pay', lines, sequence }), !lines.length || pending !== null);
@@ -198,6 +202,16 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           return [...grouped.values()].sort((a,b) => a.expiresAt - b.expiresAt);
         };
         const fridgeReady = groups('fridge');
+        if(place.world.picnic){
+          const mine=picnicPortions(place,role),count=picnicPortions(place,'vlad').length+picnicPortions(place,'alina').length;
+          options.append(element('strong','','🧺 Корзина для пикника · '+count+'/'+PICNIC_CAPACITY));
+          options.append(element('small','','Твои порции хранятся отдельно. Еда вне холодильника портится быстрее.'));
+          for(const food of mine){if(food.kind==='campfire'){options.append(element('small','',picnicName(food)));continue;}const kind=food.kind;options.append(button('Вернуть: '+picnicName(food),()=>send({type:'picnic_unpack',kind,item:food.item})));}
+          const kit=place.world.campKit?.[role];
+          options.append(element('strong','','Припасы для костра'),button('Уголь + розжиг · '+(kit?.fuel??0),()=>send({type:'camp_pack',item:'fuel'}),place.pantry.charcoal<1||place.pantry.lighterFluid<1||(kit?.fuel??0)>=3));
+          for(const [id,meal] of Object.entries(CAMP_RECIPES)){const item=id as CampRecipe;const ingredients=campIngredients(item);options.append(element('small','',ingredients.map(([k,n])=>GROCERIES[k].name.split(' · ')[0]+' '+place.pantry[k]+'/'+n).join(' · ')));options.append(button('Собрать: '+meal.name+' · '+(kit?.recipes[item]??0),()=>send({type:'camp_pack',item}),ingredients.some(([k,n])=>place.pantry[k]<n)||(kit?.recipes[item]??0)>=3));}
+          for(const batch of fridgeReady)options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
+        }
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
         for (const batch of fridgeReady) {
           const name = readyFoodName(batch.kind, batch.item);
@@ -328,12 +342,30 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(button(meal.name+' · '+formatRub(meal.price),()=>{cafeChoice=id as CafeItem;draw();},pending!==null||place.money<meal.price));
       }
     } else if (kind === 'rest') options.append(local('Сесть на скамью', 'rest'));
+    else if(kind==='swing'||kind==='picnic'){
+      const partner=role==='vlad'?'alina':'vlad';const together=place.world.places[partner]==='park'&&!!cafeSocial;
+      if(kind==='swing')options.append(local('Покачаться на качелях','swing'));
+      else{const food=picnicPortions(place,role)[0];options.append(element('small','',food?'Из корзины: '+picnicName(food):'В твоём отделении корзины нет еды'));if(food)options.append(local('🍽️ Поесть на пикнике · 1,5 мин','picnic'));}
+      if(together&&cafeSocial){
+        if(cafeTopicsOpen){const topics=kind==='picnic'&&[role,partner].every(r=>picnicPortions(place,r as typeof role).length)?PICNIC_TALK_TOPICS:PARK_TALK_TOPICS;for(const topic of topics.filter(t=>contextAvailable(t,place,role)))options.append(button(topic.title,()=>{if(cafeSocial(topic.id))close();}));options.append(button('Назад',()=>{cafeTopicsOpen=false;draw();}));}
+        else{options.append(button(kind==='swing'?'Покачаться вдвоём':'Устроить пикник вдвоём',()=>{if(cafeSocial(kind==='swing'?'parkSwing':'picnic'))close();}));options.append(button('Поговорить ›',()=>{cafeTopicsOpen=true;draw();}));}
+      }
+    }
+    else if(kind==='badminton'){
+      if(cafeSocial&&place.world.places[role==='vlad'?'alina':'vlad']==='park')options.append(button('🏸 Играть вдвоём',()=>{if(cafeSocial('parkBadminton'))close();}));else options.append(element('small','','Пригласи второго игрока в парк.'));
+    }else if(kind==='campfire'){
+      const kit=place.world.campKit?.[role];const lit=(place.world.campLitUntil??0)>now;
+      options.append(element('small','',lit?'Костёр горит':'Костёр погашен'));
+      if(!lit)options.append(button('Разжечь костёр',()=>{if(send({type:'local_activity',station:station.id,action:'campIgnite'}))close();},!kit?.fuel));
+      for(const [id,meal] of Object.entries(CAMP_RECIPES))options.append(button(meal.name+' · 2 порции',()=>{if(send({type:'local_activity',station:station.id,action:id as CampRecipe}))close();},!lit||!kit?.recipes[id as CampRecipe]));
+      options.append(element('small','','Возьми уголь, розжиг и продукты в корзину дома. Готовые блюда попадут в корзину.'));
+    }
     else if (kind === 'exercise') options.append(local('Сделать лёгкую зарядку', 'exercise'));
     else if (kind === 'dog') {
       const walker = place.world.dogWalker;
       options.append(button(walker === role ? 'Отпустить Верделла домой' : 'Взять Верделла на прогулку',
         () => send({ type: 'dog_leash' }), !!walker && walker !== role));
-      if (walker) options.append(local('Поиграть с Верделлом', 'dog'));
+      if (walker&&place.world.places[walker]==='park')options.append(local('Поиграть с Верделлом','dog'),local('Бросить палочку','dogFetch'),local('Играть в догонялки','dogChase'),local('Поваляться на траве','dogRoll'));if(walker&&(place.world.parkDog?.toilets??0)<2)options.append(local('Дать справить нужду','dogToilet'));
     }
     panel.append(options);
     panel.scrollTop = y;

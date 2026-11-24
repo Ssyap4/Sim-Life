@@ -1,3 +1,7 @@
+import { badmintonWinner } from '../src/shared/badminton';
+import { picnicPortions } from '../src/shared/picnic';
+import { LEISURE, leisureAction } from '../src/shared/leisure';
+import { furnitureUseLocation } from '../src/shared/furnitureUse';
 import { cafeSeatAt } from '../src/shared/locations';
 import { activityItems, eveningDinnerAction, eveningDishId, eveningMealName, eveningSelection, needsItem, otherPerson, SOCIAL_BY_ID, socialRestriction,
   type PairMotion, type PairPresentation, type Relationship, type SocialActivity, type SocialIntent } from '../src/shared/socialLife';
@@ -71,8 +75,9 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
 }
 
 const petActions:Record<string,Exclude<PetAction,'buyFood'|'call'|'perch'|'fetch'|'mat'|'scratch'>>={petPlay:'play',petFeed:'feed',petPet:'pet',petBrush:'brush'};
-export function socialResource(a:SocialActivity,item?:string) { return petActions[a.id]?'pet:'+item:a.resource??null; }
-export function socialDuration(a:SocialActivity,command:SocialIntent){
+export function socialResource(a:SocialActivity,item?:string) { return a.object==='leisure'?'furniture:'+item:petActions[a.id]?'pet:'+item:a.resource??null; }
+export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
+  if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku);if(action)return LEISURE[action].seconds*1000;}
   return 1000*(a.object==='lesson'?Math.max(10,(MATERIAL_BY_ID.get(command.item!)?.minutes??10)*2):a.seconds);
 }
 export const socialPet=(command:SocialIntent)=>petActions[command.action]&&command.action!=='petFeed'?command.item as PetId:undefined;
@@ -107,6 +112,15 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const a=SOCIAL_BY_ID.get(command.action)!;
   const place=state.world.places[from],obstacles=placeObstacles(place,state.furnishing),floor=floorFor(place);
   const to=otherPerson(from),p=command.item;
+  if(a.object==='leisure'){
+    const item=state.furnishing.placed.find(i=>String(i.id)===p),action=item&&leisureAction(item.sku);
+    if(!item||!action||!LEISURE[action].paired)return null;
+    const v=furnitureUseLocation(state,'vlad',item.id,action),al=furnitureUseLocation(state,'alina',item.id,action);
+    if(!v||!al)return null;
+    const tennisWinner=action==='pingPong'?badmintonWinner():undefined;
+    const build=(l:typeof v):HomePresentation=>({route:l.route,station:'furniture',furnitureId:item.id,furniturePose:l.pose,furnitureSeat:LEISURE[action].seated,pair:{motion:'leisure',place,from,item:action,target:{x:item.x,z:item.z},tennisWinner}});
+    return {vlad:build(v),alina:build(al)};
+  }
   const walk=(src:Point,destination:Point)=>planWalk(src,destination,obstacles,floor);
   const chain=(src:Point,stops:Point[])=>{
     let origin:Point|undefined, path:Point[]=[];
@@ -162,9 +176,10 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const cafeSeat=cafeSeatAt(state,from);
   const sameCafeSeat=cafeSeat&&cafeSeat.id===cafeSeatAt(state,to)?.id;
   const seatedChat=sameCafeSeat&&!a.object&&['talk','listen','explain','laugh','sitTalk'].includes(a.motion);
-  const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
+  const localStation=a.object==='parkRest'?'park-bench':a.object==='parkBadminton'?'park-badminton':a.object==='parkTalk'?(['park-swing','park-picnic'].find(id=>{const s=stationById('park',id)!,p=approachFor(s,from);return Math.hypot(p.x-state.characters[from].x,p.z-state.characters[from].z)<.28;})??null):a.object==='parkSwing'?'park-swing':a.object==='picnic'?'park-picnic':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
+  const matchWinner=a.object==='parkBadminton'?badmintonWinner():undefined;
   for(const role of ['vlad','alina'] as const){
     const seat=seats[role],entry=work[role];
     const station=localStation&&stationById(place,localStation);
@@ -186,8 +201,8 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const carry=a.object==='read'?'book':entry?.stops?.length?'plate':undefined;
     const picked=carry&&stops.length?walk(origins[role],stops[0])?.path.length:undefined;
     const pair:PairPresentation={motion:entry?.motion??(seatedChat?'sitTalk':a.object==='petFeed'&&role!==from?'listen':a.motion),
-      place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:p,stroll:onward,
-      offsetMs:a.object==='read'&&role!==from?900:0,carry};
+      place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:a.object==='picnic'?picnicPortions(state,role)[0]?.item:p,stroll:onward,
+      offsetMs:a.object==='read'&&role!==from?900:0,carry,badmintonWinner:matchWinner};
     result[role]={route,station:seat??'studyPractice',program,lesson:a.object==='lesson'?p:undefined,
       pickup:picked,pickupMs:picked!==undefined?600:undefined,pair};
   }
@@ -219,6 +234,12 @@ const socialEffects:Record<SocialActivity['group'],NeedEffects>={
   talk:{social:5,mood:2},care:{social:5,mood:4,comfort:3},home:{social:4,comfort:2},
   romance:{social:6,mood:3,comfort:3},fun:{social:3,fun:5,mood:2},
 };
+
+export function parkConversation(source:GameState,from:CharacterId,topic:SocialActivity,choice:number):GameState{
+  const next=structuredClone(source);const {strength}=addRelationship(next,topic,choice);
+  for(const role of [from,otherPerson(from)])change(next,role,socialEffects[topic.group],strength);
+  next.revision++;return next;
+}
 
 export function completeTogether(source:GameState,from:CharacterId,command:SocialIntent,
   roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true):EvaluatedTask{
@@ -298,6 +319,24 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     }
     case 'petPet':case 'petPlay':case 'petFeed':case 'petBrush':
       rejected=run(from,{type:'pet_action',pet:id as PetId,action:petActions[a.id]});break;
+    case 'parkSwing':rejected=each({type:'local_activity',station:'park-swing',action:'swing'});break;
+    case 'parkBadminton':
+      rejected=each({type:'local_activity',station:'park-badminton',action:'badminton'});
+      if(!rejected||rejected.ok){
+        for(const role of roles)practiceXP(state,role,'coop:parkBadminton','fitness',a.title,12,8);
+        if(roles.length===2){const winner=homes.vlad?.pair?.badmintonWinner??badmintonWinner();message=winner==='vlad'?'🏆 Влад победил в бадминтоне!':'🏆 Алина победила в бадминтоне!';change(state,winner,{mood:5});}
+      }
+      break;
+    case 'leisure': {
+      const item=state.furnishing.placed.find(i=>String(i.id)===id),action=item&&leisureAction(item.sku);
+      if(!item||!action||!LEISURE[action].paired)return fail('Предмет для досуга недоступен');
+      rejected=each({type:'furniture_use',furnitureId:item.id,action});
+      const skill=LEISURE[action].skill;
+      if((!rejected||rejected.ok)&&skill)for(const role of roles)practiceXP(state,role,'coop:leisure:'+action,skill,a.title,12,8);
+      if(action==='pingPong'&&roles.length===2&&(!rejected||rejected.ok)){const winner=homes.vlad?.pair?.tennisWinner??badmintonWinner();message=winner==='vlad'?'🏆 Влад победил в настольном теннисе!':'🏆 Алина победила в настольном теннисе!';change(state,winner,{mood:5});}
+      break;
+    }
+    case 'picnic':rejected=each({type:'local_activity',station:'park-picnic',action:'picnic'});break;
     case 'parkRest':rejected=each({type:'local_activity',station:'park-bench',action:'rest'});break;
     case 'cafeMeal':{
       for(const role of roles){
@@ -380,7 +419,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   }
   for(const role of roles){
     const home=homes[role], end=home.pair?.stroll?.at(-1)??home.route.path.at(-1)??home.route.from;
-    Object.assign(state.characters[role],end,{pose:home.pair?.seat||home.pair?.station?'sit':'idle'});
+    Object.assign(state.characters[role],end,{pose:home.pair?.motion==='badminton'?'idle':home.furnitureSeat||home.pair?.seat||home.pair?.station?'sit':'idle'});
   }
   state.revision++;
   return {ok:true,state,message};

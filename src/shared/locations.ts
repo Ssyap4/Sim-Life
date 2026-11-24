@@ -4,6 +4,8 @@ import { DISTRICT_WORLD_FLOOR, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GA
 import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
+import type { PicnicBasket } from './picnic';
+import { PARK_TREES, type CampKit, type CampRecipe, type ParkDogVisit } from './park';
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES, HOME_FLOOR, HOME_YARD } from './home';
 
@@ -22,7 +24,8 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:WORLD_FLOOR;
+export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -43,7 +46,7 @@ type SiteAction =
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
   | { kind: 'career'; station: WorkStation }
   | { kind: 'employment'; career: CareerId }
-  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'courier' | 'car' | 'unpack' };
+  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'badminton' | 'campfire' | 'swing' | 'picnic' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'courier' | 'car' | 'unpack' };
 
 export interface Station {
   id: string;
@@ -143,8 +146,13 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     door('cafe-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   park: [
+    site('park-swing','Качели под навесом',3.4,-3.55,2.2,1.2,{kind:'swing'},{approach:{x:3.4,z:-2.35}}),
     site('park-bench', 'Скамья под соснами', 3.69, -1.23, 1.69, 0.65, { kind: 'rest' }),
-    site('park-path', 'Прогулочная дорожка', -3.78, -0.55, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
+    site('park-pond-seat', 'Скамья у пруда', -3.85, -3.25, 1.65, .65, { kind: 'rest' }),
+    site('park-badminton','Бадминтон',8.4,2.25,3.8,.24,{kind:'badminton'},{approach:{x:8.4,z:4.15}}),
+    site('park-fire','Костровая поляна',8.45,-2.4,1.4,1.4,{kind:'campfire'},{approach:{x:8.45,z:-1.12}}),
+    site('park-picnic', 'Место для пикника', -4.15, .98, 1.95, 1.28, { kind: 'picnic' }, { approach: {x:-4.15,z:2.15} }),
+    site('park-path', 'Прогулочная дорожка', -2.68, -1.45, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
     site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false }),
     door('park-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
@@ -171,7 +179,8 @@ export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find
 export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind === 'education' && station.action.room !== 'reception')
     return { x: station.approach.x + (role === 'vlad' ? -.63 : .63), z: station.approach.z + .35 };
-  if (station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
+  if(station.action.kind==='badminton')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.85};
+  if (station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
 export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
@@ -187,7 +196,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
-  if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
+  if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
   if(place==='district')obstacles.push(...DISTRICT_WORLD_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
@@ -248,16 +257,23 @@ export interface WorldState {
   carDriver?:CharacterId;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
+  picnic?: PicnicBasket;
+  campKit?: Partial<Record<CharacterId,CampKit>>;
+  campLitUntil?:number;
+  parkDog?:ParkDogVisit;
 }
 export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';
+export type LocalActivity = 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | { type:'camp_pack'; item:CampRecipe|'fuel' }
+  | { type:'picnic_buy' }
+  | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
-  | { type: 'car_travel'; place:'market'|'cafe' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }
