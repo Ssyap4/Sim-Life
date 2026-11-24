@@ -24,7 +24,7 @@ import { checkout } from './market';
 import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
-import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
+import { autonomyCandidates, fullLeisureCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { homeHabitCommands } from '../src/shared/personalityHabits';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
@@ -130,9 +130,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
-  const idleAutonomyMs=options.autonomyTiming?.idleMs??18_000;
-  const careCooldownMs=options.autonomyTiming?.careCooldownMs??25_000;
-  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??19_000;
+  const idleAutonomyMs=options.autonomyTiming?.idleMs??3500;
+  const legacyIdleMs=options.autonomyTiming?.idleMs??18000;
+  const careCooldownMs=options.autonomyTiming?.careCooldownMs??3500;
+  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??4500;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
@@ -422,7 +423,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         running.has(role)||homeTasks.busy(role)||(queuedTasks.get(role)?.length??0)>0||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
         walkingHome.has(role)||
-        now-(lastIntent.get(role)??now)<Math.min(idleAutonomyMs,mode==='off'?idleAutonomyMs:5500))continue;
+        now-(lastIntent.get(role)??now)<(mode==='off'?legacyIdleMs:idleAutonomyMs))continue;
       // Off means the exact existing 0.16 background routine, not a frozen
       // resident: rare idle walks and rescue only when a vital need reaches 8%.
       if(mode==='off'){
@@ -440,14 +441,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // Real sleep uses the existing bed-reservation and time-control system,
       // including bought beds. Never lie down on a sold invisible starter bed.
       const resident=state.characters[role];
-      const energyMostUrgent=resident.energy/42<=Math.min(
-        resident.bladder/38,resident.hunger/46,resident.hygiene/43);
-      if(resident.energy<=38&&energyMostUrgent){
+      const energyMostUrgent=resident.energy<=Math.min(
+        resident.bladder,resident.hunger,resident.hygiene);
+      if(resident.energy<=50&&energyMostUrgent){
         const chosen=selectSleepBed(state,role);
         if(chosen.ok){
           stopLeisure(role);
           const next=structuredClone(state);
-          const sleepMode:SleepMode=mode==='full'?'full':'half';
+          const sleepMode:SleepMode='full';
           Object.assign(next.characters[role],chosen.bed.approach,
             {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode});
           next.revision++;
@@ -474,13 +475,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
           if(!evaluateTask(state,role,plan.command).ok)continue;
           stopLeisure(role);
-          lastAutoCare.set(role,now);
           beginTask(role,socket,plan,true);
+          if(!running.has(role)&&!homeTasks.busy(role))continue;
+          lastAutoCare.set(role,now);
           started=true;
           break;
         }
       }
-      if(started)continue;
+      if(started||mode==='needs')continue;
       if(!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs) {
         if(mode==='full'){
           // Alternate ordinary household chores with leisure: without this
@@ -492,6 +494,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const partner=otherRole(role);
           const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
+          if(turn%3===2&&!sharedWindow){
+            for(const command of fullLeisureCandidates(state,role,Math.floor(turn/3))){
+              const plan=planTask(command);
+              if(!plan||taskAccessError(state,plan.command)||
+                plan.resource&&(homeTasks.reserved(plan.resource)||[...running.values()].some(t=>t.plan.resource===plan.resource))||
+                !evaluateTask(state,role,plan.command).ok)continue;
+              beginTask(role,socket,plan,true);
+              if(!running.has(role)&&!homeTasks.busy(role))continue;
+              lastAutoCare.set(role,now);started=true;break;
+            }
+          }
           if(turn%3===1&&!sharedWindow){
             const recent=recentHomeHabits.get(role)??[];
             const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent);
@@ -501,8 +514,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
                   plan.resource && (homeTasks.reserved(plan.resource) ||
                     [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
               if(!evaluateTask(state,role,plan.command).ok)continue;
-              lastAutoCare.set(role,now);
               beginTask(role,socket,plan,true);
+              if(!running.has(role)&&!homeTasks.busy(role))continue;
+              lastAutoCare.set(role,now);
               // Remember *started* work, not an unavailable suggestion.
               recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
               started=true;
@@ -551,7 +565,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         Math.floor(clockMinutes(state.clock)/125)%3===0){
       const other=otherRole(available[0]);
       const age=now-(lastIntent.get(other)??now);
-      const otherIdleThreshold=Math.min(idleAutonomyMs,5500);
+      const otherIdleThreshold=idleAutonomyMs;
       if(active.has(other)&&state.autonomy[other]==='full'&&
           state.world.places[other]==='home'&&inHomeGrounds(state.characters[other])&&
           !sleepers.has(other)&&!running.has(other)&&!homeTasks.busy(other)&&
@@ -584,9 +598,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=state.autonomy[role]==='needs'
-        ? role==='vlad'?['verdell','simba']:['simba','verdell']
-        : role==='vlad'?['computer','tv','verdell','simba']
+      const preferences:HomeLeisure[]=role==='vlad'?['computer','tv','verdell','simba']
         : ['simba','tv','verdell','computer'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
       const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
@@ -616,7 +628,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         break;
       }
     }
-  }, options.lifeClock?.tickMs ?? 10_000);
+  }, options.lifeClock?.tickMs ?? 4000);
   lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
     if (homeTasks.cancel(role, reason)) return;
@@ -1002,7 +1014,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
             if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
-          lastIntent.set(role,pauseTimers.now()-4000);
+          lastIntent.set(role,pauseTimers.now()-idleAutonomyMs);
           lastAutoCare.set(role,0);
           all({type:'snapshot',state});
         }

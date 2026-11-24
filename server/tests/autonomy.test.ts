@@ -254,7 +254,7 @@ test('Autonomous sleep uses a purchased real bed and disabling autonomy wakes th
     const event=await asleep;
     if(event.type!=='snapshot')return;
     assert.equal(event.state.characters.vlad.sleepingOn,1);
-    assert.equal(event.state.characters.vlad.sleepMode,'half');
+    assert.equal(event.state.characters.vlad.sleepMode,'full');
     const awake=waitFor(ws,p=>p.type==='snapshot'&&p.state.autonomy.vlad==='off'&&
       p.state.characters.vlad.pose==='idle',4300);
     send(ws,{type:'autonomy_mode',mode:'off'});
