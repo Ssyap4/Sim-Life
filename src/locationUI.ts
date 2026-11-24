@@ -1,6 +1,5 @@
 import { JOBS, type JobId } from './shared/jobs';
 import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
-import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
 import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
 import type { LocalActivity } from './shared/locations';
@@ -56,8 +55,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
-    if(current?.action.kind==='fitting'){getWorld()?.fittingCamera(null);panel.classList.remove('clothes-fitting-panel');}
-    if(fittingLook&&state&&getWorld()){fitWardrobe(getWorld().actors[role].root,role,outfitChoices((state.world.wardrobe??defaultWardrobe())[role].worn));fittingLook=null;}
+    if(current?.action.kind==='fitting'){getWorld()?.fittingCamera(null);panel.classList.remove('clothes-fitting-panel');document.querySelector('#app')?.classList.remove('fitting-open');}
+    fittingLook=null;
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
     cafeChoice=null;
@@ -189,7 +188,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }else if(kind==='fitting'){
         const looks=catalog.filter(([id])=>id!=='signature');
         const [look,label]=looks[fittingIndex%looks.length];
-        const pick=(index:number)=>{fittingIndex=(index+looks.length)%looks.length;fittingLook=looks[fittingIndex][0];fitWardrobe(getWorld().actors[role].root,role,outfitChoices(fittingLook));draw();};
+        const pick=(index:number)=>{fittingIndex=(index+looks.length)%looks.length;fittingLook=looks[fittingIndex][0];getWorld().fittingCamera(role,fittingAngle,fittingLook);draw();};
         const nav=element('div','fitting-navigation');
         nav.append(button('‹',()=>pick(fittingIndex-1)),element('strong','', (fittingIndex+1)+' / '+looks.length),button('›',()=>pick(fittingIndex+1)));
         const rotate=element('div','fitting-navigation');
@@ -436,8 +435,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         panel.classList.add('clothes-fitting-panel');
         fittingAngle=0;fittingIndex=0;
         fittingLook=PREVIEW_LOOKS[role][1][0];
-        fitWardrobe(getWorld().actors[role].root,role,outfitChoices(fittingLook));
-        getWorld().fittingCamera(role,0);
+        document.querySelector('#app')?.classList.add('fitting-open');
+        getWorld().fittingCamera(role,0,fittingLook);
       }
       if (station.action.kind === 'fridge' || station.action.kind === 'cupboard') getWorld().openStorage(station.id);
       draw();

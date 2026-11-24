@@ -50,6 +50,7 @@ import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear,
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
 import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
+import { FittingStage } from './FittingStage';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
@@ -455,13 +456,14 @@ export class World {
     if(away && this.inspected===id)this.showcase(null);
   }
 
-  private fittingAngle:number|null=null;
-  fittingCamera(role:CharacterId|null,angle=0):void{
-    this.fittingAngle=role===null?null:angle;
-    this.showcase(role);
+  private fittingStage:FittingStage|null=null;
+  fittingCamera(role:CharacterId|null,angle=0,look?:string):void{
+    if(role===null){this.fittingStage?.dispose();this.fittingStage=null;return;}
+    if(!this.fittingStage)this.fittingStage=new FittingStage(this.actors[role].root.children[0],role);
+    if(look)this.fittingStage.wear(look);
+    this.fittingStage.rotate(angle);
   }
   showcase(subject: CharacterId | PetId | null): void {
-    if(!subject)this.fittingAngle=null;
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.neighborhoodView=false;
@@ -498,10 +500,7 @@ export class World {
           perch.approach.z-perch.surface.z)
       : subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
         : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
-    const fitting=person&&this.fittingAngle!==null;
-    if(fitting){angle.set(Math.sin(this.fittingAngle!),.12,Math.cos(this.fittingAngle!));
-      angle.applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y);}
-    const band = fitting?{top:.09,bottom:.62}:this.viewBand(true);
+    const band = this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);
     if (this.place === 'home' && !perch && !this.canSeeCharacter(bounds,this.cameraMove)) {
@@ -1993,6 +1992,7 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
       this.savedCameras.set(this.place,{
         position:this.camera.position.clone(),target:this.controls.target.clone(),
@@ -2784,7 +2784,12 @@ export class World {
       if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),new THREE.Vector3(f.dx,f.dy,f.dz).normalize());}}
     }
     try {
-      this.renderer.render(this.scene, this.camera);
+      if(this.fittingStage){
+        const canvas=this.canvas.getBoundingClientRect();
+        const panel=document.querySelector('.clothes-fitting-panel')?.getBoundingClientRect();
+        this.fittingStage.frame(canvas.width,canvas.height,panel?(panel.top-canvas.top)/canvas.height:.64);
+        this.renderer.render(this.fittingStage.scene,this.fittingStage.camera);
+      }else this.renderer.render(this.scene, this.camera);
       if(this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000){
         const gl=this.renderer.getContext();
         const actual=gl.getContextAttributes();
