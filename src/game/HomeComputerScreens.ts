@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CharacterId } from '../shared/protocol';
 import type { ComputerDevice } from '../shared/computer';
 import { electronicsVariants,electronicsDisplay } from './ElectronicsArt';
+import { workstationLayout } from '../shared/furniture';
 import type { ElectronicsId } from '../shared/electronics';
 import { drawComputerScene, type ComputerScene } from './ComputerScreenArt';
 
@@ -16,12 +17,13 @@ export class HomeComputerScreens {
   private readonly careers = new Map<CharacterId,{device:ComputerDevice;scene:ComputerScene}>();
   private readonly previews: Partial<Record<ComputerDevice, ComputerScene>> = {};
   private readonly initialDesktop:THREE.Group;
+  private readonly initialLaptop:THREE.Group;
   private readonly hardware={desktop:electronicsVariants('desktop'),laptop:electronicsVariants('laptop')};
   private readonly panels:Record<ComputerDevice,THREE.Mesh>;
   private selected:Record<ComputerDevice,ElectronicsId>={desktop:'pcStart',laptop:'laptopStart'};
 
   constructor(desktop:THREE.Group,laptop:THREE.Group) {
-    this.initialDesktop=desktop;
+    this.initialDesktop=desktop;this.initialLaptop=laptop;
     desktop.add(this.hardware.desktop.group);this.hardware.desktop.group.position.y=1.053;
     laptop.add(this.hardware.laptop.group);this.hardware.laptop.group.position.set(0,.86,-.105);
     const panels={} as Record<ComputerDevice,THREE.Mesh>;
@@ -47,14 +49,19 @@ export class HomeComputerScreens {
   /** The exact same hardware and animated texture move to a purchased desk. */
   hostDesktop(desk:THREE.Group|null):void{
     const group=this.hardware.desktop.group;(desk??this.initialDesktop).add(group);
-    group.position.set(0,desk?.75:1.053,0);
-    group.scale.setScalar(desk?.82:1);
+    const layout=desk&&workstationLayout(String(desk.userData.sku));
+    group.position.set(0,desk?(layout?.top??.75):1.053,layout?.z??0);
+    group.scale.setScalar(desk?(layout?.scale??.82):1);
     group.traverse(part=>{if(part instanceof THREE.Mesh){
       if(desk){delete part.userData.interactable;part.userData.furnitureId=desk.userData.furnitureId;}
       else{delete part.userData.furnitureId;part.userData.interactable='desk';}
     }});
   }
 
+  hostLaptop(desk:THREE.Group|null){const group=this.hardware.laptop.group;
+    (desk??this.initialLaptop).add(group);group.position.set(0,desk?.76:.86,desk?-.24:-.105);
+    group.traverse(part=>{if(part instanceof THREE.Mesh){if(desk){delete part.userData.station;part.userData.furnitureId=desk.userData.furnitureId;}else{delete part.userData.furnitureId;part.userData.station='career-laptop';}}});
+  }
   private current(device:ComputerDevice):ComputerScene {
     for (const entry of this.tasks.values()) if(entry.device===device)return entry.scene;
     for (const entry of this.careers.values()) if(entry.device===device)return entry.scene;

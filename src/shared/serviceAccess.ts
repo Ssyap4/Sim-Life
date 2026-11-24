@@ -1,3 +1,4 @@
+import {isNotebookDesk} from './furniture';
 import { clockMinutes } from './locations';
 import { ACTIONS, type ActionId, type GameState, type TimedCommand } from './protocol';
 import { MATERIAL_BY_ID } from './educationCatalog';
@@ -19,7 +20,7 @@ export function taskAccessError(state: GameState, command: TimedCommand): string
     if(item && state.furnishing.soldFixtures?.includes(item as import('./furniture').StaticFurnitureId)
       && !(item==='desk'&&command.computer==='laptop')&&
       !(item==='desk'&&state.furnishing.placed.some(p=>
-        FURNITURE_BY_ID.get(p.sku)?.shape==='desk')))
+        FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku))))
       return 'Предмет был продан — выбери доступную мебель';
   }
   const sold=state.furnishing.soldFixtures??[];
@@ -38,7 +39,7 @@ export function taskAccessError(state: GameState, command: TimedCommand): string
     if(channel==='tv'&&sold.includes('sofa')&&!hasShape('sofa','corner'))
       return 'Поставь диван для просмотра учебных видео';
     if(channel==='academy'&&sold.includes('desk')&&command.computer!=='laptop'&&
-      !state.furnishing.placed.some(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'))
+      !state.furnishing.placed.some(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku)))
       return 'Для компьютерного обучения установи письменный стол или используй ноутбук';
   }
   if((command.type==='play_game'||command.type==='computer_video')&&

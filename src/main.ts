@@ -1,3 +1,4 @@
+import {isNotebookDesk} from './shared/furniture';
 import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
@@ -68,7 +69,7 @@ let state: GameState | null = null;
 let selectedDesktopFurnitureId:number|null=null;
 const installedDesktopId=():number|undefined=>{
   if(!state?.furnishing.soldFixtures?.includes('desk'))return undefined;
-  const available=state.furnishing.placed.filter(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+  const available=state.furnishing.placed.filter(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku));
   return available.find(item=>item.id===selectedDesktopFurnitureId)?.id??available[0]?.id;
 };
 let active: CharacterId | null = null;
@@ -1320,7 +1321,7 @@ function openPurchasedFurnitureActions(id:number):void{
       actionsEl.append(b);
     }
   };
-  for(const action of supported){
+  for(const action of (isNotebookDesk(item.sku)?[]:supported)){
     const b=document.createElement('button');
     b.type='button';b.className='action-button';b.textContent=FURNITURE_ACTIONS[action];
     b.addEventListener('click',()=>action==='movie'?chooseMovie():action==='read_book'?chooseBook():send(action));
@@ -1346,8 +1347,12 @@ function openPurchasedFurnitureActions(id:number):void{
   }
   if(info.shape==='desk'){
     const pc=document.createElement('button');
-    pc.type='button';pc.className='action-button';pc.textContent='💻 Открыть стационарный компьютер';
+    pc.type='button';pc.className='action-button';pc.textContent=isNotebookDesk(item.sku)?'💻 Открыть ноутбук':'💻 Открыть стационарный компьютер';
     pc.addEventListener('click',()=>{
+      if(isNotebookDesk(item.sku)){const host=state?.furnishing.placed.find(p=>isNotebookDesk(p.sku));if(host?.id!==id){notify('Ноутбук установлен на другом столе');return;}openComputer('laptop');return;}
+      if(!state?.furnishing.soldFixtures?.includes('desk')){notify('Сначала продай старый рабочий стол, чтобы перенести ПК');return;}
+      const host=state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku));
+      if(host?.id!==id){notify('ПК установлен на другом столе');return;}
       openComputer('desktop',id);
     });
     actionsEl.append(pc);

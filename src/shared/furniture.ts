@@ -41,13 +41,13 @@ const STYLE_SKUS:Record<Exclude<FurnitureStyle,'scandi'>,ReadonlySet<string>> = 
     'bed-day','bed-storage','sideboard','table-family','chair-padded',
     'lamp-sphere','lamp-tripod','rug-weave','rug-large','plant-ficus','plant-monstera']),
   industrial:new Set(['sofa-modular','daybed-iron','dresser-industrial','shelf-asym',
-    'table-industrial','table-glass','desk-large','chair-industrial','lamp-industrial']),
+    'table-industrial','table-glass','desk-large','desk-loft','desk-gamer','chair-industrial','lamp-industrial']),
   classic:new Set(['sofa-chester','chair-wing','bed-aurora','bed-rattan',
     'wardrobe-vintage','wardrobe-wide','dresser-rattan','sideboard-glass',
     'chair-bistro','lamp-paper','mirror-window']),
   designer:new Set(['sofa-futon','chair-nest','chair-wicker','pouf-drum',
     'bed-canopy','bed-platform','wardrobe-sliding','shelf-ladder',
-    'table-oval','table-coffee','desk-corner','desk-hutch',
+    'table-oval','table-coffee','desk-corner','desk-hutch','desk-creator','desk-studio','desk-angle',
     'stool-round','lamp-arc','lamp-double','plant-palm','rug-round','mirror-round']),
 };
 export function furnitureStyle(sku:string):FurnitureStyle {
@@ -83,8 +83,14 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('table-round','Стол «Круг»','tables','table',11500,1.10,1.10,.76,'🍽️','Круглая столешница на устойчивой ножке.'),
   product('table-family','Стол «Семья»','tables','table',18900,1.72,.93,.77,'🍽️','Просторный обеденный стол.'),
   product('table-coffee','Журнальный стол «Лист»','tables','table',6200,.92,.57,.43,'☕','Низкий столик для гостиной.'),
-  product('desk-simple','Письменный стол «Лайн»','tables','desk',14300,1.35,.64,.75,'💻','Рабочая поверхность с удобной полкой.'),
-  product('desk-large','Стол «Проект»','tables','desk',28900,1.85,.76,.75,'💻','Большой письменный стол для будущих занятий.'),
+  product("desk-neo","Ноутбучный стол «Нео»","tables","desk",8900,1.18,1.32,0.96,"💻","Компактный светлый стол на тонких ножках, стул в комплекте."),
+  product("desk-air","Ноутбучный стол «Эйр»","tables","desk",13900,1.42,1.3,0.96,"💻","Минималистичный стол с открытой нишей и лёгким креслом."),
+  product("desk-office","Рабочий стол «Офис»","tables","desk",15900,1.65,1.32,0.96,"💻","Стол с тумбой и удобным офисным стулом."),
+  product("desk-loft","Рабочий стол «Лофт»","tables","desk",19900,1.85,1.38,0.98,"💻","Широкая деревянная поверхность на металлических рамах."),
+  product("desk-gamer","Игровой стол «Арена»","tables","desk",25900,1.92,1.4,1.1,"💻","Графитовая столешница, кабельный канал и спортивное кресло."),
+  product("desk-creator","Рабочая станция «Креатор»","tables","desk",32900,2.05,1.42,1.04,"💻","Широкий стол с двумя боковыми секциями и рабочим креслом."),
+  product("desk-studio","Рабочий стол «Студио»","tables","desk",42900,2.15,1.45,1.08,"💻","Дизайнерский стол с округлыми опорами, ящиками и креслом."),
+  product("desk-angle","Угловая станция «Контур»","tables","desk",37900,2.18,1.58,1.02,"💻","Г-образное рабочее место с правым крылом и креслом."),
   product('chair-dining','Стул «Клён»','tables','chair',3900,.47,.54,.87,'🪑','Лёгкий обеденный стул со спинкой.'),
   product('chair-padded','Стул «Мягкий»','tables','chair',6100,.52,.55,.88,'🪑','Стул с тканевой подушкой.'),
   product('stool-basic','Табурет «Пик»','tables','stool',2100,.39,.39,.49,'🪑','Небольшой деревянный табурет.'),
@@ -121,8 +127,6 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('table-oval','Стол «Овал»','tables','table',22900,1.84,.94,.76,'🍽️','Овальная столешница на двух широких опорах.'),
   product('table-industrial','Стол «Фабрика»','tables','table',19900,1.78,.87,.78,'🍽️','Деревянный верх на чёрных стальных козлах.'),
   product('table-glass','Стол «Кристалл»','tables','table',29500,1.55,.86,.76,'🍽️','Стеклянная столешница и перекрещенные опоры.'),
-  product('desk-corner','Угловой стол «Поворот»','tables','desk',27900,1.72,1.29,.76,'💻','Г-образный компьютерный стол с широким крылом.'),
-  product('desk-hutch','Стол «Мастерская»','tables','desk',25500,1.48,.69,1.64,'💻','Рабочий стол с высоким настольным органайзером.'),
   product('chair-industrial','Стул «Металл»','tables','chair',5900,.52,.54,.89,'🪑','Лаконичный стальной стул с тонкой спинкой.'),
   product('chair-bistro','Стул «Бистро»','tables','chair',7400,.49,.55,.91,'🪑','Классический стул с круглой плетёной спинкой.'),
   product('stool-round','Табурет «Кафе»','tables','stool',3600,.43,.43,.60,'🪑','Круглый высокий табурет на четырёх ножках.'),
@@ -160,7 +164,15 @@ export const STARTER_PET_PRODUCTS:readonly FurnitureProduct[]=[
   product(STARTER_CAT_HOUSE,'Первый домик Симбы','pets','plant',2400,1.16,1.04,.75,'🐈','Невысокий тканевый домик с мягкой крышей для сна.'),
   product(STARTER_CAT_SCRATCHER,'Первая когтеточка Симбы','pets','plant',1100,.62,.62,.82,'🐾','Простой столбик из сизаля на круглой подставке.'),
 ];
-export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
+export const RETIRED_DESKS:readonly FurnitureProduct[]=[
+  product('desk-simple','Письменный стол «Лайн»','tables','desk',14300,1.35,.64,.75,'💻','Рабочая поверхность с удобной полкой.'),
+  product('desk-large','Стол «Проект»','tables','desk',28900,1.85,.76,.75,'💻','Большой письменный стол для будущих занятий.'),
+  product('desk-corner','Угловой стол «Поворот»','tables','desk',27900,1.72,1.29,.76,'💻','Г-образный компьютерный стол с широким крылом.'),
+  product('desk-hutch','Стол «Мастерская»','tables','desk',25500,1.48,.69,1.64,'💻','Рабочий стол с высоким настольным органайзером.'),
+];
+export const isNotebookDesk=(sku:string)=>sku==='desk-neo'||sku==='desk-air';
+export const workstationLayout=(sku:string)=>sku.startsWith('desk-')&&!RETIRED_DESKS.some(p=>p.id===sku)?{top:.76,z:-.24,seat:.40,scale:.80}:undefined;
+export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...RETIRED_DESKS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.

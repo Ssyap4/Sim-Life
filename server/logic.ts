@@ -19,7 +19,7 @@ const change = (state: GameState, id: CharacterId, key: keyof Needs, delta: numb
   state.characters[id][key] = Math.max(0, Math.min(100, next));
 };
 
-export function applyAction(source: GameState, role: CharacterId, actionId: string): ActionResult {
+export function applyAction(source: GameState, role: CharacterId, actionId: string,computer:'desktop'|'laptop'='desktop'): ActionResult {
   if (!(actionId in ACTIONS) || !Object.prototype.hasOwnProperty.call(ACTIONS, actionId)) {
     return { ok: false, reason: 'Неизвестное действие' };
   }
@@ -79,7 +79,7 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'skill', 11); change(state, role, 'energy', -7);
       message = 'Влад изучил приёмы разработки'; break;
     case 'deskGames':
-      const pc=electronicsModel(state,role,'desktop');
+      const pc=electronicsModel(state,role,computer);
       change(state, role, 'fun', 25+pc.bonus); change(state, role, 'comfort', pc.comfort); change(state, role, 'energy', -4);
       change(state, role, 'mood', 5);
       message = name + ': поиграл(а) на компьютере'; break;

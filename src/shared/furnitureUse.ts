@@ -1,7 +1,7 @@
 import { LEISURE, isLeisureAction, leisureAction } from './leisure';
-import { FURNITURE_BY_ID, type FurnitureShape, type PlacedFurniture } from './furniture';
+import { FURNITURE_BY_ID, workstationLayout,isNotebookDesk, type FurnitureShape, type PlacedFurniture } from './furniture';
 import { HOME_WORLD_FLOOR } from './district';
-import { placeObstacles } from './locations';
+import { placeObstacles,stationById,HOME_LAPTOP } from './locations';
 import type { CharacterId, GameState } from './protocol';
 import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 
@@ -136,7 +136,7 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const isDesk=shape==='desk';
   const isShelf=shape==='shelves';
   const localX=isTable?-side*(info.width/2+.36):isSofa?side*info.width*.20:0;
-  const localZ=isTable?0:isSofa?0:isDesk?info.depth/2+.28:isShelf?info.depth/2+.56:0;
+  const localZ=isTable?0:isSofa?0:isDesk?(workstationLayout(item.sku)?.seat??info.depth/2+.28):isShelf?info.depth/2+.56:0;
   const posePoint=rotate(item,localX,localZ);
   const pose={
     ...posePoint,
@@ -171,6 +171,10 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   return selected?{item,action,route:selected,pose}:null;
 }
 
+/** A purchased notebook desk hosts the one shared laptop; legacy homes keep the starter station. */
+export const laptopDesk=(state:GameState)=>state.furnishing.placed.find(item=>isNotebookDesk(item.sku));
+export const laptopWorkplace=(state:GameState,role:CharacterId)=>{const desk=laptopDesk(state);return desk?furnitureUseLocation(state,role,desk.id,'deskJournal'):null;};
+export function laptopApproach(state:GameState,role:CharacterId){const loc=laptopWorkplace(state,role);return loc?(loc.route.path.at(-1)??loc.route.from):stationById('home',HOME_LAPTOP)!.approach;}
 /** Eating always uses a real current table, never the sold starter's coordinates. */
 export function diningLocation(state:GameState,role:CharacterId,requestedId?:number){
   const requested=requestedId!==undefined?

@@ -1,3 +1,4 @@
+import {isNotebookDesk} from '../src/shared/furniture';
 import { protectNeeds } from '../src/shared/happiness';
 import { districtArrival, districtStation, inHomeGrounds } from '../src/shared/district';
 import {
@@ -9,7 +10,7 @@ import { promotionNeeds } from '../src/shared/careerPromotion';
 import { missingKnowledge, skillRank } from '../src/shared/education';
 import { addLedger, formatRub } from '../src/shared/economy';
 import { floorFor, HOME_LAPTOP, placeObstacles, spawn, stationById, type Point } from '../src/shared/locations';
-import { furnitureUseLocation } from '../src/shared/furnitureUse';
+import { furnitureUseLocation,laptopDesk,laptopWorkplace } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import { computerDevice } from '../src/shared/computer';
 import { points } from '../src/shared/protocol';
@@ -343,10 +344,11 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     const newDesktop=shift.mode==='remote'&&device==='desktop'&&
       state.furnishing.soldFixtures?.includes('desk');
     const replacement=newDesktop?state.furnishing.placed.find(item=>
-      FURNITURE_BY_ID.get(item.sku)?.shape==='desk'):undefined;
-    const use=newDesktop&&replacement?
+      FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku)):undefined;
+    const notebook=shift.mode==='remote'&&device==='laptop'?laptopDesk(state):undefined;
+    const use=notebook?laptopWorkplace(state,role):newDesktop&&replacement?
       furnitureUseLocation(state,role,replacement.id,'deskJournal'):null;
-    if(newDesktop&&!use)return fail('Купи и установи рабочий стол либо используй ноутбук');
+    if((newDesktop||notebook)&&!use)return fail('Купи и установи рабочий стол либо используй ноутбук');
     const target=use?use.route.path.at(-1)??use.route.from:
       shift.mode==='remote'&&device==='desktop'?points.desk:station.approach;
     const obstacles = placeObstacles(place,state.furnishing), floor = floorFor(place);

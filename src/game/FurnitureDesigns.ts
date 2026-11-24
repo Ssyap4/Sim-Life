@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FURNITURE_BY_ID,FURNITURE_FINISHES,type FurnitureFinish } from '../shared/furniture';
+import { FURNITURE_BY_ID,FURNITURE_FINISHES,workstationLayout,isNotebookDesk,type FurnitureFinish } from '../shared/furniture';
 import { cube,softCube,orb,drum,finish,batchRigidParts } from './ArtKit';
 
 // Deliberately authored visual identities, shared by product photos and world.
@@ -687,6 +687,47 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
         line(x,0,-d*.37,-x,h*.87,d*.37,.036,D);
         line(x,0,d*.37,-x,h*.87,-d*.37,.036,D);
       }
+    }else if(desk&&workstationLayout(s)){
+      const compact=isNotebookDesk(s),gaming=s==='desk-gamer',loft=s==='desk-loft',studio=s==='desk-studio',angle=s==='desk-angle',creator=s==='desk-creator';
+      const z=-.24,topDepth=Math.min(d-.58,.76),topWidth=w*.96;
+      box(topWidth,.075,topDepth,0,.7225,z,gaming?0x30383f:M,'wood',true);
+      const left=-w*.42,right=w*.42;
+      if(loft||gaming){
+        for(const x of [left,right]){
+          box(.075,.69,.075,x,.345,z-topDepth*.34,D,'metal');
+          box(.075,.69,.075,x,.345,z+topDepth*.34,D,'metal');
+          box(.075,.045,topDepth*.80,x,.045,z,D,'metal');
+          if(gaming)box(.08,.055,topDepth*.72,x,.64,z,0x5aa869,'metal');
+        }
+        box(w*.70,.075,.07,0,.52,z-topDepth*.40,D,'metal');
+      }else if(studio){
+        for(const x of [left,right])box(.20,.68,topDepth*.77,x,.34,z,L,'wood',true);
+        box(w*.65,.07,.12,0,.57,z-topDepth*.37,D,'metal');
+      }else{
+        for(const x of [left,right])for(const zz of [z-topDepth*.34,z+topDepth*.34]){
+          const leg=box(compact?.045:.065,.68,.055,x,.34,zz,D,'metal');if(s==='desk-neo')leg.rotation.z=x<0?-.07:.07;
+        }
+      }
+      if(s==='desk-office'||creator||studio){
+        for(const x of creator?[-w*.32,w*.32]:[w*.32]){
+          box(w*.25,.53,topDepth*.83,x,.38,z,L,'wood',true);
+          for(let n=0;n<(studio?2:3);n++){
+            const yy=.22+n*(studio?.22:.15);
+            box(w*.22,.115,.025,x,yy,z+topDepth*.43,M,'wood',true);
+            box(w*.09,.019,.035,x,yy,z+topDepth*.46,D,'metal');
+          }
+        }
+      }
+      if(s==='desk-air')box(w*.32,.048,.24,-w*.27,.59,z-.06,L,'wood',true);
+      if(angle){box(w*.29,.075,.88,w*.34,.7225,.01,M,'wood',true);box(.075,.68,.075,w*.43,.34,.36,D,'metal');}
+      if(gaming||creator){box(w*.80,.035,.11,0,.765,z-topDepth*.43,D,'metal');box(w*.58,.009,.022,0,.77,z+topDepth*.44,gaming?0x66bd79:0x698b9e,'metal');}
+      // Integrated real seat within the declared footprint.
+      const seatZ=.40,seatW=gaming?.54:.48,seatH=.45;
+      box(seatW,.085,.43,0,seatH,seatZ,F,'fabric',true);
+      box(seatW,.43,.09,0,.72,seatZ+.20,gaming?0x39454d:F,'fabric',true);
+      if(gaming){box(.10,.28,.10,-.22,.79,seatZ+.18,0x6ea56f,'fabric',true);box(.10,.28,.10,.22,.79,seatZ+.18,0x6ea56f,'fabric',true);}
+      if(compact){for(const x of [-.18,.18])for(const zz of [seatZ-.15,seatZ+.15])box(.045,.40,.045,x,.20,zz,D,'metal');}
+      else{cyl(.045,.35,.045,0,.22,seatZ,D,'metal');for(let i=0;i<5;i++){const a=i*Math.PI*2/5;line(0,.09,seatZ,Math.cos(a)*.20,.09,seatZ+Math.sin(a)*.20,.022,D,'metal');}}
     }else if(s==='desk-corner'){
       // Real L-shaped desk: empty notch on viewer side.
       box(w*.96,.079,d*.44,0,.72,-d*.27,M,'wood',true);

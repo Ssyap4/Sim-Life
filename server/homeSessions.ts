@@ -1,3 +1,5 @@
+import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
+import {isNotebookDesk} from '../src/shared/furniture';
 import { routeHitsLayout } from './furnishing';
 import type { FloorRect } from '../src/game/navigation';
 import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
@@ -179,12 +181,13 @@ export function createHomeSessions(hooks: Hooks) {
       }
       if (material.channel === 'academy') {
         if (command.computer === 'laptop') {
-          const route = walk(from, stationById('home',HOME_LAPTOP)!.approach);
+          const notebook=laptopDesk(hooks.state());
+          const route=notebook?(laptopWorkplace(hooks.state(),role)?.route??null):walk(from, stationById('home',HOME_LAPTOP)!.approach);
           return route && { route, station: 'studyLaptop' };
         }
         if(hooks.state().furnishing.soldFixtures?.includes('desk')){
           const deskId=hooks.state().furnishing.placed.find(item=>
-            FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+            FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
           const desk=deskId!==undefined?
             furnitureUseLocation(hooks.state(),role,deskId,'deskJournal'):null;
           return desk&&{route:desk.route,station:'studyDesk',furnitureId:deskId,

@@ -1,3 +1,5 @@
+import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
+import {isNotebookDesk} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
@@ -195,6 +197,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     const reason=catSeatError(state,'placed:'+command.furnitureId,position.pose);
     if(reason)return {ok:false,reason};
     const {action}=command;
+    if(isNotebookDesk(selected.item.sku))return {ok:false,reason:'Открой ноутбук на этом столе'};
     if(action==='read_book'&&state.furnishing.soldFixtures?.includes('bookcase')&&
       !state.furnishing.placed.some(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='shelves'))
       return {ok:false,reason:'Для чтения сначала установи книжный стеллаж'};
@@ -248,7 +251,8 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     const purchased=command.device==='desktop'&&
       (command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('desk'));
     const deskId=command.furnitureId??state.furnishing.placed.find(item=>
-      FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+      FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
+    if(purchased&&deskId!==undefined){const host=state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku));if(host?.id!==deskId)return {ok:false,reason:'ПК установлен на другом столе'};}
     const location=purchased&&deskId!==undefined?
       furnitureUseLocation(state,role,deskId,'deskGames'):null;
     if(purchased&&!location)return {ok:false,reason:'Установи рабочий стол для стационарного компьютера'};
@@ -278,7 +282,13 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
   }
-  if (command.type === 'act') return applyAction(state, role, command.actionId);
+  if (command.type === 'act') {
+    const loc=command.computer==='laptop'&&laptopDesk(state)?laptopWorkplace(state,role):null;
+    if(command.computer==='laptop'&&laptopDesk(state)&&!loc)return {ok:false,reason:'Освободи подход к ноутбуку'};
+    const result=applyAction(state,role,command.actionId,command.computer);
+    if(result.ok&&loc)Object.assign(result.state.characters[role],loc.route.path.at(-1)??loc.route.from,{pose:'work'});
+    return result;
+  }
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type==='eat'||command.type==='eat_takeout'){
     const purchased=command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('table');

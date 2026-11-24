@@ -1,3 +1,4 @@
+import { isNotebookDesk } from './furniture';
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from './life';
 import { recipeAvailability } from './recipeAvailability';
@@ -47,7 +48,7 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
     // Installed replacements are real stations. No ghost use of a sold
     // starter couch, desk or table and no fixed number of purchased items.
     for(const item of [...state.furnishing.placed].sort((a,b)=>furnitureComfort(b.sku)-furnitureComfort(a.sku))){
-      if(canFurniturePerform(item,action))
+      if(!isNotebookDesk(item.sku)&&canFurniturePerform(item,action))
         offer(need,{type:'furniture_use',furnitureId:item.id,action},reason);
     }
   };

@@ -1,7 +1,8 @@
+import {isNotebookDesk} from '../src/shared/furniture';
 import { isHomeJob } from "../src/shared/jobs";
 import { computerDevice, computerResource } from "../src/shared/computer";
 import { FURNITURE_BY_ID } from "../src/shared/furniture";
-import { furnitureUseLocation } from "../src/shared/furnitureUse";
+import { furnitureUseLocation,laptopWorkplace,laptopApproach,laptopDesk } from "../src/shared/furnitureUse";
 import { diningLocation } from '../src/shared/furnitureUse';
 import { PET_IDS, treatsRemaining } from '../src/shared/pets';
 import { grantStarterPetFurniture } from './starterPets';
@@ -711,9 +712,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : plan.command.type === 'act' ? plan.command.actionId in KITCHEN_ACTIONS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
         : plan.command.computer === 'laptop' && ACTIONS[plan.command.actionId].item === 'desk'
-          ? stationById('home','career-laptop')!.approach : points[ACTIONS[plan.command.actionId].item]
+          ? laptopApproach(state,role) : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'play_game' || plan.command.type === 'computer_video'
-        ? plan.command.device === 'laptop' ? stationById('home','career-laptop')!.approach : points.desk
+        ? plan.command.device === 'laptop' ? laptopApproach(state,role) : points.desk
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen
@@ -1228,7 +1229,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           ?state.furnishing.placed.find(item=>item.id===message.id):undefined;
         const fixture=message.type==='furniture_sell_static'&&typeof message.fixture==='string'?message.fixture:undefined;
         const spatial=!!moved||!!fixture||message.type==='furniture_place';
-        if(Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop')&&(fixture==='desk'||moved&&FURNITURE_BY_ID.get(moved.sku)?.shape==='desk')){packet(socket,{type:'error',reason:'Нельзя переставлять рабочий стол во время заказа'});return;}
+        const adding=message.type==='furniture_place'?state.furnishing.stored.find(p=>p.id===message.id):undefined;
+        const deskEdit=fixture==='desk'||[moved,adding].some(p=>p&&FURNITURE_BY_ID.get(p.sku)?.shape==='desk');
+        if(deskEdit&&(Object.values(state.activeShifts).some(s=>s?.homeDevice)||Object.values(state.careers.residents).some(r=>r.shift?.mode==='remote')||homeTasks.reserved('career-laptop')||homeTasks.reserved('desk')||[...running.values()].some(t=>['career-laptop','desk'].includes(t.plan.resource??'')))){packet(socket,{type:'error',reason:'Нельзя переставлять рабочий стол во время заказа'});return;}
         const before=state;
         const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
           Math.floor(liveGameTime()));
@@ -1392,11 +1395,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             (state.careers.residents[partner].shift?.mode==='remote'&&(state.careers.residents[partner].shift?.homeDevice??'laptop')===device)){
             packet(socket,{type:'error',reason:'Компьютер занят вторым персонажем'});return;
           }
+          const notebook=device==='laptop'?laptopDesk(state):undefined;
           const replacement=device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')
-            ?state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'):undefined;
+            ?state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku)):undefined;
           if(device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')&&!replacement){packet(socket,{type:'error',reason:'Установи компьютерный стол'});return;}
-          const target=device==='laptop'?stationById('home','career-laptop')!.approach:points.desk;
-          route=replacement?furnitureUseLocation(state,role,replacement.id,'deskJournal')?.route??null:
+          const target=device==='laptop'?laptopApproach(state,role):points.desk;
+          route=notebook?laptopWorkplace(state,role)?.route??null:replacement?furnitureUseLocation(state,role,replacement.id,'deskJournal')?.route??null:
             planWalk(state.characters[role],target,placeObstacles('home',state.furnishing),floorFor('home'));
           if(!route){packet(socket,{type:'error',reason:'Освободи подход к компьютеру'});return;}
         }
