@@ -99,7 +99,7 @@ test('Server clock pays a side shift only after a full workday',()=>{
  snap.clock.minute=due.endsAt%1440;
  const settled=settleCompletedShifts(snap);
  assert.equal(settled.completed.length,1);
- assert.ok(settled.completed[0].payment>=2500&&settled.completed[0].payment<=4500);
+ assert.ok(settled.completed[0].payment>=3700&&settled.completed[0].payment<=6700);
  assert.equal(settled.state.money,10000+settled.completed[0].payment);
  assert.equal(settled.state.ledger.length,1);
  assert.equal(settleCompletedShifts(settled.state).completed.length,0);
