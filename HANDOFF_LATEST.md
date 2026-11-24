@@ -1,3 +1,19 @@
+# Sim-Life - current release: v0.30.0 (2026-11-24)
+
+- User approved release after checks. PR #61 merged into main: bee28d04765e0084b2ed172ad48f62a815547f79; tag v0.30.0 pushed. Tested branch head 66d780e39997155d6f2d9ddd5d8e5a7b0b98c880 has identical tree.
+- Full cloud regression SUCCESS: 557/557, zero failures/skips; furniture audit 68/68, 268 actions, production build and isolation passed: https://github.com/Ssyap4/Sim-Life/actions/runs/45322855275 .
+- Earlier mobile visual job SUCCESS (138204060515), real cloud 390x844 frames inspected: cafe, dog/cat begging, pet menu. Final CSS hides overlapping camera controls and treat button moved first. Repeated final mobile job 138205265661 was still installing Chromium at deployment; do not claim it passed or that physical iPhone FPS was measured.
+- Main production: D:\Sim-Life, port 3111, http://192.168.0.124:3111/ ; health ok, testNoCodes=false, LAN HTML and bundle index-CdyIPTba.js HTTP 200. Real save directory D:\Sim-Life\server-data; backup D:\Sim-Life-Backups\v030-predeploy-20261124-065659 (8 files SHA-256 verified). No preview data copied.
+- Preview branch feat/cafe-table-service-030, D:\Sim-Life-030-Cafe, port 3163, D:\Sim-Life-030-Cafe-PreviewData. Keep isolated.
+- Cafe: three tables, cashier, eight meals, seated talks, preparation progress, served plates, 32-second meals both home and cafe. Starter cat house and scratcher, six dog toys, autonomous toy use. Furniture placement independent of unrelated resident/pet activities, physical obstacles retained; 13 decor products removed from shop, existing items sellable.
+- Needs: toilet +100, shower +80, ordinary bath +90, foam +100 hygiene and +35 comfort/+10 mood. Ordinary food +60-70, premium +100. Pets approach real eating owners, Verdell begs upright, Simba raises paw; each pet 3 free treats per game day shared by both owners, +30 satiety/+12 happiness/+8 bond. Treat at table does not interrupt meal.
+- ALINA-PC weak: no heavy local WebGL automation, Blender or full regressions; use cloud. Physical iPhone 11 portrait primary. Main changes require user approval. Next stage not started.
+
+---
+
+## Historical handoff (older releases; not current)
+
+
 # Sim-Life - current verified release: v0.29.0 (2026-11-24)
 
 - User approved the release. PR #60 merged into main: 4a4db94366fb708dfcd6a564b322e382c4d2e0bd; tag v0.29.0 pushed. Tested branch head debe9508fd868a111a5a27931518c889e08cf2cd has identical tree to the release merge.
