@@ -221,17 +221,19 @@ test('Shared spontaneous conversation requires both residents in full mode and s
         if(log.length>90)log.shift();
       });
     }
-    const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat',9500);
+    const started=waitFor(vlad,p=>p.type==='home_leisure'&&p.activity==='chat'||p.type==='conversation'&&p.remainingMs>0||p.type==='task_started'&&p.role==='vlad'&&p.automatic===true&&p.command.type==='together',9500);
     // Both sockets and the event listener are ready before game-time moves.
     // This tests a synchronized conversation, not the relative speed of two
     // unrelated WebSocket handshakes on a busy CI runner.
     ctx.startClock();
     const event=await started.catch(error=>{throw new Error(
       'Chat did not start: '+String(error)+'; trace='+JSON.stringify(log.slice(-60)));});
-    if(event.type!=='home_leisure')return;
-    assert.deepEqual(event.roles,['vlad','alina']);
-    assert.ok(event.routes.vlad&&event.routes.alina);
-    const stopped=waitFor(alina,p=>p.type==='home_leisure'&&p.activity===null);
+    if(event.type==='home_leisure'){
+      assert.deepEqual(event.roles,['vlad','alina']);assert.ok(event.routes.vlad&&event.routes.alina);
+    }else if(event.type==='task_started'){
+      assert.equal(event.automatic,true);assert.equal(event.command.type,'together');assert.ok(event.home?.pair);
+    }else assert.ok(event.type==='conversation'&&event.remainingMs>0);
+    const stopped=waitFor(alina,p=>event.type==='home_leisure'?p.type==='home_leisure'&&p.activity===null:event.type==='conversation'?p.type==='conversation'&&p.remainingMs===0:p.type==='task_ended'&&p.role==='vlad'&&p.taskId===event.taskId&&p.outcome==='cancelled');
     send(alina,{type:'act',actionId:'kitchenWash'});
     const cancellation=await stopped.catch(error=>{throw new Error(
       'Chat did not stop: '+String(error)+'; trace='+JSON.stringify(log.slice(-60)));});

@@ -85,3 +85,19 @@ test('a real seated home session stays running when a nearby conversation is acc
   assert.equal(r.state().relationship.recent.at(-1)?.action,'nearTalk:day');
  }finally{r.s.dispose();}
 });
+test('automatic conversation obeys opt-in, mode cancellation, cooldown and never earns wish points',()=>{
+ const r=rig();try{
+  assert.equal(r.s.autoConversation('vlad'),false);
+  r.state().autonomy={vlad:'full',alina:'full'};
+  for(const role of residents)Object.assign(r.state().characters[role],{hunger:90,energy:90,bladder:90,hygiene:90});
+  const before=structuredClone(r.state());
+  assert.equal(r.s.autoConversation('vlad'),true);assert.equal(r.prepares(),0);
+  r.state().autonomy.alina='needs';r.s.recheckAccess();r.advance(41000);
+  assert.equal(r.state().relationship.recent.length,0);
+  r.state().autonomy.alina='full';assert.equal(r.s.autoConversation('vlad'),false);
+  r.advance(20000);assert.equal(r.s.autoConversation('vlad'),true);r.advance(41000);
+  assert.ok(r.state().relationship.recent.length===1);
+  assert.deepEqual(r.state().happiness,before.happiness);assert.equal(r.state().money,before.money);assert.deepEqual(r.state().pantry,before.pantry);
+  assert.equal(r.s.autoConversation('vlad'),false);
+ }finally{r.s.dispose();}
+});

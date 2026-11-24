@@ -30,6 +30,13 @@ export function coffeeMachineTier(state:Pick<GameState,'world'>,role:CharacterId
 export function validCoffeeOrder(blend:unknown,drink:unknown):blend is CoffeeBlend{
  return typeof blend==='string'&&(INSTANT_COFFEE.some(id=>id===blend)?drink===undefined:BEAN_COFFEE.some(id=>id===blend)&&COFFEE_DRINKS.some(d=>d===drink));
 }
+export function sharedCoffeeOptions(state:GameState,role:CharacterId){
+ const partner:CharacterId=role==='vlad'?'alina':'vlad';
+ if([role,partner].some(r=>coffeeCupsToday(state,r)>=COFFEE_CUPS_PER_DAY))return [];
+ const tier=coffeeMachineTier(state,role);
+ return [...INSTANT_COFFEE.filter(b=>state.pantry[b]>=2).map(blend=>({id:blend as string,blend:blend as CoffeeBlend,drink:undefined as CoffeeDrink|undefined,energy:INSTANT_COFFEE_ENERGY})),
+ ...(tier?BEAN_COFFEE.filter(b=>state.pantry[b]>=2).flatMap(blend=>COFFEE_DRINKS.map(drink=>({id:blend+':'+drink,blend:blend as CoffeeBlend,drink,energy:tier.energy}))):[])];
+}
 export type CoffeeDaily = Record<CharacterId, { day: number; cups: number }>;
 export function newCoffeeDaily(): CoffeeDaily {
   return { vlad: { day: 0, cups: 0 }, alina: { day: 0, cups: 0 } };

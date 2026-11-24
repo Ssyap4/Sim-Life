@@ -28,7 +28,7 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
     if(w.need==='energy')return command.type==='sleep_start'||['bedSleep','bedNap','sofaRest'].includes(action);
     if(w.need==='hygiene')return ['bathShower','bathSoak','bathFoam','bathWash','bathTeeth'].includes(action);
     if(w.id==='dog-walk')return command.type==='local_activity'&&command.action==='dog';
-    if(w.id==='together-time')return command.type==='together'&&command.action==='sofaTalk';
+    if(w.id==='together-time')return command.type==='together'&&(['sofaTalk','yardRest','musicTogether','yardCoffee','teaTogether','yardTea','bedRest','cuddle'].includes(command.action)||command.action.startsWith('nearTalk:'));
     if(w.id==='game-break'&&(command.type==='play_game'||action==='deskGames'))return true;
     if(w.id==='reading'&&(command.type==='read_book'||action==='read_book'||action==='sofaRead'))return true;
     const c=w.command;

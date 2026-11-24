@@ -28,6 +28,7 @@ import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { gains } from './needs';
 import { familyMoments, momentReward, type FamilyMoment } from '../src/shared/familyMoments';
+import {familyAutoTopics,familyAutoLeisure,familyAutonomyReady} from '../src/shared/familyAutonomy';
 import { nearbyTalkDenial } from '../src/shared/nearbyTalk';
 import { isNearbyTalk, needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, contextAvailable, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
 import { parkConversation, completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
@@ -104,7 +105,7 @@ export function createHomeSessions(hooks: Hooks) {
   let nextInviteId = 0;
   let socialInvite: { offer:SocialOffer; command:SocialIntent; timer:ReturnType<typeof setTimeout>; cookTask?:number; parkSession?:Session } | null=null;
   const lastProposal: Partial<Record<CharacterId,number>>={};
-  let conversation:{from:CharacterId;action:string;choice:number;until:number;timer:ReturnType<typeof setTimeout>}|null=null;
+  let conversation:{from:CharacterId;action:string;choice:number;automatic:boolean;wishes:Partial<Record<CharacterId,ReturnType<typeof wishAtStart>>>;until:number;timer:ReturnType<typeof setTimeout>}|null=null;
   function conversationReason(from:CharacterId):string|undefined {
     const s=hooks.state(),positions:Partial<Record<CharacterId,{x:number;z:number}>>={};
     for(const r of ['vlad','alina'] as const){
@@ -126,19 +127,40 @@ export function createHomeSessions(hooks: Hooks) {
   function stopConversation(completed=false){
     if(!conversation)return;
     const c=conversation;conversation=null;clearTimer(c.timer);
-    if(completed&&!conversationReason(c.from)){
+    if(completed&&!conversationReason(c.from)&&(!c.automatic||familyAutonomyReady(hooks.state()))){
       const a=SOCIAL_BY_ID.get(c.action)!;
-      try{const next=parkConversation(hooks.state(),c.from,a,c.choice);for(const r of ['vlad','alina'] as const)recordCompletedActivity(next,r,{type:'together',action:c.action});hooks.save(next);broadcastSnapshot();}
+      try{const before=hooks.state(),next=parkConversation(before,c.from,a,c.choice);for(const r of ['vlad','alina'] as const){recordCompletedActivity(next,r,{type:'together',action:c.action});if(!c.automatic)fulfillWish(next,r,c.wishes[r],before);}hooks.save(next);broadcastSnapshot();}
       catch{/* No reward if persistence fails. */}
     }
     hooks.all({type:'conversation',from:c.from,remainingMs:0,title:''});
   }
-  function startConversation(from:CharacterId,action:string,choice:number){
+  function startConversation(from:CharacterId,action:string,choice:number,automatic=false){
     const a=SOCIAL_BY_ID.get(action)!;
     const duration=Math.max(15,Math.round(a.seconds*1000*hooks.timeScale));
-    conversation={from,action,choice,until:now()+duration,timer:schedule(()=>stopConversation(true),duration)};
+    const wishes:Partial<Record<CharacterId,ReturnType<typeof wishAtStart>>>={};if(!automatic)for(const r of ['vlad','alina'] as const)wishes[r]=wishAtStart(hooks.state(),r,{type:'together',action});
+    conversation={from,action,choice,automatic,wishes,until:now()+duration,timer:schedule(()=>stopConversation(true),duration)};
     hooks.all({type:'conversation',from,remainingMs:duration,title:a.title});
   }
+  let lastAutoFamily=-Infinity;
+  function autoConversation(from:CharacterId):boolean{
+    if(conversation||socialInvite||invite||now()-lastAutoFamily<60000||conversationReason(from))return false;
+    const topic=familyAutoTopics(hooks.state(),from)[0];
+    if(!topic)return false;
+    lastAutoFamily=now();startConversation(from,topic,0,true);return true;
+  }
+  function autoFamilyLeisure(from:CharacterId):boolean{
+    if(conversation||socialInvite||invite||now()-lastAutoFamily<60000)return false;
+    const socket=hooks.socket(from);if(!socket)return false;
+    for(const action of familyAutoLeisure(hooks.state(),from)){
+      const a=SOCIAL_BY_ID.get(action)!,command:SocialIntent={type:'together',action};
+      if(!pairScenes(hooks.state(),from,command))continue;
+      if(start(['vlad','alina'],{command,label:a.title,durationMs:socialDuration(a,command,hooks.state()),resource:socialResource(a)},socket,true,{from,choice:0})){
+        lastAutoFamily=now();return true;
+      }
+    }
+    return false;
+  }
+  function stopAutoConversation(){if(conversation?.automatic)stopConversation();}
   function closeSocial(phase:SocialPhase,message:string,reply?:string) {
     if(!socialInvite)return;
     const {offer,timer}=socialInvite;
@@ -682,11 +704,12 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function recheckAccess() {
-    if(conversation&&conversationReason(conversation.from))stopConversation();
+    if(conversation&&(conversationReason(conversation.from)||conversation.automatic&&!familyAutonomyReady(hooks.state())))stopConversation();
     for (const session of new Set(sessions.values())) {
       const member = session.participants[0].role;
       const command=session.plan.command;
       if(command.type==='together'&&session.cooperation){
+        if(session.participants[0].packet.automatic&&!familyAutonomyReady(hooks.state())){cancel(member,'Нужен отдых или управление игрока');continue;}
         const individual=session.participants.length===1;
         const reason=cooperationDenial(hooks.state(),individual?member:session.cooperation.from,command,individual);
         if(reason)for(const participant of [...session.participants])cancel(participant.role,reason);
@@ -719,7 +742,7 @@ export function createHomeSessions(hooks: Hooks) {
       }
     }
   }
-  return { diners:()=>new Map([...sessions.entries()].filter(([,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

@@ -16,6 +16,7 @@ import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import {familyAutonomyReady} from '../src/shared/familyAutonomy';
 import {recordCompletedActivity} from '../src/shared/emotions';
 import {applyLifeMoments} from '../src/shared/lifeMoments';
 import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
@@ -598,6 +599,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
       }
     }
+    // Full autonomy on both devices is permission for lightweight, free
+    // companionship only. Never seize a manual task or queued command.
+    if((['vlad','alina'] as const).every(r=>active.has(r)&&state.autonomy[r]==='full'&&
+      !sleepers.has(r)&&!storageOpen.has(r)&&!walkingHome.has(r)&&(queuedTasks.get(r)?.length??0)===0&&
+      now-(lastIntent.get(r)??now)>=idleAutonomyMs&&(!running.has(r)||running.get(r)?.automatic)&&(!homeTasks.busy(r)||homeTasks.automatic(r)))){
+      const from:CharacterId=Math.floor(clockMinutes(state.clock)/125)%2===0?'vlad':'alina';
+      if(homeTasks.autoConversation(from))return;
+    }
+    if(homeTasks.conversationActive())return;
     if(!available.length)return;
     // A full-autonomy pair may become idle on adjacent 20ms ticks because
     // their login/manual-intent timestamps differ. Without a short pairing
@@ -625,8 +635,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     // Only two idle residents who explicitly opted into FULL autonomy may
     // perform a shared spontaneous chat; neither character is commandeered
     // from manual control, study, sleep or any other task.
-    if(available.length===2&&available.every(role=>state.autonomy[role]==='full')&&
+    if(available.length===2&&familyAutonomyReady(state)&&available.every(role=>state.autonomy[role]==='full')&&
         Math.floor(clockMinutes(state.clock)/125)%3===0){
+      if(Math.floor(clockMinutes(state.clock)/125)%2===1&&homeTasks.autoFamilyLeisure(available[0]))return;
       const routes:Partial<Record<CharacterId,WalkRoute>>={};
       for(const role of available){
         const route=planLeisure(state,role,'chat');
@@ -1091,6 +1102,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // The owner regains control immediately, even if the character was
           // in the middle of a previous autonomous chore or an idle walk.
           if(message.mode==='off'||(previousMode==='full'&&message.mode==='needs')) {
+            homeTasks.stopAutoConversation();
             // Dropping FULL must also stop full-only leisure and chats, while
             // preserving manual tasks and an already ongoing restorative sleep.
             if(message.mode==='off'&&autoSleeping.has(role))stopSleep(role);
@@ -1141,7 +1153,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (typeof message.type==='string'&&['social_propose','social_reply','social_withdraw','social_finish'].includes(message.type)) {
-        homeTasks.social(role,socket,message); return;
+        homeTasks.stopAutoConversation();homeTasks.social(role,socket,message); return;
       }
       if (message.type==='social_offer') {
         homeTasks.social(role,socket,{type:'social_propose',action:message.kind==='hug'?'softHug':message.kind});return;
@@ -1364,6 +1376,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         submitTimed(role,socket,plan);
         return;
       }
+      homeTasks.stopAutoConversation();
       // Walking, starting work, using a station or any other manual action wakes the sleeper.
       stopSleep(role);
       lastIntent.set(role, pauseTimers.now());

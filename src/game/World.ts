@@ -1120,7 +1120,7 @@ export class World {
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
-      case 'sofaLean':case 'sofaHands':case 'sofaKiss':case 'sofaHug':case 'bedRest':case 'cuddle':
+      case 'teaTogether':case 'sofaLean':case 'sofaHands':case 'sofaKiss':case 'sofaHug':case 'bedRest':case 'cuddle':
         actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       case 'hug':case 'closeHug':
         actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;

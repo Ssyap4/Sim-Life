@@ -15,7 +15,7 @@ export type WishCommand =
   | {type:'act';actionId:ActionId}
   | {type:'sleep_start';mode:'half'|'full'}
   | {type:'fridge'}
-  | {type:'together';action:'sofaTalk'}
+  | {type:'together';action:'sofaTalk'|'yardRest'|'musicTogether'}
   | {type:'local_activity';action:'dog';station:'park-dog'}
   | {type:'cook'|'eat';recipe:RecipeId}
   | {type:'eat_takeout';item:TakeoutId}
@@ -118,6 +118,15 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   if(!(pet==='verdell'&&state.world.dogWalker))add('companion-'+pet,'🐾',pet==='verdell'?'Побыть с Верделлом':'Приласкать Симбу',
     'Хочется уделить любимому питомцу немного внимания.','Погладить',{type:'pet_action',pet,action:'pet'});
   if(state.world.places[role]==='home'&&!socialRestriction(SOCIAL_BY_ID.get('sofaTalk')!,state,role))add('together-time','♡','Провести время вместе','Спокойно поговорить вдвоём на диване.','Предложить',{type:'together',action:'sofaTalk'});
+  if(state.world.places[role]==='home'){
+    const together=plans.find(p=>p.id==='together-time');
+    const preferred=person.comfort<60?'musicTogether':state.clock.minute>=360&&state.clock.minute<1140?'yardRest':'sofaTalk';
+    if(!socialRestriction(SOCIAL_BY_ID.get(preferred)!,state,role)){
+      const replacement:Wish={id:'together-time',icon:'♡',title:'Провести время вместе',detail:preferred==='yardRest'?'Посидеть и поговорить вдвоём во дворе.':preferred==='musicTogether'?'Отдохнуть рядом под музыку.':'Спокойно поговорить вдвоём на диване.',cta:'Предложить',command:{type:'together',action:preferred},urgency:'calm'};
+      if(together)plans[plans.indexOf(together)]=replacement;
+      else if(wishAvailable(state,role,replacement.id))plans.push(replacement);
+    }
+  }
   const personalSkill=role==='vlad'?'technology':'practical';
   const rank=skillRank(state.education.characters[role].xp[personalSkill]);
   if(rank.next>0&&rank.next-rank.current<=15&&!state.furnishing.soldFixtures?.includes('desk'))add('goal-'+personalSkill+'-'+(rank.level+1),'🏆','Новый уровень: '+SKILLS[personalSkill][1],'Достигнуть '+(rank.level+1)+' уровня навыка.','Практиковаться',{type:'act',actionId:role==='vlad'?'vladStudy':'alinaStudy'});
@@ -145,6 +154,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     if(recent==='shift'&&['rest-break','tea-break','music-evening','favorite-music'].includes(id))return 5;
     if((recent==='creativeSpark'||recent==='study'||recent==='readingMoment')&&id.startsWith('learn-'))return 5;
     if((recent==='quietMorning'||recent==='cozyEvening')&&['tea-break','together-time','reading'].includes(id))return 4;
+    if((recent==='familyCare'||recent==='familyCoffee')&&id==='together-time')return 5;
     if(recent==='favoritePet'&&id==='companion-'+pet)return 4;
     if(recent==='tidyMoment'&&id==='tea-break')return 4;
     return 0;

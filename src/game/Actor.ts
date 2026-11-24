@@ -1005,8 +1005,12 @@ export class Actor {
           if(inward>0)rightY+=.13*contact;else leftY+=.13*contact;
           expression+=.30*contact;break;
         }
-        case 'teaTogether':
-          expression+=.16*rise;gaze+=.025*Math.sin(sec*1.5);break;
+        case 'teaTogether':{
+          const speaking=Math.floor(sec/3)%2===(pair.leads?0:1);
+          expression+=(speaking?.28:.12)*rise;gaze+=.035*Math.sin(sec*(speaking?3:1.5));
+          if(pair.partner){const other=pair.partner.bodyPosition(new THREE.Vector3());const self=this.bodyPosition(new THREE.Vector3());const yaw=Math.atan2(other.x-self.x,other.z-self.z)-this.root.rotation.y;partnerYaw=THREE.MathUtils.clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.48,.48)*rise;}
+          break;
+        }
         case 'musicTogether':
           expression+=.16*rise;partnerHead=.035*Math.sin(sec*2);gaze+=.035*Math.sin(sec*1.6);break;
         case 'bedRest':

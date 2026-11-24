@@ -1,3 +1,5 @@
+import {sharedCoffeeOptions} from '../src/shared/coffee';
+import {brewCoffee} from './coffee';
 import { badmintonWinner } from '../src/shared/badminton';
 import { picnicPortions } from '../src/shared/picnic';
 import { LEISURE, leisureAction } from '../src/shared/leisure';
@@ -185,7 +187,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const seated:HomeSeat|undefined=
     ['tv','film','youtube','lesson','sofa'].includes(a.object??'')?'sofa':
     a.object==='eat'||a.object==='bring'?isGrillRecipe(p as RecipeId)?'yardTable':'table':
-    ['takeout','read','table','teaTogether'].includes(a.object??'')?'table':['yardTea','yardRest'].includes(a.object??'')?'yardTable':undefined;
+    ['takeout','read','table','teaTogether'].includes(a.object??'')?'table':['yardTea','yardRest','yardCoffee'].includes(a.object??'')?'yardTable':undefined;
   const work:Partial<Record<CharacterId,{motion:PairMotion; destination:Point; target?:Point; stops?:Point[]}>>={};
   let seats:Partial<Record<CharacterId,HomeSeat>>=seated?{vlad:seated,alina:seated}:{};
   const table=(role:CharacterId)=>homeSeat('table',role).approach;
@@ -398,6 +400,17 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       for(const role of roles){
         rejected=run(role,{type:'local_activity',station:state.world.cafe[role]?.table??'cafe-left',action:'dine'});
         if(!rejected.ok)break;
+      }
+      break;
+    }
+    case 'yardCoffee':{
+      const option=sharedCoffeeOptions(source,from).find(o=>o.id===id);
+      if(!option||roles.length!==2)return fail('Кофе или дневной лимит закончился');
+      for(const role of roles){
+        const result=brewCoffee(state,role,option.blend,option.drink);
+        if(!result.ok)return result;
+        state=result.state;
+        change(state,role,{fun:5,comfort:5});
       }
       break;
     }

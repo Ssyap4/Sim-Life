@@ -1,3 +1,5 @@
+import {sharedCoffeeOptions} from './coffee';
+import {GROCERIES} from './food';
 import { BADMINTON_SECONDS } from './badminton';
 import { PICNIC_SECONDS } from './park';
 import { picnicPortions } from './picnic';
@@ -59,7 +61,7 @@ export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'clo
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
@@ -123,6 +125,7 @@ const objects: readonly SocialActivity[] = [
   {id:'bedRest',title:'Полежать вместе в кровати',group:'romance',lines:['Давай полежим рядом и немного отдохнём, не засыпая.'],replies:['Хорошая идея.','Побудем рядом.'],motion:'bedRest',seconds:35,object:'bedRest'},
   {id:'teaTogether',title:'Выпить чай вместе',group:'home',lines:['Заварим по кружке чая и посидим за столом?'],replies:['Давай.','С удовольствием.'],motion:'teaTogether',seconds:35,object:'teaTogether',resource:'shared-tea'},
   {id:'yardTea',title:'Попить чай во дворе',group:'home',lines:['Возьмём чай и посидим на свежем воздухе?'],replies:['Хорошая идея.','Давай выйдем.'],motion:'teaTogether',seconds:40,object:'yardTea',resource:'shared-tea'},
+  {id:'yardCoffee',title:'Выпить кофе вместе на веранде',group:'home',lines:['Давай выпьем кофе за столиком на свежем воздухе и поболтаем?'],replies:['Давай, с удовольствием.','Отличная идея.'],motion:'teaTogether',seconds:45,object:'yardCoffee',resource:'kitchen'},
   {id:'yardRest',title:'Посидеть вместе во дворе',group:'fun',lines:['Давай немного отдохнём за столиком во дворе.'],replies:['Давай.','Хочется немного тишины.'],motion:'sitTalk',seconds:35,object:'yardRest'},
   {id:'musicTogether',title:'Послушать музыку вместе',group:'fun',lines:['Включим музыку и посидим рядом?'],replies:['Да, хочется расслабиться.','Давай послушаем.'],motion:'musicTogether',seconds:60,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
@@ -242,9 +245,10 @@ const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'
   state.readyFood.reduce((total,batch)=>total+
     (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
       ? batch.portions:0),0);
-const pairItems = new Set<ObjectActivity>(['cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
+const pairItems = new Set<ObjectActivity>(['yardCoffee','cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
+  if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
   if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
   if(a.id==='eveningPlan') {
@@ -307,6 +311,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
     }))return 'Сначала дождитесь своих заказов и сядьте за столик';
     if(!individual&&(state.world.cafe[from]?.table??'cafe-left')!==(state.world.cafe[to]?.table??'cafe-left'))return 'Выберите один столик на двоих';
   }
+  if(name==='yardCoffee'&&!sharedCoffeeOptions(state,from).length)return 'Нужны две порции кофе и свободный дневной лимит у обоих';
   if((name==='teaTogether'||name==='yardTea')&&state.pantry.tea<2)return 'Нужны две порции чая';
   if(name==='teaTogether'&&state.furnishing.soldFixtures?.includes('table'))return 'Для чаепития пока нужен основной обеденный стол';
   if (name==='dishes'&&!state.dirtyDishes.table&&!state.dirtyDishes.yardTable) return 'Грязная посуда пока не накопилась';
