@@ -287,6 +287,7 @@ export class World {
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
+    this.homeScene.add(this.pets.verdell.homeToys);
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -2031,6 +2032,7 @@ export class World {
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
       this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
+      this.pets.verdell.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor);
     }
     const minute = gameMinutes(state.clock);
     // House NPCs share the server clock, without persisting visual-only traffic.
@@ -2229,13 +2231,13 @@ export class World {
         }
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
+        scratchFace??(routine.kind==='toy'?0:routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined);
     }
   }
 

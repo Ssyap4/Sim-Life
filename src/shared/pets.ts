@@ -2,7 +2,20 @@ import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from 
 
 export type PetId = 'verdell' | 'simba';
 export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch';
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch'] as const;
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy'] as const;
+export const DOG_TOYS=[
+  {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
+  {kind:'rope',name:'Канатик',x:.17,z:-.47},
+  {kind:'ball',name:'Мячик',x:1.12,z:1.84},
+  {kind:'marfa',name:'Марфа',x:-3.65,z:9.55},
+  {kind:'rope',name:'Канатик',x:-.96,z:10.28},
+  {kind:'ball',name:'Мячик',x:1.40,z:8.85},
+] as const;
+export type DogToyKind=typeof DOG_TOYS[number]['kind'];
+export function dogToyApproach(index:number):FloorPoint{
+  const toy=DOG_TOYS[index];
+  return {x:toy.x,z:toy.z-.48};
+}
 export interface PetRoutine {
   kind: typeof PET_ROUTINES[number];
   target: number;
@@ -106,6 +119,7 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'sleep') return routine.goal ?? pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
+  if(routine.kind==='toy')return dogToyApproach(routine.target);
   if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }

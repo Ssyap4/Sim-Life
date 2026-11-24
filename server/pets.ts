@@ -2,7 +2,7 @@ import { catOccupiedPerch } from '../src/shared/catOccupancy';
 import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
-  PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
+  DOG_TOYS, dogToyApproach, PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
   petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
@@ -186,9 +186,15 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const invalidEquipment=previous?.equipment &&
       !currentPetEquipment(state.furnishing,previous.equipment);
     // A pre-update saved 'eat' route cannot mime eating from an empty bowl.
-    const urgentInterrupt=previous && ['come','fetch','perch','scratch'].includes(previous.kind) &&
+    const invalidToy=previous?.kind==='toy'&&(()=>{
+      const toy=DOG_TOYS[previous.target];
+      if(!toy)return true;
+      const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      return !pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(dogToyApproach(previous.target),geometry.obstacles,geometry.floor);
+    })();
+    const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
@@ -210,6 +216,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bond=clamp(pet.bond+5);
       pet.happiness=clamp(pet.happiness+10);
       pet.energy=clamp(pet.energy-5);
+    } else if(previous?.kind==='toy'&&!invalidToy&&previous.until<=now&&id==='verdell'){
+      pet.happiness=clamp(pet.happiness+6);pet.energy=clamp(pet.energy-3);
     } else if (previous?.kind==='perch' && !invalidPerch && previous.until<=now) {
       // Real completed resting on an installed sofa/bed restores a modest
       // amount of energy. An invalidated/sold cushion gives no reward.
@@ -231,10 +239,11 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     let chosenGoal:FloorPoint|undefined;
     let chosenEquipment:PetEquipmentRef|undefined;
     if(kind==='sleep'&&id==='simba'&&pet.energy>=22&&previous?.kind!=='perch'){
-      const houses=catPerchCandidates(state.furnishing).filter(site=>site.entry==='inside');
+      const houses=catPerchCandidates(state.furnishing).filter(site=>site.entry==='inside'||site.entry==='jump');
       if(houses.length){
+        const entry=random()<.70?'jump':'inside';
         const picked=safeCatPerch(state,pet.position,false,Math.floor(random()*houses.length),
-          site=>site.entry!=='inside'||Boolean(blocked?.(site)));
+          site=>site.entry!==entry||Boolean(blocked?.(site)));
         if(picked){chosenPerch=picked.site;chosenRoute=picked.route;kind='perch';target=0;}
       }
     }
@@ -264,6 +273,19 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         target=0;
       }
     }
+    // Play independently with the real household toys, indoors and on the lawn.
+    if(id==='verdell'&&kind==='wander'&&previous?.kind!=='toy'&&pet.energy>=45&&pet.satiety>=45&&pet.bladder>=64&&random()<.45){
+      const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      const start=Math.floor(random()*DOG_TOYS.length)%DOG_TOYS.length;
+      for(let i=0;i<DOG_TOYS.length;i++){
+        const index=(start+i)%DOG_TOYS.length,toy=DOG_TOYS[index],goal=dogToyApproach(index);
+        if(!pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;
+        const route=planPetRoute(pet.position,goal,geometry);
+        if(route&&arrivesAt(route,goal)&&route.path.length<=60){
+          kind='toy';target=index;chosenRoute=route;chosenGoal=goal;break;
+        }
+      }
+    }
     // Two pets must not reserve the exact same roaming destination.
     // Keep real feeding/sleep/toilet destinations unchanged.
     const otherId = id === 'verdell' ? 'simba' : 'verdell';
@@ -277,10 +299,10 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
-      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
     const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    const travel=route&& (chosenEquipment||chosenPerch)
+    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy')
       ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration+travel, route,
       ...(chosenPerch?{perch:chosenPerch}:{}),

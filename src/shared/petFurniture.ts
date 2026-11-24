@@ -1,3 +1,4 @@
+import { STARTER_CAT_SCRATCHER } from './furniture';
 import type { FurnishingState, PlacedFurniture } from './furniture';
 import type { PetId } from './pets';
 
@@ -15,7 +16,7 @@ export function petBeds(furnishing:Pick<FurnishingState,'placed'>,id:PetId):Plac
   return furnishing.placed.filter(item=>item.sku===PET_BED_SKUS[id]);
 }
 export function petScratchers(furnishing:Pick<FurnishingState,'placed'>):PlacedFurniture[] {
-  return furnishing.placed.filter(item=>item.sku===CAT_SCRATCHER_SKU||item.sku==='pet-house-tower');
+  return furnishing.placed.filter(item=>item.sku===CAT_SCRATCHER_SKU||item.sku===STARTER_CAT_SCRATCHER||item.sku==='pet-house-tower');
 }
 export function petScratchPoint(item:{sku:string;x:number;z:number;rotation:number}):{x:number;z:number}{
   if(item.sku!=='pet-house-tower')return {x:item.x,z:item.z};

@@ -1,3 +1,5 @@
+import { DOG_TOYS,dogToyApproach } from '../src/shared/pets';
+import { STARTER_CAT_SCRATCHER } from '../src/shared/furniture';
 import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
@@ -156,10 +158,11 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
-          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku==='pet-house-tower')||
+          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku===STARTER_CAT_SCRATCHER||routine.equipment.sku==='pet-house-tower')||
           routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
           routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
+        (routine.kind!=='toy'||id==='verdell'&&routine.target<DOG_TOYS.length&&point(routine.goal)&&Math.hypot(routine.goal!.x-dogToyApproach(routine.target).x,routine.goal!.z-dogToyApproach(routine.target).z)<.03) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&

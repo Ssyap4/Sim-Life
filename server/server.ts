@@ -1,3 +1,4 @@
+import { grantStarterPetFurniture } from './starterPets';
 import { yieldSimbaFurniture } from './pets';
 import { catSeatOverlap } from '../src/shared/catOccupancy';
 import type { CatPerch } from '../src/shared/CatPerches';
@@ -61,6 +62,8 @@ export interface ServerOptions {
   testNoCodes?:boolean;
   /** Money only for a brand-new, isolated no-code preview household. */
   previewStartMoney?:number;
+  /** The actual game entry point provisions free starter pet furniture. */
+  starterPetFurniture?:boolean;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
   /** Isolated integration tests can shorten the real-world autonomy delays. */
@@ -113,6 +116,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state.money=options.previewStartMoney!;
     files.save(state);
   }
+  if(options.starterPetFurniture&&grantStarterPetFurniture(state))files.save(state);
   const spoiledOnBoot = expireReadyFood(state);
   const serviceUpdatesOnBoot = settleFamilyServices(state, false, false);
   if (spoiledOnBoot.length || serviceUpdatesOnBoot.length) {

@@ -1,4 +1,4 @@
-import { FURNITURE_BY_ID, FURNITURE_DELIVERY, FURNITURE_FINISHES,
+import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_DELIVERY, FURNITURE_FINISHES,
   STATIC_FURNITURE, isStaticFurnitureId,
   type FurnishingCommand, type Rotation } from '../src/shared/furniture';
 import { checkFurniturePlacement } from '../src/shared/furnishingPlacement';
@@ -18,7 +18,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   const next=structuredClone(source);
   const home=next.furnishing;
   if(command.type==='furniture_order') {
-    if(!FURNITURE_BY_ID.has(command.sku)||!Object.hasOwn(FURNITURE_FINISHES,command.finish)||
+    if(!FURNITURE_CATALOG.some(item=>item.id===command.sku)||!Object.hasOwn(FURNITURE_FINISHES,command.finish)||
        !Object.hasOwn(FURNITURE_DELIVERY,command.shipping)||!Number.isSafeInteger(command.quantity)||
        command.quantity<1||command.quantity>5)return fail('Неверный товар или параметры заказа');
     if(home.nextId+command.quantity>1000000)

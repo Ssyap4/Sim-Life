@@ -10,7 +10,7 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 const dataDir = resolve(process.env.SIM_LIFE_DATA_DIR || 'server-data');
 const testNoCodes=process.env.SIM_LIFE_TEST_NO_CODES==='1';
 startServer({ port, host, dataDir, distDir: resolve('dist'),
-  testNoCodes,
+  testNoCodes,starterPetFurniture:true,
   // Fresh private test households have 100k to try products and mechanics.
   // Never change the starting balance of normal/production households.
   previewStartMoney:testNoCodes?100_000:undefined })
