@@ -2,19 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { graphicsProfile, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from '../../src/game/GraphicsCompatibility';
 
-test('Android Chrome and in-app WebViews select low-memory WebGL by default',()=>{
-  for(const ua of [
-    'Mozilla/5.0 (Linux; Android 13; Redmi Note 11) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 Mobile Safari/537.36',
-  ]){
-    const p=graphicsProfile(ua,'');
-    assert.equal(p.android,true);
-    assert.equal(p.safe,true);
-    assert.equal(p.antialias,false);
-    assert.equal(p.powerPreference,'default');
-    assert.equal(p.maxPixelRatio,1);
-    assert.equal(graphicsProfile(ua,'?gfx=full').safe,false);
-  }
+test('Android Chrome defaults to sharper rendering while WebViews keep the emergency mode',()=>{
+ const chrome='Mozilla/5.0 (Linux; Android 13; Redmi Note 11) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36';
+ const p=graphicsProfile(chrome,'');
+ assert.equal(p.safe,false);
+ assert.equal(p.antialias,true);
+ assert.equal(p.powerPreference,'low-power');
+ assert.equal(p.maxPixelRatio,2.5);
+ assert.equal(worldPixelRatio(true,3,1.25,true,'standard',p),2);
+ assert.equal(worldPixelRatio(true,3,1.25,true,'low',p),1.5);
+ assert.equal(worldPixelRatio(true,3,1.25,true,'high',p),2.5);
+ const full=graphicsProfile(chrome,'?gfx=full');
+ assert.equal(worldPixelRatio(true,3,1.25,true,'high',full),3);
+ assert.equal(chooseGraphicsQuality(90,full),'high');
+ const webview=graphicsProfile('Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 Mobile Safari/537.36','');
+ assert.equal(webview.safe,true);
+ assert.equal(webview.maxPixelRatio,1);
+ assert.equal(graphicsProfile(chrome,'?gfx=safe').safe,true);
 });
 test('iPhone rendering is not silently degraded and safe mode remains opt-in',()=>{
   const ua='Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17 Safari/604.1';
@@ -22,7 +26,7 @@ test('iPhone rendering is not silently degraded and safe mode remains opt-in',()
   assert.equal(graphicsProfile(ua,'').antialias,true);
   assert.equal(graphicsProfile(ua,'?gfx=safe').safe,true);
 });
-test('Android Firefox uses exactly the same WebGL graphics profile as iPhone',()=>{
+test('Android Firefox preserves the iPhone context settings but renders at higher resolution',()=>{
   const iphone='Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17 Safari/604.1';
   const firefox='Mozilla/5.0 (Android 10; Mobile; rv:158.0) Gecko/158.0 Firefox/158.0';
   const original=graphicsProfile(iphone,'');
@@ -31,7 +35,7 @@ test('Android Firefox uses exactly the same WebGL graphics profile as iPhone',()
     assert.equal(current.android,true);
     assert.equal(current.firefox,true);
     assert.equal(current.safe,false);
-    for(const key of ['safe','antialias','powerPreference','maxPixelRatio'] as const)
+    for(const key of ['safe','antialias','powerPreference'] as const)
       assert.equal(current[key],original[key],key+' should match iPhone');
   }
   assert.equal(graphicsProfile(firefox,'?gfx=safe').safe,true,
@@ -47,14 +51,14 @@ test('gfx=full stays crisp even when mobile FPS governor sees slow frames',()=>{
     assert.equal(full.antialias, true);
     for (const frameMs of [16, 25, 55, 120])
       assert.equal(chooseGraphicsQuality(frameMs, full), 'high');
-    assert.equal(worldPixelRatio(true, 2.5, 1.25, true, 'high', full), 1.5);
+    assert.equal(worldPixelRatio(true, 2.5, 1.25, true, 'high', full), full.android?2.5:1.5);
     assert.equal(worldPixelRatio(true, 1.3, 1.25, true, 'high', full), 1.3);
   }
   const normal = graphicsProfile(firefox, '');
   assert.equal(normal.full, false);
   assert.equal(chooseGraphicsQuality(30, normal), 'low');
-  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'low', normal), .88);
-  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'standard', normal), 1.11);
+  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'low', normal), 1.5);
+  assert.equal(worldPixelRatio(true, 3, 1.25, true, 'standard', normal), 2);
   const safe = graphicsProfile(firefox, '?gfx=safe');
   assert.equal(chooseGraphicsQuality(12, safe), 'low');
   assert.equal(worldPixelRatio(true, 3, 1.25, true, 'low', safe), .88);

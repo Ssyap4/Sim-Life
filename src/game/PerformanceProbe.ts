@@ -65,7 +65,7 @@ export function createPerformanceProbe(host: HTMLElement) {
   const ready = document.createElement('div');
   ready.textContent = 'Загрузка моделей…';
   const caveat = document.createElement('small');
-  caveat.textContent = 'Кадры браузера · не GPU-таймер';
+  caveat.textContent = 'DPR экрана '+window.devicePixelRatio+' · кадры браузера';
   panel.append(heading, frame, gpu, ready, caveat);
   host.append(panel);
 
@@ -75,6 +75,9 @@ export function createPerformanceProbe(host: HTMLElement) {
       const sample = meter.record(now, calls, triangles);
       if (!sample) return;
       frame.textContent = `FPS ${sample.fps.toFixed(1)} · p95 ${sample.p95Ms.toFixed(1)} мс`;
+      const canvas=host.querySelector('canvas');
+      const data=canvas?.dataset.gpuReport;
+      if(data){try{const r=JSON.parse(data);caveat.textContent=r.browser+' · DPR '+r.dpr+' · CSS '+r.css.join('×')+' · GPU '+r.buffer.join('×')+' · AA '+(r.aa?'on':'off');}catch{}}
       gpu.textContent = `${sample.drawCalls} draw · ${sample.triangles.toLocaleString('ru-RU')} трис · ${host.querySelector('canvas')?.width ?? '—'}×${host.querySelector('canvas')?.height ?? '—'}`;
     },
     ready(readyMs: number, assetsMs: number, mode: string): void {

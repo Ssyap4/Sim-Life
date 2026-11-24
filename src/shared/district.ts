@@ -14,6 +14,7 @@ export const districtPoint = ({x,z}:Point):Point => ({x,z:z+DISTRICT_OFFSET_Z});
 export const DISTRICT_WORLD_FLOOR:FloorRect={minX:DISTRICT_FLOOR.minX,maxX:DISTRICT_FLOOR.maxX,minZ:HOME_YARD.gate.z+.38,maxZ:DISTRICT_FLOOR.maxZ+DISTRICT_OFFSET_Z};
 export const HOME_GATE_INSIDE={x:HOME_YARD.gate.x,z:HOME_YARD.gate.z-.78};
 export const HOME_GATE_APPROACH = { x:HOME_YARD.gate.x, z:HOME_YARD.gate.z+.66 };
+export const INDUSTRIAL_EXIT = {x:15.6,z:31.0};
 export const DISTRICT_FOUNTAIN = { x: -8.6, z: -4.45, radius: 1.69 };
 export const DISTRICT_POND = { x:21.38, z:21.05, radiusX:2.07, radiusZ:1.43 };
 export const inDistrictPond = ({x,z}:Point) =>
@@ -22,6 +23,7 @@ export const DISTRICT_SITES = [
   { place: 'market', x: -23.8, z: 6.65, w: 6.8, d: 5.4, turn: 1, name: 'Супермаркет', sign: 'ПРОДУКТЫ', color: 0x397766 },
   { place: 'cafe', x: -23.8, z: -.50, w: 5.30, d: 4.8, turn: 1, name: 'Кафе «Тёплый угол»', sign: 'ТЁПЛЫЙ УГОЛ', color: 0xa85846 },
   { place: 'education', x: -23.8, z: -6.98, w: 5.65, d: 5.1, turn: 1, name: 'Центр «Потенциал»', sign: 'ПОТЕНЦИАЛ', color: 0xc09058 },
+  { place: 'clothing', x: 25.5, z: .30, w: 5.8, d: 4.9, turn: -1, name: 'Магазин одежды «Стиль»', sign: 'СТИЛЬ', color: 0x776987 },
   { place: 'work-it', x: -23.8, z: -13, w: 4.95, d: 4.90, turn: 1, name: 'IT-офис «Север»', sign: 'СЕВЕР · IT', color: 0x517986 },
   { place: 'work-detail', x: -23.8, z: 14.05, w: 7.4, d: 4.9, turn: 1, name: 'Детейлинг «Линия блеска»', sign: 'ЛИНИЯ БЛЕСКА', color: 0x546569 },
   { place: 'work-marketing', x: -23.8, z: 20.90, w: 5.25, d: 4.8, turn: 1, name: 'Агентство «Искра»', sign: 'ИСКРА', color: 0xaa704f },
@@ -39,6 +41,7 @@ export function sitePoint(site: DistrictSite, side: number, depth: number): Poin
 }
 
 export function districtArrival(place: PlaceId, role: CharacterId): Point {
+  if(place==='industrial')return districtPoint({x:INDUSTRIAL_EXIT.x+(role==='vlad'?-.45:.45),z:INDUSTRIAL_EXIT.z-1.0});
   const site = districtSite(place);
   return site ? districtPoint(sitePoint(site, role === 'vlad' ? -.59 : .59, site.d / 2 + 1.06))
     : {x:HOME_GATE_APPROACH.x+(role==='vlad'?-.27:.27),z:HOME_GATE_APPROACH.z};
@@ -48,8 +51,11 @@ export const DISTRICT_PLAZA = {x:-8.6,z:-4.45,w:11.5,d:8.0};
 export const DISTRICT_PATHS = [
   { x: -1.9, z: 7.3, w: 33.6, d: 2.36 },
   { x: -19.45, z: 7.2, w: 3.10, d: 45.4 },
+  { x: 17.7, z: .30, w: 9.7, d: 1.9 },
   { x: -7.4, z: -.6, w: 20, d: 1.8 },
   { x: 13.35, z: -6.20, w: 2.2, d: 28.1 },
+  { x: 15.6,z:19.5,w:1.7,d:23.0 },
+  { x:14.4,z:7.5,w:4.5,d:1.7 },
   { x: 1.9, z: -10, w: 33.4, d: 1.78 },
   { x: -.22, z: -15.35, w: 51.5, d: 1.8 },
   { x: HOME_YARD.gate.x, z:(HOME_YARD.gate.z-DISTRICT_OFFSET_Z+REAR_WALK_Z)/2,

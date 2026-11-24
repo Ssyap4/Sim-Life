@@ -1,3 +1,5 @@
+import { JOBS, type JobId } from './shared/jobs';
+import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
 import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
 import type { LocalActivity } from './shared/locations';
@@ -34,7 +36,7 @@ function button(label: string, click: () => void, disabled = false) {
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
   openEducation: (room: string, exam?: boolean) => void,
-  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean) {
+  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean, startWarehouse?: (job:JobId)=>boolean) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -44,11 +46,17 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let cafeChoice: CafeItem | null = null;
   let cafeTopicsOpen=false;
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
+  const clothesCart=new Set<string>();
+  let fittingLook:string|null=null;
+  let fittingAngle=0;
+  let fittingIndex=0;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
+    if(current?.action.kind==='fitting'){getWorld()?.fittingCamera(null);panel.classList.remove('clothes-fitting-panel');document.querySelector('#app')?.classList.remove('fitting-open');}
+    fittingLook=null;
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
     cafeChoice=null;
@@ -155,9 +163,45 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
+    } else if(station.action.kind==='warehouse'){
+      const id=station.action.job,job=JOBS[id];
+      options.append(element('strong','',job.name),element('small','','Смена '+job.hoursMin+'–'+job.hoursMax+' ч. · '+formatRub(job.payMin)+'–'+formatRub(job.payMax)),element('p','',job.description));
+      options.append(button('Начать смену',()=>{if(startWarehouse?.(id))close();},!startWarehouse||!!place.activeShifts[role]||place.shiftDays[role]===place.clock.day||place.characters[role].energy<25||place.characters[role].hunger<20));
+    } else if(kind==='wardrobe'||kind==='clothes-rack'||kind==='fitting'||kind==='clothes-checkout'){
+      const personal=(place.world.wardrobe??defaultWardrobe())[role];
+      const catalog=PREVIEW_LOOKS[role];
+      if(kind==='wardrobe'){
+        for(const [look,label] of catalog.filter(([id])=>personal.owned.includes(id)))
+          options.append(button(label+(personal.worn===look?' · На тебе':''),()=>send({type:'clothing_wear',look}),personal.worn===look));
+      }else if(kind==='clothes-rack'){
+        if(station.id!=='clothes-'+role)options.append(element('small','','Выбери свой отдел одежды.'));
+        else for(const [look,label] of catalog.filter(([id])=>id!=='signature')){
+          const owned=personal.owned.includes(look);
+          options.append(button(label+' · '+(owned?'Куплено':clothesCart.has(look)?'В корзине ✓':formatRub(outfitPrice(look))),()=>{
+            if(clothesCart.has(look))clothesCart.delete(look);else clothesCart.add(look);draw();
+          },owned));
+        }
+        options.append(element('small','','Примерь комплект в примерочной, оплати на кассе.'));
+      }else if(kind==='fitting'){
+        const looks=catalog.filter(([id])=>id!=='signature');
+        const [look,label]=looks[fittingIndex%looks.length];
+        const pick=(index:number)=>{fittingIndex=(index+looks.length)%looks.length;fittingLook=looks[fittingIndex][0];getWorld().fittingCamera(role,fittingAngle,fittingLook);draw();};
+        const nav=element('div','fitting-navigation');
+        nav.append(button('‹',()=>pick(fittingIndex-1)),element('strong','', (fittingIndex+1)+' / '+looks.length),button('›',()=>pick(fittingIndex+1)));
+        const rotate=element('div','fitting-navigation');
+        rotate.append(button('↶',()=>{fittingAngle-=Math.PI/2;getWorld().fittingCamera(role,fittingAngle);}),element('span','','Повернуть'),button('↷',()=>{fittingAngle+=Math.PI/2;getWorld().fittingCamera(role,fittingAngle);}));
+        options.append(element('strong','',label),nav,rotate,
+          button(personal.owned.includes(look)?'Уже в гардеробе':clothesCart.has(look)?'В корзине ✓':'В корзину · '+formatRub(outfitPrice(look)),()=>{if(clothesCart.has(look))clothesCart.delete(look);else clothesCart.add(look);draw();},personal.owned.includes(look)));
+      }else{
+        for(const [look,label] of catalog.filter(([id])=>clothesCart.has(id)&&!personal.owned.includes(id))){
+          options.append(button('Купить '+label+' · '+formatRub(outfitPrice(look)),()=>send({type:'clothing_buy',look}),place.money<outfitPrice(look)));
+          options.append(button('Убрать из корзины',()=>{clothesCart.delete(look);draw();}));
+        }
+        if(![...clothesCart].some(id=>!personal.owned.includes(id)))options.append(element('small','','Корзина пуста. Выбери комплект на стойке или в примерочной.'));
+      }
     } else if (kind === 'shelf' || kind === 'checkout') {
       const lines = list();
       const summary = element('strong', 'world-cart-total', 'Корзина: ' + lines.reduce((n, line) => n + line.quantity, 0) + ' уп. · ' + formatRub(basketPrice(lines)));
@@ -387,6 +431,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       ingredient = null;
       panel.hidden = false;
       panel.dataset.station = station.id;
+      if(station.action.kind==='fitting'){
+        panel.classList.add('clothes-fitting-panel');
+        fittingAngle=0;fittingIndex=0;
+        fittingLook=PREVIEW_LOOKS[role][1][0];
+        document.querySelector('#app')?.classList.add('fitting-open');
+        getWorld().fittingCamera(role,0,fittingLook);
+      }
       if (station.action.kind === 'fridge' || station.action.kind === 'cupboard') getWorld().openStorage(station.id);
       draw();
     },
@@ -394,6 +445,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
+        if(location==='clothing')clothesCart.clear();
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -408,6 +460,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

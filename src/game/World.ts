@@ -50,6 +50,7 @@ import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear,
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
 import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
+import { FittingStage } from './FittingStage';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
@@ -455,6 +456,13 @@ export class World {
     if(away && this.inspected===id)this.showcase(null);
   }
 
+  private fittingStage:FittingStage|null=null;
+  fittingCamera(role:CharacterId|null,angle=0,look?:string):void{
+    if(role===null){this.fittingStage?.dispose();this.fittingStage=null;return;}
+    if(!this.fittingStage)this.fittingStage=new FittingStage(this.actors[role].root.children[0],role);
+    if(look)this.fittingStage.wear(look);
+    this.fittingStage.rotate(angle);
+  }
   showcase(subject: CharacterId | PetId | null): void {
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
@@ -1984,6 +1992,7 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
       this.savedCameras.set(this.place,{
         position:this.camera.position.clone(),target:this.controls.target.clone(),
@@ -2047,7 +2056,7 @@ export class World {
     this.camera.far=place==='district'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
-    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
+    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minDistance = 10;
@@ -2775,8 +2784,24 @@ export class World {
       if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),new THREE.Vector3(f.dx,f.dy,f.dz).normalize());}}
     }
     try {
-      this.renderer.render(this.scene, this.camera);
-      if (this.graphics.safe && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
+      if(this.fittingStage){
+        const canvas=this.canvas.getBoundingClientRect();
+        const panel=document.querySelector('.clothes-fitting-panel')?.getBoundingClientRect();
+        this.fittingStage.frame(canvas.width,canvas.height,panel?(panel.top-canvas.top)/canvas.height:.64);
+        this.renderer.render(this.fittingStage.scene,this.fittingStage.camera);
+      }else this.renderer.render(this.scene, this.camera);
+      if(this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000){
+        const gl=this.renderer.getContext();
+        const actual=gl.getContextAttributes();
+        const css=this.canvas.getBoundingClientRect();
+        this.canvas.dataset.gpuReport=JSON.stringify({
+          browser:this.graphics.firefox?'Firefox':'Chromium',safe:this.graphics.safe,full:this.graphics.full,
+          dpr:window.devicePixelRatio,css:[Math.round(css.width),Math.round(css.height)],
+          canvas:[this.canvas.width,this.canvas.height],buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],
+          aa:actual?.antialias,ratio:this.renderer.getPixelRatio(),quality:this.quality
+        });
+      }
+      if (this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
         this.graphicsChecked = true;
         const gl = this.renderer.getContext();
         if (gl.isContextLost()) {

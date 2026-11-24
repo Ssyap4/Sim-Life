@@ -40,7 +40,7 @@ export function makeJobBoard(root:HTMLElement,
     head.append(label,control('✕',close,'jobs-close'));
     wrap.append(head);
     const intro=create('p','jobs-intro',
-      'Пока работа проходит за кадром: выбирай смену, следи за её этапами и получай оплату после завершения. Городские 3D-сцены появятся позже.');
+      'Выбирай смену и следи за её этапами. Склады Ozon и Wildberries находятся в промзоне. Можно начать смену здесь или у входа в склад.');
     wrap.append(intro);
     const scroll=create('div','jobs-scroll');
     const now=totalGameMinutes(state.clock);

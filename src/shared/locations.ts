@@ -1,6 +1,6 @@
 import {COURIER_APPROACH,COURIER_PORCH} from './courier';
 import { CASHIER_OBSTACLE } from './locationLayout';
-import { DISTRICT_WORLD_FLOOR, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GATE_INSIDE, HOME_GATE_APPROACH, DISTRICT_SITES, districtArrival, districtPoint, districtStation, sitePoint } from './district';
+import { DISTRICT_WORLD_FLOOR, INDUSTRIAL_EXIT, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GATE_INSIDE, HOME_GATE_APPROACH, DISTRICT_SITES, districtArrival, districtPoint, districtStation, sitePoint } from './district';
 import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
@@ -12,6 +12,8 @@ import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOU
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
+  industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
@@ -25,7 +27,8 @@ export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:WORLD_FLOOR;
+export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -41,6 +44,8 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'warehouse';job:'ozon'|'wildberries'}
+  | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
@@ -101,6 +106,8 @@ export const CAR_APPROACH={x:CAR_PARKING.x-1.85,z:CAR_PARKING.z};
 export const HOME_STATIONS: readonly Station[] = [
   site('family-car','Семейный автомобиль',CAR_PARKING.x,CAR_PARKING.z,2.46,4.96,{kind:'car'},{approach:CAR_APPROACH}),
   site('home-gate','Выйти на улицу',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'district'},{blocks:false,approach:HOME_GATE_INSIDE}),
+  site('wardrobe-alina','Шкаф Алины',-8.57,1.48,1.16,.58,{kind:'wardrobe'},{approach:{x:-8.57,z:.57}}),
+  site('wardrobe-vlad','Шкаф Влада',5.64,-1.53,1.16,.58,{kind:'wardrobe'},{approach:{x:5.50,z:-2.44}}),
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
   site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
@@ -119,12 +126,25 @@ export const DISTRICT_STATIONS: readonly Station[] = [
       career ? { kind:'employment',career } : { kind:'door',destination:building.place },
       { blocks:false,approach:districtPoint(sitePoint(building,0,building.d/2+1.06)) });
   }),
+  site(districtStation('industrial'),'Выезд в промзону',INDUSTRIAL_EXIT.x,districtPoint(INDUSTRIAL_EXIT).z,3.2,.30,{kind:'door',destination:'industrial'},{blocks:false,approach:districtPoint({x:INDUSTRIAL_EXIT.x,z:INDUSTRIAL_EXIT.z-1.0})}),
   site('street-bench','Скамья у фонтана',DISTRICT_BENCH.x,districtPoint(DISTRICT_BENCH).z,DISTRICT_BENCH.w,DISTRICT_BENCH.d,{kind:'rest'}),
 ];
 
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: HOME_STATIONS,
   district:DISTRICT_STATIONS,
+  industrial:[
+    site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
+    site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
+    door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  clothing: [
+    site('clothes-alina','Женская одежда',-3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
+    site('clothes-vlad','Мужская одежда',3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
+    site('clothes-fitting','Примерочная',-3.85,1.38,1.72,1.48,{kind:'fitting'}),
+    site('clothes-cash','Касса',3.70,1.48,1.65,.76,{kind:'clothes-checkout'}),
+    door('clothes-exit','Выход на улицу','district',-2.75,4.60,true),
+  ],
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
     shelf('bakery', 'Хлеб и выпечка', 0, -3.63, ['bakery']),
@@ -255,6 +275,7 @@ export interface WorldState {
   deliveries: Delivery[];
   courierDepartAt?:number;
   carDriver?:CharacterId;
+  wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
   picnic?: PicnicBasket;
@@ -273,7 +294,8 @@ export type WorldCommand =
   | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park' }
+  | { type:'clothing_buy'|'clothing_wear'; look:string }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'industrial' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

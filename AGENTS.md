@@ -1,3 +1,6 @@
+# Актуальное направление 0.33 (24.11.2026)
+Владелец утвердил 0.33 «Гардероб и новый район». Следующий этап — электроника, детали docs/RELEASE_033.md и docs/ROADMAP.md. Последнее правило сбросов в конце этого файла имеет приоритет над историческими правилами: тесты 100k и сохраняют размещённые предметы, основа чистая со штатной мебелью, коды не менять. Android исправление не откатывать. Фактический статус проверять по HANDOFF_LATEST.md и живому серверу.
+
 # Актуальное направление после 0.32 (24.11.2026)
 
 Владелец утвердил 0.32 «Отдых и развлечения». Фактический релиз сверять по HANDOFF_LATEST.md, GitHub main/тегу, порту 3111. 0.31 пропущена, рыбалка исключена. Следующая 0.33 — одежда и внешность: полный комплект вместо наложения множества слоёв, общие риг и лицо, выбор в физическом магазине с примерочной/кассой, без доставки. Сначала проверить несколько комплектов во всех ключевых позах, затем целевой ассортимент 20 на персонажа. Стирку и штрафы за грязную одежду не вводить. Главные профессии пока не начинать.
@@ -180,3 +183,11 @@
 
 ### Family SUV visual reference
 - Black boxy full-size 1999–2000 Escalade-style SUV, clean uninterrupted roof (no rails/racks/attachments), chrome grille and five-spoke wheels, distinct doors, tinted glass and real wheel wells. Keep car station/collision aligned to geometry, route to driver side and existing travel mechanics. Mobile budget: 3 merged meshes, approximately 6740 triangles. Visual QA uses cloud, not ALINA-PC.
+
+## Android graphics invariant (0.33)
+Confirmed by the player on physical Android Chrome: use the same antialias and WebGL context power preference as Firefox/iPhone. Normal Android Chrome must not enter the emergency low-resolution profile; gfx=safe is explicit recovery only (embedded WebViews may retain fallback). Do not silently restore Chromium-specific MSAA disabling or low-resolution rendering. Keep iPhone settings unchanged.
+
+Future feature decisions: see docs/ROADMAP.md, agreed plans after 0.33 (24.11.2026). Preserve veterinary clinic; pet illness only after sustained severe neglect of food/attention, never random illness under normal care. Move only WB/Ozon warehouses to industrial area; electronics is the next approved shop.
+
+## Reset policy during active development (24.11.2026, owner approved)
+For each deployed test update reset household progress to fresh initialState with 100000 RUB, retaining placed furniture and static layout; discard stored/unplaced items, orders, careers, skills, food and other progress. For each approved production release reset to normal initialState (normal starting balance), restore all default furniture and free starter items; do not carry purchased furniture or previous progress. Preserve access.json and device credentials. Reset once per deployed update, not each ordinary restart. Back up old household JSON outside the active save before replacing; never delete access/device files. Main still requires explicit release approval.

@@ -122,7 +122,7 @@ class Resident:
             return skin('Elbow'+suffix,'Arm'+suffix,(y+self.arm+.082)/.166)
         return skin('Arm'+suffix,'Chest',(y+.086)/.167)
 
-    def sleeves(self,clothing,top,cuff,long):
+    def sleeves(self,clothing,top,cuff,long,style=None):
         w,s=self.woman,self.shoulder
         for side,suffix in ((-1,'L'),(1,'R')):
             a,f = self.arm,self.forearm
@@ -130,6 +130,9 @@ class Resident:
             def sheen(t,angle):
                 cloth_shadow = .16*max(0,-cos(angle))
                 ribbing = .10*(.5+.5*cos(angle*12-t*4)) if w else .021
+                if style=='track':
+                    stripe=max(bell((cos(angle)-v)/.10)*bell((sin(angle)-side*.94)/.10) for v in (-.35,0,.35))
+                    return blend(top,cuff,max(stripe,.4*(1-ramp(.03,.12,t))))
                 return blend(top,cuff,cloth_shadow+ribbing+.44*(1-ramp(.03,.12,t)))
 
             sections = [(-a-f+.020,.041,.041,-.002),(-a-f+.055,.046,.043,-.004),
@@ -137,6 +140,10 @@ class Resident:
                         (-.052,.075,.066,-.009),(.005,.072,.067,-.009),(.056,.043,.048,-.010),(.074,.023,.026,-.011)] if long else [
                         (-.173,.061,.058,-.002),(-.155,.068,.063,-.002),(-.100,.072,.065,-.003),
                         (-.039,.074,.069,-.008),(.016,.064,.062,-.012),(.057,.044,.046,-.010),(.075,.022,.025,-.010)]
+            if style=='oversize':
+                sections=[(y-(.035 if y<-.12 else 0),rx+.011,rz+.010,z) for y,rx,rz,z in sections]
+            if style=='cap':
+                sections=[(max(-.145,y),rx,rz,z) for y,rx,rz,z in sections if y>=-.155]
             def sleeve(xx,y,z,angle,t):
                 wrinkle = .004*cos(angle*3+y*35)*bell((y+a)/.13)
                 shoulder = ramp(-.048,.058,y)
@@ -145,7 +152,7 @@ class Resident:
             def bind(t):
                 y = sections[0][0] + (sections[-1][0]-sections[0][0])*t
                 return self.arm_weights(y, suffix)
-            clothing.lathe(sections,(x,s,0),sheen,bind,rings=14 if long else 10,sides=17,warp=sleeve)
+            clothing.lathe(sections,(x,s,0),sheen,bind,rings=14 if long else 10,sides=48 if style=='track' else 17,warp=sleeve)
             if long:
                 cuffs = [((x+.044*sin(angle),s-a-f+.038,.042*cos(angle)-.003),.0026)
                          for angle in [2*pi*t for t in steps(16)]]
@@ -234,6 +241,8 @@ class Resident:
             other=Mesh('Plain T-shirt','Cloth pigment',.91)
             self.figure(other,skin_mesh,lower,footwear,alternative=True)
             self.garment(rig,other,'upper','tee')
+        from wardrobe import add_wardrobe
+        add_wardrobe(self,rig)
         return rig
 
     def garment(self,rig,mesh,slot,look):

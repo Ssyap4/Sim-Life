@@ -1,5 +1,7 @@
+import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
+import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
@@ -635,6 +637,11 @@ function render(reset = false): void {
       statusEl.textContent = PLACES[place].name;
     }
     world.syncHousehold(state, active, reset, online);
+    for(const role of ['vlad','alina'] as const){
+      const worn=(state.world.wardrobe??defaultWardrobe())[role].worn;
+      const actor=world.actors[role];
+      if(actor.root.userData.wornLook!==worn){fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+    }
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
@@ -715,7 +722,7 @@ const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobi
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room),
-  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}));
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job));
 
 function signOut(): void {
   net.forgetDevice();
@@ -1517,7 +1524,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       return undefined;
     });
     const characters = useBlender ? await import('./game/BlenderCharacter')
-      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='tee' ? ['alina-tee-upper'] : []))
+      .then(async ({ loadResidents }) => {
+        const look=new URLSearchParams(location.search).get('outfit')??'signature';
+        const { outfitChoices }=await import('./game/Wardrobe');
+        return loadResidents(look==='tee'?['alina-tee-upper']:outfitChoices(look));
+      })
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};

@@ -54,7 +54,7 @@ test('The full random salary is fixed once on the server and survives saves',()=
   assert.equal(started.ok,true);
   if(!started.ok)return;
   const assignment=started.state.activeShifts.alina!;
-  assert.ok(shiftFullPay(assignment)>=2500&&shiftFullPay(assignment)<=4500);
+  assert.ok(shiftFullPay(assignment)>=3700&&shiftFullPay(assignment)<=6700);
   const dir=mkdtempSync(join(tmpdir(),'sim-life-early-save-'));
   try{
     const files=openServerFiles(dir);
@@ -71,7 +71,7 @@ test('An older active shift without rolled salary still gets a stable pro-rated 
   const one=shiftFullPay(shift);
   const two=shiftFullPay(structuredClone(shift));
   assert.equal(one,two);
-  assert.ok(one>=2500&&one<=5250);
+  assert.ok(one>=5000&&one<=6800);
   const worked=shift.startedAt+5*60;
   base.clock.day=Math.floor(worked/1440)+1;
   base.clock.minute=worked%1440;

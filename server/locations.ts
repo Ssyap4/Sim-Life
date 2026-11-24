@@ -1,3 +1,4 @@
+import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
 import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
@@ -42,7 +43,8 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','industrial'].includes(w.places![w.carDriver]))) &&
+    (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
     (w.campLitUntil===undefined||count(w.campLitUntil)) &&
     (w.parkDog===undefined||!!w.parkDog&&count(w.parkDog.minutes)&&count(w.parkDog.toilets)&&w.parkDog.toilets<=2&&(w.parkDog.toiletUntil===undefined||count(w.parkDog.toiletUntil))) &&
@@ -74,7 +76,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -88,10 +90,31 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='clothing_buy'||command.type==='clothing_wear'){
+    const look=command.look;
+    if(typeof look!=='string'||!isPreviewLook(role,look))return fail('Такого комплекта нет');
+    const next=structuredClone(source);
+    const wardrobe=next.world.wardrobe??=defaultWardrobe();
+    const personal=wardrobe[role];
+    const label=PREVIEW_LOOKS[role].find(([id])=>id===look)![1];
+    if(command.type==='clothing_buy'){
+      if(place!=='clothing'||!at(source,role,stationById('clothing','clothes-cash')))return fail('Подойди к кассе');
+      if(personal.owned.includes(look))return fail('Этот комплект уже есть');
+      const price=outfitPrice(look);
+      if(source.money<price)return fail('Недостаточно денег');
+      next.money-=price;personal.owned.push(look);
+      addLedger(next,role,'expense','clothing',price,label);
+      return done(next,'Куплено: '+label);
+    }
+    if(place!=='home'||!['wardrobe-alina','wardrobe-vlad'].some(id=>at(source,role,stationById('home',id))))return fail('Подойди к шкафу дома');
+    if(!personal.owned.includes(look))return fail('Сначала купи комплект');
+    personal.worn=look;
+    return done(next,'Наряд изменён');
+  }
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park')return fail('На машине доступны супермаркет, кафе и парк');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='industrial')return fail('Выбери доступное место');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;

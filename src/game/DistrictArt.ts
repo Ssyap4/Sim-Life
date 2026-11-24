@@ -73,6 +73,10 @@ function landscaping(root:THREE.Group,resources:LocationResources) {
     }
   }
   for(const p of DISTRICT_PATHS)path(p.x,p.z,p.w,p.d);
+  part(root,[3.1,.045,5.1],[25.65,.017,-5.50],0x8b9291,cube,'ceramic');
+  for(const x of [24.27,27.03])part(root,[.065,.012,4.65],[x,.047,-5.50],0xe8e0c9,cube,'ceramic');
+  part(root,[2.80,.012,.065],[25.65,.047,-7.80],0xe8e0c9,cube,'ceramic');
+  path(23.1,-3.4,1.0,6.9);
   path(DISTRICT_PLAZA.x,DISTRICT_PLAZA.z,DISTRICT_PLAZA.w,DISTRICT_PLAZA.d,true);
   for(const site of DISTRICT_SITES) {
     const porch=sitePoint(site,0,site.d/2+.86);

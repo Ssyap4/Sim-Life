@@ -167,7 +167,7 @@ test('Time, outcome, priorities and overtime determine base pay and bonus exactl
   const p=state.careers.residents.vlad.progress.it!;
   assert.ok(p.productivity>=76);
   const payday=p.history.at(-1)!;
-  assert.equal(payday.pay,3300);
+  assert.equal(payday.pay,5185);
   assert.ok(payday.bonus!>0);
   assert.equal(state.money,10000+payday.pay!+payday.bonus!);
   const paid=state.money;
@@ -189,7 +189,7 @@ test('Weekend, late starts, absent days, partial pay and unpaid periods are enfo
   state=command(state,'vlad',{type:'career_start'});
   tick(state,now(state)+90);
   state=command(state,'vlad',{type:'career_leave'});
-  assert.equal(state.money,10600);
+  assert.equal(state.money,10942);
   const before=state.careers.residents.vlad.progress.it!.reputation;
   tick(state,shiftWindow('it',3).end);
   assert.equal(state.careers.residents.vlad.progress.it!.reputation,before-4);
