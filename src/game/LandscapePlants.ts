@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { finish, type XYZ } from './ArtKit';
+import botanicals from '../assets/environment/botanicals.json';
+import type { XYZ } from './ArtKit';
 
 export function landscapeRandom(seed: number) {
   return () => {
@@ -28,10 +29,24 @@ function crownGeometry(detail: number) {
   return geometry;
 }
 
-const crown = crownGeometry(1);
+function botanical(name: keyof typeof botanicals) {
+  const data = botanicals[name];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(data.position.map(v => v / 1000), 3));
+  geometry.setAttribute('pigment', new THREE.Float32BufferAttribute(data.pigment.map(v => v / 100), 1));
+  geometry.setIndex(data.index);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+const crown = botanical('broadleaf');
+const birchCrown = botanical('birch');
+const spruceBough = botanical('spruce');
+const leaves = botanical('spray');
+const corolla = botanical('corolla');
 const coarse = crownGeometry(0);
-const twig = new THREE.CylinderGeometry(.53, 1, 1, 6);
-const petal = new THREE.SphereGeometry(1, 6, 3);
+const twig = new THREE.CylinderGeometry(.53, 1, 1, 6, 1, true);
+const petal = new THREE.SphereGeometry(1, 5, 2);
 const leaf = new THREE.BufferGeometry();
 leaf.setAttribute('position', new THREE.Float32BufferAttribute([
   0,0,-1, -.68,.04,-.28, -.45,.11,.48, 0,.16,1, .45,.05,.48, .68,.02,-.28,
@@ -41,7 +56,8 @@ leaf.setIndex([0,1,6, 1,2,6, 2,3,6, 3,4,6, 4,5,6, 5,0,6,
   1,0,7, 2,1,7, 3,2,7, 4,3,7, 5,4,7, 0,5,7]);
 leaf.computeVertexNormals();
 
-const plantMaterial = finish(0xffffff, 'fabric', true);
+// Foliage carries its diffuse light in vertex colours and has no glossy lobe.
+const plantMaterial = new THREE.MeshLambertMaterial({vertexColors:true});
 
 /** Opaque botanical parts share one draw per patch. Indexed meshes retain their smooth normals. */
 export class PlantBatch {
@@ -79,8 +95,8 @@ export class PlantBatch {
     for (let i = 0; i < index.count; i++) this.indices.push(index.getX(i) + start);
   }
 
-  cluster(color: number, at: XYZ, scale: XYZ, yaw: number, distant = false, roll = 0) {
-    this.add(distant ? coarse : crown, color, at, scale, yaw, 0, roll, undefined, .19);
+  cluster(color: number, at: XYZ, scale: XYZ, yaw: number, distant = false, roll = 0, shape = crown) {
+    this.add(distant ? coarse : shape, color, at, scale, yaw, 0, roll, undefined, .19);
   }
 
   blade(color: number, at: XYZ, scale: XYZ, yaw: number, pitch: number, roll = 0) {
@@ -89,6 +105,14 @@ export class PlantBatch {
 
   bud(color: number, at: XYZ, scale: XYZ, yaw = 0, pitch = 0) {
     this.add(petal, color, at, scale, yaw, pitch, 0, undefined, .08);
+  }
+
+  spray(color: number, at: XYZ, scale: XYZ, yaw: number, pitch: number) {
+    this.add(leaves, color, at, scale, yaw, pitch);
+  }
+
+  bloom(color: number, at: XYZ, radius: number, yaw: number, pitch: number) {
+    this.add(corolla, color, at, [radius,radius*.88,radius], yaw, pitch);
   }
 
   stem(color: number, from: XYZ, to: XYZ, radius: number) {
@@ -113,11 +137,11 @@ export class PlantBatch {
 }
 
 const species = {
-  birch: { bark:0xe4ddd0, branch:0x988979, hues:[0x5b9048,0x7bac50,0xa6c66c], height:3.55, spread:.98 },
-  linden: { bark:0x826449, branch:0x765942, hues:[0x47835c,0x689960,0x89ae69], height:3.32, spread:1.36 },
-  maple: { bark:0x86624d, branch:0x805e4a, hues:[0xa26c47,0xc58b44,0xe0ac61], height:3.13, spread:1.45 },
+  birch: { bark:0xe4ddd0, branch:0x988979, hues:[0x698253,0x91a663,0xb3bd7e], height:3.55, spread:.98 },
+  linden: { bark:0x826449, branch:0x765942, hues:[0x406e56,0x668a61,0x8fa46f], height:3.32, spread:1.36 },
+  maple: { bark:0x86624d, branch:0x805e4a, hues:[0x956244,0xbd8252,0xd6a36a], height:3.13, spread:1.45 },
   ornamental: { bark:0x96725e, branch:0x805d50, hues:[0xa95d7b,0xd194a8,0xefbdd1], height:2.52, spread:1.18 },
-  spruce: { bark:0x755b43, branch:0x655144, hues:[0x386855,0x538468,0x7a9f71], height:4.23, spread:1.07 },
+  spruce: { bark:0x755b43, branch:0x655144, hues:[0x365d55,0x4c7768,0x769485], height:4.23, spread:1.07 },
 } as const;
 export type LandscapeTree = keyof typeof species;
 
@@ -150,20 +174,16 @@ export function growTree(batch: PlantBatch, x: number, z: number, kind: Landscap
     for (let tier = 0; tier < 6; tier++) {
       const t = tier / 5;
       const y = h * (.30 + t * .64), r = w * (1.04 - t * .91);
-      batch.cluster(style.hues[tier % 3], [x + dx * t,y,z + dz * t], [r,h * (.15 - t * .056),r], tier * .7, distant);
-      if (distant) continue;
-      for (let i = 0; i < 7; i++) {
-        const a = seed + i * Math.PI * 2 / 7 + tier * .54;
-        batch.blade(style.hues[(tier + i) % 3], [x + Math.sin(a) * r * .67,y - h * .024,z + Math.cos(a) * r * .67],
-          [r * .33,r * .22,r * .51], a, .35 + t * .23);
-      }
+      batch.cluster(style.hues[tier < 2 ? 0 : tier < 5 ? 1 : 2],
+        [x + dx*t,y,z + dz*t], [r,h*(.21-t*.082),r],
+        seed+tier*1.43,distant,.06*Math.sin(seed+tier),spruceBough);
     }
     return;
   }
   const birch = kind === 'birch';
-  batch.cluster(style.hues[0], [x + dx,h * .74,z + dz], [w * .83,h * (birch ? .29 : .24),w * .76], seed, distant);
+  batch.cluster(style.hues[0], [x + dx,h * .74,z + dz], [w * .71,h * (birch ? .29 : .22),w * .68], seed, distant);
   batch.cluster(style.hues[2], [apex[0],h * .94,apex[2]], [w * .54,h * .22,w * .49], seed * .23, distant);
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 6; i++) {
     const a = seed * .37 + i * 2.39996, r = w * (.53 + rng() * .34);
     const end: XYZ = [x + dx + Math.sin(a) * r,h * (.62 + i % 4 * .084 + rng() * .025),z + dz + Math.cos(a) * r];
     if (!distant) {
@@ -171,16 +191,17 @@ export function growTree(batch: PlantBatch, x: number, z: number, kind: Landscap
       batch.stem(style.branch, fork, elbow, radius * .44);
       batch.stem(style.branch, elbow, end, radius * .27);
     }
-    const height = (birch ? .52 : .41) * size;
-    batch.cluster(style.hues[i % 3], end, [w * (.45 + i%3*.034),height * (.91+i%2*.19),w * (.47-i%3*.032)], a, distant, (i % 2 - .5) * .30);
+    const height = (birch ? .73 : .50) * size;
+    batch.cluster(style.hues[i % 3], end, [w * (.45 + i%3*.034),height * (.91+i%2*.19),w * (.47-i%3*.032)], a, distant, (i % 2 - .5) * .44, birch ? birchCrown : crown);
     if (distant) continue;
     const lift = (i % 2 ? .38 : .25) * size;
     batch.cluster(style.hues[(i + 1) % 3], [end[0] + Math.sin(a + 1.7) * .27 * w,end[1] + lift,end[2] + Math.cos(a + 1.7) * .27 * w],
       [w * .32,height * .82,w * .34], a + 1.6);
     for (let spray = 0; spray < 3; spray++) {
       const spin = a + spray * 1.5;
-      batch.blade(style.hues[(spray + i + 1) % 3], [end[0] + Math.sin(spin) * w * .42,end[1] + .07 * size,end[2] + Math.cos(spin) * w * .39],
-        [.14 * size,.12 * size,.29 * size], spin, -.12 + spray * .28);
+      batch.spray(style.hues[(i+spray)%2+1],
+        [end[0]+Math.sin(spin)*w*.33,end[1]+height*(.56-spray*.16),end[2]+Math.cos(spin)*w*.34],
+        [.48*size,.33*size,.49*size],spin,birch?.86:.44+spray*.09);
     }
     if (kind === 'ornamental') for (let j = 0; j < 3; j++) {
       const spin = a + j * 2.4;
@@ -204,7 +225,7 @@ export function growShrub(batch: PlantBatch, x: number, y: number, z: number, w:
     const p: XYZ = [x + Math.sin(a) * w * r,y + h * (.41 + rng() * .32),z + Math.cos(a) * d * r];
     batch.cluster(colors[(i + 1) % 3], p, [w * .27,h * .37,d * .28], a, distant);
     if (!distant) {
-      batch.blade(colors[2], [p[0],p[1] + h * .25,p[2]], [w * .13,h * .27,d * .20], a + .7, -.38 + rng() * .52);
+      batch.spray(colors[2], [p[0],p[1] + h * .31,p[2]], [w * .27,h * .37,d * .30], a + .7, -.38 + rng() * .52);
       batch.blade(colors[1], [p[0] + Math.sin(a) * w * .23,p[1],p[2] + Math.cos(a) * d * .24],
         [w * .13,h * .23,d * .17], a, -.16);
     }
@@ -267,12 +288,7 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
       }
       continue;
     }
-    for(let j=0;j<6;j++){
-      const angle=a+j*Math.PI/3,r=palette===0?.062:.050;
-      batch.bud(hues[(i+j%3)%3],
-        [tip[0]+Math.sin(angle)*r,tip[1]+.018,tip[2]+Math.cos(angle)*r],
-        [.036,.024,.055],angle,-.20);
-    }
+    batch.bloom(hues[i%2], tip, palette===0?.105:.087, a, .14*Math.sin(a));
     batch.bud(palette===0?0xf1a52b:hues[2],
       [tip[0],tip[1]+.030,tip[2]],[.033,.022,.033]);
   }
@@ -338,38 +354,21 @@ export function growKitchenGarden(batch:PlantBatch,x:number,y:number,z:number,w:
   }
 }
 
-const tuftGeometry = new THREE.BufferGeometry();
-const tuftPositions: number[] = [];
-const tuftColors: number[] = [];
-for (let i = 0; i < 9; i++) {
-  // Narrow and wide fronds, natural curvature, uneven crowns; each group
-  // is a single cheap instanced blade cluster at runtime.
-  const angle = i * 2.39996, radius=.026+.019*(i%4);
-  const x = Math.sin(angle)*radius, z = Math.cos(angle)*radius;
-  const width=(i%3===0?.019:.027)+i%4*.004;
-  const height=.13+(i%5)*.034;
-  const bow=Math.sin(angle)*(.039+.020*(i%3));
-  const tip=bow+Math.cos(angle)*.055;
-  tuftPositions.push(x-width,0,z,x+width,0,z,
-    x+bow*.48+width*.38,height*.51,z+.024,
-    x-width,0,z,x+bow*.48+width*.38,height*.51,z+.024,
-    x+bow*.45-width*.37,height*.48,z-.021,
-    x+bow*.45-width*.37,height*.48,z-.021,
-    x+bow*.48+width*.38,height*.51,z+.024,
-    x+tip,height,z+.042);
-  const light=.80+(i%4)*.09;
-  for(const shade of [.62,.70,.88,.62,.88,.76,.76,.91,light])
-    tuftColors.push(shade,shade*.99,shade*.96);
+const tuftGeometry = botanical('sedge');
+const grassLight = tuftGeometry.getAttribute('pigment');
+const tuftColors = [];
+for (let i = 0; i < grassLight.count; i++) {
+  const value = grassLight.getX(i);
+  tuftColors.push(value, value*.99, value*.91);
 }
-tuftGeometry.setAttribute('position', new THREE.Float32BufferAttribute(tuftPositions,3));
-tuftGeometry.setAttribute('color', new THREE.Float32BufferAttribute(tuftColors,3));
-tuftGeometry.computeVertexNormals();
+tuftGeometry.deleteAttribute('pigment');
+tuftGeometry.setAttribute('color', new THREE.Float32BufferAttribute(tuftColors, 3));
 
 export const landscapeSharedGeometry = [tuftGeometry];
 export type GrassTuft = {x:number; z:number; size:number; yaw:number; color:number};
 
 export function grassMaterial() {
-  const material = new THREE.MeshStandardMaterial({ color:0xffffff, side:THREE.DoubleSide, vertexColors:true, roughness:1 });
+  const material = new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,vertexColors:true});
   const wind = {value:0};
   material.onBeforeCompile = shader => {
     shader.uniforms.landscapeWind = wind;

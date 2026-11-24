@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL, HOUSE_WING } from '../shared/home';
-import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
+import { botanicalPrint, gardenView, limewashWall, oakFloor } from './ArtTextures';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -24,11 +24,21 @@ function rearWall(home: THREE.Group): void {
   const right = center + 1.66;
   const bottom = 1.25;
   const top = 2.81;
+  const map=limewashWall();
+  if(map)map.wrapS=THREE.RepeatWrapping;
+  const plaster=new THREE.MeshStandardMaterial({map,color:map?0xffffff:C.limestone,roughness:.93});
   for (const [x1, x2, y1, y2] of [
     [HOUSE.minX, left, 0, height], [right, HOUSE.maxX, 0, height],
     [left, right, 0, bottom], [left, right, top, height],
   ]) {
-    shape(home, cube, [x2 - x1, y2 - y1, .24], [(x1 + x2) / 2, (y1 + y2) / 2, z], C.limestone);
+    const block=cube.clone(),uv=block.getAttribute('uv');
+    const position=block.getAttribute('position');
+    for(let i=0;i<uv.count;i++)
+      uv.setXY(i,(x1+(position.getX(i)+.5)*(x2-x1))/2.6,(y1+(position.getY(i)+.5)*(y2-y1))/height);
+    const wall=new THREE.Mesh(block,plaster);
+    wall.scale.set(x2-x1,y2-y1,.24);
+    wall.position.set((x1+x2)/2,(y1+y2)/2,z);
+    home.add(wall);
   }
   panel(home, [center, 2.03, z - .12], [3.36, 1.60], gardenView(), C.sky, .20);
   // The sash sits in shadow behind the casing. The sill projects into the room.

@@ -1,0 +1,132 @@
+import * as THREE from 'three';
+import type { PlaceId } from '../shared/locations';
+import { HOUSE, HOUSE_WING } from '../shared/home';
+
+const skies = {
+  overcast: { tint:0xa4b6bf, cloud:.63, direct:.53, near:30, far:98 },
+  fog:      { tint:0xc3ccc1, cloud:.72, direct:.62, near:4, far:33 },
+  rain:     { tint:0x90a6af, cloud:.69, direct:.48, near:16, far:68 },
+  snow:     { tint:0xc5d3d7, cloud:.70, direct:.71, near:13, far:67 },
+  storm:    { tint:0x748699, cloud:.80, direct:.34, near:11, far:58 },
+} as const;
+type Weather = keyof typeof skies;
+
+function precipitation(snow:boolean, storm:boolean) {
+  const count=snow?180:storm?288:208;
+  const vertices=[], ends=[];
+  let seed=1951;
+  const random=()=>(seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296;
+  for(let i=0;i<count;i++) {
+    const point=[random()*20,random()*9,random()*20];
+    vertices.push(...point);ends.push(0);
+    if(!snow){vertices.push(...point);ends.push(.26+random()*.14);}
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+  geometry.setAttribute('tail',new THREE.Float32BufferAttribute(ends,1));
+  const uniforms={
+    seconds:{value:0}, center:{value:new THREE.Vector2()}, home:{value:0},
+    roof:{value:new THREE.Vector4(HOUSE.minX-.24,HOUSE_WING.maxX+.24,HOUSE.minZ-.20,HOUSE.maxZ+.20)},
+    dpr:{value:1},
+  };
+  // The world-space lattice wraps around the camera target. Panning reveals
+  // neighbouring drops instead of dragging a screen-space overlay with the UI.
+  const material=new THREE.ShaderMaterial({
+    uniforms, transparent:true, depthWrite:false,
+    vertexShader:`
+      attribute float tail;
+      uniform float seconds, home, dpr;
+      uniform vec2 center;
+      uniform vec4 roof;
+      varying float opacity;
+      void main(){
+        float t=seconds;
+        vec3 p=position;
+        p.y=mod(p.y-t*${snow?'0.95':'7.2'},9.0)+tail;
+        p.x+=${snow?'sin(position.z+t*.74)*.48':'p.y*-.18'};
+        p.z+=${snow?'cos(position.x+t*.53)*.22':'p.y*.07'};
+        p.xz=center+mod(p.xz-center+10.0,20.0)-10.0;
+        opacity=smoothstep(0.0,.4,p.y)*(1.0-smoothstep(7.6,9.0,p.y))
+          *(1.0-smoothstep(7.5,10.0,max(abs(p.x-center.x),abs(p.z-center.y))));
+        if(home>.5 && p.x>roof.x && p.x<roof.y && p.z>roof.z && p.z<roof.w)opacity=0.0;
+        vec4 mv=modelViewMatrix*vec4(p,1.0);
+        gl_Position=projectionMatrix*mv;
+        gl_PointSize=dpr*clamp((18.0+8.0*fract(position.z))/max(.1,-mv.z),1.8,4.8);
+      }`,
+    fragmentShader:`varying float opacity;
+      void main(){
+        float alpha=opacity*${snow?'(.82*(1.0-smoothstep(.23,.50,length(gl_PointCoord-.5))))':'.50'};
+        gl_FragColor=vec4(${snow?'vec3(.93,.96,1.)':'vec3(.72,.84,.91)'},alpha);
+        #include <colorspace_fragment>
+      }`,
+  });
+  const batch=snow?new THREE.Points(geometry,material):new THREE.LineSegments(geometry,material);
+  batch.name=snow?'Snow flurries':'Rain streaks';
+  batch.frustumCulled=false;
+  return {batch,uniforms};
+}
+
+export class WeatherArt {
+  private readonly mode: Weather | undefined;
+  private readonly tint=new THREE.Color();
+  private readonly particles?: ReturnType<typeof precipitation>;
+  private readonly reducedMotion:boolean;
+  private stormLight?:THREE.DirectionalLight;
+  private stormBase=0;
+
+  constructor(query:string, motionLimited:boolean, safe:boolean) {
+    const name=new URLSearchParams(query).get('weather')??'';
+    this.reducedMotion=motionLimited;
+    if (!Object.hasOwn(skies,name))return;
+    this.mode=name as Weather;
+    this.tint.setHex(skies[this.mode].tint);
+    if(!motionLimited&&!safe&&['rain','snow','storm'].includes(name))
+      this.particles=precipitation(name==='snow',name==='storm');
+  }
+
+  get haze(){
+    if(this.mode==='fog')return .95;
+    return this.mode ? skies[this.mode].cloud : .21;
+  }
+
+  enter(scene:THREE.Scene, place:PlaceId) {
+    if(!this.particles)return;
+    this.particles.batch.removeFromParent();
+    if(['park','industrial','district','home'].includes(place)){
+      scene.add(this.particles.batch);
+      this.particles.uniforms.home.value=Number(place==='home');
+    }
+  }
+
+  light(scene:THREE.Scene,place:PlaceId,sun:THREE.DirectionalLight,ambient:THREE.HemisphereLight) {
+    if(!this.mode)return;
+    const preset=skies[this.mode];
+    // Distant mist follows daylight luminance, including the darkest hours.
+    const sky=scene.background as THREE.Color;
+    const brightness=THREE.MathUtils.clamp(.26+sun.intensity*.34,.32,1);
+    sky.lerp(this.tint,preset.cloud).multiplyScalar(brightness);
+    const fog=scene.fog;
+    const outdoors=['home','district','park','industrial'].includes(place);
+    if(fog instanceof THREE.Fog&&outdoors){
+      fog.color.copy(sky);
+      fog.near=preset.near;fog.far=preset.far;
+    }
+    sun.intensity*=preset.direct;
+    this.stormLight=this.mode==='storm'&&!this.reducedMotion&&outdoors?sun:undefined;
+    this.stormBase=sun.intensity;
+    ambient.color.lerp(this.tint,.22);
+    if(place==='home')ambient.intensity*=1.06;
+  }
+
+  frame(seconds:number, target:THREE.Vector3, dpr:number) {
+    if(this.stormLight){
+      const flash=Math.max(0,1-Math.abs((seconds%19)-13)*1.2);
+      this.stormLight.intensity=this.stormBase*(1+flash*flash*.78);
+    }
+    if(!this.particles?.batch.parent)return;
+    const {uniforms}=this.particles;
+    uniforms.center.value.set(target.x,target.z);
+    uniforms.seconds.value=seconds;
+    uniforms.dpr.value=dpr;
+  }
+}

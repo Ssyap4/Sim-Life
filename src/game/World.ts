@@ -1,3 +1,5 @@
+import { LandscapeHorizon } from './LandscapeHorizon';
+import { WeatherArt } from './WeatherArt';
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
 import { gameAudio, activitySound } from './GameAudio';
@@ -170,6 +172,9 @@ export class World {
   private visualSeconds = 0;
   private quality: 'standard'|'high'|'low' = 'standard';
   private readonly graphics = graphicsProfile(navigator.userAgent, window.location.search);
+  private readonly horizon = new LandscapeHorizon();
+  private readonly weather = new WeatherArt(window.location.search,
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches, this.graphics.safe);
   private graphicsLost = false;
   private graphicsChecked = false;
   private graphicsStartedAt = performance.now();
@@ -296,6 +301,8 @@ export class World {
     // District geometry is created only on the first actual trip outside.
     // No district meshes or animated neighborhood rigs belong to homeScene.
     this.homeScene.add(this.neighbors.group);
+    this.weather.enter(this.scene,this.place);
+    this.horizon.enter(this.scene,this.place);
     // Grill portions are tappable just like the plates on the indoor table.
     // Invisible dishes are ignored by pick(), preventing ghost actions.
     for(const dish of [this.yard.platter,...this.yard.servings.values()])dish.traverse(part=>{
@@ -1557,12 +1564,14 @@ export class World {
     const progress=THREE.MathUtils.smoothstep(hour,begin.t,end.t);
     const mix=(a:number,b:number)=>THREE.MathUtils.lerp(a,b,progress);
     const mixed=(a:number,b:number)=>new THREE.Color(a).lerp(new THREE.Color(b),progress);
-    this.sun.intensity=mix(begin.sun,end.sun);
+    this.sun.intensity=mix(begin.sun,end.sun)*1.07;
     this.sun.color.copy(mixed(begin.warm,end.warm));
-    this.ambient.intensity=mix(begin.ambient,end.ambient);
+    this.ambient.intensity=mix(begin.ambient,end.ambient)*.90;
     this.ambient.color.copy(mixed(0xbdcee4,0xeef2fb))
       .lerpColors(new THREE.Color(0xbdcee4),new THREE.Color(0xeef2fb),
         THREE.MathUtils.smoothstep(this.sun.intensity,.33,1.7));
+    this.ambient.groundColor.setHex(0xbca58b).lerp(new THREE.Color(0x687a86),
+      1-THREE.MathUtils.smoothstep(this.sun.intensity,.40,1.70));
     const sky=mixed(begin.sky,end.sky);
     (this.scene.background as THREE.Color).copy(sky);
     if(this.scene.fog)this.scene.fog.color.copy(sky);
@@ -1570,7 +1579,9 @@ export class World {
     const solarAngle=(hour-360)/720*Math.PI;
     this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
       3+Math.max(0,Math.sin(solarAngle))*10,
-      5.5+Math.cos(solarAngle)*3);
+      4.2+Math.cos(solarAngle)*3);
+    this.weather.light(this.scene,this.place,this.sun,this.ambient);
+    this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze);
   }
 
   private createLights(): void {
@@ -2090,6 +2101,8 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
+    this.weather.enter(this.scene,place);
+    this.horizon.enter(this.scene,place);
     this.camera.far=place==='district'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
@@ -2900,6 +2913,7 @@ export class World {
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }
+    this.weather.frame(this.visualSeconds,this.controls.target,this.renderer.getPixelRatio());
     this.audioFrame();
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);

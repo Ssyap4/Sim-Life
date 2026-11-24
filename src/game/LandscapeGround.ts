@@ -78,3 +78,53 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
   }
   ctx.globalAlpha=1;
 }
+
+/** Dust and sunken joints are painted once. Coordinates refer to the ground
+ * canvas, allowing a crossing to share the same surface as its paths. */
+export function limestone(ctx:CanvasRenderingContext2D, x:number, y:number, width:number, height:number,
+  stoneWidth:number, stoneHeight:number, seed:number) {
+  const random=landscapeRandom(seed);
+  const tones=['#c4ae94','#d1bda2','#c6b298','#d6c3a7','#beab93','#cebaa0'];
+  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();
+  ctx.fillStyle='#9f927d';ctx.fillRect(x,y,width,height);
+  for(let row=0;row*stoneHeight<height;row++){
+    let left=x-(row%2)*stoneWidth*.57;
+    const top=y+row*stoneHeight, bottom=top+stoneHeight-.8;
+    while(left<x+width){
+      const span=stoneWidth*(.68+random()*.62);
+      const chip=.5+random()*1.8;
+      ctx.beginPath();ctx.moveTo(left+chip,top+.55);
+      ctx.lineTo(left+span-1.4,top+.8);ctx.lineTo(left+span-.6,top+chip+.7);
+      ctx.lineTo(left+span-1,bottom-.3);ctx.lineTo(left+1.4,bottom);
+      ctx.lineTo(left+.65,bottom-chip);ctx.closePath();
+      ctx.fillStyle=tones[Math.floor(random()*tones.length)];ctx.fill();
+      ctx.strokeStyle='#f4e3c763';ctx.lineWidth=.75;
+      ctx.beginPath();ctx.moveTo(left+1,top+chip);ctx.lineTo(left+chip,top+1);
+      ctx.lineTo(left+span-2,top+1.2);ctx.stroke();
+      for(let grain=0;grain<8;grain++){
+        ctx.fillStyle=grain%2?'#8f786a22':'#fff2d438';
+        ctx.fillRect(left+random()*span,top+random()*stoneHeight,1+random()*2,.7);
+      }
+      left+=span;
+    }
+  }
+  ctx.restore();
+}
+
+/** Several broad penumbras build one broken pool of shade, fixed to the plant's base. */
+export function canopyShade(ctx:CanvasRenderingContext2D, area:GroundArea,x:number,z:number,radius:number,seed:number) {
+  const rng=landscapeRandom(seed), sx=ctx.canvas.width/area.w, sz=ctx.canvas.height/area.d;
+  ctx.save();
+  ctx.translate((x-area.x+area.w/2)*sx,(z-area.z+area.d/2)*sz);
+  ctx.scale(sx*radius,sz*radius);
+  for(let i=0;i<14;i++){
+    const a=rng()*Math.PI*2, r=Math.sqrt(rng())*.80;
+    const dx=.20+Math.cos(a)*r, dz=-.10+Math.sin(a)*r*.70, size=.28+rng()*.39;
+    const gradient=ctx.createRadialGradient(dx,dz,0,dx,dz,size);
+    gradient.addColorStop(0,'rgba(44,64,59,.18)');
+    gradient.addColorStop(.58,'rgba(48,67,57,.11)');
+    gradient.addColorStop(1,'rgba(55,70,54,0)');
+    ctx.fillStyle=gradient;ctx.fillRect(dx-size,dz-size,size*2,size*2);
+  }
+  ctx.restore();
+}

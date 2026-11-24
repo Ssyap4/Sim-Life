@@ -13,7 +13,7 @@ import { DISTRICT_OFFSET_Z } from '../shared/district';
 import { locationGeometry, painted, lettering } from './LocationArt';
 import { buildDistrict } from './DistrictArt';
 import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, landscapeSharedGeometry, PlantBatch } from './LandscapePlants';
-import { paintGround, type GroundArea } from './LandscapeGround';
+import { canopyShade, limestone, paintGround, type GroundArea } from './LandscapeGround';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 import { buildEducationCenter, educationStation } from './EducationArt';
 import { buildCareerPlace, careerStation } from './CareerArt';
@@ -39,11 +39,20 @@ const parkTrees=PARK_TREES;
 const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-5.05,3.05,1],[4.83,2.56,0],[-6.5,-3.8,2],[-6.6,1.2,0],[-4.8,5.15,1],[1.7,5.2,2],[5.5,-4.9,0],[7,-4.6,1],[10.6,-4.2,2],[11.45,1.15,0],[10.8,5.15,1],[6.2,5.1,2]] as const;
 
 function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture[]; materials:THREE.Material[]}) {
-  const map=painted(resources,512,512,ctx=>paintGround(ctx,{x:2.5,z:0,w:21,d:14},[
+  const area={x:2.5,z:0,w:21,d:14};
+  const map=painted(resources,512,512,ctx=>{
+    paintGround(ctx,area,[
     {x:-.08,z:-1.94,w:5.3,d:4.4,ink:[79,136,90],opacity:.54},
     {x:4.46,z:1.54,w:3.0,d:6.5,ink:[171,190,119],opacity:.67},
     ...parkTrees.map(([x,z])=>({x,z,w:2.62,d:2.5,ink:[59,98,66] as [number,number,number],opacity:.58,border:true})),
-  ],90713));
+    ],90713);
+    const sx=512/area.w,sz=512/area.d;
+    for(const [i,path] of parkPaths.entries()){
+      const x=(path.x-area.x+(area.w-path.w)/2)*sx, y=(path.z+(area.d-path.d)/2)*sz;
+      limestone(ctx,x,y,path.w*sx,path.d*sz,.92*sx,.48*sz,931+i*37);
+    }
+    for(const [i,[x,z,,size]] of parkTrees.entries())canopyShade(ctx,area,x,z,size*1.52,817+i);
+  });
   const material=new THREE.MeshStandardMaterial({color:map?0xffffff:0x8fab73,map,roughness:1});
   resources.materials.push(material);
   const ground=new THREE.Mesh(plane,material);
@@ -368,10 +377,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   else if (!animateWork) {
     shape(floor, [outdoor?21.3:12.3, .40, outdoor?14.3:10.3], [outdoor?2.5:0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [outdoor?21:12, .06, outdoor?14:10], [outdoor?2.5:0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
-    if (outdoor) {
-      for (const {x,z,w,d} of parkPaths)
-        shape(floor, [w,.026,d],[x,.014,z],0xd6c1a0,cube);
-    } else {
+    if (!outdoor) {
       const seamColor = 0xaf8257;
       for (let i = -5; i <= 5; i++) shape(floor, [.018, .006, 10], [i, .005, 0], seamColor, cube);
       for (let i = -4; i <= 4; i++) shape(floor, [12, .006, .017], [0, .005, i], seamColor, cube);

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { GRILL_RECIPES, type RecipeId } from '../shared/food';
 import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, furniturePosition } from '../shared/home';
-import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, softCube, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 
 import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
-import { paintGround } from './LandscapeGround';
+import { canopyShade, limestone, paintGround } from './LandscapeGround';
 
 const edging = 0xb29e83;
 const flagstone = 0xc8b59b;
@@ -28,18 +28,21 @@ function turf() {
       {x:-2.8,z:9.51,w:4.62,d:2.79,ink:[181,196,123],opacity:.63},
       {x:3.5,z:10.5,w:2.8,d:3.6,ink:[165,185,116],opacity:.34},
     ], 5371, 'lawn');
+    const area={x:0,z:8.73,w:12.18,d:6.8};
+    for(let n=0;n<7;n++)canopyShade(ctx,area,-5.58,7.4+n*.65,.81,733+n);
+    // Broad contact shade beneath the fixed fence, which follows the plot edge.
+    for(const side of [-1,1]){
+      const x=side<0?0:512;
+      const shade=ctx.createLinearGradient(x,0,x-side*30,0);
+      shade.addColorStop(0,'#38452f65');shade.addColorStop(1,'#38452f00');
+      ctx.fillStyle=shade;ctx.fillRect(side<0?0:482,0,30,320);
+    }
   });
 }
 
 function paving() {
   return paintedMap('home-yard-paving', 256, 384, ctx => {
-    ctx.fillStyle = '#a4967e';
-    ctx.fillRect(0, 0, 256, 384);
-    const shades = ['#cabb9c', '#d2c0a4', '#c5b29b', '#bdab92', '#ccbea8'];
-    for (let row = 0; row < 12; row++) for (let col = -1; col < 5; col++) {
-      ctx.fillStyle = shades[((col + 1) * 3 + row * 7) % shades.length];
-      ctx.fillRect(col * 64 + (row % 2) * 32 + 1, row * 32 + 1, 62, 30);
-    }
+    limestone(ctx,0,0,256,384,88,34,2357);
   });
 }
 
@@ -155,7 +158,29 @@ function grillAndTable() {
     shape(table, [1.89, .087, .12], [0, .477, dz], C.oak, softCube, true, 'wood');
   for (const dx of [-.71, .71])
     shape(table, [.102, .433, .18], [dx, .225, .80], C.walnut, softCube, true, 'wood');
+  // The woven runner folds over both lips of the fixed picnic tabletop.
+  shape(table,[.32,.007,.82],[-.53,DINING_TOP+.003,0],0xb96e58,cube);
+  for(const dz of [-.409,.409]){
+    shape(table,[.32,.13,.008],[-.53,DINING_TOP-.06,dz],0xb96e58,cube);
+    for(const stripe of [-.106,.106]){
+      shape(table,[.022,.12,.010],[-.53+stripe,DINING_TOP-.06,dz],C.oat,cube);
+      if(dz>0)shape(table,[.022,.008,.82],[-.53+stripe,DINING_TOP+.004,0],C.oat,cube);
+    }
+  }
   batchRigidParts(table, true);
+
+  const shadeMap=paintedMap('picnic-contact',64,48,ctx=>{
+    ctx.scale(32,24);
+    const shade=ctx.createRadialGradient(1,1,.26,1,1,1);
+    shade.addColorStop(0,'#4036266b');shade.addColorStop(.56,'#40362640');shade.addColorStop(1,'#40362600');
+    ctx.fillStyle=shade;ctx.fillRect(0,0,2,2);
+  });
+  if(shadeMap){
+    const shadow=new THREE.Mesh(plane,new THREE.MeshBasicMaterial({map:shadeMap,transparent:true,depthWrite:false}));
+    shadow.rotation.x=-Math.PI/2;shadow.scale.set(2.18,1.54,1);shadow.position.set(0,.014,.19);
+    shadow.raycast=()=>{};
+    table.add(shadow);
+  }
 
   const platter = new THREE.Group();
   platter.name = 'Grill platter';
@@ -213,6 +238,23 @@ function garden(yard: THREE.Group): void {
     growShrub(plants,x,.225,center+dz,.37,.38,.54,i%3,700+i*71);
     growFlowers(plants,x+.03,.255,center+dz+.18,.35,.45,i%4,4,737+i*88);
   }
+  // Climbing roses on a timber espalier within the existing planter.
+  for(const dz of [-1.66,0,1.66])
+    shape(yard,[.045,1.37,.045],[x-.13,.90,center+dz],C.walnut,cube,false,'wood');
+  for(const y of [.58,.89,1.20,1.50])
+    shape(yard,[.036,.028,3.46],[x-.13,y,center],C.oak,cube,false,'wood');
+  const blush=[0xd08986,0xe8afa5,0xf1c4ae];
+  for(let cane=0;cane<6;cane++){
+    const z=center-1.43+cane*.55;
+    const top=.89+.52*Math.abs(Math.sin(cane*1.80+.31));
+    plants.stem(0x6b7154,[x,.25,z-.09],[x-.12,top,z+.12],.023);
+    for(let j=0;j<6;j++){
+      const y=.46+(top-.46)*j/5, angle=cane*2.4+j*1.86;
+      const p:XYZ=[x-.07+Math.cos(angle)*.075,y,z+j*.036];
+      plants.blade(j%2?0x708b60:0x48715c,p,[.098,.09,.16],angle,-.5);
+      if(j>=3)plants.bloom(blush[(cane+j)%3],p,.090,angle,.75);
+    }
+  }
   plants.attach(yard,'Flowers and shrubs in the family garden');
   // The mailbox and its light are fixed to the gate post, outside the
   // furniture placement surface and the open central lane.
@@ -243,14 +285,18 @@ export function buildYard(scene: THREE.Scene) {
 
   const { x } = HOUSE_ENTRY;
   const { parking } = HOME_YARD;
-  const stones = paving();
-  flat(yard, x, .006, 8.58, 1.88, 6.83, stones, flagstone);
-  flat(yard, -3.51, .004, 6.67, 4.24, 2.75, stones, flagstone);
+  const stones=paving();
+  const stoneFinish=new THREE.MeshStandardMaterial({map:stones,color:stones?0xffffff:flagstone,roughness:.93});
+  for(const [px,y,z,width,depth] of [[x,.006,8.58,1.88,6.83],[-3.51,.004,6.67,4.24,2.75],
+    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17]]){
+    const strip=new THREE.Mesh(plane,stoneFinish);
+    strip.rotation.x=-Math.PI/2;
+    strip.position.set(px,y,z);strip.scale.set(width,depth,1);
+    yard.add(strip);
+  }
   for (const dx of [-2.37, -1.92, -1.47]) {
     shape(yard, [.40, .045, .58], [x + dx, -.005, 7.16], flagstone, softCube);
   }
-  flat(yard, parking.x, .004, parking.z, 2.84, 5.98, stones, flagstone);
-  flat(yard, 1.96, .005, 11.27, 1.12, 1.17, stones, flagstone);
   for (const dx of [-1.23, 1.23]) {
     shape(yard, [.055, .012, 4.69], [parking.x + dx, .01, parking.z + .08], C.paper, cube);
   }

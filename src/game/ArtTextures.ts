@@ -1,55 +1,41 @@
 import { paintedMap } from './ArtKit';
 
-const oakTones = ['#b19175', '#b99b80', '#c0a086', '#aa886d', '#bd9d7f', '#b59477'];
-
+/** Fumed oak parquet. The two slats interlock on a diagonal lattice.
+ * Draw the grain in each slat's own axes so end grain never crosses a joint. */
 export function oakFloor() {
-  return paintedMap('oak-floor', 768, 768, (ctx) => {
-    ctx.fillStyle = '#8d7058';
-    ctx.fillRect(0, 0, 768, 768);
-    for (let row = 0; row < 21; row++) {
-      const y = row * 36.58;
-      const length = 194;
-      for (let col = -1; col < 5; col++) {
-        const x = col * length + (row * 81) % length;
-        const tone = ((row * 17 + col * 7) % oakTones.length + oakTones.length) % oakTones.length;
-        ctx.fillStyle = oakTones[tone];
-        ctx.fillRect(x + 0.7, y + 0.6, length - 1, 35.9);
-        ctx.fillStyle = '#fff2cf29';
-        ctx.fillRect(x + 1, y + 0.9, length - 1.5, 1.2);
-        for (let grain = 0; grain < 13; grain++) {
-          const gy = y + 3 + (row * 7 + grain * 13) % 30;
-          const wave = Math.sin(col * 17 + grain * 5 + row * 29);
-          ctx.beginPath();
-          ctx.moveTo(x + 3, gy);
-          ctx.bezierCurveTo(x + 32, gy + wave * 2, x + 70, gy - wave * 4, x + 191, gy + wave * 1.5);
-          ctx.strokeStyle = grain % 2 ? '#f3e0bf36' : '#69493123';
-          ctx.lineWidth = 0.7;
-          ctx.stroke();
-        }
-        if ((row * 5 + col * 3) % 4 === 0) {
-          const knot = x + 60 + row % 5 * 16;
-          for (const radius of [3, 6, 10]) {
-            ctx.beginPath();
-            ctx.ellipse(knot, y + 18, radius, radius * 0.26, 0.03, 0, Math.PI * 2);
-            ctx.strokeStyle = '#6748333d';
-            ctx.stroke();
-          }
-        }
+  return paintedMap('oak-floor', 640, 512, ctx => {
+    ctx.fillStyle = '#83644e';
+    ctx.fillRect(0,0,640,512);
+    const tones = ['#b99574','#bc9a78','#ac896b','#c3a281','#b28e72','#c0a086'];
+    const length=72, width=16;
+    function stave(x:number,y:number,angle:number,seed:number) {
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(angle);
+      ctx.fillStyle=tones[seed%tones.length];
+      ctx.fillRect(.45,.4,length-.9,width-.8);
+      ctx.fillStyle='#f3dfbc54';
+      ctx.fillRect(.6,.6,length-1.4,.75);
+      for(let line=0;line<4;line++){
+        const v=2+line*3.2, bend=Math.sin(seed+line)*2;
+        ctx.beginPath();ctx.moveTo(1,v);
+        ctx.bezierCurveTo(22,v+bend,49,v-bend,71,v+.5);
+        ctx.strokeStyle=line%2?'#f3d6ad40':'#78523838';
+        ctx.lineWidth=.65;ctx.stroke();
       }
+      ctx.restore();
     }
-    // A broad bounce under the window and darker edges are baked into the floor.
-    const bounce = ctx.createRadialGradient(285, 115, 38, 285, 115, 315);
-    bounce.addColorStop(0, '#ffe4b04c');
-    bounce.addColorStop(1, '#ffe4b000');
-    ctx.fillStyle = bounce;
-    ctx.fillRect(0, 0, 768, 768);
-    for (const [x0, y0, x1, y1] of [[0, 0, 100, 0], [0, 0, 0, 110]]) {
-      const edge = ctx.createLinearGradient(x0, y0, x1, y1);
-      edge.addColorStop(0, '#62452b3d');
-      edge.addColorStop(1, '#62452b00');
-      ctx.fillStyle = edge;
-      ctx.fillRect(0, 0, 768, 768);
+    ctx.save();ctx.translate(320,256);ctx.rotate(-Math.PI/4);
+    for(let i=-5;i<=5;i++)for(let j=-26;j<=26;j++) {
+      const x=i*length-j*width, y=i*length+j*width;
+      const seed=Math.abs(i*227+j*53+(j*i)%23);
+      stave(x,y,0,seed);
+      stave(x+length+width,y,Math.PI/2,seed+17);
     }
+    ctx.restore();
+    const bounce=ctx.createRadialGradient(145,55,4,145,55,260);
+    bounce.addColorStop(0,'#ffe2ac43');bounce.addColorStop(1,'#ffe2ac00');
+    ctx.fillStyle=bounce;ctx.fillRect(0,0,640,512);
   });
 }
 
@@ -57,15 +43,11 @@ export function upholsteryWeave() {
   return paintedMap('upholstery-weave', 128, 128, (ctx) => {
     ctx.fillStyle = '#f5f2ea';
     ctx.fillRect(0, 0, 128, 128);
-    for (let y = 0; y < 128; y += 4) {
-      ctx.fillStyle = '#4e484219';
-      ctx.fillRect(0, y, 128, 1);
-      for (let x = y % 8 ? 2 : 0; x < 128; x += 4) {
-        ctx.fillStyle = '#625e5023';
-        ctx.fillRect(x, y + 1, 1, 2);
-        ctx.fillStyle = '#fffdf5';
-        ctx.fillRect(x + 1, y + 2, 2, 1);
-      }
+    // Broken twill: diagonal ribs reverse every eight yarns.
+    for(let y=0;y<128;y+=2)for(let x=0;x<128;x+=2){
+      const warp=Math.floor(x/16)%2===0?x+y:x-y;
+      ctx.fillStyle=warp%8===0?'#a29a88':warp%4===0?'#d2cab8':'#fff8ec';
+      ctx.fillRect(x,y,2,1.5);
     }
   });
 }
@@ -174,30 +156,39 @@ export function wovenRug(style: 'living' | 'work' | 'sleep') {
       ctx.strokeStyle = width === 20 ? palette[2] : palette[1];
       ctx.strokeRect(width, width, 256 - width * 2, 256 - width * 2);
     }
-    ctx.fillStyle = palette[1];
-    for (let y = 55; y < 230; y += 36) for (let x = 53; x < 225; x += 30) {
-      ctx.beginPath();
-      ctx.moveTo(x, y - 7);
-      ctx.lineTo(x + 5, y);
-      ctx.lineTo(x, y + 7);
-      ctx.lineTo(x - 5, y);
-      ctx.fill();
+    // Paired indigo/madder rosettes framed by a wandering woven vine.
+    function rosette(x:number,y:number,r:number) {
+      ctx.save();ctx.translate(x,y);
+      for(let j=0;j<8;j++){
+        ctx.rotate(Math.PI/4);
+        ctx.fillStyle=palette[2];ctx.beginPath();ctx.ellipse(0,-r*.55,r*.17,r*.42,0,0,Math.PI*2);ctx.fill();
+      }
+      ctx.fillStyle=palette[0];ctx.beginPath();ctx.arc(0,0,r*.16,0,Math.PI*2);ctx.fill();
+      ctx.restore();
     }
-    ctx.fillStyle = '#fff2d214';
+    rosette(128,128,43);
+    for(const x of [63,193])for(const y of [64,192])rosette(x,y,18);
+    ctx.strokeStyle=palette[1];ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(128,44);
+    for(const [cx,cy,x,y] of [[140,84,208,128],[159,145,128,212],[114,169,48,128],[99,100,128,44]])
+      ctx.quadraticCurveTo(cx,cy,x,y);
+    ctx.stroke();    ctx.fillStyle = '#fff2d214';
     for (let y = 1; y < 256; y += 4) ctx.fillRect(0, y, 256, 1);
   });
 }
 
 export function kitchenTiles() {
   return paintedMap('tile', 512, 96, (ctx) => {
-    ctx.fillStyle = '#c5b79c';
-    ctx.fillRect(0, 0, 512, 96);
-    for (let y = 0; y < 96; y += 24) for (let x = -24; x < 512; x += 48) {
-      const left = x + (y % 48 ? 24 : 0);
-      ctx.fillStyle = ['#f2e2c6', '#e5d5b9', '#ebdfcb'][(y / 24 + (x + 24) / 48) % 3];
-      ctx.fillRect(left + 1, y + 1, 46, 22);
-      ctx.fillStyle = '#fff3d9';
-      ctx.fillRect(left + 2, y + 2, 44, 2);
+    ctx.fillStyle='#cec0a0';ctx.fillRect(0,0,512,96);
+    const glaze=['#6b9188','#89a69a','#73998f','#a2b4a2','#789b91'];
+    // Overlapping fish-scale tiles. Two glaze bands follow each rounded edge.
+    for(let row=6;row>=-2;row--)for(let col=-1;col<=17;col++){
+      const x=col*32+(row%2)*16,y=row*17;
+      ctx.beginPath();ctx.moveTo(x-16,y-9);ctx.lineTo(x-16,y);ctx.arc(x,y,16,Math.PI,0,true);ctx.lineTo(x+16,y-9);ctx.closePath();
+      ctx.fillStyle=glaze[Math.abs(row*13+col*7+col*row)%5];ctx.fill();
+      ctx.strokeStyle='#e3d3b1';ctx.lineWidth=1.4;ctx.stroke();
+      ctx.beginPath();ctx.arc(x,y,12,.12,Math.PI-.12);ctx.lineWidth=.9;
+      ctx.strokeStyle='#c7d6be';ctx.stroke();
     }
   });
 }
@@ -247,5 +238,27 @@ export function deskDisplay() {
     ctx.fillStyle = '#a8c4a4';
     ctx.fillRect(60, 138, 48, 2);
     ctx.fillRect(65, 146, 76, 2);
+  });
+}
+
+export function limewashWall(){
+  return paintedMap('limewash-and-dado',256,256,ctx=>{
+    const wash=ctx.createLinearGradient(0,0,0,256);
+    wash.addColorStop(0,'#e5d5b9');wash.addColorStop(.56,'#decaad');wash.addColorStop(1,'#ceb796');
+    ctx.fillStyle=wash;ctx.fillRect(0,0,256,256);
+    // Soft brush marks visible only at close range.
+    for(let n=0;n<96;n++){
+      const x=(n*83)%256,y=(n*43)%256;
+      ctx.strokeStyle=n%2?'#fff1d817':'#b59e8010';ctx.lineWidth=2+n%5;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo(x+10,y-2,x+21,y-8);ctx.stroke();
+    }
+    ctx.fillStyle='#8f9b83';ctx.fillRect(0,174,256,82);
+    for(let x=0;x<256;x+=16){
+      ctx.fillStyle='#72866e';ctx.fillRect(x,174,1.4,82);
+      ctx.fillStyle='#b6bf9f';ctx.fillRect(x+1.4,174,1,82);
+    }
+    ctx.fillStyle='#af997d';ctx.fillRect(0,169,256,5);
+    ctx.fillStyle='#f2dfc0';ctx.fillRect(0,169,256,1.5);
+    ctx.fillStyle='#eeddc3';ctx.fillRect(0,5,256,2);
   });
 }

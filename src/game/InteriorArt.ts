@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
+import { PlantBatch } from './LandscapePlants';
 import { kitchenTiles, upholsteryWeave, wovenRug } from './ArtTextures';
 import { cushionGeometry } from './FurnitureGeometry';
 import { buildBathFixture } from './BathroomArt';
@@ -41,7 +42,9 @@ function wovenFinish(material: THREE.MeshStandardMaterial): THREE.MeshStandardMa
 function part(parent: THREE.Object3D, size: XYZ, position: XYZ, color: number,
   style: 'soft' | 'square' | THREE.BufferGeometry = 'soft', shadow = false,
   finish: Parameters<typeof mat>[1] = 'fabric'): THREE.Mesh {
-  const geometry = style === 'soft' ? softCube : style === 'square' ? cube : style;
+  // Small cabinet pulls and trim have sub-pixel bevels in portrait.
+  const geometry = style === 'soft' ? (Math.min(...size)<.054 ? cube : softCube)
+    : style === 'square' ? cube : style;
   const material = mat(color, finish);
   const mesh = new THREE.Mesh(geometry, geometry === cushionGeometry ? wovenFinish(material) : material);
   mesh.scale.set(...size);
@@ -171,7 +174,9 @@ function makeKitchen(): THREE.Group {
       part(kitchen,[.020,.43,.016],[x+edge,.49,.467],0x93ad96,'soft',false,'wood');
     for (const y of [.295,.68])
       part(kitchen,[.55,.018,.016],[x,y,.467],0x93ad96,'soft',false,'wood');
-    part(kitchen,[.20,.018,.017],[x,.37,.478],0x9ab09b,'soft',false,'wood');
+    // Reeded inset panels, picked out by the grazing kitchen light.
+    for(let flute=-3;flute<=3;flute++)
+      part(kitchen,[.019,.32,.016],[x+flute*.059,.49,.464],0x779781,'square',false,'wood');
   }
   part(kitchen, [0.83, 0.65, 0.055], [0.05, 0.52, 0.449], C.graphite);
   part(kitchen, [0.67, 0.45, 0.012], [0.05, 0.50, 0.485], C.slate, 'soft', false, 'screen');
@@ -197,6 +202,29 @@ function makeKitchen(): THREE.Group {
   part(kitchen, [1.07, 0.033, 0.22], [-0.57, 1.657, -0.28], C.stone);
   part(kitchen, [1.18, 0.22, 0.53], [-0.57, 1.79, -0.31], C.paleSage, 'soft');
   part(kitchen, [1.06, 0.06, 0.10], [-0.57, 1.62, -0.08], C.brass, 'soft', false, 'metal');
+  // Sculpted limewash chimney rises from the brass hood lip.
+  const surround = new THREE.LatheGeometry([
+    new THREE.Vector2(.52,0),new THREE.Vector2(.51,.10),new THREE.Vector2(.42,.23),
+    new THREE.Vector2(.26,.46),new THREE.Vector2(.24,.69),new THREE.Vector2(.21,.72),new THREE.Vector2(0,.72),
+  ],12);
+  part(kitchen,[1.06,1,.53],[-.57,1.85,-.32],0xc58065,surround,false,'ceramic');
+  // A shallow hanging shelf sits above the cupboards, out of the work area.
+  part(kitchen,[1.80,.067,.27],[1.14,2.17,-.31],C.woodDark,'square',false,'wood');
+  for(const x of [.46,1.81])part(kitchen,[.034,.21,.16],[x,2.08,-.36],C.brass,'square',false,'metal');
+  const crock=new THREE.LatheGeometry([
+    new THREE.Vector2(.065,0),new THREE.Vector2(.103,.032),new THREE.Vector2(.116,.17),
+    new THREE.Vector2(.078,.23),new THREE.Vector2(.062,.27),new THREE.Vector2(.072,.275),
+  ],12);
+  for(const [x,size,color] of [[.62,1,0xb26d51],[.82,.80,0xdab991],[1.64,1.1,0x779685]])
+    part(kitchen,[size,size,size],[x,2.20,-.29],color,crock,false,'ceramic');
+  const herb=new PlantBatch();
+  for(let i=0;i<8;i++){
+    const a=i*2.4,h=2.54+.12*Math.cos(i);
+    const tip:XYZ=[1.64+Math.sin(a)*.14,h,-.29+Math.cos(a)*.095];
+    herb.stem(0x678362,[1.64,2.47,-.29],tip,.007);
+    herb.blade(i%2?0x668c70:0x93a676,tip,[.043,.065,.097],a,.28);
+  }
+  herb.attach(kitchen,'Shelf herbs');
   // Recessed range-hood filter, small steel rails and control lights.
   part(kitchen,[.83,.010,.19],[-.57,1.636,-.27],0x72817a,'soft',false,'metal');
   for(const x of [-.83,-.57,-.31])
