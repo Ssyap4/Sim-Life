@@ -132,3 +132,49 @@ test('Legacy two-hour home shift and original quiz indices remain readable',()=>
  assert.ok(validHomeQuests(shift as unknown as Record<string,unknown>));
  const malformed=structuredClone(shift);malformed.quests![0].order=[0,1,1];assert.equal(validHomeQuests(malformed as unknown as Record<string,unknown>),false);
 });
+
+import {HOME_JOB_SKILLS,homeJobSkillXP} from '../../src/shared/homeJobSkills';
+import {SKILL_IDS,skillRank,levelXP,maximumXP} from '../../src/shared/education';
+test('All home jobs train exactly their own relevant skill, with a strict two-percent per-order cap at every rank',()=>{
+ for(const role of ['vlad','alina'] as const)for(const job of homeJobsFor(role)){
+  const result=beginShift(initialState(),role,job,'desktop');assert.ok(result.ok);
+  const state=result.state,shift=state.activeShifts[role]!,skill=HOME_JOB_SKILLS[job];
+  const profile=state.education.characters[role];
+  for(let level=0;level<20;level++){
+   profile.xp[skill]=levelXP(level);
+   for(const q of shift.quests!)q.result='wrong';
+   const basic=homeJobSkillXP(profile,shift,1)!;
+   for(const q of shift.quests!)q.result='correct';
+   const perfect=homeJobSkillXP(profile,shift,1)!;
+   assert.equal(perfect.skill,skill);
+   assert.ok(basic.xp>=1&&perfect.xp>=basic.xp);
+   assert.ok(perfect.xp/skillRank(profile.xp[skill]).next<=.02);
+   assert.equal(homeJobSkillXP(profile,shift,0),undefined);
+   assert.ok((homeJobSkillXP(profile,shift,.5)?.xp??0)<=perfect.xp/2);
+  }
+  profile.xp[skill]=maximumXP;assert.equal(homeJobSkillXP(profile,shift,1),undefined);
+  profile.xp[skill]=levelXP(4);
+  const expected=homeJobSkillXP(profile,shift,1)!;
+  state.clock=clockAt(shift.endsAt);
+  const finished=settleCompletedShifts(state);
+  for(const id of SKILL_IDS)assert.equal(finished.state.education.characters[role].xp[id],profile.xp[id]+(id===skill?expected.xp:0));
+  const other=role==='vlad'?'alina':'vlad';
+  assert.deepEqual(finished.state.education.characters[other],state.education.characters[other]);
+  assert.ok(finished.state.education.characters[role].events.some(e=>e.skill===skill&&e.xp===expected.xp));
+  assert.match(finished.completed[0].message,/XP/);
+  assert.deepEqual(settleCompletedShifts(finished.state).state.education,finished.state.education);
+ }
+});
+test('No experience before arrival, partial practice only for worked time, and no city gig skill changes',()=>{
+ const started=beginShift(initialState(),'vlad','vibeSite','desktop',5);assert.ok(started.ok);
+ const state=started.state,shift=state.activeShifts.vlad!;
+ state.education.characters.vlad.xp.technology=levelXP(10);
+ const immediate=leaveShiftEarly(state,'vlad');assert.ok(immediate.ok);assert.deepEqual(immediate.state.education,state.education);
+ state.clock=clockAt(shift.startedAt+Math.floor(shift.hours*60/2));
+ const expected=homeJobSkillXP(state.education.characters.vlad,shift,.5)!;
+ const partial=leaveShiftEarly(state,'vlad');assert.ok(partial.ok);
+ assert.equal(partial.state.education.characters.vlad.xp.technology,state.education.characters.vlad.xp.technology+expected.xp);
+ const city=beginShift(initialState(),'vlad','taxi');assert.ok(city.ok);
+ city.state.clock=clockAt(city.state.activeShifts.vlad!.endsAt);
+ assert.deepEqual(settleCompletedShifts(city.state).state.education,city.state.education);
+});

@@ -2,6 +2,9 @@ import { computerDevice } from "../src/shared/computer";
 import { serviceAvailable } from "../src/shared/services";
 import { isHomeJob, HOME_JOBS } from "../src/shared/jobs";
 import { protectNeeds } from '../src/shared/happiness';
+import { awardHomeJobPractice } from './education';
+import { homeJobSkillXP } from '../src/shared/homeJobSkills';
+import { SKILLS } from '../src/shared/education';
 import { randomInt, randomUUID } from 'node:crypto';
 import { HOME_QUESTS, pendingHomeQuest, homeQuestContent, validQuestChoice, correctQuestChoice, type HomeQuestRun } from '../src/shared/homeJobQuests';
 import { JOBS, isOfferedJob, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
@@ -104,11 +107,14 @@ function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,ear
     addLedger(state,role,'income','work',payment,
       job.name+(early?' · досрочный уход':' · полная смена')+' · '+workedHours+' ч.');
   }
+  const practice=homeJobSkillXP(state.education.characters[role],shift,fraction);
+  const earned=practice?awardHomeJobPractice(state,role,practice.skill,practice.xp,"Работа из дома · "+job.name):0;
   delete state.activeShifts[role];
   state.revision++;
   const workedHours=(worked/60).toFixed(1).replace('.',',');
   const message=names[role]+(early?' завершил(а) смену досрочно':' закончил(а) смену')+
-    ' «'+job.name+'» · '+workedHours+' из '+shift.hours+' ч.: +'+formatRub(payment);
+    ' «'+job.name+'» · '+workedHours+' из '+shift.hours+' ч.: +'+formatRub(payment)+
+    (practice&&earned?' · '+SKILLS[practice.skill][1]+' +'+earned+' XP':'');
   protectNeeds(state);
   return {state,payment,message};
 }

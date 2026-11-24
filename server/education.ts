@@ -235,6 +235,14 @@ export function practiceXP(state: GameState, role: CharacterId, id: string, skil
   achievements(profile, now);
 }
 
+/** Fixed incidental job practice, already capped by the shared home-order rule. */
+export function awardHomeJobPractice(state:GameState,role:CharacterId,skill:SkillId,xp:number,label:string):number {
+  const profile=profileOf(state,role),now=gameMinutes(state.clock);
+  const earned=grant(profile,skill,xp,label,now);
+  achievements(profile,now);
+  return earned;
+}
+
 /** Award only after the food transaction actually succeeds, for manual, autonomous
  * and paired cooking alike. Familiar recipes taper without becoming zero XP. */
 export function awardCooking(state: GameState, role: CharacterId, recipe: RecipeId,

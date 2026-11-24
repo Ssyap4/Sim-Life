@@ -1,3 +1,5 @@
+import { homeJobSkillLabel, homeJobSkillXP } from "./shared/homeJobSkills";
+import { SKILLS } from "./shared/education";
 import { pendingHomeQuest, homeQuestContent } from "./shared/homeJobQuests";
 import { JOBS, homeJobsFor, shiftFullPay, shiftWage, stageForJob, type JobId } from './shared/jobs';
 import type { ComputerDevice } from './shared/computer';
@@ -150,7 +152,9 @@ export function createCareerHUD(root: HTMLElement, send: Submit, open: () => voi
         const details=node('small',now<remote.startedAt?'Идёт к компьютеру':stageForJob(remote.job,fraction)+' · '+Math.round(fraction*100)+'% · '+formatRub(shiftFullPay(remote)));
         const scroll=root.scrollTop;
         const counter=node('small','Задания: '+(remote.quests?.filter(q=>q.result==='correct').length??0)+' верно · '+(remote.quests?.filter(q=>q.result).length??0)+'/'+(remote.quests?.length??0)+' завершено');
+        const practice=homeJobSkillXP(state.education.characters[role],remote,1);
         root.replaceChildren(label,progress,details,counter);
+        if(practice)root.append(node('small','Практика · '+SKILLS[practice.skill][1]+' · до '+practice.percent.toFixed(1).replace('.',',')+'% при текущем результате'));
         const quest=homeQuestCard(state,role,home.answer);
         if(quest)root.append(quest);
         root.scrollTop=scroll;
@@ -243,7 +247,7 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       if(role==='vlad'&&device()!=='desktop')section.append(block('Заказы Влада доступны на ПК'));
       else for(const key of homeJobsFor(role)){
         const job=JOBS[key],card=block(job.emoji+' '+job.name,job.description);
-        card.append(node('small','3–4 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
+        card.append(node('small','3–4 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),node('small','Практика: '+homeJobSkillLabel(key)+' · до 2% уровня'),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
       }
     } else if (page === 'vacancies' || !id) {
       section.append(node('h2',homeOrders?'Основная работа':'Вакансии'));
