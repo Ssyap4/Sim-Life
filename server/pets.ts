@@ -1,3 +1,4 @@
+import {trainingCommand,trainingChance,finishTraining,DOG_COMMAND_NAMES} from '../src/shared/dogTraining';
 import { toyOwned,toyPreference } from '../src/shared/petToys';
 import { petFoodProduct,discoverFoodPreference,nextPetFood } from "../src/shared/petShop";
 import { catOccupiedPerch } from '../src/shared/catOccupancy';
@@ -200,11 +201,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const begRoute=wantBeg&&(!previous||['wander','toy','beg'].includes(previous.kind))&&
       (previous?.kind!=='beg'||previous.until<=now)?ownerPetPoint(state,id,diningOwner!,diners.get(diningOwner!)):null;
     const invalidBeg=previous?.kind==='beg'&&(!wantBeg||!diners.has(previous.target===0?'vlad':'alina'));
-    const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy'].includes(previous.kind) &&
+    const invalidTraining=previous?.training&&(state.world.places[previous.training.role]!=='home'||!previous.goal||!pointIsClear(previous.goal,petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR).obstacles,HOME_FLOOR));
+    const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy','train'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !begRoute && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !invalidTraining && !begRoute && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
-    if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
+    if(previous?.training){
+      if(id==='verdell'&&!invalidTraining&&!urgentInterrupt&&previous.until<=now&&previous.goal&&Math.hypot(pet.position.x-previous.goal.x,pet.position.z-previous.goal.z)<.08)finishTraining(pet,previous.training);
+    }else if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
       state.petBowls[id]--;
       const food=petFoodProduct(pet.bowlFood);
@@ -347,10 +351,11 @@ export function applyPetAction(
   role: CharacterId,
   pet: string,
   action: string,
-  blocked?:(site:CatPerch)=>boolean,
+  blocked?:(site:CatPerch)=>boolean, random=Math.random,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
-  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy'].includes(action))
+  const training=trainingCommand(action);
+  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -360,6 +365,22 @@ export function applyPetAction(
   const actor = next.characters[role];
   let message = '';
 
+  if(training){
+    if(id!=='verdell')return {ok:false,reason:'Эти команды предназначены для Верделла'};
+    if(next.world.places[role]!=='home'||next.world.dogWalker||actor.pose!=='idle')return {ok:false,reason:'Тренироваться можно дома или во дворе, когда хозяин свободен'};
+    if(data.routine?.training)return {ok:false,reason:'Дождись окончания команды'};
+    if(data.satiety<45||data.energy<40||data.bladder<45||data.routine?.kind==='eat'||data.routine?.kind==='toilet')return {ok:false,reason:'Верделлу сначала нужно поесть, отдохнуть или сходить в туалет'};
+    const now=Math.floor(gameMinutes(next.clock));
+    if(data.routine)data.position=sampleWalk(data.routine.route,Math.max(0,now-data.routine.startedAt)*PET_SPEED[id]/GAME_MINUTES_PER_REAL_SECOND).from;
+    const success=random()<trainingChance(data,training);
+    const near=ownerPetPoint(next,id,role);if(!near)return {ok:false,reason:'Нет свободного места рядом с хозяином'};
+    const fetch=training==='fetch'&&success?dogFetchRoute(next,role):null;if(training==='fetch'&&success&&!fetch)return {ok:false,reason:'Нет безопасного места для броска мяча'};
+    const goal=fetch?.goal??near.point,route=fetch?.route??near.route;
+    const yaw=Math.atan2(actor.x-goal.x,actor.z-goal.z);
+    const travel=Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+    data.routine={kind:fetch?'fetch':'train',target:0,route,goal,startedAt:now,until:now+travel+(training==='stay'?23:14),...(fetch??{}),training:{command:training,success,role,yaw,practice:true}};
+    next.revision++;return {ok:true,state:next,message:'Верделл тренирует команду «'+DOG_COMMAND_NAMES[training]+'»'};
+  }
   // Commands are issued while the player stays put. They MUST NOT call
   // petCarePoint / teleport the human beside the animal.
   if(kind==='call'||kind==='perch'||kind==='fetch'||kind==='mat'||kind==='scratch'||kind==='toy'){

@@ -7,6 +7,8 @@ import WebSocket from 'ws';
 import {once} from 'node:events';
 import {homeToysFor,homeToyApproach} from '../src/shared/pets.ts';
 import {PET_TOYS} from '../src/shared/petToys.ts';
+import {DOG_COMMANDS} from '../src/shared/dogTraining.ts';
+import {applyPetAction} from '../server/pets.ts';
 import {initialState} from '../src/shared/protocol.ts';
 import {homeSeat} from '../src/shared/home.ts';
 import {grantStarterPetFurniture} from '../server/starterPets.ts';
@@ -73,6 +75,20 @@ try{
  for(const toy of PET_TOYS){
   const s=base();grantStarterPetFurniture(s);const p=s.pets[toy.pet];p.ownedToys=[toy.id];const index=homeToysFor(toy.pet).findIndex(t=>t.id===toy.id),goal=homeToyApproach(toy.pet,index);p.position=goal;p.routine={kind:'toy',target:index,goal,route:{from:goal,path:[]},startedAt:480,until:492};
   await scenario(s,async(page,shot)=>{await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="'+toy.pet+'"]').click();await page.waitForTimeout(1800);await shot('toy-'+toy.id+'-a');await page.waitForTimeout(800);await shot('toy-'+toy.id+'-b');});
+ }
+ const training=base();grantStarterPetFurniture(training);
+ Object.assign(training.characters.vlad,{x:-2.7,z:8.65,pose:'idle'});
+ await scenario(training,async(page,shot,send)=>{
+  await send({type:'pet_action',pet:'verdell',action:'train-sit'});
+  await page.waitForFunction(()=>window.qaState?.pets.verdell.routine?.training?.command==='sit');
+  await shot('training-command-network');
+ });
+ for(const command of DOG_COMMANDS.filter(c=>c!=='fetch')){
+  const s=base();grantStarterPetFurniture(s);Object.assign(s.characters.vlad,{x:-2.7,z:8.65,pose:'idle'});
+  const r=applyPetAction(s,'vlad','verdell','train-'+command,undefined,()=>0);assert.ok(r.ok);
+  const next=r.state,p=next.pets.verdell,lesson=p.routine;const goal=lesson.goal;
+  p.position=goal;lesson.route={from:goal,path:[]};
+  await scenario(next,async(page,shot)=>{await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="verdell"]').click();await page.waitForTimeout(1600);await shot('training-'+command);});
  }
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

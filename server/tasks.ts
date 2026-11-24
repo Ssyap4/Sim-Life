@@ -29,7 +29,7 @@ import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
-export type CareAction = Exclude<PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy'>;
+export type CareAction = Exclude<PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('../src/shared/dogTraining').DogTrainingAction>;
 export interface TaskPlan {
   command: TimedCommand;
   label: string;

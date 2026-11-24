@@ -1,3 +1,4 @@
+import {DOG_COMMANDS,DOG_COMMAND_NAMES,commandSkill,trainingLevel,type DogTrainingAction} from './shared/dogTraining';
 import {toysFor,toyOwned,TOY_REACTIONS} from './shared/petToys';
 import { nextPetFood,petFoodProduct,FOOD_REACTIONS } from './shared/petShop';
 import {
@@ -122,6 +123,12 @@ export function renderPetChoices(
   }
   container.appendChild(status);
 
+  if(selected==='verdell'){
+    const box=document.createElement('details');box.className='pet-wish';const heading=document.createElement('summary');heading.textContent='🎓 Дрессировка · '+DOG_COMMANDS.filter(c=>commandSkill(stats,c).xp===100).length+'/7 освоено';box.appendChild(heading);
+    if(stats.lastTraining){const last=document.createElement('p');last.className='pet-note';last.textContent='Последняя команда: '+DOG_COMMAND_NAMES[stats.lastTraining.command]+' — '+(stats.lastTraining.success?'получилось!':'ещё учится');box.appendChild(last);}
+    for(const c of DOG_COMMANDS){const skill=commandSkill(stats,c),b=document.createElement('button');b.type='button';b.className='food-action pet-action';b.disabled=!!stats.routine?.training||stats.energy<40||stats.satiety<45||stats.bladder<45;const name=document.createElement('strong');name.textContent=DOG_COMMAND_NAMES[c]+' · '+skill.xp+'%';const hint=document.createElement('small');hint.textContent=trainingLevel(skill.xp)+' · '+skill.successes+'/'+skill.attempts+' успешно';b.append(name,hint);b.addEventListener('click',()=>send(selected,('train-'+c) as DogTrainingAction));box.appendChild(b);}
+    container.appendChild(box);
+  }
   const actions: Array<{ action: PetAction; icon: string; hint: string; disabled: boolean }> = [
     {
       action: 'feed', icon: '🥣',
