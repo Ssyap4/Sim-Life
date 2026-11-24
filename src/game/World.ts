@@ -109,6 +109,14 @@ export class World {
   private readonly subjectMeshes: THREE.Object3D[] = [];
   private readonly homeViewOccluders: THREE.Object3D[];
   private readonly stationMeshes: THREE.Object3D[] = [];
+  private previewWardrobe?:THREE.Group;
+  enablePreviewWardrobe():void {
+    if(this.previewWardrobe)return;
+    const cabinet=buildFurnishingModel('wardrobe-mirror','ivory');
+    cabinet.position.set(4.45,0,.10);cabinet.rotation.y=-Math.PI/2;
+    this.previewWardrobe=cabinet;this.homeScene.add(cabinet);
+    this.trackStation(this.stationMeshes,'preview-wardrobe',cabinet);
+  }
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;

@@ -1,5 +1,6 @@
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
+import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
@@ -1144,6 +1145,32 @@ function showActionMenu(title: string): void {
   actionsEl.scrollTop = 0;
 }
 
+const previewLooks=[
+  ['signature','Исходный комплект','Исходный комплект'],
+  ['home','Розовая футболка · короткие шорты','Зелёная футболка · длинные шорты'],
+  ['denim','Молочная футболка · голубые джинсы','Белая футболка · синие джинсы'],
+  ['city','Зелёная футболка · бежевые брюки','Чёрная футболка · бежевые брюки'],
+  ['cozy','Сиреневое худи · домашние штаны','Синее худи · спортивные штаны'],
+  ['street','Бежевое худи · джинсы','Серое худи · тёмные джинсы'],
+] as const;
+function openPreviewWardrobe():void{
+  if(!localPreviewNoCodes||!active||world.place!=='home')return;
+  const role=active;
+  showActionMenu('👕 Гардероб · '+names[role]);
+  for(const [look,alina,vlad] of previewLooks){
+    const button=document.createElement('button');
+    button.type='button';button.className='action-button';
+    button.textContent=role==='alina'?alina:vlad;
+    button.addEventListener('click',()=>{
+      const actor=world.actors[role];
+      const selected=fitWardrobe(actor.root,role,outfitChoices(look));
+      if(!selected.size){notify('Модель одежды не загрузилась');return;}
+      actionsEl.hidden=true;
+      notify('Наряд изменён');
+    });
+    actionsEl.append(button);
+  }
+}
 function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:string):void{
   if(!active||!state||!net.isReady()){notify('Сначала войди в дом');return;}
   if(target===active)return;
@@ -1548,6 +1575,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         locationUI.cancelRoute();
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
+        if(id==='preview-wardrobe'&&localPreviewNoCodes){openPreviewWardrobe();return;}
         if (world.place === 'home' && id === HOME_LAPTOP) {
           openComputer('laptop');
           return;
@@ -1591,6 +1619,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     }, simbaRig);
     world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
       const model=state?.furnishing.placed.find(item=>item.id===id);
+      if(localPreviewNoCodes&&model&&FURNITURE_BY_ID.get(model.sku)?.shape==='wardrobe'){openPreviewWardrobe();return;}
       if(model&&isSleepBed(model))openPurchasedBedActions(id);
       else if(model&&furnitureActionList(model).length)openPurchasedFurnitureActions(id);
       else furnishing.selectPlaced(id);
@@ -1639,6 +1668,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         const config=await health.json() as {testNoCodes?:boolean};
         localPreviewNoCodes=config.testNoCodes===true;
         if(localPreviewNoCodes){
+          world.enablePreviewWardrobe();
           accessInput.required=false;
           document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;
           accessInput.hidden=true;
