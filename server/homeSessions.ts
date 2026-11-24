@@ -19,6 +19,7 @@ import { MATERIAL_BY_ID, studyQuestion, studyQuestions } from '../src/shared/edu
 import { answerMatches, awardActivity, completeStudy, saveBookMinutes, studyDenial, studyMinutes } from './education';
 import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
+import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
 import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
@@ -389,7 +390,7 @@ export function createHomeSessions(hooks: Hooks) {
       const before = hooks.state();
       const result = material || cooperation ? undefined : evaluateTask(before, role, command, roles.length === 2);
       if (result && !result.ok) { if (!automatic) error(initiator, result.reason); return; }
-      const effects = !result ? undefined : isEntertainment(command) ? entertainmentReward(command, roles.length === 2)
+      const effects = !result ? undefined : isEntertainment(command) ? entertainmentReward(command, roles.length === 2,electronicsModel(before,role,"tv").bonus)
         : command.type === 'act' && command.actionId === 'bathTeeth' ? {hygiene:20}
         : command.type === 'act' && command.actionId === 'bathShower' ? {hygiene:75}
         : gains(before,result.state,role);

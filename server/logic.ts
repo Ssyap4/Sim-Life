@@ -1,3 +1,4 @@
+import { electronicsModel } from "../src/shared/electronics";
 import {
   ACTIONS, points, names, type ActionId, type CharacterId,
   type GameState, type Needs,
@@ -48,7 +49,7 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'fun', 14); change(state, role, 'mood', 6);
       message = name + ': отдых под музыку'; break;
     case 'sofaCall':
-      change(state, role, 'social', 22); change(state, role, 'mood', 4);
+      change(state, role, 'social', 22+electronicsModel(state,role,'phone').bonus); change(state, role, 'mood', 4);
       message = name + ': приятный разговор по телефону'; break;
     case 'bedSleep':
       change(state, role, 'energy', 37); change(state, role, 'hunger', -6);

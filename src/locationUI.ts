@@ -1,3 +1,4 @@
+import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
 import { qualityLabel } from './shared/foodQuality';
 import { JOBS, type JobId } from './shared/jobs';
 import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
@@ -143,6 +144,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     return row;
   }
 
+  let electronicsCart:ElectronicsId|undefined;
   function draw() {
     if (!state || !current || panel.hidden) return;
     const station = current;
@@ -164,13 +166,20 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park','clothing','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing','electronics','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
     } else if(station.action.kind==='warehouse'){
       const id=station.action.job,job=JOBS[id];
       options.append(element('strong','',job.name),element('small','','Смена '+job.hoursMin+'–'+job.hoursMax+' ч. · '+formatRub(job.payMin)+'–'+formatRub(job.payMax)),element('p','',job.description));
       options.append(button('Начать смену',()=>{if(startWarehouse?.(id))close();},!startWarehouse||!!place.activeShifts[role]||place.shiftDays[role]===place.clock.day||place.characters[role].energy<25||place.characters[role].hunger<20));
+    } else if(station.action.kind==='electronics-display'){
+      const category=station.action.category;const current=installedElectronics(place,role,category);
+      options.append(element('small','','Сейчас: '+ELECTRONICS[current].name),element('small','','Выбери модель, затем оплати на кассе. Новая техника заменяет старую без возврата денег.'));
+      for(const id of electronicsFor(category)){const m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button(current===id?'Установлено':electronicsCart===id?'В корзине ✓':'Выбрать',()=>{electronicsCart=electronicsCart===id?undefined:id;draw();},current===id));}
+    } else if(kind==='electronics-checkout'){
+      if(!electronicsCart||installedElectronics(place,role,ELECTRONICS[electronicsCart].kind)===electronicsCart)options.append(element('small','','Выбери модель на витрине.'));
+      else{const id=electronicsCart,m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button('Купить и заменить · '+formatRub(m.price),()=>send({type:'electronics_buy',model:id}),place.money<m.price),button('Отмена',()=>{electronicsCart=undefined;draw();}));}
     } else if(kind==='wardrobe'||kind==='clothes-rack'||kind==='fitting'||kind==='clothes-checkout'){
       const personal=(place.world.wardrobe??defaultWardrobe())[role];
       const catalog=PREVIEW_LOOKS[role];
@@ -446,7 +455,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
-        if(location==='clothing')clothesCart.clear();
+        if(location==='clothing')clothesCart.clear();if(location==='electronics')electronicsCart=undefined;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -461,6 +470,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; electronicsCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

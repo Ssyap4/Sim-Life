@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры и смартфоны'},
   clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
@@ -45,6 +46,8 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 
 type SiteAction =
   | {kind:'warehouse';job:'ozon'|'wildberries'}
+  | {kind:'electronics-display';category:import('./electronics').ElectronicsKind}
+  | {kind:'electronics-checkout'}
   | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
@@ -137,6 +140,14 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  electronics: [
+    site('tech-desktop','Компьютеры',-3.75,-2.65,2.35,.95,{kind:'electronics-display',category:'desktop'}),
+    site('tech-laptop','Ноутбуки',.0,-2.65,2.35,.95,{kind:'electronics-display',category:'laptop'}),
+    site('tech-tv','Телевизоры',3.75,-2.65,2.35,.95,{kind:'electronics-display',category:'tv'}),
+    site('tech-phone','Смартфоны',-3.75,.85,2.35,.95,{kind:'electronics-display',category:'phone'}),
+    site('tech-cash','Касса',3.65,1.45,1.75,.8,{kind:'electronics-checkout'}),
+    door('tech-exit','Выход на улицу','district',-2.75,4.60,true),
   ],
   clothing: [
     site('clothes-alina','Женская одежда',-3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
@@ -275,6 +286,7 @@ export interface WorldState {
   deliveries: Delivery[];
   courierDepartAt?:number;
   carDriver?:CharacterId;
+  electronics?: import('./electronics').ElectronicsState;
   wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
@@ -294,8 +306,9 @@ export type WorldCommand =
   | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
+  | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'industrial' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'industrial' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

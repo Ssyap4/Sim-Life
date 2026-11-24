@@ -23,6 +23,7 @@ import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
 import { brewInstantCoffee } from './coffee';
 import { applyAction } from './logic';
+import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
@@ -170,11 +171,11 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   return null;
 }
 
-export function entertainmentReward(command: Entertainment, together = false): NeedEffects {
+export function entertainmentReward(command: Entertainment, together = false, bonus=0): NeedEffects {
   if (command.type === 'read_book') return READING_REWARD;
-  if (command.type === 'free_tv') return { fun: 5 };
-  if (command.type === 'youtube') return { fun: 20, comfort: 10 };
-  return together ? { fun: 100, social: 100, comfort: 15 } : { fun: 100, comfort: 15 };
+  if (command.type === 'free_tv') return { fun: 5+bonus, ...(bonus?{mood:bonus}:{}) };
+  if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10, ...(bonus?{mood:bonus}:{}) };
+  return { fun: 100, ...(together?{social:100}:{}), comfort: 15, ...(bonus?{mood:bonus}:{}) };
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
@@ -218,7 +219,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         const reward=isLeisureAction(action)?{fun:LEISURE[action].fun,mood:LEISURE[action].mood,comfort:LEISURE[action].comfort,energy:LEISURE[action].energy}:action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
           action==='read_book'?{type:'read_book',book:command.book!}:
           action==='movie'?{type:'movie',genre:command.genre!}:
-          action==='youtube'?{type:'youtube'}:{type:'free_tv'});
+          action==='youtube'?{type:'youtube'}:{type:'free_tv'},false,electronicsModel(state,role,'tv').bonus);
         for(const [key,amount]of Object.entries(reward)){
           const field=key as keyof typeof reward & keyof typeof resident;
           const change=Number(amount);
@@ -269,7 +270,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book' || command.type === 'free_tv') {
     const next = structuredClone(state);
     const needs = next.characters[role];
-    for (const [key, amount] of Object.entries(entertainmentReward(command, together))) {
+    for (const [key, amount] of Object.entries(entertainmentReward(command, together,electronicsModel(state,role,"tv").bonus))) {
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }

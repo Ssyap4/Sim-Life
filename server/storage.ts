@@ -107,7 +107,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services','education','furniture','clothing'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education','furniture','clothing','electronics'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
@@ -118,7 +118,8 @@ const isValidState = (value: unknown): value is GameState => {
       if (!isJobId(shift.job)) return false;
       if(isHomeJob(shift.job)){
         if(HOME_JOBS[shift.job].owner!==role||!["desktop","laptop"].includes(String(shift.homeDevice))||role==="vlad"&&shift.homeDevice!=="desktop")return false;
-      }else if(shift.homeDevice!==undefined)return false;
+        if(shift.homeSpeed!==undefined&&(typeof shift.homeSpeed!=="number"||!(shift.homeDevice==="desktop"?[0,10,18,25]:[0,8,15,22]).includes(shift.homeSpeed)))return false;
+      }else if(shift.homeDevice!==undefined||shift.homeSpeed!==undefined)return false;
       if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
@@ -126,7 +127,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number(hours) <= JOBS[shift.job].hoursMax &&
         Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
         Number.isSafeInteger(shift.endsAt) &&
-        Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60 &&
+        Number(shift.endsAt) === Number(shift.startedAt) + Math.round(Number(hours)*60*(100-Number(shift.homeSpeed??0))/100) &&
         (shift.targetPay === undefined ||
           validShiftPay(shift.job,shift.targetPay));
     }))) return false;

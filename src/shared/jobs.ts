@@ -8,6 +8,7 @@ export interface ShiftAssignment {
   /** Rolled on the server at shift start; optional only for compatibility with older saves. */
   targetPay?: number;
   homeDevice?: import("./computer").ComputerDevice;
+  homeSpeed?: number; // Percent duration reduction locked when accepting a home order.
   quests?: import("./homeJobQuests").HomeQuestRun[];
 }
 

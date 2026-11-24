@@ -1,3 +1,4 @@
+import { electronicsModel } from "./shared/electronics";
 import { homeJobSkillLabel, homeJobSkillXP, homeJobSkillCap, HOME_JOB_SKILLS } from "./shared/homeJobSkills";
 import { SKILLS } from "./shared/education";
 import { pendingHomeQuest, homeQuestContent } from "./shared/homeJobQuests";
@@ -236,6 +237,8 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       }
     } else if(page==='vacancies' && homeOrders) {
       section.append(node('h2','Работа из дома'),node('p','Разовые проекты · 3–4 игровых часа · 2 000–3 500 ₽. За заказ появятся 3–4 мини-задания с бонусом за правильный ответ.'));
+      const hardware=electronicsModel(state,role,device());
+      section.append(node('small','Устройство: '+hardware.name+(hardware.speed?' · время заказа −'+hardware.speed+'%':' · обычная скорость')));
       const active=state.activeShifts[role];
       if(active?.homeDevice){
         const spec=JOBS[active.job],fraction=Math.max(0,Math.min(1,(now-active.startedAt)/(active.endsAt-active.startedAt)));
@@ -247,7 +250,7 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       if(role==='vlad'&&device()!=='desktop')section.append(block('Заказы Влада доступны на ПК'));
       else for(const key of homeJobsFor(role)){
         const job=JOBS[key],card=block(job.emoji+' '+job.name,job.description);
-        card.append(node('small','3–4 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),node('small','Практика: '+homeJobSkillLabel(key)+' · '+(homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)?'до '+homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)+'% уровня':'максимальный уровень')),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
+        card.append(node('small',(hardware.speed?(Math.round(180*(100-hardware.speed)/100))+'–'+Math.round(240*(100-hardware.speed)/100)+' игровых мин.':'3–4 игровых часа')+' · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),node('small','Практика: '+homeJobSkillLabel(key)+' · '+(homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)?'до '+homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)+'% уровня':'максимальный уровень')),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
       }
     } else if (page === 'vacancies' || !id) {
       section.append(node('h2',homeOrders?'Основная работа':'Вакансии'));

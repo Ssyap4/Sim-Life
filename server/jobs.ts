@@ -1,3 +1,4 @@
+import { electronicsModel } from '../src/shared/electronics';
 import { computerDevice } from "../src/shared/computer";
 import { serviceAvailable } from "../src/shared/services";
 import { isHomeJob, HOME_JOBS } from "../src/shared/jobs";
@@ -32,10 +33,12 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown,device?:
   const targetPay=randomInt(spec.payMin,spec.payMax+1);
   const state=structuredClone(source);
   const startedAt=totalGameMinutes(state.clock)+(home?Math.max(0,Math.ceil(travelMinutes)):0);
-  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60,targetPay,...(home&&computerDevice(device)?{homeDevice:device}:{})};
+  const homeSpeed=home&&computerDevice(device)?electronicsModel(source,role,device).speed:0;
+  const duration=Math.round(hours*60*(100-homeSpeed)/100);
+  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+duration,targetPay,...(home&&computerDevice(device)?{homeDevice:device,homeSpeed}:{})};
   if(isHomeJob(id)){
     const pool=HOME_QUESTS[id], indices=pool.map((_,i)=>i);
-    const duration=hours*60;
+    const segment=duration/hours;
     const quests:HomeQuestRun[]=[];
     // Include one genuine multiple-selection task and one alternate format in every order.
     const selected:number[]=[];
@@ -47,15 +50,15 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown,device?:
     for(let j=selected.length-1;j>0;j--){const k=randomInt(j+1);[selected[j],selected[k]]=[selected[k],selected[j]];}
     for(let i=0;i<selected.length;i++){
       const index=selected[i];
-      const at=startedAt+i*60+randomInt(10,21);
+      const at=startedAt+Math.floor(i*segment)+randomInt(7,Math.max(8,Math.floor(segment-34)));
       const order=pool[index].options.map((_,i)=>i);
       for(let j=order.length-1;j>0;j--){const k=randomInt(j+1);[order[j],order[k]]=[order[k],order[j]];}
-      quests.push({nonce:randomUUID(),index,at,until:Math.min(at+32,startedAt+duration-5),order});
+      quests.push({nonce:randomUUID(),index,at,until:Math.min(at+32,startedAt+Math.floor((i+1)*segment)-3),order});
     }
     state.activeShifts[role]!.quests=quests;
   }
   state.revision++;
-  return {ok:true,state,message:names[role]+(home?' принял(а) домашний заказ: ':' отправился(-ась) на подработку: ')+spec.name+' · '+hours+' ч. игрового времени'};
+  return {ok:true,state,message:names[role]+(home?' принял(а) домашний заказ: ':' отправился(-ась) на подработку: ')+spec.name+' · '+((duration/60).toFixed(1).replace('.',','))+' ч. игрового времени'};
 }
 
 /** A quest is optional; its nonce and single answer are validated by the server. */
@@ -113,7 +116,7 @@ function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,ear
   state.revision++;
   const workedHours=(worked/60).toFixed(1).replace('.',',');
   const message=names[role]+(early?' завершил(а) смену досрочно':' закончил(а) смену')+
-    ' «'+job.name+'» · '+workedHours+' из '+shift.hours+' ч.: +'+formatRub(payment)+
+    ' «'+job.name+'» · '+workedHours+' из '+((duration/60).toFixed(1).replace('.',','))+' ч.: +'+formatRub(payment)+
     (practice&&earned?' · '+SKILLS[practice.skill][1]+' +'+earned+' XP':'');
   protectNeeds(state);
   return {state,payment,message};
