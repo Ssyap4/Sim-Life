@@ -140,8 +140,8 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
     const need=low.find(n=>person[n]<=50&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
     if(need){
       alerted.set('need:'+need,minute);
-      const info=NEED_INFO[need],wish=wishesFor(state,role).find(w=>w.need===need);
-      showPop(info.emoji,name+' · '+info.label+' '+Math.round(person[need])+'%',wish?.title??info.hint,person[need],person[need]<=25);return;
+      const info=NEED_INFO[need],wish=wishesFor(state,role).find(w=>w.need===need),thought=thoughtFor(state,role);
+      showPop(info.emoji,name+' · '+info.label+' '+Math.round(person[need])+'%',thought.need===need?thought.text:wish?.title??info.hint,person[need],person[need]<=25);return;
     }
     if(minute-lastWishMinute<55)return;
     const wishes=wishesFor(state,role).filter(w=>w.command);

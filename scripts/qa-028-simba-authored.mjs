@@ -16,7 +16,8 @@ import {openServerFiles} from '../server/storage.ts';
 
 const out='/tmp/simlife-028-simba-authored';
 mkdirSync(out,{recursive:true});
-const cases=[
+const houses=process.env.SIMBA_HOUSES_029==='1';
+const cases=houses?['pet-house-cabin','pet-house-soft','pet-house-tower'].flatMap(sku=>['inside','jump'].map(entry=>({name:sku+'-'+entry,key:'placed:43:'+entry,minute:0,sku}))) : [
   {name:'sofa-rest-A',key:'starter:sofa',minute:0},
   {name:'sofa-rest-B',key:'starter:sofa',minute:1},
   {name:'bed-curl',key:'starter:bed',minute:0},
@@ -41,6 +42,7 @@ try{
         {id:41,sku:'chair-cloud',finish:'sage',x:2.45,z:2.1,rotation:1},
         {id:42,sku:'sofa-luna',finish:'oak',x:2.45,z:-.2,rotation:2},
       ];
+      if(scenario.sku){state.furnishing.nextId=44;state.furnishing.placed=[{id:43,sku:scenario.sku,finish:'oak',x:2.45,z:2.1,rotation:1}];}
       const perch=catPerchCandidates(state.furnishing).find(p=>p.key===scenario.key);
       if(!perch||!perch.catAnchor)throw Error('Missing physical furniture socket '+scenario.key);
       const now=gameMinutes(state.clock);
