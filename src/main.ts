@@ -1005,7 +1005,6 @@ const net = new LiveConnection({
   },
   onStorageEvent(role, station) {
     if (world.place !== 'home') return;
-    if (station) gameAudio.play('door','effects',.45,world.actors[role].root.position);
     if (station) world.openStorage(station, role);
     else world.closeStorage(role);
   },

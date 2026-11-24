@@ -341,7 +341,7 @@ export class Actor {
 
   snapFurnitureOffset():void { this.figureBase.copy(this.poseOffset); this.figure.position.copy(this.poseOffset); }
   isSleeping(): boolean { return this.pose==='sleep'; }
-  audioMotion(){return {activity:this.activity,pose:this.pose,walking:this.gaitBlend>.18};}
+  audioMotion(){return {activity:this.activity,pose:this.pose,walking:this.gaitBlend>.18,activityTime:this.activityTime,gesture:this.gesture,gestureTime:this.gestureTime,partner:this.partnerGesture?{motion:this.partnerGesture.motion,leads:this.partnerGesture.leads,time:this.partnerGesture.time}:null};}
   isWalking(): boolean { return this.waypoints.length > 0; }
   eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 

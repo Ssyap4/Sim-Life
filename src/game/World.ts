@@ -1,6 +1,6 @@
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
-import { gameAudio, activitySound } from './GameAudio';
+import { gameAudio, activitySound, speakingTurn } from './GameAudio';
 import { HOUSE as AUDIO_HOUSE } from '../shared/home';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
@@ -14,8 +14,8 @@ import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
-import { tennisPlayer,tennisBall } from '../shared/tableTennis';
-import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
+import { tennisPlayer,tennisBall,tennisStrikes } from '../shared/tableTennis';
+import { badmintonPlayer,badmintonShuttle,badmintonStrikes } from '../shared/badminton';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
 import { picnicPortions } from '../shared/picnic';
@@ -1996,8 +1996,8 @@ export class World {
         !this.walkTo(role,target,arrival)) actor.walkPath(path.map(p=>new THREE.Vector3(p.x,0,p.z)),arrival);
   }
 
-  openStorage(id: string, role = this.localRole): void { this.openDoors.set(role, id); }
-  closeStorage(role = this.localRole): void { this.openDoors.delete(role); }
+  openStorage(id: string, role = this.localRole): void {if(this.openDoors.get(role)!==id&&this.place==='home'&&this.actors[role].root.visible)gameAudio.play('door','effects',.38,this.actors[role].root.position);this.openDoors.set(role,id);}
+  closeStorage(role = this.localRole): void {if(this.openDoors.delete(role)&&this.place==='home'&&this.actors[role].root.visible)gameAudio.play('door','effects',.25,this.actors[role].root.position);}
 
   previewComputer(device:ComputerDevice,scene:ComputerScene|null):void {
     this.computerScreens.preview(device,scene);
@@ -2581,8 +2581,22 @@ export class World {
       const m=actor.audioMotion(),surface=this.place==='park'||(this.place==='home'&&outside(p))?'stepGrass':this.place==='home'?'stepWood':'stepTile';
       gameAudio.step(role,p,m.walking,surface);
       const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
-      const cue=mediaTask&&m.activity==='read'?undefined:activitySound(m.activity,m.pose);
+      const cue=mediaTask&&m.activity==='read'||m.activity==='eat'||m.activity==='toilet'?undefined:activitySound(m.activity,m.pose);
       if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,.40,p);}
+      if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.27,p);}
+      if(!m.walking&&m.activity==='toilet')gameAudio.cue(role+'-flush',m.activityTime,[{at:2.5,sound:'flush'}],'effects',.28,p);
+      const pair=m.partner;
+      if(pair&&!m.walking){
+        const voice=role==='vlad'?'voiceVlad':'voiceAlina',laugh=role==='vlad'?'laughVlad':'laughAlina';
+        if(['talk','listen','explain'].includes(pair.motion)&&speakingTurn(pair.leads,pair.time))gameAudio.beat(role+'-speech',voice,'effects',1.9,.30,p);
+        if(pair.motion==='laugh')gameAudio.beat(role+'-laugh',laugh,'effects',2.9,.36,p);
+        if(pair.leads&&pair.motion==='highFive')gameAudio.cue(role+'-contact',pair.time,[{at:.78,sound:'clap'}],'effects',.60,p);
+        if(pair.leads&&['kiss','cheek'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.8,sound:'kiss'}],'effects',.30,p);
+        if(pair.leads&&['hug','closeHug','cuddle'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.65,sound:'cloth'}],'effects',.25,p);
+        if(pair.leads&&['dance','slowDance'].includes(pair.motion))gameAudio.loop('dance','music','music',.30,p);
+      }
+      if(role==='vlad'&&m.gesture==='highFive')gameAudio.cue(role+'-gesture',m.gestureTime,[{at:.28,sound:'clap'}],'effects',.60,p);
+      if(actor.isParkSwing())gameAudio.beat(role+'-swing','swing','effects',1.85,.19,p);
     }
     if(this.place==='home'){
       const tv=this.homeEffects.audioProgram();if(tv)gameAudio.media('tv','tv',tv,this.homeEffects.audioPosition());
@@ -2609,14 +2623,14 @@ export class World {
     }
     if(this.bathWashing&&this.place==='home')gameAudio.loop('dogBath','water','effects',.36,this.pets.verdell.root.position);
     if(this.place==='park'&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock)){const s=stationById('park','park-fire');if(s)gameAudio.loop('campfire','fire','ambient',.44,s.center);}
-    if(this.badmintonStarted!==null&&this.place==='park'){const s=stationById('park','park-badminton');if(s)gameAudio.beat('badminton','hit','effects',.85,.40,s.center);}
-    if(this.tennisStarted!==null&&this.place==='home')gameAudio.beat('tennis','hit','effects',.65,.36,listener);
+    if(this.badmintonStarted!==null&&this.place==='park'&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='parkBadminton')){const s=stationById('park','park-badminton');if(s)gameAudio.cue('badminton',this.visualSeconds-this.badmintonStarted,badmintonStrikes(this.homeTasks.get('vlad')?.pair?.badmintonWinner).map(h=>({at:h.time,sound:'hit'})),'effects',.45,s.center);}
+    if(this.tennisStarted!==null&&this.place==='home'&&[...this.pairStages.values()].some(p=>p.playing)){const h=[...this.homeTasks.values()].find(h=>h.pair?.item==='pingPong'),model=h?.furnitureId!==undefined?this.furnishingModels.get(h.furnitureId):undefined;if(model){const hits=tennisStrikes(h?.pair?.tennisWinner),events=hits.flatMap((hit,i)=>i<hits.length-1?[{at:hit.time,sound:'hit' as const},{at:hit.time+2.4*(.70+(i%3)*.035),sound:'bounce' as const}]:[{at:hit.time,sound:'hit' as const}]);gameAudio.cue('tennis',this.visualSeconds-this.tennisStarted,events,'effects',.40,model.getWorldPosition(new THREE.Vector3()));}}
     gameAudio.endFrame();
   }
 
   private animate = (): void => {
     requestAnimationFrame(this.animate);
-    if (this.graphicsLost) return;
+    if (this.graphicsLost) {gameAudio.clearWorld();return;}
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.

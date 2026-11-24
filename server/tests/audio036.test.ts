@@ -9,3 +9,7 @@ test('continuous and intermittent actions have distinct cues',()=>{assert.deepEq
 import {mediaSound,MEDIA_DEVICE_GAIN,petPlaybackRate} from '../../src/game/GameAudio';
 test('media follows program genre and device output',()=>{assert.equal(mediaSound('horror'),'mediaSuspense');assert.equal(mediaSound('concert'),'music');assert.notEqual(mediaSound('comedy'),mediaSound('racing'));assert.ok(MEDIA_DEVICE_GAIN.laptop<MEDIA_DEVICE_GAIN.desktop);assert.ok(MEDIA_DEVICE_GAIN.stereo>MEDIA_DEVICE_GAIN.smartSpeaker);});
 test('pet recordings use short high-pitched variation',()=>{assert.ok(petPlaybackRate('meow',0)>petPlaybackRate('bark',0));assert.ok(petPlaybackRate('meow',1)>petPlaybackRate('meow',0));});
+
+import {crossedCue,speakingTurn} from '../../src/game/GameAudio';
+test('animation cue fires once at the contact, never after a long jump',()=>{assert.equal(crossedCue(.95,1.03,1),true);assert.equal(crossedCue(1.03,1.12,1),false);assert.equal(crossedCue(.1,4,1),false);});
+test('conversation windows alternate without concurrent speaking starts',()=>{for(let t=0;t<24;t+=.05)assert.equal(speakingTurn(true,t)&&speakingTurn(false,t),false);assert.equal(speakingTurn(true,.7),true);assert.equal(speakingTurn(false,4),true);});
