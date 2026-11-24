@@ -1,6 +1,6 @@
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
-import { gameAudio, activitySound, speakingTurn } from './GameAudio';
+import { gameAudio, activitySound } from './GameAudio';
 import { HOUSE as AUDIO_HOUSE } from '../shared/home';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
@@ -2581,19 +2581,20 @@ export class World {
       const m=actor.audioMotion(),surface=this.place==='park'||(this.place==='home'&&outside(p))?'stepGrass':this.place==='home'?'stepWood':'stepTile';
       gameAudio.step(role,p,m.walking,surface);
       const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
-      const cue=mediaTask&&m.activity==='read'||m.activity==='eat'||m.activity==='toilet'?undefined:activitySound(m.activity,m.pose);
+      const cue=mediaTask&&m.activity==='read'||m.activity==='eat'||m.activity==='toilet'||m.activity==='music'?undefined:activitySound(m.activity,m.pose);
       if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,.40,p);}
+      if(!m.walking&&m.activity==='music')gameAudio.loop(role+'-act','scoreMorning','music',.34,p);
       if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.27,p);}
       if(!m.walking&&m.activity==='toilet')gameAudio.cue(role+'-flush',m.activityTime,[{at:2.5,sound:'flush'}],'effects',.28,p);
       const pair=m.partner;
       if(pair&&!m.walking){
         const voice=role==='vlad'?'voiceVlad':'voiceAlina',laugh=role==='vlad'?'laughVlad':'laughAlina';
-        if(['talk','listen','explain'].includes(pair.motion)&&speakingTurn(pair.leads,pair.time))gameAudio.beat(role+'-speech',voice,'effects',1.9,.30,p);
-        if(pair.motion==='laugh')gameAudio.beat(role+'-laugh',laugh,'effects',2.9,.36,p);
+        if(['talk','listen','explain'].includes(pair.motion))gameAudio.cue(role+'-speech',pair.time,[{at:pair.leads?.45:3.75,sound:voice}],'voices',.30,p);
+        if(pair.motion==='laugh')gameAudio.beat(role+'-laugh',laugh,'voices',2.9,.36,p);
         if(pair.leads&&pair.motion==='highFive')gameAudio.cue(role+'-contact',pair.time,[{at:.78,sound:'clap'}],'effects',.60,p);
         if(pair.leads&&['kiss','cheek'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.8,sound:'kiss'}],'effects',.30,p);
         if(pair.leads&&['hug','closeHug','cuddle'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.65,sound:'cloth'}],'effects',.25,p);
-        if(pair.leads&&['dance','slowDance'].includes(pair.motion))gameAudio.loop('dance','music','music',.30,p);
+        if(pair.leads&&['dance','slowDance'].includes(pair.motion))gameAudio.loop('dance',pair.motion==='slowDance'?'scoreEvening':'scoreDance','music',.38,p);
       }
       if(role==='vlad'&&m.gesture==='highFive')gameAudio.cue(role+'-gesture',m.gestureTime,[{at:.28,sound:'clap'}],'effects',.60,p);
       if(actor.isParkSwing())gameAudio.beat(role+'-swing','swing','effects',1.85,.19,p);
