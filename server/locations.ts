@@ -32,7 +32,7 @@ export function validWorld(value: unknown): value is WorldState {
   if (!value || typeof value !== 'object') return false;
   const w = value as Partial<WorldState>;
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
+  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3 || w.districtLayout === 4) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
     (isPlace(w.places![role]) || (w.districtLayout===undefined || w.districtLayout===1) && String(w.places![role])==='street') && count(w.sequence![role]) && count(w.bags![role])) &&
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
@@ -60,7 +60,7 @@ export function setDogParkPosition(state: GameState): void {
   const dog = state.pets.verdell;
   if (!walker) { delete dog.parkPosition; return; }
   const { x, z } = state.characters[walker];
-  dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles('park'), WORLD_FLOOR) ?? { x, z };
+  dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles(state.world.places[walker]), floorFor(state.world.places[walker])) ?? { x, z };
 }
 
 export const worldMessages = new Set([
@@ -80,12 +80,16 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if (command.type === 'travel') {
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
+    if((place==='home'&&command.place==='district'||place==='district'&&command.place==='home')&&command.via===undefined)
+      return fail('Сначала подойди к калитке');
+    if(command.via!==undefined && ((place==='home'&&command.place!=='district')||(command.place==='home'&&place!=='district')))
+      return fail('Путь домой проходит через калитку района');
     if (command.via !== undefined) {
       const door = stationById(place, command.via);
       if (door?.action.kind !== 'door' || door.action.destination !== command.place || !at(source, role, door))
         return fail('Сначала подойди к выходу');
     }
-    if (command.dog === true && (place !== 'home' || command.place !== 'park' || source.world.dogWalker))
+    if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
@@ -93,7 +97,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
     }
-    const spawnPoint = command.via !== undefined || command.place === 'home'
+    const spawnPoint = command.via !== undefined || (command.place === 'home'||command.place==='district')
       ? doorwayArrival(command.place,place,role) : spawn(command.place, role);
     const other = neighborAt(command.place);
     const arrival = other
@@ -101,7 +105,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       : spawnPoint;
     if (!arrival) return fail('Вход занят вторым игроком');
     Object.assign(next.characters[role], arrival, { pose: 'idle' });
-    if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
+    if (next.world.dogWalker === role && command.place !== 'park' && command.place!=='district') next.world.dogWalker = null;
+    if(command.place==='home'){next.world.bags[role]=0;next.world.tableBags=0;}
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
     return done(next, PLACES[command.place].name);
   }
@@ -118,7 +123,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const floor = floorFor(place);
     const other = neighborAt(place);
     const body = other && Math.hypot(other.x-requested.x,other.z-requested.z)<1.05 ? other
-      : place === 'home' && !inHomeGrounds(requested) ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
+      : place === 'district' ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
         .filter(person=>person.visible && person.opacity>.35).map(districtPoint)
         .find(person=>Math.hypot(person.x-requested.x,person.z-requested.z)<.82)
         : undefined;

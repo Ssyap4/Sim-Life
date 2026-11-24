@@ -1,5 +1,5 @@
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
-import { districtStation, inHomeGrounds } from './shared/district';
+import { districtStation } from './shared/district';
 import { CAREERS, isCareerPlace, type CareerId } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
@@ -52,11 +52,11 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    const target = location==='home'
-      ? stationById('home',destination==='home'?'home-doorstep':districtStation(destination))
-      : STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='home');
+    const target=location==='home'?stationById('home','home-gate'):
+      location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
+      STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
     if(!target || !send({type:'approach',place:location,station:target.id}))return false;
-    entrance={station:target.id,dog,onward:location!=='home'&&destination!=='home'?destination:undefined};
+    entrance={station:target.id,dog,onward:location!=='district'&&destination!=='district'?destination:undefined};
     close();closeMap();
     return true;
   }
@@ -76,7 +76,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
       if (isCareerPlace(id)) continue;
-      const here=location===id&&(id!=='home'||inHomeGrounds(state.characters[role]));
+      const here=location===id;
       const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
@@ -84,7 +84,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       grid.append(entry);
     }
     map.append(grid);
-    if (location === 'home') {
+    if (location === 'district') {
       map.append(button('🏘️ Осмотреть соседей',()=>{
         closeMap();getWorld().focusNeighborhood();
       }));
@@ -287,7 +287,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     visit(station: Station) {
       if (station.action.kind === 'waypoint') { entrance=null; return; }
       if (station.action.kind === 'door') {
-        const dog=entrance?.station===station.id&&entrance.dog&&station.action.destination==='park';
+        const dog=entrance?.station===station.id&&entrance.dog&&station.action.destination==='district';
         travel(station.action.destination, station.id,dog);
         return;
       }
@@ -300,13 +300,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     },
     refresh(next: GameState, nextRole: CharacterId) {
       if (location !== next.world.places[nextRole] || role !== nextRole) {
-        const onward=role===nextRole&&next.world.places[nextRole]==='home'?entrance?.onward:undefined;
+        const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
         close(); closeMap();
-        if(onward)queueMicrotask(()=>go(onward));
+        if(onward&&onward!==location)queueMicrotask(()=>go(onward));
       }
       if (pending !== null && next.world.sequence[role] > pending) {
         if (current?.action.kind === 'checkout') { cart.clear(); showCart(); }

@@ -192,11 +192,17 @@ const previousSeats = [
 ] as const;
 
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
-  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | undefined): CharacterState {
+  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | 4 | undefined): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
   if (String(place)==='street' && (districtLayout===undefined || districtLayout===1)) {
     Object.assign(resident,restoreDistrictPosition(resident,role,districtLayout),{pose:'idle'});
-    place='home';
+    return resident;
+  }
+  if(place==='home'&&(districtLayout===2||districtLayout===3)&&!inHomeGrounds(resident)){
+    const target=districtLayout===2?DISTRICT_SITES.map(site=>districtArrival(site.place,role))
+      .sort((a,b)=>Math.hypot(a.x-resident.x,a.z-resident.z)-Math.hypot(b.x-resident.x,b.z-resident.z))[0]:resident;
+    const point=nearestClearPoint(target,placeObstacles('district'),floorFor('district'))??spawn('district',role);
+    return {...resident,...point,pose:'idle'};
   }
   if (place === 'market') {
     // Preserve saved positions except where a newly added solid occupies them.
@@ -280,17 +286,17 @@ export function openServerFiles(dataDir: string): ServerFiles {
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const districtLayout = data.world?.districtLayout;
-      const migratedDistrict = districtLayout!==3;
+      const migratedDistrict = districtLayout!==4;
       const bagAtHouse = (role:CharacterId) => data.world?.places[role]==='home' &&
         ((districtLayout===undefined || districtLayout===1) || inHomeGrounds(data.characters[role]));
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
-          ...data.world, districtLayout: 3,
+          ...data.world, districtLayout: 4,
           places: {
-            vlad: String(data.world.places.vlad)==='street'?'home':data.world.places.vlad,
-            alina: String(data.world.places.alina)==='street'?'home':data.world.places.alina,
+            vlad: String(data.world.places.vlad)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.vlad==='home'&&!inHomeGrounds(data.characters.vlad)?'district':data.world.places.vlad,
+            alina: String(data.world.places.alina)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.alina==='home'&&!inHomeGrounds(data.characters.alina)?'district':data.world.places.alina,
           },
           // Old staged bags had already been credited to pantry / ready food.
           // Remove them without ever granting the same purchase twice.
@@ -341,7 +347,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(migratedDistrict){
-        const backup=join(dataDir,districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
+        const backup=join(dataDir,districtLayout===3?'household.pre-separated-district.json':districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(data.furnishing?.soldFixtures===undefined){

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRILL_RECIPES, type RecipeId } from '../shared/food';
-import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, furniturePosition } from '../shared/home';
+import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, softCube, type XYZ } from './ArtKit';
 
 import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
@@ -196,8 +196,8 @@ function fence(yard: THREE.Group): void {
   }
   shape(yard, [1.30, .025, .43], [gate.x, .016, gate.z - .14], C.oat);
   for (const x of [-5.98, 5.98]) {
-    shape(yard, [.28, .22, 6.81], [x, .095, 8.62], edging, cube);
-    shape(yard, [.115, .37, 6.70], [x, .38, 8.62], C.oak, cube, false, 'wood');
+    shape(yard, [.28, .22, 4.93], [x, .095, 7.68], edging, cube);
+    shape(yard, [.115, .37, 4.89], [x, .38, 7.68], C.oak, cube, false, 'wood');
     for (const z of [5.42, 7.55, 9.73]) {
       shape(yard, [.19, .64, .20], [x, .32, z], C.walnut, softCube, false, 'wood');
     }
@@ -225,6 +225,17 @@ function garden(yard: THREE.Group): void {
 
 export function buildYard(scene: THREE.Scene) {
   const yard = new THREE.Group();
+  const plot=HOME_FLOOR,w=plot.maxX-plot.minX+.5,d=plot.maxZ-plot.minZ+.9;
+  const cx=(plot.maxX+plot.minX)/2,cz=(plot.maxZ+plot.minZ)/2;
+  shape(yard,[w,.26,d],[cx,-.39,cz],0x94775e,cube);
+  shape(yard,[w,.10,d],[cx,-.079,cz],0x82965d,cube);
+  for(const x of [plot.minX-.24,plot.maxX+.24]){
+    shape(yard,[.14,.48,d],[x,.24,cz],C.oak,cube);
+  }
+  shape(yard,[w,.48,.14],[cx,.24,plot.minZ-.24],C.oak,cube);
+  for(const [a,b] of [[plot.minX-.24,-6],[6,plot.maxX+.24]]){
+    shape(yard,[b-a,.48,.14],[(a+b)/2,.24,HOME_YARD.gate.z],C.oak,cube);
+  }
   shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
   shape(yard, [12.25, .11, 6.92], [0, -.071, 8.70], 0x69764f, softCube);
   // Leave a depth gap above the deck for the wider home's overview camera.

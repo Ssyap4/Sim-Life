@@ -74,10 +74,10 @@ function settle(state: GameState, role: CharacterId, now: number, early: boolean
   r.shift = null;
   if (shift.mode === 'office') {
     const partnerRole = role === 'vlad' ? 'alina' : 'vlad';
-    const partner = state.world.places[partnerRole] === 'home' ? state.characters[partnerRole] : undefined;
+    const partner = state.world.places[partnerRole] === 'district' ? state.characters[partnerRole] : undefined;
     const entry = districtArrival(CAREERS[shift.career].place,role);
-    Object.assign(character, partner ? unoccupiedDestination(entry, partner, placeObstacles('home'), floorFor('home')) ?? entry : entry);
-    state.world.places[role] = 'home';
+    Object.assign(character, partner ? unoccupiedDestination(entry, partner, placeObstacles('district'), floorFor('district')) ?? entry : entry);
+    state.world.places[role] = 'district';
   }
   character.pose = 'idle';
   return explanation;
@@ -289,9 +289,9 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     if (shift || occupied || state.activeShifts[role]) return fail('Заверши текущее действие или смену');
     const window = shiftWindow(id,dayOf(now));
     if (command.via !== undefined) {
-      const entrance = stationById('home',command.via);
+      const entrance = stationById('district',command.via);
       const character = state.characters[role];
-      if (window.mode !== 'office' || state.world.places[role] !== 'home' ||
+      if (window.mode !== 'office' || state.world.places[role] !== 'district' ||
           command.via !== districtStation(spec.place) || !entrance ||
           Math.hypot(character.x-entrance.approach.x,character.z-entrance.approach.z)>1.12)
         return fail('На смену можно войти через вход своего рабочего места');
@@ -413,7 +413,7 @@ export function recoverCareers(state: GameState): boolean {
       actor.shift = null; changed = true;
     }
     if (isCareerPlace(place) && !actor.shift) {
-      state.world.places[role] = 'home';
+      state.world.places[role] = 'district';
       Object.assign(state.characters[role],districtArrival(place,role),{pose:'idle'}); changed = true;
     }
   }

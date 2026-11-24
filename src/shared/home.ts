@@ -15,7 +15,7 @@ export const HOUSE_WING = {
   crossWalls: [-3.60, .88] as const,
   crossDoor: { x: 12.62, width: 1.86 },
 };
-export const HOME_FLOOR = { minX: -9.18, maxX: 15.34, minZ: -7.28, maxZ: 11.70 };
+export const HOME_FLOOR = { minX: -13.5, maxX: 20.0, minZ: -11.5, maxZ: 11.70 };
 
 const WALL_THICKNESS = .19;
 const ACTOR_CLEARANCE = .26;
@@ -184,9 +184,9 @@ export const HOME_STRUCTURE_OBSTACLES = [
     minX: wall.minX - ACTOR_CLEARANCE, maxX: wall.maxX + ACTOR_CLEARANCE,
     minZ: wall.minZ - ACTOR_CLEARANCE, maxZ: wall.maxZ + ACTOR_CLEARANCE,
   })),
-  // The wider house has wings on either side of the existing, narrower courtyard.
-  { minX: HOME_FLOOR.minX, maxX: -5.62, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
-  { minX: 5.62, maxX: HOME_FLOOR.maxX, minZ: HOUSE_ENTRY.z, maxZ: HOME_FLOOR.maxZ },
+  // Keep the central courtyard fence, but open side reserve lawns from the front.
+  { minX:-6.22,maxX:-5.68,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
+  { minX:5.68,maxX:6.22,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
   homeFootprint(HOME_YARD.parking, -.99, .99, -2.79, -2.25),
   homeFootprint(HOME_YARD.planter, -.45, .50, -2.11, 2.11),
 ];

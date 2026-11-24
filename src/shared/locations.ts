@@ -1,13 +1,14 @@
 import { CASHIER_OBSTACLE } from './locationLayout';
-import { HOME_WORLD_FLOOR, DISTRICT_BENCH, HOME_WORLD_OBSTACLES, DISTRICT_SITES, districtArrival, districtPoint, districtStation, sitePoint } from './district';
+import { DISTRICT_WORLD_FLOOR, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GATE_INSIDE, HOME_GATE_APPROACH, DISTRICT_SITES, districtArrival, districtPoint, districtStation, sitePoint } from './district';
 import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
 import type { BasketLine, MarketCategory } from './market';
-import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES } from './home';
+import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES, HOME_FLOOR, HOME_YARD } from './home';
 
 export const PLACES = {
-  home: { name: 'Дом', icon: '⌂', detail: 'Дом, семейный двор и район' },
+  home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
+  district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
@@ -20,12 +21,13 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_WORLD_FLOOR : WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
   if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
+  if (place === 'district') return districtArrival('home',role);
   if (place === 'education') return { x: role === 'vlad' ? .47 : 1.38, z: 3.94 };
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
@@ -90,6 +92,7 @@ export const WORK_VISITORS: Partial<Record<CareerId, Point>> = {
 };
 
 export const HOME_STATIONS: readonly Station[] = [
+  site('home-gate','Выйти на улицу',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'district'},{blocks:false,approach:HOME_GATE_INSIDE}),
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
   site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
@@ -99,6 +102,7 @@ export const HOME_STATIONS: readonly Station[] = [
 ];
 
 export const DISTRICT_STATIONS: readonly Station[] = [
+  site('district-gate','Вернуться домой',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'home'},{blocks:false,approach:HOME_GATE_APPROACH}),
   ...DISTRICT_SITES.map(building => {
     const center = districtPoint(sitePoint(building, 0, building.d / 2 + .08));
     const career = (Object.keys(CAREERS) as CareerId[]).find(id => CAREERS[id].place === building.place);
@@ -110,7 +114,8 @@ export const DISTRICT_STATIONS: readonly Station[] = [
 ];
 
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
-  home: [...HOME_STATIONS,...DISTRICT_STATIONS],
+  home: HOME_STATIONS,
+  district:DISTRICT_STATIONS,
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
     shelf('bakery', 'Хлеб и выпечка', 0, -3.63, ['bakery']),
@@ -121,27 +126,27 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     shelf('ready', 'Готовая еда', -4.37, 1.79, ['takeout']),
     shelf('pet-shelf', 'Для питомцев', 4.39, 1.79, ['pets']),
     site('checkout', 'Касса', 0, 1.83, 1.50, 0.72, { kind: 'checkout' }),
-    door('market-exit', 'Выход на улицу', 'home', -2.75, 4.60, true),
+    door('market-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   cafe: [
     site('terminal', 'Терминал заказов', -3.71, -2.51, 1.25, 0.84, { kind: 'terminal' }),
     site('pickup', 'Выдача заказов', 3.44, -2.51, 1.65, 0.84, { kind: 'pickup' }),
     site('cafe-left', 'Столик у окна', -2.93, 0.63, 1.76, 1.42, { kind: 'dine' }),
     site('cafe-right', 'Столик у растений', 2.93, 0.63, 1.76, 1.42, { kind: 'dine' }),
-    door('cafe-exit', 'Выход на улицу', 'home', -2.75, 4.60, true),
+    door('cafe-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   park: [
     site('park-bench', 'Скамья под соснами', 3.69, -1.23, 1.69, 0.65, { kind: 'rest' }),
     site('park-path', 'Прогулочная дорожка', -3.78, -0.55, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
     site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false }),
-    door('park-exit', 'Выход на улицу', 'home', -2.75, 4.60, true),
+    door('park-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   education: [
     site('reception', 'Ресепшен', -3.65, 1.45, 2.00, .76, { kind: 'education', room: 'reception' }),
     site('classroom', 'Аудитория', -3.36, -2.25, 2.72, .98, { kind: 'education', room: 'classroom' }),
     site('lab', 'Компьютерный класс', 0, -2.25, 2.54, .98, { kind: 'education', room: 'lab' }),
     site('workshop', 'Практическая зона', 3.53, -2.25, 2.62, .98, { kind: 'education', room: 'workshop' }),
-    door('education-exit', 'На площадь', 'home', -2.55, 4.60, true),
+    door('education-exit', 'На площадь', 'district', -2.55, 4.60, true),
   ],
   'work-it': workStations('it'),
   'work-detail': workStations('detail'),
@@ -149,9 +154,10 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   'work-clinic': workStations('clinic'),
 };
 export function doorwayArrival(destination:PlaceId, from:PlaceId, role:CharacterId):Point {
-  if(destination === 'home') return districtArrival(from,role);
-  if(from !== 'home') return spawn(destination,role);
-  const exit=STATIONS[destination].find(station=>station.action.kind==='door'&&station.action.destination==='home');
+  if(destination==='home')return {x:HOME_GATE_INSIDE.x+(role==='vlad'?-.27:.27),z:HOME_GATE_INSIDE.z};
+  if(destination==='district')return districtArrival(from,role);
+  if(from !== 'district' && from!=='home') return spawn(destination,role);
+  const exit=STATIONS[destination].find(station=>station.action.kind==='door'&&station.action.destination==='district');
   return exit ? {x:exit.approach.x+(role==='vlad'?-.44:.44),z:exit.approach.z-.34} : spawn(destination,role);
 }
 export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find(station => station.id === id);
@@ -176,7 +182,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
-  if (place === 'home') obstacles.push(...HOME_WORLD_OBSTACLES);
+  if(place==='district')obstacles.push(...DISTRICT_WORLD_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
   for (const { x,z,w,d } of WORK_DECOR[place] ?? []) obstacles.push({
     minX:x-w/2-.26,maxX:x+w/2+.26,minZ:z-d/2-.26,maxZ:z+d/2+.26,
@@ -213,7 +219,7 @@ export const CAFE_MINUTES = 2;
 export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number }
 export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean }
 export interface WorldState {
-  districtLayout?: 1 | 2 | 3;
+  districtLayout?: 1 | 2 | 3 | 4;
   places: Record<CharacterId, PlaceId>;
   sequence: Record<CharacterId, number>;
   bags: Record<CharacterId, number>;
@@ -223,7 +229,7 @@ export interface WorldState {
   dogWalker: CharacterId | null;
 }
 export function initialWorld(): WorldState {
-  return { districtLayout: 3, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
+  return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
 export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';
