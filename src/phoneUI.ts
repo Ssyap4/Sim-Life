@@ -27,9 +27,13 @@ import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics
 import {vacuumItem,vacuumState,type VacuumCommand} from './shared/vacuum';
 import {VACUUM_MODELS,type VacuumSku} from './shared/vacuumCatalog';
 import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './shared/homeDust';
-type App = 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
+import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
+import {roomAt} from './shared/homeDust';
+type App = 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  speakers:['🔊','Умные колонки'],
   home:['🏠','Чистота дома'],
   feed:['📲','Лента'],
   audio:['🔊','Звук'],
@@ -50,7 +54,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -74,6 +78,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
+  let speakerKey='';
+  const alarmTimes=new Map<number,string>();
+  const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
 
   function block(title: string, description: string) {
@@ -95,6 +102,35 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='speakers'){
+      const items=speakerItems(state),key=JSON.stringify([items,state.speakers,state.world.places[role]]);
+      if(key!==speakerKey){
+        speakerKey=key;const scroll=info.scrollTop;
+        const intro=block('Умные колонки',items.length?'Музыка звучит в доме для обоих игроков.':'Купи колонку в «Импульсе» и размести её из склада мебели.');
+        const cards=items.map(item=>{
+          const m=SPEAKER_MODELS[item.sku as SpeakerSku],d=speakerDevice(state,item.id),where=roomAt(item)?.label??'Дом';
+          const card=block(m.name+' · '+where,m.assistant+' · '+(d.track?trackInfo(d.track).title:'Музыка выключена'));card.dataset.speakerId=String(item.id);card.classList.add('speaker-card');
+          const disabled=state.world.places[role]!=='home';
+          const send=(action:SpeakerAction,extra:Partial<SpeakerCommand>={})=>speakerControl?.({type:'speaker_control',id:item.id,action,...extra});
+          const button=(title:string,action:SpeakerAction,extra:Partial<SpeakerCommand>={})=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.disabled=disabled;b.onclick=()=>send(action,extra);return b;};
+          const genres=document.createElement('select');genres.setAttribute('aria-label','Жанр музыки');genres.disabled=disabled;
+          for(const [id,label] of Object.entries(MUSIC_GENRES)){const o=document.createElement('option');o.value=id;o.textContent=label;genres.append(o);}
+          if(d.track)genres.value=trackInfo(d.track).genre;
+          const play=button('Включить музыку','play');play.onclick=()=>send('play',{genre:genres.value as MusicGenre});
+          card.append(genres,play,button('Случайный трек','random'),button('Следующий','next'),button('Стоп','stop'));
+          const vol=document.createElement('input'),volLabel=document.createElement('label');vol.type='range';vol.min='0';vol.max='100';vol.step='5';vol.value=String(d.volume);vol.disabled=disabled;vol.setAttribute('aria-label','Громкость колонки');
+          volLabel.textContent='Громкость '+d.volume+'%';vol.oninput=()=>{volLabel.textContent='Громкость '+vol.value+'%';};vol.onchange=()=>send('volume',{volume:Number(vol.value)});card.append(volLabel,vol);
+          const commands=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Команды: '+m.assistant;commands.append(summary);commands.open=expandedSpeakers.get(item.id)??false;commands.ontoggle=()=>expandedSpeakers.set(item.id,commands.open);
+          for(const [action,title] of [['weather','Какая погода?'],['time','Который час?'],['joke','Расскажи анекдот'],['morning','Доброе утро'],['night','Спокойной ночи'],['vacuum','Запусти пылесос']] as const)commands.append(button(title,action));
+          const alarm=document.createElement('input');alarm.type='time';alarm.value=alarmTimes.get(item.id)??'08:00';alarm.disabled=disabled;alarm.setAttribute('aria-label','Время будильника');alarm.onchange=()=>alarmTimes.set(item.id,alarm.value);
+          const set=button('Поставить будильник','alarm');set.onclick=()=>{const [h,min]=alarm.value.split(':').map(Number);send('alarm',{minute:h*60+min});};commands.append(alarm,set);
+          if(d.alarmAt!==undefined){const line=document.createElement('p');line.textContent='Будильник: '+clockLabel(clockAt(d.alarmAt));commands.append(line,button('Отменить будильник','cancelAlarm'));}
+          card.append(commands);
+          if(d.reply){const answer=document.createElement('p');answer.textContent=m.assistant+': '+d.reply.text;card.append(answer);}
+          return card;
+        });info.replaceChildren(intro,...cards);info.scrollTop=scroll;
+      }
+    }
     if(app==='home'){
       const dust=state.homeDust??initialDust(),scroll=info.scrollTop;
       const avg=Math.round(DUST_ROOMS.reduce((sum,r)=>sum+cleanliness(dust[r.id]),0)/DUST_ROOMS.length);
@@ -288,13 +324,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;
+    app=next;speakerKey='';
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){
@@ -333,6 +369,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   });
   for(const section of [delivery,jobs]) observer.observe(section,{attributes:true,attributeFilter:['hidden']});
   return { open(next: App | null = null) {show(next);closeButton.focus();},
+    openSpeaker(id:number){show('speakers');info.querySelector('[data-speaker-id="'+id+'"]')?.scrollIntoView({block:'start'});},
     openAutonomyHistory(){
       show('autonomy');
       info.querySelector<HTMLElement>('[data-thought-history-anchor]')?.scrollIntoView({block:'start'});

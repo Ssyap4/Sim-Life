@@ -1,12 +1,13 @@
 // Procedural sounds plus local CC0 recordings; no third-party requests at runtime.
+import {isSpeakerTrack,type SpeakerTrackId} from '../shared/speakerCatalog';
 export type AudioChannel = 'master'|'ambient'|'effects'|'pets'|'ui'|'music'|'voices';
 export const AUDIO_DEFAULTS:Record<AudioChannel,number>={master:.75,ambient:.42,effects:.65,pets:.65,ui:.38,music:.25,voices:.55};
 export const AUDIO_LABELS:Record<AudioChannel,string>={master:'Общая громкость',ambient:'Окружение',effects:'Действия и предметы',pets:'Питомцы',ui:'Интерфейс',music:'Музыка',voices:'Голоса персонажей'};
 type Point={x:number;z:number};
 type Bus=Exclude<AudioChannel,'master'>;
-export type Sound='stepWood'|'stepGrass'|'stepTile'|'paw'|'click'|'confirm'|'error'|'door'|'flush'|'water'|'cook'|'eat'|'keyboard'|'paper'|'dish'|'squeak'|'spring'|'scratch'|'bark'|'meow'|'purr'|'bird'|'cricket'|'wind'|'room'|'street'|'cafe'|'fire'|'ring'|'hit'|'feeder'|'music'|'mediaCozy'|'mediaDrama'|'mediaSuspense'|'mediaAction'|'mediaComedy'|'mediaTalk'|'mediaTech'|'voiceVlad'|'voiceAlina'|'laughVlad'|'laughAlina'|'clap'|'kiss'|'cloth'|'toothbrush'|'swing'|'bounce'|'scoreMorning'|'scoreEvening'|'scorePark'|'scoreDance';
+export type Sound=SpeakerTrackId|'stepWood'|'stepGrass'|'stepTile'|'paw'|'click'|'confirm'|'error'|'door'|'flush'|'water'|'cook'|'eat'|'keyboard'|'paper'|'dish'|'squeak'|'spring'|'scratch'|'bark'|'meow'|'purr'|'bird'|'cricket'|'wind'|'room'|'street'|'cafe'|'fire'|'ring'|'hit'|'feeder'|'music'|'mediaCozy'|'mediaDrama'|'mediaSuspense'|'mediaAction'|'mediaComedy'|'mediaTalk'|'mediaTech'|'voiceVlad'|'voiceAlina'|'laughVlad'|'laughAlina'|'clap'|'kiss'|'cloth'|'toothbrush'|'swing'|'bounce'|'scoreMorning'|'scoreEvening'|'scorePark'|'scoreDance';
 type Spec={length:number;noise?:number;freq?:number;end?:number;harmonics?:number;filter?:number;pulses?:number;loop?:boolean};
-const specs:Record<Sound,Spec>={
+const specs:Record<Exclude<Sound,SpeakerTrackId>,Spec>={
  stepWood:{length:.19,noise:.7,freq:95,end:45,filter:.2},stepGrass:{length:.22,noise:.9,filter:.48,pulses:2},stepTile:{length:.14,noise:.55,freq:250,end:90,filter:.7},paw:{length:.085,noise:.75,filter:.48},
  click:{length:.065,freq:640,end:410,noise:.16},confirm:{length:.26,freq:620,end:950,harmonics:.2},error:{length:.16,freq:260,end:155},door:{length:.37,noise:.65,freq:105,end:45,filter:.24,pulses:2},
  flush:{length:2,noise:1,filter:.23,pulses:1},water:{length:2,noise:1,filter:.55,loop:true},cook:{length:1.6,noise:.94,filter:.73,loop:true},eat:{length:.19,noise:.85,filter:.35,pulses:2},
@@ -73,6 +74,9 @@ export class GameAudio {
  private buses=new Map<Bus,GainNode>();
  private buffers=new Map<Sound,AudioBuffer>();
  private loading=false;
+ private trackLoads=new Set<SpeakerTrackId>();
+ private failedTracks=new Set<SpeakerTrackId>();
+ private speaking=false;
  private loops=new Map<string,Voice>();
  private voices=new Set<Voice>();
  private beats=new Map<string,{sound:Sound;next:number}>();
@@ -102,7 +106,7 @@ export class GameAudio {
  private async loadRecordings(){const c=this.context!;for(const sound of ["meow","bark"] as Sound[]){try{const response=await fetch('/audio/'+sound+'.mp3');if(!response.ok)continue;const decoded=await c.decodeAudioData(await response.arrayBuffer());if(decoded.duration>0){const count=Math.min(decoded.length,Math.round(decoded.sampleRate*(sound==='meow'?1.6:.85)));const short=c.createBuffer(1,count,decoded.sampleRate),out=short.getChannelData(0),input=decoded.getChannelData(0);for(let i=0;i<count;i++)out[i]=input[i]*Math.min(1,i/80,(count-i)/(decoded.sampleRate*.035));this.buffers.set(sound,short);}}catch{/* procedural fallback */}}}
  private ready(bus:Bus){return !!this.context&&this.context.state==='running'&&!this.hidden&&this.values.master>0&&this.values[bus]>0&&(bus==='ui'||(this.playing&&!this.paused));}
  private buffer(sound:Sound):AudioBuffer{
-  const cached=this.buffers.get(sound);if(cached)return cached;const c=this.context!,s=specs[sound],rate=22050,n=Math.ceil(rate*s.length),b=c.createBuffer(1,n,rate),data=b.getChannelData(0);
+  const cached=this.buffers.get(sound);if(cached)return cached;if(isSpeakerTrack(sound))throw new Error('Music not loaded');const c=this.context!,s=specs[sound],rate=22050,n=Math.ceil(rate*s.length),b=c.createBuffer(1,n,rate),data=b.getChannelData(0);
   let low=0,phase=0,mediaLow=0,seed=137+sound.charCodeAt(0)*17;
   for(let i=0;i<n;i++){const t=i/rate,u=i/n;seed=(Math.imul(seed,1664525)+1013904223)>>>0;const white=seed/2147483648-1;low+=(white-low)*(s.filter??.3);
    const edge=s.loop?Math.min(1,t/.07,(s.length-t)/.07):Math.min(1,t/.012)*Math.pow(1-u,1.55);
@@ -142,18 +146,39 @@ export class GameAudio {
    data[i]=Math.tanh((tone*.38+noise*.78)*pulse*edge);
   }this.buffers.set(sound,b);return b;
  }
- private voice(sound:Sound,bus:Bus,volume:number,position?:Point,loop=false):Voice|undefined{
+ private voice(sound:Sound,bus:Bus,volume:number,position?:Point,loop=false,offset=0):Voice|undefined{
   if(['stepWood','stepGrass','stepTile','paw'].includes(sound)||!this.ready(bus)||this.voices.size>=24)return;const c=this.context!,source=c.createBufferSource(),gain=c.createGain();gain.gain.value=0;source.buffer=this.buffer(sound);source.loop=loop;source.playbackRate.value=loop?1:petPlaybackRate(sound,Math.random());
   let pan:StereoPannerNode|undefined;if(position&&typeof c.createStereoPanner==='function'){pan=c.createStereoPanner();source.connect(gain).connect(pan).connect(this.buses.get(bus)!);}else source.connect(gain).connect(this.buses.get(bus)!);
-  const v={source,gain,pan,sound,bus};this.voices.add(v);this.position(v,volume,position);source.onended=()=>{this.voices.delete(v);source.disconnect();gain.disconnect();pan?.disconnect();};source.start();return v;
+  const v={source,gain,pan,sound,bus};this.voices.add(v);this.position(v,volume,position);source.onended=()=>{this.voices.delete(v);source.disconnect();gain.disconnect();pan?.disconnect();};source.start(0,Math.max(0,offset)%(source.buffer?.duration||1));return v;
  }
  private position(v:Voice,volume:number,point?:Point){const c=this.context!;const dx=point?point.x-this.listener.x:0,dz=point?point.z-this.listener.z:0;v.gain.gain.setTargetAtTime(volume*(point?spatialGain(Math.hypot(dx,dz)):1),c.currentTime,.025);v.pan?.pan.setTargetAtTime(Math.max(-.8,Math.min(.8,dx/8)),c.currentTime,.025);}
  play(sound:Sound,bus:Bus='effects',volume=.5,point?:Point){try{this.voice(sound,bus,volume,point);}catch{/* unavailable audio is harmless */}}
  media(key:string,device:MediaDevice,content:string,point:Point){const sound=mediaSound(content);this.loop('media-'+key,sound,sound==='music'||sound.startsWith('score')?'music':'effects',MEDIA_DEVICE_GAIN[device],point);}
+ speakerMusic(key:string,track:SpeakerTrackId,volume:number,point:Point,offset:number){
+  const id='media-speaker-'+key;this.sceneKeys.add(id);
+  if(!this.ready('music')){this.stop(id);return;}
+  if(!this.buffers.has(track)){
+   this.stop(id);
+   if(!this.trackLoads.has(track)&&!this.failedTracks.has(track)){
+    this.trackLoads.add(track);const c=this.context!;
+    void fetch('/audio/speakers/'+track+'.wav').then(r=>{if(!r.ok)throw Error('Music unavailable');return r.arrayBuffer();}).then(b=>c.decodeAudioData(b)).then(buffer=>{this.buffers.set(track,buffer);const active=new Set([...this.loops.values()].map(v=>v.sound));for(const name of this.buffers.keys())if(isSpeakerTrack(name)&&this.buffers.size>18&&name!==track&&!active.has(name))this.buffers.delete(name);}).catch(()=>this.failedTracks.add(track)).finally(()=>this.trackLoads.delete(track));
+   }return;
+  }
+  this.loop(id,track,'music',volume,point,offset);
+ }
+ saySpeaker(message:string,assistant:string,volume:number,point:Point){
+  if(!this.ready('voices')||!('speechSynthesis' in window))return;
+  try{const synth=window.speechSynthesis,voices=synth.getVoices().filter(v=>v.localService&&v.lang.toLowerCase().startsWith('ru'));
+   const preferred=voices.find(v=>/milena|katya|alena|irina|tatiana|female|юлия|ирина|милена|екатерина/i.test(v.name))??voices[0];if(!preferred)return;
+   const u=new SpeechSynthesisUtterance(message);u.lang='ru-RU';u.voice=preferred;u.rate=assistant==='Siri'?.96:1;u.pitch=assistant==='Google Assistant'?.95:1.08;
+   u.volume=Math.max(0,Math.min(1,volume*this.values.master*this.values.voices*spatialGain(Math.hypot(point.x-this.listener.x,point.z-this.listener.z))));
+   if(this.speaking)synth.cancel();this.speaking=true;u.onend=u.onerror=()=>{this.speaking=false;};synth.speak(u);
+  }catch{/* local voice may be unavailable */}
+ }
  private stop(key:string){const v=this.loops.get(key);if(!v)return;this.loops.delete(key);try{v.gain.gain.setTargetAtTime(0,this.context!.currentTime,.025);v.source.stop(this.context!.currentTime+.12);}catch{}}
- private clearScene(){for(const key of this.loops.keys())this.stop(key);for(const v of this.voices)if(v.bus!=='ui'){try{v.source.stop();}catch{}}this.keyedVoices.clear();this.beats.clear();this.cueTimes.clear();this.sceneKeys.clear();this.scene='';}
+ private clearScene(){if(this.speaking&&typeof window!=='undefined'&&'speechSynthesis' in window){window.speechSynthesis.cancel();this.speaking=false;}for(const key of this.loops.keys())this.stop(key);for(const v of this.voices)if(v.bus!=='ui'){try{v.source.stop();}catch{}}this.keyedVoices.clear();this.beats.clear();this.cueTimes.clear();this.sceneKeys.clear();this.scene='';}
  beginFrame(place:string,listener:Point,night:boolean,outside:boolean){if(!this.playing||this.paused||this.hidden||!this.context||this.context.state!=='running'||this.values.master===0)return false;if(this.scene!==place){this.clearScene();this.scene=place;this.lastAmbient=0;}this.listener=listener;this.background=musicFor(place,night);this.sceneKeys.clear();const sound=ambientFor(place,outside);this.loop('ambient',sound,'ambient',sound==='room'?.12:.26);const now=performance.now();if(now>this.lastAmbient&&sound!=='room'&&sound!=='cafe'){this.lastAmbient=now+3500+Math.random()*6500;this.play(night?'cricket':'bird','ambient',night?.14:.17);}return true;}
- loop(key:string,sound:Sound,bus:Bus,volume:number,point?:Point){this.sceneKeys.add(key);if(!this.ready(bus)){this.stop(key);return;}let v=this.loops.get(key);if(v?.sound!==sound){this.stop(key);v=this.voice(sound,bus,volume,point,true);if(v)this.loops.set(key,v);}else if(v)this.position(v,volume,point);}
+ loop(key:string,sound:Sound,bus:Bus,volume:number,point?:Point,offset=0){this.sceneKeys.add(key);if(!this.ready(bus)){this.stop(key);return;}let v=this.loops.get(key);if(v?.sound!==sound){this.stop(key);v=this.voice(sound,bus,volume,point,true,offset);if(v)this.loops.set(key,v);}else if(v)this.position(v,volume,point);}
  private keyedPlay(key:string,sound:Sound,bus:Bus,volume:number,point?:Point){try{const v=this.voice(sound,bus,volume,point);if(!v)return;let set=this.keyedVoices.get(key);if(!set){set=new Set();this.keyedVoices.set(key,set);}set.add(v);const onended=v.source.onended;v.source.onended=e=>{onended?.call(v.source,e);set!.delete(v);if(!set!.size&&this.keyedVoices.get(key)===set)this.keyedVoices.delete(key);};}catch{}}
  beat(key:string,sound:Sound,bus:Bus,interval:number,volume:number,point?:Point){this.sceneKeys.add(key);const now=performance.now(),old=this.beats.get(key);if(!old||old.sound!==sound||now>=old.next){this.beats.set(key,{sound,next:now+interval*1000});this.keyedPlay(key,sound,bus,volume,point);}}
 

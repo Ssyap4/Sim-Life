@@ -62,6 +62,7 @@ import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
   homeDust?: HomeDust;
   vacuum?: import('./vacuum').VacuumState;
+  speakers?: import('./speaker').SpeakerState;
   version: 2;
   revision: number;
   clock: GameClock;

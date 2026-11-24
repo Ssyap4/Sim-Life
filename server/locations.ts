@@ -82,9 +82,10 @@ export function setDogParkPosition(state: GameState): void {
   dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles(state.world.places[walker]), floorFor(state.world.places[walker])) ?? { x, z };
 }
 
+import {SPEAKER_MODELS,isSpeakerSku} from '../src/shared/speakerCatalog';
 import {VACUUM_MODELS,isVacuumSku} from '../src/shared/vacuumCatalog';
 import {controlVacuum} from '../src/shared/vacuum';
-export const worldMessages = new Set(['vacuum_buy','vacuum_control',
+export const worldMessages = new Set(['speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -129,6 +130,16 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(!['start','stop','return','auto'].includes(String(command.action)))return fail('Неизвестное действие');
     const next=structuredClone(source),error=controlVacuum(next,command as import('../src/shared/vacuum').VacuumCommand);
     return error?fail(error):done(next,'Настройки робота-пылесоса обновлены');
+  }
+  if(command.type==='speaker_buy'){
+    if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');
+    if(!isSpeakerSku(command.sku))return fail('Неизвестная колонка');
+    const m=SPEAKER_MODELS[command.sku],f=source.furnishing;
+    if([...f.placed,...f.stored,...f.orders].filter(p=>isSpeakerSku(p.sku)).length>=6)return fail('Доступно до шести колонок на семью');
+    if(source.money<m.price)return fail('Недостаточно денег');
+    if(f.nextId>=1000000||f.placed.length+f.stored.length+f.orders.length>=10000)return fail('Склад заполнен');
+    const next=structuredClone(source);next.money-=m.price;next.furnishing.stored.push({id:next.furnishing.nextId++,sku:command.sku,finish:'ivory'});
+    addLedger(next,role,'expense','electronics',m.price,m.name);return done(next,'Куплено: '+m.name+' — установи колонку дома');
   }
   if(command.type==='vacuum_buy'){
     if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');

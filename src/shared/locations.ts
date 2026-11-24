@@ -47,6 +47,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 
 type SiteAction =
   | {kind:'warehouse';job:'ozon'|'wildberries'}
+  | {kind:'speaker-display'}
   | {kind:'vacuum-display'}
   | {kind:'electronics-display';category:import('./electronics').ElectronicsKind}
   | {kind:'electronics-checkout'}
@@ -161,6 +162,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('tech-tv','Телевизоры',3.75,-2.65,2.35,.95,{kind:'electronics-display',category:'tv'}),
     site('tech-phone','Смартфоны',-3.75,.85,2.35,.95,{kind:'electronics-display',category:'phone'}),
     site('tech-coffee','Кофемашины',0,.85,2.35,.95,{kind:'electronics-display',category:'coffee'}),
+    site('tech-speaker','Умные колонки',-4.15,3.65,2.15,.78,{kind:'speaker-display'},{approach:{x:-4.15,z:2.55}}),
     site('tech-vacuum','Роботы-пылесосы',4.05,3.65,2.15,.78,{kind:'vacuum-display'},{approach:{x:4.05,z:2.55}}),
     site('tech-cash','Касса',3.65,1.45,1.75,.8,{kind:'electronics-checkout'}),
     door('tech-exit','Выход на улицу','district',-2.75,4.60,true),
@@ -325,6 +327,8 @@ export type WorldCommand =
   | {type:'pet_food_buy';product:string}
   | {type:'pet_toy_buy';product:string}
   | {type:'pet_furniture_buy';sku:string}
+  | {type:'speaker_buy';sku:import('./speakerCatalog').SpeakerSku}
+  | import('./speaker').SpeakerCommand
   | {type:'vacuum_buy';sku:import('./vacuumCatalog').VacuumSku}
   | import('./vacuum').VacuumCommand
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}

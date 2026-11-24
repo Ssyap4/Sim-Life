@@ -1,3 +1,4 @@
+import {applySpeaker,type SpeakerCommand} from '../src/shared/speaker';
 import {dustRoute} from '../src/shared/dustRoute';
 import {isNotebookDesk} from '../src/shared/furniture';
 import { isHomeJob } from "../src/shared/jobs";
@@ -88,6 +89,7 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 const types: Record<string, string> = {
+  '.wav':'audio/wav',
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
@@ -383,6 +385,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
     }
     const advanced=advanceLife(state, gameMinutes, online());
+    const alarms=Object.entries(advanced.speakers??{}).filter(([id,d])=>d.reply?.to==='all'&&d.reply.seq!==state.speakers?.[Number(id)]?.reply?.seq).map(([id])=>Number(id));
     expireHomeQuests(advanced);
     const next = settleCompletedShifts(advanced);
     for(const id of ["vlad","alina"] as const){const job=next.state.activeShifts[id];if(job?.homeDevice&&job.startedAt<=clockMinutes(next.state.clock))next.state.characters[id].pose="work";}
@@ -416,6 +419,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
+    for(const id of alarms){const speaker=state.furnishing.placed.find(p=>p.id===id);if(!speaker)continue;for(const role of online())if(state.world.places[role]==='home'&&Math.hypot(state.characters[role].x-speaker.x,state.characters[role].z-speaker.z)<=8){stopSleep(role);packet(active.get(role)!,{type:'world_event',role,message:'Будильник: пора вставать!'});}}
     if (spoiled.length) {
       const portions = spoiled.reduce((count,batch)=>count+batch.portions,0);
       const samples = [...new Set(spoiled.map(batch=>readyFoodName(batch.kind,batch.item)))].slice(0,2);
@@ -1371,6 +1375,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить действие'});return;}
         state=result.state;all({type:'snapshot',state});return;
+      }
+      if(message.type==='speaker_control'){
+        commitLife();const next=structuredClone(state),error=applySpeaker(next,role,message as SpeakerCommand);
+        if(error){packet(socket,{type:'error',reason:error});return;}
+        next.revision++;
+        try{files.save(next);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить настройки колонки'});return;}
+        state=next;all({type:'snapshot',state});return;
       }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',

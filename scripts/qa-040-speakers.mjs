@@ -1,0 +1,38 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState} from '../src/shared/protocol.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simlife-040-speakers';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'speakers-qa-'));let browser,page,server;
+try{
+ const s=initialState();s.autonomy={vlad:'off',alina:'off'};s.clock.minute=750;
+ s.furnishing.placed=[{id:1,sku:'speaker-alice',finish:'ivory',x:14,z:-6,rotation:0},{id:2,sku:'speaker-apple',finish:'ivory',x:13,z:-6,rotation:0},{id:3,sku:'vacuum-dreame',finish:'ivory',x:12.5,z:-6,rotation:0}];s.furnishing.nextId=4;
+ Object.assign(s.characters.vlad,{x:12.5,z:-5.25,pose:'idle'});openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:'+server.port+'/?perf=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(2000);await page.screenshot({path:join(out,'devices-home.jpg'),type:'jpeg',quality:85});
+ await page.locator('#phone-btn').click();await page.locator('[data-phone-app=speakers]').click();
+ const info=page.locator('.phone-info'),card=info.locator('article').filter({hasText:'Яндекс Станция 3'});
+ assert.ok(await card.count());assert.ok(await info.locator('article').filter({hasText:'Apple HomePod'}).count());
+ await card.getByLabel('Жанр музыки').selectOption('house');
+ const loaded=page.waitForResponse(r=>r.url().includes('speaker-track-house-0.wav')&&r.ok(),{timeout:20000});
+ await card.getByRole('button',{name:'Включить музыку'}).click();await loaded;
+ await card.getByText('After midnight',{exact:false}).first().waitFor();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+ await page.screenshot({path:join(out,'speaker-player.jpg'),type:'jpeg',quality:85});
+ await card.locator('summary').click();await card.getByRole('button',{name:'Какая погода?'}).click();
+ await page.waitForFunction(()=>document.querySelector('.phone-info')?.textContent.includes('градусов'));
+ await page.screenshot({path:join(out,'speaker-assistant.jpg'),type:'jpeg',quality:85});
+ await card.getByRole('button',{name:'Стоп',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('.phone-info')?.textContent.includes('Музыка остановлена'));
+ assert.deepEqual(errors,[]);
+}finally{await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

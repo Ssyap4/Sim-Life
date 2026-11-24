@@ -1,6 +1,7 @@
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
+import {SPEAKER_MODELS,type SpeakerSku} from './shared/speakerCatalog';
 import {VACUUM_MODELS,isVacuumSku,type VacuumSku} from './shared/vacuumCatalog';
 import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
 import { qualityLabel } from './shared/foodQuality';
@@ -150,6 +151,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
 
   let electronicsCart:ElectronicsId|undefined;
   let vacuumCart:VacuumSku|undefined;
+  let speakerCart:SpeakerSku|undefined;
   let petCart:string|undefined;
   function draw() {
     if (!state || !current || panel.hidden) return;
@@ -195,17 +197,23 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       else if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
       else if(!p)options.append(element('small','','Выбери товар на витрине.'));
       else options.append(element('strong','',p.name),element('small','',petFoodBenefit(p)),button('Купить · '+formatRub(p.price),()=>{if(send({type:'pet_food_buy',product:p.id})){petCart=undefined;close();}},place.money<p.price||place.petFood[p.pet]+p.refills>50),button('Отмена',()=>{petCart=undefined;draw();}));
+    } else if(station.action.kind==='speaker-display'){
+      for(const sku of Object.keys(SPEAKER_MODELS) as SpeakerSku[]){
+        const m=SPEAKER_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.assistant+' · Музыка и домашние команды'),button(speakerCart===sku?'В корзине ✓':'Выбрать',()=>{speakerCart=speakerCart===sku?undefined:sku;electronicsCart=undefined;vacuumCart=undefined;draw();}));
+      }
     } else if(station.action.kind==='vacuum-display'){
       const owned=[...place.furnishing.placed,...place.furnishing.stored,...place.furnishing.orders].some(p=>isVacuumSku(p.sku));
       for(const sku of Object.keys(VACUUM_MODELS) as VacuumSku[]){
-        const m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · чистота до '+m.clean+'%'),button(owned?'Уже есть робот':vacuumCart===sku?'В корзине ✓':'Выбрать',()=>{vacuumCart=vacuumCart===sku?undefined:sku;electronicsCart=undefined;draw();},owned));
+        const m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · чистота до '+m.clean+'%'),button(owned?'Уже есть робот':vacuumCart===sku?'В корзине ✓':'Выбрать',()=>{vacuumCart=vacuumCart===sku?undefined:sku;electronicsCart=undefined;speakerCart=undefined;draw();},owned));
       }
     } else if(station.action.kind==='electronics-display'){
       const category=station.action.category;const current=installedElectronics(place,role,category);
       options.append(element('small','','Сейчас: '+ELECTRONICS[current].name),element('small','','Выбери модель, затем оплати на кассе. Новая техника заменяет старую без возврата денег.'));
-      for(const id of electronicsFor(category)){const m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button(current===id?'Установлено':electronicsCart===id?'В корзине ✓':'Выбрать',()=>{electronicsCart=electronicsCart===id?undefined:id;vacuumCart=undefined;draw();},current===id));}
+      for(const id of electronicsFor(category)){const m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button(current===id?'Установлено':electronicsCart===id?'В корзине ✓':'Выбрать',()=>{electronicsCart=electronicsCart===id?undefined:id;vacuumCart=undefined;speakerCart=undefined;draw();},current===id));}
     } else if(kind==='electronics-checkout'){
-      if(vacuumCart){
+      if(speakerCart){
+        const sku=speakerCart,m=SPEAKER_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','','После покупки размести колонку из склада мебели.'),button('Купить · '+formatRub(m.price),()=>{if(send({type:'speaker_buy',sku})){speakerCart=undefined;close();}},place.money<m.price),button('Отмена',()=>{speakerCart=undefined;draw();}));
+      } else if(vacuumCart){
         const sku=vacuumCart,m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','','После покупки установи станцию из склада мебели.'),button('Купить · '+formatRub(m.price),()=>{if(send({type:'vacuum_buy',sku})){vacuumCart=undefined;close();}},place.money<m.price),button('Отмена',()=>{vacuumCart=undefined;draw();}));
       } else if(!electronicsCart||installedElectronics(place,role,ELECTRONICS[electronicsCart].kind)===electronicsCart)options.append(element('small','','Выбери модель на витрине.'));
       else{const id=electronicsCart,m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button('Купить и заменить · '+formatRub(m.price),()=>send({type:'electronics_buy',model:id}),place.money<m.price),button('Отмена',()=>{electronicsCart=undefined;draw();}));}
@@ -484,7 +492,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
-        if(location==='clothing')clothesCart.clear();if(location==='electronics'){electronicsCart=undefined;vacuumCart=undefined;}if(location==='petshop')petCart=undefined;
+        if(location==='clothing')clothesCart.clear();if(location==='electronics'){electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined;}if(location==='petshop')petCart=undefined;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -499,6 +507,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; petCart=undefined; electronicsCart=undefined;vacuumCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; petCart=undefined; electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

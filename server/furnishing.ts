@@ -71,6 +71,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   if(source.world.places[role]!=='home')return fail('Обустройство доступно, когда персонаж дома');
   if(source.vacuum&&source.vacuum.mode!=='docked'&&source.vacuum.mode!=='stopped'&&'id' in command&&command.id===source.vacuum.id)return fail('Сначала верни робот-пылесос на станцию');
   const next=structuredClone(source);
+  if(next.speakers&&'id' in command&&['furniture_store','furniture_sell'].includes(command.type))delete next.speakers[command.id];
   if(next.vacuum&&'id' in command&&command.id===next.vacuum.id&&['furniture_move','furniture_store','furniture_sell'].includes(command.type))delete next.vacuum;
   const home=next.furnishing;
   const dog=next.pets.verdell.routine;

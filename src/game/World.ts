@@ -1,3 +1,5 @@
+import {speakerItems,speakerDevice} from '../shared/speaker';
+import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
 import {vacuumItem,vacuumState} from '../shared/vacuum';
 import {DustArt} from './DustArt';
@@ -2219,6 +2221,7 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    if(!previous||reset){this.speakerReplies.clear();for(const [id,d] of Object.entries(state.speakers??{}))if(d.reply)this.speakerReplies.set(Number(id),d.reply.seq);}
     if(!previous||previous.clock.day!==state.clock.day||previous.clock.minute!==state.clock.minute||JSON.stringify(previous.vacuum)!==JSON.stringify(state.vacuum))this.vacuumStamp=this.visualSeconds;
     this.dustArt.sync(state.homeDust);
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
@@ -2650,6 +2653,7 @@ export class World {
   }
 
   private lastAudioFrame=0;
+  private speakerReplies=new Map<number,number>();
   private audioFrame():void {
     const now=performance.now();if(now-this.lastAudioFrame<80)return;this.lastAudioFrame=now;
     if(!this.household)return;
@@ -2657,6 +2661,12 @@ export class World {
     const outside=(p:Point)=>p.x<AUDIO_HOUSE.minX||p.x>AUDIO_HOUSE.maxX||p.z<AUDIO_HOUSE.minZ||p.z>AUDIO_HOUSE.maxZ;
     const minute=this.household.clock.minute,night=minute<360||minute>=1200;
     if(!gameAudio.beginFrame(this.place,listener,night,outside(listener)))return;
+    if(this.place==='home')for(const item of speakerItems(this.household)){
+      const d=speakerDevice(this.household,item.id),m=SPEAKER_MODELS[item.sku as SpeakerSku],now=gameMinutes(this.household.clock);
+      const p={x:listener.x+(item.x-listener.x)*4/m.range,z:listener.z+(item.z-listener.z)*4/m.range};
+      if(d.track&&d.volume>0)gameAudio.speakerMusic(String(item.id),d.track,m.gain*d.volume/100,p,(now-d.startedAt)*2);
+      if(d.reply&&this.speakerReplies.get(item.id)!==d.reply.seq){this.speakerReplies.set(item.id,d.reply.seq);if(now-d.reply.at<=3&&(d.reply.to==='all'||d.reply.to===this.localRole)&&Math.hypot(item.x-listener.x,item.z-listener.z)<12){if(d.reply.to==='all')gameAudio.play('ring','ui',.65,p);gameAudio.saySpeaker(d.reply.text,m.assistant,d.volume/100,p);}}
+    }
     for(const role of ['vlad','alina'] as const){
       const actor=this.actors[role],p=actor.root.position;if(!actor.root.visible)continue;
       const m=actor.audioMotion();

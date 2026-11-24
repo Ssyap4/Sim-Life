@@ -810,7 +810,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1670,6 +1670,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     world.setFurnishingPick((x,z)=>furnishing.setTarget(x,z),id=>{
       const model=state?.furnishing.placed.find(item=>item.id===id);
       if(model&&isSleepBed(model))openPurchasedBedActions(id);
+      else if(model&&model.sku.startsWith('speaker-'))phone.openSpeaker(id);
       else if(model&&model.sku.startsWith('vacuum-'))phone.open('home');
       else if(model&&furnitureActionList(model).length)openPurchasedFurnitureActions(id);
       else furnishing.selectPlaced(id);

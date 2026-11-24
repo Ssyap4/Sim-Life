@@ -3,6 +3,8 @@ import { createShopToy } from './PetToys';
 import { PET_TOYS } from '../shared/petToys';
 import {FEEDING_MODELS} from '../shared/petFeeders';
 import { PET_SHOP_FOOD } from '../shared/petShop';
+import {buildSpeakerModel} from './SpeakerArt';
+import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {buildVacuumModel} from './VacuumArt';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
 import { buildElectronicsModel } from './ElectronicsArt';
@@ -213,6 +215,13 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     PET_TOYS.forEach((p,i)=>{const m=createShopToy(p.kind);m.scale.setScalar(.67);m.position.set((i-2.5)*.35,.57,.40);root.add(m);});
     for(const [i,p] of FEEDING_MODELS.filter(m=>m.pet==='verdell').entries()){const m=buildFurnishingModel(p.id,'ivory');m.scale.setScalar(.48);m.position.set((i-1.5)*.46,.57,-.42);root.add(m);}
     sign(root,'ДЛЯ ЖИВОТНЫХ',1.75,.36,2.06,C.paper,textures,materials);
+  } else if(station.action.kind==='speaker-display'){
+    shape(root,[2.15,.78,.78],[0,.39,0],0x405766);shape(root,[2.22,.08,.85],[0,.82,0],0xe6edf1);
+    (Object.keys(SPEAKER_MODELS) as SpeakerSku[]).forEach((sku,i)=>{
+      const model=buildSpeakerModel(sku);model.position.set((i-1)*.70,.865,0);root.add(model);
+      sign(root,['Яндекс','Google','Apple'][i],.67,.48,.52,C.paper,textures,materials);root.children.at(-1)!.position.x=(i-1)*.70;
+    });
+    sign(root,station.name,2.10,.30,1.63,C.paper,textures,materials);
   } else if(station.action.kind==='vacuum-display'){
     shape(root,[2.15,.65,.78],[0,.325,0],0x405766);shape(root,[2.22,.08,.85],[0,.69,0],0xe6edf1);
     (Object.keys(VACUUM_MODELS) as VacuumSku[]).forEach((sku,i)=>{

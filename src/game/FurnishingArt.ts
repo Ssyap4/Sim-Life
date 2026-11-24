@@ -1,3 +1,5 @@
+import {buildSpeakerModel} from './SpeakerArt';
+import {isSpeakerSku} from '../shared/speakerCatalog';
 import {buildVacuumModel} from './VacuumArt';
 import {isVacuumSku} from '../shared/vacuumCatalog';
 import * as THREE from 'three';
@@ -11,6 +13,7 @@ import { distinctiveFurniture } from './FurnitureDesigns';
 function createBody(sku:string,finishId:FurnitureFinish):THREE.Group {
   const info=FURNITURE_BY_ID.get(sku);
   if(!info)throw new Error('Unknown furniture: '+sku);
+  if(isSpeakerSku(sku))return buildSpeakerModel(sku);
   if(isVacuumSku(sku))return buildVacuumModel(sku);
   const root=distinctiveFurniture(sku,finishId);
   if(!root)throw new Error('Missing bespoke furniture design for: '+sku);

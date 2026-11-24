@@ -1,0 +1,29 @@
+name: Sim-Life 0.40 speaker mobile QA
+on:
+  push:
+    branches: [feat/home-cleanliness-040]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  speakers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: npx tsx --test server/tests/speakers-040.test.ts server/tests/vacuum-040.test.ts server/tests/home-dust-040.test.ts server/tests/electronics-034.test.ts server/tests/electronics-art-034.test.ts
+      - run: node --import tsx scripts/qa-040-speakers.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: speakers-mobile
+          path: /tmp/simlife-040-speakers
+          retention-days: 7
