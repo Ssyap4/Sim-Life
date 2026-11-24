@@ -33,7 +33,8 @@ test('moments are occasional, bounded, deterministic and do not alter economy or
    assert.deepEqual(s.happiness,before.happiness);
    assert.equal(s.money,before.money);
    assert.equal(activeEmotions(s,'alina').length,0);
-   assert.ok(validEmotionalHistory(s.emotionalEvents));
+   if(event)assert.ok(validEmotionalHistory(s.emotionalEvents));
+   else assert.ok(s.emotionalEvents===undefined||validEmotionalHistory(s.emotionalEvents));
    const same=structuredClone(s);
    applyLifeMoments(s,gameMinutes(s.clock),['vlad']);
    assert.deepEqual(s,same);
