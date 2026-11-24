@@ -22,7 +22,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -781,6 +781,20 @@ export class Actor {
           leftZ = 0.35; rightZ = 0.37;
           gaze = 0.23;
           break;
+        case 'darts': {
+          const aim=(Math.sin(a*2.2)+1)/2;rightY=-.12+.28*aim;rightZ=.24+.35*aim;gaze=.04;expression=.20;break;
+        }
+        case 'pingPong': {
+          const hit=Math.sin(a*4.3);lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.45+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
+        }
+        case 'billiards': {
+          lean=.38+.10*Math.sin(a*1.5);gaze=.32;leftY=-.39;leftZ=.53;rightY=-.42+.08*Math.sin(a*3);rightZ=.30;break;
+        }
+        case 'chess': {
+          const reach=Math.max(0,Math.sin(a*1.4));
+          lean=.13+.13*reach;gaze=.28;leftY=-.42;leftZ=.26;
+          rightY=-.36+.13*reach;rightZ=.28+.24*reach;expression=.14;break;
+        }
         case 'games':
           // The existing reusable keyboard IK animates both hands.
           expression = 0.20;

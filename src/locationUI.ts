@@ -1,3 +1,4 @@
+import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions } from './shared/picnic';
 import { CAFE_TALK_TOPICS } from './shared/socialLife';
 import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
@@ -147,12 +148,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const options = element('div', 'world-station-options');
     const now = clockMinutes(place.clock);
     const kind = station.action.kind;
-    const local = (label: string, action: 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack') =>
+    const local = (label: string, action: 'rest' | 'chess' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'unpack') =>
       button(label, () => { if (send({ type: 'local_activity', station: station.id, action })) close(); });
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
     } else if (kind === 'shelf' || kind === 'checkout') {
@@ -167,6 +168,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(element('small', '', 'Выбранные товары оплачиваются на кассе.'));
       } else {
         for (const line of lines) options.append(productRow(line.id));
+        if(!place.world.picnic)options.append(button('🧺 Корзина для пикника · '+formatRub(PICNIC_BASKET_PRICE),()=>send({type:'picnic_buy'}),place.money<PICNIC_BASKET_PRICE));
         const sequence = place.world.sequence[role];
         const pay = button(pending === null ? 'Оплатить · ' + formatRub(basketPrice(lines)) : 'Подтверждаем…',
           () => transaction({ type: 'store_pay', lines, sequence }), !lines.length || pending !== null);
@@ -198,6 +200,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           return [...grouped.values()].sort((a,b) => a.expiresAt - b.expiresAt);
         };
         const fridgeReady = groups('fridge');
+        if(place.world.picnic){
+          const mine=picnicPortions(place,role),count=picnicPortions(place,'vlad').length+picnicPortions(place,'alina').length;
+          options.append(element('strong','','🧺 Корзина для пикника · '+count+'/'+PICNIC_CAPACITY));
+          options.append(element('small','','Твои порции хранятся отдельно. Еда вне холодильника портится быстрее.'));
+          for(const food of mine)options.append(button('Вернуть: '+readyFoodName(food.kind,food.item),()=>send({type:'picnic_unpack',kind:food.kind,item:food.item})));
+          for(const batch of fridgeReady)options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
+        }
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
         for (const batch of fridgeReady) {
           const name = readyFoodName(batch.kind, batch.item);
@@ -328,6 +337,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(button(meal.name+' · '+formatRub(meal.price),()=>{cafeChoice=id as CafeItem;draw();},pending!==null||place.money<meal.price));
       }
     } else if (kind === 'rest') options.append(local('Сесть на скамью', 'rest'));
+    else if (kind === 'swing') options.append(local('Покачаться на качелях','swing'));
+    else if (kind === 'chess') options.append(local('♟️ Сыграть в шахматы', 'chess'));
+    else if(kind==='picnic'){
+      const food=picnicPortions(place,role)[0];
+      options.append(element('small','',food?'Из корзины: '+readyFoodName(food.kind,food.item):'Купи корзину в супермаркете и положи готовую еду в неё у холодильника.'));
+      if(food)options.append(local('🍽️ Поесть на пикнике','picnic'));
+    }
     else if (kind === 'exercise') options.append(local('Сделать лёгкую зарядку', 'exercise'));
     else if (kind === 'dog') {
       const walker = place.world.dogWalker;

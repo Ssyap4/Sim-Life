@@ -1,3 +1,4 @@
+import {leisureAction} from '../src/shared/leisure';
 import {PURCHASABLE_FURNITURE,FURNITURE_BY_ID,type FurnitureProduct,type FurnitureShape,type PlacedFurniture} from '../src/shared/furniture';
 import {initialState} from '../src/shared/protocol';
 import {checkFurniturePlacement} from '../src/shared/furnishingPlacement';
@@ -17,6 +18,7 @@ const storage=new Set<FurnitureShape>(['wardrobe','dresser','nightstand','sidebo
 const deskActs=['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'];
 const sofaActs=['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie','read_book'];
 function expected(info:FurnitureProduct):string[]{
+ if(info.shape==='leisure')return [leisureAction(info.id)!];
  if(info.shape==='bed'||info.shape==='daybed')return [];
  if(info.shape==='sofa'||info.shape==='corner')return sofaActs;
  if(seats.has(info.shape))return ['officeChairSit','read_book'];

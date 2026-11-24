@@ -10,6 +10,8 @@ import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
+import { isLeisureAction } from '../shared/leisure';
+import { picnicPortions } from '../shared/picnic';
 import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
@@ -595,7 +597,7 @@ export class World {
       const seat = [...(this.place==='district'?this.district?.entries.keys()??[]:this.remote?.stations.keys()??[])].map(key => stationById(this.place, key)!)
         .find(s => {
           const point = approachFor(s, id);
-          return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
+          return (s.action.kind === 'rest' || s.action.kind === 'dine' || s.action.kind === 'chess' || s.action.kind === 'swing' || s.action.kind === 'picnic') && Math.hypot(x - point.x, z - point.z) < .22;
         });
       if (pose === 'sit' && seat) this.sitAt(id, seat);
       else this.actors[id].setPose('idle');
@@ -839,6 +841,12 @@ export class World {
           else if(['deskJournal','tablePlan'].includes(command.action))actor.playDomesticActivity('journal');
           else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
             actor.playDomesticActivity('games');
+          else if(isLeisureAction(command.action)){
+            if(command.action==='boardGame'||command.action==='chessGame')actor.playDomesticActivity('chess');
+            else if(command.action==='dartsGame')actor.playDomesticActivity('darts');
+            else if(command.action==='pingPong')actor.playDomesticActivity('pingPong');
+            else if(command.action==='billiards')actor.playDomesticActivity('billiards');
+          }
           else if(command.action==='tidy')actor.playDomesticActivity('tidy');
           else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
           else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
@@ -948,7 +956,8 @@ export class World {
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
-    if(pair.seat) {
+    if(home.furniturePose&&home.furnitureSeat){const p=home.furniturePose;actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
+    else if(pair.seat) {
       const seat=homeSeat(pair.seat,role);
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
     }else if(pair.station){
@@ -957,6 +966,14 @@ export class World {
     }else if(focus)actor.faceTowards(focus);
     const leads=pair.from===role;
     switch(pair.motion){
+      case 'leisure':{
+        if(pair.item==='boardGame'||pair.item==='chessGame')actor.playDomesticActivity('chess');
+        else if(pair.item==='dartsGame')actor.playDomesticActivity('darts');
+        else if(pair.item==='pingPong')actor.playDomesticActivity('pingPong');
+        else if(pair.item==='billiards')actor.playDomesticActivity('billiards');
+        break;
+      }
+      case 'chess':actor.playDomesticActivity('chess');break;
       case 'stroll':
         actor.walkPath((pair.stroll??[]).map(p=>new THREE.Vector3(p.x,0,p.z)),()=>actor.playPartnerGesture('talk',leads));break;
       case 'watch':
@@ -1000,7 +1017,7 @@ export class World {
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }else if(pair.station) {
           const site=stationById(this.place,pair.station)!;
-          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.40:.40),1.01,site.center.z-.10,pair.item as CafeItem|undefined);
+          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.40:.40),site.action.kind==='picnic'?.21:1.01,site.center.z-.10,pair.item as CafeItem|RecipeId|TakeoutId|undefined);
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }break;
       }
@@ -1081,7 +1098,12 @@ export class World {
       if (!station) return false;
       const actor = this.actors[role];
       const start = () => {
-        if (command.action === 'rest' || command.action === 'dine') this.sitAt(role, station);
+        if (command.action === 'rest' || command.action === 'dine' || command.action === 'chess' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);
+        if (command.action === 'chess') actor.playDomesticActivity('chess');
+        if(command.action==='picnic'&&this.household){
+          const dish=picnicPortions(this.household,role)[0];
+          if(dish){const plate=this.showMeal(role,station.center.x+(role==='vlad'?-.40:.40),.21,station.center.z-.10,dish.item as RecipeId|TakeoutId);actor.playActivity('eat',plate,dish.item as RecipeId|TakeoutId);}
+        }
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');
         if (command.action === 'unpack') actor.playDomesticActivity('tidy');
         if (command.action === 'dog') {
@@ -1811,6 +1833,13 @@ export class World {
 
   private sitAt(role: CharacterId, station: Station): void {
     const actor = this.actors[role];
+    if(station.action.kind==='picnic'){
+      actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.50:.50),role==='vlad'?-.76:-.71,station.center.z+.39),Math.PI);return;
+    }
+    if(station.action.kind==='swing'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.47:.47),role==='vlad'?-.26:-.21,station.center.z),0);return;}
+    if(station.action.kind==='chess'){
+      actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,role==='vlad'?-.24:-.19,station.center.z+(role==='vlad'?.61:-.61)),role==='vlad'?Math.PI:0);return;
+    }
     const cafe = station.action.kind === 'dine';
     actor.setFurniturePose('sit', new THREE.Vector3(approachFor(station, role).x,
       role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);

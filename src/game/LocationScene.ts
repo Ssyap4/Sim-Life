@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildFurnishingModel } from './FurnishingArt';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { STATIONS, HOME_STATIONS, DISTRICT_STATIONS, type PlaceId, type Station } from '../shared/locations';
 import { DISTRICT_OFFSET_Z } from '../shared/district';
@@ -29,7 +30,7 @@ const parkPaths = [
 ] as const;
 const parkTrees = [[-5.65,-2.5,'spruce',.75],[5.58,-2.4,'birch',.78],
   [-5.60,2.7,'linden',.67],[5.69,3.08,'spruce',.71]] as const;
-const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-4.45,2.56,1],[4.83,2.56,0]] as const;
+const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-5.05,3.05,1],[4.83,2.56,0]] as const;
 
 function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture[]; materials:THREE.Material[]}) {
   const map=painted(resources,512,512,ctx=>paintGround(ctx,{x:0,z:0,w:12,d:10},[
@@ -136,17 +137,36 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     if (station.center.z > 4) root.rotation.y = Math.PI;
     facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
-  } else if (kind === 'dine') {
-    shape(root, [1.38, .13, .78], [0, .93, -.27], C.oak, softCube, true);
-    shape(root, [.13, .79, .13], [0, .46, -.27], C.walnut, drum);
+  } else if(kind==='swing'){
+    root.add(buildFurnishingModel('leisure-swing','oak'));
+  } else if(kind==='picnic'){
+    shape(root,[1.92,.035,1.24],[0,.023,0],0xb55c4a,cube);
+    for(let i=0;i<10;i++)shape(root,[.078,.01,1.24],[-.855+i*.19,.046,0],0xf2dfbe,cube);
+    for(let i=0;i<6;i++)shape(root,[1.92,.011,.065],[0,.05,-.50+i*.20],0xf2dfbe,cube);
+    for(const x of [-.51,.51])shape(root,[.60,.095,.37],[x,.095,.36],0x73938a,softCube);
+    shape(root,[.38,.26,.31],[0,.18,-.36],0xb58248,softCube);
+    shape(root,[.42,.045,.35],[0,.322,-.36],0xd0a46e,softCube);
+    const handle=shape(root,[.22,.19,.025],[0,.42,-.36],0x855b39,torus);handle.rotation.x=0;
+    shape(root,[.98,.13,.40],[0,.13,-.09],0xb88a60,softCube);
+  } else if (kind === 'dine' || kind === 'chess') {
+    const tableZ=kind==='chess'?0:-.27;
+    shape(root, [kind==='chess'?.84:1.38, .13, .78], [0, .93, tableZ], C.oak, softCube, true);
+    shape(root, [.13, .79, .13], [0, .46, tableZ], C.walnut, drum);
     for (const x of [-.40,.40]) {
       const chair=new THREE.Group();
-      chair.position.set(x,0,.53); chair.rotation.y=Math.PI;
+      chair.position.set(kind==='chess'?0:x,0,kind==='chess'?Math.sign(x)*.61:.53); chair.rotation.y=kind==='chess'&&x<0?0:Math.PI;
       bench(chair,.59); root.add(chair);
     }
+    if (kind === 'chess') {
+      for(let i=0;i<8;i++) for(let j=0;j<8;j++) {
+        shape(root,[.085,.012,.085],[(i-3.5)*.085,1.003,(j-3.5)*.085],(i+j)%2?0x75533a:0xe5cba2,cube);
+        if(j<2||j>5){ const h=j===1||j===6?.07:.11; shape(root,[.041,h,.041],[(i-3.5)*.085,1.01+h/2,(j-3.5)*.085],j<2?0x393332:0xf2e7d4,drum); }
+      }
+    } else {
     const vase = shape(root, [.084, .19, .084], [.11, 1.09, -.29], C.leaf, drum);
     vase.rotation.z = .08;
     shape(root, [.072, .087, .059], [.13, 1.22, -.29], C.coral, orb);
+    }
   } else if (kind === 'rest') {
     bench(root, station.width);
   } else if (kind === 'terminal' || kind === 'pickup') {

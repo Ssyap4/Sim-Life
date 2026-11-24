@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FURNITURE_BY_ID,FURNITURE_FINISHES,type FurnitureFinish } from '../shared/furniture';
-import { cube,softCube,orb,drum,finish } from './ArtKit';
+import { cube,softCube,orb,drum,finish,batchRigidParts } from './ArtKit';
 
 // Deliberately authored visual identities, shared by product photos and world.
 // Components are simple reusable low-poly geometry, not textures or extra draw loops.
@@ -54,6 +54,131 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
   const dot=(x:number,y:number,z:number,r=.014,color=D)=>
     ball(r,r,r,x,y,z,color,'metal');
   const s=sku;
+
+  if(s==='leisure-chess'||s==='leisure-board'){
+    const chess=s==='leisure-chess';
+    box(.98,.095,.81,0,.945,0,M,'wood',true);
+    box(.12,.83,.12,0,.44,0,D,'metal');
+    box(.62,.075,.48,0,.05,0,D,'wood',true);
+    for(const z of [-.65,.65]){
+      box(.51,.09,.37,0,.485,z,F,'fabric',true);
+      for(const x of [-.19,.19])for(const dz of [-.12,.12])box(.045,.45,.045,x,.225,z+dz,D,'metal');
+      box(.48,.31,.07,0,.72,z+Math.sign(z)*.15,M,'wood',true);
+    }
+    if(chess){
+      for(let i=0;i<8;i++)for(let j=0;j<8;j++){
+        const x=(i-3.5)*.077,z=(j-3.5)*.077;
+        box(.077,.008,.077,x,.995,z,(i+j)%2?0x79563b:0xead0ab);
+        if(j<2||j>5){
+          const color=j<2?0x322e2a:0xe9e5da;
+          const hh=j===1||j===6?.045:.07;
+          cyl(.023,hh,.023,x,1+hh*.5,z,color,'ceramic');
+          ball(.020,.020,.020,x,1+hh,z,color,'ceramic');
+        }
+      }
+    }else{
+      box(.64,.018,.48,0,1.001,0,0x668d70,'fabric');
+      for(let i=0;i<6;i++)for(let j=0;j<4;j++)box(.075,.009,.071,(i-2.5)*.098,1.013,(j-1.5)*.10,(i+j)%3===0?0xf4c975:0xe3dec6);
+      for(let i=0;i<4;i++)cyl(.022,.038,.022,-.19+i*.115,1.035,.11,[0xb14b49,0x426a9f,0xddbd53,0x526f44][i],'ceramic');
+      box(.055,.055,.055,.10,1.043,-.11,0xf4eee1,'ceramic',true);
+      box(.055,.055,.055,.17,1.043,-.16,0xf4eee1,'ceramic',true);
+    }
+    return root;
+  }
+  if(s==='leisure-darts'){
+    box(w*.85,.10,d*.85,0,.05,0,D,'metal',true);
+    line(0,.12,0,0,h*.88,0,.055,D);
+    const board=cyl(.345,.07,.345,0,h-.35,.07,0x413530,'wood');board.rotation.x=Math.PI/2;
+    for(let i=0;i<20;i++){
+      const a=i*Math.PI/10;
+      const wedge=new THREE.Shape();wedge.moveTo(0,0);wedge.absarc(0,0,.304,a,a+Math.PI/10,false);wedge.lineTo(0,0);
+      const g=new THREE.ShapeGeometry(wedge,3),mesh=new THREE.Mesh(g,finish(i%2?0x252b2a:0xe7dcc0,'fabric'));
+      mesh.position.set(0,h-.35,.11);root.add(mesh);
+    }
+    for(const [r,c] of [[.024,0xb72d34],[.049,0x63865e],[.147,0xb72d34],[.283,0x63865e]] as const){
+      const ring=new THREE.Mesh(new THREE.RingGeometry(r-.011,r,32),finish(c,'fabric'));ring.position.set(0,h-.35,.116);root.add(ring);
+    }
+    box(.58,.055,.17,0,h-.79,.13,M);
+    for(const x of [-.17,0,.17]){line(x,h-.77,.14,x,h-.61,.14,.012,0xb8bec1);box(.052,.055,.025,x,h-.61,.14,0xb74b42);}
+    return root;
+  }
+  if(s==='leisure-tennis'){
+    box(w*.98,.075,d*.98,0,.76,0,0x245a88,'wood',true);
+    feet(.71,.17,.075,D);
+    for(const side of [-1,1]){
+      box(.025,.012,d*.96,side*w*.46,.803,0,0xf1eee1);
+      box(w*.94,.012,.025,0,.803,side*d*.46,0xf1eee1);
+      line(side*w*.49,.78,0,side*w*.49,.94,0,.019,D);
+    }
+    box(.018,.010,d*.95,0,.803,0,0xf1eee1);
+    for(let i=0;i<17;i++)box(.016,.135,.012,(i-8)*w/17,.865,0,0xe4e4db,'fabric');
+    for(const y of [.807,.858,.928])box(w*.94,.012,.014,0,y,0,0xe4e4db,'fabric');
+    for(const side of [-1,1]){
+      ball(.084,.018,.102,side*.39,.831,side*.84,side<0?0xb63836:0x313333,'ceramic');
+      box(.045,.035,.14,side*.39,.825,side*.98,M,'wood',true);
+    }
+    ball(.020,.020,.020,.16,.83,.25,0xf0eee4,'ceramic');
+    return root;
+  }
+  if(s==='leisure-billiards'){
+    box(w*.98,.19,d*.98,0,.70,0,D,'wood',true);
+    feet(.61,.22,.16,D);
+    box(w*.82,.045,d*.86,0,.815,0,0x326849,'fabric',true);
+    for(const side of [-1,1]){
+      box(.085,.10,d*.91,side*w*.46,.86,0,M,'wood',true);
+      box(w*.89,.10,.10,0,.86,side*d*.46,M,'wood',true);
+      for(const z of [-d*.43,0,d*.43])cyl(.063,.012,.063,side*w*.414,.887,z,0x161c1b,'fabric');
+    }
+    const colors=[0xe6bd3c,0x194d9b,0xb93632,0x76378b,0xe68a25,0x386e43,0x8f352f,0x242622];
+    for(let row=0;row<4;row++)for(let i=0;i<=row;i++)ball(.030,.030,.030,(i-row/2)*.061,.87,-.45-row*.053,colors[(row+i)%colors.length],'ceramic');
+    ball(.030,.030,.030,0,.87,.50,0xf8f4e5,'ceramic');
+    line(-w*.34,.892,-.90,-w*.34,.892,.91,.012,0xd0a471,'wood');
+    line(-w*.28,.892,-.92,-w*.28,.892,.85,.012,0xa4754d,'wood');
+    return root;
+  }
+  if(s==='leisure-swing'){
+    for(const x of [-w*.44,w*.44]){
+      for(const z of [-d*.43,d*.43])line(x,.03,z,x,h-.14,0,.047,D,'metal');
+      line(x,.13,-d*.43,x,.13,d*.43,.035,D);
+    }
+    line(-w*.45,h-.13,0,w*.45,h-.13,0,.046,D);
+    box(w*.96,.045,d*.77,0,h-.045,0,F,'fabric',true);
+    const pivot=new THREE.Group();pivot.name='Leisure swing pivot';pivot.position.y=h-.13;root.add(pivot);
+    const add=(m:THREE.Mesh)=>{root.remove(m);m.position.y-=pivot.position.y;pivot.add(m);};
+    for(const x of [-.83,.83]){
+      add(line(x,h-.13,0,x,.49,-.16,.018,D));
+      add(line(x,h-.13,0,x,.49,.16,.018,D));
+    }
+    add(box(1.87,.13,.59,0,.49,0,M,'wood',true));
+    add(box(1.80,.085,.50,0,.565,0,F,'fabric',true));
+    add(box(1.86,.49,.09,0,.82,-.25,M,'wood',true));
+    add(box(1.78,.38,.085,0,.83,-.18,F,'fabric',true));
+    batchRigidParts(pivot,true);
+    return root;
+  }
+  if(s==='leisure-hammock'){
+    for(const side of [-1,1]){
+      line(side*w*.46,.08,-d*.40,side*w*.46,.08,d*.40,.048,D,'metal');
+      line(side*w*.36,.10,0,side*w*.46,h-.09,0,.055,D,'metal');
+      line(side*w*.46,h-.09,0,side*w*.31,.78,0,.019,L,'fabric');
+    }
+    line(-w*.42,.075,0,w*.42,.075,0,.045,D,'metal');
+    const pos:number[]=[],idx:number[]=[];
+    for(let i=0;i<=20;i++){
+      const t=i/20,x=(t-.5)*w*.70;
+      for(let j=0;j<=10;j++){
+        const q=j/10-.5,z=q*d*.76*(.80+.20*Math.sin(t*Math.PI));
+        pos.push(x,.47+.37*(2*t-1)**2+.13*(2*q)**2,z);
+      }
+    }
+    for(let i=0;i<20;i++)for(let j=0;j<10;j++){const k=i*11+j;idx.push(k,k+11,k+1,k+1,k+11,k+12);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
+    const cloth=finish(F,'fabric').clone();cloth.side=THREE.DoubleSide;
+    root.add(new THREE.Mesh(g,cloth));
+    for(const side of [-1,1])line(side*w*.35,.86,-d*.31,side*w*.35,.86,d*.31,.031,M,'wood');
+    return root;
+  }
+
   // Pet accessories have the EXACT same lightweight model in catalogue cards,
   // placement preview and the installed house. They are not reskinned rugs.
   if(s==='pet-bed-verdell'||s==='pet-bed-simba'){

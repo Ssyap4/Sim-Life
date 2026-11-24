@@ -4,6 +4,7 @@ import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy
 import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
@@ -133,7 +134,7 @@ export function createHomeSessions(hooks: Hooks) {
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
       if(!choice)return null;
-      const seated=['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
+      const seated=(isLeisureAction(command.action)&&LEISURE[command.action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
         'tablePlan','youtube','movie','free_tv'].includes(command.action)||
         (command.action==='read_book'&&FURNITURE_BY_ID.get(choice.item.sku)?.shape!=='shelves');
       return {route:choice.route,station:'furniture',furnitureId:choice.item.id,

@@ -11,6 +11,7 @@ import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import { clockMinutes } from '../src/shared/locations';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import { localActivity, localLabels } from './locations';
+import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
@@ -58,7 +59,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     const normalized:FurnitureUseCommand={type:'furniture_use',furnitureId:command.furnitureId as number,action,
       ...(action==='read_book'?{book:command.book as import('../src/shared/homeLife').BookId}:{}),
       ...(action==='movie'?{genre:command.genre as import('../src/shared/homeLife').Genre}:{})};
-    const secs=Object.hasOwn(ACTION_SECONDS,action)?ACTION_SECONDS[action as ActionId]:
+    const secs=isLeisureAction(action)?LEISURE[action].seconds:Object.hasOwn(ACTION_SECONDS,action)?ACTION_SECONDS[action as ActionId]:
       action==='movie'?HOME_SECONDS.movie:action==='youtube'?HOME_SECONDS.youtube:
       action==='free_tv'?HOME_SECONDS.freeTv:action==='read_book'?BOOKS[normalized.book!][3]:8;
     return {command:normalized,label:FURNITURE_ACTIONS[action],durationMs:secs*1000,
@@ -104,7 +105,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action === 'dine' ? MEAL_EAT_SECONDS*1000 : 5800, resource: null };
+      durationMs: action === 'dine' || action === 'picnic' ? MEAL_EAT_SECONDS*1000 : action === 'chess' || action === 'swing' ? 24000 : 5800, resource: null };
   }
   if (command.type === 'act') {
     const id = command.actionId;
@@ -213,7 +214,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
       :(()=>{
         const next=structuredClone(state);
         const resident=next.characters[role];
-        const reward=action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
+        const reward=isLeisureAction(action)?{fun:LEISURE[action].fun,mood:LEISURE[action].mood,comfort:LEISURE[action].comfort,energy:LEISURE[action].energy}:action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
           action==='read_book'?{type:'read_book',book:command.book!}:
           action==='movie'?{type:'movie',genre:command.genre!}:
           action==='youtube'?{type:'youtube'}:{type:'free_tv'});
@@ -236,7 +237,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     const destination=position.route.path.at(-1)??position.route.from;
     Object.assign(result.state.characters[role],destination,{
-      pose:['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',
+      pose:(isLeisureAction(action)&&LEISURE[action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',
         'youtube','movie','free_tv'].includes(action)||
         (action==='read_book'&&FURNITURE_BY_ID.get(selected.item.sku)?.shape!=='shelves')?'sit':'idle'});
     return result;

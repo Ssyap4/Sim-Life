@@ -14,6 +14,8 @@ import { isCareerPlace } from '../src/shared/careers';
 import { unoccupiedDestination } from '../src/game/residentCollision';
 import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
+import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, validPicnicBasket, cleanPicnic } from '../src/shared/picnic';
+import { consumeReadyFood, readyFoodShelfDays, tableShelfMinutes, reconcileReadyFood, expireReadyFood } from '../src/shared/readyFood';
 import { RECIPES, TAKEOUT } from '../src/shared/food';
 import { MINUTES_PER_DAY } from '../src/shared/life';
 import { discardReadyFood, moveReadyFoodToFridge, moveReadyFoodToTable, readyFoodName } from '../src/shared/readyFood';
@@ -39,7 +41,8 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park'].includes(w.places![w.carDriver]))) &&
+    (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
     w.deliveries.every(d => d && typeof d.id === 'string' && /^D-(vlad|alina)-\d+$/.test(d.id) &&
@@ -68,6 +71,7 @@ export function setDogParkPosition(state: GameState): void {
 
 export const worldMessages = new Set([
   'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -83,7 +87,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe')return fail('На машине пока доступны супермаркет и кафе');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park')return fail('На машине доступны супермаркет, кафе и парк');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
@@ -281,6 +285,43 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       (spoiled ? '. Испортившихся порций выброшено: ' + spoiled : ''));
   }
 
+  if(command.type==='picnic_buy'){
+    if(place!=='market'||!at(source,role,stationById('market','checkout')))return fail('Купи корзину у кассы супермаркета');
+    if(source.world.picnic)return fail('Семейная корзина уже куплена');
+    if(source.money<PICNIC_BASKET_PRICE)return fail('Недостаточно денег');
+    const next=structuredClone(source);
+    next.money-=PICNIC_BASKET_PRICE;
+    next.world.picnic={portions:{vlad:[],alina:[]}};
+    addLedger(next,role,'expense','groceries',PICNIC_BASKET_PRICE,'Корзина для пикника');
+    return done(next,'Корзина для пикника куплена');
+  }
+  if(command.type==='picnic_pack'||command.type==='picnic_unpack'){
+    if(place!=='home'||!at(source,role,stationById('home','fridge')))return fail('Подойди к холодильнику');
+    if(!source.world.picnic)return fail('Сначала купи корзину для пикника');
+    const {kind,item}=command;
+    if((kind!=='meal'&&kind!=='takeout')||typeof item!=='string'||!Object.hasOwn(kind==='meal'?RECIPES:TAKEOUT,item))return fail('Неизвестное блюдо');
+    const next=structuredClone(source);cleanPicnic(next);reconcileReadyFood(next);expireReadyFood(next);
+    const basket=next.world.picnic!;const portions=basket.portions[role];const now=clockMinutes(next.clock);
+    if(command.type==='picnic_pack'){
+      if(basket.portions.vlad.length+basket.portions.alina.length>=PICNIC_CAPACITY)return fail('Корзина заполнена');
+      const batch=next.readyFood.filter(b=>b.storage==='fridge'&&b.kind===kind&&b.item===item&&b.expiresAt>now).sort((a,b)=>a.expiresAt-b.expiresAt)[0];
+      if(!batch)return fail('Нет свежей порции в холодильнике');
+      const remaining=Math.max(1,Math.floor((batch.expiresAt-now)*tableShelfMinutes(item)/(readyFoodShelfDays(kind,item,'fridge')*MINUTES_PER_DAY)));
+      const expiresAt=now+Math.min(batch.expiresAt-now,remaining,tableShelfMinutes(item));
+      if(!consumeReadyFood(next,kind,item,'fridge'))return fail('Порция уже недоступна');
+      portions.push({kind,item,expiresAt});
+      return done(next,'В корзину: '+readyFoodName(kind,item));
+    }
+    const index=portions.findIndex(p=>p.kind===kind&&p.item===item);
+    if(index<0)return fail('Нет такой порции в твоём отделении корзины');
+    const portion=portions[index];
+    if(kind==='meal')next.meals[item as keyof typeof RECIPES]++;else next.takeout[item as keyof typeof TAKEOUT]++;
+    next.readyFood.push({...portion,portions:1,storage:'fridge'});
+    const fit=storageCanFit(source,next);if(!fit.ok)return fail(fit.reason);
+    portions.splice(index,1);
+    return done(next,'В холодильник: '+readyFoodName(kind,item));
+  }
+
   if (command.type === 'ready_food_move' || command.type === 'ready_food_serve' ||
       command.type === 'ready_food_discard') {
     if(place!=='home')return fail('Это действие доступно только дома');
@@ -336,6 +377,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
+  swing:'Покачаться на качелях', chess: 'Сыграть в шахматы', picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
 };
@@ -351,7 +393,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   const bump = (key: 'mood' | 'comfort' | 'fun' | 'hunger' | 'energy', count: number) => {
     resident[key] = Math.max(0, Math.min(100, resident[key] + count));
   };
-  resident.pose = action === 'rest' || action === 'dine' ? 'sit' : 'idle';
+  resident.pose = action === 'rest' || action === 'dine' || action === 'chess' || action === 'swing' || action === 'picnic' ? 'sit' : 'idle';
   if (action === 'dine') {
     const order = next.world.cafe[role];
     if(order?.table && (order.table!==id || order.readyAt>clockMinutes(source.clock) || source.characters[role].pose!=='sit'))
@@ -363,6 +405,15 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     } else { bump('comfort', 8); bump('mood', 3); }
   } else if (action === 'rest') {
     bump('comfort', 14); bump('energy', 5);
+  } else if(action==='picnic'){
+    cleanPicnic(next);const food=next.world.picnic?.portions[role].shift();
+    if(!food)return fail('В твоём отделении корзины нет свежих порций');
+    const meal=food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
+    bump('hunger',meal.hunger);bump('mood',meal.mood+8);bump('fun',18);bump('comfort',8);
+    return done(next,'Пикник: '+readyFoodName(food.kind,food.item));
+  } else if(action==='swing'){bump('comfort',24);bump('fun',24);bump('mood',15);bump('energy',5);
+  } else if (action === 'chess') {
+    bump('fun', 25); bump('mood', 10); bump('comfort', 8); bump('energy', -3);
   } else if (action === 'exercise') {
     bump('fun', 13); bump('mood', 6); bump('energy', -4);
   } else if (action === 'dog') {

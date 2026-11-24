@@ -4,6 +4,7 @@ import { DISTRICT_WORLD_FLOOR, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GA
 import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
+import type { PicnicBasket } from './picnic';
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES, HOME_FLOOR, HOME_YARD } from './home';
 
@@ -43,7 +44,7 @@ type SiteAction =
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
   | { kind: 'career'; station: WorkStation }
   | { kind: 'employment'; career: CareerId }
-  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'courier' | 'car' | 'unpack' };
+  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'chess' | 'swing' | 'picnic' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'courier' | 'car' | 'unpack' };
 
 export interface Station {
   id: string;
@@ -143,8 +144,12 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     door('cafe-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   park: [
+    site('park-swing','Качели под навесом',3.4,-3.55,2.2,1.2,{kind:'swing'},{approach:{x:3.4,z:-2.35}}),
     site('park-bench', 'Скамья под соснами', 3.69, -1.23, 1.69, 0.65, { kind: 'rest' }),
-    site('park-path', 'Прогулочная дорожка', -3.78, -0.55, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
+    site('park-pond-seat', 'Скамья у пруда', -3.85, -3.25, 1.65, .65, { kind: 'rest' }),
+    site('park-chess', 'Шахматный столик', -.35, 2.05, 1.28, 1.72, { kind: 'chess' }),
+    site('park-picnic', 'Место для пикника', -4.15, .98, 1.95, 1.28, { kind: 'picnic' }, { approach: {x:-4.15,z:2.15} }),
+    site('park-path', 'Прогулочная дорожка', -2.68, -1.45, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
     site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false }),
     door('park-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
@@ -171,7 +176,8 @@ export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find
 export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind === 'education' && station.action.room !== 'reception')
     return { x: station.approach.x + (role === 'vlad' ? -.63 : .63), z: station.approach.z + .35 };
-  if (station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
+  if(station.action.kind==='chess')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.40};
+  if (station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
 export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
@@ -248,16 +254,19 @@ export interface WorldState {
   carDriver?:CharacterId;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
+  picnic?: PicnicBasket;
 }
 export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack';
+export type LocalActivity = 'rest' | 'chess' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'unpack';
 export type WorldCommand =
+  | { type:'picnic_buy' }
+  | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
-  | { type: 'car_travel'; place:'market'|'cafe' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

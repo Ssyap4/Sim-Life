@@ -1,3 +1,4 @@
+import { LEISURE, isLeisureAction, leisureAction } from './leisure';
 import { FURNITURE_BY_ID, type FurnitureShape, type PlacedFurniture } from './furniture';
 import { HOME_WORLD_FLOOR } from './district';
 import { placeObstacles } from './locations';
@@ -6,6 +7,8 @@ import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 
 /** Only meaningful activities for the purchased item's actual 3D shape. */
 export const FURNITURE_ACTIONS = {
+  boardGame:LEISURE.boardGame.label,chessGame:LEISURE.chessGame.label,dartsGame:LEISURE.dartsGame.label,
+  pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,
   sofaRest:'Отдохнуть',
   sofaMusic:'Послушать музыку',
   sofaCall:'Позвонить с дивана',
@@ -43,6 +46,8 @@ export function canFurniturePerform(item:PlacedFurniture,action:FurnitureUseActi
   const info=FURNITURE_BY_ID.get(item.sku);
   if(!info)return false;
   const shape=info.shape;
+  if(shape==='leisure')return leisureAction(item.sku)===action;
+  if(isLeisureAction(action))return false;
   if(action==='officeChairSit')return seats.has(shape);
   if(['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action))
     return shape==='sofa'||shape==='corner';
@@ -92,6 +97,22 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const item=check.item,info=FURNITURE_BY_ID.get(item.sku)!;
   const shape=info.shape,from=state.characters[role];
   const side=role==='vlad'?-1:1;
+  if(isLeisureAction(action)){
+    const spec=LEISURE[action];
+    const board=action==='boardGame'||action==='chessGame';
+    const swing=action==='swingRest';const hammock=action==='hammockRest';
+    const target=board||action==='pingPong'?[0,side*(info.depth/2+.64)]:
+      action==='billiards'?[side*(info.width/2+.65),0]:action==='dartsGame'?[side*.42,info.depth/2+1.35]:
+      [swing?side*.47:0,info.depth/2+.58];
+    const approach=rotate(item,target[0],target[1]);
+    const obstacles=placeObstacles('home',state.furnishing);
+    if(!pointIsClear(approach,obstacles,HOME_WORLD_FLOOR))return null;
+    const route=planWalk(from,approach,obstacles,HOME_WORLD_FLOOR);if(!route)return null;
+    const center=rotate(item,board?0:swing?side*.47:0,board?side*.65:0);
+    const yaw=item.rotation*Math.PI/2+(board&&side>0?Math.PI:0);
+    const pose={...center,y:spec.seated?(role==='vlad'?-.26:-.21)+(hammock?.015:0):0,yaw};
+    return {item,action,route,pose};
+  }
   const actorSeats=softSeats.has(shape);
   const isBareSeat=seats.has(shape);
   const seatTop=shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
