@@ -1,0 +1,15 @@
+# Sim-Life 0.40.0 — Умная техника (24.11.2026)
+
+Owner explicitly approved production. Code/tag v0.40.0: e49b3cd7b13c13b386df91bca559de169990d488. Production main D:\Sim-Life port 3111, http://192.168.0.124:3111/. Deployed PID 8588; health OK, testNoCodes:false; /assets/index-f21ZktA-.js and speaker-track-house-0.wav HTTP 200. Initial household reset once to 10000 RUB, default layout and two free pet furnishings. Access and trusted-device hashes unchanged. Backup D:\Sim-Life-Backups\v040-predeploy-20261124\at-switch verified SHA-256. Never reset on ordinary restart.
+
+## Changes
+- v1: room dust, 10 zones, 25% dirt per game day, manual room cleaning from phone, kitchen tidy clears kitchen, lightweight floor overlays. After 1/2/3 days, hourly mood/comfort losses 0.6/0.6, 1.2/1.8, 2.4/3.0. Only online residents in dirty indoor rooms; external shifts/outdoors excluded. Separate room state and save migration.
+- v2: Xiaomi S20 19900 (85%), Roborock Q8 Max+ 44900 (95%), Dreame X50 Ultra 89900 (100%). Separate shop display and same home models, one robot per family, station placement, static obstacle-aware routes, all ten rooms, dynamic characters/pets ignored, start/stop/return/room/daily 10:00. No consumables.
+- v3: Yandex Station 3 24990, Google Home Speaker 19990, Apple HomePod 39990. Separate electronics display, six speakers maximum, shared playback, spatial audio, 16 original 32s procedural instrumental WAVs (eight genres), local Russian speech synthesis if supported, real game weather/time, alarm, jokes, greetings, vacuum command. No actual external AI integration, microphone, or generated vocal songs. Audio quality not personally verified.
+- v4: scaled speaker models, supported furniture surfaces only (no floor), stored support ID/local coordinates, snap and color preview, occupied or reserved surfaces excluded, prevents overlapping speakers, host cannot be moved/stored/sold until speaker removed. No extra walk obstacles. Legacy invalid floor speakers return to storage. Starter dining table and vanity, compatible purchased desks/tables/nightstands/dressers/sideboards; occupied starter nightstands, kitchen counter, TV and unsafe/curved surfaces excluded.
+
+## Verification
+35/35 final focused tests (speaker-mount, speakers, vacuum, furnishing, furnishing-placement, furnishing-network); TypeScript/Vite passed. Cloud dust mobile 45475390561 and speakers mobile 45475390214 success at f057340. Full cloud regression workflow simlife-040-release.yml triggered at e49b3cd but result not verified (run listing inaccessible); do not call it passed. Actual screenshots not personally inspected, physical FPS/audio not checked. Build retains historical bundle-size and Wardrobe import warnings.
+
+## Next
+No next feature approved. Discuss with owner; options household laundry/chores or deep careers (Vlad game development studio; Alina hair reconstruction studio). No lamps/RGB/lighting. Weather v2 still paused. No development-turn counter (owner explicitly rejected it). Preserve prior rules and main only on approval. Read AGENTS.md and HANDOFF_LATEST.md.

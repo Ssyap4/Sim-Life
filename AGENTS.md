@@ -1,3 +1,6 @@
+# Current approved release 0.40.0 (2026-11-24)
+Read docs/RELEASE_040.md and HANDOFF_LATEST.md. Owner approved 0.40 production; verify main, v0.40.0 and health port 3111. No development-turn counter. Next stage not selected; no lights/RGB, weather v2 paused. Full cloud regression result unverified, physical FPS/audio and manual visual QA outstanding. Preserve mobile-first, isolated test saves, no heavy QA on ALINA-PC. Earlier release rules below historical where superseded.
+
 # Current approved release 0.39.0 (2026-11-24)
 See docs/RELEASE_039.md and HANDOFF_LATEST.md; verify main, tag and port 3111 before assuming deployment. Owner requested winter snow throughout the plot, then release; further 0.39 weather development is paused. Do not start 0.40 or another feature without the owner's choice. Earlier release notes below are historical.
 
