@@ -1,0 +1,20 @@
+name: Sim-Life 0.37 everyday moments QA
+on:
+  push:
+    branches: [feat/life-moments-037]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  moments:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --import tsx --test server/tests/lifeMoments037.test.ts server/tests/emotions037.test.ts server/tests/expression037.test.ts server/tests/comfort-autonomy-029.test.ts
