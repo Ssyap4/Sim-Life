@@ -1,5 +1,5 @@
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
-import { residentEmotion,wishEmotionPriority,PERSONALITIES } from './emotions';
+import { residentEmotion,wishEmotionPriority,PERSONALITIES,activeEmotions } from './emotions';
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { COOKING_RECIPES, COOKING_ORDER } from './cookingProgression';
 import { SOCIAL_BY_ID, socialRestriction } from './socialLife';
@@ -138,12 +138,27 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   }
   const recipe=COOKING_ORDER.find(id=>!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
-  const cycle=Math.floor(gameMinutes(state.clock)/180)+(role==='alina'?1:0);
+  const recent=activeEmotions(state,role)[0]?.kind;
   const emotion=residentEmotion(state,role).id;
-  const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]).sort((a,b)=>cycle%3===2?Number(b.id.startsWith('goal-'))-Number(a.id.startsWith('goal-')):wishEmotionPriority(b.id,role,emotion)-wishEmotionPriority(a.id,role,emotion));
+  if(person.energy>=35&&person.energy<=75&&(['shift','tense','tired'].includes(recent??emotion)||emotion==='tense'||emotion==='tired'))add('rest-break','🛋️','Немного отдохнуть','После дел хочется перевести дух.','Отдохнуть',furniture(state,'sofa','sofaRest'));
+  const contextPriority=(id:string):number=>{
+    if(recent==='shift'&&['rest-break','tea-break','music-evening','favorite-music'].includes(id))return 5;
+    if((recent==='creativeSpark'||recent==='study'||recent==='readingMoment')&&id.startsWith('learn-'))return 5;
+    if((recent==='quietMorning'||recent==='cozyEvening')&&['tea-break','together-time','reading'].includes(id))return 4;
+    if(recent==='favoritePet'&&id==='companion-'+pet)return 4;
+    if(recent==='tidyMoment'&&id==='tea-break')return 4;
+    return 0;
+  };
+  const contextDetail=(wish:Wish):Wish=>{
+    if(contextPriority(wish.id)===0)return wish;
+    const reason=recent==='shift'?'После работы хочется переключиться.':recent==='creativeSpark'?'Пришла интересная идея.':recent==='quietMorning'?'Приятное начало дня.':recent==='cozyEvening'?'Хочется сохранить уютный вечер.':recent==='favoritePet'?'После приятного общения с питомцем.':recent==='tidyMoment'?'Дома стало уютнее.':'Хочется продолжить интересное занятие.';
+    return {...wish,detail:reason+' '+wish.detail};
+  };
+  const cycle=Math.floor(gameMinutes(state.clock)/180)+(role==='alina'?1:0);
+  const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]).sort((a,b)=>cycle%3===2?Number(b.id.startsWith('goal-'))-Number(a.id.startsWith('goal-')):wishEmotionPriority(b.id,role,emotion)+contextPriority(b.id)-wishEmotionPriority(a.id,role,emotion)-contextPriority(a.id));
   for(const plan of ordered){
     if(wishes.length>=3)break;
-    if(!wishes.some(w=>JSON.stringify(w.command)===JSON.stringify(plan.command)))wishes.push(plan);
+    if(!wishes.some(w=>JSON.stringify(w.command)===JSON.stringify(plan.command)))wishes.push(contextDetail(plan));
   }
   return wishes.slice(0,3);
 }
