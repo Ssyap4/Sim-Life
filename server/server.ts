@@ -8,6 +8,9 @@ import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
+import type { Wish } from '../src/shared/wishes';
+import { protectNeeds } from '../src/shared/happiness';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor } from '../src/shared/locations';
@@ -155,6 +158,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
+  const sleepWishes = new Map<CharacterId,Wish>();
   const autoSleeping = new Set<CharacterId>();
   // Active sleep was already persisted in the household. Resume it when the
   // server restarts instead of leaving a permanently sleeping visual with
@@ -275,6 +279,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       all({ type: 'snapshot', state });
     }
     sleepers.delete(role);
+    sleepWishes.delete(role);
     announceTime();
     if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
   };
@@ -355,6 +360,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
+    for(const role of finishedSleeping){fulfillWish(next.state,role,sleepWishes.get(role),state);sleepWishes.delete(role);}
+    protectNeeds(next.state);
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
@@ -714,6 +721,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
+    const wish=automatic?undefined:wishAtStart(state,role,plan.command);
     const timer = pauseTimers.schedule(() => {
       const current = running.get(role);
       if (!current || current.id !== id || active.get(role) !== socket) return;
@@ -733,6 +741,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      result.message+=fulfillWish(result.state,role,wish,state);
       try { files.save(result.state); }
       catch (error) {
         console.error('Could not persist completed task:', error);
@@ -785,6 +794,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     accountTime();
     state=next;
     sleepers.set(role,command.mode);
+    const wish=wishAtStart(state,role,{type:'sleep_start',mode:command.mode});
+    if(wish)sleepWishes.set(role,wish);
     autoSleeping.delete(role);
     shiftVotes.delete(role);
     lastIntent.set(role,pauseTimers.now());
@@ -969,6 +980,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (isPaused) {
         packet(socket,{type:'error',reason:'Игра на паузе. Для продолжения нажми ▶'});
         return;
+      }
+      if(message.type==='happiness_buy'||message.type==='happiness_activate'){
+        if(message.type==='happiness_activate'&&sleepers.has(role)&&message.reward==='energy'){packet(socket,{type:'error',reason:'Сначала разбуди персонажа'});return;}
+        const result=rewardCommand(state,role,message.type,message.reward);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить награду'});return;}
+        state=result.state;all({type:'snapshot',state});packet(socket,{type:'world_event',role,message:result.message});return;
       }
       if(message.type==='simba_yield'){
         if(typeof message.key!=='string')return;

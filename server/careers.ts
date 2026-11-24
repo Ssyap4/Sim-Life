@@ -1,3 +1,4 @@
+import { protectNeeds } from '../src/shared/happiness';
 import { districtArrival, districtStation, inHomeGrounds } from '../src/shared/district';
 import {
   CAREERS, CAREER_STATIONS, CLINIC_MODULES, DETAIL_SERVICES, dayOf, initialCareers, isCareer, isCareerPlace,
@@ -80,6 +81,7 @@ function settle(state: GameState, role: CharacterId, now: number, early: boolean
     state.world.places[role] = 'district';
   }
   character.pose = 'idle';
+  protectNeeds(state);
   return explanation;
 }
 

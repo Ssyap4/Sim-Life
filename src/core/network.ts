@@ -109,6 +109,7 @@ export class LiveConnection {
   replyPause(accept: boolean): boolean { return this.sendAuthenticated({type:'pause_reply',accept}); }
   setAutonomyMode(mode:AutonomyMode):boolean{return this.sendAuthenticated({type:'autonomy_mode',mode});}
   startSleep(mode: SleepMode,furnitureId?:number): boolean {return this.sendAuthenticated({type:'sleep_start',mode,...(furnitureId===undefined?{}:{furnitureId})});}
+  happiness(type:'happiness_buy'|'happiness_activate',reward:import('../shared/happiness').RewardId):boolean{return this.sendAuthenticated({type,reward});}
   stopSleep(): boolean {return this.sendAuthenticated({type:'sleep_stop'});}
 
   checkout(lines: BasketLine[]): boolean {

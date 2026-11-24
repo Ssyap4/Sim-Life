@@ -165,3 +165,7 @@
 - Сон второго игрока восстанавливать на его кровати после смены сцены. Не пересчитывать уже занимаемую кровать как новое действие и не отправлять спящего к входу.
 - Корм приобретается в супермаркете или доставкой продуктов, не из меню питомца. Старую команду buyFood отклонять сервером.
 - Физиологические желания показывать только при потребности 50% и ниже, спокойные желания — личные занятия, учеба, досуг, общение и забота о животных. Не добивать пустые слоты выдуманными потребностями.
+### Happiness rewards (0.29)
+- Personal server-owned happiness wallets; real completed displayed wishes earn 5–75 points and +2–15 mood, no reward on cancellation, automation or clicks. Individual wish cooldown 24 game hours; goals require the actual skill level increase.
+- Exactly four approved consumables: hygiene 600, bladder 825, hunger 1200, energy 2250. Purchase into stock, activate separately; corresponding need immediately becomes 100 and stays at 100 for 1440 game minutes, including work and ordinary actions. No overlapping identical activation, independent boosts may coexist; no ruble conversion.
+- Save wallet, cooldowns, stock and expiry; older saves migrate to zero. Test-only seeded points may be used in isolated preview for testing purchases. Normal households start with zero points. Real family data never altered for testing.

@@ -1,3 +1,4 @@
+import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
@@ -491,12 +492,15 @@ function renderNeeds(): void {
       row.className = 'need-row';
       row.title = info.hint;
       const label = document.createElement('span');
-      label.textContent = info.emoji + ' ' + info.label;
+      const until=activeReward(state,role,need);
+      label.textContent = info.emoji + ' ' + info.label+(until?' 🔒':'');
+      if(until)row.title='Награда действует ещё '+rewardTime(until-gameMinutes(state.clock));
       const track = document.createElement('div');
       track.className = 'need-track';
       const fill = document.createElement('i');
       fill.style.width = value + '%';
-      if (value < 30) fill.classList.add('need-low');
+      if(until)fill.classList.add('need-protected');
+      else if (value < 30) fill.classList.add('need-low');
       else if (value < 55) fill.classList.add('need-mid');
       track.append(fill);
       const percent = document.createElement('span');
@@ -748,7 +752,10 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
   ()=>{toggleNeeds(false);locationUI.closeMap();},
   ()=>phone.openAutonomyHistory(),
   (role,command)=>{
-    if(!active||!state||active!==role||state.world.places[role]!=='home')return false;
+    if(!active||!state||active!==role)return false;
+    if(command.type==='local_activity')return state.world.places[role]==='park'&&net.world({type:'approach',place:'park',station:command.station});
+    if(state.world.places[role]!=='home')return false;
+    if(command.type==='together')return net.social({type:'social_propose',action:command.action});
     if(command.type==='fridge'){
       const station=stationById('home','fridge');
       if(!station)return false;
@@ -761,7 +768,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
     if(command.type==='eat_takeout')return net.eatTakeout(command.item);
     if(command.type==='pet_action')return net.petAction(command.pet,command.action);
     return false;
-  });
+  },(type,id)=>net.happiness(type,id));
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -1021,6 +1028,7 @@ const net = new LiveConnection({
         world.finishTimedAction(role);
         feedback.show(role,previous.label,effects);
         statusEl.textContent=message;
+        if(role===active&&message.includes('✨ Желание исполнено'))notify(message.slice(message.indexOf('✨ Желание исполнено')));
       }
       tasks.delete(role);
       drawTaskPanel();

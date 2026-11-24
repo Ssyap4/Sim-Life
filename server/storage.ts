@@ -39,12 +39,15 @@ export interface ServerFiles {
   save(state: GameState): void;
 }
 
+import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/happiness';
+
 const isValidState = (value: unknown): value is GameState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<GameState>;
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if (state.happiness !== undefined && !validHappiness(state.happiness)) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
@@ -292,6 +295,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ((districtLayout===undefined || districtLayout===1) || (districtLayout===4?inHomeGrounds(data.characters[role]):legacyHomeGrounds(data.characters[role])));
       const household: GameState = {
         ...data,
+        happiness: data.happiness ?? {vlad:initialHappiness(),alina:initialHappiness()},
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
           ...data.world, districtLayout: 4,
@@ -375,6 +379,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       return household;
     },
     save(state: GameState): void {
+      protectNeeds(state);
       if (!isValidState(state)) throw new Error('Refusing to save invalid household');
       const temporary = join(dataDir, 'household.tmp');
       writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n');

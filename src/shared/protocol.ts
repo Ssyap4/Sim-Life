@@ -20,6 +20,7 @@ import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
 import { BATH_FIXTURES, GRILL_WORK, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
 import type { BookId, Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
+import { initialHappiness, type HappinessState, type RewardId } from './happiness';
 import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
 export type { IngredientId, RecipeId } from './food';
@@ -85,6 +86,7 @@ export interface GameState {
   autonomy: AutonomySettings;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
+  happiness: Record<CharacterId, HappinessState>;
 }
 
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };
@@ -167,6 +169,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch'> };
 
 export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | EducationCommand | CareerCommand | SocialCommand
+  | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
@@ -246,6 +249,7 @@ export function initialState(): GameState {
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
     computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY },
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
+    happiness: { vlad: initialHappiness(), alina: initialHappiness() },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },
       alina: { hunger: 82, energy: 86, mood: 81, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'alina'), pose: 'idle' },

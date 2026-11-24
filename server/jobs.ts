@@ -1,3 +1,4 @@
+import { protectNeeds } from '../src/shared/happiness';
 import { randomInt } from 'node:crypto';
 import { JOBS, isJobId, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
   type JobId, type ShiftAssignment } from '../src/shared/jobs';
@@ -51,6 +52,7 @@ function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,ear
   const workedHours=(worked/60).toFixed(1).replace('.',',');
   const message=names[role]+(early?' завершил(а) смену досрочно':' закончил(а) смену')+
     ' «'+job.name+'» · '+workedHours+' из '+shift.hours+' ч.: +'+formatRub(payment);
+  protectNeeds(state);
   return {state,payment,message};
 }
 

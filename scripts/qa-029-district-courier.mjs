@@ -13,7 +13,7 @@ const out='/tmp/simlife-029-district-courier';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'simlife-district-'));
 const errors=[],samples={};let server,browser;
 try{
- let s=initialState();s.money=100000;
+ let s=initialState();s.money=100000;s.happiness.vlad.points=5000;
  Object.assign(s.characters.vlad,HOME_GATE_INSIDE);
  const ordered=applyWorld(s,'vlad',{type:'delivery_order',lines:[{id:'grocery:milk',quantity:1}],sequence:0});
  assert.ok(ordered.ok,ordered.ok?'':ordered.reason);
@@ -65,6 +65,17 @@ try{
   await travel('home');
   await capture('09-car-home-parking');
   assert.equal(await page.evaluate(()=>window.qaState?.world.carDriver),undefined);
+  await page.locator('#thought-trigger').click();
+  await page.locator('[data-happiness-toggle]').click();
+  await page.locator('.happiness-card').first().waitFor();
+  await capture('10-happiness-shop');
+  const sleep=page.locator('.happiness-card').filter({hasText:'Борьба со сном'});
+  await sleep.getByRole('button',{name:/Купить/}).click();
+  await page.waitForFunction(()=>window.qaState?.happiness.vlad.stock.energy===1);
+  await sleep.getByRole('button',{name:'Активировать'}).click();
+  await page.waitForFunction(()=>window.qaState?.happiness.vlad.until.energy>0&&window.qaState.characters.vlad.energy===100);
+  await capture('11-happiness-active');
+  assert.equal(await page.evaluate(()=>window.qaState.happiness.vlad.points),2750);
  }
  assert.deepEqual(errors,[]);
 }finally{
