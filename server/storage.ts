@@ -122,7 +122,7 @@ const isValidState = (value: unknown): value is GameState => {
       if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
-        Number(hours) >= JOBS[shift.job].hoursMin &&
+        Number(hours) >= (isHomeJob(shift.job)?2:JOBS[shift.job].hoursMin) &&
         Number(hours) <= JOBS[shift.job].hoursMax &&
         Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
         Number.isSafeInteger(shift.endsAt) &&

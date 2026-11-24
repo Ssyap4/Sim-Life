@@ -10,7 +10,7 @@ import {openServerFiles} from '../storage';
 import {beginShift} from '../jobs';
 import {initialState} from '../../src/shared/protocol';
 import {clockAt} from '../../src/shared/life';
-import {homeQuestContent} from '../../src/shared/homeJobQuests';
+import {homeQuestContent,correctQuestChoice} from '../../src/shared/homeJobQuests';
 import type {CharacterId,ServerPacket} from '../../src/shared/protocol';
 
 function next(ws:WebSocket,predicate:(msg:ServerPacket)=>boolean):Promise<ServerPacket> {
@@ -78,7 +78,7 @@ test('Home quest websocket answers are synchronized, owner-only, durable and rep
  const files=openServerFiles(dir);
  const result=beginShift(initialState(),'vlad','gameFix','desktop');assert.ok(result.ok);
  const state=result.state,shift=state.activeShifts.vlad!,run=shift.quests![0];
- const choice=run.order.indexOf(homeQuestContent(shift,run)!.answer);
+ const choice=correctQuestChoice(homeQuestContent(shift,run)!,run);
  shift.targetPay=2200;state.clock=clockAt(run.at);files.save(state);
  const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir});
  const sockets:WebSocket[]=[];

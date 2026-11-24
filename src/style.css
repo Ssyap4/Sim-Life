@@ -1472,3 +1472,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .home-career-tabs .career-button {white-space:normal;line-height:1.15;min-width:0;}
 .home-quest-card {border-color:#b7c7e1;display:grid;gap:5px;}
 .home-quest-card .career-button {white-space:normal;text-align:left;line-height:1.25;min-height:36px;}
+
+.home-quest-select[aria-pressed=true] {background:#496b59;color:#fff9e7;border-color:#496b59;}
+.home-quest-select::before {content:"□ ";}
+.home-quest-select[aria-pressed=true]::before {content:"✓ ";}

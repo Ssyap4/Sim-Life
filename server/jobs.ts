@@ -3,7 +3,7 @@ import { serviceAvailable } from "../src/shared/services";
 import { isHomeJob, HOME_JOBS } from "../src/shared/jobs";
 import { protectNeeds } from '../src/shared/happiness';
 import { randomInt, randomUUID } from 'node:crypto';
-import { HOME_QUESTS, pendingHomeQuest, homeQuestContent, type HomeQuestRun } from '../src/shared/homeJobQuests';
+import { HOME_QUESTS, pendingHomeQuest, homeQuestContent, validQuestChoice, correctQuestChoice, type HomeQuestRun } from '../src/shared/homeJobQuests';
 import { JOBS, isOfferedJob, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
   type JobId, type ShiftAssignment } from '../src/shared/jobs';
 import { addLedger, formatRub } from '../src/shared/economy';
@@ -34,10 +34,18 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown,device?:
     const pool=HOME_QUESTS[id], indices=pool.map((_,i)=>i);
     const duration=hours*60;
     const quests:HomeQuestRun[]=[];
-    for(let i=0;i<2;i++){
-      const index=indices.splice(randomInt(indices.length),1)[0];
-      const at=startedAt+Math.floor(duration*(i===0?.18:.57))+randomInt(0,9);
-      const order=[0,1,2];
+    // Include one genuine multiple-selection task and one alternate format in every order.
+    const selected:number[]=[];
+    const take=(choices:number[])=>{const index=choices[randomInt(choices.length)];selected.push(index);indices.splice(indices.indexOf(index),1);};
+    take(indices.filter(i=>pool[i].kind==='multi'));
+    take(indices.filter(i=>pool[i].kind==='binary'||pool[i].kind==='sequence'));
+    take(indices.filter(i=>!pool[i].kind||pool[i].kind==='single'));
+    while(selected.length<hours)take(indices);
+    for(let j=selected.length-1;j>0;j--){const k=randomInt(j+1);[selected[j],selected[k]]=[selected[k],selected[j]];}
+    for(let i=0;i<selected.length;i++){
+      const index=selected[i];
+      const at=startedAt+i*60+randomInt(10,21);
+      const order=pool[index].options.map((_,i)=>i);
       for(let j=order.length-1;j>0;j--){const k=randomInt(j+1);[order[j],order[k]]=[order[k],order[j]];}
       quests.push({nonce:randomUUID(),index,at,until:Math.min(at+32,startedAt+duration-5),order});
     }
@@ -52,11 +60,11 @@ export function answerHomeQuest(source:GameState,role:CharacterId,nonce:unknown,
   const shift=source.activeShifts[role],now=totalGameMinutes(source.clock);
   const run=pendingHomeQuest(shift,now);
   if(!shift?.homeDevice||!run||run.nonce!==nonce)return {ok:false,reason:'Это задание уже недоступно'};
-  if(choice!==-1&&(!Number.isInteger(choice)||Number(choice)<0||Number(choice)>=run.order.length))return {ok:false,reason:'Выбери вариант ответа'};
   const spec=homeQuestContent(shift,run);
   if(!spec)return {ok:false,reason:'Задание не найдено'};
+  if(!validQuestChoice(spec,run,choice))return {ok:false,reason:'Выбери вариант ответа'};
   const state=structuredClone(source),next=state.activeShifts[role]!,q=next.quests!.find(item=>item.nonce===nonce)!;
-  const correct=choice!==-1&&run.order[Number(choice)]===spec.answer;
+  const correct=choice===correctQuestChoice(spec,run);
   q.result=choice===-1?'skipped':correct?'correct':'wrong';
   let bonus=0;
   if(correct){
