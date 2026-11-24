@@ -1,3 +1,4 @@
+import {FITNESS_PASSES,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
 import { toyProduct,toyOwned } from '../src/shared/petToys';
 import { petFoodProduct } from '../src/shared/petShop';
@@ -49,7 +50,8 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness'].includes(w.places![w.carDriver]))) &&
+    (w.fitness===undefined||validFitness(w.fitness)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
@@ -85,7 +87,7 @@ export function setDogParkPosition(state: GameState): void {
 import {SPEAKER_MODELS,isSpeakerSku} from '../src/shared/speakerCatalog';
 import {VACUUM_MODELS,isVacuumSku} from '../src/shared/vacuumCatalog';
 import {controlVacuum} from '../src/shared/vacuum';
-export const worldMessages = new Set(['speaker_buy','vacuum_buy','vacuum_control',
+export const worldMessages = new Set(['fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -100,6 +102,25 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='fitness_pass'){
+    if(typeof command.pass!=='string'||!Object.hasOwn(FITNESS_PASSES,command.pass))return fail('Неизвестный абонемент');
+    const pass=command.pass as FitnessPass,product=FITNESS_PASSES[pass],now=clockMinutes(source.clock);
+    if(source.money<product.price)return fail('Недостаточно денег');
+    if(pass==='single'&&(fitnessAccess(source,role)||fitnessProfile(source,role).ticket))return fail('Посещение уже оплачено');
+    const next=structuredClone(source),profiles=next.world.fitness??=initialFitness();
+    for(const owner of pass==='family'?ROLES:[role]){
+      if(pass==='single'){if(place==='fitness')profiles[owner].visit=true;else profiles[owner].ticket=true;}
+      else profiles[owner].until=Math.max(now,profiles[owner].until)+product.days*1440;
+    }
+    next.money-=product.price;addLedger(next,role,'expense','services',product.price,'PULSE · '+product.name);
+    return done(next,product.name+' оплачен');
+  }
+  if(command.type==='fitness_book'||command.type==='fitness_cancel'){
+    const next=structuredClone(source),profile=(next.world.fitness??=initialFitness())[role];
+    if(command.type==='fitness_cancel'){delete profile.booking;return done(next,'Запись отменена');}
+    if(typeof command.at!=='number'||!fitnessBookingSlots(clockMinutes(source.clock)).includes(command.at))return fail('Выбери доступное время');
+    profile.booking=command.at;return done(next,'Запись в PULSE Fitness сохранена');
+  }
   if(command.type==='pet_toy_buy'){
     if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
     const p=toyProduct(command.product);if(!p)return fail('Неизвестная игрушка');
@@ -187,7 +208,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness')return fail('Выбери доступное место');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
@@ -197,6 +218,11 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(!arrival)return fail('Вход занят вторым игроком');
     next.world.carDriver=role;
     next.world.places[role]=destination;
+    if(destination==='fitness'){
+      const profile=(next.world.fitness??=initialFitness())[role],now=clockMinutes(next.clock);
+      if(profile.ticket&&profile.until<=now){delete profile.ticket;profile.visit=true;}
+      if(profile.booking!==undefined&&Math.abs(profile.booking-now)<=60)delete profile.booking;
+    }
     Object.assign(next.characters[role],arrival,{pose:'idle'});
     return done(next,'Приехали: '+PLACES[destination].name);
   }
@@ -211,6 +237,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
       if(!arrival)return fail('Парковка занята');
       delete next.world.carDriver;
+      if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
       next.world.places[role]='home';
       next.world.bags[role]=0;
       next.world.tableBags=0;
@@ -231,6 +258,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
+    if(command.place==='fitness')return fail('До PULSE Fitness можно доехать на машине');
+    if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
     next.world.places[role] = command.place;
     if (command.dog === true) {
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
@@ -490,6 +519,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
+  fitnessSauna:'Сауна',
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
@@ -498,9 +528,20 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
-  if (!station || (station.action.kind !== action && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
+  if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
+  if(action==='fitnessSauna'){
+    if(place!=='fitness'||!fitnessAccess(source,role))return fail('Сначала оплати посещение клуба');
+    if(source.money<SAUNA_PRICE)return fail('Недостаточно денег');
+    if(fitnessProfile(source,role).saunaDay===source.clock.day)return fail('Сегодня ты уже посещал сауну');
+    if(source.characters[role].energy<20||source.characters[role].hunger<20)return fail('Сначала отдохни и поешь');
+    const next=structuredClone(source),profile=(next.world.fitness??=initialFitness())[role];
+    profile.saunaDay=source.clock.day;profile.fatigue=Math.max(0,profile.fatigue-35);
+    next.money-=SAUNA_PRICE;addLedger(next,role,'expense','services',SAUNA_PRICE,'PULSE · Сауна');
+    const c=next.characters[role];c.comfort=Math.min(100,c.comfort+30);c.mood=Math.min(100,c.mood+15);
+    return done(next,'Сауна · восстановление и комфорт');
+  }
   const next = structuredClone(source);
   const resident = next.characters[role];
   const bump = (key: 'mood' | 'comfort' | 'fun' | 'hunger' | 'energy', count: number) => {

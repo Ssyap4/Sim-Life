@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  fitness:{name:'PULSE Fitness',icon:'🏋️',detail:'Кардио, силовые тренировки и сауна'},
   petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Корм, лежанки, домики и когтеточки'},
   electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры, смартфоны и кофемашины'},
   clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
@@ -27,10 +28,11 @@ export const PLACES = {
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
+export const FITNESS_FLOOR={minX:-8.62,maxX:8.62,minZ:-6.62,maxZ:6.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='fitness'?FITNESS_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -46,6 +48,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'fitness'; facility:string}
   | {kind:'warehouse';job:'ozon'|'wildberries'}
   | {kind:'speaker-display'}
   | {kind:'vacuum-display'}
@@ -146,6 +149,30 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  fitness:[
+    site('fitness-treadmill-a','Беговая дорожка',-7,-4.7,1.25,2.1,{kind:'fitness',facility:'treadmill'}),
+    site('fitness-treadmill-b','Беговая дорожка',-4.8,-4.7,1.25,2.1,{kind:'fitness',facility:'treadmill'}),
+    site('fitness-bike','Велотренажёр',-2.6,-4.7,1.1,1.65,{kind:'fitness',facility:'bike'}),
+    site('fitness-elliptical','Эллипс',-0.5,-4.7,1.15,1.85,{kind:'fitness',facility:'elliptical'}),
+    site('fitness-stepper','Степпер',1.65,-4.7,1.1,1.5,{kind:'fitness',facility:'stepper'}),
+    site('fitness-rower','Гребной тренажёр',3.8,-4.7,1.1,2.2,{kind:'fitness',facility:'rower'}),
+    site('fitness-legpress','Жим ногами',6.7,-4.7,1.8,2,{kind:'fitness',facility:'legpress'}),
+    site('fitness-latpull','Вертикальная тяга',-7,-0.7,1.3,1.5,{kind:'fitness',facility:'latpull'}),
+    site('fitness-seatedrow','Горизонтальная тяга',-4.8,-0.7,1.3,1.7,{kind:'fitness',facility:'seatedrow'}),
+    site('fitness-chestpress','Жим от груди',-2.5,-0.7,1.35,1.65,{kind:'fitness',facility:'chestpress'}),
+    site('fitness-legextension','Разгибание ног',-0.1,-0.7,1.3,1.6,{kind:'fitness',facility:'legextension'}),
+    site('fitness-legcurl','Сгибание ног',2.2,-0.7,1.35,1.7,{kind:'fitness',facility:'legcurl'}),
+    site('fitness-crossover','Кроссовер',5.85,-0.7,3.1,1.4,{kind:'fitness',facility:'crossover'}),
+    site('fitness-rack','Стойка для приседаний',-7,3.05,1.7,1.65,{kind:'fitness',facility:'rack'}),
+    site('fitness-bench','Скамья и штанга',-4.5,3.05,1.65,1.8,{kind:'fitness',facility:'bench'}),
+    site('fitness-dumbbells','Гантели',-2.1,3.05,1.65,0.8,{kind:'fitness',facility:'dumbbells'}),
+    site('fitness-mat-a','Коврик для йоги',0.25,3.05,1,1.7,{kind:'fitness',facility:'mat'}),
+    site('fitness-mat-b','Коврик для растяжки',2.25,3.05,1,1.7,{kind:'fitness',facility:'mat'}),
+    site('fitness-sauna','Сауна',7.1,3.05,2.35,2.2,{kind:'fitness',facility:'sauna'}),
+    site('fitness-reception','Ресепшен PULSE',-6.7,5.8,2.7,0.85,{kind:'fitness',facility:'reception'},{approach:{x:-6.7,z:4.8}}),
+    site('fitness-bar','Спортивный бар',5.05,5.8,2.2,0.85,{kind:'fitness',facility:'bar'},{approach:{x:5.05,z:4.8}}),
+    door('fitness-exit','Выход к машине','district',0,6.6,true),
   ],
   petshop:[
     site('pet-dog-dry','Сухой корм для собак',-3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'dry'}),
@@ -312,13 +339,15 @@ export interface WorldState {
   campKit?: Partial<Record<CharacterId,CampKit>>;
   campLitUntil?:number;
   parkDog?:ParkDogVisit;
+  fitness?:import('./fitness').FitnessState;
 }
 export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = 'fitnessSauna' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | import('./fitness').FitnessCommand
   | { type:'camp_pack'; item:CampRecipe|'fuel' }
   | { type:'picnic_buy' }
   | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
@@ -333,7 +362,7 @@ export type WorldCommand =
   | import('./vacuum').VacuumCommand
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

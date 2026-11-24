@@ -1191,6 +1191,7 @@ export class World {
           const dish=picnicPortions(this.household,role)[0];
           if(dish){const plate=this.showMeal(role,station.center.x+(role==='vlad'?-.40:.40),.21,station.center.z-.10,dish.item as RecipeId|TakeoutId);actor.playActivity('eat',plate,dish.item as RecipeId|TakeoutId,true);}
         }
+        if(command.action==='fitnessSauna')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x-.25,role==='vlad'?-.15:-.10,station.center.z-.52),0);
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');
         if (command.action === 'unpack') actor.playDomesticActivity('tidy');
         if(isParkDogAction(command.action)){

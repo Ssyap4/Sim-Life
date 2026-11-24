@@ -32,6 +32,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
+import {FITNESS_PASSES,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
   const node = element('button', 'action-button', label);
   node.type = 'button';
@@ -101,7 +102,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)) continue;
+      if (isCareerPlace(id)||id==='fitness'&&location!=='fitness') continue;
       const here=location===id;
       const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || (state.world.carDriver===role&&id!=='home'));
       entry.dataset.place = id;
@@ -174,9 +175,16 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
+    } else if(station.action.kind==='fitness'){
+      if(station.action.facility==='reception'){
+        options.append(element('small','',fitnessAccess(place,role)?'Абонемент действует':'Выбери билет или абонемент'));
+        for(const pass of Object.keys(FITNESS_PASSES) as FitnessPass[]){const p=FITNESS_PASSES[pass];options.append(button(p.name+' · '+formatRub(p.price),()=>send({type:'fitness_pass',pass}),place.money<p.price||pass==='single'&&fitnessAccess(place,role)));}
+      }else if(station.action.facility==='sauna'){
+        options.append(element('small','','20 игровых минут · восстановление и комфорт'),local('Посетить сауну · '+formatRub(SAUNA_PRICE),'fitnessSauna'));
+      }else options.append(element('small','',''+station.name));
     } else if(station.action.kind==='warehouse'){
       const id=station.action.job,job=JOBS[id];
       options.append(element('strong','',job.name),element('small','','Смена '+job.hoursMin+'–'+job.hoursMax+' ч. · '+formatRub(job.payMin)+'–'+formatRub(job.payMax)),element('p','',job.description));

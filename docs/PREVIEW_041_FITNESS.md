@@ -1,0 +1,7 @@
+# PULSE Fitness — 0.41 work in progress
+
+Approved direction: separate gym scene, phone booking, single admission, 10/30 day passes, family pass, training and progressive physical form, sports bar, joint sessions and paid sauna. Deep careers reserved for full release; no new NPC social mechanics. Do not load the home scene with gym equipment.
+
+First preview: 18×14 gym footprint, 20 fitness stations and exit, independent station geometry, car travel and return, server-owned pass purchases and booking, single ticket consumed on entry, sauna action 500 RUB / 20 game minutes, one per game day, fatigue -35, comfort +30, mood +15 (on successful completion). Booking is a saved personal appointment, not capacity enforcement. Single-car travel currently supports one driver; joint trip support is outstanding. Gym equipment is visual only at this stage, not functioning workout stations. Locker rooms, showers, bar products, workout animation, programs, fitness progression and passive bonuses not implemented. Sauna fatigue field not yet accumulated by workouts. Seat placement is not visually verified.
+
+Preview only: D:/Sim-Life-041-Fitness, feat/pulse-fitness-041, port 3194, server-data-preview/preview-v1, no codes, 100000 RUB. Production main/3111 untouched. Focused route, geometry creation, pass, booking and sauna tests 3/3, TypeScript/Vite build passed. Actual mobile rendered frames, audio and FPS not checked. No heavy WebGL or full regression on ALINA-PC. No release or merge without owner approval.

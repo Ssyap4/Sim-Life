@@ -30,9 +30,12 @@ import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './sh
 import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
 import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
 import {roomAt} from './shared/homeDust';
-type App = 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+import {FITNESS_PASSES,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
+
+type App = 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  fitness:['🏋️','PULSE Fitness'],
   speakers:['🔊','Умные колонки'],
   home:['🏠','Чистота дома'],
   feed:['📲','Лента'],
@@ -54,7 +57,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -78,7 +81,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let speakerKey='';
+  let speakerKey='',fitnessKey='';
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
@@ -102,6 +105,21 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='fitness'){
+      const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60)]);
+      if(key!==fitnessKey){
+        fitnessKey=key;const scroll=info.scrollTop;
+        const formatTime=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':'+String(c.minute%60).padStart(2,'0')};
+        const card=block('PULSE Fitness',p.until>now?'Абонемент до: '+formatTime(p.until):p.visit?'Разовое посещение активно':p.ticket?'Разовый билет куплен':'Нет действующего абонемента');
+        for(const pass of Object.keys(FITNESS_PASSES) as FitnessPass[]){const product=FITNESS_PASSES[pass],b=document.createElement('button');b.type='button';b.textContent=product.name+' · '+product.price.toLocaleString('ru-RU')+' ₽';b.disabled=state.money<product.price||pass==='single'&&(fitnessAccess(state,role)||!!p.ticket);b.onclick=()=>fitnessControl?.({type:'fitness_pass',pass});card.append(b);}
+        const booking=block('Запись',p.booking!==undefined&&p.booking>=now?'Записан: '+formatTime(p.booking):'Выбери удобное время.');
+        const select=document.createElement('select');select.setAttribute('aria-label','Время посещения');
+        for(const at of fitnessBookingSlots(now)){const option=document.createElement('option');option.value=String(at);option.textContent=formatTime(at);select.append(option);}
+        const book=document.createElement('button');book.type='button';book.textContent='Записаться';book.onclick=()=>fitnessControl?.({type:'fitness_book',at:Number(select.value)});
+        booking.append(select,book);if(p.booking!==undefined){const b=document.createElement('button');b.type='button';b.textContent='Отменить запись';b.onclick=()=>fitnessControl?.({type:'fitness_cancel'});booking.append(b);}
+        info.replaceChildren(card,booking);info.scrollTop=scroll;
+      }
+    }
     if(app==='speakers'){
       const items=speakerItems(state),key=JSON.stringify([items,state.speakers,state.world.places[role]]);
       if(key!==speakerKey){
@@ -324,13 +342,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;speakerKey='';
+    app=next;speakerKey='';fitnessKey='';
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

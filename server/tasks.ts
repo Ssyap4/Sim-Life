@@ -113,7 +113,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
+      durationMs: action==='fitnessSauna'?40000:action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: action==='fitnessSauna'?'fitness-sauna':isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
   }
   if(command.type==='clean_room'){
     if(!isDustRoom(command.room))return null;
