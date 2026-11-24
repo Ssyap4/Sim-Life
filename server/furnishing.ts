@@ -71,6 +71,11 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   if(source.world.places[role]!=='home')return fail('Обустройство доступно, когда персонаж дома');
   const next=structuredClone(source);
   const home=next.furnishing;
+  const dog=next.pets.verdell.routine;
+  if(dog?.kind==='bedTogether'&&dog.dogBed&&(
+    command.type==='furniture_sell_static'&&command.fixture==='bed'&&dog.dogBed.bed==='starter'||
+    (command.type==='furniture_move'||command.type==='furniture_store'||command.type==='furniture_sell')&&(command.id===dog.dogBed.bed||command.id===dog.equipment?.id)
+  ))return fail('Сначала позови Верделла с кровати');
   if(command.type==='furniture_order') {
     if(!PURCHASABLE_FURNITURE.some(item=>item.id===command.sku)||!Object.hasOwn(FURNITURE_FINISHES,command.finish)||
        !Object.hasOwn(FURNITURE_DELIVERY,command.shipping)||!Number.isSafeInteger(command.quantity)||

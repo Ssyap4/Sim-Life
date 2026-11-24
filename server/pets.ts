@@ -1,3 +1,4 @@
+import {chooseDogBed,currentDogBed,dogBedSleeping} from '../src/shared/dogBed';
 import { HOUSE_ENTRY } from '../src/shared/home';
 import {discoverFurniture,furniturePreference,housePreferenceKey,type PetEvent} from '../src/shared/petPreferences';
 import {feedingStation,feedingOwnerPoint,loadFeeder,dispenseFeeder,dryRefills,feederReserve} from '../src/shared/petFeeders';
@@ -89,6 +90,8 @@ function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0,bloc
   if(prefer&&!nearest)ordered.sort((a,b)=>{const ka=housePreferenceKey(state.furnishing,a),kb=housePreferenceKey(state.furnishing,b);return (kb?furniturePreference(state.pets.simba,kb):1)-(ka?furniturePreference(state.pets.simba,ka):1);});
   for(const site of ordered){
     const yielded=state.pets.simba.furnitureYield;
+    const dog=state.pets.verdell.routine;
+    if(dog?.kind==='bedTogether'&&dog.dogBed&&site.key===(dog.dogBed.bed==='starter'?'starter:bed':'placed:'+dog.dogBed.bed))continue;
     if(blocked?.(site)||yielded&&yielded.perch.key===site.key&&gameMinutes(state.clock)<yielded.cooldownUntil)continue;
     if((['vlad','alina'] as const).some(role=>{
       const person=state.characters[role];
@@ -196,6 +199,18 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     }
     // Furniture can be moved/sold while Simba is up on it: abandon that
     // contact immediately. Never let an obsolete surface survive the tick.
+    if(id==='verdell'&&previous?.kind==='bedTogether'&&previous.dogBed){
+      const site=previous.equipment&&currentPetEquipment(state.furnishing,previous.equipment)&&currentDogBed(state,previous.equipment.id,previous.dogBed.bed);
+      const asleep=dogBedSleeping(state,previous.dogBed.bed);
+      const hungry=pet.satiety<=40&&state.petBowls[id]>0||pet.bladder<=35||pet.satiety<20;
+      if(site&&asleep)previous.dogBed.joined=true;
+      if(site&&!hungry&&(asleep||!previous.dogBed.joined&&previous.until>now)){
+        if(Math.hypot(pet.position.x-site.approach.x,pet.position.z-site.approach.z)<.04&&asleep)
+          pet.energy=clamp(pet.energy+minutes*.25);
+        continue;
+      }
+      delete pet.routine;
+    }
     const invalidPerch=previous?.kind==='perch' &&
       (id!=='simba'||!previous.perch||!currentCatPerch(state.furnishing,previous.perch));
     const invalidEquipment=previous?.equipment &&
@@ -388,7 +403,7 @@ export function applyPetAction(
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
   const training=trainingCommand(action);
-  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe','loadFeeder'].includes(action))
+  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe','loadFeeder','bedTogether','leaveBed'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -398,6 +413,24 @@ export function applyPetAction(
   const actor = next.characters[role];
   let message = '';
 
+  if(kind==='bedTogether'||kind==='leaveBed'){
+    if(id!=='verdell'||next.world.places[role]!=='home'||next.world.dogWalker)return {ok:false,reason:'Верделл должен быть дома'};
+    if(kind==='leaveBed'){
+      if(data.routine?.kind!=='bedTogether')return {ok:false,reason:'Верделл не на кровати'};
+      pausePetRoutine(next,id,gameMinutes(next.clock));next.revision++;
+      return {ok:true,state:next,message:'Верделл спускается по лесенке'};
+    }
+    if(data.routine?.kind==='bedTogether')return {ok:false,reason:'Верделл уже идёт спать вместе с вами'};
+    if(data.satiety<40||data.bladder<35||data.routine?.kind==='eat'||data.routine?.kind==='toilet')return {ok:false,reason:'Сначала Верделлу нужно поесть или сходить в туалет'};
+    const now=Math.floor(gameMinutes(next.clock));
+    if(data.routine)data.position=sampleWalk(data.routine.route,Math.max(0,now-data.routine.startedAt)*PET_SPEED[id]/GAME_MINUTES_PER_REAL_SECOND).from;
+    const chosen=chooseDogBed(next,role);
+    if(!chosen)return {ok:false,reason:'Поставь мягкую лесенку высоким краем к свободной кровати, оставив проход'};
+    const {site,route}=chosen,stairs=next.furnishing.placed.find(i=>i.id===site.stairs)!;
+    const travel=Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
+    data.routine={kind:'bedTogether',target:0,startedAt:now,until:now+travel+90,route,goal:site.approach,equipment:petEquipmentRef(stairs),dogBed:{bed:site.bed,joined:dogBedSleeping(next,site.bed)}};
+    next.revision++;return {ok:true,state:next,message:'Верделл идёт к лесенке и устраивается на кровати'};
+  }
   if(kind==='bathe'){
     if(id!=='verdell')return {ok:false,reason:'Симба сам ухаживает за шерстью'};
     if(next.world.places[role]!=='home'||next.world.dogWalker)return {ok:false,reason:'Купать Верделла можно только дома'};

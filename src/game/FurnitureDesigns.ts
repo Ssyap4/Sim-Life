@@ -186,6 +186,15 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
 
   // Pet accessories have the EXACT same lightweight model in catalogue cards,
   // placement preview and the installed house. They are not reskinned rugs.
+  if(s==='pet-bed-stairs'){
+    for(let i=0;i<4;i++){
+      const height=h*(i+1)/4,z=d*(.375-i*.25);
+      box(w,height-.025,d*.25,0,(height-.025)/2,z,F,'fabric',true);
+      box(w+.012,.035,d*.25+.012,0,height-.0175,z,L,'fabric',true);
+      for(const x of [-w*.44,w*.44])box(.024,.025,d*.22,x,height-.006,z,D,'fabric',true);
+    }
+    return root;
+  }
   const feeding=feederModel(s);
   if(feeding){
     const auto=feeding.capacity>0,z=auto?d*.5-.19:0,metal=feeding.kind==='steel'||auto;

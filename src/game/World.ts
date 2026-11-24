@@ -51,6 +51,7 @@ import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import type { SimbaRig } from './SimbaRig';
 import { currentCatPerch } from '../shared/CatPerches';
+import {dogBedSites,currentDogBed} from '../shared/dogBed';
 import {currentPetEquipment,petScratchPoint} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
@@ -1703,7 +1704,7 @@ export class World {
   }
 
   private renderOwnedFurniture(placed:readonly PlacedFurniture[]):void {
-    const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false]);
+    const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false,this.household?.furnishing.soldFixtures?.includes('bed')??false]);
     if(signature===this.furnishingVisualKey)return;
     this.furnishingVisualKey=signature;
     this.computerScreens.hostDesktop(null);this.computerScreens.hostLaptop(null);
@@ -1723,6 +1724,9 @@ export class World {
       const model=buildFurnishingModel(item.sku,item.finish);
       model.position.set(item.x,.01,item.z);
       model.rotation.y=item.rotation*Math.PI/2;
+      if(item.sku==='pet-bed-stairs'&&this.household){
+        const site=dogBedSites(this.household,item)[0];if(site)model.scale.y=site.height/.76;
+      }
       model.userData.furnitureId=item.id;model.userData.sku=item.sku;
       model.traverse(part=>{
         if(part instanceof THREE.Mesh){
@@ -2381,9 +2385,10 @@ export class World {
       const pet = this.pets[id];
       pet.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor,state.pets[id].ownedToys);
       const candidate = state.pets[id].routine;
+      const dogSite=candidate?.kind==='bedTogether'&&candidate.dogBed&&candidate.equipment?currentDogBed(state,candidate.equipment.id,candidate.dogBed.bed):undefined;
       const routine = candidate && (candidate.kind==='perch' &&
         (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch)) ||
-        candidate.equipment&&!currentPetEquipment(state.furnishing,candidate.equipment))
+        candidate.equipment&&!currentPetEquipment(state.furnishing,candidate.equipment)||candidate.kind==='bedTogether'&&!dogSite)
         ? undefined : candidate;
       if (!pet.root.visible || !routine) {
         this.petRoutines.delete(id);
@@ -2448,7 +2453,7 @@ export class World {
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event,dogSite);
     }
   }
 

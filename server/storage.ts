@@ -172,10 +172,11 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
           (routine.kind==='scratch'&&id==='simba'&&isPetScratcher(routine.equipment.sku)||
-          routine.kind==='sleep'&&isPetBed(routine.equipment.sku,id))&&
+          routine.kind==='sleep'&&isPetBed(routine.equipment.sku,id)||routine.kind==='bedTogether'&&id==='verdell'&&routine.equipment.sku==='pet-bed-stairs')&&
           routine.target===0&&point(routine.goal)) &&
         (routine.training===undefined?routine.kind!=='train':id==='verdell'&&validTrainingAttempt(routine.training)&&routine.target===0&&point(routine.goal)&&(routine.kind==='train'||routine.kind==='fetch'&&routine.training.command==='fetch'&&routine.training.success)) &&
         (routine.kind==='event'?validEvent(routine.event,id)&&routine.target<2&&point(routine.goal):routine.event===undefined) &&
+        (routine.kind==='bedTogether'?id==='verdell'&&!!routine.equipment&&!!routine.dogBed&&typeof routine.dogBed.joined==='boolean'&&(routine.dogBed.bed==='starter'||Number.isSafeInteger(routine.dogBed.bed)&&routine.dogBed.bed>0)&&point(routine.goal):routine.dogBed===undefined) &&
         (routine.kind!=='bath'||id==='verdell'&&routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
@@ -259,7 +260,7 @@ function restorePet(id: PetId, saved: PetState | undefined,
     delete pet.favoriteBedId;
   if(pet.furnitureYield&&(!furnishing||!currentCatPerch(furnishing,pet.furnitureYield.perch)||
     !Number.isFinite(pet.furnitureYield.clearAt)||!Number.isFinite(pet.furnitureYield.cooldownUntil)))delete pet.furnitureYield;
-  if(pet.routine?.kind==='bath')delete pet.routine;
+  if(pet.routine?.kind==='bath'||pet.routine?.kind==='bedTogether')delete pet.routine;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&

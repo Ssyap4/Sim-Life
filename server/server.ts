@@ -1364,6 +1364,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           return;
         }
       }
+      if(message.type==='pet_action'&&['bedTogether','leaveBed'].includes(String(message.action))){
+        const result=applyPetAction(state,role,String(message.pet),String(message.action),catReserved);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить действие'});return;}
+        state=result.state;all({type:'snapshot',state});return;
+      }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',
         'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',

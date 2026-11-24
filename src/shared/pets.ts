@@ -2,8 +2,8 @@ import { toysFor } from './petToys';
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | 'bathe' | 'loadFeeder' | import('./dogTraining').DogTrainingAction;
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath','event'] as const;
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | 'bathe' | 'loadFeeder' | 'bedTogether' | 'leaveBed' | import('./dogTraining').DogTrainingAction;
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath','event','bedTogether'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
   {kind:'rope',name:'Канатик',x:.17,z:-.47},
@@ -33,6 +33,7 @@ export interface PetRoutine {
   fetchPoint?: FloorPoint;
   fetchPickupDistance?: number;
   /** Installed real pet furniture; invalid after sale or repositioning. */
+  dogBed?: {bed:import('./bedSleep').SleepBedId;joined:boolean};
   equipment?: import('./petFurniture').PetEquipmentRef;
   training?:import('./dogTraining').TrainingAttempt;
   event?:import('./petPreferences').PetEvent;
@@ -138,6 +139,7 @@ export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[
 export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'target' | 'perch' | 'goal'>) {
   const pet = PETS[id];
   if (routine.kind === 'eat') return routine.goal??{ x: pet.bowl.x, z: pet.bowl.z + .51 };
+  if(routine.kind==='bedTogether')return routine.goal??pet.home;
   if (routine.kind === 'sleep') return routine.goal ?? pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
@@ -156,6 +158,7 @@ export const INITIAL_PET_FOOD: PetFoodStock = { verdell: 2, simba: 2 };
 export const INITIAL_PET_BOWLS: PetBowlStock = { verdell: 0, simba: 0 };
 
 export const PET_ACTION_NAMES: Record<PetAction, string> = {
+  bedTogether:'Позвать спать вместе',leaveBed:'Позвать с кровати',
   buyFood: 'Купить корм',
   feed: 'Насыпать корм в миску',
   play: 'Поиграть',

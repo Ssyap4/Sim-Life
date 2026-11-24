@@ -152,6 +152,7 @@ export function renderPetChoices(
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
 
   ];
+  if(selected==='verdell')actions.unshift({action:stats.routine?.kind==='bedTogether'?'leaveBed':'bedTogether',icon:'🛏️',hint:'Мягкая лесенка у кровати · Верделл отдыхает рядом с вами',disabled:stats.routine?.kind!=='bedTogether'&&!state.furnishing.placed.some(i=>i.sku==='pet-bed-stairs')});
   if(capacity)actions.unshift({action:'loadFeeder',icon:'🥣',hint:'Загрузить сухой корм в бункер · '+reserve+'/'+capacity,disabled:reserve>=capacity||dryRefills(state,selected)<=0});
   // These are new server-owned routes, not copies of the existing pet/play actions.
   actions.unshift({
