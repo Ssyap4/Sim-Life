@@ -1,3 +1,17 @@
+# Sim-Life - current verified release: v0.29.0 (2026-11-24)
+
+- User approved the release. PR #60 merged into main: 4a4db94366fb708dfcd6a564b322e382c4d2e0bd; tag v0.29.0 pushed. Tested branch head debe9508fd868a111a5a27931518c889e08cf2cd has identical tree to the release merge.
+- Complete cloud regression SUCCESS: https://github.com/Ssyap4/Sim-Life/actions/runs/45309807065 ; focused + mobile scene checks SUCCESS: https://github.com/Ssyap4/Sim-Life/actions/runs/45309806992 .
+- Production build on ALINA-PC succeeded. Main: D:\Sim-Life, http://192.168.0.124:3111/ ; health HTTP 200, testNoCodes=false, production HTML and JS bundle HTTP 200 verified. Main server uses D:\Sim-Life\server-data. Backup: D:\Sim-Life-Backups\v029-predeploy-20261124-050342 . No test data copied to production.
+- Preview remains isolated at port 3162, D:\Sim-Life-028-Simba-RealPose, preview-data-happiness-029-100k. Never mix preview and real household data.
+- Release features: authored Simba rest poses and furniture occupancy / remove Simba; three cat houses, comfort and autonomy; separate home and district, physical courier, free family SUV with no erroneous roof cabinet, vehicle trips and parking return, sleep pose recovery, contextual wishes and personal happiness shop. Reward costs: cleanliness 600, bladder 825, hunger 1200, sleep 2250; each lasts 24 game hours. See docs/RELEASE_029.md and AGENTS.md.
+- Automated mobile scene checks passed; no new manual visual inspection or physical iPhone FPS measurement claimed in this release turn.
+- ALINA-PC is weak: no full local regression, heavy browser automation, Blender or WebGL renders. Use cloud checks, physical iPhone 11 portrait as final visual reference. New main changes require user approval. Next stage is not started.
+
+---
+
+## Historical handoff (older releases; do not treat as current)
+
 # Sim-Life — HANDOFF LATEST
 
 ## Новейший утверждённый релиз: 0.27 «Живые характеры» — 23.11.2026
