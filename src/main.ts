@@ -878,6 +878,9 @@ const net = new LiveConnection({
     render(true);
     notify('🏡 С возвращением, ' + names[role] + '!');
   },
+  onPreviewOutfit(role,look){
+    if(localPreviewNoCodes)fitWardrobe(world.actors[role].root,role,outfitChoices(look));
+  },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
       const milestones = active ? household.education.characters[active].events.filter(event => event.milestone) : [];
@@ -1162,9 +1165,7 @@ function openPreviewWardrobe():void{
     button.type='button';button.className='action-button';
     button.textContent=role==='alina'?alina:vlad;
     button.addEventListener('click',()=>{
-      const actor=world.actors[role];
-      const selected=fitWardrobe(actor.root,role,outfitChoices(look));
-      if(!selected.size){notify('Модель одежды не загрузилась');return;}
+      if(!net.previewOutfit(look))return;
       actionsEl.hidden=true;
       notify('Наряд изменён');
     });

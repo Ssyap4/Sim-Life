@@ -21,6 +21,7 @@ import type { ClockSample } from '../shared/life';
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
+  onPreviewOutfit?(role:CharacterId,look:string):void;
   onOnline(online: CharacterId[]): void;
   onTimeStatus(status: TimeStatus): void;
   onClock(sample: ClockSample): void;
@@ -162,6 +163,7 @@ export class LiveConnection {
 
   social(command:SocialCommand):boolean {return this.sendAuthenticated(command);}
   offerSocial(kind: SocialKind): boolean { return this.sendAuthenticated({ type: 'social_offer', kind }); }
+  previewOutfit(look:string):boolean{return this.sendAuthenticated({type:'preview_outfit',look});}
   isReady(): boolean { return this.authorized; }
 
   private sendAuthenticated(message: ClientPacket): boolean {
@@ -227,6 +229,8 @@ export class LiveConnection {
         this.callbacks.onDeliveryArrived();
       } else if (packet.type === 'ready_food_spoiled' && this.authorized) {
         this.callbacks.onReadyFoodSpoiled(packet.message);
+      } else if(packet.type==='preview_outfit'&&this.authorized){
+        this.callbacks.onPreviewOutfit?.(packet.role,packet.look);
       } else if (packet.type === 'snapshot' && this.authorized) {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {
