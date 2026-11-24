@@ -612,7 +612,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = place === 'market' ? marketOutline
+  const horizontal = place==='fitness'?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {

@@ -315,7 +315,7 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -515,7 +515,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -644,7 +644,7 @@ export class World {
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:this.place==='fitness'?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -2171,7 +2171,7 @@ export class World {
     else this.neighbors.group.removeFromParent();
     this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, 49, 75);
+    this.scene.fog = place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='fitness'?85:49, place==='fitness'?115:75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -2202,7 +2202,7 @@ export class World {
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
     this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -2624,6 +2624,7 @@ export class World {
       }
       return siteView;
     }
+    if(this.remote&&this.place==='fitness')return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
     if (this.remote && this.place === 'market')
       return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.14,1.09,1.0]);
     if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,

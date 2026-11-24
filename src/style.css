@@ -1476,3 +1476,8 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .home-quest-select[aria-pressed=true] {background:#496b59;color:#fff9e7;border-color:#496b59;}
 .home-quest-select::before {content:"□ ";}
 .home-quest-select[aria-pressed=true]::before {content:"✓ ";}
+
+#app .fitness-phone button,#app .fitness-phone select{display:block;width:100%;min-height:40px;margin-top:6px;padding:8px 10px;border:1px solid #bbcbbf;border-radius:9px;background:#fafbf8;color:#355849;font:inherit;font-size:13px;font-weight:650;text-align:left;white-space:normal;box-sizing:border-box}
+#app .fitness-phone button:disabled{opacity:.48}
+#app .fitness-phone button:active:not(:disabled){background:#d8e6d9}
+#app .fitness-phone article{margin-bottom:9px}

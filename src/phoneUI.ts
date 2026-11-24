@@ -350,7 +350,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;speakerKey='';fitnessKey='';
+    app=next;speakerKey='';fitnessKey='';info.classList.toggle('fitness-phone',next==='fitness');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;

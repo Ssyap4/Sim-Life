@@ -19,13 +19,14 @@ try{
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
- await page.goto('http://127.0.0.1:'+server.port+'/?perf=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.waitForTimeout(2600);await page.screenshot({path:join(out,'club.jpg'),type:'jpeg',quality:90});
  await page.locator('#phone-btn').click();await page.locator('[data-phone-app=fitness]').click();
  const info=page.locator('.phone-info');assert.equal(await info.getByRole('button',{name:/Лёгкое кардио/}).count(),1);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+ assert.ok(await info.getByRole('button',{name:/Лёгкое кардио/}).evaluate(el=>el.getBoundingClientRect().height>=40));
  await page.screenshot({path:join(out,'phone.jpg'),type:'jpeg',quality:90});
  await info.getByRole('button',{name:/Лёгкое кардио/}).click();
  await page.waitForTimeout(5500);await page.screenshot({path:join(out,'treadmill.jpg'),type:'jpeg',quality:90});
