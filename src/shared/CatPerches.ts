@@ -1,6 +1,7 @@
 import { FURNITURE_BY_ID, type FurnishingState, type FurnitureProduct } from './furniture';
 import { HOME_PLACEMENTS } from './home';
 import type { FloorPoint } from '../game/navigation';
+import type { CatRestPoseId } from './CatRestPoses';
 
 /** Shared, save-safe contact: a FLOOR approach and a separate real cushion top.
  * Every future purchasable item with a supported shape uses the same rules.
@@ -11,6 +12,10 @@ export interface CatPerch {
   surface: { x:number; y:number; z:number };
   yaw: number;
   kind: 'curl'|'watch';
+  entry?:'inside'|'jump';
+  /** Furniture-owned socket: support, heading and eligible authored poses.
+   * Optional only so pre-existing preview routines can still be read. */
+  catAnchor?: {x:number;y:number;z:number;yaw:number;poses:CatRestPoseId[]};
 }
 type PerchFurniture = Pick<FurnitureProduct,'id'|'shape'|'width'|'depth'|'height'>;
 const CAT_SEATS = new Set(['sofa','corner','armchair','ottoman','bench','bed','daybed']);
@@ -55,12 +60,19 @@ function make(key:string,item:PerchFurniture,x:number,z:number,rotation:number,
   const seat=rotate(0,localZ,rotation);
   // Face the ROOM/front edge, never the backrest or wall.
   const heading=rotate(0,sign,rotation);
+  const surface={x:x+seat.x,y:seatHeight(item,starter)+.085,z:z+seat.z};
+  const yaw=Math.atan2(heading.x,heading.z);
+  const poses:CatRestPoseId[]=item.shape==='bed'||item.shape==='daybed'
+    ? ['bed_curl']
+    : item.shape==='sofa'||item.shape==='corner'
+      ? ['sofa_loaf','sofa_side_rest']
+      : ['chair_compact'];
   return {
     key, approach:{x:x+foot.x,z:z+foot.z},
-    surface:{x:x+seat.x,y:seatHeight(item,starter)+.085,z:z+seat.z},
-    yaw:Math.atan2(heading.x,heading.z),
+    surface,yaw,
     kind:item.shape==='bed'||item.shape==='daybed'||item.shape==='sofa'||
       item.shape==='corner'||item.shape==='ottoman'?'curl':'watch',
+    catAnchor:{...surface,yaw,poses},
   };
 }
 /** Stable ID survives reload; recomputed positions invalidate moved/sold items. */
@@ -75,7 +87,26 @@ export function catPerchCandidates(furnishing:Pick<FurnishingState,'placed'|'sol
   }
   for(const placed of furnishing.placed){
     const info=FURNITURE_BY_ID.get(placed.sku);
-    if(!info||!catPerchable(info))continue;
+    if(!info)continue;
+    if(info.id.startsWith('pet-house-')){
+      const tower=info.id==='pet-house-tower',soft=info.id==='pet-house-soft';
+      const center=tower?-.37:0;
+      const heading=rotate(0,1,placed.rotation),yaw=Math.atan2(heading.x,heading.z);
+      const floor=rotate(center,info.depth/2+.62,placed.rotation);
+      const cushion=rotate(center,-.015,placed.rotation);
+      for(const entry of ['inside','jump'] as const){
+        const surface={x:placed.x+cushion.x,z:placed.z+cushion.z,
+          y:entry==='inside'?.15+.085:tower?1.34+.085:info.height-(soft?.14:.065)+.052+.085};
+        const poses:CatRestPoseId[]=entry==='inside'?
+          [tower?'house_tower':soft?'house_soft':'house_cabin']:
+          [tower?'sofa_loaf':soft?'sofa_side_rest':'chair_compact'];
+        list.push({key:'placed:'+placed.id+':'+entry,
+          approach:{x:placed.x+floor.x,z:placed.z+floor.z},surface,yaw,kind:'curl',entry,
+          catAnchor:{...surface,yaw,poses}});
+      }
+      continue;
+    }
+    if(!catPerchable(info))continue;
     list.push(make('placed:'+placed.id,info,placed.x,placed.z,placed.rotation,null));
   }
   return list;

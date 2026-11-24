@@ -1,3 +1,5 @@
+import { activeReward, rewardTime } from './shared/happiness';
+import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
@@ -490,12 +492,15 @@ function renderNeeds(): void {
       row.className = 'need-row';
       row.title = info.hint;
       const label = document.createElement('span');
-      label.textContent = info.emoji + ' ' + info.label;
+      const until=activeReward(state,role,need);
+      label.textContent = info.emoji + ' ' + info.label+(until?' 🔒':'');
+      if(until)row.title='Награда действует ещё '+rewardTime(until-gameMinutes(state.clock));
       const track = document.createElement('div');
       track.className = 'need-track';
       const fill = document.createElement('i');
       fill.style.width = value + '%';
-      if (value < 30) fill.classList.add('need-low');
+      if(until)fill.classList.add('need-protected');
+      else if (value < 30) fill.classList.add('need-low');
       else if (value < 55) fill.classList.add('need-mid');
       track.append(fill);
       const percent = document.createElement('span');
@@ -747,7 +752,10 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
   ()=>{toggleNeeds(false);locationUI.closeMap();},
   ()=>phone.openAutonomyHistory(),
   (role,command)=>{
-    if(!active||!state||active!==role||state.world.places[role]!=='home')return false;
+    if(!active||!state||active!==role)return false;
+    if(command.type==='local_activity')return state.world.places[role]==='park'&&net.world({type:'approach',place:'park',station:command.station});
+    if(state.world.places[role]!=='home')return false;
+    if(command.type==='together')return net.social({type:'social_propose',action:command.action});
     if(command.type==='fridge'){
       const station=stationById('home','fridge');
       if(!station)return false;
@@ -760,7 +768,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
     if(command.type==='eat_takeout')return net.eatTakeout(command.item);
     if(command.type==='pet_action')return net.petAction(command.pet,command.action);
     return false;
-  });
+  },(type,id)=>net.happiness(type,id));
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -1020,6 +1028,7 @@ const net = new LiveConnection({
         world.finishTimedAction(role);
         feedback.show(role,previous.label,effects);
         statusEl.textContent=message;
+        if(role===active&&message.includes('✨ Желание исполнено'))notify(message.slice(message.indexOf('✨ Желание исполнено')));
       }
       tasks.delete(role);
       drawTaskPanel();
@@ -1049,6 +1058,17 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
+      phone.close();computer.close();
+      showActionMenu('🐈 Симба');
+      const note=document.createElement('p');note.className='food-empty';note.textContent=reason;actionsEl.append(note);
+      const site=state&&catOccupiedPerch(state);
+      if(site&&reason===CAT_BLOCKED){
+        const button=document.createElement('button');button.type='button';button.className='action-button';button.textContent='🐾 Убрать Симбу';
+        button.addEventListener('click',()=>{if(net.yieldSimba(site.key)){actionsEl.hidden=true;notify('Симба освобождает место…');}});actionsEl.append(button);
+      }
+      return;
+    }
     furnishing.reject(reason);
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
@@ -1305,9 +1325,7 @@ function openPurchasedFurnitureActions(id:number):void{
     const pc=document.createElement('button');
     pc.type='button';pc.className='action-button';pc.textContent='💻 Открыть стационарный компьютер';
     pc.addEventListener('click',()=>{
-      selectedDesktopFurnitureId=id;
-      world.focusDesktopFurniture(id);
-      actionsEl.hidden=true;computer.open('desktop');
+      openComputer('desktop',id);
     });
     actionsEl.append(pc);
   }
@@ -1316,13 +1334,24 @@ function openPurchasedFurnitureActions(id:number):void{
   edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
   actionsEl.append(edit);
 }
+/** Every physical computer starts a new desktop view, not the prior overlay. */
+function openComputer(device:import('./shared/computer').ComputerDevice,furnitureId?:number):void {
+  if(!active||!state||!net.isReady())return;
+  actionsEl.hidden=true;phone.close();skillsPanel.close();furnishing.close();
+  locationUI.close();locationUI.closeMap();toggleNeeds(false);
+  if(device==='desktop'){
+    selectedDesktopFurnitureId=furnitureId??null;
+    if(furnitureId!==undefined)world.focusDesktopFurniture(furnitureId);
+  }
+  computer.open(device);
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
     notify('Сначала войди в дом');
     return;
   }
-  if (item === 'desk') { computer.open('desktop'); return; }
+  if (item === 'desk') { openComputer('desktop'); return; }
   if(item==='delivery' && state) {
     actionsEl.hidden=true;
     phone.open('delivery');
@@ -1507,7 +1536,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
         if (world.place === 'home' && id === HOME_LAPTOP) {
-          computer.open('laptop');
+          openComputer('laptop');
           return;
         }
         if (stationById(world.place,id)?.action.kind==='career') {

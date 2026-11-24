@@ -1,3 +1,6 @@
+import { yieldSimbaFurniture } from './pets';
+import { catSeatOverlap } from '../src/shared/catOccupancy';
+import type { CatPerch } from '../src/shared/CatPerches';
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
 import { applyBudgetCommand } from './familyBudget';
@@ -5,6 +8,9 @@ import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
+import type { Wish } from '../src/shared/wishes';
+import { protectNeeds } from '../src/shared/happiness';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor } from '../src/shared/locations';
@@ -21,7 +27,7 @@ import { checkout } from './market';
 import { applyFurnishing } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
-import { autonomyCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
+import { autonomyCandidates, fullLeisureCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { homeHabitCommands } from '../src/shared/personalityHabits';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
@@ -127,9 +133,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
-  const idleAutonomyMs=options.autonomyTiming?.idleMs??18_000;
-  const careCooldownMs=options.autonomyTiming?.careCooldownMs??25_000;
-  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??19_000;
+  const idleAutonomyMs=options.autonomyTiming?.idleMs??3500;
+  const legacyIdleMs=options.autonomyTiming?.idleMs??18000;
+  const careCooldownMs=options.autonomyTiming?.careCooldownMs??3500;
+  const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??4500;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
@@ -151,6 +158,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
+  const sleepWishes = new Map<CharacterId,Wish>();
   const autoSleeping = new Set<CharacterId>();
   // Active sleep was already persisted in the household. Resume it when the
   // server restarts instead of leaving a permanently sleeping visual with
@@ -271,6 +279,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       all({ type: 'snapshot', state });
     }
     sleepers.delete(role);
+    sleepWishes.delete(role);
     announceTime();
     if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
   };
@@ -351,11 +360,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
+    for(const role of finishedSleeping){fulfillWish(next.state,role,sleepWishes.get(role),state);sleepWishes.delete(role);}
+    protectNeeds(next.state);
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     for(const pet of ['simba','verdell'] as const) if(homeTasks.reserved('pet:'+pet))occupiedPets.add(pet);
-    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
+    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
@@ -419,7 +430,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         running.has(role)||homeTasks.busy(role)||(queuedTasks.get(role)?.length??0)>0||state.activeShifts[role]||
         state.careers.residents[role].shift||storageOpen.has(role)||
         walkingHome.has(role)||
-        now-(lastIntent.get(role)??now)<Math.min(idleAutonomyMs,mode==='off'?idleAutonomyMs:5500))continue;
+        now-(lastIntent.get(role)??now)<(mode==='off'?legacyIdleMs:idleAutonomyMs))continue;
       // Off means the exact existing 0.16 background routine, not a frozen
       // resident: rare idle walks and rescue only when a vital need reaches 8%.
       if(mode==='off'){
@@ -437,14 +448,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // Real sleep uses the existing bed-reservation and time-control system,
       // including bought beds. Never lie down on a sold invisible starter bed.
       const resident=state.characters[role];
-      const energyMostUrgent=resident.energy/42<=Math.min(
-        resident.bladder/38,resident.hunger/46,resident.hygiene/43);
-      if(resident.energy<=38&&energyMostUrgent){
+      const energyMostUrgent=resident.energy<=Math.min(
+        resident.bladder,resident.hunger,resident.hygiene);
+      if(resident.energy<=50&&energyMostUrgent){
         const chosen=selectSleepBed(state,role);
         if(chosen.ok){
           stopLeisure(role);
           const next=structuredClone(state);
-          const sleepMode:SleepMode=mode==='full'?'full':'half';
+          const sleepMode:SleepMode='full';
           Object.assign(next.characters[role],chosen.bed.approach,
             {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode});
           next.revision++;
@@ -471,13 +482,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
           if(!evaluateTask(state,role,plan.command).ok)continue;
           stopLeisure(role);
-          lastAutoCare.set(role,now);
           beginTask(role,socket,plan,true);
+          if(!running.has(role)&&!homeTasks.busy(role))continue;
+          lastAutoCare.set(role,now);
           started=true;
           break;
         }
       }
-      if(started)continue;
+      if(started||mode==='needs')continue;
       if(!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs) {
         if(mode==='full'){
           // Alternate ordinary household chores with leisure: without this
@@ -489,6 +501,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const partner=otherRole(role);
           const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
+          if(turn%3===2&&!sharedWindow){
+            for(const command of fullLeisureCandidates(state,role,Math.floor(turn/3))){
+              const plan=planTask(command);
+              if(!plan||taskAccessError(state,plan.command)||
+                plan.resource&&(homeTasks.reserved(plan.resource)||[...running.values()].some(t=>t.plan.resource===plan.resource))||
+                !evaluateTask(state,role,plan.command).ok)continue;
+              beginTask(role,socket,plan,true);
+              if(!running.has(role)&&!homeTasks.busy(role))continue;
+              lastAutoCare.set(role,now);started=true;break;
+            }
+          }
           if(turn%3===1&&!sharedWindow){
             const recent=recentHomeHabits.get(role)??[];
             const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent);
@@ -498,8 +521,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
                   plan.resource && (homeTasks.reserved(plan.resource) ||
                     [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
               if(!evaluateTask(state,role,plan.command).ok)continue;
-              lastAutoCare.set(role,now);
               beginTask(role,socket,plan,true);
+              if(!running.has(role)&&!homeTasks.busy(role))continue;
+              lastAutoCare.set(role,now);
               // Remember *started* work, not an unavailable suggestion.
               recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
               started=true;
@@ -548,7 +572,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         Math.floor(clockMinutes(state.clock)/125)%3===0){
       const other=otherRole(available[0]);
       const age=now-(lastIntent.get(other)??now);
-      const otherIdleThreshold=Math.min(idleAutonomyMs,5500);
+      const otherIdleThreshold=idleAutonomyMs;
       if(active.has(other)&&state.autonomy[other]==='full'&&
           state.world.places[other]==='home'&&inHomeGrounds(state.characters[other])&&
           !sleepers.has(other)&&!running.has(other)&&!homeTasks.busy(other)&&
@@ -581,9 +605,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=state.autonomy[role]==='needs'
-        ? role==='vlad'?['verdell','simba']:['simba','verdell']
-        : role==='vlad'?['computer','tv','verdell','simba']
+      const preferences:HomeLeisure[]=role==='vlad'?['computer','tv','verdell','simba']
         : ['simba','tv','verdell','computer'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
       const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
@@ -613,7 +635,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         break;
       }
     }
-  }, options.lifeClock?.tickMs ?? 10_000);
+  }, options.lifeClock?.tickMs ?? 4000);
   lifeTicker.unref();
   const stopTask = (role: CharacterId, reason: string): void => {
     if (homeTasks.cancel(role, reason)) return;
@@ -623,6 +645,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     running.delete(role);
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
+  function catReserved(site:CatPerch):boolean {
+    if(homeTasks.blocksCat(site))return true;
+    for(const [role,routine] of leisure)if(routine.activity==='tv'){
+      if(site.key==='starter:sofa'&&catSeatOverlap(site,site.key,homeSeat('sofa',role).position))return true;
+      if(site.key.startsWith('placed:')&&Math.hypot((routine.route.path.at(-1)??routine.route.from).x-site.approach.x,(routine.route.path.at(-1)??routine.route.from).z-site.approach.z)<1.6)return true;
+    }
+    return [...running.values()].some(t=>t.plan.command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(t.plan.command.actionId)&&site.key==='starter:bed');
+  }
   const beginTask = (role: CharacterId, socket: WebSocket, plan: TaskPlan, automatic = false): void => {
     if (usesHomeSession(plan.command)) {
       homeTasks.start([role], plan, socket, automatic);
@@ -691,6 +721,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
+    const wish=automatic?undefined:wishAtStart(state,role,plan.command);
     const timer = pauseTimers.schedule(() => {
       const current = running.get(role);
       if (!current || current.id !== id || active.get(role) !== socket) return;
@@ -710,6 +741,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      result.message+=fulfillWish(result.state,role,wish,state);
       try { files.save(result.state); }
       catch (error) {
         console.error('Could not persist completed task:', error);
@@ -762,6 +794,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     accountTime();
     state=next;
     sleepers.set(role,command.mode);
+    const wish=wishAtStart(state,role,{type:'sleep_start',mode:command.mode});
+    if(wish)sleepWishes.set(role,wish);
     autoSleeping.delete(role);
     shiftVotes.delete(role);
     lastIntent.set(role,pauseTimers.now());
@@ -947,6 +981,36 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket,{type:'error',reason:'Игра на паузе. Для продолжения нажми ▶'});
         return;
       }
+      if(message.type==='happiness_buy'||message.type==='happiness_activate'){
+        if(message.type==='happiness_activate'&&sleepers.has(role)&&message.reward==='energy'){packet(socket,{type:'error',reason:'Сначала разбуди персонажа'});return;}
+        const result=rewardCommand(state,role,message.type,message.reward);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить награду'});return;}
+        state=result.state;all({type:'snapshot',state});packet(socket,{type:'world_event',role,message:result.message});return;
+      }
+      if(message.type==='simba_yield'){
+        if(typeof message.key!=='string')return;
+        const result=yieldSimbaFurniture(state,role,message.key,liveGameTime());
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if(result.state!==state){
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось освободить мебель'});return;}
+          state=result.state;
+          all({type:'snapshot',state});
+          const release=state.pets.simba.furnitureYield!;
+          // The rig's descent takes .88s; a short pause-aware grace period
+          // keeps both clients clear without waiting for the 10s life tick.
+          pauseTimers.schedule(()=>{
+            const current=state.pets.simba.furnitureYield;
+            if(!current||current.clearAt!==release.clearAt||current.perch.key!==release.perch.key)return;
+            const next=structuredClone(state);
+            next.pets.simba.furnitureYield!.clearAt=clockMinutes(next.clock);
+            next.revision++;
+            try{files.save(next);state=next;all({type:'snapshot',state});}
+            catch(error){console.error('Could not save furniture release:',error);}
+          },1700);
+        }
+        return;
+      }
       if (message.type === 'autonomy_mode') {
         if (typeof message.mode !== 'string' || !AUTONOMY_MODES.includes(message.mode as typeof AUTONOMY_MODES[number])) {
           packet(socket,{type:'error',reason:'Неизвестный режим самостоятельности'});return;
@@ -968,7 +1032,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(running.get(role)?.automatic)stopTask(role,'Режим самостоятельности изменён');
             if(homeTasks.automatic(role))homeTasks.cancel(role,'Режим самостоятельности изменён');
           }
-          lastIntent.set(role,pauseTimers.now()-4000);
+          lastIntent.set(role,pauseTimers.now()-idleAutonomyMs);
           lastAutoCare.set(role,0);
           all({type:'snapshot',state});
         }
@@ -1219,7 +1283,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
-        if(message.type==='travel'||message.type==='walk')clearQueue(role);
+        if(message.type==='travel'||message.type==='car_travel'||message.type==='walk')clearQueue(role);
         const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;
         const travelSource=interrupted?structuredClone(state):state;
         if(interrupted){
@@ -1233,13 +1297,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
         state = result.state;
         all({ type: 'snapshot', state });
-        if (message.type === 'travel') {
+        if (message.type === 'travel'||message.type==='car_travel') {
           walkingHome.delete(role);
           if (state.world.places[role] === 'home') sendLeisure(socket);
           homeTasks.replay(socket);
         }
         if (result.path) {
-          if (state.world.places[role] === 'home') walkingHome.set(role,{
+          if (state.world.places[role] === 'home'||state.world.places[role]==='district') walkingHome.set(role,{
             route:{from:{x:from.x,z:from.z},path:result.path},started:pauseTimers.now(),
           });
           if (state.world.places[role] === 'home' && (result.station === 'fridge' || result.station === 'cupboard')) {
@@ -1291,7 +1355,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
                 item: typeof message.item === 'string' ? message.item : '' })
             : applyPetAction(state, role,
                 typeof message.pet === 'string' ? message.pet : '',
-                typeof message.action === 'string' ? message.action : '');
+                typeof message.action === 'string' ? message.action : '',catReserved);
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch (error) {

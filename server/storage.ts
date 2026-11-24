@@ -1,4 +1,4 @@
-import { DISTRICT_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
+import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
@@ -39,12 +39,15 @@ export interface ServerFiles {
   save(state: GameState): void;
 }
 
+import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/happiness';
+
 const isValidState = (value: unknown): value is GameState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<GameState>;
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if (state.happiness !== undefined && !validHappiness(state.happiness)) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
@@ -126,8 +129,8 @@ const isValidState = (value: unknown): value is GameState => {
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
   const petBowls = state.petBowls as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
-    const { minX, maxX, minZ, maxZ } = String(place)==='street' ? DISTRICT_FLOOR : floorFor(place);
+  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home', legacyHome=false) => {
+    const { minX, maxX, minZ, maxZ } = String(place)==='street' ? DISTRICT_FLOOR : legacyHome&&place==='home'?HOME_WORLD_FLOOR:floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
       p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (place === 'home' ? maxZ : Math.max(maxZ, 5));
   };
@@ -137,7 +140,7 @@ const isValidState = (value: unknown): value is GameState => {
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.favoriteBedId===undefined||Number.isSafeInteger(pet.favoriteBedId)&&pet.favoriteBedId>0) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
@@ -153,14 +156,14 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
-          (routine.kind==='scratch'&&id==='simba'&&routine.equipment.sku===CAT_SCRATCHER_SKU||
+          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku==='pet-house-tower')||
           routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
           routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&
-          Number.isFinite(routine.perch.surface.y) && routine.perch.surface.y>=.30 &&
+          Number.isFinite(routine.perch.surface.y) && routine.perch.surface.y>=.20 &&
           routine.perch.surface.y<=1.5 && Number.isFinite(routine.perch.yaw)));
 
   }))) return false;
@@ -176,7 +179,7 @@ const isValidState = (value: unknown): value is GameState => {
     ) && (['hygiene', 'social', 'fun', 'comfort', 'bladder'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && point(p, state.world?.places[role] ?? 'home') &&
+    ) && point(p, state.world?.places[role] ?? 'home',state.world?.districtLayout!==4) &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
@@ -191,14 +194,21 @@ const previousSeats = [
   { item: 'table', pose: 'sit', x: 3.02, z: -.26 },
 ] as const;
 
+const legacyHomeGrounds=(p:{x:number;z:number})=>p.x>=-9.18&&p.x<=15.34&&p.z>=-7.28&&p.z<=12.06;
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
-  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | undefined): CharacterState {
+  furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | 4 | undefined): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
   if (String(place)==='street' && (districtLayout===undefined || districtLayout===1)) {
     Object.assign(resident,restoreDistrictPosition(resident,role,districtLayout),{pose:'idle'});
-    place='home';
+    return resident;
   }
-  if (place === 'market') {
+  if(place==='home'&&(districtLayout===2||districtLayout===3)&&!legacyHomeGrounds(resident)){
+    const target=districtLayout===2?DISTRICT_SITES.map(site=>districtArrival(site.place,role))
+      .sort((a,b)=>Math.hypot(a.x-resident.x,a.z-resident.z)-Math.hypot(b.x-resident.x,b.z-resident.z))[0]:resident;
+    const point=nearestClearPoint(target,placeObstacles('district'),floorFor('district'))??spawn('district',role);
+    return {...resident,...point,pose:'idle'};
+  }
+  if (place === 'market'||place==='district') {
     // Preserve saved positions except where a newly added solid occupies them.
     const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
     return { ...resident, x: point.x, z: point.z };
@@ -227,6 +237,8 @@ function restorePet(id: PetId, saved: PetState | undefined,
   if(pet.favoriteBedId!==undefined&& (!furnishing||
     !petBeds(furnishing,id).some(item=>item.id===pet.favoriteBedId)))
     delete pet.favoriteBedId;
+  if(pet.furnitureYield&&(!furnishing||!currentCatPerch(furnishing,pet.furnitureYield.perch)||
+    !Number.isFinite(pet.furnitureYield.clearAt)||!Number.isFinite(pet.furnitureYield.cooldownUntil)))delete pet.furnitureYield;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&
@@ -278,17 +290,19 @@ export function openServerFiles(dataDir: string): ServerFiles {
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const districtLayout = data.world?.districtLayout;
-      const migratedDistrict = districtLayout!==3;
+      const migratedDistrict = districtLayout!==4;
       const bagAtHouse = (role:CharacterId) => data.world?.places[role]==='home' &&
-        ((districtLayout===undefined || districtLayout===1) || inHomeGrounds(data.characters[role]));
+        ((districtLayout===undefined || districtLayout===1) || (districtLayout===4?inHomeGrounds(data.characters[role]):legacyHomeGrounds(data.characters[role])));
       const household: GameState = {
         ...data,
+        happiness: data.happiness ?? {vlad:initialHappiness(),alina:initialHappiness()},
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
-          ...data.world, districtLayout: 3,
+          ...data.world, districtLayout: 4,
+          deliveries:data.world.deliveries.map(d=>districtLayout!==4&&d.readyAt<=clockMinutes(data.clock??INITIAL_CLOCK)?{...d,handedAt:d.readyAt}:d),
           places: {
-            vlad: String(data.world.places.vlad)==='street'?'home':data.world.places.vlad,
-            alina: String(data.world.places.alina)==='street'?'home':data.world.places.alina,
+            vlad: String(data.world.places.vlad)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.vlad==='home'&&!legacyHomeGrounds(data.characters.vlad)?'district':data.world.places.vlad,
+            alina: String(data.world.places.alina)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.alina==='home'&&!legacyHomeGrounds(data.characters.alina)?'district':data.world.places.alina,
           },
           // Old staged bags had already been credited to pantry / ready food.
           // Remove them without ever granting the same purchase twice.
@@ -339,7 +353,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(migratedDistrict){
-        const backup=join(dataDir,districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
+        const backup=join(dataDir,districtLayout===3?'household.pre-separated-district.json':districtLayout===2?'household.pre-street-redesign.json':'household.pre-unified-district.json');
         if(!existsSync(backup))copyFileSync(statePath,backup);
       }
       if(data.furnishing?.soldFixtures===undefined){
@@ -365,6 +379,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       return household;
     },
     save(state: GameState): void {
+      protectNeeds(state);
       if (!isValidState(state)) throw new Error('Refusing to save invalid household');
       const temporary = join(dataDir, 'household.tmp');
       writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n');

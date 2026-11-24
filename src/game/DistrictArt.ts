@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, plane, torus, type XYZ } from './ArtKit';
 import { lettering, painted, part, round, trim, type LocationResources } from './LocationArt';
-import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, HOME_WORLD_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
+import { DISTRICT_FOUNTAIN, DISTRICT_OFFSET_Z, DISTRICT_WORLD_FLOOR, DISTRICT_PLAZA, DISTRICT_PATHS, DISTRICT_SITES,
   DISTRICT_BEDS, DISTRICT_LAMPS, districtStation, districtYaw, sitePoint } from '../shared/district';
 import { buildDistrictFacade, buildRoofBillboard, distantDistrictFacade } from './DistrictBuildings';
 import { buildDistrictPlants, districtGroundPatches } from './DistrictPlants';
@@ -54,7 +54,7 @@ function pavingPaint(resources:LocationResources) {
 
 function landscaping(root:THREE.Group,resources:LocationResources) {
   const stone=pavingPaint(resources);
-  const {minX,maxX,minZ,maxZ}=HOME_WORLD_FLOOR;
+  const {minX,maxX,minZ,maxZ}=DISTRICT_WORLD_FLOOR;
   const w=maxX-minX+1.7,d=maxZ-minZ+1.7,z=(minZ+maxZ)/2-DISTRICT_OFFSET_Z;
   const turf=painted(resources,768,1024,ctx=>paintGround(ctx,{x:0,z,w,d},districtGroundPatches,7122));
   trim(root,[w+.7,.49,d+.7],[0,-.29,z],0x736853);
@@ -231,7 +231,7 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
     return {id:districtStation(site.place),building,model,detail};
   });
   const entries=new Map(facades.map(({id,building})=>[id,building]));
-  const {minX,maxX,minZ,maxZ}=HOME_WORLD_FLOOR;
+  const {minX,maxX,minZ,maxZ}=DISTRICT_WORLD_FLOOR;
   const bounds:XYZ[] = [[minX,0,minZ],[maxX,0,minZ],[minX,3,maxZ],[maxX,3,maxZ]];
   const cameraLocal=new THREE.Vector3();
   return {

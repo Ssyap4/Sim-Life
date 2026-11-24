@@ -2,6 +2,7 @@ import {
   type GameState, type CharacterId,
 } from '../src/shared/protocol';
 import { VITAL_NEEDS, type VitalNeed } from '../src/shared/life';
+import { activeReward, protectNeeds } from '../src/shared/happiness';
 import { syncBudgetPeriod } from '../src/shared/familyBudget';
 
 /** Slow decay per in-game hour. No drain at all if the entire household is offline. */
@@ -26,11 +27,14 @@ export function advanceLife(source: GameState, gameMinutes: number,
   for (const role of online) {
     const character = state.characters[role];
     for (const need of VITAL_NEEDS) {
-      character[need] = clamp(character[need] - HOURLY_DRAIN[need] * gameMinutes / 60);
+      const until=activeReward(source,role,need);
+      const unlocked=until?Math.max(0,Math.min(gameMinutes,(state.clock.day-1)*1440+state.clock.minute-until)):gameMinutes;
+      character[need] = clamp(character[need] - HOURLY_DRAIN[need] * unlocked / 60);
     }
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
     if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8);
   }
+  protectNeeds(state);
   state.revision++;
   return state;
 }

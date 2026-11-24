@@ -1,5 +1,6 @@
-import { clockLabel, type VitalNeed } from './shared/life';
-import { thoughtFor } from './shared/autonomy';
+import { clockLabel, gameMinutes, NEED_INFO, VITAL_NEEDS, type VitalNeed } from './shared/life';
+import { thoughtFor, foodSupplyProblem } from './shared/autonomy';
+import { REWARDS, REWARD_IDS, activeReward, gameReward, rewardTime, type RewardId } from './shared/happiness';
 import { wishesFor, type WishCommand } from './shared/wishes';
 import { modeShortLabel, thoughtLessons, thoughtStateLabel } from './shared/thoughtHelp';
 import type { CharacterId, GameState } from './shared/protocol';
@@ -41,10 +42,16 @@ function saveLocal(keyName:string,data:unknown):void{
 }
 export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:CharacterId}|null,
   beforeOpen:()=>void,openPhone:()=>void,
-  performWish:(role:CharacterId,command:WishCommand)=>boolean){
+  performWish:(role:CharacterId,command:WishCommand)=>boolean,
+  rewardAction:(type:'happiness_buy'|'happiness_activate',id:RewardId)=>boolean=()=>false){
   root.innerHTML=`
     <button id="thought-trigger" class="thought-trigger" type="button" aria-expanded="false"
       aria-controls="thought-panel" aria-label="Желания персонажа">💭 <span>Желания</span></button>
+    <div class="life-pop" hidden role="status" aria-live="polite">
+      <span class="life-pop-icon"></span><div class="life-pop-copy"><strong></strong><small></small><span class="life-pop-meter" hidden><i></i></span></div>
+      <button type="button" class="life-pop-open" aria-label="Открыть желания">›</button>
+      <button type="button" class="life-pop-dismiss" aria-label="Скрыть уведомление">×</button>
+    </div>
     <section id="thought-panel" class="thought-panel" aria-label="Мысли, желания и подсказки" hidden>
       <header class="thought-heading">
         <div><strong data-thought-title>💭 Мысли</strong><small data-thought-mode></small></div>
@@ -57,6 +64,8 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
         <button type="button" data-thought-role="vlad">Влад</button>
         <button type="button" data-thought-role="alina">Алина</button>
       </div>
+      <button type="button" class="happiness-toggle" data-happiness-toggle></button>
+      <section class="happiness-shop" data-happiness-shop hidden></section>
       <div class="wish-list" data-wish-list role="group" aria-label="Желания"></div>
       <section class="wish-detail" aria-label="Подробности желания">
         <div class="wish-detail-heading"><strong data-wish-title></strong><small data-wish-need></small></div>
@@ -104,6 +113,53 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   const wishButton=root.querySelector<HTMLButtonElement>('[data-wish-do]')!;
   const wishFeedback=root.querySelector<HTMLElement>('[data-wish-feedback]')!;
   const moreButton=root.querySelector<HTMLButtonElement>('[data-thought-more]')!;
+  const pop=root.querySelector<HTMLElement>('.life-pop')!;
+  let popTimer:ReturnType<typeof setTimeout>|undefined;
+  let lastPopAt=-Infinity,lastWishMinute=-Infinity;
+  const alerted=new Map<string,number>();
+  const dismissPop=()=>{if(popTimer!==undefined)clearTimeout(popTimer);popTimer=undefined;pop.hidden=true;};
+  function showPop(icon:string,title:string,body:string,value?:number,urgent=false){
+    dismissPop();
+    pop.querySelector('.life-pop-icon')!.textContent=icon;
+    pop.querySelector('strong')!.textContent=title;
+    pop.querySelector('small')!.textContent=body;
+    const meter=pop.querySelector<HTMLElement>('.life-pop-meter')!;
+    meter.hidden=value===undefined;
+    meter.querySelector<HTMLElement>('i')!.style.width=Math.max(0,Math.min(100,value??0))+'%';
+    pop.classList.toggle('life-pop-urgent',urgent);pop.hidden=false;
+    lastPopAt=performance.now();popTimer=setTimeout(dismissPop,urgent?10500:7200);
+  }
+  function notifyLife(state:GameState,role:CharacterId){
+    if(!pref.show||isOpen)return;
+    const minute=gameMinutes(state.clock),now=performance.now(),name=role==='vlad'?'Влад':'Алина';
+    const person=state.characters[role];
+    const low=[...VITAL_NEEDS].sort((a,b)=>person[a]-person[b]);
+    for(const need of low)if(person[need]>65)alerted.delete('need:'+need);
+    if(!foodSupplyProblem(state,role))alerted.delete('food');
+    if(now-lastPopAt<16000)return;
+    if(state.autonomy[role]!=='off'&&foodSupplyProblem(state,role)&&minute-(alerted.get('food')??-Infinity)>=90){
+      alerted.set('food',minute);
+      showPop('🛒',name+' · Нет еды','Нужны продукты. Пополни запасы через телефон.',person.hunger,true);return;
+    }
+    const need=low.find(n=>person[n]<=50&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
+    if(need){
+      alerted.set('need:'+need,minute);
+      const info=NEED_INFO[need],wish=wishesFor(state,role).find(w=>w.need===need),thought=thoughtFor(state,role);
+      showPop(info.emoji,name+' · '+info.label+' '+Math.round(person[need])+'%',thought.need===need?thought.text:wish?.title??info.hint,person[need],person[need]<=25);return;
+    }
+    if(minute-lastWishMinute<55)return;
+    const wishes=wishesFor(state,role).filter(w=>w.command);
+    const wish=wishes[Math.floor(minute/55)%Math.max(1,wishes.length)];
+    if(wish&&minute-(alerted.get('wish:'+wish.id)??-Infinity)>=150){
+      lastWishMinute=minute;alerted.set('wish:'+wish.id,minute);
+      showPop(wish.icon,name+' · '+wish.title,wish.detail,undefined,false);
+    }
+  }
+  pop.querySelector('.life-pop-dismiss')!.addEventListener('click',dismissPop);
+  pop.querySelector('.life-pop-open')!.addEventListener('click',()=>{dismissPop();open(true);});
+  const shop=root.querySelector<HTMLElement>('[data-happiness-shop]')!;
+  const shopToggle=root.querySelector<HTMLButtonElement>('[data-happiness-toggle]')!;
+  let shopOpen=false;
   let selectedWishId='', helpOpen=false, feedbackText='', feedbackAt=0;
   let viewer:CharacterId|null=null;
   let selected:CharacterId='vlad';
@@ -120,14 +176,14 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   }
   function scheduleClose(){
     clearTimer();
-    if(!pref.pin)timer=setTimeout(close,WINDOW_MS);
+    if(!pref.pin&&!shopOpen)timer=setTimeout(close,WINDOW_MS);
   }
   function open(manual=true){
     const view=read();
     if(!view)return;
-    beforeOpen();
+    dismissPop();beforeOpen();
     selected=manual&&isOpen?selected:view.role;
-    if(!isOpen){selectedWishId='';helpOpen=false;}
+    if(!isOpen){selectedWishId='';helpOpen=false;shopOpen=false;}
     isOpen=true;panel.hidden=false;
     trigger.setAttribute('aria-expanded','true');
     render();
@@ -171,6 +227,30 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
       button.classList.toggle('selected',selectedButton);
       button.setAttribute('aria-pressed',String(selectedButton));
     }
+    const happiness=state.happiness[selected];
+    shopToggle.textContent='✨ '+happiness.points.toLocaleString('ru-RU')+' · '+(shopOpen?'К желаниям':'Магазин счастья ›');
+    shop.hidden=!shopOpen;
+    wishList.hidden=shopOpen;
+    const detailPanel=root.querySelector<HTMLElement>('.wish-detail')!;
+    detailPanel.hidden=shopOpen||!chosen;
+    if(shopOpen){
+      phrase.hidden=true;need.hidden=true;
+      shop.replaceChildren();
+      const summary=document.createElement('small');summary.textContent='Исполнено желаний: '+happiness.count+' · Награды хранятся до активации.';shop.append(summary);
+      for(const id of REWARD_IDS){
+        const reward=REWARDS[id],stock=happiness.stock[id]??0,until=activeReward(state,selected,id);
+        const card=document.createElement('article');card.className='happiness-card';
+        const title=document.createElement('strong');title.textContent=reward.icon+' '+reward.title;
+        const desc=document.createElement('small');desc.textContent=reward.description+' При активации: 100%.';
+        const status=document.createElement('small');status.textContent='В запасе: '+stock+(until?' · Активно: '+rewardTime(until-gameMinutes(state.clock)):'');
+        const actions=document.createElement('div');actions.className='happiness-actions';
+        const buy=document.createElement('button');buy.type='button';buy.textContent='Купить · '+reward.price+' ✨';buy.disabled=selected!==view.role||happiness.points<reward.price;
+        buy.onclick=()=>{if(rewardAction('happiness_buy',id))buy.disabled=true;};
+        const use=document.createElement('button');use.type='button';use.textContent=until?'Действует':'Активировать';use.disabled=selected!==view.role||!stock||!!until;
+        use.onclick=()=>{if(rewardAction('happiness_activate',id))use.disabled=true;};
+        actions.append(buy,use);card.append(title,desc,status,actions);shop.append(card);
+      }
+    }
     wishList.replaceChildren();
     for(const wish of wishes){
       const button=document.createElement('button');
@@ -189,17 +269,17 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
     }
     wishTitle.textContent=chosen?chosen.icon+' '+chosen.title:'';
     wishNeed.textContent=chosen?.need?Math.round(state.characters[selected][chosen.need])+'%':'';
-    wishDetail.textContent=chosen?.detail??'';
-    const own=selected===view.role,atHome=state.world.places[selected]==='home';
+    wishDetail.textContent=chosen?chosen.detail+' · ✨ +'+gameReward(chosen.id).points+' · 😊 +'+gameReward(chosen.id).mood+'%':'';
+    const own=selected===view.role,atHome=state.world.places[selected]==='home'||chosen?.command?.type==='local_activity'&&state.world.places[selected]==='park';
     wishButton.disabled=!chosen?.command||!own||!atHome;
     wishButton.textContent=!own?'Другой игрок':!atHome?'Только дома':
       chosen?.command?chosen.cta:chosen?.cta??'Недоступно';
     wishFeedback.textContent=performance.now()-feedbackAt<5000?feedbackText:'';
     pinButton.classList.toggle('selected',pref.pin);
     pinButton.setAttribute('aria-pressed',String(pref.pin));
-    moreButton.hidden=!pref.hints;
+    moreButton.hidden=shopOpen||!pref.hints;
     moreButton.setAttribute('aria-expanded',String(helpOpen&&pref.hints));
-    lessonSection.hidden=!(helpOpen&&pref.hints);
+    lessonSection.hidden=shopOpen||!(helpOpen&&pref.hints);
     if(helpOpen&&pref.hints){
       const lessons=thoughtLessons(state,selected);
       const lesson=lessons[lessonIndex%lessons.length];
@@ -221,6 +301,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
       saveLocal(key('history',id),histories[id]);
     }
   }
+  shopToggle.addEventListener('click',()=>{shopOpen=!shopOpen;render();scheduleClose();});
   trigger.addEventListener('click',()=>isOpen?close():open(true));
   root.querySelector<HTMLButtonElement>('[data-thought-close]')!.addEventListener('click',close);
   pinButton.addEventListener('click',()=>updatePref('pin',!pref.pin));
@@ -261,6 +342,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   panel.addEventListener('focusout',()=>scheduleClose());
   return {
     onReady(role:CharacterId){
+      dismissPop();alerted.clear();lastPopAt=performance.now()-16000;lastWishMinute=-Infinity;
       clearTimer();viewer=role;selected=role;isOpen=false;panel.hidden=true;root.hidden=false;
       trigger.setAttribute('aria-expanded','false');
       const loaded=readLocal(key('settings',role));
@@ -275,12 +357,12 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
       const view=read();
       if(!view||!viewer)return;
       capture(view.state);
-      // Unlike the old UI, no large pop-up opens automatically on login.
       render();
+      notifyLife(view.state,view.role);
     },
     close,
     reset(){
-      close();root.hidden=true;viewer=null;feedbackText='';
+      dismissPop();close();root.hidden=true;viewer=null;feedbackText='';
     },
     history(id:CharacterId):readonly ThoughtRecord[]{return histories[id];},
     preferences():ThoughtPreferences{return {...pref};},

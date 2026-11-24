@@ -209,6 +209,10 @@ test('Overdue mobile blocks new delivery while a paid parcel can still be collec
   settleFamilyServices(state,false);
   assert.deepEqual(applyWorld(state,'vlad',{...command,sequence:1}),{ok:false,reason:SERVICE_MESSAGES.mobile});
   const parcel=state.world.deliveries[0];
+  Object.assign(state.characters.vlad,approachFor(stationById('home','courier-handoff')!,'vlad'));
+  const handoff=applyWorld(state,'vlad',{type:'delivery_handoff',id:parcel.id});
+  assert.ok(handoff.ok);
+  state=handoff.state;
   Object.assign(state.characters.vlad,approachFor(stationById('home','parcel')!,'vlad'));
   const collected=applyWorld(state,'vlad',{type:'delivery_claim',id:parcel.id});
   assert.ok(collected.ok);

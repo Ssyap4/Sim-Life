@@ -1,3 +1,5 @@
+import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
+import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
@@ -15,6 +17,8 @@ import { answerMatches, awardActivity, completeStudy, saveBookMinutes, studyDeni
 import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
+import { wishAtStart, fulfillWish } from './happiness';
+import type { Wish } from '../src/shared/wishes';
 import { gains } from './needs';
 import { familyMoments, momentReward, type FamilyMoment } from '../src/shared/familyMoments';
 import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
@@ -22,7 +26,7 @@ import { completeTogether, cooperationDenial, pairScenes, socialDuration, social
 import type { PetId } from '../src/shared/pets';
 
 type Started = Extract<ServerPacket, { type: 'task_started' }>;
-type Participant = { role: CharacterId; socket: WebSocket; packet: Started; arriveMs: number };
+type Participant = { wish?:Wish; role: CharacterId; socket: WebSocket; packet: Started; arriveMs: number };
 type Cooperation = { from:CharacterId; choice:number; moment?:FamilyMoment };
 type Session = {
   plan: TaskPlan;
@@ -223,7 +227,7 @@ export function createHomeSessions(hooks: Hooks) {
       const order = command.seat ? [command.seat] : [...readingSeats.slice(index), ...readingSeats.slice(0,index)];
       for (const station of order) {
         const route = walk(pickup.path.at(-1) ?? pickup.from, homeSeat(station, role).approach);
-        if (route) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
+        if (route && !catHomeSeatError(hooks.state(),role,{route,station})) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
           pickup: pickup.path.length, pickupMs: 720, station };
       }
       return null;
@@ -266,7 +270,7 @@ export function createHomeSessions(hooks: Hooks) {
     const before = hooks.state();
     let next = before;
     const results: { message: string }[] = [];
-    for (const { role, packet } of session.participants) {
+    for (const { role, packet, wish } of session.participants) {
       const result = session.study ? (() => {
         const state = structuredClone(next);
         const message = completeStudy(state, role, session.study!.material, Math.floor(hooks.gameTime()));
@@ -287,6 +291,7 @@ export function createHomeSessions(hooks: Hooks) {
           next.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      result.message+=fulfillWish(result.state,role,wish,next);
       next = result.state;
       results.push(result);
     }
@@ -319,6 +324,7 @@ export function createHomeSessions(hooks: Hooks) {
       addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice,!!completedMoment);
       if(completedMoment)result.message+=momentReward(result.state,from,completedMoment);
     }
+    for(const {role,wish} of session.participants)result.message+=fulfillWish(result.state,role,wish,before);
     try{hooks.save(result.state);}
     catch{end(session,'failed','Не удалось сохранить совместное занятие');return;}
     broadcastSnapshot();
@@ -374,6 +380,8 @@ export function createHomeSessions(hooks: Hooks) {
       if (reason) { error(initiator, reason); return; }
       const home = pair?.[role]??presentation(role, command);
       if (!home) { if (!automatic) error(initiator, 'Не удалось найти свободный маршрут'); return; }
+      const catReason=catHomeSeatError(hooks.state(),role,home);
+      if(catReason){if(!automatic)error(initiator,catReason);return;}
       if (study?.questions[0]) home.question = study.questions[0];
       const before = hooks.state();
       const result = material || cooperation ? undefined : evaluateTask(before, role, command, roles.length === 2);
@@ -382,7 +390,7 @@ export function createHomeSessions(hooks: Hooks) {
         : command.type === 'act' && command.actionId === 'bathTeeth' ? {hygiene:20}
         : command.type === 'act' && command.actionId === 'bathShower' ? {hygiene:75}
         : gains(before,result.state,role);
-      participants.push({ role, socket: hooks.socket(role)!, arriveMs: 1000*length(home.route)/HOME_WALK_SPEED+(home.pickupMs??0)+(home.pair?.offsetMs??0),
+      participants.push({ wish:automatic?undefined:wishAtStart(before,role,command), role, socket: hooks.socket(role)!, arriveMs: 1000*length(home.route)/HOME_WALK_SPEED+(home.pickupMs??0)+(home.pair?.offsetMs??0),
         packet: { type: 'task_started', role, taskId: hooks.nextId(), command, label: plan.label,
           durationMs: duration, home, effects, automatic } });
     }
@@ -624,7 +632,7 @@ export function createHomeSessions(hooks: Hooks) {
     }
   }
 
-  return { busy, reserved, start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

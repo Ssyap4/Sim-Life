@@ -1,3 +1,5 @@
+import { catSeatError } from '../src/shared/catOccupancy';
+import { homeSeat } from '../src/shared/home';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { VITAL_NEEDS, type VitalNeed } from '../src/shared/life';
 import { points, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
@@ -18,7 +20,8 @@ export function planLeisure(state: GameState, role: CharacterId, activity: HomeL
     // Never use the coordinates of a sold starter sofa or desk.
     // Purchased replacements are real navigable seats.
     const fixture=activity==='tv'?'sofa':'desk';
-    if(!state.furnishing.soldFixtures?.includes(fixture)){
+    if(!state.furnishing.soldFixtures?.includes(fixture)&&
+      !(activity==='tv'&&catSeatError(state,'starter:sofa',homeSeat('sofa',role).position))){
       const target=activity==='tv'?points.sofa:points.desk;
       const original=planWalk(state.characters[role],target,
         placeObstacles('home',state.furnishing),HOME_FLOOR);
@@ -28,7 +31,7 @@ export function planLeisure(state: GameState, role: CharacterId, activity: HomeL
     for(const item of state.furnishing.placed){
       if(!canFurniturePerform(item,action))continue;
       const use=furnitureUseLocation(state,role,item.id,action);
-      if(use)return use.route;
+      if(use&&!(activity==='tv'&&catSeatError(state,'placed:'+item.id,use.pose)))return use.route;
     }
     return null;
   }

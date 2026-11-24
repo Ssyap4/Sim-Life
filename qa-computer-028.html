@@ -1,0 +1,15 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sim OS QA</title></head><body><div id="app"><button id="world-pc">ПК</button><button id="world-laptop">Ноутбук</button><div id="computer" class="computer-overlay" hidden></div></div><script type="module">
+import './src/style.css';
+import './src/mobile-ux-020.css';
+import {createComputerUI} from './src/computerUI.ts';
+import {initialState} from './src/shared/protocol.ts';
+const state=initialState();
+let role='alina';
+const time={multiplier:1,shiftVotes:[],sleepers:{},paused:false,pauseRequestedBy:null};
+const no=()=>false;
+const ui=createComputerUI(document.querySelector('#computer'),{read:()=>({state,role,time}),act:no,playGame:no,favorite:no,watchVideo:no,preview:()=>{},career:no,education:no,vote:no,travel:no,service:no,budget:no,checkout:no,furnishing:()=>{}});
+window.qa={open:(r,d)=>{role=r;ui.open(d)},refresh:()=>ui.refresh(),close:()=>ui.close()};
+document.querySelector('#world-pc').addEventListener('pointerup',()=>ui.open('desktop'));
+document.querySelector('#world-laptop').addEventListener('pointerup',()=>ui.open('laptop'));
+document.body.dataset.ready='true';
+</script></body></html>

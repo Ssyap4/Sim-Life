@@ -1,0 +1,33 @@
+name: Sim-Life 0.28 mobile computer desktop QA
+on:
+  push:
+    branches: [preview/simba-furniture-occupancy-028]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          npx vite --host 127.0.0.1 --port 4173 > /tmp/simlife-computer-vite.log 2>&1 &
+          for i in {1..30}; do curl -fsS http://127.0.0.1:4173/qa-computer-028.html && break; sleep 1; done
+          node scripts/qa-028-computer-desktop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-028-mobile-computer-desktops
+          path: /tmp/simlife-028-computer
+          if-no-files-found: warn

@@ -15,7 +15,12 @@ export function petBeds(furnishing:Pick<FurnishingState,'placed'>,id:PetId):Plac
   return furnishing.placed.filter(item=>item.sku===PET_BED_SKUS[id]);
 }
 export function petScratchers(furnishing:Pick<FurnishingState,'placed'>):PlacedFurniture[] {
-  return furnishing.placed.filter(item=>item.sku===CAT_SCRATCHER_SKU);
+  return furnishing.placed.filter(item=>item.sku===CAT_SCRATCHER_SKU||item.sku==='pet-house-tower');
+}
+export function petScratchPoint(item:{sku:string;x:number;z:number;rotation:number}):{x:number;z:number}{
+  if(item.sku!=='pet-house-tower')return {x:item.x,z:item.z};
+  const yaw=item.rotation*Math.PI/2;
+  return {x:item.x+.48*Math.cos(yaw)+.06*Math.sin(yaw),z:item.z-.48*Math.sin(yaw)+.06*Math.cos(yaw)};
 }
 export function petEquipmentRef(item:PlacedFurniture):PetEquipmentRef {
   return {id:item.id,sku:item.sku,x:item.x,z:item.z,rotation:item.rotation};

@@ -163,9 +163,13 @@ test('Groceries vanish on reaching home and both clients share stock without a d
     assert.equal(paid.state.pantry.milk,beforeMilk+GROCERIES.milk.quantity);
     assert.equal(paid.state.pantry.bread,beforeBread+GROCERIES.bread.quantity);
     assert.equal(paid.state.world.tableBags,0);
-    vlad.send({type:'travel',place:'home'});
-    await alina.next('snapshot',p=>p.state.world.places.vlad==='home'&&p.state.world.bags.vlad===1);
-    vlad.send({type:'approach',place:'home',station:'home-doorstep'});
+    vlad.send({type:'approach',place:'market',station:'market-exit'});
+    await vlad.next('world_path',p=>p.station==='market-exit');
+    vlad.send({type:'travel',place:'district',via:'market-exit'});
+    await alina.next('snapshot',p=>p.state.world.places.vlad==='district'&&p.state.world.bags.vlad===1);
+    vlad.send({type:'approach',place:'district',station:'district-gate'});
+    await vlad.next('world_path',p=>p.station==='district-gate');
+    vlad.send({type:'travel',place:'home',via:'district-gate'});
     const arrived=await alina.next('snapshot',p=>p.state.world.places.vlad==='home'&&p.state.world.bags.vlad===0);
     assert.equal(arrived.state.world.tableBags,0);
     assert.equal(arrived.state.money,paid.state.money,'no charge on return');

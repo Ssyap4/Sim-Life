@@ -254,7 +254,7 @@ test('Autonomous sleep uses a purchased real bed and disabling autonomy wakes th
     const event=await asleep;
     if(event.type!=='snapshot')return;
     assert.equal(event.state.characters.vlad.sleepingOn,1);
-    assert.equal(event.state.characters.vlad.sleepMode,'half');
+    assert.equal(event.state.characters.vlad.sleepMode,'full');
     const awake=waitFor(ws,p=>p.type==='snapshot'&&p.state.autonomy.vlad==='off'&&
       p.state.characters.vlad.pose==='idle',4300);
     send(ws,{type:'autonomy_mode',mode:'off'});
@@ -404,3 +404,17 @@ test('A completed manual walk no longer freezes needs autonomy forever',async()=
     if(task.type==='task_started')assert.equal(task.command.type,'act');
   }finally{await ctx.close();}
 });
+
+ test('Needs mode independently serves refrigerated food and eats at 50 percent without spending',async()=>{
+ const seed=initialState();seed.autonomy.vlad='needs';
+ Object.assign(seed.characters.vlad,{hunger:49,energy:90,bladder:90,hygiene:90,social:90,fun:90,comfort:90});
+ seed.meals.omelette=1;addReadyFood(seed,'meal','omelette',1,'fridge');
+ const ctx=await setup(seed,true,60,600,true);
+ try{
+ const ws=await ctx.join('vlad');
+ const served=waitFor(ws,p=>p.type==='task_started'&&p.automatic===true&&p.command.type==='act'&&p.command.actionId==='kitchenServe',8000);
+ const eaten=waitFor(ws,p=>p.type==='snapshot'&&p.state.meals.omelette===0&&p.state.characters.vlad.hunger>50,10000);
+ ctx.startClock();await Promise.all([served,eaten]);
+ assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+ }finally{await ctx.close();}
+ });

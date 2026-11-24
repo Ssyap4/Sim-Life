@@ -29,6 +29,11 @@ function at(state: GameState, role: CharacterId, station: string): GameState {
   Object.assign(next.characters[role], approachFor(stationById('home',station)!,role));
   return next;
 }
+function receive(state:GameState,role:CharacterId):GameState {
+  const near=at(state,role,'courier-handoff');
+  const handed=successful(applyWorld(near,role,{type:'delivery_handoff',id:near.world.deliveries[0].id}));
+  return at(handed,role,'parcel');
+}
 function moveClock(state: GameState, minutes: number): GameState {
   const next=structuredClone(state);
   next.clock=clockAt(gameMinutes(next.clock)+minutes);
@@ -103,7 +108,7 @@ test('Delivery is collected at the door with fridge or table choice, transferabl
   assert.equal(order.world.deliveries.length,1);
   const paid=order.money;
   const arrived=advanceLife(order,18,['vlad']);
-  const claim=at(arrived,'alina','parcel');
+  const claim=receive(arrived,'alina');
   const delivered=successful(applyWorld(claim,'alina',{
     type:'delivery_claim',id:claim.world.deliveries[0].id,storage:'table',
   }));
@@ -167,7 +172,7 @@ test('Delivered ready food spoils at the doorstep after 2 game days, without los
   const queued=successful(applyWorld(base,'alina',{type:'delivery_order',sequence:0,
     lines:[{id:'takeout:pizzaCheese',quantity:1},{id:'grocery:milk',quantity:1}]}));
   const parcel=queued.world.deliveries[0];
-  const overdue=at(moveClock(queued,2*MINUTES_PER_DAY+25),'vlad','parcel');
+  const overdue=receive(moveClock(queued,2*MINUTES_PER_DAY+25),'vlad');
   assert.ok(gameMinutes(overdue.clock)>=parcel.readyAt+2*MINUTES_PER_DAY);
   const collected=successful(applyWorld(overdue,'vlad',{
     type:'delivery_claim',id:parcel.id,storage:'fridge',
@@ -187,7 +192,7 @@ test('Table has limited portions, fridge overflow rejects without consuming the 
   start.meals.omelette=18;
   const queued=successful(applyWorld(start,'vlad',{type:'delivery_order',sequence:0,
     lines:[{id:'takeout:pizzaCheese',quantity:1}]}));
-  const ready=at(moveClock(queued,20),'alina','parcel');
+  const ready=receive(moveClock(queued,20),'alina');
   const fridge=applyWorld(ready,'alina',{type:'delivery_claim',
     id:queued.world.deliveries[0].id,storage:'fridge'});
   assert.equal(fridge.ok,false);

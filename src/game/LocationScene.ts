@@ -177,7 +177,13 @@ export function createHomeDistrict() {
   const district = buildDistrict(root, resources);
   for (const station of DISTRICT_STATIONS) {
     if (district.entries.has(station.id)) continue;
-    const object = buildStation(station, resources.textures, resources.materials);
+    const object=station.id==='district-gate'?new THREE.Group():buildStation(station, resources.textures, resources.materials);
+    if(station.id==='district-gate'){
+      object.position.set(station.center.x,0,station.center.z);
+      shape(object,[1.65,.08,.48],[0,.05,0],C.pine);
+      for(const x of [-.83,.83])shape(object,[.19,.88,.21],[x,.44,0],C.walnut);
+      sign(object,'ДОМ',.96,.06,1.30,C.paper,resources.textures,resources.materials);
+    }
     object.position.z -= DISTRICT_OFFSET_Z;
     root.add(object);
     district.entries.set(station.id, object);
@@ -295,8 +301,10 @@ export function homeExtensions() {
   const doors = new Map<string, THREE.Group>();
   const stock = new Map<string, THREE.Group[]>();
   const parcel = new THREE.Group();
+  let gateLeaf:THREE.Group|undefined;
   for (const station of HOME_STATIONS) {
-    if (station.action.kind === 'waypoint') continue;
+    // World owns car geometry; never create a generic wall cupboard for it.
+    if (station.action.kind === 'waypoint'||station.action.kind==='courier'||station.action.kind==='car') continue;
     if (station.action.kind === 'career') {
       const laptop = careerStation(station,'marketing');
       group.add(laptop); stations.set(station.id,laptop); continue;
@@ -309,6 +317,13 @@ export function homeExtensions() {
       root.rotation.y = Math.PI;
       shape(root, [1.15, .08, .36], [0, .06, 0], C.pine);
       shape(root, [.74, .07, .11], [0, .105, .09], C.brass);
+      if(station.id==='home-gate'){
+        gateLeaf=new THREE.Group();gateLeaf.position.set(-.67,.08,0);
+        for(const y of [.17,.47])shape(gateLeaf,[1.34,.09,.09],[.67,y,0],C.oak);
+        for(let i=0;i<6;i++)shape(gateLeaf,[.135,.55,.065],[.12+i*.22,.30,0],C.walnut);
+        shape(gateLeaf,[.07,.10,.10],[1.17,.34,.065],C.brass);
+        root.add(gateLeaf);
+      }
     } else if (station.action.kind === 'parcel') {
       const marker = shape(root, [.55, .035, .31], [0, .028, 0], C.oat);
       marker.name = 'parcel-mat';
@@ -359,7 +374,7 @@ export function homeExtensions() {
       doors.set(station.id, door);
     }
   }
-  return { group, stations, doors, stock, parcel };
+  return { group, stations, doors, stock, parcel,gateLeaf };
 }
 
 export function carryingBag() {

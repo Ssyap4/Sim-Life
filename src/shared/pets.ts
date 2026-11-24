@@ -31,6 +31,7 @@ export interface PetState {
   routine?: PetRoutine;
   /** Retained preference only while a matching purchased bed remains installed. */
   favoriteBedId?: number;
+  furnitureYield?: {perch:import('./CatPerches').CatPerch;clearAt:number;cooldownUntil:number};
 }
 export type PetFamily = Record<PetId, PetState>;
 export type PetFoodStock = Record<PetId, number>;

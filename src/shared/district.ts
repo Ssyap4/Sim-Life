@@ -11,6 +11,8 @@ export const HOME_WORLD_FLOOR: FloorRect = { ...DISTRICT_FLOOR,
 export const inHomeGrounds = ({x,z}:Point) => x>=HOME_FLOOR.minX && x<=HOME_FLOOR.maxX &&
   z>=HOME_FLOOR.minZ && z<=HOME_YARD.gate.z;
 export const districtPoint = ({x,z}:Point):Point => ({x,z:z+DISTRICT_OFFSET_Z});
+export const DISTRICT_WORLD_FLOOR:FloorRect={minX:DISTRICT_FLOOR.minX,maxX:DISTRICT_FLOOR.maxX,minZ:HOME_YARD.gate.z+.38,maxZ:DISTRICT_FLOOR.maxZ+DISTRICT_OFFSET_Z};
+export const HOME_GATE_INSIDE={x:HOME_YARD.gate.x,z:HOME_YARD.gate.z-.78};
 export const HOME_GATE_APPROACH = { x:HOME_YARD.gate.x, z:HOME_YARD.gate.z+.66 };
 export const DISTRICT_FOUNTAIN = { x: -8.6, z: -4.45, radius: 1.69 };
 export const DISTRICT_POND = { x:21.38, z:21.05, radiusX:2.07, radiusZ:1.43 };
@@ -142,6 +144,7 @@ export const DISTRICT_OBSTACLES: readonly FloorRect[] = [
 ];
 const gateEdge = .26;
 const {gate}=HOME_YARD;
+export const DISTRICT_WORLD_OBSTACLES:readonly FloorRect[]=DISTRICT_OBSTACLES.map(rect=>({...rect,minZ:rect.minZ+DISTRICT_OFFSET_Z,maxZ:rect.maxZ+DISTRICT_OFFSET_Z}));
 export const HOME_WORLD_OBSTACLES: readonly FloorRect[] = [
   ...DISTRICT_OBSTACLES.map(rect=>({...rect,minZ:rect.minZ+DISTRICT_OFFSET_Z,maxZ:rect.maxZ+DISTRICT_OFFSET_Z})),
   {minX:HOUSE.minX-.26,maxX:HOUSE.minX+.28,minZ:HOME_WORLD_FLOOR.minZ,maxZ:HOUSE.maxZ+.25},

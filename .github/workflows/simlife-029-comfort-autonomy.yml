@@ -1,0 +1,40 @@
+name: Sim-Life 0.29 comfort and autonomy QA
+on:
+  push:
+    branches: [feat/comfort-autonomy-cat-homes-029]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx tsx --test server/tests/comfort-autonomy-029.test.ts server/tests/autonomy.test.ts server/tests/petFurniture-028.test.ts server/tests/catPerches-027.test.ts server/tests/furniture-design-families.test.ts server/tests/simbaAuthoredRest-028.test.ts
+  cat-house-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - run: SIMBA_HOUSES_029=1 node --import tsx scripts/qa-028-simba-authored.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-029-cat-house-real-frames
+          path: /tmp/simlife-028-simba-authored
+          if-no-files-found: warn

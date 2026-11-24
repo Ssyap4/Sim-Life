@@ -111,8 +111,10 @@ test('Delivery adds fuel to the order, itemizes 149 RUB once, and then cooks ske
   const parcel=ordered.state.world.deliveries[0];
   const ready=structuredClone(ordered.state);
   ready.clock=clockAt(parcel.readyAt+1);
-  Object.assign(ready.characters.vlad,approachFor(stationById('home','parcel')!,'vlad'));
-  const claimed=applyWorld(ready,'vlad',{type:'delivery_claim',id:parcel.id});
+  Object.assign(ready.characters.vlad,approachFor(stationById('home','courier-handoff')!,'vlad'));
+  const handed=applyWorld(ready,'vlad',{type:'delivery_handoff',id:parcel.id});assert.ok(handed.ok);
+  Object.assign(handed.state.characters.vlad,approachFor(stationById('home','parcel')!,'vlad'));
+  const claimed=applyWorld(handed.state,'vlad',{type:'delivery_claim',id:parcel.id});
   assert.ok(claimed.ok,!claimed.ok?claimed.reason:'');
   if(!claimed.ok)return;
   assert.equal(claimed.state.money,ordered.state.money,'Do not charge delivery twice');

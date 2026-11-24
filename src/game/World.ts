@@ -1,6 +1,8 @@
 import { HomeEffects } from './HomeEffects';
+import { buildFamilyCar } from './FamilyCarArt';
 import { buildHomeWing } from './HomeWing';
 import { NeighborPeople } from './NeighborPeople';
+import { courierVisit, COURIER_INDEX } from '../shared/courier';
 import { NEIGHBORS, neighborPose } from '../shared/neighbors';
 import { DISTRICT_OFFSET_Z, districtArrival, districtPoint, districtSite, inDistrictPond, inHomeGrounds } from '../shared/district';
 import { HomeComputerScreens } from './HomeComputerScreens';
@@ -16,9 +18,9 @@ import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from 
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
-  KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
+  KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
-import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame } from './GraphicsCompatibility';
+import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
@@ -34,7 +36,7 @@ import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import type { SimbaRig } from './SimbaRig';
 import { currentCatPerch } from '../shared/CatPerches';
-import {currentPetEquipment} from '../shared/petFurniture';
+import {currentPetEquipment,petScratchPoint} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -94,7 +96,7 @@ export class World {
   scene = new THREE.Scene();
   private readonly homeScene = this.scene;
   private readonly neighbors = new NeighborPeople();
-  private readonly district: ReturnType<typeof createHomeDistrict>;
+  private district: ReturnType<typeof createHomeDistrict>|null=null;
   private neighborMinute = 0;
   private entryLeaf?: THREE.Group;
   private readonly extensions = homeExtensions();
@@ -113,6 +115,8 @@ export class World {
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
   private readonly sleepingOffline = new Set<CharacterId>();
+  private familyCar!: THREE.Group;
+  private readonly rememberedBeds=new Map<CharacterId,SleepBedId>();
   private readonly homeLeisure = new Set<CharacterId>();
   private readonly petRoutines = new Map<PetId, string>();
   private localRole: CharacterId = 'vlad';
@@ -216,7 +220,7 @@ export class World {
     this.canvas.parentElement?.append(this.tapLayer);
     // Android WebViews are especially vulnerable to framebuffer/context loss.
     // Disable costly MSAA and cap resolution there; retain the iPhone path.
-    this.quality = this.graphics.safe ? 'low' : 'standard';
+    this.quality = this.graphics.safe ? 'low' : this.graphics.full ? 'high' : 'standard';
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas,
         antialias: this.graphics.antialias,
@@ -256,9 +260,9 @@ export class World {
     this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     this.controls.enablePan = true;
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
-    this.controls.maxTargetRadius = 110;
+    this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -267,11 +271,9 @@ export class World {
     this.createLights();
     this.createHome();
     this.homeViewOccluders = this.scene.children.filter(object => !(object instanceof THREE.Light));
-    this.district = createHomeDistrict();
-    this.homeScene.add(this.district.root,this.neighbors.group);
-    this.neighbors.bindDoors(this.district.root);
-    this.neighbors.group.visible=true;
-    for(const [id,group] of this.district.entries)this.trackStation(this.stationMeshes,id,group);
+    // District geometry is created only on the first actual trip outside.
+    // No district meshes or animated neighborhood rigs belong to homeScene.
+    this.homeScene.add(this.neighbors.group);
     // Grill portions are tappable just like the plates on the indoor table.
     // Invisible dishes are ignored by pick(), preventing ghost actions.
     for(const dish of [this.yard.platter,...this.yard.servings.values()])dish.traverse(part=>{
@@ -348,7 +350,7 @@ export class World {
       const touch = event.pointerType === 'touch';
       gate.down(contact(event));
       if (event.isPrimary) {
-        this.controls.enablePan = touch || this.place==='home' || this.place==='park';
+        this.controls.enablePan = touch || this.place==='home' || this.place==='district' || this.place==='park';
         this.controls.dampingFactor = TOUCH_CAMERA_DAMPING;
         this.updatePanFeel();
       }
@@ -450,7 +452,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -533,16 +535,16 @@ export class World {
     return {target,position:target.clone().addScaledVector(direction,21.5)};
   }
   focusNeighborhood():void {
-    if(this.place!=='home')return;
+    if(this.place!=='district')return;
     this.showcase(null);
     this.neighborhoodView=true;
     this.cameraMove=this.neighborCameraFrame();
   }
   focusDistrict(place:PlaceId):void {
     const site=districtSite(place);
-    if(this.place!=='home'||place!=='home'&&!site)return;
+    if(this.place!=='district'||place!=='home'&&!site)return;
     this.districtWide=false;
-    this.districtFocus=place==='home'?HOUSE_ENTRY:districtArrival(place,this.localRole);
+    this.districtFocus=districtArrival(place,this.localRole);
     this.showcase(null);
     if(site) {
       const target=new THREE.Vector3(site.x,2.05,site.z+DISTRICT_OFFSET_Z);
@@ -551,7 +553,7 @@ export class World {
     }
   }
   overviewDistrict():void {
-    if(this.place!=='home')return;
+    if(this.place!=='district')return;
     this.districtWide=true;
     this.showcase(null);
   }
@@ -567,12 +569,12 @@ export class World {
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.savedCameras.delete(this.place);
-    if(this.place==='home')this.frameDistrictResident();
+    if(this.place==='home'||this.place==='district')this.frameDistrictResident();
     this.inspected=null;
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='home'?96:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -588,7 +590,7 @@ export class World {
     }
     if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
     if (this.place !== 'home') {
-      const seat = [...(this.remote?.stations.keys() ?? [])].map(key => stationById(this.place, key)!)
+      const seat = [...(this.place==='district'?this.district?.entries.keys()??[]:this.remote?.stations.keys()??[])].map(key => stationById(this.place, key)!)
         .find(s => {
           const point = approachFor(s, id);
           return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
@@ -604,6 +606,7 @@ export class World {
       if(bed){
         this.actors[id].setFurniturePose('sleep',
           new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+        this.actors[id].snapFurnitureOffset();
         return;
       }
     }
@@ -668,7 +671,8 @@ export class World {
 
   /** Client-only presentation. Sleep ownership and recovery remain server-authoritative. */
   showSleep(id: CharacterId, sleeping: boolean): void {
-    if(this.place!=='home'||!this.household)return;
+    if(this.place!=='home'||!this.household||this.household.world.places[id]!=='home')return;
+    if(!sleeping&&this.sleepingOffline.has(id))return;
     const resident=this.household.characters[id];
     if(sleeping){
       const bed=bedPose(this.household,id,resident.sleepingOn??'starter');
@@ -1445,7 +1449,7 @@ export class World {
       this.lastDayPhase=phase;
       const night=phase==='night'||phase==='evening';
       this.remote?.setNight(night);
-      if(this.place==='home')this.district.setNight(night);
+      if(this.place==='district')this.district?.setNight(night);
     }
     // Smooth solar cycle: cool predawn, amber sunrise, clear midday, honeyed
     // golden hour and a blue twilight. No shadow maps or extra render passes.
@@ -1520,6 +1524,9 @@ export class World {
     this.entryLeaf = decorateHome(this.scene);
     buildHomeWing(this.scene);
     this.yard = buildYard(this.scene);
+    this.familyCar=buildFamilyCar();
+    this.scene.add(this.familyCar);
+    this.trackStation(this.stationMeshes,'family-car',this.familyCar);
     this.register('grill', this.yard.grill, points.grill);
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
@@ -1781,7 +1788,7 @@ export class World {
         clearance: PET_PERSON_CLEARANCE,
       });
     }
-    if(this.place==='home'||this.place==='park')for(const body of this.neighborBodies){
+    if(this.place==='home'||this.place==='district'||this.place==='park')for(const body of this.neighborBodies){
       if(Math.hypot(body.position.x-from.x,body.position.z-from.z)<2.8)bodies.push(body);
     }
     const actor = this.actors[role];
@@ -1851,8 +1858,7 @@ export class World {
       onArrive();
     };
     const actor=this.actors[role];
-    if (this.followingPlayer && this.place==='home' && role===this.localRole &&
-        (!inHomeGrounds(actor.root.position)||path.some(point=>!inHomeGrounds(point)))) {
+    if (this.followingPlayer && this.place==='district' && role===this.localRole) {
       this.neighborhoodView=false;
       this.inspected=null;
       this.frameDistrictResident();
@@ -1922,14 +1928,21 @@ export class World {
     this.remote?.dispose();
     this.remoteMeshes = [];
     this.externalObstacles = placeObstacles(place);
-    this.remote = place === 'home' ? null : createLocation(place);
+    this.district?.root.removeFromParent();
+    this.remote = place === 'home'||place==='district' ? null : createLocation(place);
     this.scene = place === 'home' ? this.homeScene : new THREE.Scene();
-    // Reuse the same resident rigs in the park interior and back home.
-    // Commercial interiors stay clear of exterior pedestrian traffic.
-    if(place==='park')this.scene.add(this.neighbors.group);
-    else this.homeScene.add(this.neighbors.group);
+    if(place==='district'){
+      this.district??=createHomeDistrict();
+      this.scene.add(this.district.root);
+      this.neighbors.bindDoors(this.district.root);
+      for(const [id,group] of this.district.entries)this.trackStation(this.remoteMeshes,id,group);
+    }
+    // The same rigs are reparented; they never render in two scenes on one device.
+    if(place==='park'||place==='district'||place==='home')this.scene.add(this.neighbors.group);
+    else this.neighbors.group.removeFromParent();
+    this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place === 'home' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, 49, 75);
+    this.scene.fog = place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, 49, 75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -1952,17 +1965,16 @@ export class World {
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
-    this.camera.far=place==='home'?180:110;
+    this.camera.far=place==='district'?180:110;
     this.camera.updateProjectionMatrix();
-    this.controls.maxTargetRadius = place === 'home' ? 110 : 18;
-    this.controls.enablePan = place === 'home' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
+    this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
+    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'home' ? (this.districtWide ? 132 : 96) : 51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
-    const remembered=place==='home'&&!inHomeGrounds(this.household!.characters[this.localRole])
-      ? undefined : this.savedCameras.get(place);
+    const remembered=place==='district'?undefined:this.savedCameras.get(place);
     if(remembered){
       this.camera.position.copy(remembered.position);
       this.controls.target.copy(remembered.target);
@@ -2026,22 +2038,32 @@ export class World {
       this.actors[id].setNeeds(state.characters[id]);
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
+      if(state.characters[id].pose==='sleep')this.rememberedBeds.set(id,state.characters[id].sleepingOn??'starter');
       const work = state.careers.residents[id].shift;
       this.computerScreens.career(id,place==='home' && state.world.places[id]==='home' && work?.mode==='remote'
         ? work.homeDevice??'laptop':null);
       const previousWork = previous?.careers.residents[id].shift;
-      const sleep = offline && place === 'home' && !state.activeShifts[id] && !work;
+      const sleep = offline && place === 'home' && state.world.places[id]==='home' && !state.activeShifts[id] && !work;
       const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
       if (away || sleep) this.closeStorage(id);
-      if (sleep && (!wasSleeping || reset || changed)) {
+      if (sleep && (!wasSleeping || reset || changed || !this.actors[id].isSleeping())) {
         this.sleepingOffline.add(id);
         const resident=state.characters[id];
-        const bed=selectSleepBed(state,id,typeof resident.sleepingOn==='number'?resident.sleepingOn:undefined);
-        if(bed.ok)this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,
-          'sleep',bed.bed.id);
-        else this.restoreCharacter(id,resident.x,resident.z,'idle');
+        // A resident already in bed must not have their bed reassigned or be sent
+        // to the gate just because a different player reentered the scene.
+        const savedBed=resident.sleepingOn??this.rememberedBeds.get(id)??'starter';
+        if(resident.pose==='sleep'&&bedPose(state,id,savedBed)) {
+          this.restoreCharacter(id,resident.x,resident.z,'sleep',savedBed);
+        }else{
+          let bed=selectSleepBed(state,id,typeof savedBed==='number'?savedBed:undefined);
+          if(!bed.ok&&typeof savedBed==='number')bed=selectSleepBed(state,id);
+          if(bed.ok){
+            this.rememberedBeds.set(id,bed.bed.id);
+            this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,'sleep',bed.bed.id);
+          }else this.restoreCharacter(id,resident.x,resident.z,'idle');
+        }
       } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
@@ -2063,19 +2085,20 @@ export class World {
       this.actors[role].noticePartnerArrival();
     const dog = this.pets.verdell.root;
     const walker = state.world.dogWalker;
-    dog.visible = walker ? place === 'park' && state.world.places[walker] === 'park' && !state.activeShifts[walker] : place === 'home';
+    dog.visible = walker ? (place === 'park'||place==='district') && state.world.places[walker] === place && !state.activeShifts[walker] : place === 'home';
     this.pets.simba.root.visible = place === 'home';
     // Signals come from authoritative shared stats, so both players see the
     // same warnings as the pet roams, sleeps or accompanies a dog walker.
     for (const id of PET_IDS) this.pets[id].setHungerLevel(petHungerLevel(state.pets[id].satiety));
     if (!walker && previous?.world.dogWalker) this.petRoutines.delete('verdell');
-    if (place === 'park' && walker && (changed || previous?.world.dogWalker !== walker)) {
+    if ((place === 'park'||place==='district') && walker && (changed || previous?.world.dogWalker !== walker)) {
       const point = state.pets.verdell.parkPosition ?? this.actors[walker].root.position;
       dog.position.set(point.x, 0, point.z);
       this.dogTrail = [];
       this.lastDogPoint = null;
     }
     if (place === 'home') {
+      this.familyCar.visible=!state.world.carDriver;
       const top=diningSurface(state);
       for (const station of ['table','yardTable'] as const) {
         this.dirtyVisuals[station].forEach((plate,index)=>{
@@ -2113,7 +2136,7 @@ export class World {
         this.displayedMealRecipe=recipe;
         this.served.visible=recipe!==undefined;
       }
-      this.extensions.parcel.visible = state.world.deliveries.some(d => d.readyAt <= clockMinutes(state.clock));
+      this.extensions.parcel.visible = state.world.deliveries.some(d => d.handedAt!==undefined);
       const counts = { fridge: 0, cupboard: 0 };
       for (const [name, amount] of Object.entries(state.pantry)) {
         if (amount > 0) counts[GROCERY_DETAILS[name as keyof typeof GROCERY_DETAILS].area]++;
@@ -2150,11 +2173,12 @@ export class World {
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
       pet.syncGround(route.from.x,route.from.z);
-      const scratchFace=routine.kind==='scratch'&&routine.equipment&&routine.goal
-        ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
+      const scratchPoint=routine.kind==='scratch'&&routine.equipment?petScratchPoint(routine.equipment):undefined;
+      const scratchFace=scratchPoint&&routine.goal
+        ? Math.atan2(scratchPoint.x-routine.goal.x,scratchPoint.z-routine.goal.z):undefined;
       // Read support height once per route from the rotated physical model.
       // The server's X/Z, floor approach and attachment key still apply.
-      const perch=routine.perch;
+      const perch=routine.perch?currentCatPerch(state.furnishing,routine.perch):null;
       const bed=routine.kind==='sleep'?routine.equipment:undefined;
       let supportHeight: number | undefined;
       let support:THREE.Object3D|undefined;
@@ -2190,11 +2214,12 @@ export class World {
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
         scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
-        routine.perch,
+        perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined);
+        }:undefined,!!bed,supportHeight,scratchPoint,
+        routine.startedAt);
     }
   }
 
@@ -2225,7 +2250,7 @@ export class World {
       return true;
     };
     const meshes=this.place==='home'
-      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes]
+      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes,...(this.household&&courierVisit(this.household.world,this.neighborMinute)?.waiting?this.neighbors.courierMeshes():[])]
       : [...this.remoteMeshes,...this.subjectMeshes];
     const intersections=(px:number,py:number)=>{
       this.raycaster.setFromCamera(ndc(px,py),this.camera);
@@ -2281,7 +2306,7 @@ export class World {
       if(point&&pointIsClear(point,this.currentObstacles(),floorFor(this.place))){
         this.touchPulse(clientX,clientY,'walk');
         this.navigation?.ground(point.x,point.z);
-      } else if(point&&this.place==='home'&&inDistrictPond(point)) {
+      } else if(point&&this.place==='district'&&inDistrictPond(point)) {
         this.navigation?.pondTap?.();
       }
     }
@@ -2294,11 +2319,11 @@ export class World {
   }
 
   private homeFrame(compact: boolean, band: ViewBand): Frame {
-    if(this.place==='home'){
-      if(this.districtWide)return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,
+    if(this.place==='home')return portraitHomeFrame(this.camera.fov,this.camera.aspect,band);
+    if(this.place==='district'){
+      if(this.districtWide&&this.district)return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,
         this.district.bounds,this.district.bounds,[.25,1.65,1.02],130);
-      const resident=this.districtFocus ?? this.household?.characters[this.localRole] ?? HOUSE_ENTRY;
-      if(inHomeGrounds(resident))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band);
+      const resident=this.districtFocus ?? this.household?.characters[this.localRole] ?? districtArrival('home',this.localRole);
       const siteView=this.residentDistrictFrame(resident,compact);
       if(this.districtFocus&&resident.z>49){
         siteView.position.z=2*siteView.target.z-siteView.position.z;
@@ -2319,7 +2344,7 @@ export class World {
   }
 
   private updateViewLens():void {
-    const reference=this.place==='home' && this.districtWide && !this.inspected ? 34 : 23;
+    const reference=this.place==='district' && this.districtWide && !this.inspected ? 34 : 23;
     this.camera.fov=THREE.MathUtils.radToDeg(2*Math.atan(
       Math.tan(THREE.MathUtils.degToRad(reference))*Math.max(1,portraitAspect/this.camera.aspect)));
     this.camera.updateProjectionMatrix();
@@ -2330,13 +2355,8 @@ export class World {
     const height = Math.max(1, this.canvas.clientHeight);
     const compact = this.compactPortrait.matches;
     const { pixelRatio: initialRatio } = renderProfile(compact, window.devicePixelRatio);
-    const district = this.place==='home';
-    let pixelRatio = compact
-      ? Math.min(window.devicePixelRatio || 1, this.quality==='low' ? (district?.88:1)
-        : district ? (this.quality==='high'?1.26:1.11)
-          : this.quality==='high' ? 1.45 : initialRatio)
-      : initialRatio;
-    pixelRatio = Math.min(pixelRatio, this.graphics.maxPixelRatio);
+    const pixelRatio = worldPixelRatio(compact, window.devicePixelRatio, initialRatio,
+      this.place === 'home', this.quality, this.graphics);
     const band = this.viewBand(this.inspected !== null);
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
@@ -2389,18 +2409,19 @@ export class World {
     this.smoothedFrameMs = this.smoothedFrameMs * .97 + Math.min(frameMs, 150) * .03;
     if (!this.paused && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
       this.lastQualityUpdate = now;
-      const nextQuality = this.smoothedFrameMs > 24 ? 'low'
-        : this.smoothedFrameMs < 17.8 ? 'high' : 'standard';
+      const nextQuality = chooseGraphicsQuality(this.smoothedFrameMs, this.graphics);
       if (nextQuality !== this.quality) {
         this.quality = nextQuality;
         this.refreshViewport();
       }
     }
     this.movementDt=dt;
-    if ((this.place==='home'||this.place==='park')&&this.household) {
-      this.neighborMinute += dt*GAME_MINUTES_PER_REAL_SECOND;
-      if(this.place==='home')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera);
-      else this.neighborBodies=this.neighbors.updatePark(this.neighborMinute,this.camera);
+    if(this.household){
+      this.neighborMinute+=dt*GAME_MINUTES_PER_REAL_SECOND;
+      const visit=courierVisit(this.household.world,this.neighborMinute);
+      if(this.place==='home')this.neighborBodies=this.neighbors.updateCourier(this.neighborMinute,visit);
+      else if(this.place==='district')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1,visit??undefined);
+      else if(this.place==='park')this.neighborBodies=this.neighbors.updatePark(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1);
     }
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
@@ -2468,6 +2489,13 @@ export class World {
         this.yard.contents.rotation.z=Math.sin(this.grillClock*2.3)*motion;
       } else this.yard.contents.rotation.z=0;
     }
+    if(this.place==='home'&&this.extensions.gateLeaf){
+      const gate=HOME_YARD.gate;
+      const near=(p:Point)=>Math.hypot(p.x-gate.x,p.z-gate.z)<1.65;
+      const courier=this.household?courierVisit(this.household.world,this.neighborMinute):null;
+      const open=Object.values(this.actors).some(a=>a.root.visible&&near(a.root.position))||Boolean(courier?.place==='home'&&near(courier));
+      this.extensions.gateLeaf.rotation.y=THREE.MathUtils.damp(this.extensions.gateLeaf.rotation.y,open?1.43:0,9,dt);
+    }
     if (this.place === 'home' && this.entryLeaf) {
       const { x, z, width } = HOUSE_ENTRY;
       const nearEntrance = (object: THREE.Object3D) => object.visible &&
@@ -2484,7 +2512,7 @@ export class World {
     const walker = this.household?.world.dogWalker;
     const dog = this.pets.verdell;
     let pace = 0;
-    if (walker && dog.root.visible && this.place === 'park') {
+    if (walker && dog.root.visible && (this.place === 'park'||this.place==='district')) {
       const actor = this.actors[walker].root;
       const { x, z } = actor.position;
       const previous = this.lastDogPoint;
@@ -2607,7 +2635,7 @@ export class World {
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }
-    if(this.place==='home')this.district.animate(this.visualSeconds,this.camera);
+    if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
     try {
       this.renderer.render(this.scene, this.camera);

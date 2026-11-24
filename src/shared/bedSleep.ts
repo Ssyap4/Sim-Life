@@ -1,8 +1,9 @@
+import { catBedError } from './catOccupancy';
 import { FURNITURE_BY_ID, type PlacedFurniture } from './furniture';
 import { HOME_PLACEMENTS } from './home';
 import { placeObstacles } from './locations';
 import { findRoute, nearestClearPoint, pointIsClear } from '../game/navigation';
-import { HOME_WORLD_FLOOR } from './district';
+import { HOME_FLOOR } from './home';
 import type { CharacterId, GameState } from './protocol';
 
 export type SleepBedId = 'starter' | number;
@@ -73,14 +74,14 @@ function approachForBed(state:GameState,role:CharacterId,item:PlacedFurniture):
   ];
   const blocked=placeObstacles('home',state.furnishing);
   const actor=state.characters[role];
-  const start=nearestClearPoint(actor,blocked,HOME_WORLD_FLOOR);
+  const start=nearestClearPoint(actor,blocked,HOME_FLOOR);
   if(!start)return null;
   let result:{x:number;z:number}|null=null;
   let cost=Infinity;
   for(const [x,z] of candidates){
     const point=rotated(item,x,z);
-    if(!pointIsClear(point,blocked,HOME_WORLD_FLOOR))continue;
-    const route=findRoute(start,point,blocked,HOME_WORLD_FLOOR);
+    if(!pointIsClear(point,blocked,HOME_FLOOR))continue;
+    const route=findRoute(start,point,blocked,HOME_FLOOR);
     if(!route)continue;
     let distance=0;
     let previous=start;
@@ -102,6 +103,7 @@ export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:num
   if(available.length===0)return {ok:false,reason:'В доме нет установленной кровати. Купи и поставь новую.'};
   const other=role==='vlad'?'alina':'vlad';
   let occupied=false;
+  let catReason:string|undefined;
   let inaccessible=false;
   for(const id of available){
     const item=id==='starter'?null:state.furnishing.placed.find(entry=>entry.id===id);
@@ -113,14 +115,16 @@ export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:num
     }
     const pose=bedPose(state,role,id);
     if(!pose)continue;
+    const blocked=catBedError(state,id==='starter'?'starter:bed':'placed:'+id,pose);
+    if(blocked){catReason=blocked;continue;}
     const approach=id==='starter'?{
       x:HOME_PLACEMENTS.bed.x,z:HOME_PLACEMENTS.bed.z+1.95,
     }:approachForBed(state,role,item!);
     if(!approach){inaccessible=true;continue;}
     return {ok:true,bed:{id,approach,pose,capacity}};
   }
-  return {ok:false,reason:occupied
+  return {ok:false,reason:catReason??(occupied
     ?'Эта односпальная кровать уже занята. Выбери другую кровать.'
     :inaccessible?'К кровати нет безопасного прохода. Переставь её.'
-    :'Выбранная кровать не установлена в доме'};
+    :'Выбранная кровать не установлена в доме')};
 }

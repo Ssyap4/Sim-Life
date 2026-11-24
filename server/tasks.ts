@@ -1,3 +1,6 @@
+import { seatingComfortBonus } from '../src/shared/furnitureComfort';
+import { catBedError, catSeatError } from '../src/shared/catOccupancy';
+import { bedPose } from '../src/shared/bedSleep';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { computerDevice, computerResource } from '../src/shared/computer';
 import { GAME_BY_ID, VIDEO_CLIPS, isVideoClipId } from '../src/shared/computerGames';
@@ -173,6 +176,11 @@ export function entertainmentReward(command: Entertainment, together = false): N
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+  if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
+    const pose=bedPose(state,role,'starter');
+    const reason=pose&&catBedError(state,'starter:bed',pose);
+    if(reason)return {ok:false,reason};
+  }
   if (command.type === 'together') return { ok: false, reason: 'Требуется согласованное приглашение' };
   if (command.type === 'study') return { ok: false, reason: 'Для обучения нужна учебная сессия' };
   if(command.type==='furniture_use'){
@@ -181,6 +189,8 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     if(state.world.places[role]!=='home')return {ok:false,reason:'Мебель находится дома'};
     const position=furnitureUseLocation(state,role,command.furnitureId,command.action);
     if(!position)return {ok:false,reason:'Не получается безопасно подойти к мебели'};
+    const reason=catSeatError(state,'placed:'+command.furnitureId,position.pose);
+    if(reason)return {ok:false,reason};
     const {action}=command;
     if(action==='read_book'&&state.furnishing.soldFixtures?.includes('bookcase')&&
       !state.furnishing.placed.some(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='shelves'))
@@ -218,6 +228,12 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         return {ok:true as const,state:next,message:FURNITURE_ACTIONS[action]+' — выполнено'};
       })();
     if(!result.ok)return result;
+    if(['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
+      const before=state.characters[role],after=result.state.characters[role];
+      const bonus=seatingComfortBonus(selected.item.sku);
+      if(after.comfort>before.comfort)after.comfort=Math.max(before.comfort,Math.min(100,after.comfort+bonus));
+      if(bonus>0)after.mood=Math.min(100,after.mood+bonus/3);
+    }
     const destination=position.route.path.at(-1)??position.route.from;
     Object.assign(result.state.characters[role],destination,{
       pose:['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',

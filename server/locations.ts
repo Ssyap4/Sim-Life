@@ -1,8 +1,9 @@
+import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import {
-  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
+  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, floorFor,
   approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById, doorwayArrival,
   type LocalActivity, type Point, type Station, type WorldState,
 } from '../src/shared/locations';
@@ -32,15 +33,17 @@ export function validWorld(value: unknown): value is WorldState {
   if (!value || typeof value !== 'object') return false;
   const w = value as Partial<WorldState>;
   const count = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
-  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
+  return (w.districtLayout === undefined || w.districtLayout === 1 || w.districtLayout === 2 || w.districtLayout === 3 || w.districtLayout === 4) && !!w.places && !!w.sequence && !!w.bags && ROLES.every(role =>
     (isPlace(w.places![role]) || (w.districtLayout===undefined || w.districtLayout===1) && String(w.places![role])==='street') && count(w.sequence![role]) && count(w.bags![role])) &&
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
+    (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe'].includes(w.places![w.carDriver]))) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
     w.deliveries.every(d => d && typeof d.id === 'string' && /^D-(vlad|alina)-\d+$/.test(d.id) &&
-      ROLES.includes(d.role) && count(d.cost) && count(d.readyAt) && quoteCart(d.lines).ok) &&
+      ROLES.includes(d.role) && count(d.cost) && count(d.readyAt) && (d.handedAt===undefined||count(d.handedAt)&&d.handedAt>=d.readyAt) && quoteCart(d.lines).ok) &&
     !!w.cafe && !Array.isArray(w.cafe) && typeof w.cafe === 'object' &&
     Object.entries(w.cafe).every(([role, order]) => ROLES.includes(role as CharacterId) && order &&
       isCafeItem(order.item) && count(order.readyAt) && typeof order.pickedUp === 'boolean');
@@ -60,11 +63,11 @@ export function setDogParkPosition(state: GameState): void {
   const dog = state.pets.verdell;
   if (!walker) { delete dog.parkPosition; return; }
   const { x, z } = state.characters[walker];
-  dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles('park'), WORLD_FLOOR) ?? { x, z };
+  dog.parkPosition = nearestClearPoint({ x: x - .55, z: z + .24 }, placeObstacles(state.world.places[walker]), floorFor(state.world.places[walker])) ?? { x, z };
 }
 
 export const worldMessages = new Set([
-  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim',
+  'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
@@ -77,15 +80,51 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='car_travel'){
+    if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
+    if(source.world.carDriver)return fail('Машина сейчас в поездке');
+    if(command.place!=='market'&&command.place!=='cafe')return fail('На машине пока доступны супермаркет и кафе');
+    if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
+    const next=structuredClone(source);
+    const destination=command.place;
+    const spawnPoint=doorwayArrival(destination,'district',role);
+    const other=neighborAt(destination);
+    const arrival=other?unoccupiedDestination(spawnPoint,other,placeObstacles(destination,source.furnishing),floorFor(destination)):spawnPoint;
+    if(!arrival)return fail('Вход занят вторым игроком');
+    next.world.carDriver=role;
+    next.world.places[role]=destination;
+    Object.assign(next.characters[role],arrival,{pose:'idle'});
+    return done(next,'Приехали: '+PLACES[destination].name);
+  }
   if (command.type === 'travel') {
+    if(source.world.carDriver===role){
+      const exit=stationById(place,command.via);
+      if(command.place!=='district'||exit?.action.kind!=='door'||exit.action.destination!=='district'||!at(source,role,exit))
+        return fail('Выйди через дверь, чтобы вернуться к машине');
+      const next=structuredClone(source);
+      const parking=approachFor(stationById('home','family-car')!,role);
+      const other=neighborAt('home');
+      const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
+      if(!arrival)return fail('Парковка занята');
+      delete next.world.carDriver;
+      next.world.places[role]='home';
+      next.world.bags[role]=0;
+      next.world.tableBags=0;
+      Object.assign(next.characters[role],arrival,{pose:'idle'});
+      return done(next,'Вернулись домой на машине');
+    }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
+    if((place==='home'&&command.place==='district'||place==='district'&&command.place==='home')&&command.via===undefined)
+      return fail('Сначала подойди к калитке');
+    if(command.via!==undefined && ((place==='home'&&command.place!=='district')||(command.place==='home'&&place!=='district')))
+      return fail('Путь домой проходит через калитку района');
     if (command.via !== undefined) {
       const door = stationById(place, command.via);
       if (door?.action.kind !== 'door' || door.action.destination !== command.place || !at(source, role, door))
         return fail('Сначала подойди к выходу');
     }
-    if (command.dog === true && (place !== 'home' || command.place !== 'park' || source.world.dogWalker))
+    if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     next.world.places[role] = command.place;
@@ -93,7 +132,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
       next.world.dogWalker = role;
     }
-    const spawnPoint = command.via !== undefined || command.place === 'home'
+    const spawnPoint = command.via !== undefined || (command.place === 'home'||command.place==='district')
       ? doorwayArrival(command.place,place,role) : spawn(command.place, role);
     const other = neighborAt(command.place);
     const arrival = other
@@ -101,7 +140,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       : spawnPoint;
     if (!arrival) return fail('Вход занят вторым игроком');
     Object.assign(next.characters[role], arrival, { pose: 'idle' });
-    if (next.world.dogWalker === role && command.place !== 'park') next.world.dogWalker = null;
+    if (next.world.dogWalker === role && command.place !== 'park' && command.place!=='district') next.world.dogWalker = null;
+    if(command.place==='home'){next.world.bags[role]=0;next.world.tableBags=0;}
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
     return done(next, PLACES[command.place].name);
   }
@@ -117,8 +157,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const obstacles = placeObstacles(place,source.furnishing);
     const floor = floorFor(place);
     const other = neighborAt(place);
+    const courier=courierVisit(source.world,clockMinutes(source.clock));
     const body = other && Math.hypot(other.x-requested.x,other.z-requested.z)<1.05 ? other
-      : place === 'home' && !inHomeGrounds(requested) ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
+      : courier?.place===place&&Math.hypot(courier.x-requested.x,courier.z-requested.z)<.82?courier
+      : place === 'district' ? NEIGHBORS.flatMap((_,index)=>index===COURIER_INDEX&&courier?[]:[neighborPose(index,clockMinutes(source.clock))])
         .filter(person=>person.visible && person.opacity>.35).map(districtPoint)
         .find(person=>Math.hypot(person.x-requested.x,person.z-requested.z)<.82)
         : undefined;
@@ -188,10 +230,22 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     return done(next, 'Заказ оплачен. Забери его на стойке выдачи');
   }
 
+  if(command.type==='delivery_handoff'){
+    if(place!=='home'||!at(source,role,stationById('home','courier-handoff')))return fail('Подойди к Максиму у двери');
+    const now=clockMinutes(source.clock);
+    const order=source.world.deliveries.find(d=>d.id===command.id);
+    const courier=courierVisit(source.world,now);
+    if(!order||order.handedAt!==undefined||order.readyAt>now||!courier?.waiting)return fail('Курьер ещё в пути или заказ уже передан');
+    const next=structuredClone(source);
+    next.world.deliveries.find(d=>d.id===order.id)!.handedAt=now;
+    next.world.courierDepartAt=now;
+    return done(next,COURIER_NAME+': заказ передан. Пакеты у двери — можно разобрать.');
+  }
+
   if (command.type === 'delivery_claim') {
     if (place !== 'home' || !at(source, role, stationById('home', 'parcel'))) return fail('Подойди к двери дома');
     const order = source.world.deliveries.find(d => d.id === command.id);
-    if (!order || order.readyAt > clockMinutes(source.clock)) return fail('Заказ ещё не доступен или уже получен');
+    if (!order || order.handedAt===undefined || order.readyAt > clockMinutes(source.clock)) return fail('Сначала забери заказ у курьера');
     const storage = command.storage ?? 'fridge';
     if (storage !== 'fridge' && storage !== 'table') return fail('Выбери, куда положить готовую еду');
     // Takeaway left at the doorstep for >= 2 game days is spoiled before
