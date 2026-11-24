@@ -5,13 +5,13 @@ import { FURNITURE_CATALOG,FURNITURE_STYLES,furnitureStyle } from '../../src/sha
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 
 test('the 0.32 catalogue has unique IDs, five style families and all eight categories',()=>{
-  assert.equal(FURNITURE_CATALOG.length,98);
+  assert.equal(FURNITURE_CATALOG.length,109);
   const ids=new Set(FURNITURE_CATALOG.map(item=>item.id));
   assert.equal(ids.size,FURNITURE_CATALOG.length);
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,FURNITURE_CATALOG.length);
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.category)).size,8);
-  assert.deepEqual(FURNITURE_CATALOG.filter(item=>item.category==='pets').map(item=>item.id).sort(),
-    ['pet-bed-simba','pet-bed-verdell','pet-house-cabin','pet-house-soft','pet-house-tower','pet-scratcher-simba']);
+  assert.deepEqual(FURNITURE_CATALOG.filter(item=>item.category==='pets'&&!item.id.startsWith('pet-feed-')).map(item=>item.id).sort(),
+    ['pet-bed-cat-donut','pet-bed-cat-shell','pet-bed-dog-nest','pet-bed-dog-sofa','pet-house-igloo','pet-house-loft','pet-house-sky','pet-scratcher-duet','pet-scratcher-palm']);
   const styles=new Map(Object.keys(FURNITURE_STYLES).map(k=>[k,0]));
   for(const item of FURNITURE_CATALOG){
     const style=furnitureStyle(item.id);

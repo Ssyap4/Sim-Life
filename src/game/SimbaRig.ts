@@ -69,7 +69,7 @@ export class SimbaRig {
   pose(time:number,distance:number,motion:number,crouch:number,reach:number,groom:number,eating:number,
     tailSwing:number,tailFold:number,head:THREE.Euler,ears:readonly THREE.Group[],eyes:readonly THREE.Group[],
     jump:number,rest:number,scratchContact?:THREE.Vector3,loaf=0,coil=0,
-    restPose?:CatRestPoseId,restWeight=0) {
+    restPose?:CatRestPoseId,restWeight=0,toyContact?:THREE.Vector3,toyReach=0,singlePaw=false) {
     const breath = Math.sin(time*2.4);
     const pose=restPose?CAT_REST_POSES[restPose]:undefined;
     const settle=pose?THREE.MathUtils.clamp(restWeight,0,1):0;
@@ -131,6 +131,10 @@ export class SimbaRig {
         limb.hip.parent!.worldToLocal(this.scratchTarget).sub(limb.hip.position);
         pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,reach);
         pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,reach);
+      }
+      if(limb.front&&toyContact&&(!singlePaw||index===0)){
+        this.scratchTarget.copy(toyContact);this.model.localToWorld(this.scratchTarget);limb.hip.parent!.worldToLocal(this.scratchTarget).sub(limb.hip.position);
+        const hit=THREE.MathUtils.clamp(toyReach,0,1);pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,hit);pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,hit);
       }
       plantPaw(limb,pawY,pawZ,
         (lift*.8-wash*.52-(limb.front?.60*reach:0))*(1-settle));

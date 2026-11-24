@@ -25,6 +25,8 @@ import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId, type Takeo
 import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station, type CafeItem } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
+import {feedingStation,feedingOwnerPoint} from '../shared/petFeeders';
+import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBath';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
@@ -113,6 +115,8 @@ export class World {
   private readonly homeViewOccluders: THREE.Object3D[];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
+  private bathingRole:CharacterId|undefined;
+  private bathWashing=false;
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
   private displayedMealRecipe: RecipeId | TakeoutId | undefined;
@@ -189,6 +193,9 @@ export class World {
   private yard!: ReturnType<typeof buildYard>;
   private grillCooking = false;
   private readonly otherBody = new THREE.Vector3();
+  private readonly feederVisual:Partial<Record<PetId,{reserve:number;servings:number;id?:number;started?:number}>>={};
+  private readonly starterBowls:Partial<Record<PetId,THREE.Group>>={};
+  private readonly bowlHits:Partial<Record<PetId,THREE.Mesh>>={};
   private readonly bowlFood: Record<PetId, THREE.Mesh[]> = { verdell: [], simba: [] };
   private readonly collisionFlow = { vlad: residentTraffic(), alina: residentTraffic() };
   private movementDt = 1 / 60;
@@ -299,7 +306,7 @@ export class World {
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
-    this.homeScene.add(this.pets.verdell.homeToys);
+    this.homeScene.add(this.pets.verdell.homeToys,this.pets.simba.homeToys);
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -1055,7 +1062,7 @@ export class World {
         }break;
       }
       case 'feed': {
-        const bowl=pair.pet&&pair.pet in PETS?PETS[pair.pet as PetId].bowl:undefined;
+        const bowl=pair.pet&&pair.pet in PETS?(this.household?feedingStation(this.household.furnishing,pair.pet as PetId).point:PETS[pair.pet as PetId].bowl):undefined;
         if(leads&&bowl)actor.playPetActivity('feed',new THREE.Vector3(bowl.x,.28,bowl.z));
         else actor.playPartnerGesture('listen',false);
         break;
@@ -1342,6 +1349,7 @@ export class World {
   finishTimedAction(role: CharacterId): void {
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
+    this.endDogBath(role);
     const dishes = this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
@@ -1359,6 +1367,7 @@ export class World {
   cancelTimedAction(role: CharacterId): void {
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
+    this.endDogBath(role);
     this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
@@ -1370,21 +1379,30 @@ export class World {
     this.actors[role].setPose('idle');
   }
 
+  private endDogBath(role:CharacterId){if(this.bathingRole!==role)return;this.bathingRole=undefined;this.bathWashing=false;this.pets.verdell.setBath(false);this.homeEffects.dogBath(null);}
   showPetTreat(id:PetId):void{if(this.place==='home')this.pets[id].react('treat');}
 
   performPet(role: CharacterId, petId: PetId, action: PetAction, current = () => true): boolean {
+    if(action==='bathe'){
+      if(petId!=='verdell')return false;this.bathingRole=role;this.bathWashing=false;const actor=this.actors[role],dog=this.pets.verdell;
+      const wait=()=>{if(!current()||this.bathingRole!==role)return;if(Math.hypot(dog.root.position.x-DOG_BATH_APPROACH.x,dog.root.position.z-DOG_BATH_APPROACH.z)>.15){this.preparations.set(role,{remaining:.25,next:wait});return;}
+        actor.faceTowards(new THREE.Vector3(DOG_BATH_SURFACE.x,0,DOG_BATH_SURFACE.z));dog.setBath(true);this.bathWashing=true;
+        actor.playPetActivity('bathe',(target:THREE.Vector3)=>dog.coatContact(target));};
+      const walking=this.walkTo(role,DOG_BATH_OWNER,wait);if(!walking)this.endDogBath(role);return walking;
+    }
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
-    const filling = action === 'feed';
-    const position = filling ? PETS[petId].bowl : pet.root.position;
+    const filling = action === 'feed'||action==='loadFeeder';
+    const station=this.household?feedingStation(this.household.furnishing,petId):undefined;
+    const position = filling ? station?.point??PETS[petId].bowl : pet.root.position;
     if (!filling) pet.stop();
-    const target = petApproach(position, this.obstacles, HOME_FLOOR);
+    const target = filling&&station?.item?feedingOwnerPoint(station,{x:actor.root.position.x,z:actor.root.position.z},this.obstacles,HOME_FLOOR):petApproach(position, this.obstacles, HOME_FLOOR);
     const walking = target && this.walkTo(role, target, () => {
       if (!current()) return;
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
-      actor.playPetActivity(action,filling
-        ? new THREE.Vector3(position.x,.28,position.z)
+      actor.playPetActivity(action==='loadFeeder'?'feed':action,filling
+        ? new THREE.Vector3(position.x,action==='loadFeeder'?(station?.model?.height??.28)+.10:.28,position.z)
         : (hand:THREE.Vector3)=>pet.coatContact(hand));
       // The animal eats during its own routine, not when the player pours food.
       if (!filling) pet.react(action);
@@ -1810,8 +1828,9 @@ export class World {
       opacity:.008, depthWrite:false });
     for (const id of PET_IDS) {
       const { x, z } = PETS[id].bowl;
+      const base=buildFurnishingModel('pet-feed-'+id+'-ceramic',id==='verdell'?'sage':'terracotta');base.position.set(x,0,z);this.homeScene.add(base);this.starterBowls[id]=base;
       const hit = new THREE.Mesh(hitGeometry, hitMaterial);
-      hit.position.set(x, .145, z);
+      this.bowlHits[id]=hit;hit.position.set(x, .145, z);
       hit.userData.interactable = 'bowl:' + id;
       this.scene.add(hit);
       this.interactiveMeshes.push(hit);
@@ -2020,6 +2039,7 @@ export class World {
     this.viewport = null;
     this.lastDayPhase = null;
     this.preparations.clear();
+    if(this.bathingRole)this.endDogBath(this.bathingRole);
     this.petRoutines.clear();
     this.homeLeisure.clear();
     this.sleepingOffline.clear();
@@ -2132,7 +2152,7 @@ export class World {
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
       this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
-      this.pets.verdell.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor);
+      for(const id of PET_IDS)this.pets[id].setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor,state.pets[id].ownedToys);
       if(place==='home'&&!changed)for(const actor of Object.values(this.actors)){
         const pos=actor.root.position;
         if(pointIsClear(pos,previousObstacles,HOME_FLOOR)&&!pointIsClear(pos,this.obstacles,HOME_FLOOR)){
@@ -2291,8 +2311,14 @@ export class World {
 
   private updateHomePets(state: GameState): void {
     for (const id of PET_IDS) {
-      this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
+      const station=feedingStation(state.furnishing,id),base=this.starterBowls[id],hit=this.bowlHits[id];
+      const previous=this.feederVisual[id],reserve=state.pets[id].feederReserve?.length??0,servings=state.petBowls[id];
+      const dropped=!!station.model?.capacity&&previous?.id===station.item?.id&&previous!==undefined&&reserve<previous.reserve&&servings>previous.servings;
+      this.feederVisual[id]={reserve,servings,id:station.item?.id,started:dropped?this.visualSeconds:previous?.id===station.item?.id?previous?.started:undefined};
+      if(base)base.visible=!station.item;if(hit){hit.visible=!station.item;hit.position.set(station.point.x,.145,station.point.z);}
+      this.bowlFood[id].forEach((piece,index) => {const angle=index/PET_BOWL_CAPACITY*Math.PI*2;piece.position.set(station.point.x+Math.cos(angle)*.075,station.foodY,station.point.z+Math.sin(angle)*.075);piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
+      pet.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor,state.pets[id].ownedToys);
       const candidate = state.pets[id].routine;
       const routine = candidate && (candidate.kind==='perch' &&
         (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch)) ||
@@ -2355,13 +2381,13 @@ export class World {
         }
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        scratchFace??(routine.kind==='beg'&&routine.goal?Math.atan2(state.characters[routine.target===0?'vlad':'alina'].x-routine.goal.x,state.characters[routine.target===0?'vlad':'alina'].z-routine.goal.z):routine.kind==='toy'?0:routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
+        scratchFace??routine.training?.yaw??((routine.kind==='beg'||routine.kind==='event'&&(routine.event==='welcome'||routine.event==='blink'))&&routine.goal?Math.atan2(state.characters[routine.target===0?'vlad':'alina'].x-routine.goal.x,state.characters[routine.target===0?'vlad':'alina'].z-routine.goal.z):routine.kind==='toy'?0:routine.kind === 'eat' ? station.yaw : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt,routine.kind==='toy'?routine.target:undefined);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event);
     }
   }
 
@@ -2803,6 +2829,9 @@ export class World {
         ball.visible=playing;const resting=model.getObjectByName('Table tennis resting equipment');if(resting)resting.visible=!playing;
         if(playing){const f=tennisBall(this.visualSeconds-this.tennisStarted!,h!.pair!.tennisWinner);ball.position.set(f.x,f.y,f.z);}
       }
+      for(const id of PET_IDS){const visual=this.feederVisual[id];if(visual?.started===undefined||!this.household)continue;const station=feedingStation(this.household.furnishing,id);const elapsed=this.visualSeconds-visual.started;if(elapsed>=.8||visual.id!==station.item?.id)delete visual.started;
+        this.bowlFood[id].forEach((piece,index)=>{const angle=index/PET_BOWL_CAPACITY*Math.PI*2,t=THREE.MathUtils.clamp((elapsed-index*.10)/.42,0,1),arc=1-t*t;piece.position.set(station.point.x+Math.cos(angle)*.075*t+Math.sin(station.yaw)*.12*(1-t),station.foodY+.14*arc,station.point.z+Math.sin(angle)*.075*t+Math.cos(station.yaw)*.12*(1-t));});}
+      if(this.bathWashing)this.homeEffects.dogBath(this.pets.verdell.bathPhase);
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }

@@ -19,6 +19,8 @@ import { taskAccessError } from '../src/shared/serviceAccess';
 import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
+import {dogBathPlan} from '../src/shared/dogBath';
+import {isTrainingAction} from '../src/shared/dogTraining';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
@@ -308,7 +310,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({type:'snapshot',state});
       }
     }, socialTtlMs:options.socialTtlMs,
-    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource)||Object.values(state.activeShifts).some(shift=>shift?.homeDevice&&computerResource(shift.homeDevice)===resource),
+    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource||resource==='pet:verdell'&&task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe')||Object.values(state.activeShifts).some(shift=>shift?.homeDevice&&computerResource(shift.homeDevice)===resource),
     prepare(role, tv) {
       if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
       closeStorage(role);
@@ -660,6 +662,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!task) return;
     pauseTimers.clear(task.timer);
     running.delete(role);
+    if(task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe'){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
   function catReserved(site:CatPerch):boolean {
@@ -681,6 +684,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     walkingHome.delete(role);
     if(plan.resource && state.activeShifts[otherRole(role)]?.homeDevice && computerResource(state.activeShifts[otherRole(role)]!.homeDevice!)===plan.resource){packet(socket,{type:"error",reason:"Компьютер занят домашним заказом"});return;}
+    const bath=plan.command.type==='pet_action'&&plan.command.action==='bathe';
+    const dogCare=plan.command.type==='pet_action'&&plan.command.pet==='verdell';
+    if(dogCare&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell'&&(bath||t.plan.command.action==='bathe'))||bath&&homeTasks.reserved('pet:verdell'))){packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
     if ((plan.resource && homeTasks.reserved(plan.resource)) || (plan.command.type==='local_activity'&&
         plan.command.action==='unpack'&&homeTasks.reserved('shopping'))) {
@@ -699,7 +705,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (resource === plan.resource) stopLeisure(resident);
     }
     // Filling the bowl must not interrupt a pet that is walking to eat.
-    if (plan.command.type === 'pet_action' && plan.command.action !== 'feed' &&
+    if (plan.command.type === 'pet_action' && plan.command.action !== 'feed' && plan.command.action !== 'loadFeeder' &&
         state.pets[plan.command.pet].routine) {
       pausePetRoutine(state, plan.command.pet, liveGameTime());
       state.revision++;
@@ -716,7 +722,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : plan.command.type === 'play_game' || plan.command.type === 'computer_video'
         ? plan.command.device === 'laptop' ? laptopApproach(state,role) : points.desk
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
-      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
+      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action,role) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen
         : homeSeat('table', role).approach;
     const position = state.characters[role];
@@ -735,7 +741,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const dishBudget = dishStops.length
       ? Math.round(dishDistance / HOME_WALK_SPEED * 1000 + dishStops.length * 1500 + 8500) : 0;
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
-    const duration = personalCare ? plan.durationMs + travelBudgetMs
+    const bathRoute=bath?dogBathPlan(state,role):null;
+    if(bath&&!bathRoute){packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
+    const duration = bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? plan.durationMs + travelBudgetMs
       : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
@@ -748,6 +756,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // players cannot create food, rewards or inventory from stale resources.
       const result = evaluateTask(state, role, plan.command);
       if (!result.ok) {
+        if(bath){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: result.reason });
         return;
       }
@@ -782,6 +791,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       all({ type: 'snapshot', state });
     }, durationMs);
     running.set(role, { id, role, plan, timer, automatic });
+    if(bathRoute){const now=Math.floor(liveGameTime());state.pets.verdell.routine={kind:'bath',target:0,startedAt:now,until:now+Math.ceil(durationMs/1000*GAME_MINUTES_PER_REAL_SECOND)+2,goal:bathRoute.goal,route:bathRoute.route};state.revision++;all({type:'snapshot',state});}
     all({ type: 'task_started', role, taskId: id, label: plan.label,
       durationMs, command: plan.command, automatic, effects: gains(state,validation.state,role) });
   };
@@ -1286,6 +1296,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       // A snack handed to a begging pet at the table is a side interaction:
       // keep the owner's 32-second meal running and charge the shared limit once.
+      if(message.type==='pet_action'&&message.pet==='verdell'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
       if(message.type==='pet_action'&&message.action==='treat'&&PET_IDS.some(id=>id===message.pet)){
         const pet=message.pet as PetId,animal=state.pets[pet];
         const ownerEating=homeTasks.diners().has(role)||['eat','eat_takeout'].includes(running.get(role)?.plan.command.type??'');
@@ -1308,7 +1319,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',
         'pet_action',
       ].includes(message.type)&&!(message.type==='pet_action'&&
-        ['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)));
+        (['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)));
       if(sleepers.has(role)&&queueable){
         const plan=planTask(message);
         if(!plan){packet(socket,{type:'error',reason:'Неизвестное действие'});return;}
@@ -1351,6 +1362,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
+      if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         if(message.type==='travel'||message.type==='car_travel'||message.type==='walk')clearQueue(role);
         const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;
@@ -1430,14 +1442,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
 
       if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
-          (message.type === 'pet_action' && !['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)))) {
+          (message.type === 'pet_action' && !(['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }
         submitTimed(role, socket, plan);
         return;
       }
 
-      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && ['buyFood','call','perch','fetch','mat','scratch'].includes(String(message.action)))) {
+      if (message.type === 'buy' || message.type === 'checkout' || (message.type === 'pet_action' && (['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)))) {
         const now = pauseTimers.now();
         if (now - (lastAction.get(role) ?? 0) < 1500) {
           packet(socket, { type: 'error', reason: 'Немного подожди перед следующей командой' });

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
-import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, torus, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL, HOUSE_WING } from '../shared/home';
 import { botanicalPrint, gardenView, oakFloor } from './ArtTextures';
 
@@ -167,17 +167,12 @@ function petNooks(home: THREE.Group): void {
   shape(home, softCube, [2.09, .025, .93], [x, .015, toilets[0].z], C.oat);
   shape(home, softCube, [2.09, .35, .105], [x, .19, toilets[0].z + .45], C.walnut, 'wood');
   for (const id of PET_IDS) {
-    const { home: { x, z }, bowl, toilet } = PETS[id];
+    const { home: { x, z }, toilet } = PETS[id];
     const dog = id === 'verdell';
     shape(home, softCube, [1.20, 0.065, 1.06], [x, 0.035, z], dog ? C.pine : C.rust);
     shape(home, softCube, [0.99, 0.046, 0.84], [x, 0.076, z], dog ? C.sage : C.oat);
     shape(home, softCube, [1.08, .16, .15], [x, .13, z - .43], dog ? C.sage : C.oat);
-    shape(home, drum, [0.18, 0.086, 0.18], [bowl.x, 0.051, bowl.z],
-      dog ? C.leaf : C.clay, 'ceramic');
-    const rim = shape(home, torus, [0.165, 0.165, 0.165],
-      [bowl.x, 0.104, bowl.z], C.paper, 'ceramic');
-    rim.rotation.x = -Math.PI / 2;
-    shape(home, drum, [.119, .035, .119], [bowl.x, .078, bowl.z], C.walnut);
+
     shape(home, softCube, [.86, .052, .69], [toilet.x, .045, toilet.z], dog ? C.pine : C.clay);
     shape(home, softCube, [.70, .019, .52], [toilet.x, .079, toilet.z], dog ? C.paper : C.oat);
     for (const side of [-1, 1]) shape(home, softCube, [.07, .10, .65], [toilet.x + side * .39, .10, toilet.z],

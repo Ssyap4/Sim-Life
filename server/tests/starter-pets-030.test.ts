@@ -80,7 +80,7 @@ test('each of the six real dog toys can be reached and used independently, urgen
 });
 test('dog toy scene has six separate floor objects and distinct animation for every type',()=>{
  const dog=new PetActor('verdell');
- assert.equal(dog.homeToys.children.length,6);
+ assert.equal(dog.homeToys.children.filter(c=>c.visible).length,6);
  for(let i=0;i<3;i++){
   const model=dog.homeToys.children[i],goal=dogToyApproach(i);
   dog.root.position.set(goal.x,0,goal.z);

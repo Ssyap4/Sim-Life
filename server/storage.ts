@@ -1,5 +1,8 @@
-import { DOG_TOYS,dogToyApproach } from '../src/shared/pets';
-import { STARTER_CAT_SCRATCHER } from '../src/shared/furniture';
+import {validFurniturePreferences,validEvent} from '../src/shared/petPreferences';
+import {validFeeder,feedingStation} from '../src/shared/petFeeders';
+import {validTraining,validTrainingAttempt} from '../src/shared/dogTraining';
+import { homeToysFor,homeToyApproach } from '../src/shared/pets';
+import {validToyExtras,toyOwned} from '../src/shared/petToys';
 import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
@@ -23,11 +26,12 @@ import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
 import { validHomeQuests } from "../src/shared/homeJobQuests";
 import { JOBS, isJobId, isHomeJob, HOME_JOBS, validShiftPay } from '../src/shared/jobs';
+import { validPetFoodExtras } from "../src/shared/petShop";
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { currentCatPerch } from '../src/shared/CatPerches';
-import {currentPetEquipment,petBeds,PET_BED_SKUS,CAT_SCRATCHER_SKU} from '../src/shared/petFurniture';
+import {currentPetEquipment,petBeds,isPetBed,isPetScratcher} from '../src/shared/petFurniture';
 import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
@@ -144,7 +148,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && validFurniturePreferences(pet,id) && (pet.lastEventAt===undefined||Number.isSafeInteger(pet.lastEventAt)&&pet.lastEventAt>=0) && validFeeder(pet,id) && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
@@ -163,12 +167,15 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
-          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku===STARTER_CAT_SCRATCHER||routine.equipment.sku==='pet-house-tower')||
-          routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
+          (routine.kind==='scratch'&&id==='simba'&&isPetScratcher(routine.equipment.sku)||
+          routine.kind==='sleep'&&isPetBed(routine.equipment.sku,id))&&
           routine.target===0&&point(routine.goal)) &&
+        (routine.training===undefined?routine.kind!=='train':id==='verdell'&&validTrainingAttempt(routine.training)&&routine.target===0&&point(routine.goal)&&(routine.kind==='train'||routine.kind==='fetch'&&routine.training.command==='fetch'&&routine.training.success)) &&
+        (routine.kind==='event'?validEvent(routine.event,id)&&routine.target<2&&point(routine.goal):routine.event===undefined) &&
+        (routine.kind!=='bath'||id==='verdell'&&routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
-        (routine.kind!=='toy'||id==='verdell'&&routine.target<DOG_TOYS.length&&point(routine.goal)&&Math.hypot(routine.goal!.x-dogToyApproach(routine.target).x,routine.goal!.z-dogToyApproach(routine.target).z)<.03) &&
+        (routine.kind!=='toy'||(()=>{const toy=homeToysFor(id)[routine.target];return !!toy&&(!('id' in toy)||toyOwned(pet,toy.id))&&point(routine.goal)&&Math.hypot(routine.goal!.x-homeToyApproach(id,routine.target).x,routine.goal!.z-homeToyApproach(id,routine.target).z)<.03;})()) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&
@@ -248,13 +255,14 @@ function restorePet(id: PetId, saved: PetState | undefined,
     delete pet.favoriteBedId;
   if(pet.furnitureYield&&(!furnishing||!currentCatPerch(furnishing,pet.furnitureYield.perch)||
     !Number.isFinite(pet.furnitureYield.clearAt)||!Number.isFinite(pet.furnitureYield.cooldownUntil)))delete pet.furnitureYield;
+  if(pet.routine?.kind==='bath')delete pet.routine;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&
       (id!=='simba'||!pet.routine.perch||!furnishing||!currentCatPerch(furnishing,pet.routine.perch));
     const invalidEquipment=pet.routine.equipment &&
       (!furnishing||!currentPetEquipment(furnishing,pet.routine.equipment));
-    const expected = petDestination(id, pet.routine);
+    const expected = pet.routine.kind==='eat'&&furnishing?feedingStation(furnishing,id).goal:petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
     if (invalidPerch || invalidEquipment || Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
       !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||

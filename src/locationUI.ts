@@ -1,3 +1,6 @@
+import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
+import { PURCHASABLE_FURNITURE } from './shared/furniture';
+import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
 import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
 import { qualityLabel } from './shared/foodQuality';
 import { JOBS, type JobId } from './shared/jobs';
@@ -145,6 +148,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   }
 
   let electronicsCart:ElectronicsId|undefined;
+  let petCart:string|undefined;
   function draw() {
     if (!state || !current || panel.hidden) return;
     const station = current;
@@ -166,13 +170,29 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park','clothing','electronics','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
     } else if(station.action.kind==='warehouse'){
       const id=station.action.job,job=JOBS[id];
       options.append(element('strong','',job.name),element('small','','Смена '+job.hoursMin+'–'+job.hoursMax+' ч. · '+formatRub(job.payMin)+'–'+formatRub(job.payMax)),element('p','',job.description));
       options.append(button('Начать смену',()=>{if(startWarehouse?.(id))close();},!startWarehouse||!!place.activeShifts[role]||place.shiftDays[role]===place.clock.day||place.characters[role].energy<25||place.characters[role].hunger<20));
+    } else if(station.action.kind==='pet-food-display'){
+      const {pet,form}=station.action;
+      for(const p of PET_SHOP_FOOD.filter(p=>p.pet===pet&&p.id.includes('-'+form+'-'))){
+        const pref=place.pets[pet].foodPreferences?.[p.id];
+        options.append(element('strong','',p.name+' · '+formatRub(p.price)),element('small','',petFoodBenefit(p)+' · '+(pref===undefined?'Вкус ещё неизвестен':FOOD_REACTIONS[pref])),button(petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();}));
+      }
+    } else if(kind==='pet-furniture-display'){
+      for(const p of PURCHASABLE_FURNITURE.filter(p=>p.category==='pets')){options.append(element('strong','',p.name+' · '+formatRub(p.price)),element('small','',p.description),button(petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();}));}
+      for(const p of PET_TOYS){const owned=toyOwned(place.pets[p.pet],p.id);options.append(element('strong','',(p.pet==='simba'?'🐈 ':'🐕 ')+p.name+' · '+formatRub(p.price)),element('small','',p.description),button(owned?'Уже дома':petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();},owned));}
+    } else if(kind==='pet-checkout'){
+      const p=petFoodProduct(petCart),f=PURCHASABLE_FURNITURE.find(i=>i.category==='pets'&&i.id===petCart);
+      const toy=toyProduct(petCart);
+      if(toy)options.append(element('strong','',toy.name),element('small','',toy.description),button('Купить · '+formatRub(toy.price),()=>{if(send({type:'pet_toy_buy',product:toy.id})){petCart=undefined;close();}},place.money<toy.price||toyOwned(place.pets[toy.pet],toy.id)),button('Отмена',()=>{petCart=undefined;draw();}));
+      else if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
+      else if(!p)options.append(element('small','','Выбери товар на витрине.'));
+      else options.append(element('strong','',p.name),element('small','',petFoodBenefit(p)),button('Купить · '+formatRub(p.price),()=>{if(send({type:'pet_food_buy',product:p.id})){petCart=undefined;close();}},place.money<p.price||place.petFood[p.pet]+p.refills>50),button('Отмена',()=>{petCart=undefined;draw();}));
     } else if(station.action.kind==='electronics-display'){
       const category=station.action.category;const current=installedElectronics(place,role,category);
       options.append(element('small','','Сейчас: '+ELECTRONICS[current].name),element('small','','Выбери модель, затем оплати на кассе. Новая техника заменяет старую без возврата денег.'));
@@ -455,7 +475,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
-        if(location==='clothing')clothesCart.clear();if(location==='electronics')electronicsCart=undefined;
+        if(location==='clothing')clothesCart.clear();if(location==='electronics')electronicsCart=undefined;if(location==='petshop')petCart=undefined;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -470,6 +490,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; electronicsCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; petCart=undefined; electronicsCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

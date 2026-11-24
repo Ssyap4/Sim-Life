@@ -86,3 +86,38 @@ export function createDogToy(kind:import('../shared/pets').DogToyKind):THREE.Gro
   batchRigidParts(group,true);
   return group;
 }
+
+export function createShopToy(kind:import('../shared/petToys').ShopToyKind):THREE.Group{
+ const group=new THREE.Group();
+ const part=(color:number,x:number,y:number,z:number,w:number,h:number,d:number,geo:THREE.BufferGeometry=orb,parent:THREE.Group=group)=>{
+  const mesh=new THREE.Mesh(geo,finish(color,'fabric'));mesh.position.set(x,y,z);mesh.scale.set(w*.5,h*.5,d*.5);parent.add(mesh);return mesh;
+ };
+ if(kind==='bone'){
+  part(0xeba76b,0,.055,0,.24,.09,.085);
+  for(const side of [-1,1])for(const z of [-.041,.041])part(0xeba76b,side*.115,.055,z,.10,.10,.10);
+  for(const x of [-.06,0,.06])part(0xfbd098,x,.10,0,.025,.012,.045,softCube);
+ }else if(kind==='ring'){
+  for(let i=0;i<20;i++){const a=i*Math.PI/10;part(i%2?0x4b9cbb:0x347f9b,Math.cos(a)*.115,.041,Math.sin(a)*.115,.075,.077,.075);}
+ }else if(kind==='puzzle'){
+  part(0x688f71,0,.035,0,.38,.07,.30,softCube);
+  for(const x of [-.11,.11])for(const z of [-.07,.07])part(0xf2c285,x,.073,z,.105,.03,.105);
+  for(const x of [-.11,.11]){
+   const lid=new THREE.Group();lid.name='Puzzle lid';lid.position.set(x,.087,0);group.add(lid);
+   part(0xce755e,0,0,0,.15,.03,.14,softCube,lid);part(0xf3d498,0,.024,0,.045,.045,.045,orb,lid);
+  }
+  return group;
+ }else if(kind==='mouse'){
+  const m=createPetPlayToy('simba');m.visible=true;group.add(m);
+ }else if(kind==='spring'){
+  for(let i=0;i<30;i++){
+   const a=i*Math.PI*.43;part(0x6cc9a3,Math.cos(a)*.047,.067+Math.sin(a)*.047,(i-14.5)*.008,.024,.024,.024);
+  }
+ }else{
+  part(0xe6b777,0,.025,0,.25,.05,.25);
+  const top=new THREE.Group();top.name='Feather stalk';top.position.y=.04;group.add(top);
+  for(let i=0;i<11;i++)part(0x4d6568,0,.014+i*.019,0,.026,.03,.026,orb,top);
+  for(let i=0;i<5;i++){const a=i*1.26;const feather=part(i%2?0xe8a6bf:0x7fbac0,Math.cos(a)*.045,.25,Math.sin(a)*.045,.08,.19,.035,orb,top);feather.rotation.y=a;feather.rotation.z=.46;}
+  return group;
+ }
+ group.name='Shop toy '+kind;batchRigidParts(group,true);return group;
+}

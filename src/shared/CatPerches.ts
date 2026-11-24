@@ -89,7 +89,7 @@ export function catPerchCandidates(furnishing:Pick<FurnishingState,'placed'|'sol
     const info=FURNITURE_BY_ID.get(placed.sku);
     if(!info)continue;
     if(info.id.startsWith('pet-house-')){
-      const tower=info.id==='pet-house-tower',soft=info.id==='pet-house-soft',starter=info.id==='pet-house-starter';
+      const tower=info.id==='pet-house-tower'||info.id==='pet-house-sky',soft=info.id==='pet-house-soft'||info.id==='pet-house-igloo',starter=info.id==='pet-house-starter'||info.id==='pet-house-nook';
       const center=tower?-.37:0;
       const heading=rotate(0,1,placed.rotation),yaw=Math.atan2(heading.x,heading.z);
       const floor=rotate(center,info.depth/2+.62,placed.rotation);

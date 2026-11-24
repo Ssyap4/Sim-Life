@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { createShopToy } from './PetToys';
+import { PET_TOYS } from '../shared/petToys';
+import {FEEDING_MODELS} from '../shared/petFeeders';
+import { PET_SHOP_FOOD } from '../shared/petShop';
 import { buildElectronicsModel } from './ElectronicsArt';
 import { ELECTRONICS,electronicsFor } from '../shared/electronics';
 import { PARK_TREES } from '../shared/park';
@@ -182,6 +186,21 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     if (station.center.z > 4) root.rotation.y = Math.PI;
     facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
+  } else if(station.action.kind==='pet-food-display'){
+    const {pet,form}=station.action;
+    shape(root,[2.35,.78,.95],[0,.39,0],0x669078);shape(root,[2.43,.08,1.01],[0,.82,0],0xf2e3c8);
+    PET_SHOP_FOOD.filter(p=>p.pet===pet&&p.id.includes('-'+form+'-')).forEach((p,i)=>{const x=(i-1.5)*.55;
+      shape(root,form==='dry'?[.40,.68,.27]:[.38,.34,.30],[x,form==='dry'?1.20:1.03,0],p.color,form==='dry'?softCube:drum);
+      shape(root,[.31,.16,.035],[x,form==='dry'?1.25:1.02,.16],0xfff2d6,cube);
+      sign(root,p.name.split(' · ')[0],.73,.49,.49,C.paper,textures,materials);const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.095;
+    });
+    sign(root,station.name,2.12,.35,2.06,C.paper,textures,materials);
+  } else if(kind==='pet-furniture-display'){
+    shape(root,[2.35,.48,.95],[0,.24,0],0x669078);shape(root,[2.43,.08,1.01],[0,.52,0],0xf2e3c8);
+    ['pet-bed-dog-nest','pet-house-igloo','pet-scratcher-palm','pet-bed-cat-shell','pet-house-loft','pet-scratcher-duet'].forEach((id,i)=>{const m=buildFurnishingModel(id,i<3?'sage':'oak');m.scale.setScalar(.36);m.position.set((i%3-1)*.76,.565,i<3?.19:-.23);root.add(m);});
+    PET_TOYS.forEach((p,i)=>{const m=createShopToy(p.kind);m.scale.setScalar(.67);m.position.set((i-2.5)*.35,.57,.40);root.add(m);});
+    for(const [i,p] of FEEDING_MODELS.filter(m=>m.pet==='verdell').entries()){const m=buildFurnishingModel(p.id,'ivory');m.scale.setScalar(.48);m.position.set((i-1.5)*.46,.57,-.42);root.add(m);}
+    sign(root,'ДЛЯ ЖИВОТНЫХ',1.75,.36,2.06,C.paper,textures,materials);
   } else if(station.action.kind==='electronics-display'){
     const category=station.action.category;
     shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);
@@ -193,6 +212,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.105;
     });
     sign(root,station.name,2.10,.30,1.83,C.paper,textures,materials);
+  } else if(kind==='pet-checkout'){
+    shape(root,[1.75,.94,.80],[0,.47,0],0x588e72);shape(root,[1.82,.10,.85],[0,.99,0],0xf2e3c8);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);
   } else if(kind==='electronics-checkout'){
     shape(root,[1.75,.94,.80],[0,.47,0],0x456574);shape(root,[1.82,.10,.85],[0,.99,0],0xe0e9ee);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);
   } else if(kind==='clothes-rack'){
@@ -361,6 +382,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
         shape(floor, [.23, .13, 10.1], [-5.99, y, 0], C.paper);
       }
     }
+  }
+  if(place==='petshop'){
+    sign(floor,'ЛАПКИ · ЗООМАГАЗИН',2.55,-4.88,4.5,C.paper,textures,materials);
+    shape(floor,[2.6,.025,3.3],[0,.016,.25],0xa9c5a6,cube);
+    const cashier=marketCashier(resources,{title:'Продавец',color:0x588e72,shirt:0xf4e3c8,animated:true});cashier.position.set(3.65,0,.48);root.add(cashier);
+    animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.13;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.055);};
   }
   if(place==='electronics'){
     sign(floor,'ИМПУЛЬС · ТЕХНИКА',2.55,-4.88,4.5,C.paper,textures,materials);

@@ -1,5 +1,7 @@
-name: Sim-Life 0.34 final release QA
+name: Sim-Life 0.35 final release QA
 on:
+  push:
+    branches: [feat/pet-life-035]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -24,7 +26,7 @@ jobs:
       - run: npm run build
       - name: Release isolation
         run: |
-          node -e "if(require('./package.json').version!=='0.34.0')process.exit(1)"
+          node -e "if(require('./package.json').version!=='0.35.0')process.exit(1)"
           test -z "$(git ls-files server-data)"
           test -s dist/index.html
   mobile-visual:

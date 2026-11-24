@@ -520,7 +520,7 @@ export class Actor {
     const asleep = this.pose === 'sleep';
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
-    const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat';
+    const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat'||this.activity==='bathe';
     const breath = Math.sin(t * (asleep ? 1.35 : 1.85));
     let lean = this.pose === 'work' ? 0.26 : this.activity === 'cook' ? 0.14 : care ? 0.48 : 0;
     if (this.pose === 'sit' && !this.activity) lean = -0.08;
@@ -857,6 +857,9 @@ export class Actor {
           // The existing reusable keyboard IK animates both hands.
           expression = 0.20;
           break;
+        case 'bathe': {
+          const stroke=Math.sin(a*4.7);crouch=.10;lean=.34+.018*stroke;gaze=.38;leftY=-.24;rightY=-.20+.045*stroke;leftZ=.40;rightZ=.45;expression=.17;break;
+        }
         case 'brush': {
           // Short, repeatable strokes, with the body leaning toward the pet.
           // No navigation or physics movement: only bones and a held prop.
@@ -1408,10 +1411,11 @@ export class Actor {
         .015+.035*Math.sin(a*2.5),.10+.012*Math.sin(a*5.2),-.03),alpha);
       this.aimHand(1,this.handDirection.set(0,-.5,-1)
         .applyAxisAngle(up,this.root.rotation.y),alpha);
-    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet' || this.activity === 'feed' || this.activity === 'play'||this.activity==='treat')) {
+    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet' || this.activity === 'feed' || this.activity === 'play'||this.activity==='treat'||this.activity==='bathe')) {
       // Follow the actual animal's saved position; strokes travel across the
       // coat rather than moving a hand in place beside the standing resident.
-      const brushing = this.activity === 'brush';
+      const bathing=this.activity==='bathe';
+      const brushing = this.activity === 'brush'||bathing;
       const stroke = Math.sin(a * (brushing ? 6.2 : 3.7));
       const lateral = brushing ? .065 : .023;
       if(typeof this.petContact==='function')this.petContact(this.target);
@@ -1424,6 +1428,7 @@ export class Actor {
       }
       this.target.y += .043 + .019 * Math.sin(a * (brushing ? 4.3 : 2.9))
         + (this.activity==='play'?.11*(.5+.5*Math.sin(a*4)):0);
+      if(bathing){this.target.y+=.04;this.target.x+=.05*Math.sin(a*4);this.reach(0,this.target.clone().add(new THREE.Vector3(0,.01,-.18)),Math.min(1,alpha*3));}
       this.reach(1,this.target,Math.min(1,alpha * 2.8));
       this.aimHand(1,this.handDirection.set(0,-1,-.25).applyAxisAngle(up,this.root.rotation.y),alpha);
     } else if (this.gestureTarget && highFive > 0) {

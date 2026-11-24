@@ -1,3 +1,4 @@
+import {EVENT_TEXT} from './petPreferences';
 import { PETS, type PetId } from './pets';
 import type { GameState } from './protocol';
 
@@ -199,11 +200,15 @@ export function petWish(state: GameState, id: PetId): PetWish {
   const hungry = pet.satiety < 35;
   const hasFood = state.petBowls[id] > 0;
   const routine = pet.routine?.kind;
+  if(routine==='event'&&pet.routine?.event)return {kind:'play',...EVENT_TEXT[pet.routine.event],urgent:false};
   if(routine==='come')return {kind:'affection',title:'🐾 Идёт на зов',
     message:PETS[id].name+' обходит мебель и направляется к хозяину.',
     advice:'Дай питомцу добраться самостоятельно',urgent:false};
   if(routine==='beg')return {kind:'play',title:'🍪 Просит лакомство',message:'Ждёт вкусняшку рядом с хозяином.',advice:'Можно угостить питомца',urgent:false};
-  if(routine==='toy'&&id==='verdell')return {kind:'play',title:'🐾 Играет с игрушкой',message:'Занимается любимыми игрушками самостоятельно.',advice:'Можно оставить Верделла играть',urgent:false};
+  if(routine==='bath')return {kind:'play',title:'🛁 Купается',message:'Верделл принимает ванну.',advice:'Дождись окончания купания',urgent:false};
+  if(id==='verdell'&&(pet.cleanliness??100)<35&&!hungry&&pet.energy>=40&&pet.bladder>=45)return {kind:'affection',title:'🛁 Пора купаться',message:'Шерсть Верделла испачкалась.',advice:'Искупай его в ванной',urgent:false};
+  if(routine==='train')return {kind:'play',title:'🎓 Тренируется',message:'Верделл старается понять команду хозяина.',advice:'Дождись окончания попытки',urgent:false};
+  if(routine==='toy')return {kind:'play',title:'🐾 Играет с игрушкой',message:'Занимается игрушкой самостоятельно.',advice:'Можно оставить '+PETS[id].name+' играть',urgent:false};
   if(routine==='fetch'&&id==='verdell')return {kind:'play',title:'🎾 Несёт мяч',
     message:'Верделл бежит к мячу и возвращается с ним к хозяину.',
     advice:'Подожди, пока Верделл принесёт игрушку',urgent:false};
