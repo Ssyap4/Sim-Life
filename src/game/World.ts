@@ -158,6 +158,7 @@ export class World {
   readonly actors: Record<CharacterId, Actor>;
   readonly pets: Record<PetId, PetActor>;
   private readonly raycaster = new THREE.Raycaster();
+  private coffeeModels?:THREE.Group;
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
@@ -1659,6 +1660,7 @@ export class World {
       batchRigidParts(furniture, true);
       polishFurniture(furniture,false);
       if(id==='desk')desktop=furniture;
+      if(id==='coffeeMaker')this.coffeeModels=furniture;
       if(id==='tv')this.homeEffects.mountTv(furniture);
       this.register(id, furniture, point);
     });
@@ -2188,6 +2190,8 @@ export class World {
     this.household = state;
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
     this.homeEffects.setTv(installedElectronics(state,role,'tv'));
+    const coffee=installedElectronics(state,role,'coffee');
+    for(const model of this.coffeeModels?.children[0]?.children??[])model.visible=model.userData.electronicsId===coffee;
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
       const previousObstacles=[...this.obstacles];

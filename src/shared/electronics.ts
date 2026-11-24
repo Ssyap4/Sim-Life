@@ -1,10 +1,14 @@
 
 import type {CharacterId,GameState} from './protocol';
-export type ElectronicsKind='desktop'|'laptop'|'tv'|'phone';
-export const ELECTRONICS_KINDS=['desktop','laptop','tv','phone'] as const;
-export const ELECTRONICS_LABELS={desktop:'Компьютеры',laptop:'Ноутбуки',tv:'Телевизоры',phone:'Смартфоны'} as const;
+export type ElectronicsKind='desktop'|'laptop'|'tv'|'phone'|'coffee';
+export const ELECTRONICS_KINDS=['desktop','laptop','tv','phone','coffee'] as const;
+export const ELECTRONICS_LABELS={coffee:'Кофемашины',desktop:'Компьютеры',laptop:'Ноутбуки',tv:'Телевизоры',phone:'Смартфоны'} as const;
 export type ElectronicsModel={kind:ElectronicsKind;name:string;price:number;spec:string;speed:number;bonus:number;comfort:number;study:number};
 export const ELECTRONICS={
+ coffeeStart:{kind:'coffee',name:'Домашняя кофеварка',price:0,spec:'Растворимый кофе',speed:0,bonus:0,comfort:0,study:0},
+ coffeeBasic:{kind:'coffee',name:'Barista Mini',price:12900,spec:'Компактная рожковая · 15 бар',speed:0,bonus:15,comfort:0,study:0},
+ coffeeCapsule:{kind:'coffee',name:'Barista Duo',price:29900,spec:'Полуавтомат · многоразовый фильтр',speed:0,bonus:20,comfort:0,study:0},
+ coffeePremium:{kind:'coffee',name:'Barista Grand',price:59900,spec:'Автомат · встроенная кофемолка и молочник',speed:0,bonus:25,comfort:0,study:0},
  pcStart:{kind:'desktop',name:'Домашний ПК',price:0,spec:'Базовый компьютер',speed:0,bonus:0,comfort:0,study:0},
  pcOffice:{kind:'desktop',name:'Razer Office',price:24900,spec:'6 ядер · 16 ГБ · SSD 512 ГБ',speed:10,bonus:3,comfort:2,study:0},
  pcCreator:{kind:'desktop',name:'MSI Creator',price:54900,spec:'8 ядер · 32 ГБ · SSD 1 ТБ',speed:18,bonus:6,comfort:4,study:0},
@@ -23,17 +27,17 @@ export const ELECTRONICS={
  phonePro:{kind:'phone',name:'Pulse Pro',price:54900,spec:'512 ГБ · OLED 120 Гц',speed:0,bonus:12,comfort:6,study:0},
 } as const satisfies Record<string,ElectronicsModel>;
 export type ElectronicsId=keyof typeof ELECTRONICS;
-export type ElectronicsState={desktop:ElectronicsId;laptop:ElectronicsId;tv:ElectronicsId;phones:Record<CharacterId,ElectronicsId>};
-export const initialElectronics=():ElectronicsState=>({desktop:'pcStart',laptop:'laptopStart',tv:'tvStart',phones:{vlad:'phoneStart',alina:'phoneStart'}});
+export type ElectronicsState={desktop:ElectronicsId;laptop:ElectronicsId;tv:ElectronicsId;coffee?:ElectronicsId;phones:Record<CharacterId,ElectronicsId>};
+export const initialElectronics=():ElectronicsState=>({desktop:'pcStart',laptop:'laptopStart',tv:'tvStart',coffee:'coffeeStart',phones:{vlad:'phoneStart',alina:'phoneStart'}});
 export const isElectronicsId=(id:unknown):id is ElectronicsId=>typeof id==='string'&&Object.hasOwn(ELECTRONICS,id);
 export function validElectronics(value:unknown):value is ElectronicsState{
  if(!value||typeof value!=='object')return false;
  const s=value as ElectronicsState;
- return ['desktop','laptop','tv'].every(k=>isElectronicsId(s[k as 'desktop'])&&ELECTRONICS[s[k as 'desktop']].kind===k)&&!!s.phones&&['vlad','alina'].every(r=>isElectronicsId(s.phones[r as CharacterId])&&ELECTRONICS[s.phones[r as CharacterId]].kind==='phone');
+ return (s.coffee===undefined||isElectronicsId(s.coffee)&&ELECTRONICS[s.coffee].kind==='coffee')&&['desktop','laptop','tv'].every(k=>isElectronicsId(s[k as 'desktop'])&&ELECTRONICS[s[k as 'desktop']].kind===k)&&!!s.phones&&['vlad','alina'].every(r=>isElectronicsId(s.phones[r as CharacterId])&&ELECTRONICS[s.phones[r as CharacterId]].kind==='phone');
 }
 export function installedElectronics(state:Pick<GameState,'world'>,role:CharacterId,kind:ElectronicsKind):ElectronicsId{
- const e=state.world.electronics??initialElectronics();return kind==='phone'?e.phones[role]:e[kind];
+ const e=state.world.electronics??initialElectronics();return kind==='phone'?e.phones[role]:kind==='coffee'?e.coffee??'coffeeStart':e[kind];
 }
 export const electronicsModel=(state:Pick<GameState,'world'>,role:CharacterId,kind:ElectronicsKind)=>ELECTRONICS[installedElectronics(state,role,kind)];
-export const electronicsBenefit=(model:ElectronicsModel)=>!model.price?'Базовые характеристики':(model.speed?'Заказы −'+model.speed+'% времени · игры и видео: ':model.kind==='phone'?'Лента: ':'Просмотр: ')+'+'+model.bonus+' досуга · +'+model.comfort+(model.kind==='phone'?' настроения':' комфорта')+(model.study?' · учебное ТВ +'+model.study+'% XP':'');
+export const electronicsBenefit=(model:ElectronicsModel)=>model.kind==='coffee'?(model.price?'Бодрость +'+model.bonus+'% за чашку':'Растворимый кофе +10%'):!model.price?'Базовые характеристики':(model.speed?'Заказы −'+model.speed+'% времени · игры и видео: ':model.kind==='phone'?'Лента: ':'Просмотр: ')+'+'+model.bonus+' досуга · +'+model.comfort+(model.kind==='phone'?' настроения':' комфорта')+(model.study?' · учебное ТВ +'+model.study+'% XP':'');
 export const electronicsFor=(kind:ElectronicsKind)=>(Object.keys(ELECTRONICS) as ElectronicsId[]).filter(id=>ELECTRONICS[id].kind===kind&&ELECTRONICS[id].price>0);

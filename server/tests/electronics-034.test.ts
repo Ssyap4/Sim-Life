@@ -12,7 +12,7 @@ import { validHomeQuests } from '../../src/shared/homeJobQuests';
 import { clockAt } from '../../src/shared/life';
 import { evaluateTask } from '../tasks';
 import { applyAction } from '../logic';
-test('electronics shop has reachable entrance, exit, cashier and four display routes',()=>{
+test('electronics shop has reachable entrance, exit, cashier and five display routes',()=>{
  for(const role of ['vlad','alina'] as const){
   assert.ok(findRoute(districtArrival('home',role),districtArrival('electronics',role),placeObstacles('district'),floorFor('district')));
   for(const st of STATIONS.electronics){const p=approachFor(st,role);assert.ok(pointIsClear(p,placeObstacles('electronics'),floorFor('electronics')),st.id);assert.ok(findRoute(spawn('electronics',role),p,placeObstacles('electronics'),floorFor('electronics')),st.id);}

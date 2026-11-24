@@ -1494,8 +1494,8 @@ function openActions(item: ItemId): void {
   }
 
   if ((item === 'kitchen' || item === 'coffeeMaker') && state && active) {
-    showCoffeeChoices(actionsEl, state, active, blend => {
-      const sent = net.brewCoffee(blend);
+    showCoffeeChoices(actionsEl, state, active, (blend,drink) => {
+      const sent = net.brewCoffee(blend,drink);
       if (sent) { actionsEl.hidden = true; statusEl.textContent = '☕ Готовим кофе…'; }
       return sent;
     });

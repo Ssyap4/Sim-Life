@@ -1,0 +1,28 @@
+name: Sim-Life coffee machines mobile visual
+on:
+  push:
+    branches: [feat/coffee-machines]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-coffee-machines.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coffee-machines-mobile
+          path: /tmp/simlife-coffee-machines
+          retention-days: 7

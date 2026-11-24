@@ -7,7 +7,7 @@ import { storeTrust } from './trusted';
 import type { ActionId, CharacterId, ClientPacket, GameState, ServerPacket, QueuedTask, SocialKind, TimedCommand } from '../shared/protocol';
 import type { AutonomyMode } from '../shared/autonomy';
 import type { IngredientId, RecipeId, TakeoutId } from '../shared/food';
-import type { InstantCoffeeId } from '../shared/coffee';
+import type { CoffeeBlend, CoffeeDrink } from '../shared/coffee';
 import type { BasketLine } from '../shared/market';
 import type { FurnishingCommand } from '../shared/furniture';
 import type { JobId } from '../shared/jobs';
@@ -101,7 +101,7 @@ export class LiveConnection {
       ...(type==='eat'&&furnitureId!==undefined?{furnitureId}:{}) });
   }
 
-  brewCoffee(blend: InstantCoffeeId): boolean {return this.sendAuthenticated({type:'brew_coffee',blend});}
+  brewCoffee(blend: CoffeeBlend,drink?:CoffeeDrink): boolean {return this.sendAuthenticated({type:'brew_coffee',blend,drink});}
 
   startJob(job:JobId,device?:import('../shared/computer').ComputerDevice):boolean {return this.sendAuthenticated({type:'job_start',job,device});}
   answerHomeJob(nonce:string,choice:number):boolean {return this.sendAuthenticated({type:'home_job_answer',nonce,choice});}

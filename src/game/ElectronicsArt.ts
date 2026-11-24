@@ -19,7 +19,24 @@ function display(g:THREE.Group,w:number,h:number,x:number,y:number,z:number,angl
 }
 export function buildElectronicsModel(id:ElectronicsId):THREE.Group{
  const model=ELECTRONICS[id],g=new THREE.Group();g.name='Device '+id;g.userData.electronicsId=id;
- if(model.kind==='desktop'){
+ if(model.kind==='coffee'){
+   const basic=id==='coffeeBasic',mid=id==='coffeeCapsule',premium=id==='coffeePremium',starter=id==='coffeeStart';
+   const w=premium?.39:mid?.34:.30,h=premium?.40:mid?.36:basic?.34:.31;
+   const shell=premium?0x292d32:mid?0x78988c:basic?0xb9bfc2:0x40494e;
+   part(g,[w,.035,.33],[0,.0175,0],dark,true);
+   part(g,[w,h-.035,.16],[0,(h+.035)/2,-.085],shell,true);
+   part(g,[w,.105,.22],[0,h-.0525,.022],shell,true);
+   part(g,[w-.018,.025,.15],[0,.046,.085],silver,true);
+   for(let i=0;i<5;i++)part(g,[w*.72,.003,.007],[0,.060,.034+i*.022],dark);
+   part(g,[.085,.035,.071],[0,h-.113,.080],black,true);
+   for(const x of [-.026,.026])round(g,[.012,.035,.012],[x,h-.135,.096],silver);
+   if(basic){part(g,[.105,.025,.035],[.075,h-.118,.128],dark,true);const wand=part(g,[.015,.13,.015],[-.118,.147,.09],silver,true);wand.rotation.z=-.19;}
+   if(mid){part(g,[.075,.04,.035],[0,h-.005,-.01],dark,true);part(g,[.06,.015,.12],[0,h-.018,.055],silver,true);}
+   if(premium){part(g,[.095,.20,.13],[.137,.146,.055],0xe6e1d3,true);part(g,[.10,.028,.14],[.137,.26,.055],dark,true);part(g,[.16,.056,.13],[0,h+.025,-.07],0x514238,true);}
+   display(g,premium?.16:.095,.043,0,h-.044,.134,0,0x345d55);
+   for(const x of [-.10,.10]){const button=round(g,[.023,.012,.023],[x,h-.047,.136],0xc7d5cf);button.rotation.x=Math.PI/2;}
+   if(starter){part(g,[.10,.083,.084],[0,.104,.092],0xf2e9d6,true);part(g,[.025,.04,.04],[.06,.104,.092],0xf2e9d6,true);}
+ }else if(model.kind==='desktop'){
    const pro=id==='pcPro',creator=id==='pcCreator',office=id==='pcOffice';
    const color=pro?silver:creator?0x414951:dark;
    const w=pro?1.00:creator?.99:office?.91:1.09,h=pro?.62:creator?.61:office?.58:.74;

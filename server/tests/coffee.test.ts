@@ -145,3 +145,39 @@ test('Both players see the same coffee action; one brewer and one pantry prevent
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('Bean coffee wire: shared machine, busy kitchen, exactly one charged portion', async () => {
+  const dir = mkdtempSync(join(tmpdir(),'sim-life-coffee-wire-'));
+  const files = openServerFiles(dir);
+  const seed = initialState();
+  seed.pantry.beansJardin = 2; seed.world.electronics={desktop:'pcStart',laptop:'laptopStart',tv:'tvStart',coffee:'coffeePremium',phones:{vlad:'phoneStart',alina:'phoneStart'}};
+  seed.characters.vlad.energy = 40;
+  files.save(seed);
+  const server = await startServer({port:0,dataDir:dir,taskTimeScale:.02});
+  let vlad: WebSocket | undefined;
+  let alina: WebSocket | undefined;
+  try {
+    vlad = await enter(server.port,'vlad',files.access.vlad);
+    alina = await enter(server.port,'alina',files.access.alina);
+    const startedVlad = waitFor(vlad,p => p.type==='task_started' && p.role==='vlad');
+    const startedAlina = waitFor(alina,p => p.type==='task_started' && p.role==='vlad');
+    vlad.send(JSON.stringify({type:'brew_coffee',blend:'beansJardin',drink:'Капучино'}));
+    const [a,b] = await Promise.all([startedVlad,startedAlina]);
+    assert.deepEqual(a,b,'both clients get the same named activity and progress');
+    const busy = waitFor(alina,p=>p.type==='error');
+    alina.send(JSON.stringify({type:'brew_coffee',blend:'beansJardin',drink:'Капучино'}));
+    const rejection = await busy;
+    assert.ok(rejection.type==='error' && /занято/.test(rejection.reason));
+    const completed = await waitFor(alina,p=>p.type==='task_ended' && p.role==='vlad' && p.outcome==='completed');
+    assert.equal(completed.type,'task_ended');
+    const loaded = files.load();
+    assert.equal(loaded.pantry.beansJardin,1);
+    assert.equal(loaded.coffeeDaily.vlad.cups,1);
+    assert.equal(loaded.characters.vlad.energy,65);
+    assert.equal(loaded.coffeeDaily.alina.cups,0);
+  } finally {
+    vlad?.terminate(); alina?.terminate();
+    await server.close();
+    rmSync(dir,{recursive:true,force:true});
+  }
+});

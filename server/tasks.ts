@@ -22,9 +22,9 @@ import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/share
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
-import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
+import { validCoffeeOrder, type CoffeeDrink } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
-import { brewInstantCoffee } from './coffee';
+import { brewCoffee } from './coffee';
 import { applyAction } from './logic';
 import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
@@ -132,10 +132,10 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     };
   }
   if (command.type === 'brew_coffee') {
-    if (typeof command.blend !== 'string' || !INSTANT_COFFEE.some(id => id === command.blend)) return null;
-    const blend = command.blend as InstantCoffeeId;
-    return { command: { type: 'brew_coffee', blend }, label: '☕ Завариваем ' + GROCERIES[blend].name,
-      durationMs: 12_000, resource: 'kitchen' };
+    if (!validCoffeeOrder(command.blend,command.drink)) return null;
+    const blend = command.blend;
+    return { command: { type: 'brew_coffee', blend,drink:command.drink as CoffeeDrink|undefined }, label: '☕ Готовим ' + (command.drink??GROCERIES[blend].name),
+      durationMs: command.drink?18_000:12_000, resource: 'kitchen' };
   }
   if (command.type === 'cook' || command.type === 'eat') {
     const id = command.recipe;
@@ -308,6 +308,6 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     return result;
   }
-  if (command.type === 'brew_coffee') return brewInstantCoffee(state, role, command.blend);
+  if (command.type === 'brew_coffee') return brewCoffee(state, role, command.blend,command.drink);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

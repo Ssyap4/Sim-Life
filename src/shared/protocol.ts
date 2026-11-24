@@ -7,7 +7,7 @@ import type { ComputerDevice } from './computer';
 import { initialServices, type FamilyServices, type ServiceCommand } from './services';
 import { initialWorld, spawn, type LocalActivity, type PlaceId, type Point, type WorldCommand, type WorldState } from './locations';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT, type CookedMeals, type Pantry, type TakeoutStock } from './food';
-import { newCoffeeDaily, type CoffeeDaily, type InstantCoffeeId } from './coffee';
+import { newCoffeeDaily, type CoffeeDaily, type CoffeeBlend, type CoffeeDrink } from './coffee';
 import type { ReadyFoodBatch } from './readyFood';
 import { EMPTY_DIRTY_DISHES, type DirtyDishes } from './dirtyDishes';
 import type { LedgerEntry } from './economy';
@@ -167,7 +167,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
   | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
-  | { type: 'brew_coffee'; blend: InstantCoffeeId }
+  | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('./dogTraining').DogTrainingAction> };
 
 export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | EducationCommand | CareerCommand | SocialCommand
@@ -194,7 +194,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }
   | { type: 'sleep_stop' }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
-  | { type: 'brew_coffee'; blend: InstantCoffeeId }
+  | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'cook'; recipe: import('./food').RecipeId }
   | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
   | { type: 'social_offer'; kind: SocialKind }

@@ -24,7 +24,7 @@ test('all showroom and household devices use the same shared authored geometry',
 test('every showroom display includes its three corresponding devices and price labels',()=>{
  const shop=createLocation('electronics');
  try{
-  for(const [kind,station] of [['desktop','tech-desktop'],['laptop','tech-laptop'],['tv','tech-tv'],['phone','tech-phone']] as const){
+  for(const [kind,station] of [['desktop','tech-desktop'],['laptop','tech-laptop'],['tv','tech-tv'],['phone','tech-phone'],['coffee','tech-coffee']] as const){
    const root=shop.stations.get(station)!;
    const models=root.children.filter(o=>o.userData.electronicsId);
    assert.deepEqual(models.map(o=>o.userData.electronicsId),electronicsFor(kind));

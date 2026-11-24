@@ -215,7 +215,7 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);
     electronicsFor(category).forEach((id,i)=>{
       const model=buildElectronicsModel(id),x=(i-1)*.74;
-      const scale=category==='desktop'?.47:category==='tv'?.37:category==='laptop'?1:1.8;
+      const scale=category==='desktop'?.47:category==='tv'?.37:category==='laptop'?1:category==='coffee'?1.22:1.8;
       model.position.set(x,.924,-.075);model.scale.setScalar(scale);root.add(model);
       sign(root,ELECTRONICS[id].name,.79,.52,.69,C.paper,textures,materials);
       const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.105;

@@ -4,6 +4,7 @@ import { PlantBatch } from './LandscapePlants';
 import { kitchenTiles, upholsteryWeave, wovenRug } from './ArtTextures';
 import { polishFurniture } from './FurnitureSurfaceArt';
 import { cushionGeometry } from './FurnitureGeometry';
+import {electronicsVariants} from './ElectronicsArt';
 import { buildBathFixture } from './BathroomArt';
 import { BATH_FIXTURES, COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
 import { points, type ItemId } from '../shared/protocol';
@@ -374,15 +375,11 @@ function makeDiningTable(): THREE.Group {
 function makeCoffeeMaker(): THREE.Group {
   const { x, z } = HOME_PLACEMENTS.coffeeMaker;
   const maker = group(x, z);
-  // Low-poly countertop instant-coffee brewer, between kettle and backsplash.
-  part(maker, [.30, .31, .27], [0, 1.245, -.02], C.graphite, 'soft', true, 'metal');
-  part(maker, [.25, .14, .035], [0, 1.31, .123], C.warmWhite, 'soft', false, 'ceramic');
-  part(maker, [.19, .045, .15], [0, 1.115, .096], C.slate, 'square', false, 'metal');
-  part(maker, [.15, .025, .115], [0, 1.410, -.029], C.terracotta, 'soft');
-  round(maker, .019, .015, [.075, 1.324, .15], C.moss, 'metal');
-  part(maker, [.105, .095, .09], [0, 1.169, .103], C.cream, 'soft', false, 'ceramic');
-  part(maker, [.035, .034, .074], [0, 1.264, .108], C.graphite, 'square', false, 'metal');
-  return maker;
+  const variants=electronicsVariants('coffee');
+  variants.group.position.y=1.03;
+  variants.select('coffeeStart');
+  maker.add(variants.group);
+    return maker;
 }
 
 export function buildFurniture(register: Register): void {
