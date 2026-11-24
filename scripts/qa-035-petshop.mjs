@@ -8,15 +8,15 @@ import {once} from 'node:events';
 import {homeToysFor,homeToyApproach} from '../src/shared/pets.ts';
 import {PET_TOYS} from '../src/shared/petToys.ts';
 import {DOG_COMMANDS} from '../src/shared/dogTraining.ts';
-import {feedingStation} from '../src/shared/petFeeders.ts';
+import {feedingStation,feedingOwnerPoint} from '../src/shared/petFeeders.ts';
 import {DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath.ts';
 import {applyPetAction} from '../server/pets.ts';
 import {initialState} from '../src/shared/protocol.ts';
-import {homeSeat} from '../src/shared/home.ts';
+import {homeSeat,HOME_FLOOR} from '../src/shared/home.ts';
 import {grantStarterPetFurniture} from '../server/starterPets.ts';
 import {runPetRoutines} from '../server/pets.ts';
 import {addReadyFood} from '../src/shared/readyFood.ts';
-import {stationById,approachFor,clockMinutes,CAFE_MENU} from '../src/shared/locations.ts';
+import {stationById,approachFor,clockMinutes,CAFE_MENU,placeObstacles} from '../src/shared/locations.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 
@@ -108,11 +108,11 @@ try{
  feeder.furnishing.placed.push({id:feeder.furnishing.nextId++,sku:'pet-feed-verdell-plus',finish:'ivory',x:-2.9,z:3.34,rotation:1});
  feeder.furnishing.placed.push({id:feeder.furnishing.nextId++,sku:'pet-feed-simba-steel',finish:'terracotta',x:-6.26,z:-3.71,rotation:1});
  const station=feedingStation(feeder.furnishing,'verdell');
- Object.assign(feeder.characters.vlad,station.goal,{pose:'idle'});feeder.pets.verdell.satiety=23;feeder.pets.verdell.energy=90;feeder.pets.verdell.bladder=95;
+ Object.assign(feeder.characters.vlad,feedingOwnerPoint(station,feeder.characters.vlad,placeObstacles('home',feeder.furnishing),HOME_FLOOR),{pose:'idle'});feeder.pets.verdell.satiety=23;feeder.pets.verdell.energy=90;feeder.pets.verdell.bladder=95;
  feeder.pets.verdell.position={...station.goal};delete feeder.pets.verdell.routine;
  feeder.petFood.verdell=10;feeder.pets.verdell.foodQueue=Array(10).fill('verdell-dry-2');
  await scenario(feeder,async(page,shot,send)=>{
-  await shot('feeder-installed');
+  await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="vlad"]').click();await page.waitForTimeout(800);await shot('feeder-installed');
   await send({type:'pet_action',pet:'verdell',action:'loadFeeder'});
   await page.waitForFunction(()=>window.qaState?.pets.verdell.feederReserve?.length===10,undefined,{timeout:20000});await shot('feeder-loaded');
  });
@@ -121,5 +121,9 @@ try{
  await scenario(fed,async(page,shot)=>{
   await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="verdell"]').click();await page.waitForTimeout(1500);await shot('feeder-eating');
  });
+ for(const [id,event] of [['verdell','sniff'],['simba','groom'],['verdell','welcome'],['simba','blink']]){
+  const s=base();grantStarterPetFurniture(s);const p=s.pets[id];p.position={x:-2.9,z:3.34};p.lastEventAt=480;p.routine={kind:'event',event,target:0,goal:p.position,startedAt:480,until:492,route:{from:p.position,path:[]}};
+  await scenario(s,async(page,shot)=>{await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="'+id+'"]').click();await page.waitForTimeout(1400);await shot('pet-event-'+event);});
+ }
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

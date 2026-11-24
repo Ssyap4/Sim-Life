@@ -722,7 +722,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : plan.command.type === 'play_game' || plan.command.type === 'computer_video'
         ? plan.command.device === 'laptop' ? laptopApproach(state,role) : points.desk
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
-      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
+      : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action,role) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen
         : homeSeat('table', role).approach;
     const position = state.characters[role];

@@ -1,4 +1,5 @@
-import {feedingStation,loadFeeder,dispenseFeeder,dryRefills,feederReserve} from '../src/shared/petFeeders';
+import {discoverFurniture,furniturePreference,housePreferenceKey,type PetEvent} from '../src/shared/petPreferences';
+import {feedingStation,feedingOwnerPoint,loadFeeder,dispenseFeeder,dryRefills,feederReserve} from '../src/shared/petFeeders';
 import {dogBathPlan,DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath';
 import {trainingCommand,trainingChance,finishTraining,DOG_COMMAND_NAMES} from '../src/shared/dogTraining';
 import { toyOwned,toyPreference } from '../src/shared/petToys';
@@ -27,9 +28,9 @@ export type PetResult =
 const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 
 
-export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
+export function petCarePoint(state: GameState, id: PetId, action?: PetAction, role:CharacterId='vlad') {
   if(action==='bathe')return id==='verdell'?DOG_BATH_OWNER:undefined;
-  if(action==='feed'||action==='loadFeeder'){const station=feedingStation(state.furnishing,id);return station.item?station.goal:petApproach(station.point,placeObstacles('home',state.furnishing),HOME_FLOOR);}
+  if(action==='feed'||action==='loadFeeder'){const station=feedingStation(state.furnishing,id);return station.item?feedingOwnerPoint(station,state.characters[role],placeObstacles('home',state.furnishing),HOME_FLOOR):petApproach(station.point,placeObstacles('home',state.furnishing),HOME_FLOOR);}
   return petApproach(state.pets[id].position,
     placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
@@ -77,13 +78,14 @@ function ownerPetPoint(state:GameState,id:PetId,role:CharacterId,position?:Floor
 }
 /** Both automatic and manual climbs must have a real floor launch, empty
  * furniture, clear arc and an obstacle-safe floor route. */
-function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0,blocked?:(site:CatPerch)=>boolean) {
+function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0,blocked?:(site:CatPerch)=>boolean,prefer=false) {
   const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
   const places=catPerchCandidates(state.furnishing);
   const ordered=nearest
     ? [...places].sort((a,b)=>Math.hypot(a.approach.x-from.x,a.approach.z-from.z)-
       Math.hypot(b.approach.x-from.x,b.approach.z-from.z))
     : places.map((_,i)=>places[(i+first)%places.length]);
+  if(prefer&&!nearest)ordered.sort((a,b)=>{const ka=housePreferenceKey(state.furnishing,a),kb=housePreferenceKey(state.furnishing,b);return (kb?furniturePreference(state.pets.simba,kb):1)-(ka?furniturePreference(state.pets.simba,ka):1);});
   for(const site of ordered){
     const yielded=state.pets.simba.furnitureYield;
     if(blocked?.(site)||yielded&&yielded.perch.key===site.key&&gameMinutes(state.clock)<yielded.cooldownUntil)continue;
@@ -129,10 +131,10 @@ function dogFetchRoute(state:GameState,role:CharacterId) {
 
 /** A pet mat is a walkable, genuine placed object, not a hard-coded sleep point.
  * Favorite beds are preferred, but inaccessible spots must be skipped. */
-function findPetBed(state:GameState,id:PetId) {
+function findPetBed(state:GameState,id:PetId,explore=false) {
   const pet=state.pets[id];
   const beds=petBeds(state.furnishing,id).sort((a,b)=>
-    Number(b.id===pet.favoriteBedId)-Number(a.id===pet.favoriteBedId) ||
+    (explore?Number(pet.furniturePreferences?.[a.sku]!==undefined)-Number(pet.furniturePreferences?.[b.sku]!==undefined):furniturePreference(pet,b.sku)-furniturePreference(pet,a.sku)||Number(b.id===pet.favoriteBedId)-Number(a.id===pet.favoriteBedId)) ||
     Math.hypot(a.x-pet.position.x,a.z-pet.position.z)-
       Math.hypot(b.x-pet.position.x,b.z-pet.position.z));
   const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
@@ -149,11 +151,12 @@ function findPetBed(state:GameState,id:PetId) {
   return null;
 }
 /** A cat walks to the OPEN side of an installed scratcher, not through the post. */
-function findScratcher(state:GameState) {
+function findScratcher(state:GameState,explore=false) {
   const pet=state.pets.simba;
   const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
   const points=[[0,.84],[.84,0],[-.84,0],[0,-.84],[.68,.68],[-.68,.68]];
   const posts=[...petScratchers(state.furnishing)].sort((a,b)=>
+    (explore?Number(pet.furniturePreferences?.[a.sku]!==undefined)-Number(pet.furniturePreferences?.[b.sku]!==undefined):furniturePreference(pet,b.sku)-furniturePreference(pet,a.sku))||
     Math.hypot(a.x-pet.position.x,a.z-pet.position.z)-
     Math.hypot(b.x-pet.position.x,b.z-pet.position.z));
   for(const post of posts){
@@ -210,9 +213,10 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const invalidBeg=previous?.kind==='beg'&&(!wantBeg||!diners.has(previous.target===0?'vlad':'alina'));
     const invalidBowl=previous?.kind==='eat'&&(()=>{const target=previous.goal??petDestination(id,previous);return Math.hypot(target.x-station.goal.x,target.z-station.goal.z)>.035;})();
     const invalidTraining=previous?.training&&(state.world.places[previous.training.role]!=='home'||!previous.goal||!pointIsClear(previous.goal,petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR).obstacles,HOME_FLOOR));
-    const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy','train'].includes(previous.kind) &&
+    const invalidEvent=previous?.kind==='event'&&(previous.event==='welcome'||previous.event==='blink')&&(state.world.places[previous.target===0?'vlad':'alina']!=='home'||!previous.goal||Math.hypot(state.characters[previous.target===0?'vlad':'alina'].x-previous.goal.x,state.characters[previous.target===0?'vlad':'alina'].z-previous.goal.z)>2.4);
+    const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy','train','event'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !invalidTraining && !invalidBowl && !begRoute && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !invalidTraining && !invalidBowl && !invalidEvent && !begRoute && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if(previous?.training){
       if(id==='verdell'&&!invalidTraining&&!urgentInterrupt&&previous.until<=now&&previous.goal&&Math.hypot(pet.position.x-previous.goal.x,pet.position.z-previous.goal.z)<.08)finishTraining(pet,previous.training);
@@ -231,9 +235,10 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bladder = 100;
     } else if (previous?.kind === 'sleep' && !invalidEquipment) {
       pet.energy = clamp(pet.energy + 33);
-      if(previous.equipment)pet.favoriteBedId=previous.equipment.id;
+      if(previous.equipment&&previous.until<=now){const value=discoverFurniture(pet,previous.equipment.sku,random);pet.happiness=clamp(pet.happiness+[-2,0,2,5][value]);pet.energy=clamp(pet.energy+[-3,0,3,6][value]);const old=state.furnishing.placed.find(i=>i.id===pet.favoriteBedId);if(!old||value>=furniturePreference(pet,old.sku))pet.favoriteBedId=previous.equipment.id;}
     } else if (previous?.kind==='scratch' && !invalidEquipment && previous.until<=now) {
-      pet.happiness=clamp(pet.happiness+9);
+      const value=previous.equipment?discoverFurniture(pet,previous.equipment.sku,random):1;
+      pet.happiness=clamp(pet.happiness+9+[-3,0,2,5][value]);
       pet.bond=clamp(pet.bond+2);
     } else if (previous?.kind==='come' && previous.until<=now && !pet.furnitureYield) {
       pet.bond=clamp(pet.bond+3);
@@ -251,7 +256,11 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       // Real completed resting on an installed sofa/bed restores a modest
       // amount of energy. An invalidated/sold cushion gives no reward.
       pet.energy=clamp(pet.energy+10);
-      pet.happiness=clamp(pet.happiness+2);
+      const key=previous.perch?housePreferenceKey(state.furnishing,previous.perch):undefined;
+      const value=key?discoverFurniture(pet,key,random):1;pet.happiness=clamp(pet.happiness+2+[-2,0,2,5][value]);
+      if(key)pet.energy=clamp(pet.energy+[-2,0,2,5][value]);
+    }else if(previous?.kind==='event'&&!invalidEvent&&!urgentInterrupt&&previous.until<=now&&previous.goal&&Math.hypot(pet.position.x-previous.goal.x,pet.position.z-previous.goal.z)<.08){
+      pet.happiness=clamp(pet.happiness+3);if(previous.event==='welcome'||previous.event==='blink')pet.bond=clamp(pet.bond+2);
     }
     if(id==='simba'&&previous?.kind==='perch'&&!invalidPerch&&previous.perch){
       pet.furnitureYield={perch:previous.perch,clearAt:now+2,cooldownUntil:now+14};
@@ -268,17 +277,18 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     let chosenRoute:PetRoutine['route']|undefined;
     let chosenGoal:FloorPoint|undefined;
     let chosenEquipment:PetEquipmentRef|undefined;
+    let chosenEvent:PetEvent|undefined;
     if(kind==='sleep'&&id==='simba'&&pet.energy>=22&&previous?.kind!=='perch'){
       const houses=catPerchCandidates(state.furnishing).filter(site=>site.entry==='inside'||site.entry==='jump');
       if(houses.length){
-        const entry=random()<.70?'jump':'inside';
+        const entry=random()<.70?'jump':'inside',prefer=random()<.7;
         const picked=safeCatPerch(state,pet.position,false,Math.floor(random()*houses.length),
-          site=>site.entry!==entry||Boolean(blocked?.(site)));
+          site=>!site.entry||!prefer&&site.entry!==entry||Boolean(blocked?.(site)),prefer);
         if(picked){chosenPerch=picked.site;chosenRoute=picked.route;kind='perch';target=0;}
       }
     }
     if(kind==='sleep'){
-      const bed=findPetBed(state,id);
+      const bed=findPetBed(state,id,petBeds(state.furnishing,id).length>1&&random()<.30);
       if(bed){chosenRoute=bed.route;chosenGoal=bed.goal;chosenEquipment=bed.equipment;}
     }
     if(begRoute&&diningOwner&&pet.bladder>=25&&pet.energy>=28&&!(pet.satiety<=PET_AUTO_EAT_BELOW&&state.petBowls[id]>0)){
@@ -288,7 +298,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     // an installed and reachable scratcher; no virtual scratchers.
     if(id==='simba'&&kind==='wander'&&previous?.kind!=='scratch'&&
       pet.energy>=45&&pet.satiety>=45&&pet.bladder>=55&&random()<.16){
-      const post=findScratcher(state);
+      const post=findScratcher(state,petScratchers(state.furnishing).length>1&&random()<.30);
       if(post){kind='scratch';target=0;chosenRoute=post.route;
         chosenGoal=post.goal;chosenEquipment=post.equipment;}
     }
@@ -306,7 +316,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.energy>=66 && pet.satiety>=50 && pet.bladder>=66 && random()<.42){
       const sites=catPerchCandidates(state.furnishing);
       const first=sites.length?Math.floor(random()*sites.length):0;
-      const picked=safeCatPerch(state,pet.position,false,first,blocked);
+      const picked=safeCatPerch(state,pet.position,false,first,blocked,random()<.65);
       if(picked){
         chosenPerch=picked.site;
         chosenRoute=picked.route;
@@ -330,6 +340,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         }
       }
     }
+    // Rare shared events, only between ordinary activities and never instead of needs.
+    if(kind==='wander'&&previous?.kind==='wander'&&now>=600&&now-(pet.lastEventAt??0)>=180&&pet.satiety>=55&&pet.energy>=65&&pet.bladder>=70&&random()<.12){
+      const owner=(['vlad','alina'] as const).find(role=>state.world.places[role]==='home'&&state.characters[role].pose==='idle'&&Math.hypot(state.characters[role].x-pet.position.x,state.characters[role].z-pet.position.z)<4);
+      const near=owner&&pet.bond>=45&&random()<.60?ownerPetPoint(state,id,owner):null;
+      if(near&&routeLength(near.route)<6){chosenGoal=near.point;chosenRoute=near.route;target=owner==='vlad'?0:1;chosenEvent=id==='verdell'?'welcome':'blink';}
+      else{const g=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);if(pointIsClear(pet.position,g.obstacles,g.floor)){chosenGoal={...pet.position};chosenRoute={from:chosenGoal,path:[]};target=0;chosenEvent=id==='verdell'?'sniff':'groom';}}
+      if(chosenEvent){kind='event';pet.lastEventAt=Math.floor(now);}
+    }
     // Two pets must not reserve the exact same roaming destination.
     // Keep real feeding/sleep/toilet destinations unchanged.
     const otherId = id === 'verdell' ? 'simba' : 'verdell';
@@ -343,13 +361,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
-      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind==='beg'?16:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind==='beg'?16:kind==='event'?12:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
     if(kind==='eat')chosenGoal=station.goal;
     const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg'||kind==='eat'&&!!station.item)
+    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg'||kind==='event'||kind==='eat'&&!!station.item)
       ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
     pet.routine = route&&(kind!=='eat'||arrivesAt(route,station.goal)) ? { kind, target, startedAt: now, until: now + duration+travel, route,
+      ...(chosenEvent?{event:chosenEvent}:{}),
       ...(chosenPerch?{perch:chosenPerch}:{}),
       ...(chosenGoal?{goal:chosenGoal}:{}),
       ...(chosenEquipment?{equipment:chosenEquipment}:{}) } : undefined;
@@ -537,7 +556,7 @@ export function applyPetAction(
       break;
   }
   // The pet stays at its shared position while the household cares for it.
-  const point = petCarePoint(next, id, kind);
+  const point = petCarePoint(next, id, kind,role);
   if (point) Object.assign(actor, point, { pose: 'idle' });
   next.revision++;
   return { ok: true, state: next, message };

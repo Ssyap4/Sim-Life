@@ -1,3 +1,5 @@
+import {FURNITURE_REACTIONS} from './shared/petPreferences';
+import {FURNITURE_BY_ID} from './shared/furniture';
 import {feedingStation,feederReserve,dryRefills} from './shared/petFeeders';
 import {DOG_COMMANDS,DOG_COMMAND_NAMES,commandSkill,trainingLevel,type DogTrainingAction} from './shared/dogTraining';
 import {toysFor,toyOwned,TOY_REACTIONS} from './shared/petToys';
@@ -75,6 +77,8 @@ export function renderPetChoices(
   petFurniture.textContent='🏡 Лежанки: '+beds.length+(favorite?' · есть любимая':'')+
     (selected==='simba'?' · когтеточки: '+petScratchers(state.furnishing).length:'');
   container.appendChild(petFurniture);
+  const installed=new Set(state.furnishing.placed.map(i=>i.sku));const known=Object.entries(stats.furniturePreferences??{}).filter(([key])=>installed.has(key.split(':')[0]));
+  if(known.length){const details=document.createElement('details');details.className='pet-wish';const title=document.createElement('summary');title.textContent='🏡 Предпочтения мебели · '+known.length;details.append(title);for(const [key,value] of known){const [sku,entry]=key.split(':'),p=document.createElement('p');p.className='pet-note';p.textContent=(FURNITURE_BY_ID.get(sku)?.name??sku)+(entry==='inside'?' · внутри':entry==='jump'?' · крыша':'')+' — '+FURNITURE_REACTIONS[value];details.append(p);}container.append(details);}
   const toys=toysFor(selected).filter(p=>toyOwned(stats,p.id));
   if(toys.length){const note=document.createElement('p');note.className='pet-note';note.textContent='🧸 Игрушки: '+toys.map(p=>p.name+' · '+(stats.toyPreferences?.[p.id]===undefined?'ещё не играл':TOY_REACTIONS[stats.toyPreferences[p.id]])).join('; ');container.appendChild(note);}
   const wish = petWish(state, selected);

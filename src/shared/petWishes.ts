@@ -1,3 +1,4 @@
+import {EVENT_TEXT} from './petPreferences';
 import { PETS, type PetId } from './pets';
 import type { GameState } from './protocol';
 
@@ -199,6 +200,7 @@ export function petWish(state: GameState, id: PetId): PetWish {
   const hungry = pet.satiety < 35;
   const hasFood = state.petBowls[id] > 0;
   const routine = pet.routine?.kind;
+  if(routine==='event'&&pet.routine?.event)return {kind:'play',...EVENT_TEXT[pet.routine.event],urgent:false};
   if(routine==='come')return {kind:'affection',title:'🐾 Идёт на зов',
     message:PETS[id].name+' обходит мебель и направляется к хозяину.',
     advice:'Дай питомцу добраться самостоятельно',urgent:false};

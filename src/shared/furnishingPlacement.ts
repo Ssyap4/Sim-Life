@@ -1,4 +1,4 @@
-import {feederModel,feedingAnchor} from './petFeeders';
+import {feederModel,feedingAnchor,feedingStation,feedingOwnerPoint} from './petFeeders';
 import { leisureAction } from './leisure';
 import { furnitureUseLocation } from './furnitureUse';
 import { FURNITURE_BY_ID, furnitureFootprint,
@@ -139,6 +139,7 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   const dynamicBlocking=furnitureFootprint(candidate,.30);
   const newPetGeometry=()=>petNavigationGeometry(obstacles,HOME_FLOOR);
   for(const device of changed.filter(i=>feederModel(i.sku))){const model=feederModel(device.sku)!,anchor=feedingAnchor(device),g=newPetGeometry();if(!pointIsClear(anchor.goal,g.obstacles,g.floor)||!findRoute(PETS[model.pet].home,anchor.goal,g.obstacles,g.floor)||!pointIsClear(anchor.goal,obstacles,HOME_FLOOR))return deny('Оставь свободный подход к миске или кормушке');}
+  for(const id of PET_IDS){const station=feedingStation({...state.furnishing,placed:changed},id);if(station.item&&!feedingOwnerPoint(station,center,obstacles,HOME_FLOOR))return deny('Оставь сбоку место для хозяина');}
   // Verify leisure from a stable reference point, not transient actor locations.
   // Standing sports need open play positions; seats need reachable access.
   const leisureItems=changed.filter(i=>leisureAction(i.sku));

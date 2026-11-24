@@ -123,7 +123,7 @@ test('0.28: real scratching requires an installed reachable post, and never rewa
  assert.equal(currentPetEquipment(removed.furnishing,petEquipmentRef(items[2])),null);
  const earned=structuredClone(result.state);
  runPetRoutines(earned,0,pet.routine!.until,new Set(),()=>.99);
- assert.equal(earned.pets.simba.happiness,Math.min(100,happy+9));
+ assert.equal(earned.pets.simba.happiness,Math.min(100,happy+9+5));
 });
 
 test('0.28: automatic bedtime prefers installed equipment instead of an imaginary bed',()=>{

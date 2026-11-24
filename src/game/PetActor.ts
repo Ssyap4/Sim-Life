@@ -22,6 +22,7 @@ export class PetActor {
   private bathElapsed=0;
   setBath(active:boolean){if(this.id!=='verdell')return;if(active&&!this.bathActive)this.bathElapsed=0;this.bathActive=active;}
   get bathPhase(){return this.bathLift<.95?'lift':this.bathElapsed<6?'wet':this.bathElapsed<16?'soap':'rinse';}
+  private event:import('../shared/petPreferences').PetEvent|undefined;
   private training:import('../shared/dogTraining').TrainingAttempt|undefined;
   private toyIndex:number|undefined;
   private readonly toys:ReturnType<typeof homeToysFor>;
@@ -223,7 +224,8 @@ export class PetActor {
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
     perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
-    scratchPost?:FloorPoint,restSeed=0,toyIndex?:number,training?:import('../shared/dogTraining').TrainingAttempt): void {
+    scratchPost?:FloorPoint,restSeed=0,toyIndex?:number,training?:import('../shared/dogTraining').TrainingAttempt,event?:import('../shared/petPreferences').PetEvent): void {
+    this.event=event;
     this.training=training;
     if(this.perch?.key!==perch?.key)this.releasePerch();
     if(this.id==='simba' && routine==='perch' && perch){
@@ -433,11 +435,15 @@ export class PetActor {
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
     const canIdle = !this.route.length &&
-      (this.routine === null || this.routine === 'wander'||this.routine==='beg') && !this.reaction && pace < .08;
+      (this.routine === null || this.routine === 'wander'||this.routine==='beg'||this.routine==='event') && !this.reaction && pace < .08;
     if (!canIdle) {
       this.idleGesture = null;
       this.idleTime = 0;
       this.idleCooldown = Math.max(this.idleCooldown, 2.0);
+    } else if(this.routine==='event'&&this.event){
+      const gesture:PetIdleGesture=this.event==='welcome'?'happyHop':this.event==='blink'?'slowBlink':this.event;
+      if(this.idleGesture!==gesture){this.idleGesture=gesture;this.idleTime=0;}
+      this.idleTime=(this.idleTime+dt)%PET_IDLE_SECONDS;
     } else if(this.routine==='beg'){
       const gesture=this.id==='verdell'?'beg':'pawWave';
       if(this.idleGesture!==gesture){this.idleGesture=gesture;this.idleTime=0;}

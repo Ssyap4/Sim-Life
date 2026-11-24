@@ -3,7 +3,7 @@ import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from 
 
 export type PetId = 'verdell' | 'simba';
 export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | 'bathe' | 'loadFeeder' | import('./dogTraining').DogTrainingAction;
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath'] as const;
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath','event'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
   {kind:'rope',name:'Канатик',x:.17,z:-.47},
@@ -35,6 +35,7 @@ export interface PetRoutine {
   /** Installed real pet furniture; invalid after sale or repositioning. */
   equipment?: import('./petFurniture').PetEquipmentRef;
   training?:import('./dogTraining').TrainingAttempt;
+  event?:import('./petPreferences').PetEvent;
 }
 
 export interface PetState {
@@ -51,6 +52,8 @@ export interface PetState {
   treats?:{day:number;used:number};
   training?:Partial<Record<import('./dogTraining').DogCommand,import('./dogTraining').CommandSkill>>;
   lastTraining?:{command:import('./dogTraining').DogCommand;success:boolean};
+  furniturePreferences?:Record<string,import('./petPreferences').FurniturePreference>;
+  lastEventAt?:number;
   feederReserve?:(string|null)[];
   cleanliness?:number;
   ownedToys?:string[];
@@ -138,7 +141,7 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
   if(routine.kind==='toy')return homeToyApproach(id,routine.target);
-  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg'||routine.kind==='train'||routine.kind==='bath') return routine.goal ?? pet.home;
+  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg'||routine.kind==='train'||routine.kind==='bath'||routine.kind==='event') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }
 

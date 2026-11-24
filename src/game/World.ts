@@ -25,7 +25,7 @@ import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId, type Takeo
 import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station, type CafeItem } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
-import {feedingStation} from '../shared/petFeeders';
+import {feedingStation,feedingOwnerPoint} from '../shared/petFeeders';
 import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBath';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
@@ -1397,7 +1397,7 @@ export class World {
     const station=this.household?feedingStation(this.household.furnishing,petId):undefined;
     const position = filling ? station?.point??PETS[petId].bowl : pet.root.position;
     if (!filling) pet.stop();
-    const target = filling&&station?.item?station.goal:petApproach(position, this.obstacles, HOME_FLOOR);
+    const target = filling&&station?.item?feedingOwnerPoint(station,{x:actor.root.position.x,z:actor.root.position.z},this.obstacles,HOME_FLOOR):petApproach(position, this.obstacles, HOME_FLOOR);
     const walking = target && this.walkTo(role, target, () => {
       if (!current()) return;
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
@@ -2381,13 +2381,13 @@ export class World {
         }
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        scratchFace??routine.training?.yaw??(routine.kind==='beg'&&routine.goal?Math.atan2(state.characters[routine.target===0?'vlad':'alina'].x-routine.goal.x,state.characters[routine.target===0?'vlad':'alina'].z-routine.goal.z):routine.kind==='toy'?0:routine.kind === 'eat' ? station.yaw : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
+        scratchFace??routine.training?.yaw??((routine.kind==='beg'||routine.kind==='event'&&(routine.event==='welcome'||routine.event==='blink'))&&routine.goal?Math.atan2(state.characters[routine.target===0?'vlad':'alina'].x-routine.goal.x,state.characters[routine.target===0?'vlad':'alina'].z-routine.goal.z):routine.kind==='toy'?0:routine.kind === 'eat' ? station.yaw : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event);
     }
   }
 

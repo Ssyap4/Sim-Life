@@ -1,5 +1,6 @@
 import {PETS,type PetId,type PetState,PET_BOWL_CAPACITY} from './pets';
 import type {FurnishingState,PlacedFurniture} from './furniture';
+import {pointIsClear,findRoute,type FloorRect,type FloorPoint} from '../game/navigation';
 import type {GameState} from './protocol';
 import {petFoodProduct} from './petShop';
 export const FEEDING_MODELS=(['verdell','simba'] as const).flatMap(pet=>
@@ -21,6 +22,13 @@ export function feedingStation(f:FurnishingState,id:PetId){
  const item=f.placed.filter(i=>feederModel(i.sku)?.pet===id).sort((a,b)=>b.id-a.id)[0];
  if(item)return {...feedingAnchor(item),item,model:feederModel(item.sku)!};
  const point=PETS[id].bowl;return {point,goal:{x:point.x,z:point.z+.51},yaw:Math.PI,foodY:.118,item:undefined,model:undefined};
+}
+export function feedingOwnerPoint(station:ReturnType<typeof feedingStation>,from:FloorPoint,obstacles:readonly FloorRect[],floor:FloorRect){
+ if(!station.item)return undefined;
+ const a=station.yaw,side={x:Math.cos(a),z:-Math.sin(a)};
+ const points=[-1,1].map(sign=>({x:station.point.x+side.x*.84*sign-Math.sin(a)*.22,z:station.point.z+side.z*.84*sign-Math.cos(a)*.22}));
+ points.sort((a,b)=>Math.hypot(a.x-from.x,a.z-from.z)-Math.hypot(b.x-from.x,b.z-from.z));
+ return points.find(p=>pointIsClear(p,obstacles,floor)&&!!findRoute(from,p,obstacles,floor));
 }
 export const feederReserve=(p:PetState)=>p.feederReserve??[];
 export function dryRefills(s:GameState,id:PetId){
