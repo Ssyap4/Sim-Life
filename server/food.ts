@@ -1,3 +1,4 @@
+import {recordEmotion} from '../src/shared/emotions';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { recipeAvailability } from '../src/shared/recipeAvailability';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
@@ -50,6 +51,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     addReadyFood(state,'meal',id,recipe.servings,'table',undefined,quality);
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
+    recordEmotion(state,role,quality==='bad'||quality==='average'?'cookBad':'cookGood');
     actor.energy = Math.max(0, actor.energy - effort);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);
@@ -64,6 +66,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (!portion) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     const effect=foodQualityEffect(portion.quality,meal.mood);
+    recordEmotion(state,role,effect.fun<0?'mealBad':'mealGood');
     actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
     actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));
     actor.comfort = Math.min(100, actor.comfort + 4);
@@ -87,6 +90,7 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
     return {ok:false,reason:'Готовой еды нет или срок её годности истёк'};
   const meal=TAKEOUT[id];
   const actor=state.characters[role];
+  recordEmotion(state,role,'mealGood');
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);
   actor.comfort=Math.min(100,actor.comfort+4);

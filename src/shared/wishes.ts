@@ -1,5 +1,5 @@
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
-import { emotionFor,wishEmotionPriority } from './emotions';
+import { residentEmotion,wishEmotionPriority,PERSONALITIES } from './emotions';
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { COOKING_RECIPES, COOKING_ORDER } from './cookingProgression';
 import { SOCIAL_BY_ID, socialRestriction } from './socialLife';
@@ -110,7 +110,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const pressing=sorted.filter(need=>person[need]<=50&&wishAvailable(state,role,'need-'+need)).slice(0,2);
   for(const need of pressing)wishes.push(make(need));
   if(state.world.places[role]==='park'&&state.world.dogWalker===role&&wishAvailable(state,role,'dog-walk'))wishes.push({id:'dog-walk',icon:'🐕',title:'Поиграть с Верделлом в парке',detail:'Проведи время с собакой на площадке.',cta:'К площадке',command:{type:'local_activity',action:'dog',station:'park-dog'},urgency:'calm'});
-  const pet:PetId=role==='vlad'?'verdell':'simba';
+  const pet:PetId=PERSONALITIES[role].pet;
   const plans:Wish[]=[];
   const add=(id:string,icon:string,title:string,detail:string,cta:string,command:WishCommand|undefined)=>{
     if(command&&wishAvailable(state,role,id))plans.push({id,icon,title,detail,cta,command,urgency:'calm'});
@@ -139,7 +139,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const recipe=COOKING_ORDER.find(id=>!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
   const cycle=Math.floor(gameMinutes(state.clock)/180)+(role==='alina'?1:0);
-  const emotion=emotionFor(person).id;
+  const emotion=residentEmotion(state,role).id;
   const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]).sort((a,b)=>cycle%3===2?Number(b.id.startsWith('goal-'))-Number(a.id.startsWith('goal-')):wishEmotionPriority(b.id,role,emotion)-wishEmotionPriority(a.id,role,emotion));
   for(const plan of ordered){
     if(wishes.length>=3)break;

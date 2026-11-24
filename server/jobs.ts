@@ -1,3 +1,4 @@
+import {recordEmotion} from '../src/shared/emotions';
 import { electronicsModel } from '../src/shared/electronics';
 import { computerDevice } from "../src/shared/computer";
 import { serviceAvailable } from "../src/shared/services";
@@ -112,6 +113,7 @@ function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,ear
   }
   const practice=homeJobSkillXP(state.education.characters[role],shift,fraction);
   const earned=practice?awardHomeJobPractice(state,role,practice.skill,practice.xp,"Работа из дома · "+job.name):0;
+  if(!early)recordEmotion(state,role,'shift');
   delete state.activeShifts[role];
   state.revision++;
   const workedHours=(worked/60).toFixed(1).replace('.',',');

@@ -87,6 +87,7 @@ export interface GameState {
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
   happiness: Record<CharacterId, HappinessState>;
+  emotionalEvents?: import('./emotions').EmotionalHistory;
 }
 
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };

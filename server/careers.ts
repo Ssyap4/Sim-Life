@@ -1,3 +1,4 @@
+import {recordEmotion} from '../src/shared/emotions';
 import {isNotebookDesk} from '../src/shared/furniture';
 import { protectNeeds } from '../src/shared/happiness';
 import { districtArrival, districtStation, inHomeGrounds } from '../src/shared/district';
@@ -284,6 +285,7 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     if (needs.missing.length) return fail(needs.missing.join(' · '));
     if (!p.evaluation) return fail('Пройди оценку руководителя на рабочей смене');
     p.rank++;
+    recordEmotion(state,role,'promotion');
     p.evaluation = false;
     journal(state,p,now,'Повышение','Новая должность · ' + spec.roles[p.rank][0],{author:0});
     return done('Повышение утверждено');

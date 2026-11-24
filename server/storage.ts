@@ -48,12 +48,14 @@ export interface ServerFiles {
 
 import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/happiness';
 
+import {validEmotionalHistory} from '../src/shared/emotions';
 const isValidState = (value: unknown): value is GameState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<GameState>;
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if (state.emotionalEvents !== undefined && !validEmotionalHistory(state.emotionalEvents)) return false;
   if (state.happiness !== undefined && !validHappiness(state.happiness)) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;

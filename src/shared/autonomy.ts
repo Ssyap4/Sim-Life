@@ -1,4 +1,4 @@
-import { emotionFor, rankLeisure } from './emotions';
+import { residentEmotion, rankLeisure, PERSONALITIES } from './emotions';
 import { isNotebookDesk } from './furniture';
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from './life';
@@ -93,8 +93,8 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
         furnitureChoice(need,'table','tableTalk','Напишу близким пару тёплых слов.');
         break;
       case 'fun':
-        if(mode==='full')offer(need,{type:'pet_action',pet:role==='vlad'?'verdell':'simba',action:'pet'},
-          role==='vlad'?'Проведаю Верделла.':'Интересно, как там Симба?');
+        if(mode==='full')offer(need,{type:'pet_action',pet:PERSONALITIES[role].pet,action:'pet'},
+          role==='vlad'?'Интересно, как там Симба?':'Проведаю Верделла.');
         furnitureChoice(need,'desk','deskGames','Хочется отвлечься за компьютером.');
         if(role==='alina')offer(need,{type:'act',actionId:'deskGames',computer:'laptop'},'Можно немного поиграть на ноутбуке.');
         furnitureChoice(need,'sofa',role==='alina'?'sofaMusic':'sofaRest',
@@ -142,7 +142,7 @@ export function fullLeisureCandidates(state:GameState,role:CharacterId,turn:numb
   const games=COMPUTER_GAMES;
   const clips=Object.keys(VIDEO_CLIPS) as VideoClipId[];
   const device=role==='alina'?'laptop':'desktop';
-  const pet=role==='alina'?'simba':'verdell';
+  const pet=PERSONALITIES[role].pet;
   const actions:TimedCommand[]=[
     {type:'play_game',game:games[turn%games.length].id,device},
     {type:'computer_video',clip:clips[turn%clips.length],device},
@@ -159,7 +159,7 @@ export function fullLeisureCandidates(state:GameState,role:CharacterId,turn:numb
     {type:'act',actionId:'bathSoak'},
   ];
   const offset=turn%actions.length;
-  return rankLeisure([...actions.slice(offset),...actions.slice(0,offset)],role,state.characters[role],turn);
+  return rankLeisure([...actions.slice(offset),...actions.slice(0,offset)],role,state.characters[role],turn,residentEmotion(state,role).id);
 }
 
 const expressions:Record<VitalNeed,Record<CharacterId,readonly string[]>>={
@@ -195,7 +195,7 @@ export function thoughtFor(state:GameState,role:CharacterId):{text:string;need?:
     return {need:lowest.need,emoji:NEED_INFO[lowest.need].emoji,
       text:phrases[cycle%phrases.length]};
   }
-  const emotion=emotionFor(person);
+  const emotion=residentEmotion(state,role);
   if(emotion.id==='sad')return {text:role==='vlad'?'Что-то день не задался. Хочется переключиться.':'Хочется немного тепла и спокойствия.',emoji:emotion.emoji};
   if(emotion.id==='inspired')return {text:role==='vlad'?'Есть силы разобраться в чём-нибудь новом.':'Столько интересных идей, хочется попробовать!',emoji:emotion.emoji};
   const time=dayPhase(state.clock);

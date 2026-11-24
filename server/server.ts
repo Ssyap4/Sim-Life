@@ -16,6 +16,7 @@ import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
+import {recordCompletedActivity} from '../src/shared/emotions';
 import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
@@ -768,6 +769,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      recordCompletedActivity(result.state,role,plan.command);
       result.message+=fulfillWish(result.state,role,wish,state);
       try { files.save(result.state); }
       catch (error) {

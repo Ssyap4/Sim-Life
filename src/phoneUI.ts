@@ -1,7 +1,7 @@
 import { electronicsModel } from './shared/electronics';
 import { renderRelationship } from './socialUI';
 import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
-import { emotionFor,PERSONALITIES } from './shared/emotions';
+import { residentEmotion,PERSONALITIES,activeEmotions,EVENTS } from './shared/emotions';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
 import type { FamilyMomentId } from './shared/familyMoments';
@@ -104,10 +104,11 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       const cards=(['vlad','alina'] as const).map(id=>{
         const current=block(names[id]+' · '+AUTONOMY_LABELS[state.autonomy[id]],'');
         current.classList.add('autonomy-phone-card');
-        const thought=thoughtFor(state,id),emotion=emotionFor(state.characters[id]);
+        const thought=thoughtFor(state,id),emotion=residentEmotion(state,id);
         current.querySelector('p')!.textContent=emotion.emoji+' '+emotion.label+' · '+Math.round(state.characters[id].mood)+'% · '+emotion.reason;
-        const traits=document.createElement('small');traits.textContent=PERSONALITIES[id].traits.join(' · ');current.append(traits);
+        const traits=document.createElement('small');traits.textContent=PERSONALITIES[id].traits.join(' · ')+' · Любимый питомец: '+(PERSONALITIES[id].pet==='simba'?'Симба':'Верделл');current.append(traits);
         const reflection=document.createElement('p');reflection.textContent=thought.emoji+' '+thought.text;current.append(reflection);
+        for(const event of activeEmotions(state,id)){const line=document.createElement('small');line.style.display='block';line.textContent='• '+EVENTS[event.kind].label+' · ещё '+Math.ceil(event.until-(state.clock.day-1)*1440-state.clock.minute)+' мин.';current.append(line);}
         if(role===id){
           const select=document.createElement('select');
           select.dataset.autonomy=id;

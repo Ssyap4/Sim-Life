@@ -23,6 +23,7 @@ import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
+import {recordCompletedActivity} from '../src/shared/emotions';
 import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { gains } from './needs';
@@ -301,6 +302,7 @@ export function createHomeSessions(hooks: Hooks) {
           next.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      recordCompletedActivity(result.state,role,session.plan.command);
       result.message+=fulfillWish(result.state,role,wish,next);
       next = result.state;
       results.push(result);
@@ -334,7 +336,7 @@ export function createHomeSessions(hooks: Hooks) {
       addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice,!!completedMoment);
       if(completedMoment)result.message+=momentReward(result.state,from,completedMoment);
     }
-    for(const {role,wish} of session.participants)result.message+=fulfillWish(result.state,role,wish,before);
+    for(const {role,wish} of session.participants){recordCompletedActivity(result.state,role,command);result.message+=fulfillWish(result.state,role,wish,before);}
     try{hooks.save(result.state);}
     catch{end(session,'failed','Не удалось сохранить совместное занятие');return;}
     broadcastSnapshot();
