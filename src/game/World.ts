@@ -1,3 +1,4 @@
+import {fitnessExercise} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
 import {isSpeakerSku} from '../shared/speakerCatalog';
 import {speakerItems,speakerDevice} from '../shared/speaker';
@@ -1190,6 +1191,18 @@ export class World {
         if(command.action==='picnic'&&this.household){
           const dish=picnicPortions(this.household,role)[0];
           if(dish){const plate=this.showMeal(role,station.center.x+(role==='vlad'?-.40:.40),.21,station.center.z-.10,dish.item as RecipeId|TakeoutId);actor.playActivity('eat',plate,dish.item as RecipeId|TakeoutId,true);}
+        }
+        if(command.action==='fitnessTrain'&&station.action.kind==='fitness'){
+          const e=fitnessExercise(station.action.facility);if(!e)return;
+          const f=station.action.facility, x=station.center.x,z=station.center.z;
+          if(['bike','rower','legpress','latpull','seatedrow','chestpress','legextension','legcurl'].includes(f)){
+            const height=f==='bike'?.16:f==='rower'?-.40:f==='legpress'?-.32:-.12;
+            actor.setFurniturePose('sit',new THREE.Vector3(x,height+(role==='alina'?.05:0),z+(f==='bike'?.34:.24)),Math.PI);
+          }else if(f==='treadmill')actor.setFurniturePose('idle',new THREE.Vector3(x,.26,z+.1),Math.PI);
+          else if(f==='mat')actor.setFurniturePose('idle',new THREE.Vector3(x,.04,z),0);
+          else if(f==='stepper'||f==='elliptical')actor.setFurniturePose('idle',new THREE.Vector3(x,.28,z+.25),Math.PI);
+          else actor.faceTowards(new THREE.Vector3(x,0,z));
+          actor.playDomesticActivity(e.motion);
         }
         if(command.action==='fitnessSauna')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x-.25,role==='vlad'?-.15:-.10,station.center.z-.52),0);
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');

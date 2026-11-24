@@ -1,3 +1,4 @@
+import {fitnessTaskSpeed} from '../src/shared/fitness';
 import {applySpeaker,type SpeakerCommand} from '../src/shared/speaker';
 import {dustRoute} from '../src/shared/dustRoute';
 import {isNotebookDesk} from '../src/shared/furniture';
@@ -778,8 +779,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
     const bathRoute=bath?dogBathPlan(state,role):null;
     if(bath&&!bathRoute){packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
-    const duration = cleaningRoute?plan.durationMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? plan.durationMs + travelBudgetMs
-      : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
+    const activityMs=plan.durationMs/fitnessTaskSpeed(state,role,plan.command);
+    const duration = cleaningRoute?activityMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? activityMs + travelBudgetMs
+      : Math.max(activityMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
     const wish=automatic?undefined:wishAtStart(state,role,plan.command);

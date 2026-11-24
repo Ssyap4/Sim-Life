@@ -1,3 +1,4 @@
+import {fitnessTaskSpeed} from '../src/shared/fitness';
 import {laptopDesk,laptopWorkplace,diningLocation} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { routeHitsLayout } from './furnishing';
@@ -433,7 +434,7 @@ export function createHomeSessions(hooks: Hooks) {
       minutes: studyMinutes(profile, material),
       questions: studyQuestions(material, profile.enrollments[material.id]?.attended ??
         profile.studied[material.id]?.completions ?? 0), correct: 0, lastAnswer: 0 };
-    const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs) * hooks.timeScale));
+    const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs/fitnessTaskSpeed(hooks.state(),roles[0],command)) * hooks.timeScale));
     const participants: Participant[] = [];
     const beforePreparation=roles.map(role=>({x:hooks.state().characters[role].x,z:hooks.state().characters[role].z}));
     for(const role of roles) hooks.prepare(role,resource==='tv');

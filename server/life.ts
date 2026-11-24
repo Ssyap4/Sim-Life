@@ -11,6 +11,7 @@ const HOURLY_DRAIN: Record<VitalNeed, number> = {
 };
 import {initialDust,advanceDust,roomAt,dustLoss} from '../src/shared/homeDust';
 import {advanceSpeakers} from '../src/shared/speaker';
+import {advanceFitness,fitnessBonuses} from '../src/shared/fitness';
 import {advanceVacuum} from '../src/shared/vacuum';
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 100) / 100));
 
@@ -30,17 +31,19 @@ export function advanceLife(source: GameState, gameMinutes: number,
   const beforeDust=source.homeDust??initialDust();
   if(online.length)state.homeDust=advanceDust(beforeDust,gameMinutes);
   for (const role of online) {
+    advanceFitness(state,role,gameMinutes,source.clock.day);
+    const bonuses=fitnessBonuses(state,role);
     const character = state.characters[role];
     for (const need of VITAL_NEEDS) {
       const until=activeReward(source,role,need);
       const unlocked=until?Math.max(0,Math.min(gameMinutes,(state.clock.day-1)*1440+state.clock.minute-until)):gameMinutes;
-      character[need] = clamp(character[need] - HOURLY_DRAIN[need] * unlocked / 60);
+      character[need] = clamp(character[need] - HOURLY_DRAIN[need] * unlocked / 60 * (need==='energy'?bonuses.energyDrain:need==='comfort'?bonuses.comfortDrain:1));
     }
     const shift=state.activeShifts[role];
     const room=state.world.places[role]==='home'&&(!shift||shift.homeDevice)?roomAt(character):undefined;
-    if(room){const loss=dustLoss(beforeDust[room.id],gameMinutes);character.mood=clamp(character.mood-loss.mood);character.comfort=clamp(character.comfort-loss.comfort);}
+    if(room){const loss=dustLoss(beforeDust[room.id],gameMinutes);character.mood=clamp(character.mood-loss.mood*bonuses.moodDrain);character.comfort=clamp(character.comfort-loss.comfort*bonuses.comfortDrain);}
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
-    if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8);
+    if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8 * bonuses.moodDrain);
   }
   const walker=state.world.dogWalker;
   if(walker&&online.includes(walker)&&state.world.places[walker]==='park'){

@@ -10,6 +10,8 @@ import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import {fitnessExercise} from '../src/shared/fitness';
+import {stationById} from '../src/shared/locations';
 import { clockMinutes } from '../src/shared/locations';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import { localActivity, localLabels } from './locations';
@@ -112,6 +114,11 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
+    if(action==='fitnessTrain'){
+      const station=stationById('fitness',command.station),exercise=station?.action.kind==='fitness'?fitnessExercise(station.action.facility):undefined;
+      if(!exercise)return null;
+      return {command:{type:'local_activity',station:command.station,action},label:exercise.name,durationMs:exercise.minutes*2000,resource:'fitness:'+command.station};
+    }
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
       durationMs: action==='fitnessSauna'?40000:action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: action==='fitnessSauna'?'fitness-sauna':isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
   }

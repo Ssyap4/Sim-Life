@@ -30,7 +30,7 @@ import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './sh
 import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
 import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
 import {roomAt} from './shared/homeDust';
-import {FITNESS_PASSES,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
+import {FITNESS_PASSES,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
 type App = 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
@@ -117,7 +117,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         for(const at of fitnessBookingSlots(now)){const option=document.createElement('option');option.value=String(at);option.textContent=formatTime(at);select.append(option);}
         const book=document.createElement('button');book.type='button';book.textContent='Записаться';book.onclick=()=>fitnessControl?.({type:'fitness_book',at:Number(select.value)});
         booking.append(select,book);if(p.booking!==undefined){const b=document.createElement('button');b.type='button';b.textContent='Отменить запись';b.onclick=()=>fitnessControl?.({type:'fitness_cancel'});booking.append(b);}
-        info.replaceChildren(card,booking);info.scrollTop=scroll;
+        const stats=fitnessStats(state,role),bonus=fitnessBonuses(state,role);
+        const form=block('Физическая форма · '+Math.round(fitnessForm(state,role))+'%', 'Сила '+Math.round(stats.strength)+'% · Выносливость '+Math.round(stats.endurance)+'% · Гибкость '+Math.round(stats.flexibility)+'% · Восстановление '+Math.round(stats.recovery)+'%');
+        form.append(block('Мышечная усталость · '+Math.round(p.fatigue)+'%','Завершено упражнений: '+(p.workouts??0)+' · Расход энергии −'+Math.round((1-bonus.energyDrain)*100)+'%'));
+        info.replaceChildren(card,booking,form);info.scrollTop=scroll;
       }
     }
     if(app==='speakers'){

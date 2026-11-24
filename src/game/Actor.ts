@@ -25,7 +25,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -382,6 +382,7 @@ export class Actor {
     if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
     this.partnerGesture=null;
     this.gesture=null;
+    if(this.activity?.startsWith('gym'))this.setPose('idle');
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
     this.heart.visible=false;
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
@@ -824,6 +825,33 @@ export class Actor {
           gaze = .07 - .08 * Math.sin(a * 3.1);
           expression = .14 + .37 * gesture;
           break;
+        }
+        case 'gymRun': {
+          const beat=Math.sin(a*8);leftY=rightY=-.27;leftZ=.23+beat*.18;rightZ=.23-beat*.18;lean=.10;crouch=.025*(1+Math.cos(a*16));break;
+        }
+        case 'gymCycle':case 'gymStep': {
+          leftY=rightY=-.20;leftZ=rightZ=.39;lean=this.activity==='gymCycle'?.18:.06;crouch=this.activity==='gymStep'?.025*(1+Math.sin(a*8)):0;break;
+        }
+        case 'gymRow': {
+          const pull=(1+Math.cos(a*3))/2;leftY=rightY=-.22+.12*pull;leftZ=rightZ=.52-.30*pull;lean=.23-.29*pull;break;
+        }
+        case 'gymPress': {
+          const push=(1+Math.sin(a*2.8))/2;leftY=rightY=-.12+.09*push;leftZ=rightZ=.24+.30*push;armSpread=.13;break;
+        }
+        case 'gymPull': {
+          const pull=(1+Math.sin(a*2.6))/2;leftY=rightY=.42-.62*pull;leftZ=rightZ=.22;armSpread=.33;lean=.07;break;
+        }
+        case 'gymSquat': {
+          const down=(1+Math.sin(a*2.7))/2;leftY=rightY=.13;leftZ=rightZ=.12;armSpread=.37;crouch=.19*down;lean=.15*down;break;
+        }
+        case 'gymCurl': {
+          const curl=(1+Math.sin(a*3))/2;leftY=rightY=-.51+.55*curl;leftZ=rightZ=.11+.13*curl;armSpread=.08;break;
+        }
+        case 'gymStretch': {
+          const wave=Math.sin(a*.85);leftY=rightY=.28+.12*wave;leftZ=rightZ=.12;armSpread=.38;lean=.10+.10*wave;break;
+        }
+        case 'gymLeg': {
+          leftY=rightY=-.35;leftZ=rightZ=.15;lean=-.08;break;
         }
         case 'stretch':
           leftY = rightY = 0.28 + 0.06 * Math.sin(a * 2);
@@ -1358,6 +1386,17 @@ export class Actor {
         foot.y-=this.figureBase.y;
         foot.z+=this.seatBlend*(data.thighLength*.84-i*.027)-weightTransfer*.036;
         foot.toePitch*=1-this.seatBlend;
+      }
+      if(this.activity==='gymRun'||this.activity==='gymStep'||this.activity==='gymCycle'){
+        const phase=a*(this.activity==='gymRun'?8:5)+i*Math.PI;
+        const cycling=this.activity==='gymCycle';
+        foot.y+=Math.max(0,Math.sin(phase))*(cycling?.13:.17);
+        foot.z+=Math.cos(phase)*(cycling?.13:this.activity==='gymRun'?.24:.10);
+      }else if(this.activity==='gymLeg'){
+        const extension=(1+Math.sin(a*2.7))/2;
+        foot.y+=.18*extension;foot.z+=.24*extension;
+      }else if(this.activity==='gymRow'){
+        foot.z+=.09*(1+Math.cos(a*3));
       }
       if(rest){
         const p=rest.legs[i];

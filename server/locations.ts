@@ -1,4 +1,5 @@
-import {FITNESS_PASSES,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
+import {FITNESS_PASSES,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
+import {skillRank} from '../src/shared/education';
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
 import { toyProduct,toyOwned } from '../src/shared/petToys';
 import { petFoodProduct } from '../src/shared/petShop';
@@ -519,7 +520,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
-  fitnessSauna:'Сауна',
+  fitnessSauna:'Сауна',fitnessTrain:'Тренировка',
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
@@ -528,9 +529,30 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
-  if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
+  if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='fitness'&&!!fitnessExercise(station.action.facility)&&action==='fitnessTrain') && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
+  if(action==='fitnessTrain'){
+    if(place!=='fitness'||station.action.kind!=='fitness'||!fitnessAccess(source,role))return fail('Сначала оплати посещение клуба');
+    const exercise=fitnessExercise(station.action.facility);if(!exercise)return fail('Выбери тренажёр');
+    const profile=fitnessProfile(source,role),c=source.characters[role];
+    if(skillRank(source.education.characters[role].xp.fitness).level<exercise.minLevel)return fail('Сначала развей навык фитнеса до '+exercise.minLevel);
+    if(c.energy<25||c.hunger<25)return fail('Сначала отдохни и поешь');
+    if(profile.fatigue+exercise.fatigue>85)return fail('Мышцам нужен отдых');
+    const next=structuredClone(source),p=(next.world.fitness??=initialFitness())[role],resident=next.characters[role];
+    const stats=p.stats??=emptyFitnessStats();
+    if(p.trainingDay!==source.clock.day){p.trainingDay=source.clock.day;p.dailyGain=0;}
+    const gain=Math.max(0,Math.min(2.5,8-(p.dailyGain??0),100-stats[exercise.axis]));
+    stats[exercise.axis]+=gain;p.dailyGain=(p.dailyGain??0)+gain;
+    stats.recovery=Math.min(100,stats.recovery+gain*.7);
+    p.fatigue=Math.min(100,p.fatigue+exercise.fatigue);p.lastTrainingDay=source.clock.day;p.workouts=(p.workouts??0)+1;
+    const clamp=(v:number)=>Math.max(0,Math.min(100,v));
+    resident.energy=clamp(resident.energy-(exercise.fatigue*.8+2));
+    resident.hunger=clamp(resident.hunger-(exercise.fatigue*.45+2));
+    resident.hygiene=clamp(resident.hygiene-(exercise.fatigue*.85+2));
+    resident.fun=clamp(resident.fun+8);resident.mood=clamp(resident.mood+10);
+    return done(next,exercise.name+' · завершено');
+  }
   if(action==='fitnessSauna'){
     if(place!=='fitness'||!fitnessAccess(source,role))return fail('Сначала оплати посещение клуба');
     if(source.money<SAUNA_PRICE)return fail('Недостаточно денег');
