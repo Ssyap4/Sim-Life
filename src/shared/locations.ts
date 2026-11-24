@@ -150,7 +150,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('pet-cat-dry','Сухой корм для кошек',0,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'dry'}),
     site('pet-cat-wet','Влажный корм для кошек',3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'wet'}),
     site('pet-dog-wet','Влажный корм для собак',-3.75,.85,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'wet'}),
-    site('pet-furniture','Мебель и игрушки питомцев',0,.85,2.35,.95,{kind:'pet-furniture-display'}),
+    site('pet-furniture','Для животных',0,.85,2.35,.95,{kind:'pet-furniture-display'}),
     site('pet-cash','Касса',3.65,1.45,1.75,.8,{kind:'pet-checkout'}),
     door('pet-exit','Выход на улицу','district',-2.75,4.60,true),
   ],

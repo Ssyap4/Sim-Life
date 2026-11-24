@@ -8,6 +8,7 @@ import {once} from 'node:events';
 import {homeToysFor,homeToyApproach} from '../src/shared/pets.ts';
 import {PET_TOYS} from '../src/shared/petToys.ts';
 import {DOG_COMMANDS} from '../src/shared/dogTraining.ts';
+import {feedingStation} from '../src/shared/petFeeders.ts';
 import {DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath.ts';
 import {applyPetAction} from '../server/pets.ts';
 import {initialState} from '../src/shared/protocol.ts';
@@ -102,6 +103,23 @@ try{
   await page.waitForTimeout(9000);await shot('dog-bath-rinse');
   await page.waitForFunction(()=>window.qaState?.pets.verdell.cleanliness===100,undefined,{timeout:25000});
   await shot('dog-bath-completed');
+ });
+ const feeder=base();grantStarterPetFurniture(feeder);
+ feeder.furnishing.placed.push({id:feeder.furnishing.nextId++,sku:'pet-feed-verdell-plus',finish:'ivory',x:-2.9,z:3.34,rotation:1});
+ feeder.furnishing.placed.push({id:feeder.furnishing.nextId++,sku:'pet-feed-simba-steel',finish:'terracotta',x:-6.26,z:-3.71,rotation:1});
+ const station=feedingStation(feeder.furnishing,'verdell');
+ Object.assign(feeder.characters.vlad,station.goal,{pose:'idle'});feeder.pets.verdell.satiety=23;feeder.pets.verdell.energy=90;feeder.pets.verdell.bladder=95;
+ feeder.pets.verdell.position={...station.goal};delete feeder.pets.verdell.routine;
+ feeder.petFood.verdell=10;feeder.pets.verdell.foodQueue=Array(10).fill('verdell-dry-2');
+ await scenario(feeder,async(page,shot,send)=>{
+  await shot('feeder-installed');
+  await send({type:'pet_action',pet:'verdell',action:'loadFeeder'});
+  await page.waitForFunction(()=>window.qaState?.pets.verdell.feederReserve?.length===10,undefined,{timeout:20000});await shot('feeder-loaded');
+ });
+ const fed=structuredClone(feeder);fed.pets.verdell.feederReserve=Array(10).fill('verdell-dry-2');fed.petFood.verdell=0;fed.pets.verdell.foodQueue=[];runPetRoutines(fed,0,480,new Set(['simba']),()=>.99);
+ assert.equal(fed.petBowls.verdell,3);
+ await scenario(fed,async(page,shot)=>{
+  await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="verdell"]').click();await page.waitForTimeout(1500);await shot('feeder-eating');
  });
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

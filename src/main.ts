@@ -56,6 +56,7 @@ import { createMarketUI, showTakeoutChoices } from './marketUI';
 import type { BasketLine } from './shared/market';
 import { makeJobBoard } from './jobsUI';
 import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY } from './shared/storageSpace';
+import {feedingStation,feederModel,feederReserve,dryRefills} from './shared/petFeeders';
 import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
@@ -1211,23 +1212,26 @@ function openPetBowlActions(pet: PetId): void {
   const spec = PETS[pet];
   const servings = state.petBowls[pet];
   const fillings = state.petFood[pet];
-  showActionMenu('🥣 Миска · ' + spec.name);
+  const station=feedingStation(state.furnishing,pet),reserve=feederReserve(state.pets[pet]).length,capacity=station.model?.capacity??0;
+  showActionMenu('🥣 '+(station.model?.name??'Миска')+' · '+spec.name);
   const note = document.createElement('p');
   note.className = 'pet-note';
   note.textContent = 'В миске: ' + servings + '/' + PET_BOWL_CAPACITY + ' порции · в запасе: ' + fillings +
     ' насыпаний · пачка за ' + spec.foodPrice + ' ₽ даёт ' + PET_FOOD_REFILLS_PER_PACK +
     ' насыпаний по ' + PET_BOWL_CAPACITY + ' порции.';
   actionsEl.append(note);
+  if(capacity||reserve){const status=document.createElement('p');status.className='pet-note';status.textContent='Сухой корм в бункере: '+reserve+'/'+(capacity||'снята с установки')+' насыпаний · '+(capacity?'выдаётся автоматически':'доступен при ручном кормлении');actionsEl.append(status);}
+  if(capacity){const load=document.createElement('button');load.className='food-action pet-action';load.textContent='Заполнить кормушку · '+Math.max(0,capacity-reserve)+' мест';load.disabled=reserve>=capacity||dryRefills(state,pet)<=0;load.onclick=()=>{if(net.petAction(pet,'loadFeeder'))actionsEl.hidden=true;};actionsEl.append(load);}
   const refill = document.createElement('button');
   refill.type='button';
   refill.className='food-action pet-action';
-  refill.disabled=servings>0 || fillings<1;
+  refill.disabled=servings>0 || fillings+reserve<1;
   const name=document.createElement('strong');
   name.textContent='🥣 Насыпать корм · +' + PET_BOWL_CAPACITY + ' порции';
   const hint=document.createElement('small');
   hint.textContent=servings>0 ? 'В миске ещё есть корм — дождись, когда питомец доест.'
-    : fillings<1 ? 'Корм закончился — купи пачку в магазине или в меню питомца.'
-    : '−1 насыпание из семейных запасов. Питомец сам подойдёт при сытости ниже 20%.';
+    : fillings+reserve<1 ? 'Корм закончился — купи пачку в магазине или в меню питомца.'
+    : '−1 насыпание из семейных запасов. Питомец сам подойдёт при сытости 40% и ниже.';
   refill.append(name,hint);
   refill.addEventListener('click',()=>{
     if(net.petAction(pet,'feed')) {actionsEl.hidden=true;statusEl.textContent='Насыпаем корм в миску…';}
@@ -1288,6 +1292,7 @@ function openPurchasedFurnitureActions(id:number):void{
   if(!state||!active||!net.isReady())return;
   const item=state.furnishing.placed.find(row=>row.id===id);
   if(!item)return;
+  const feeder=feederModel(item.sku);if(feeder&&feedingStation(state.furnishing,feeder.pet).item?.id===id){furnishing.close();openPetBowlActions(feeder.pet);const manage=document.createElement('button');manage.className='action-button';manage.textContent='Переставить или продать';manage.onclick=()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);};actionsEl.append(manage);return;}
   if(isSleepBed(item)){openPurchasedBedActions(id);return;}
   const info=FURNITURE_BY_ID.get(item.sku);
   if(!info)return;

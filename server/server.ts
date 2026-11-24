@@ -705,7 +705,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if (resource === plan.resource) stopLeisure(resident);
     }
     // Filling the bowl must not interrupt a pet that is walking to eat.
-    if (plan.command.type === 'pet_action' && plan.command.action !== 'feed' &&
+    if (plan.command.type === 'pet_action' && plan.command.action !== 'feed' && plan.command.action !== 'loadFeeder' &&
         state.pets[plan.command.pet].routine) {
       pausePetRoutine(state, plan.command.pet, liveGameTime());
       state.revision++;

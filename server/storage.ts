@@ -1,3 +1,4 @@
+import {validFeeder,feedingStation} from '../src/shared/petFeeders';
 import {validTraining,validTrainingAttempt} from '../src/shared/dogTraining';
 import { homeToysFor,homeToyApproach } from '../src/shared/pets';
 import {validToyExtras,toyOwned} from '../src/shared/petToys';
@@ -146,7 +147,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && validFeeder(pet,id) && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
@@ -259,7 +260,7 @@ function restorePet(id: PetId, saved: PetState | undefined,
       (id!=='simba'||!pet.routine.perch||!furnishing||!currentCatPerch(furnishing,pet.routine.perch));
     const invalidEquipment=pet.routine.equipment &&
       (!furnishing||!currentPetEquipment(furnishing,pet.routine.equipment));
-    const expected = petDestination(id, pet.routine);
+    const expected = pet.routine.kind==='eat'&&furnishing?feedingStation(furnishing,id).goal:petDestination(id, pet.routine);
     const last = route.path.at(-1) ?? route.from;
     if (invalidPerch || invalidEquipment || Math.hypot(last.x - expected.x, last.z - expected.z) > .08 ||
       !pointIsClear(route.from, safeHome.obstacles, safeHome.floor) ||

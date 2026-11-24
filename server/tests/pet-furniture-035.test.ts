@@ -10,7 +10,7 @@ import {applyWorld} from '../locations';
 import {approachFor,stationById} from '../../src/shared/locations';
 import {applyFurnishing} from '../furnishing';
 test('all nine new pet products have bounded physical models; old SKUs cannot be purchased',()=>{
- const catalog=FURNITURE_CATALOG.filter(p=>p.category==='pets');assert.equal(catalog.length,9);
+ const catalog=FURNITURE_CATALOG.filter(p=>p.category==='pets'&&!p.id.startsWith('pet-feed-'));assert.equal(catalog.length,9);
  const signatures=new Set<string>();
  for(const p of [...catalog,...STARTER_PET_PRODUCTS]){
   const m=buildFurnishingModel(p.id,'sage'),box=new THREE.Box3().setFromObject(m),size=box.getSize(new THREE.Vector3());

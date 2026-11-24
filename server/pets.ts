@@ -1,3 +1,4 @@
+import {feedingStation,loadFeeder,dispenseFeeder,dryRefills,feederReserve} from '../src/shared/petFeeders';
 import {dogBathPlan,DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath';
 import {trainingCommand,trainingChance,finishTraining,DOG_COMMAND_NAMES} from '../src/shared/dogTraining';
 import { toyOwned,toyPreference } from '../src/shared/petToys';
@@ -28,7 +29,8 @@ const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 
 export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
   if(action==='bathe')return id==='verdell'?DOG_BATH_OWNER:undefined;
-  return petApproach(action === 'feed' ? PETS[id].bowl : state.pets[id].position,
+  if(action==='feed'||action==='loadFeeder'){const station=feedingStation(state.furnishing,id);return station.item?station.goal:petApproach(station.point,placeObstacles('home',state.furnishing),HOME_FLOOR);}
+  return petApproach(state.pets[id].position,
     placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
 
@@ -177,6 +179,8 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
     if(id==='verdell')pet.cleanliness=drain(pet.cleanliness??100,state.world.dogWalker?5:pet.routine?.kind==='toy'?3:1.8);
+    const station=feedingStation(state.furnishing,id);
+    if(!occupied.has(id))dispenseFeeder(state,id);
     const previous = pet.routine;
     if(pet.furnitureYield && (now>=pet.furnitureYield.cooldownUntil||!currentCatPerch(state.furnishing,pet.furnitureYield.perch)))delete pet.furnitureYield;
     if(pet.favoriteBedId!==undefined && !petBeds(state.furnishing,id)
@@ -204,14 +208,15 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const begRoute=wantBeg&&(!previous||['wander','toy','beg'].includes(previous.kind))&&
       (previous?.kind!=='beg'||previous.until<=now)?ownerPetPoint(state,id,diningOwner!,diners.get(diningOwner!)):null;
     const invalidBeg=previous?.kind==='beg'&&(!wantBeg||!diners.has(previous.target===0?'vlad':'alina'));
+    const invalidBowl=previous?.kind==='eat'&&(()=>{const target=previous.goal??petDestination(id,previous);return Math.hypot(target.x-station.goal.x,target.z-station.goal.z)>.035;})();
     const invalidTraining=previous?.training&&(state.world.places[previous.training.role]!=='home'||!previous.goal||!pointIsClear(previous.goal,petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR).obstacles,HOME_FLOOR));
     const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy','train'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !invalidTraining && !begRoute && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !invalidTraining && !invalidBowl && !begRoute && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if(previous?.training){
       if(id==='verdell'&&!invalidTraining&&!urgentInterrupt&&previous.until<=now&&previous.goal&&Math.hypot(pet.position.x-previous.goal.x,pet.position.z-previous.goal.z)<.08)finishTraining(pet,previous.training);
-    }else if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
+    }else if (previous?.kind === 'eat' && !invalidBowl && state.petBowls[id] > 0&&(!station.item||Math.hypot(pet.position.x-station.goal.x,pet.position.z-station.goal.z)<.08)) {
       // The bowl — not a packet in household storage — pays for each meal.
       state.petBowls[id]--;
       const food=petFoodProduct(pet.bowlFood);
@@ -251,6 +256,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if(id==='simba'&&previous?.kind==='perch'&&!invalidPerch&&previous.perch){
       pet.furnitureYield={perch:previous.perch,clearAt:now+2,cooldownUntil:now+14};
     }
+    if(!occupied.has(id))dispenseFeeder(state,id);
     let kind: PetRoutine['kind'] = 'wander';
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
     else if (pet.bladder <= 63) kind = 'toilet';
@@ -338,11 +344,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
       : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind==='beg'?16:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+    if(kind==='eat')chosenGoal=station.goal;
     const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg')
+    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg'||kind==='eat'&&!!station.item)
       ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
-    pet.routine = route ? { kind, target, startedAt: now, until: now + duration+travel, route,
+    pet.routine = route&&(kind!=='eat'||arrivesAt(route,station.goal)) ? { kind, target, startedAt: now, until: now + duration+travel, route,
       ...(chosenPerch?{perch:chosenPerch}:{}),
       ...(chosenGoal?{goal:chosenGoal}:{}),
       ...(chosenEquipment?{equipment:chosenEquipment}:{}) } : undefined;
@@ -358,7 +365,7 @@ export function applyPetAction(
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
   const training=trainingCommand(action);
-  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe'].includes(action))
+  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe','loadFeeder'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -481,9 +488,18 @@ export function applyPetAction(
       break;
     case 'buyFood':
       return {ok:false,reason:'Корм продаётся в супермаркете и через доставку продуктов'};
+    case 'loadFeeder': {
+      if(next.world.places[role]!=='home')return {ok:false,reason:'Кормушка находится дома'};
+      const capacity=feedingStation(next.furnishing,id).model?.capacity??0;
+      if(!capacity)return {ok:false,reason:'Сначала установи автоматическую кормушку'};
+      const before=feederReserve(data).length;if(before>=capacity)return {ok:false,reason:'Бункер уже заполнен'};
+      if(!dryRefills(next,id))return {ok:false,reason:'Для кормушки нужен сухой корм'};
+      const count=loadFeeder(next,id)-before;message='В кормушку загружено '+count+' насыпаний';break;
+    }
     case 'feed':
       if (next.petBowls[id] > 0)
         return { ok: false, reason: 'В миске ' + spec.name + ' ещё есть корм. Дождись, пока питомец его съест' };
+      if(next.petFood[id]<=0&&dispenseFeeder(next,id,false)){message='Корм выдан из запаса кормушки';break;}
       if (next.petFood[id] <= 0)
         return { ok: false, reason: 'Корм для ' + spec.name + ' закончился — купи ещё одну пачку' };
       const food=nextPetFood(data);

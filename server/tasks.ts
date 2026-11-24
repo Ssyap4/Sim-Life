@@ -161,7 +161,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||
         typeof command.action !== 'string' ||
-        !['feed', 'play', 'pet', 'brush','treat','bathe'].includes(command.action)) return null;
+        !['feed', 'play', 'pet', 'brush','treat','bathe','loadFeeder'].includes(command.action)) return null;
     const pet = command.pet as PetId;
     const action = command.action as CareAction;
     if(action==='bathe'&&pet!=='verdell')return null;

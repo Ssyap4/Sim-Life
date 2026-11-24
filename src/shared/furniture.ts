@@ -1,3 +1,4 @@
+import {FEEDING_MODELS} from './petFeeders';
 import type { FloorRect } from '../game/navigation';
 
 export type FurnitureCategory = 'seating' | 'sleep' | 'storage' | 'tables' | 'lighting' | 'decor' | 'pets' | 'leisure';
@@ -16,7 +17,7 @@ export interface FurnitureProduct {
 }
 export const FURNITURE_CATEGORIES: Record<FurnitureCategory,string> = {
   seating:'Диваны и кресла',sleep:'Спальня',storage:'Хранение',
-  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',pets:'Для питомцев',leisure:'Досуг и отдых',
+  tables:'Столы и стулья',lighting:'Освещение',decor:'Декор и растения',pets:'Для животных',leisure:'Досуг и отдых',
 };
 export const FURNITURE_FINISHES: Record<FurnitureFinish,{name:string;main:number;light:number;dark:number;fabric:number}> = {
   oak:{name:'Светлый дуб',main:0xc49d72,light:0xe5d0a8,dark:0x765642,fabric:0xdcc8aa},
@@ -158,6 +159,7 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('leisure-billiards','Бильярдный стол','leisure','leisure',69900,1.47,2.42,.92,'🎱','Зелёное сукно, лузы, шары и кии.'),
   // Real pet accessories use the existing buy/delivery/placement/move/sell pipeline.
   // Low washable cushions are walkable (no fake invisible collision walls).
+  ...FEEDING_MODELS.map(m=>product(m.id,m.name,'pets','plant',m.price,m.width,m.depth,m.height,'🥣',m.capacity?'Автоматически выдаёт корм из бункера на '+m.capacity+' насыпаний. Только сухой корм.':'Сменная миска для кормления. Новая модель заменяет штатную миску; запас еды сохраняется.')),
   product("pet-bed-dog-nest","Лежанка «Бублик» для собак","pets","rug",2490,1.08,0.94,0.15,"🐕","Круглый мягкий валик и низкая подушка.",true),
   product("pet-bed-dog-sofa","Лежанка «Софа» для собак","pets","rug",4990,1.24,1,0.15,"🐕","Прямоугольный матрас с мягкой спинкой.",true),
   product("pet-bed-cat-donut","Лежанка «Пончик» для кошек","pets","rug",2190,1.02,0.9,0.15,"🐈","Круглая плюшевая лежанка.",true),

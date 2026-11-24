@@ -1,3 +1,4 @@
+import {feederModel} from '../shared/petFeeders';
 import * as THREE from 'three';
 import { FURNITURE_BY_ID,FURNITURE_FINISHES,workstationLayout,isNotebookDesk,type FurnitureFinish } from '../shared/furniture';
 import { cube,softCube,orb,drum,finish,batchRigidParts } from './ArtKit';
@@ -185,6 +186,23 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
 
   // Pet accessories have the EXACT same lightweight model in catalogue cards,
   // placement preview and the installed house. They are not reskinned rugs.
+  const feeding=feederModel(s);
+  if(feeding){
+    const auto=feeding.capacity>0,z=auto?d*.5-.19:0,metal=feeding.kind==='steel'||auto;
+    if(auto){
+      box(w*.94,.082,d*.97,0,.041,0,D,'ceramic',true);
+      box(w*.86,h-.11,d*.49,0,h*.48,-d*.22,feeding.kind==='plus'?0xe9e6dc:M,'ceramic',true);
+      box(w*.92,.065,d*.52,0,h-.04,-d*.22,L,'ceramic',true);
+      box(w*.55,.21,.022,0,h*.65,.018,0x626e75,'metal',true);
+      for(let i=0;i<5;i++)box(.025,.025,.025,(i-2)*.055,h*.64,.036,0xd1a06d,'ceramic',true);
+      box(.16,.07,.025,0,h*.30,.035,0x303d43,'metal',true);
+      ball(.025,.012,.012,w*.27,h*.82,.03,0x87d6a2,'ceramic');
+    }
+    cyl(.165,.065,.165,0,.048,z,metal?0x7b8990:M,metal?'metal':'ceramic');
+    cyl(.132,.014,.132,0,.079,z,0x55443b,metal?'metal':'ceramic');
+    for(let i=0;i<24;i++){const a=i*Math.PI/12;ball(.026,.025,.026,Math.cos(a)*.147,.103,z+Math.sin(a)*.147,metal?0xc4cfd2:L,metal?'metal':'ceramic');}
+    return root;
+  }
   if(s.startsWith('pet-bed-dog-')||s.startsWith('pet-bed-cat-')){
     const round=s.endsWith('nest')||s.endsWith('donut'),shell=s.endsWith('shell');
     if(round){

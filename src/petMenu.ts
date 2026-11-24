@@ -1,3 +1,4 @@
+import {feedingStation,feederReserve,dryRefills} from './shared/petFeeders';
 import {DOG_COMMANDS,DOG_COMMAND_NAMES,commandSkill,trainingLevel,type DogTrainingAction} from './shared/dogTraining';
 import {toysFor,toyOwned,TOY_REACTIONS} from './shared/petToys';
 import { nextPetFood,petFoodProduct,FOOD_REACTIONS } from './shared/petShop';
@@ -58,9 +59,11 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const station=feedingStation(state.furnishing,selected),reserve=feederReserve(stats).length,capacity=station.model?.capacity??0;
+  if(station.model||reserve){const note=document.createElement('p');note.className='pet-note';note.textContent=(station.model?.name??'Обычная миска')+(capacity?' · бункер '+reserve+'/'+capacity+' · автоподача':reserve?' · в запасе бункера '+reserve:'');container.appendChild(note);}
   const food=nextPetFood(stats),bowl=petFoodProduct(stats.bowlFood);
   if(food||bowl||stats.foodPreferences){const note=document.createElement('p');note.className='pet-note';note.textContent=[bowl?'В миске: '+bowl.name:'',food?'Следующее насыпание: '+food.name:'',...Object.entries(stats.foodPreferences??{}).map(([id,value])=>petFoodProduct(id)?.name+': '+FOOD_REACTIONS[value])].filter(Boolean).join(' · ');container.appendChild(note);}
-  if(state.petFood[selected]===0){
+  if(state.petFood[selected]+reserve===0){
     const note=document.createElement('p');note.className='pet-note';
     note.textContent='Корм закончился. Купи его в зоомагазине, супермаркете или закажи доставку продуктов.';
     container.appendChild(note);
@@ -93,7 +96,7 @@ export function renderPetChoices(
     hungry.textContent = (hungerLevel === 'critical' ? '❗ Критический голод' : '⚠️ Проголодался') +
       ' · сытость ' + Math.round(stats.satiety) + '%.' +
       (state.petBowls[selected] === 0
-        ? ' Миска пуста: насыпь корм, чтобы ' + pet.name + ' смог поесть.'
+        ? ' Миска пуста: насыпь корм или заполни кормушку, чтобы ' + pet.name + ' смог поесть.'
         : ' В миске есть корм: ' + pet.name + ' сможет самостоятельно поесть.');
     container.appendChild(hungry);
   }
@@ -134,7 +137,7 @@ export function renderPetChoices(
     {
       action: 'feed', icon: '🥣',
       hint: '−1 насыпание из пачки · +3 порции в миску · питомец ест сам при сытости 40% и ниже',
-      disabled: state.petFood[selected] < 1 || state.petBowls[selected] > 0,
+      disabled: state.petFood[selected]+reserve < 1 || state.petBowls[selected] > 0,
     },
     {
       action: 'play', icon: '🎾',
@@ -145,6 +148,7 @@ export function renderPetChoices(
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
 
   ];
+  if(capacity)actions.unshift({action:'loadFeeder',icon:'🥣',hint:'Загрузить сухой корм в бункер · '+reserve+'/'+capacity,disabled:reserve>=capacity||dryRefills(state,selected)<=0});
   // These are new server-owned routes, not copies of the existing pet/play actions.
   actions.unshift({
     action:'mat',icon:'🧺',hint:'Сам идёт на реально купленную и установленную лежанку',
