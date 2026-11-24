@@ -23,6 +23,8 @@ const roughness: Record<Surface, number> = {
 };
 const finishes = new Map<string, THREE.MeshStandardMaterial>();
 const solidSurfaces = new WeakMap<THREE.Material, Surface>();
+const allSurfaces = new WeakMap<THREE.Material, Surface>();
+export function finishSurface(material:THREE.Material){return allSurfaces.get(material);}
 
 export function finish(color: number, surface: Surface = 'fabric', vertexColors = false): THREE.MeshStandardMaterial {
   const key = `${color}/${surface}/${vertexColors}`;
@@ -32,6 +34,7 @@ export function finish(color: number, surface: Surface = 'fabric', vertexColors 
       color, vertexColors, roughness: roughness[surface], metalness: surface === 'metal' ? 0.28 : 0,
     });
     finishes.set(key, material);
+    allSurfaces.set(material,surface);
     if (!vertexColors) solidSurfaces.set(material, surface);
   }
   return material;

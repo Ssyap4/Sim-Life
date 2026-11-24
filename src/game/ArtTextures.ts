@@ -41,14 +41,17 @@ export function oakFloor() {
 
 export function upholsteryWeave() {
   return paintedMap('upholstery-weave', 128, 128, (ctx) => {
-    ctx.fillStyle = '#f5f2ea';
+    ctx.fillStyle = '#f2eee4';
     ctx.fillRect(0, 0, 128, 128);
     // Broken twill: diagonal ribs reverse every eight yarns.
     for(let y=0;y<128;y+=2)for(let x=0;x<128;x+=2){
       const warp=Math.floor(x/16)%2===0?x+y:x-y;
-      ctx.fillStyle=warp%8===0?'#a29a88':warp%4===0?'#d2cab8':'#fff8ec';
+      ctx.fillStyle=warp%8===0?'#9d9280':warp%4===0?'#d7cbbc':'#fff8ec';
       ctx.fillRect(x,y,2,1.5);
     }
+    const shading=ctx.createRadialGradient(64,64,27,64,64,89);
+    shading.addColorStop(0,'#ffffff00');shading.addColorStop(.78,'#7f74601c');shading.addColorStop(1,'#695d483d');
+    ctx.fillStyle=shading;ctx.fillRect(0,0,128,128);
   });
 }
 

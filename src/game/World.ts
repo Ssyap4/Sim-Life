@@ -66,6 +66,7 @@ import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
+import { polishFurniture } from './FurnitureSurfaceArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -1624,6 +1625,7 @@ export class World {
     this.scene.add(this.familyCar);
     this.trackStation(this.stationMeshes,'family-car',this.familyCar);
     this.register('grill', this.yard.grill, points.grill);
+    polishFurniture(this.yard.table,false);
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
       new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)),
@@ -1632,6 +1634,7 @@ export class World {
     let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture, true);
+      polishFurniture(furniture,false);
       if(id==='desk')desktop=furniture;
       if(id==='tv')this.homeEffects.mountTv(furniture);
       this.register(id, furniture, point);

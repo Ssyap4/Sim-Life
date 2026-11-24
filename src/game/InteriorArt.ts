@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { batchRigidParts, colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
 import { PlantBatch } from './LandscapePlants';
 import { kitchenTiles, upholsteryWeave, wovenRug } from './ArtTextures';
+import { polishFurniture } from './FurnitureSurfaceArt';
 import { cushionGeometry } from './FurnitureGeometry';
 import { buildBathFixture } from './BathroomArt';
 import { BATH_FIXTURES, COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
@@ -103,6 +104,8 @@ function makeSofa(): THREE.Group {
     const pad = part(sofa, [0.99, 0.22, 0.53], [x, 0.96, 0.274], 0x5c8274, cushionGeometry, true);
     pad.rotation.x = Math.PI / 2 + 0.16;
   }
+  // Recessed front upholstery piping; no seat height or footprint change.
+  for(const x of [-.498,.498])part(sofa,[.84,.018,.022],[x,.685,-.487],0x41665a,'square');
   pillow(sofa, [-0.83, 0.96, -0.08], C.linen, -0.30);
   pillow(sofa, [0.84, 0.98, -0.085], C.terracotta, 0.27);
   return sofa;
@@ -146,6 +149,8 @@ function makeBed(): THREE.Group {
     const p = part(bed, [1.08, 0.21, 0.60], [x, 0.852, -0.80], C.cream, cushionGeometry, true);
     p.rotation.y = x < 0 ? 0.045 : -0.045;
   }
+  // Shallow decorative headboard upholstery buttons, behind the pillow zone.
+  for(const x of [-.92,-.46,0,.46,.92])part(bed,[.045,.045,.014],[x,1.10,-1.084],0x9b7753,'soft');
   return bed;
 }
 
@@ -332,6 +337,7 @@ function makeTv(): THREE.Group {
   part(tv, [1.79, 0.12, 0.39], [0, 0.147, -0.01], C.woodDark, 'soft', true, 'wood');
   for (const x of [-0.60, 0, 0.60]) {
     part(tv, [0.575, 0.28, 0.027], [x, 0.367, 0.248], C.wood, 'soft', false, 'wood');
+    part(tv,[.48,.016,.010],[x,.27,.265],C.woodDark,'square',false,'wood');
     part(tv, [0.15, 0.018, 0.021], [x, 0.442, 0.271], C.brass, 'soft', false, 'metal');
   }
   part(tv, [1.88, 0.048, 0.55], [0, 0.55, 0], C.woodDark, 'soft', false, 'wood');
@@ -357,6 +363,7 @@ function makeDiningTable(): THREE.Group {
     part(table, [.08, .23, .57], [back, .83, 0], C.wood, 'soft', true, 'wood');
   }
   part(table, [.31, .012, 1.04], [0, DINING_TOP + .006, 0], C.moss);
+  for(const z of [-.45,.45])part(table,[.28,.003,.019],[0,DINING_TOP+.013,z],C.oat,'square');
   return table;
 }
 
@@ -442,11 +449,13 @@ export function buildPersonalFurniture(scene: THREE.Scene,
     round(nightstand, .11, .31, [0, .735, -.065], lamp, 'ceramic');
     part(nightstand, [1, 1, 1], [0, .99, -.065], C.linen, bedsideShade);
     batchRigidParts(nightstand, true);
+    polishFurniture(nightstand,false);
     scene.add(nightstand);
     registerFixture?.(index===0?'nightstandLeft':'nightstandRight',nightstand);
   }
   for (const furniture of [vanity, bookcase]) {
     batchRigidParts(furniture, true);
+    polishFurniture(furniture,false);
     if (furniture === bookcase) registerLibrary(bookcase); else scene.add(furniture);
   }
 }

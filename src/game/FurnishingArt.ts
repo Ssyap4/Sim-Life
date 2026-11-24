@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FURNITURE_BY_ID, type FurnitureFinish } from '../shared/furniture';
 import { batchRigidParts } from './ArtKit';
+import { polishFurniture } from './FurnitureSurfaceArt';
 import { distinctiveFurniture } from './FurnitureDesigns';
 
 // A single geometry pipeline powers the catalog thumbnail, placement ghost
@@ -12,6 +13,7 @@ function createBody(sku:string,finishId:FurnitureFinish):THREE.Group {
   if(!root)throw new Error('Missing bespoke furniture design for: '+sku);
   root.name=info.name;
   batchRigidParts(root,true);
+  polishFurniture(root);
   // SKU dimensions are authoritative for placement, networking and saves.
   // Tuck sculptural details into this physical volume to keep old furniture
   // safe without changing footprints, pathways or save migration.
