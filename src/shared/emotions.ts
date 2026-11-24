@@ -3,7 +3,7 @@ import type {CharacterId,Needs,TimedCommand,GameState} from './protocol';
 export type EmotionId='happy'|'inspired'|'calm'|'tired'|'hungry'|'uncomfortable'|'lonely'|'bored'|'sad'|'tense';
 export const PERSONALITIES={
  vlad:{pet:'simba',traits:['Любознательный','Технический склад ума','Любит игры'],favorite:['games','study','pet']},
- alina:{pet:'verdell',traits:['Творческая','Общительная','Любит уют'],favorite:['music','social','pet']}
+ alina:{pet:'verdell',traits:['Творческая','Общительная','Любит уют'],favorite:['music','social','pet','home']}
 } as const;
 const info:Record<EmotionId,{label:string;emoji:string;reason:string}>={
  happy:{label:'Счастливое',emoji:'😊',reason:'Хорошее настроение и основные потребности в порядке.'},
@@ -105,7 +105,8 @@ export function rankLeisure<T extends TimedCommand>(actions:readonly T[],role:Ch
  const e=emotion??emotionFor(n).id;
  // A regular unweighted turn prevents preferences monopolizing free time.
  if(turn%3===2)return [...actions];
- return [...actions].sort((a,b)=>emotionPreference(role,e,leisureKind(b))-emotionPreference(role,e,leisureKind(a)));
+ const score=(c:T)=>emotionPreference(role,e,leisureKind(c))+(c.type==='pet_action'&&c.pet===PERSONALITIES[role].pet?1:0);
+ return [...actions].sort((a,b)=>score(b)-score(a));
 }
 export function wishEmotionPriority(id:string,role:CharacterId,e:EmotionId):number{
  if(id.startsWith('goal-'))return 10;

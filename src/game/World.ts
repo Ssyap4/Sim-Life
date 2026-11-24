@@ -1,3 +1,4 @@
+import { residentEmotion } from '../shared/emotions';
 import { LandscapeHorizon } from './LandscapeHorizon';
 import { WeatherArt } from './WeatherArt';
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
@@ -2195,7 +2196,7 @@ export class World {
     this.setTimeOfDay(state.clock.minute);
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
-      this.actors[id].setNeeds(state.characters[id]);
+      this.actors[id].setNeeds(state.characters[id],residentEmotion(state,id).id);
       this.actors[id].setPhoneModel(installedElectronics(state,id,'phone'));
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);

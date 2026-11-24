@@ -144,6 +144,7 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
     let time = id === 'vlad' ? 0 : 0.22;
     let rest = 0;
     let glance = 0;
+    let lidMood = 0;
     return {
       joints: { leftArm: joints.ArmL, rightArm: joints.ArmR, leftLeg: joints.ThighL, rightLeg: joints.ThighR },
       rig: {
@@ -152,11 +153,13 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         knees: [joints.KneeL, joints.KneeR], ankles: [joints.AnkleL, joints.AnkleR],
         waistY, thighLength: -joints.KneeL.position.y, shinLength: -joints.AnkleL.position.y,
         upperArm: -joints.ElbowL.position.y, lowerArm: -joints.WristL.position.y,
-        animateFace(dt, asleep, expression, eyeYaw, eyePitch) {
+        animateFace(dt, asleep, expression, eyeYaw, eyePitch, lidBias=0) {
           const blend = 1 - Math.exp(-dt * 8);
           time = (time + dt) % blink.duration;
           rest = THREE.MathUtils.lerp(rest, Number(asleep), blend);
-          weights[lids] = THREE.MathUtils.lerp(sampleBlink.evaluate(time)[lids], 1, rest);
+          lidMood=THREE.MathUtils.lerp(lidMood,THREE.MathUtils.clamp(lidBias,0,.35),blend);
+          const blinkWeight=THREE.MathUtils.clamp(sampleBlink.evaluate(time)[lids],0,1);
+          weights[lids] = THREE.MathUtils.lerp(blinkWeight+(1-blinkWeight)*lidMood, 1, rest);
           weights[smile] = THREE.MathUtils.lerp(weights[smile], expression, blend);
           // The eyes make occasional tiny, synchronized focus shifts; their
           // original player/pet look direction retains priority.

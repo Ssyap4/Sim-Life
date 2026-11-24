@@ -1,0 +1,6 @@
+# 0.37 v3 - emotional expression preview
+Base: deployed 0.37.0 main (935340e). Branch feat/emotions-expression-037.
+The existing residentEmotion result now drives each Actor from World state, including temporary events and physical priorities. All ten profiles adjust smile, eyelids, posture, head tilt and walking arm swing. Existing GLBs expose Smile and CloseLids only; no independent brow/frown morph. Fallback rig uses eyelid scale and posture. Existing pose and contact controllers retain priority; no route/speed/physics/audio/asset changes.
+Full autonomy adds the other pet, conversation and kitchen tidying, with a small favorite-pet preference and the existing unweighted variety cycle. No new spending or rewards.
+Local verification: TypeScript and 28 focused tests passed before build. Cloud portrait workflow captures Vlad and Alina at 390x844. Physical phone visual quality and FPS are not yet confirmed.
+Preview only, port 3180, isolated new save, no codes, 100000 RUB. Do not merge or reset production without owner approval.

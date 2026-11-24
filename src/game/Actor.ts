@@ -14,7 +14,8 @@ import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait'
 import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
-import { characterDemeanor } from './CharacterDemeanor';
+import { expressiveDemeanor } from './CharacterDemeanor';
+import type { EmotionId } from '../shared/emotions';
 import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residentIdleWeight,
   residentIdleEase, residentIdleTouchWeight,
   type ResidentIdleContext, type ResidentIdleGesture } from './ResidentIdle';
@@ -119,7 +120,8 @@ export class Actor {
   private nextPetNotice = 0;
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
-  setNeeds(needs: ReactionNeeds): void { this.needs = needs; }
+  private emotion:EmotionId|null=null;
+  setNeeds(needs: ReactionNeeds,emotion:EmotionId|null=null): void { this.needs = needs; this.emotion=emotion; }
   /** Local visual awareness only: no game state or social actions are changed. */
   setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
     // An approaching partner gets one friendly acknowledgement after a
@@ -578,7 +580,7 @@ export class Actor {
     } else {
       this.idleCooldown -= dt;
       if(this.clock<=this.arrivalUntil&&residentIdleAllowed('noticePartner',this.idleContext)&&
-        characterDemeanor(this.needs,'idle').friendly){
+        expressiveDemeanor(this.needs,'idle',this.emotion).friendly){
         this.idleGesture='noticePartner';
         this.idleGestureTime=0;
         this.greeting=true;
@@ -612,7 +614,9 @@ export class Actor {
     const armA = this.leftArm, armB = this.rightArm;
     let leftY = -data.upperArm - data.lowerArm + 0.018;
     let rightY = leftY;
-    let leftZ = -0.22 * Math.cos(stridePhase - 0.18) * motion * (0.38 + 0.62 * settling);
+    const emotionMode=asleep?'sleep':this.activity||this.gesture||this.partnerGesture||seated||this.carryingBook||this.closingBook>0||this.foodContainer.visible?'busy':motion>.08?'walking':'idle';
+    const demeanor=expressiveDemeanor(this.needs,emotionMode,this.emotion);
+    let leftZ = -0.22 * demeanor.swing * Math.cos(stridePhase - 0.18) * motion * (0.38 + 0.62 * settling);
     let rightZ = -leftZ;
     let armSpread = -0.074 - motion * 0.009 * Math.sin(stridePhase);
     if (this.carryingBook && this.activity !== 'read') {
@@ -992,11 +996,10 @@ export class Actor {
 
     // Continuous, small expressions across ordinary idle and walking.
     // Active cooking, seats, hugs and sleep keep their original authored poses.
-    const demeanor=characterDemeanor(this.needs,asleep?'sleep':
-      this.activity||this.gesture||this.partnerGesture||seated?'busy':motion>.08?'walking':'idle');
-    lean+=demeanor.shoulders;
-    gaze+=demeanor.gaze;
-    expression=Math.min(.78,expression+demeanor.smile);
+    const moodWeight=this.needReaction?0:this.idleGesture?.35:1;
+    lean+=demeanor.shoulders*moodWeight;
+    gaze+=demeanor.gaze*moodWeight;
+    expression=THREE.MathUtils.clamp(expression+demeanor.smile*moodWeight,0,.78);
 
     // Reuse the exact same lightweight articulated rig used by cooking and
     // talking: a few soft arm/head targets, no new meshes or animation files.
@@ -1313,17 +1316,17 @@ export class Actor {
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) :
         0.025 * Math.sin(t * 0.67) + idleEyePitch;
       data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),
-        expression, eyeYaw, eyePitch);
+        expression, eyeYaw, eyePitch, demeanor.lids*moodWeight);
     } else {
       const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
-      for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink, alpha);
+      for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
     const look = 0.20 * idleLook + lead + idleHeadYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
-      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead, alpha);
+      0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + demeanor.tilt*moodWeight, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
