@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
 import { initialState, type CharacterId, type ServerPacket } from '../../src/shared/protocol';
 import { applyPetAction } from '../pets';
+import { checkout } from '../market';
 import { openServerFiles } from '../storage';
 import { startServer } from '../server';
 
@@ -18,7 +19,8 @@ test('Two pets have separate care supplies; buying, feeding and bonding keep mon
   assert.equal(empty.ok, false);
   assert.equal(original.money, 10000);
 
-  const purchase = applyPetAction(original, 'vlad', 'verdell', 'buyFood');
+  assert.equal(applyPetAction(original,'vlad','verdell','buyFood').ok,false);
+  const purchase = checkout(original,'vlad',[{id:'pet:verdell',quantity:1}]);
   assert.equal(purchase.ok, true);
   if (!purchase.ok) return;
   assert.equal(purchase.state.money, 9350);
@@ -103,7 +105,7 @@ test('Care actions from Vlad and Alina synchronize as a single shared pet family
     sockets.push(v, a);
     const vFinal = next(v, (p) => p.type === 'snapshot' && p.state.revision === 2);
     const aFinal = next(a, (p) => p.type === 'snapshot' && p.state.revision === 2);
-    v.send(JSON.stringify({ type: 'pet_action', pet: 'verdell', action: 'buyFood' }));
+    v.send(JSON.stringify({ type: 'checkout', lines:[{id:'pet:verdell',quantity:1}] }));
     a.send(JSON.stringify({ type: 'pet_action', pet: 'simba', action: 'pet' }));
     const [vs, as] = await Promise.all([vFinal, aFinal]);
     assert.deepEqual(vs, as);

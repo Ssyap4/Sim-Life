@@ -53,6 +53,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
+    if(state?.world.carDriver===role&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -78,10 +79,10 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const id = key as PlaceId;
       if (isCareerPlace(id)) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || (state.world.carDriver===role&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : destination.detail));
+        element('small', '', here ? 'Вы здесь' : state.world.carDriver===role&&id==='home'?'Вернуться на машине':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -142,7 +143,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const kind = station.action.kind;
     const local = (label: string, action: 'rest' | 'exercise' | 'dine' | 'dog' | 'unpack') =>
       button(label, () => { if (send({ type: 'local_activity', station: station.id, action })) close(); });
-    if (kind === 'shelf' || kind === 'checkout') {
+    if(kind==='car'){
+      options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
+      if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
+      else for(const destination of ['market','cafe'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+        if(send({type:'car_travel',place:destination}))close();
+      }));
+    } else if (kind === 'shelf' || kind === 'checkout') {
       const lines = list();
       const summary = element('strong', 'world-cart-total', 'Корзина: ' + lines.reduce((n, line) => n + line.quantity, 0) + ' уп. · ' + formatRub(basketPrice(lines)));
       options.append(summary);

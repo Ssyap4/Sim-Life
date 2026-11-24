@@ -98,25 +98,39 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
         break;
     }
     return {id:'need-'+need,need,icon:emoji[need],title:titles[need],detail,cta,command,
-      urgency:value<=35?'urgent':value<=70?'wish':'calm'};
+      urgency:value<=25?'urgent':'wish'};
   };
-  // Offer 1–2 real needs; avoid presenting five identical "do chores" demands
-  // to a comfortable player. A harmless pleasant impulse fills the last slot.
-  const pressing=sorted.filter(need=>person[need]<=76).slice(0,2);
+  // Needs are genuine only at the same threshold as need autonomy.
+  // Pleasant plans below never masquerade as a physiological need.
+  const pressing=sorted.filter(need=>person[need]<=50).slice(0,2);
   for(const need of pressing)wishes.push(make(need));
   const pet:PetId=role==='vlad'?'verdell':'simba';
-  if(wishes.some(w=>w.command?.type==='pet_action')){
-    wishes.push({id:'cozy-home',icon:'🧽',title:'Навести порядок',
-      detail:'Небольшое домашнее дело сделает обстановку приятнее.',
-      cta:'Прибраться',command:{type:'act',actionId:'kitchenTidy'},urgency:'calm'});
+  const plans:Wish[]=[];
+  const add=(id:string,icon:string,title:string,detail:string,cta:string,command:WishCommand|undefined)=>{
+    if(command)plans.push({id,icon,title,detail,cta,command,urgency:'calm'});
+  };
+  if(!(pet==='verdell'&&state.world.dogWalker))add('companion-'+pet,'🐾',pet==='verdell'?'Побыть с Верделлом':'Приласкать Симбу',
+    'Хочется уделить любимому питомцу немного внимания.','Погладить',{type:'pet_action',pet,action:'pet'});
+  if(role==='vlad'){
+    add('learn-dev','💻','Освоить что-то новое','Интересно попробовать новый приём в разработке.','Учиться',!state.furnishing.soldFixtures?.includes('desk')?{type:'act',actionId:'vladStudy'}:undefined);
+    add('game-break','🎮','Вечер за игрой','Хочется отвлечься от дел и поиграть.','Поиграть',furniture(state,'desk','deskGames'));
+    add('favorite-music','🎵','Включить любимую музыку','Немного музыки для хорошего настроения.','Послушать',furniture(state,'sofa','sofaMusic'));
   }else{
-    wishes.push({id:'companion-'+pet,icon:'🐾',title:pet==='verdell'?'Проведать Верделла':'Проведать Симбу',
-      detail:'Даже в спокойный день приятно уделить питомцу немного внимания.',
-      cta:'Погладить',command:{type:'pet_action',pet,action:'pet'},urgency:'calm'});
+    add('learn-hair','📚','Изучить новую технику ухода','Хочется разобраться в восстановлении волос.','Учиться',!state.furnishing.soldFixtures?.includes('desk')?{type:'act',actionId:'alinaStudy'}:undefined);
+    add('music-evening','🎵','Музыка для настроения','Хочется устроить небольшой музыкальный перерыв.','Послушать',furniture(state,'sofa','sofaMusic'));
+    add('quiet-call','💬','Позвонить близким','Приятно узнать, как прошёл день у близких.','Позвонить',furniture(state,'sofa','sofaCall'));
   }
-  if(wishes.length<3){
-    const additional=sorted.find(need=>!wishes.some(w=>w.need===need));
-    if(additional)wishes.push(make(additional));
+  add('reading','📖','Почитать для себя','Хочется немного времени с интересной книгой.','Почитать',!state.furnishing.soldFixtures?.includes('sofa')?{type:'act',actionId:'sofaRead'}:undefined);
+  if(state.characters[role].energy>=35) {
+    add('tea-break','🍵','Уютное чаепитие','Хочется спокойно посидеть с чашкой чая.','Заварить чай',state.pantry.tea>0?{type:'act',actionId:'kitchenTea'}:undefined);
+    if(state.dirtyDishes.table+state.dirtyDishes.yardTable>0)
+      add('cozy-home','🧽','Освободить стол','После еды хочется вернуть дому уют.','Помыть посуду',{type:'act',actionId:'kitchenDishes'});
+  }
+  const cycle=Math.floor(gameMinutes(state.clock)/180)+(role==='alina'?1:0);
+  const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]);
+  for(const plan of ordered){
+    if(wishes.length>=3)break;
+    if(!wishes.some(w=>JSON.stringify(w.command)===JSON.stringify(plan.command)))wishes.push(plan);
   }
   return wishes.slice(0,3);
 }

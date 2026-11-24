@@ -1,4 +1,5 @@
 import { HomeEffects } from './HomeEffects';
+import { buildFamilyCar } from './FamilyCarArt';
 import { buildHomeWing } from './HomeWing';
 import { NeighborPeople } from './NeighborPeople';
 import { courierVisit, COURIER_INDEX } from '../shared/courier';
@@ -114,6 +115,8 @@ export class World {
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
   private readonly sleepingOffline = new Set<CharacterId>();
+  private familyCar!: THREE.Group;
+  private readonly rememberedBeds=new Map<CharacterId,SleepBedId>();
   private readonly homeLeisure = new Set<CharacterId>();
   private readonly petRoutines = new Map<PetId, string>();
   private localRole: CharacterId = 'vlad';
@@ -603,6 +606,7 @@ export class World {
       if(bed){
         this.actors[id].setFurniturePose('sleep',
           new THREE.Vector3(bed.x,bed.y,bed.z),bed.yaw);
+        this.actors[id].snapFurnitureOffset();
         return;
       }
     }
@@ -667,7 +671,8 @@ export class World {
 
   /** Client-only presentation. Sleep ownership and recovery remain server-authoritative. */
   showSleep(id: CharacterId, sleeping: boolean): void {
-    if(this.place!=='home'||!this.household)return;
+    if(this.place!=='home'||!this.household||this.household.world.places[id]!=='home')return;
+    if(!sleeping&&this.sleepingOffline.has(id))return;
     const resident=this.household.characters[id];
     if(sleeping){
       const bed=bedPose(this.household,id,resident.sleepingOn??'starter');
@@ -1519,6 +1524,9 @@ export class World {
     this.entryLeaf = decorateHome(this.scene);
     buildHomeWing(this.scene);
     this.yard = buildYard(this.scene);
+    this.familyCar=buildFamilyCar();
+    this.scene.add(this.familyCar);
+    this.trackStation(this.stationMeshes,'family-car',this.familyCar);
     this.register('grill', this.yard.grill, points.grill);
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
@@ -2030,6 +2038,7 @@ export class World {
       this.actors[id].setNeeds(state.characters[id]);
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
+      if(state.characters[id].pose==='sleep')this.rememberedBeds.set(id,state.characters[id].sleepingOn??'starter');
       const work = state.careers.residents[id].shift;
       this.computerScreens.career(id,place==='home' && state.world.places[id]==='home' && work?.mode==='remote'
         ? work.homeDevice??'laptop':null);
@@ -2039,13 +2048,22 @@ export class World {
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
       if (away || sleep) this.closeStorage(id);
-      if (sleep && (!wasSleeping || reset || changed)) {
+      if (sleep && (!wasSleeping || reset || changed || !this.actors[id].isSleeping())) {
         this.sleepingOffline.add(id);
         const resident=state.characters[id];
-        const bed=selectSleepBed(state,id,typeof resident.sleepingOn==='number'?resident.sleepingOn:undefined);
-        if(bed.ok)this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,
-          'sleep',bed.bed.id);
-        else this.restoreCharacter(id,resident.x,resident.z,'idle');
+        // A resident already in bed must not have their bed reassigned or be sent
+        // to the gate just because a different player reentered the scene.
+        const savedBed=resident.sleepingOn??this.rememberedBeds.get(id)??'starter';
+        if(resident.pose==='sleep'&&bedPose(state,id,savedBed)) {
+          this.restoreCharacter(id,resident.x,resident.z,'sleep',savedBed);
+        }else{
+          let bed=selectSleepBed(state,id,typeof savedBed==='number'?savedBed:undefined);
+          if(!bed.ok&&typeof savedBed==='number')bed=selectSleepBed(state,id);
+          if(bed.ok){
+            this.rememberedBeds.set(id,bed.bed.id);
+            this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,'sleep',bed.bed.id);
+          }else this.restoreCharacter(id,resident.x,resident.z,'idle');
+        }
       } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
@@ -2080,6 +2098,7 @@ export class World {
       this.lastDogPoint = null;
     }
     if (place === 'home') {
+      this.familyCar.visible=!state.world.carDriver;
       const top=diningSurface(state);
       for (const station of ['table','yardTable'] as const) {
         this.dirtyVisuals[station].forEach((plate,index)=>{

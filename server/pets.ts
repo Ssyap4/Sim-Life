@@ -3,10 +3,10 @@ import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
   PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
-  PET_FOOD_MAX_REFILLS, petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
+  petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
-import { addLedger } from '../src/shared/economy';
+
 import { placeObstacles } from '../src/shared/locations';
 import { GAME_MINUTES_PER_REAL_SECOND, gameMinutes } from '../src/shared/life';
 import { sampleWalk, segmentIsClear, pointIsClear, type FloorPoint, type WalkRoute } from '../src/game/navigation';
@@ -374,15 +374,7 @@ export function applyPetAction(
 
   switch (kind) {
     case 'buyFood':
-      if (next.money < spec.foodPrice)
-        return { ok: false, reason: 'В семейном бюджете не хватает денег на корм' };
-      if (next.petFood[id] > PET_FOOD_MAX_REFILLS - spec.foodAmount)
-        return { ok: false, reason: 'Корма уже достаточно, сначала используйте запасы' };
-      next.money -= spec.foodPrice;
-      next.petFood[id] += spec.foodAmount;
-      addLedger(next,role,'expense','pets',spec.foodPrice,spec.foodName);
-      message = names[role] + ': куплена пачка ' + spec.foodName + ' (+' + spec.foodAmount + ' насыпаний по 3 порции)';
-      break;
+      return {ok:false,reason:'Корм продаётся в супермаркете и через доставку продуктов'};
     case 'feed':
       if (next.petBowls[id] > 0)
         return { ok: false, reason: 'В миске ' + spec.name + ' ещё есть корм. Дождись, пока питомец его съест' };
@@ -421,10 +413,8 @@ export function applyPetAction(
       break;
   }
   // The pet stays at its shared position while the household cares for it.
-  if (kind !== 'buyFood') {
-    const point = petCarePoint(next, id, kind);
-    if (point) Object.assign(actor, point, { pose: 'idle' });
-  }
+  const point = petCarePoint(next, id, kind);
+  if (point) Object.assign(actor, point, { pose: 'idle' });
   next.revision++;
   return { ok: true, state: next, message };
 }

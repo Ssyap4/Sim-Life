@@ -293,6 +293,8 @@ export class Actor {
     } else this.keys = keys;
   }
 
+  snapFurnitureOffset():void { this.figureBase.copy(this.poseOffset); this.figure.position.copy(this.poseOffset); }
+  isSleeping(): boolean { return this.pose==='sleep'; }
   isWalking(): boolean { return this.waypoints.length > 0; }
   eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 

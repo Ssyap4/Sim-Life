@@ -1265,7 +1265,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
-        if(message.type==='travel'||message.type==='walk')clearQueue(role);
+        if(message.type==='travel'||message.type==='car_travel'||message.type==='walk')clearQueue(role);
         const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;
         const travelSource=interrupted?structuredClone(state):state;
         if(interrupted){
@@ -1279,7 +1279,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
         state = result.state;
         all({ type: 'snapshot', state });
-        if (message.type === 'travel') {
+        if (message.type === 'travel'||message.type==='car_travel') {
           walkingHome.delete(role);
           if (state.world.places[role] === 'home') sendLeisure(socket);
           homeTasks.replay(socket);

@@ -39,6 +39,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe'].includes(w.places![w.carDriver]))) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
     w.deliveries.every(d => d && typeof d.id === 'string' && /^D-(vlad|alina)-\d+$/.test(d.id) &&
@@ -66,7 +67,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
@@ -79,7 +80,39 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='car_travel'){
+    if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
+    if(source.world.carDriver)return fail('Машина сейчас в поездке');
+    if(command.place!=='market'&&command.place!=='cafe')return fail('На машине пока доступны супермаркет и кафе');
+    if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
+    const next=structuredClone(source);
+    const destination=command.place;
+    const spawnPoint=doorwayArrival(destination,'district',role);
+    const other=neighborAt(destination);
+    const arrival=other?unoccupiedDestination(spawnPoint,other,placeObstacles(destination,source.furnishing),floorFor(destination)):spawnPoint;
+    if(!arrival)return fail('Вход занят вторым игроком');
+    next.world.carDriver=role;
+    next.world.places[role]=destination;
+    Object.assign(next.characters[role],arrival,{pose:'idle'});
+    return done(next,'Приехали: '+PLACES[destination].name);
+  }
   if (command.type === 'travel') {
+    if(source.world.carDriver===role){
+      const exit=stationById(place,command.via);
+      if(command.place!=='district'||exit?.action.kind!=='door'||exit.action.destination!=='district'||!at(source,role,exit))
+        return fail('Выйди через дверь, чтобы вернуться к машине');
+      const next=structuredClone(source);
+      const parking=approachFor(stationById('home','family-car')!,role);
+      const other=neighborAt('home');
+      const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
+      if(!arrival)return fail('Парковка занята');
+      delete next.world.carDriver;
+      next.world.places[role]='home';
+      next.world.bags[role]=0;
+      next.world.tableBags=0;
+      Object.assign(next.characters[role],arrival,{pose:'idle'});
+      return done(next,'Вернулись домой на машине');
+    }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
     if((place==='home'&&command.place==='district'||place==='district'&&command.place==='home')&&command.via===undefined)

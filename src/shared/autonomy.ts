@@ -188,7 +188,7 @@ export function thoughtFor(state:GameState,role:CharacterId):{text:string;need?:
     .sort((a,b)=>a.value-b.value);
   const lowest=needs[0];
   const cycle=Math.floor(gameMinutes(state.clock)/75)+(role==='alina'?3:0);
-  if(lowest.value<=57){
+  if(lowest.value<=50){
     const phrases=[...expressions[lowest.need][role],...THOUGHT_VARIANTS[lowest.need][role]];
     return {need:lowest.need,emoji:NEED_INFO[lowest.need].emoji,
       text:phrases[cycle%phrases.length]};

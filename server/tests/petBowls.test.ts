@@ -20,7 +20,9 @@ function updated(result:ReturnType<typeof applyPetAction>) {
 test('One priced pack gives ten bowl refills, each worth three distinct meal servings', () => {
   const s=initialState();
   s.petFood.verdell=0;
-  const pack=updated(applyPetAction(s,'vlad','verdell','buyFood'));
+  assert.equal(applyPetAction(s,'vlad','verdell','buyFood').ok,false);
+  const purchase=checkout(s,'vlad',[{id:'pet:verdell',quantity:1}]);
+  assert.ok(purchase.ok);const pack=purchase.state;
   assert.equal(pack.money,10000-PETS.verdell.foodPrice);
   assert.equal(PETS.verdell.foodAmount,PET_FOOD_REFILLS_PER_PACK);
   assert.equal(pack.petFood.verdell,10);

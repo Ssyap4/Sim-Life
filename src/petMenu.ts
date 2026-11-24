@@ -1,5 +1,5 @@
 import {
-  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petHungerLevel, type PetId, type PetAction,
+  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
 import { catPerchCandidates } from './shared/CatPerches';
@@ -55,6 +55,11 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  if(state.petFood[selected]===0){
+    const note=document.createElement('p');note.className='pet-note';
+    note.textContent='Корм закончился. Купи его в супермаркете или закажи доставку продуктов.';
+    container.appendChild(note);
+  }
   const beds=petBeds(state.furnishing,selected);
   const petFurniture=document.createElement('p');
   petFurniture.className='pet-note';
@@ -124,11 +129,7 @@ export function renderPetChoices(
     },
     { action: 'pet', icon: '❤️', hint: 'Ласка, настроение и доверие', disabled: false },
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
-    {
-      action: 'buyFood', icon: '🛍️',
-      hint: pet.foodName + ' · ' + pet.foodPrice + ' ₽ за 10 насыпаний (30 порций)',
-      disabled: state.money < pet.foodPrice || state.petFood[selected] > PET_FOOD_MAX_REFILLS - pet.foodAmount,
-    },
+
   ];
   // These are new server-owned routes, not copies of the existing pet/play actions.
   actions.unshift({

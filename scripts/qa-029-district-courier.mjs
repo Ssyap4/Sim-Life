@@ -55,6 +55,17 @@ try{
  await page.getByRole('button',{name:/Получить у курьера/}).click();
  await page.waitForFunction(()=>window.qaState?.world.deliveries[0]?.handedAt!==undefined);
  await capture('06-parcels-after-handoff');
+ if(process.env.GITHUB_REF_NAME==='feat/family-car-wishes-029'){
+  await page.evaluate(()=>window.qaSocket.send(JSON.stringify({type:'approach',place:'home',station:'family-car'})));
+  await page.getByRole('button',{name:/🚗 Супермаркет/}).waitFor({timeout:60000});
+  await capture('07-car-menu');
+  await page.getByRole('button',{name:/🚗 Супермаркет/}).click();
+  await page.locator('#app[data-place="market"]').waitFor({timeout:30000});
+  await capture('08-car-market');
+  await travel('home');
+  await capture('09-car-home-parking');
+  assert.equal(await page.evaluate(()=>window.qaState?.world.carDriver),undefined);
+ }
  assert.deepEqual(errors,[]);
 }finally{
  writeFileSync(join(out,'diagnostics.json'),JSON.stringify({samples,errors},null,2));
