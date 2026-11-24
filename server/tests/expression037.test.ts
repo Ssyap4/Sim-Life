@@ -53,3 +53,13 @@ test('full autonomy offers both pets, social and home actions, without removing 
  assert.ok(a[0].type==='pet_action'||a[0].type==='act'&&['sofaCall','tableTalk'].includes(a[0].actionId));
  assert.notDeepEqual(fullLeisureCandidates(s,'alina',2),a);
 });
+test('parallel speech overlay leaves walking root and seated body position intact',()=>{
+ const a=new Actor('vlad',[0,0]),b=new Actor('vlad',[0,0]);
+ a.setConversation(.45,true);
+ const path=[new THREE.Vector3(1,0,0),new THREE.Vector3(1,0,1)];
+ a.walkPath(path,()=>{});b.walkPath(path,()=>{});
+ for(let i=0;i<80;i++){a.update(.05);b.update(.05);assert.ok(a.root.position.distanceTo(b.root.position)<1e-8);}
+ a.setPose('sit');b.setPose('sit');
+ const pos=a.root.position.clone();
+ for(let i=0;i<80;i++){a.update(.05);b.update(.05);assert.ok(a.root.position.distanceTo(pos)<1e-8);a.root.traverse(n=>assert.ok(n.quaternion.toArray().every(Number.isFinite)));}
+});

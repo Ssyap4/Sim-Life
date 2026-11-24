@@ -142,7 +142,9 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
 }));
 export const PARK_TALK_TOPICS=exchanges.filter(a=>['talk','listen','explain','laugh','sitTalk'].includes(a.motion)).map(a=>({...a,id:'parkTalk:'+a.id,object:'parkTalk' as const,motion:'sitTalk' as const,seconds:18}));
 export const PICNIC_TALK_TOPICS=PARK_TALK_TOPICS.map(a=>({...a,id:'picnicTalk:'+a.id.slice(9),object:'picnic' as const,motion:'eat' as const,seconds:PICNIC_SECONDS,memorable:true}));
-export const SOCIAL_ACTIVITIES = [...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS];
+export const NEARBY_TALK_TOPICS=exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}));
+export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
+export const SOCIAL_ACTIVITIES = [...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;

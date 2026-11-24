@@ -44,6 +44,7 @@ export interface ConnectionCallbacks {
   onTaskEnded(role: CharacterId, taskId: number, outcome: 'completed' | 'cancelled' | 'failed', message: string, effects?: NeedEffects): void;
   onSocialStart(kind: SocialKind, message: string): void;
   onSocialOffer(offer:SocialOffer):void;
+  onConversation?(from:CharacterId,remainingMs:number,title:string):void;
   onSocialClosed(id:number,message:string,reply?:string):void;
   onError(message: string): void;
   onStatus(status: string): void;
@@ -272,6 +273,8 @@ export class LiveConnection {
         this.callbacks.onStorageEvent(packet.role, packet.station);
       } else if (packet.type === 'task_ended' && this.authorized) {
         this.callbacks.onTaskEnded(packet.role, packet.taskId, packet.outcome, packet.message, packet.effects);
+      } else if(packet.type==='conversation'&&this.authorized) {
+        this.callbacks.onConversation?.(packet.from,packet.remainingMs,packet.title);
       } else if(packet.type==='social_pending'&&this.authorized) {
         this.callbacks.onSocialOffer(packet.offer);
       } else if(packet.type==='social_closed'&&this.authorized) {

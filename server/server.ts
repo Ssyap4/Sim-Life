@@ -161,8 +161,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number; station?:string }>();
   const storageOpen = new Map<CharacterId, string>();
-  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
+  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean; talkSpot?:{x:number;z:number}; talkAt?:number }
   const running = new Map<CharacterId, RunningTask>();
+  const pathLengthForTalk=(route:WalkRoute)=>route.path.reduce((sum,p,i)=>{const prev=route.path[i-1]??route.from;return sum+Math.hypot(p.x-prev.x,p.z-prev.z);},0);
   // Only the owner can enqueue. Each queue is per resident, in memory, and
   // never serialized into the household save; revalidation happens at execution.
   type QueuedEntry={id:number;label:string;plan?:TaskPlan;sleep?:{mode:SleepMode;furnitureId?:number}};
@@ -302,6 +303,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state: () => state, save(next) { files.save(next); state = next; },
     all, send: packet, socket: role => active.get(role),
     busy: role => running.has(role) || sleepers.has(role) || Boolean(state.activeShifts[role] || state.careers.residents[role].shift),
+    conversationPosition(role){
+      if(sleepers.has(role)||storageOpen.has(role)||state.activeShifts[role]||state.careers.residents[role].shift)return undefined;
+      const task=running.get(role);
+      if(task)return task.talkSpot&&task.talkAt!==undefined&&pauseTimers.now()>=task.talkAt?task.talkSpot:undefined;
+      const walk=walkingHome.get(role);
+      if(walk)return sampleWalk(walk.route,(pauseTimers.now()-walk.started)/1000*HOME_WALK_SPEED).from;
+      const routine=leisure.get(role);
+      if(routine)return leisureRoute(role,pauseTimers.now()).from;
+      return state.characters[role];
+    },
     gameTime: () => liveGameTime(),
     now: () => pauseTimers.now(),
     schedule: (cb, ms) => pauseTimers.schedule(cb, ms),
@@ -798,7 +809,26 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       all({ type: 'snapshot', state });
     }, durationMs);
-    running.set(role, { id, role, plan, timer, automatic });
+    // Legacy timed actions do not expose an active-arrival packet. Only use
+    // a known station and a conservative route arrival estimate, never the old spawn.
+    const cmd=plan.command,place=state.world.places[role];
+    let talkSpot:{x:number;z:number}|undefined;
+    if(cmd.type==='eat'||cmd.type==='eat_takeout'){
+      const dining=diningLocation(state,role,cmd.furnitureId);
+      talkSpot=dining?(dining.route.path.at(-1)??dining.route.from):!state.furnishing.soldFixtures?.includes('table')&&cmd.furnitureId===undefined?homeSeat('table',role).approach:undefined;
+    }else if(cmd.type==='play_game'||cmd.type==='computer_video'){
+      if(cmd.device==='laptop')talkSpot=laptopApproach(state,role);
+      else if(cmd.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('desk')){
+        const deskId=cmd.furnitureId??state.furnishing.placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
+        const loc=deskId!==undefined?furnitureUseLocation(state,role,deskId,'deskGames'):null;
+        talkSpot=loc?(loc.route.path.at(-1)??loc.route.from):undefined;
+      }else talkSpot=points.desk;
+    }else if(cmd.type==='brew_coffee')talkSpot=KITCHEN_WORK.coffee.position;
+    else if(cmd.type==='act'&&['kitchenTea','kitchenTidy','deskGames','vladStudy','alinaStudy'].includes(cmd.actionId)&&!state.furnishing.soldFixtures?.includes('desk'))talkSpot=destination;
+    else if(cmd.type==='local_activity'&&['dine','rest','swing'].includes(cmd.action))talkSpot=destination;
+    const talkRoute=talkSpot&&planWalk(position,talkSpot,placeObstacles(place,state.furnishing),floorFor(place));
+    const talkAt=talkRoute?pauseTimers.now()+1000*pathLengthForTalk(talkRoute)/HOME_WALK_SPEED+900:undefined;
+    running.set(role, { id, role, plan, timer, automatic, talkSpot:talkRoute?talkSpot:undefined,talkAt });
     if(bathRoute){const now=Math.floor(liveGameTime());state.pets.verdell.routine={kind:'bath',target:0,startedAt:now,until:now+Math.ceil(durationMs/1000*GAME_MINUTES_PER_REAL_SECOND)+2,goal:bathRoute.goal,route:bathRoute.route};state.revision++;all({type:'snapshot',state});}
     all({ type: 'task_started', role, taskId: id, label: plan.label,
       durationMs, command: plan.command, automatic, effects: gains(state,validation.state,role) });

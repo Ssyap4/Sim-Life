@@ -228,6 +228,7 @@ export type ServerPacket =
   | { type: 'food_event'; role: CharacterId; action: 'buy' | 'cook' | 'eat'; message: string }
   | { type: 'store_event'; role: CharacterId; message: string }
   | { type: 'job_event'; role: CharacterId; outcome: 'started' | 'finished' | 'left_early'; message: string }
+  | { type: 'conversation'; from:CharacterId; remainingMs:number; title:string }
   | { type: 'social_pending'; offer: SocialOffer }
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }

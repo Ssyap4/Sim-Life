@@ -121,6 +121,9 @@ export class Actor {
 
   /** Latest server-authoritative needs, used only to animate idle body language. */
   private emotion:EmotionId|null=null;
+  private conversationYaw:number|null=null;
+  private conversationSpeaking=false;
+  setConversation(yaw:number|null,speaking:boolean):void{this.conversationYaw=yaw;this.conversationSpeaking=speaking;}
   setNeeds(needs: ReactionNeeds,emotion:EmotionId|null=null): void { this.needs = needs; this.emotion=emotion; }
   /** Local visual awareness only: no game state or social actions are changed. */
   setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
@@ -1248,6 +1251,10 @@ export class Actor {
       }
     }
 
+    if(this.conversationYaw!==null&&this.conversationSpeaking&&!asleep&&!this.activity&&!this.gesture&&!this.partnerGesture&&!this.carryingBook&&!this.idleGesture&&!this.needReaction&&motion<.08&&this.pose!=='work'){
+      const wave=Math.max(0,Math.sin(t*2.8))*.09;
+      leftY+=wave;leftZ+=wave*.6;
+    }
     const eatingWith = mealUtensil(this.diningDish);
     this.spoon.visible = (this.activity === 'cook' &&
       (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
@@ -1308,6 +1315,11 @@ export class Actor {
         asleep ? -0.10 : foot.toePitch - upper.rotation.x - knee.rotation.x,legBlend);
     }
 
+    // Speech overlay only on the face/head: preserve utensils, hands, legs, route and furniture pose.
+    const chatYaw=!asleep&&this.conversationYaw!==null&&!this.partnerGesture?THREE.MathUtils.clamp(this.conversationYaw,-.55,.55)*(this.activity||this.pose==='work'?.48:.85):0;
+    const chatActive=!asleep&&this.conversationYaw!==null&&!this.partnerGesture;
+    const chatNod=chatActive?Math.sin(t*(this.conversationSpeaking?3.5:1.6))*.035:0;
+    if(chatActive)expression=Math.max(expression,this.conversationSpeaking?.28:.18);
     const idleLook = seated || asleep || this.activity || this.gesture || this.idleGesture || pair ? 0 : Math.sin(t * 0.53) ** 7;
     if (data.animateFace) {
       const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
@@ -1322,9 +1334,9 @@ export class Actor {
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
-    const look = 0.20 * idleLook + lead + idleHeadYaw;
+    const look = 0.20 * idleLook + lead + idleHeadYaw + chatYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
-    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55, alpha);
+    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55 + chatNod, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
       0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + demeanor.tilt*moodWeight, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +

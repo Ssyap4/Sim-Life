@@ -134,6 +134,10 @@ export class World {
   private remoteMeshes: THREE.Object3D[] = [];
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private nearbyChat:{from:CharacterId;until:number;started:number}|null=null;
+  nearbyConversation(from:CharacterId,remainingMs:number):void{
+    this.nearbyChat=remainingMs>0?{from,started:this.visualSeconds,until:this.visualSeconds+remainingMs/1000}:null;
+  }
   private readonly sleepingOffline = new Set<CharacterId>();
   private familyCar!: THREE.Group;
   private readonly rememberedBeds=new Map<CharacterId,SleepBedId>();
@@ -2702,6 +2706,9 @@ export class World {
         }
       }
       actor.setIdleSurroundings(petYaw, partnerYaw);
+      const chat=this.nearbyChat;
+      const phase=chat?Math.floor((this.visualSeconds-chat.started)/3)%2:0;
+      actor.setConversation(chat&&chat.until>this.visualSeconds&&partnerYaw!==null?partnerYaw:null,!!chat&&(phase===0?id===chat.from:id!==chat.from));
       if (!actor.isWalking()) resetResidentTraffic(this.collisionFlow[id]);
       if(this.place==='park'&&actor.isParkSwing())actor.parkSwing(Math.sin(this.visualSeconds*1.7)*.15);
       if(this.place==='park'&&this.badmintonStarted!==null&&this.pairStages.get(id)?.action==='parkBadminton'&&this.pairStages.get(id)?.playing){

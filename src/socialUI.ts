@@ -48,7 +48,7 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
       tab.setAttribute('aria-current',group===id?'true':'false');
       tabs.append(tab);
     }
-    const list=SOCIAL_ACTIVITIES.filter(a=>a.group===group&&a.object!=='unpack'&&!a.id.startsWith('parkTalk:')&&!a.id.startsWith('picnicTalk:')&&
+    const list=SOCIAL_ACTIVITIES.filter(a=>a.group===group&&a.object!=='unpack'&&!a.id.startsWith('nearTalk:')&&!a.id.startsWith('parkTalk:')&&!a.id.startsWith('picnicTalk:')&&
       (!a.context||contextAvailable(a,state,role)))
       .sort((a,b)=>Number(b.id===expanded)-Number(a.id===expanded)||contextOrder(a,state,role)-contextOrder(b,state,role));
     const cards=node('div','','social-cards');
@@ -153,7 +153,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   }
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
-  const available=SOCIAL_ACTIVITIES.filter(a=>!['eveningPlan','evening','eveningTea'].includes(a.id)&&!socialRestriction(a,state,role))
+  const available=SOCIAL_ACTIVITIES.filter(a=>!a.id.startsWith('nearTalk:')&&!['eveningPlan','evening','eveningTea'].includes(a.id)&&!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
   const suggestions=node('div','','relationship-suggestions');
   for(const a of [...new Map(available.map(a=>[a.group,a])).keys()].slice(0,4).map(group=>available.find(a=>a.group===group)!)) {

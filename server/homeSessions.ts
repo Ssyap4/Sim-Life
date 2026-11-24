@@ -28,7 +28,8 @@ import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { gains } from './needs';
 import { familyMoments, momentReward, type FamilyMoment } from '../src/shared/familyMoments';
-import { needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, contextAvailable, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
+import { nearbyTalkDenial } from '../src/shared/nearbyTalk';
+import { isNearbyTalk, needsItem, SOCIAL_BY_ID, SOCIAL_TTL_MS, socialText, contextAvailable, type SocialIntent, type SocialOffer, type SocialPhase } from '../src/shared/socialLife';
 import { parkConversation, completeTogether, cooperationDenial, pairScenes, socialDuration, socialPet, socialResource, addRelationship } from './society';
 import type { PetId } from '../src/shared/pets';
 
@@ -55,6 +56,7 @@ type Hooks = {
   send(socket: WebSocket, packet: ServerPacket): void;
   socket(role: CharacterId): WebSocket | undefined;
   busy(role: CharacterId): boolean;
+  conversationPosition?(role:CharacterId):{x:number;z:number}|undefined;
   prepare(role: CharacterId, tv: boolean): void;
   nextId(): number;
   timeScale: number;
@@ -102,6 +104,41 @@ export function createHomeSessions(hooks: Hooks) {
   let nextInviteId = 0;
   let socialInvite: { offer:SocialOffer; command:SocialIntent; timer:ReturnType<typeof setTimeout>; cookTask?:number; parkSession?:Session } | null=null;
   const lastProposal: Partial<Record<CharacterId,number>>={};
+  let conversation:{from:CharacterId;action:string;choice:number;until:number;timer:ReturnType<typeof setTimeout>}|null=null;
+  function conversationReason(from:CharacterId):string|undefined {
+    const s=hooks.state(),positions:Partial<Record<CharacterId,{x:number;z:number}>>={};
+    for(const r of ['vlad','alina'] as const){
+      if(hooks.socket(r)?.readyState!==WebSocket.OPEN)return 'Второй игрок не в сети';
+      const session=sessions.get(r);
+      if(session){
+        const home=session.participants.find(p=>p.role===r)?.packet.home;
+        const cmd=session.plan.command;
+        // Contact, sports and private hygiene retain exclusive control of the rig.
+        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure'].includes(home.pair.motion)||
+           cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
+           cmd.type==='furniture_use'&&Object.hasOwn(BATH_ACTIONS,cmd.action))return 'Сейчас разговор будет мешать занятию';
+        const end=home.route.path.at(-1)??home.route.from;
+        positions[r]=home.pair?.stroll?sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(now()-session.activeAt)/1000).from:end;
+      }else positions[r]=hooks.conversationPosition?hooks.conversationPosition(r):hooks.busy(r)?undefined:s.characters[r];
+    }
+    return nearbyTalkDenial(s,from,positions);
+  }
+  function stopConversation(completed=false){
+    if(!conversation)return;
+    const c=conversation;conversation=null;clearTimer(c.timer);
+    if(completed&&!conversationReason(c.from)){
+      const a=SOCIAL_BY_ID.get(c.action)!;
+      try{const next=parkConversation(hooks.state(),c.from,a,c.choice);for(const r of ['vlad','alina'] as const)recordCompletedActivity(next,r,{type:'together',action:c.action});hooks.save(next);broadcastSnapshot();}
+      catch{/* No reward if persistence fails. */}
+    }
+    hooks.all({type:'conversation',from:c.from,remainingMs:0,title:''});
+  }
+  function startConversation(from:CharacterId,action:string,choice:number){
+    const a=SOCIAL_BY_ID.get(action)!;
+    const duration=Math.max(15,Math.round(a.seconds*1000*hooks.timeScale));
+    conversation={from,action,choice,until:now()+duration,timer:schedule(()=>stopConversation(true),duration)};
+    hooks.all({type:'conversation',from,remainingMs:duration,title:a.title});
+  }
   function closeSocial(phase:SocialPhase,message:string,reply?:string) {
     if(!socialInvite)return;
     const {offer,timer}=socialInvite;
@@ -115,6 +152,7 @@ export function createHomeSessions(hooks: Hooks) {
   const error = (socket: WebSocket, reason: string) => hooks.send(socket, { type: 'error', reason });
   const broadcastSnapshot = () => hooks.all({ type: 'snapshot', state: hooks.state() });
   const closeInvite = (message: string) => {
+    stopConversation();
     closeSocial('interrupted',message);
     if (!invite) return;
     clearTimer(invite.timer);
@@ -511,6 +549,7 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function replay(socket: WebSocket) {
+    if(conversation)hooks.send(socket,{type:'conversation',from:conversation.from,remainingMs:Math.max(0,conversation.until-now()),title:SOCIAL_BY_ID.get(conversation.action)!.title});
     for (const [role,session] of sessions) {
       const original = session.participants.find(p => p.role === role)!.packet;
       const home = original.home!;
@@ -552,7 +591,9 @@ export function createHomeSessions(hooks: Hooks) {
       const partner=otherRole(role), helper=message.action==='joinCook', cook=helper?cookFor(partner):undefined;
       if(helper&&!cook)return error(socket,'Партнёр сейчас не готовит');
       const parkSession=typeof message.action==='string'&&SOCIAL_BY_ID.get(message.action)?.object==='parkTalk'?parkSessionFor(role):undefined;
-      if(!parkSession&&(!available(role)||(!cook&&!available(partner))))return error(socket,'Оба игрока должны быть в сети и свободны');
+      const near=typeof message.action==='string'&&isNearbyTalk(message.action);
+      if(near){const reason=conversation? 'Разговор уже идёт':conversationReason(role);if(reason)return error(socket,reason);}
+      if(!near&&!parkSession&&(!available(role)||(!cook&&!available(partner))))return error(socket,'Оба игрока должны быть в сети и свободны');
       if(now()-(lastProposal[role]??0)<600)return error(socket,'Подожди перед следующим приглашением');
       const a=cook?SOCIAL_BY_ID.get(isGrillRecipe(cook.command.recipe)?'grill':'cook'):
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
@@ -561,7 +602,7 @@ export function createHomeSessions(hooks: Hooks) {
       const cmd:SocialIntent={type:'together',action:a.id,
         item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined),
         ...(typeof message.moment==='string'?{moment:message.moment}:{})};
-      const reason=parkSession?(contextAvailable(a,hooks.state(),role)?undefined:'Тема пока не подходит к ситуации'):cooperationDenial(hooks.state(),role,cmd);
+      const reason=near?cooperationDenial(hooks.state(),role,cmd):parkSession?(contextAvailable(a,hooks.state(),role)?undefined:'Тема пока не подходит к ситуации'):cooperationDenial(hooks.state(),role,cmd);
       if(reason)return error(socket,reason);
       const resource=socialResource(a,cmd.item);
       if(!cook&&resource&&(reserved(resource)||hooks.resourceBusy(resource)))return error(socket,'Объект уже используется');
@@ -583,6 +624,12 @@ export function createHomeSessions(hooks: Hooks) {
     if(message.choice===null)return closeSocial('declined','Приглашение отклонено');
     if(typeof message.choice!=='number'||!Number.isInteger(message.choice)||message.choice<0||message.choice>=offer.replies.length)
       return error(socket,'Выбери один из ответов');
+    if(isNearbyTalk(offer.action)){
+      const reason=conversationReason(offer.from)??cooperationDenial(hooks.state(),offer.from,command);
+      if(reason||conversation)return closeSocial('interrupted',reason??'Разговор уже идёт');
+      startConversation(offer.from,offer.action,message.choice);
+      closeSocial('accepted','Разговор начался',offer.replies[message.choice]);return;
+    }
     if(parkSession){
       const a=SOCIAL_BY_ID.get(offer.action)!;
       if(parkSessionFor(role)!==parkSession||!contextAvailable(a,hooks.state(),offer.from))return closeSocial('interrupted','Совместный отдых закончился');
@@ -635,6 +682,7 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function recheckAccess() {
+    if(conversation&&conversationReason(conversation.from))stopConversation();
     for (const session of new Set(sessions.values())) {
       const member = session.participants[0].role;
       const command=session.plan.command;
@@ -677,6 +725,8 @@ export function createHomeSessions(hooks: Hooks) {
     dispose() {
       for (const session of sessions.values()) clearTimer(session.timer);
       sessions.clear();
+      if(conversation)clearTimer(conversation.timer);
+      conversation=null;
       if (invite) clearTimer(invite.timer);
       if(socialInvite)clearTimer(socialInvite.timer);
       socialInvite=null;

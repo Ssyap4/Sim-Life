@@ -3,11 +3,12 @@ import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { fitWardrobe, outfitChoices } from './game/Wardrobe';
+import { NEARBY_TALK_TOPICS } from './shared/socialLife';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { residentEmotion } from './shared/emotions';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
-import { PARK_TALK_TOPICS, SOCIAL_BY_ID, contextAvailable, otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
+import {  SOCIAL_BY_ID, contextAvailable, otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
 import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
@@ -1071,6 +1072,10 @@ const net = new LiveConnection({
       notify(message);
     }
   },
+  onConversation(from,remainingMs,title){
+    world.nearbyConversation(from,remainingMs);
+    if(remainingMs>0)notify('💬 '+title);
+  },
   onSocialOffer(offer){
     if(!active)return;
     socialInvite.set(offer,active);
@@ -1182,10 +1187,27 @@ function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:s
   showActionMenu('♡ Вместе с '+names[target]);
   const current=tasks.get(active),partner=tasks.get(target);
   if(world.place==='park'&&current?.paired&&partner?.paired&&current.since!==null&&partner.since!==null&&['picnic','parkSwing'].includes(SOCIAL_BY_ID.get(current.paired.action)?.object??'')&&current.paired.action===partner.paired.action){
-    const me=active;
     const note=document.createElement('p');note.textContent='Разговаривайте, не прерывая отдых.';actionsEl.append(note);
-    for(const topic of PARK_TALK_TOPICS.filter(t=>contextAvailable(t,state!,me))){const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=topic.title;b.onclick=()=>{if(net.social({type:'social_propose',action:topic.id}))actionsEl.hidden=true;};actionsEl.append(b);}
-    return;
+    // The general nearby conversation below also supports active park sessions.
+  }
+  if(online.includes(target)&&state.world.places[active]===state.world.places[target]&&state.characters[active].pose!=='sleep'&&state.characters[target].pose!=='sleep'){
+    const me=active;
+    const section=document.createElement('details');section.open=tasks.has(active)||tasks.has(target);
+    const title=document.createElement('summary');title.textContent='💬 Поговорить, не отвлекаясь от дел';section.append(title);
+    const topics=NEARBY_TALK_TOPICS.filter(t=>contextAvailable(t,state!,me));
+    const groupNames={talk:'Общение',care:'Забота',romance:'Романтика',fun:'Шутки',home:'Быт'};
+    for(const kind of ['talk','romance','care','fun','home'] as const){
+      const relevant=topics.filter(t=>t.group===kind);
+      if(!relevant.length)continue;
+      const groupPanel=document.createElement('details');groupPanel.open=kind==='talk';
+      const groupLabel=document.createElement('summary');groupLabel.textContent=groupNames[kind];groupPanel.append(groupLabel);
+      for(const topic of relevant){
+      const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=topic.title;
+      b.onclick=()=>{if(net.social({type:'social_propose',action:topic.id}))actionsEl.hidden=true;};groupPanel.append(b);
+      }
+      section.append(groupPanel);
+    }
+    actionsEl.append(section);
   }
   const busy=tasks.has(active)||tasks.has(target)?'Кто-то сейчас занят другим действием':undefined;
   if(online.includes(target)&&!tasks.has(active)&&tasks.get(target)?.isCooking){
