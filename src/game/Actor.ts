@@ -950,7 +950,7 @@ export class Actor {
     }
 
     const pair=this.partnerGesture;
-    let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0,partnerYaw=0,partnerSide=0;
+    let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0,partnerYaw=0,partnerSide=0,partnerChestYaw=0;
     if(pair){
       const sec=pair.time;
       const rise=THREE.MathUtils.smoothstep(sec,.12,.78);
@@ -995,11 +995,12 @@ export class Actor {
           // partner body anchor, including rotated purchased sofas.
           const side=pair.partner?Math.sign(this.root.worldToLocal(pair.partner.bodyPosition(new THREE.Vector3())).x-this.figure.position.x):this.id==='vlad'?-1:1;
           const inward=side||1;
-          const strength=pair.motion==='sofaLean'?(pair.leads?1:.22):pair.motion==='sofaKiss'?.8:pair.motion==='sofaHands'?.25:.62;
-          partnerRoll=-inward*.16*contact*strength;
-          partnerHead=-inward*.12*contact*strength;
-          partnerSide=inward*.065*contact*strength;
-          partnerYaw=inward*(pair.motion==='sofaKiss'?.68:.20)*contact;
+          const strength=pair.motion==='sofaLean'?(pair.leads?1:.10):pair.motion==='sofaKiss'?.85:pair.motion==='sofaHands'?.20:.72;
+          partnerRoll=-inward*.32*contact*strength;
+          partnerHead=-inward*.18*contact*strength;
+          partnerSide=inward*.045*contact*strength;
+          partnerYaw=inward*(pair.motion==='sofaKiss'?.86:.24)*contact;
+          partnerChestYaw+=inward*(pair.motion==='sofaKiss'?.56:pair.motion==='sofaHug'?.18:.06)*contact;
           if(pair.motion==='sofaHands'||pair.motion==='sofaHug'&&pair.leads)partnerReach=contact;
           if(inward>0)rightY+=.13*contact;else leftY+=.13*contact;
           expression+=.30*contact;break;
@@ -1402,7 +1403,7 @@ export class Actor {
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x,
       rest?rest.chestPitch+.011*breath:lean + motion * .025 + weightTransfer*.18 + taskRhythm,alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
-      motion * 0.055 * Math.cos(stridePhase) + idleChestYaw, alpha);
+      motion * 0.055 * Math.cos(stridePhase) + idleChestYaw + partnerChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
       .016*Math.sin(t*.71)+motion*.027*Math.sin(stridePhase)+restlessSway+idleChestRoll+partnerRoll+taskRhythm*.65,alpha);
     data.chest.position.z = -Math.sin(data.chest.rotation.x) * data.waistY;
@@ -1534,9 +1535,11 @@ export class Actor {
       if(pair.motion==='sofaHands'){
         this.target.copy(own).lerp(theirs,.5).add(new THREE.Vector3(0,.80,.24).applyAxisAngle(up,this.root.rotation.y));
       }else{
-        this.target.set(0,.02,-.04);
+        const far=other.root.worldToLocal(own.clone()).x-other.figure.position.x>0?other.leftArm:other.rightArm;
+        this.target.copy(far.position);
+        this.target.y-=.07;
+        this.target.z-=.015;
         other.rig.chest.localToWorld(this.target);
-        this.target.y+=.34;
       }
       this.reach(hand,this.target,blend);
       this.aimHand(hand,this.handDirection.set(0,-.8,.2).applyAxisAngle(up,this.root.rotation.y),blend);

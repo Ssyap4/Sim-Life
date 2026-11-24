@@ -523,7 +523,10 @@ export class World {
     const resting=person&&this.actors[subject].isSleeping();
     // A low standing-portrait camera hides the sleeping body behind the bed.
     // Inspect from above and from the foot, respecting a rotated mattress.
-    const bedAngle=resting?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
+    const pairMotion=person?this.homeTasks.get(subject)?.pair?.motion:undefined;
+    const romanticSeat=pairMotion&&['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle','musicTogether'].includes(pairMotion);
+    const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
+      romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
     const angle = bedAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,

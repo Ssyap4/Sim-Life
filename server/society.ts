@@ -142,6 +142,12 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     }
     return null;
   }
+  const intimateSeat=['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle'].includes(a.motion);
+  const compactSeat=(own:{x:number;y:number;z:number;yaw:number},other:{x:number;z:number})=>{
+    const gap=Math.hypot(other.x-own.x,other.z-own.z);
+    const ratio=gap>.58?(gap-.58)/(2*gap):0;
+    return {...own,x:own.x+(other.x-own.x)*ratio,z:own.z+(other.z-own.z)*ratio};
+  };
   if(a.object==='sofa'&&state.furnishing.soldFixtures?.includes('sofa')){
     for(const item of state.furnishing.placed){
       const spec=FURNITURE_BY_ID.get(item.sku);
@@ -158,7 +164,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
           .filter(p=>pointIsClear(p,obstacles,floor)).map(p=>planWalk(state.characters[role],p,obstacles,floor))];
         return options.filter((r):r is NonNullable<typeof r>=>!!r);
       };
-      const build=(l:typeof v,route:typeof v.route):HomePresentation=>({route,station:'furniture',furnitureId:item.id,furniturePose:l.pose,furnitureSeat:true,pair:{motion:a.motion,place,from}});
+      const build=(l:typeof v,route:typeof v.route):HomePresentation=>({route,station:'furniture',furnitureId:item.id,furniturePose:intimateSeat?compactSeat(l.pose,l===v?al.pose:v.pose):l.pose,furnitureSeat:true,pair:{motion:a.motion,place,from}});
       for(const vr of routes('vlad',v))for(const ar of routes('alina',al)){
         const ve=vr.path.at(-1)??vr.from,ae=ar.path.at(-1)??ar.from;
         if(Math.hypot(ve.x-ae.x,ve.z-ae.z)>=RESIDENT_CLEARANCE)return {vlad:build(v,vr),alina:build(al,ar)};
@@ -250,6 +256,11 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
       offsetMs:a.object==='read'&&role!==from?900:0,carry,badmintonWinner:matchWinner};
     result[role]={route,station:seat??'studyPractice',program,lesson:a.object==='lesson'?p:undefined,
       pickup:picked,pickupMs:picked!==undefined?600:undefined,pair};
+    if(intimateSeat&&seat==='sofa'){
+      const own=homeSeat(seat,role),other=homeSeat(seat,otherPerson(role));
+      result[role]!.furniturePose=compactSeat({...own.position,yaw:own.yaw},other.position);
+      result[role]!.furnitureSeat=true;
+    }
   }
   return result as Record<CharacterId,HomePresentation>;
 }
