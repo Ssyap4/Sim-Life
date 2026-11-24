@@ -33,7 +33,7 @@ export function mealGesture(time: number, role: CharacterId): MealGesture {
 }
 
 /** Visual shrink only; food stock and benefits are owned by the server. */
-export function mealServingScale(elapsed: number): number {
+export function mealServingScale(elapsed: number, duration=10): number {
   if (!Number.isFinite(elapsed)) return 1;
-  return 1 - .72 * Math.max(0, Math.min(1, elapsed / 10));
+  return 1 - .72 * Math.max(0, Math.min(1, elapsed / Math.max(1,duration)));
 }

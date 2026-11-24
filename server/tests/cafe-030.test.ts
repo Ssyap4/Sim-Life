@@ -33,13 +33,13 @@ test('cafe table service requires seating; separate guest orders prepare indepen
   s=send(s,'vlad',order);
   s=send(s,'alina',{...order,item:'bbqRibs'});
   assert.equal(s.money,money-CAFE_MENU.tomYum.price-CAFE_MENU.bbqRibs.price);
-  assert.equal(s.world.cafe.vlad!.readyAt,start+75);
-  assert.equal(s.world.cafe.alina!.readyAt,start+90);
+  assert.equal(s.world.cafe.vlad!.readyAt,start+CAFE_MENU.tomYum.minutes);
+  assert.equal(s.world.cafe.alina!.readyAt,start+CAFE_MENU.bbqRibs.minutes);
   assert.equal(validWorld(s.world),true);
   assert.equal(applyWorld(s,'vlad',order).ok,false);
   assert.equal(applyWorld(s,'vlad',{...order,sequence:1}).ok,false);
   assert.equal(localActivity(s,'vlad','dine','cafe-center').ok,false);
-  s=advanceLife(s,75,['vlad','alina']);
+  s=advanceLife(s,CAFE_MENU.tomYum.minutes,['vlad','alina']);
   assert.equal(localActivity(s,'alina','dine','cafe-center').ok,false);
   const meal=localActivity(s,'vlad','dine','cafe-center');
   if(!meal.ok)assert.fail(meal.reason);
@@ -47,7 +47,7 @@ test('cafe table service requires seating; separate guest orders prepare indepen
   for(const need of ['hunger','comfort','mood'] as const)assert.equal(s.characters.vlad[need],100);
   assert.equal(s.world.cafe.vlad,undefined);
   assert.equal(s.world.cafe.alina!.item,'bbqRibs');
-  s=advanceLife(s,15,['vlad','alina']);
+  s=advanceLife(s,CAFE_MENU.bbqRibs.minutes-CAFE_MENU.tomYum.minutes,['vlad','alina']);
   const other=localActivity(s,'alina','dine','cafe-center');
   if(!other.ok)assert.fail(other.reason);
   for(const need of ['hunger','comfort','mood'] as const)assert.equal(other.state.characters.alina[need],100);
@@ -71,7 +71,7 @@ test('three tables and eight cafe servings have distinct batched visible art and
   assert.equal(STATIONS.cafe.filter(t=>t.action.kind==='dine').length,3);
   const signatures=new Set<string>();
   for(const [id,meal] of Object.entries(CAFE_MENU)){
-    assert.ok(meal.minutes>=60&&meal.minutes<=90);
+    assert.ok(meal.minutes>=12&&meal.minutes<=30);
     assert.ok(!Object.values(RECIPES).some(r=>String(r.name)===String(meal.name)));
     const g=new Group();selectIndoorDish(g,id as CafeItem);
     const signature:string[]=[];
@@ -102,4 +102,24 @@ test('a real shared cafe meal uses each ready dish at its own table and creates 
   assert.equal(result.state.world.cafe.vlad,undefined);
   assert.equal(result.state.world.cafe.alina,undefined);
   assert.equal(result.state.relationship.memories.filter(m=>m.action==='cafeMeal').length,1);
+});
+
+test('cafe conversation keeps both seated while cooking continues, consumes no orders',()=>{
+  let s=guests();
+  for(const role of ['vlad','alina'] as const){
+    s=send(s,role,{type:'cafe_seat',station:'cafe-center'});
+    s=send(s,role,{type:'cafe_order',table:'cafe-center',item:'bbqRibs',sequence:0});
+  }
+  const command={type:'together' as const,action:'cafeTalk'};
+  assert.equal(cooperationDenial(s,'vlad',command),undefined);
+  const scenes=pairScenes(s,'vlad',command)!;
+  assert.equal(scenes.vlad.pair?.station,'cafe-center');
+  assert.equal(scenes.alina.pair?.motion,'sitTalk');
+  const r=completeTogether(s,'vlad',command,['vlad','alina'],0,scenes);
+  if(!r.ok)assert.fail(r.reason);
+  assert.deepEqual(r.state.world.cafe,s.world.cafe);
+  assert.equal(r.state.money,s.money);
+  assert.equal(r.state.characters.vlad.pose,'sit');
+  assert.equal(r.state.characters.alina.pose,'sit');
+  assert.ok(cooperationDenial({...s,characters:{...s.characters,alina:{...s.characters.alina,pose:'idle'}}},'vlad',command));
 });

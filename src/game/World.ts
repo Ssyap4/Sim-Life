@@ -1,3 +1,4 @@
+import { CAFE_EAT_SECONDS, cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
 import { buildHomeWing } from './HomeWing';
@@ -930,6 +931,8 @@ export class World {
         });
       }else actor.walkPath(route,arrived);
     };
+    const seated=this.household&&pair.place==='cafe'&&pair.station&&cafeSeatAt(this.household,role)?.id===pair.station;
+    if(seated) {arrived();return true;}
     actor.setPose('idle');
     if(pair.offsetMs) this.preparations.set(role,{remaining:pair.offsetMs/1000,next:walk});
     else walk();
@@ -1090,6 +1093,7 @@ export class World {
           actor.playActivity('eat',plate);
         }
       };
+      if(this.household&&command.action==='dine'&&cafeSeatAt(this.household,role)?.id===station.id){start();return true;}
       return this.walkTo(role, approachFor(station, role), start);
     }
     const sequence = ++this.taskSequence[role];
@@ -2464,7 +2468,7 @@ export class World {
       const elapsed = actor.eatingElapsed();
       const plate = this.meals.get(id)!;
       if (plate.visible && elapsed !== null) {
-        const scale = mealServingScale(elapsed);
+        const scale = mealServingScale(elapsed,this.place==='cafe'?CAFE_EAT_SECONDS:10);
         plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }

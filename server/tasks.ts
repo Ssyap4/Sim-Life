@@ -1,3 +1,4 @@
+import { CAFE_EAT_SECONDS } from '../src/shared/locations';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
@@ -104,7 +105,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action === 'dine' ? 7200 : 5800, resource: null };
+      durationMs: action === 'dine' ? CAFE_EAT_SECONDS*1000 : 5800, resource: null };
   }
   if (command.type === 'act') {
     const id = command.actionId;

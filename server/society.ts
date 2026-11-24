@@ -1,3 +1,4 @@
+import { cafeSeatAt } from '../src/shared/locations';
 import { activityItems, eveningDinnerAction, eveningDishId, eveningMealName, eveningSelection, needsItem, otherPerson, SOCIAL_BY_ID, socialRestriction,
   type PairMotion, type PairPresentation, type Relationship, type SocialActivity, type SocialIntent } from '../src/shared/socialLife';
 import { familyMoments, momentDenial, momentReward } from '../src/shared/familyMoments';
@@ -158,7 +159,10 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const spot=petTarget||(!a.object&&!seated)?twoSpots(state,place,origins,
     contact?RESIDENT_CLEARANCE+.05:1.10,petTarget):undefined;
   const result:Partial<Record<CharacterId,HomePresentation>>={};
-  const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):null;
+  const cafeSeat=cafeSeatAt(state,from);
+  const sameCafeSeat=cafeSeat&&cafeSeat.id===cafeSeatAt(state,to)?.id;
+  const seatedChat=sameCafeSeat&&!a.object&&['talk','listen','explain','laugh','sitTalk'].includes(a.motion);
+  const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
   for(const role of ['vlad','alina'] as const){
@@ -166,7 +170,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const station=localStation&&stationById(place,localStation);
     const stroll=a.object==='walk'?walkStops(place,role):undefined;
     const localApproach=station?approachFor(station,role):null;
-    if(localApproach)localApproach.x+=role==='vlad'?-.045:.045;
+    if(localApproach&&place!=='cafe')localApproach.x+=role==='vlad'?-.045:.045;
     const destination=entry?.destination??(seat?homeSeat(seat,role).approach:localApproach??stroll?.[0]??spot?.[role]);
     if(!destination) return null;
     const stops=entry?.stops??(a.object==='read'?[LIBRARY_APPROACH]:[]);
@@ -181,7 +185,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const focus=entry?.target??petTarget??(station?station.center:spot?.[otherPerson(role)]);
     const carry=a.object==='read'?'book':entry?.stops?.length?'plate':undefined;
     const picked=carry&&stops.length?walk(origins[role],stops[0])?.path.length:undefined;
-    const pair:PairPresentation={motion:entry?.motion??(a.object==='petFeed'&&role!==from?'listen':a.motion),
+    const pair:PairPresentation={motion:entry?.motion??(seatedChat?'sitTalk':a.object==='petFeed'&&role!==from?'listen':a.motion),
       place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:p,stroll:onward,
       offsetMs:a.object==='read'&&role!==from?900:0,carry};
     result[role]={route,station:seat??'studyPractice',program,lesson:a.object==='lesson'?p:undefined,

@@ -1,3 +1,4 @@
+import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
 import { districtStation } from './shared/district';
@@ -29,7 +30,7 @@ function button(label: string, click: () => void, disabled = false) {
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
   openEducation: (room: string, exam?: boolean) => void,
-  enterWork: (station:string) => boolean, openCareer: () => void) {
+  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -283,7 +284,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(button('Квалификационные экзамены', () => openEducation('classroom', true)));
     } else if (kind === 'dine') {
       const order=place.world.cafe[role];
-      const seated=place.characters[role].pose==='sit';
+      const seated=cafeSeatAt(place,role)?.id===station.id;
+      const partner=role==='vlad'?'alina':'vlad';
+      const sameTable=seated&&cafeSeatAt(place,partner)?.id===station.id;
+      if(sameTable&&cafeSocial){
+        options.append(button('Поболтать за столиком',()=>{if(cafeSocial('cafeTalk'))close();}));
+        const other=place.world.cafe[partner];
+        if(order?.table===station.id&&other?.table===station.id&&order.readyAt<=now&&other.readyAt<=now)options.append(button('Поесть вместе',()=>{if(cafeSocial('cafeMeal'))close();}));
+      }
       if(!seated)options.append(button('Сесть за столик',()=>send({type:'cafe_seat',station:station.id})));
       else if(order?.pickedUp)options.append(local('Съесть блюдо','dine'));
       else if(order?.table===station.id){
@@ -292,7 +300,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(element('strong','',meal.name));
         if(remaining){
           const progress=element('progress','cafe-order-progress');
-          progress.max=meal.minutes; progress.value=Math.max(0,meal.minutes-remaining);
+          progress.max=Math.max(1,order.readyAt-(order.orderedAt??(order.readyAt-meal.minutes))); progress.value=Math.max(0,progress.max-remaining);
           progress.setAttribute('aria-label','Приготовление заказа');
           options.append(element('small','','Готовится · '+remaining+' игровых мин.'),progress);
         }else options.append(local('Съесть блюдо','dine'));

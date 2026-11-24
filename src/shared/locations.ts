@@ -211,15 +211,24 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
 }
 
 export const CAFE_MENU = {
-  cappuccino: { name: 'Капучино', price: 260, hunger: 5, energy: 14, mood: 20, comfort: 15, minutes: 60 },
-  tea: { name: 'Чай с ягодами', price: 190, hunger: 5, energy: 8, mood: 15, comfort: 10, minutes: 60 },
-  brioche: { name: 'Бриошь с сыром', price: 380, hunger: 35, energy: 3, mood: 25, comfort: 20, minutes: 65 },
-  pastry: { name: 'Ягодный тарт', price: 410, hunger: 25, energy: 4, mood: 45, comfort: 30, minutes: 65 },
-  caesar: { name: 'Цезарь с курицей', price: 590, hunger: 65, energy: 0, mood: 50, comfort: 45, minutes: 70 },
-  tomYum: { name: 'Том-ям с креветками и рисом', price: 890, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 75 },
-  tunaPoke: { name: 'Поке с тунцом и авокадо', price: 990, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 80 },
-  bbqRibs: { name: 'Свиные рёбрышки BBQ с коул-слоу', price: 1290, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 90 },
+  cappuccino: { name: 'Капучино', price: 260, hunger: 5, energy: 14, mood: 20, comfort: 15, minutes: 12 },
+  tea: { name: 'Чай с ягодами', price: 190, hunger: 5, energy: 8, mood: 15, comfort: 10, minutes: 12 },
+  brioche: { name: 'Бриошь с сыром', price: 380, hunger: 35, energy: 3, mood: 25, comfort: 20, minutes: 16 },
+  pastry: { name: 'Ягодный тарт', price: 410, hunger: 25, energy: 4, mood: 45, comfort: 30, minutes: 16 },
+  caesar: { name: 'Цезарь с курицей', price: 590, hunger: 65, energy: 0, mood: 50, comfort: 45, minutes: 20 },
+  tomYum: { name: 'Том-ям с креветками и рисом', price: 890, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 24 },
+  tunaPoke: { name: 'Поке с тунцом и авокадо', price: 990, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 27 },
+  bbqRibs: { name: 'Свиные рёбрышки BBQ с коул-слоу', price: 1290, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 30 },
 } as const;
+export const CAFE_EAT_SECONDS=32;
+export const CAFE_TALK_SECONDS=18;
+export function cafeSeatAt(state:Pick<import('./protocol').GameState,'world'|'characters'>,role:CharacterId):Station|undefined{
+  if(state.world.places[role]!=='cafe'||state.characters[role].pose!=='sit')return;
+  return STATIONS.cafe.find(station=>{
+    const p=approachFor(station,role),c=state.characters[role];
+    return station.action.kind==='dine'&&Math.hypot(p.x-c.x,p.z-c.z)<.22;
+  });
+}
 export type CafeItem = keyof typeof CAFE_MENU;
 export function isCafeItem(value: unknown): value is CafeItem {
   return typeof value === 'string' && Object.hasOwn(CAFE_MENU, value);
