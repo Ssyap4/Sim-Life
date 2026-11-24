@@ -17,6 +17,7 @@ import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import {recordCompletedActivity} from '../src/shared/emotions';
+import {applyLifeMoments} from '../src/shared/lifeMoments';
 import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
@@ -386,6 +387,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const diners=homeTasks.diners();
     for(const [role,task] of running)if(task.plan.command.type==='eat'||task.plan.command.type==='eat_takeout'){const r=diningLocation(next.state,role,task.plan.command.furnitureId)?.route;diners.set(role,r?(r.path.at(-1)??r.from):homeSeat('table',role).approach);}
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved,diners);
+    applyLifeMoments(next.state,clockMinutes(state.clock),[...active.keys()].filter(role=>
+      !sleepers.has(role)&&!running.has(role)&&!homeTasks.busy(role)&&
+      !leisure.has(role)&&!walkingHome.has(role)&&!storageOpen.has(role)&&
+      !(queuedTasks.get(role)?.length??0)&&!next.state.activeShifts[role]&&
+      !next.state.careers.residents[role].shift));
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
