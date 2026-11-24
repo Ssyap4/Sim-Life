@@ -5,6 +5,8 @@ import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 import {once} from 'node:events';
+import {homeToysFor,homeToyApproach} from '../src/shared/pets.ts';
+import {PET_TOYS} from '../src/shared/petToys.ts';
 import {initialState} from '../src/shared/protocol.ts';
 import {homeSeat} from '../src/shared/home.ts';
 import {grantStarterPetFurniture} from '../server/starterPets.ts';
@@ -62,9 +64,15 @@ try{
    await send({type:'pet_furniture_buy',sku:'pet-house-igloo'});
    await page.waitForFunction(()=>window.qaState?.furnishing.stored.some(i=>i.sku==='pet-house-igloo'));
    await shot('petshop-furniture-purchase');
+   await send({type:'pet_toy_buy',product:'cat-mouse'});
+   await page.waitForFunction(()=>window.qaState?.pets.simba.ownedToys?.includes('cat-mouse'));
  });
  const home=base();grantStarterPetFurniture(home);
  home.furnishing.placed.push({id:home.furnishing.nextId++,sku:'pet-bed-dog-nest',finish:'sage',x:-2.9,z:3.34,rotation:0});
  await scenario(home,async(page,shot)=>{await shot('new-pet-furniture-home');});
+ for(const toy of PET_TOYS){
+  const s=base();grantStarterPetFurniture(s);const p=s.pets[toy.pet];p.ownedToys=[toy.id];const index=homeToysFor(toy.pet).findIndex(t=>t.id===toy.id),goal=homeToyApproach(toy.pet,index);p.position=goal;p.routine={kind:'toy',target:index,goal,route:{from:goal,path:[]},startedAt:480,until:492};
+  await scenario(s,async(page,shot)=>{await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="'+toy.pet+'"]').click();await page.waitForTimeout(1800);await shot('toy-'+toy.id+'-a');await page.waitForTimeout(800);await shot('toy-'+toy.id+'-b');});
+ }
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

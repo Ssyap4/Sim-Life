@@ -1,4 +1,5 @@
-import { DOG_TOYS,dogToyApproach } from '../src/shared/pets';
+import { homeToysFor,homeToyApproach } from '../src/shared/pets';
+import {validToyExtras,toyOwned} from '../src/shared/petToys';
 import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
@@ -144,7 +145,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
@@ -168,7 +169,7 @@ const isValidState = (value: unknown): value is GameState => {
           routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
-        (routine.kind!=='toy'||id==='verdell'&&routine.target<DOG_TOYS.length&&point(routine.goal)&&Math.hypot(routine.goal!.x-dogToyApproach(routine.target).x,routine.goal!.z-dogToyApproach(routine.target).z)<.03) &&
+        (routine.kind!=='toy'||(()=>{const toy=homeToysFor(id)[routine.target];return !!toy&&(!('id' in toy)||toyOwned(pet,toy.id))&&point(routine.goal)&&Math.hypot(routine.goal!.x-homeToyApproach(id,routine.target).x,routine.goal!.z-homeToyApproach(id,routine.target).z)<.03;})()) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&

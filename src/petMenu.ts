@@ -1,3 +1,4 @@
+import {toysFor,toyOwned,TOY_REACTIONS} from './shared/petToys';
 import { nextPetFood,petFoodProduct,FOOD_REACTIONS } from './shared/petShop';
 import {
   PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel,treatsRemaining, type PetId, type PetAction,
@@ -70,6 +71,8 @@ export function renderPetChoices(
   petFurniture.textContent='🏡 Лежанки: '+beds.length+(favorite?' · есть любимая':'')+
     (selected==='simba'?' · когтеточки: '+petScratchers(state.furnishing).length:'');
   container.appendChild(petFurniture);
+  const toys=toysFor(selected).filter(p=>toyOwned(stats,p.id));
+  if(toys.length){const note=document.createElement('p');note.className='pet-note';note.textContent='🧸 Игрушки: '+toys.map(p=>p.name+' · '+(stats.toyPreferences?.[p.id]===undefined?'ещё не играл':TOY_REACTIONS[stats.toyPreferences[p.id]])).join('; ');container.appendChild(note);}
   const wish = petWish(state, selected);
   const thoughts = document.createElement('section');
   thoughts.className = 'pet-wish' + (wish.urgent ? ' pet-wish-urgent' : '');
@@ -156,6 +159,7 @@ export function renderPetChoices(
     action:'fetch',icon:'🎾',hint:'Пробежать к мячику и принести его обратно',
     disabled:stats.satiety<40||stats.bladder<35||stats.energy<42,
   });
+  actions.unshift({action:'toy',icon:'🧸',hint:'Питомец идёт к купленной игрушке. Повтори, чтобы сменить её.',disabled:!toys.length||stats.satiety<40||stats.bladder<35||stats.energy<45});
   actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
   for (const row of actions) {
     const button = document.createElement('button');

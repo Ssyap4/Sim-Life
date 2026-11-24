@@ -1,4 +1,5 @@
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
+import { toyProduct,toyOwned } from '../src/shared/petToys';
 import { petFoodProduct } from '../src/shared/petShop';
 import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
@@ -82,7 +83,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'pet_food_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -96,6 +97,14 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='pet_toy_buy'){
+    if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
+    const p=toyProduct(command.product);if(!p)return fail('Неизвестная игрушка');
+    if(toyOwned(source.pets[p.pet],p.id))return fail('Такая игрушка уже есть');
+    if(source.money<p.price)return fail('Недостаточно денег');
+    const next=structuredClone(source);next.money-=p.price;(next.pets[p.pet].ownedToys??=[]).push(p.id);
+    addLedger(next,role,'expense','pets',p.price,p.name);return done(next,'Куплено: '+p.name+' · игрушка появится дома');
+  }
   if(command.type==='pet_furniture_buy'){
     if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
     const item=PURCHASABLE_FURNITURE.find(p=>p.category==='pets'&&p.id===command.sku);

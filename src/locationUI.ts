@@ -1,3 +1,4 @@
+import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
 import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
@@ -184,9 +185,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }
     } else if(kind==='pet-furniture-display'){
       for(const p of PURCHASABLE_FURNITURE.filter(p=>p.category==='pets')){options.append(element('strong','',p.name+' · '+formatRub(p.price)),element('small','',p.description),button(petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();}));}
+      for(const p of PET_TOYS){const owned=toyOwned(place.pets[p.pet],p.id);options.append(element('strong','',(p.pet==='simba'?'🐈 ':'🐕 ')+p.name+' · '+formatRub(p.price)),element('small','',p.description),button(owned?'Уже дома':petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();},owned));}
     } else if(kind==='pet-checkout'){
       const p=petFoodProduct(petCart),f=PURCHASABLE_FURNITURE.find(i=>i.category==='pets'&&i.id===petCart);
-      if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
+      const toy=toyProduct(petCart);
+      if(toy)options.append(element('strong','',toy.name),element('small','',toy.description),button('Купить · '+formatRub(toy.price),()=>{if(send({type:'pet_toy_buy',product:toy.id})){petCart=undefined;close();}},place.money<toy.price||toyOwned(place.pets[toy.pet],toy.id)),button('Отмена',()=>{petCart=undefined;draw();}));
+      else if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
       else if(!p)options.append(element('small','','Выбери товар на витрине.'));
       else options.append(element('strong','',p.name),element('small','',petFoodBenefit(p)),button('Купить · '+formatRub(p.price),()=>{if(send({type:'pet_food_buy',product:p.id})){petCart=undefined;close();}},place.money<p.price||place.petFood[p.pet]+p.refills>50),button('Отмена',()=>{petCart=undefined;draw();}));
     } else if(station.action.kind==='electronics-display'){

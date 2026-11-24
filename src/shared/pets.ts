@@ -1,7 +1,8 @@
+import { toysFor } from './petToys';
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat';
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy';
 export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
@@ -16,6 +17,8 @@ export function dogToyApproach(index:number):FloorPoint{
   const toy=DOG_TOYS[index];
   return {x:toy.x,z:toy.z-.48};
 }
+export const homeToysFor=(id:PetId)=>id==='verdell'?[...DOG_TOYS,...toysFor(id)]:toysFor(id);
+export function homeToyApproach(id:PetId,index:number):FloorPoint{const toy=homeToysFor(id)[index];return {x:toy.x,z:toy.z-(id==='verdell'?.48:.39)};}
 export interface PetRoutine {
   kind: typeof PET_ROUTINES[number];
   target: number;
@@ -45,6 +48,8 @@ export interface PetState {
   /** Retained preference only while a matching purchased bed remains installed. */
   favoriteBedId?: number;
   treats?:{day:number;used:number};
+  ownedToys?:string[];
+  toyPreferences?:Record<string,0|1|2|3>;
   foodQueue?:string[];
   bowlFood?:string;
   foodPreferences?:Record<string,import("./petShop").FoodPreference>;
@@ -127,7 +132,7 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'sleep') return routine.goal ?? pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
-  if(routine.kind==='toy')return dogToyApproach(routine.target);
+  if(routine.kind==='toy')return homeToyApproach(id,routine.target);
   if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }
@@ -153,5 +158,6 @@ export const PET_ACTION_NAMES: Record<PetAction, string> = {
   mat: 'Отдохнуть на лежанке',
   scratch: 'Поточить когти',
   treat: 'Дать лакомство',
+  toy: 'Поиграть с игрушкой',
 };
 export const PET_IDS = ['verdell', 'simba'] as const;

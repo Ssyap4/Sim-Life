@@ -1,9 +1,10 @@
+import { toyOwned,toyPreference } from '../src/shared/petToys';
 import { petFoodProduct,discoverFoodPreference,nextPetFood } from "../src/shared/petShop";
 import { catOccupiedPerch } from '../src/shared/catOccupancy';
 import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
-  DOG_TOYS, dogToyApproach, treatsRemaining,PET_TREAT_REWARD,PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
+  homeToysFor, homeToyApproach, treatsRemaining,PET_TREAT_REWARD,PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
   petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
@@ -189,10 +190,10 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       !currentPetEquipment(state.furnishing,previous.equipment);
     // A pre-update saved 'eat' route cannot mime eating from an empty bowl.
     const invalidToy=previous?.kind==='toy'&&(()=>{
-      const toy=DOG_TOYS[previous.target];
-      if(!toy)return true;
+      const toy=homeToysFor(id)[previous.target];
+      if(!toy||'id' in toy&&!toyOwned(pet,toy.id))return true;
       const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
-      return !pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(dogToyApproach(previous.target),geometry.obstacles,geometry.floor);
+      return !pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(homeToyApproach(id,previous.target),geometry.obstacles,geometry.floor);
     })();
     const diningOwner=(['vlad','alina'] as const).find(role=>diners.has(role)&&state.world.places[role]==='home');
     const wantBeg=!!diningOwner&&treatsRemaining(pet,state.clock.day)>0&&pet.energy>=28&&pet.bladder>=25;
@@ -229,8 +230,11 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.bond=clamp(pet.bond+5);
       pet.happiness=clamp(pet.happiness+10);
       pet.energy=clamp(pet.energy-5);
-    } else if(previous?.kind==='toy'&&!invalidToy&&previous.until<=now&&id==='verdell'){
-      pet.happiness=clamp(pet.happiness+6);pet.energy=clamp(pet.energy-3);
+    } else if(previous?.kind==='toy'&&!invalidToy&&previous.until<=now){
+      const toy=homeToysFor(id)[previous.target];
+      if(toy&&'id' in toy){const preference=toyPreference(pet,toy.id,random);pet.happiness=clamp(pet.happiness+toy.joy+[-5,0,3,6][preference]);}
+      else pet.happiness=clamp(pet.happiness+6);
+      pet.energy=clamp(pet.energy-3);
     } else if (previous?.kind==='perch' && !invalidPerch && previous.until<=now) {
       // Real completed resting on an installed sofa/bed restores a modest
       // amount of energy. An invalidated/sold cushion gives no reward.
@@ -275,6 +279,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       if(post){kind='scratch';target=0;chosenRoute=post.route;
         chosenGoal=post.goal;chosenEquipment=post.equipment;}
     }
+    // Purchased cat toys compete with furniture play, but never basic needs.
+    if(id==='simba'&&kind==='wander'&&previous?.kind!=='toy'&&pet.ownedToys?.length&&pet.energy>=65&&pet.satiety>=45&&pet.bladder>=64&&random()<.55){
+      const toys=homeToysFor(id),geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      const start=Math.floor(random()*toys.length);
+      const indices=toys.map((_,i)=>(start+i)%toys.length);
+      if(random()<.64)indices.sort((a,b)=>(pet.toyPreferences?.[(toys[b] as import('../src/shared/petToys').ToyProduct).id]??2)-(pet.toyPreferences?.[(toys[a] as import('../src/shared/petToys').ToyProduct).id]??2));
+      for(const index of indices){const toy=toys[index],goal=homeToyApproach(id,index);if(!('id' in toy)||!toyOwned(pet,toy.id)||!pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;const route=planPetRoute(pet.position,goal,geometry);if(route&&arrivesAt(route,goal)&&route.path.length<=60){kind='toy';target=index;chosenRoute=route;chosenGoal=goal;break;}}
+    }
     // Real, server-owned little feline excursions. Never during hunger,
     // fatigue, toilet trips, play, or immediately after another perching.
     if(id==='simba' && kind==='wander' && previous?.kind!=='perch' &&
@@ -292,9 +304,12 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     // Play independently with the real household toys, indoors and on the lawn.
     if(id==='verdell'&&kind==='wander'&&previous?.kind!=='toy'&&pet.energy>=45&&pet.satiety>=45&&pet.bladder>=64&&random()<.45){
       const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
-      const start=Math.floor(random()*DOG_TOYS.length)%DOG_TOYS.length;
-      for(let i=0;i<DOG_TOYS.length;i++){
-        const index=(start+i)%DOG_TOYS.length,toy=DOG_TOYS[index],goal=dogToyApproach(index);
+      const toys=homeToysFor(id).map((toy,index)=>({toy,index})).filter(({toy})=>!('id' in toy)||toyOwned(pet,toy.id));
+      const start=Math.floor(random()*toys.length)%toys.length;
+      const choices=toys.map((_,i)=>toys[(start+i)%toys.length]);
+      if(pet.ownedToys?.length&&random()<.68)choices.sort((a,b)=>('id' in b.toy?(pet.toyPreferences?.[b.toy.id]??2):1)-('id' in a.toy?(pet.toyPreferences?.[a.toy.id]??2):1));
+      for(const {index,toy} of choices){
+        const goal=homeToyApproach(id,index);
         if(!pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;
         const route=planPetRoute(pet.position,goal,geometry);
         if(route&&arrivesAt(route,goal)&&route.path.length<=60){
@@ -335,7 +350,7 @@ export function applyPetAction(
   blocked?:(site:CatPerch)=>boolean,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
-  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat'].includes(action))
+  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -347,7 +362,7 @@ export function applyPetAction(
 
   // Commands are issued while the player stays put. They MUST NOT call
   // petCarePoint / teleport the human beside the animal.
-  if(kind==='call'||kind==='perch'||kind==='fetch'||kind==='mat'||kind==='scratch'){
+  if(kind==='call'||kind==='perch'||kind==='fetch'||kind==='mat'||kind==='scratch'||kind==='toy'){
     if(next.world.places[role]!=='home')
       return {ok:false,reason:'Позвать питомца можно только из дома или своего двора'};
     if(actor.pose==='sleep'||actor.pose==='work')
@@ -366,7 +381,18 @@ export function applyPetAction(
       }
     }
     if(kind==='perch'&&data.routine?.kind==='perch')return {ok:false,reason:'Симба уже устроился на мебели'};
-    if(kind==='mat'){
+    if(kind==='toy'){
+      if(id==='verdell'&&next.world.dogWalker)return {ok:false,reason:'Верделл на прогулке'};
+      if(data.energy<45)return {ok:false,reason:spec.name+' сначала нужно отдохнуть'};
+      const geometry=petNavigationGeometry(placeObstacles('home',next.furnishing),HOME_FLOOR);
+      const choices=homeToysFor(id).map((toy,index)=>({toy,index})).filter(({toy})=>'id' in toy&&toyOwned(data,toy.id));
+      if(!choices.length)return {ok:false,reason:'Сначала купи игрушку в зоомагазине'};
+      const previous=data.routine?.kind==='toy'?data.routine.target:-1;
+      const start=choices.findIndex(c=>c.index===previous)+1;
+      let selected=false;
+      for(let i=0;i<choices.length;i++){const {toy,index}=choices[(start+i)%choices.length],goal=homeToyApproach(id,index);if(!pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;const route=planPetRoute(data.position,goal,geometry);if(!route||!arrivesAt(route,goal)||route.path.length>60)continue;const travel=Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);data.routine={kind:'toy',target:index,goal,route,startedAt:now,until:now+travel+12};message=spec.name+' играет: '+toy.name;selected=true;break;}
+      if(!selected)return {ok:false,reason:'Нет доступного места у игрушек'};
+    }else if(kind==='mat'){
       const chosen=findPetBed(next,id);
       if(!chosen)return {ok:false,reason:'Сначала купи и поставь подходящую лежанку для '+spec.name};
       const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);

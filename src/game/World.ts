@@ -299,7 +299,7 @@ export class World {
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
-    this.homeScene.add(this.pets.verdell.homeToys);
+    this.homeScene.add(this.pets.verdell.homeToys,this.pets.simba.homeToys);
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -2132,7 +2132,7 @@ export class World {
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
       this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
-      this.pets.verdell.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor);
+      for(const id of PET_IDS)this.pets[id].setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor,state.pets[id].ownedToys);
       if(place==='home'&&!changed)for(const actor of Object.values(this.actors)){
         const pos=actor.root.position;
         if(pointIsClear(pos,previousObstacles,HOME_FLOOR)&&!pointIsClear(pos,this.obstacles,HOME_FLOOR)){
@@ -2293,6 +2293,7 @@ export class World {
     for (const id of PET_IDS) {
       this.bowlFood[id].forEach((piece,index) => { piece.visible = index < state.petBowls[id]; });
       const pet = this.pets[id];
+      pet.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor,state.pets[id].ownedToys);
       const candidate = state.pets[id].routine;
       const routine = candidate && (candidate.kind==='perch' &&
         (!candidate.perch||!currentCatPerch(state.furnishing,candidate.perch)) ||

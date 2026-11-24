@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import type { SimbaRig } from './SimbaRig';
 import type { CatPerch } from '../shared/CatPerches';
 import { CAT_REST_POSES, chooseCatRestPose, type CatRestPoseId } from '../shared/CatRestPoses';
-import { DOG_TOYS, PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
+import { homeToysFor,homeToyApproach, PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
-import { createDogToy, createPetPlayToy } from './PetToys';
+import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
@@ -17,6 +17,7 @@ export class PetActor {
   readonly root = new THREE.Group();
   readonly homeToys=new THREE.Group();
   private toyIndex:number|undefined;
+  private readonly toys:ReturnType<typeof homeToysFor>;
   private readonly toyContact=new THREE.Vector3();
   private readonly body = new THREE.Group();
   private perch:CatPerch|null=null;
@@ -84,8 +85,10 @@ export class PetActor {
     this.fetchTargetToy.visible=false;
     this.root.add(this.playToy,this.fetchTargetToy);
     const dog = id === 'verdell';
-    if(dog)for(const toy of DOG_TOYS){
-      const model=createDogToy(toy.kind);
+    this.toys=homeToysFor(id);
+    for(const toy of this.toys){
+      const model='id' in toy?createShopToy(toy.kind):createDogToy(toy.kind);
+      model.visible=!('id' in toy);
       model.position.set(toy.x,.015,toy.z);
       this.homeToys.add(model);
     }
@@ -113,18 +116,20 @@ export class PetActor {
     }
   }
 
-  setHomeToyAvailability(obstacles:readonly FloorRect[],floor:FloorRect):void{
-    for(let i=0;i<DOG_TOYS.length;i++){
-      const model=this.homeToys.children[i];
-      if(model)model.visible=pointIsClear(DOG_TOYS[i],obstacles,floor);
+  setHomeToyAvailability(obstacles:readonly FloorRect[],floor:FloorRect,owned:readonly string[]=[]):void{
+    for(let i=0;i<this.toys.length;i++){
+      const model=this.homeToys.children[i],toy=this.toys[i];
+      if(model)model.visible=(!('id' in toy)||owned.includes(toy.id))&&pointIsClear(toy,obstacles,floor)&&pointIsClear(homeToyApproach(this.id,i),obstacles,floor);
     }
   }
   private animateHouseToys(weight:number,time:number):void{
-    for(let i=0;i<DOG_TOYS.length;i++){
-      const model=this.homeToys.children[i],toy=DOG_TOYS[i];
+    for(let i=0;i<this.toys.length;i++){
+      const model=this.homeToys.children[i],toy=this.toys[i];
       if(!model)continue;
       model.position.set(toy.x,.015,toy.z);
       model.rotation.set(0,0,0);
+      model.scale.setScalar(1);
+      for(const child of model.children){if(child.name==='Puzzle lid'){child.position.z=0;child.rotation.x=0;}if(child.name==='Feather stalk')child.rotation.set(0,0,0);}
       if(i!==this.toyIndex||!weight||!model.visible)continue;
       if(toy.kind==='ball'){
         const nudge=Math.max(0,Math.sin(time*4))*weight;
@@ -138,6 +143,19 @@ export class PetActor {
         model.position.lerp(this.toyContact,hold);
         model.rotation.y=this.root.rotation.y+Math.sin(time*8)*hold*.55;
         model.rotation.z=Math.sin(time*8)*hold*.18;
+      }else if(toy.kind==='bone'||toy.kind==='ring'){
+        const hold=THREE.MathUtils.smoothstep(Math.sin(time*(toy.kind==='bone'?1.1:1.65)),-.35,.35)*weight;
+        this.head.updateWorldMatrix(true,false);this.toyContact.copy(this.head.localToWorld(this.perchLocal.set(0,-.139,.365)));
+        model.position.lerp(this.toyContact,hold);model.rotation.y=this.root.rotation.y+(toy.kind==='ring'?Math.sin(time*8)*.42:Math.PI/2);
+        model.rotation.x=toy.kind==='ring'?Math.PI*.46*hold:0;model.scale.y=1-(toy.kind==='bone'?.18*hold*Math.max(0,Math.sin(time*13)):0);
+      }else if(toy.kind==='puzzle'){
+        const lids=model.children.filter(c=>c.name==='Puzzle lid');lids.forEach((lid,j)=>{lid.position.z=weight*.09*Math.max(0,Math.sin(time*2+j*Math.PI));lid.rotation.x=weight*.4*Math.max(0,Math.sin(time*2+j*Math.PI));});
+      }else if(toy.kind==='mouse'){
+        const phase=time%2.5;model.position.x+=weight*.10*Math.sin(phase*3.2);model.position.z+=weight*.095*Math.max(0,Math.sin(phase*4));model.rotation.y=weight*Math.sin(phase*5)*.8;
+      }else if(toy.kind==='spring'){
+        const hit=Math.max(0,Math.sin(time*3.8));model.position.x+=weight*.13*Math.sin(time*3.8);model.position.y+=weight*.10*hit;model.rotation.x=weight*hit*2.6;model.rotation.z=weight*Math.sin(time*5);
+      }else if(toy.kind==='feather'){
+        const stalk=model.getObjectByName('Feather stalk');if(stalk){stalk.rotation.x=weight*.48*Math.sin(time*4.3);stalk.rotation.z=weight*.38*Math.sin(time*3.4);}
       }else{
         // Soft toy stays on the ground while the dog noses and paws at it.
         model.position.x+=Math.sin(time*2.4)*weight*.045;
@@ -459,12 +477,15 @@ export class PetActor {
     const r = this.reactionTime;
     if (r > 2.75) this.reaction = null;
     const weight = this.reaction ? Math.sin(Math.PI * Math.min(1, r / 2.75)) : 0;
-    const toy=this.toyIndex!==undefined?DOG_TOYS[this.toyIndex]:undefined;
-    const toyPlay=dog&&toy&&this.routine==='toy'&&!this.route.length
-      &&Math.hypot(this.root.position.x-toy.x,this.root.position.z-(toy.z-.48))<.22
+    const toy=this.toyIndex!==undefined?this.toys[this.toyIndex]:undefined;
+    const toyPlay=toy&&this.routine==='toy'&&!this.route.length&&this.homeToys.children[this.toyIndex!]?.visible
+      &&Math.hypot(this.root.position.x-toy.x,this.root.position.z-(toy.z-(dog?.48:.39)))<.22
       ?Math.min(1,this.settled*2):0;
     const toyBeat=this.settled;
-    const playful = this.reaction === 'play' ? weight : toyPlay*(toy?.kind==='marfa'?.26:toy?.kind==='rope'?.48:.74);
+    const playful = this.reaction === 'play' ? weight : toyPlay*(toy?.kind==='marfa'?.26:toy?.kind==='rope'?.48:toy?.kind==='bone'?.24:toy?.kind==='puzzle'?.12:toy?.kind==='spring'?.44:.74);
+    const catToy=!dog?toyPlay:0;const catPounce=catToy*(toy?.kind==='mouse'?Math.max(0,Math.sin(toyBeat*2.5))**3:0);
+    const catStrike=catToy*(toy?.kind==='spring'?.65+.35*Math.sin(toyBeat*3.8):toy?.kind==='feather'?.8:.8*catPounce);
+    const puzzle=toy?.kind==='puzzle'?toyPlay:0;
     const scratching=!dog && this.routine==='scratch' && !this.route.length
       ? Math.min(1,this.settled*2):0;
     const settled = Math.min(1, this.settled * 3);
@@ -590,13 +611,13 @@ export class PetActor {
         attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
         + watching * .24 + lookout*.28 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
         + catInterest * Math.sin(t * 1.25) + nuzzle*.26
-      + pounce * .19 * Math.sin(this.idleTime*2.1) + curled*.26 + (toy?.kind==='rope'?toyPlay*Math.sin(toyBeat*7)*.38:0), smooth);
+      + pounce * .19 * Math.sin(this.idleTime*2.1) + curled*.26 + (toy?.kind==='rope'||toy?.kind==='ring'?toyPlay*Math.sin(toyBeat*7)*.38:0)+catToy*Math.sin(toyBeat*3)*.26, smooth);
     this.head.rotation.z = THREE.MathUtils.lerp(this.head.rotation.z,
       (dog ? 0.035 : 0.021) * Math.sin(t * 0.92) + attention * (dog ? 0.19 : -0.14)
       + greeting * .12 + grooming * -.16 + watching * .07
       + pawWave * .11 + begging * .07 * Math.sin(this.idleTime * 4.1)
       + nuzzle*.13*Math.sin(this.idleTime*3.0) + curled*.06, smooth);
-    this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12));
+    this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0) - eating * (0.010 + 0.012 * Math.sin(r * 12))-(toy?.kind==='bone'?toyPlay*.025*(.5+.5*Math.sin(toyBeat*13)):0);
     const ownerWag = dog && this.ambient.personNearby && this.ambient.satiety >= 25 &&
       this.routine !== 'sleep' && this.routine !== 'eat' && this.routine !== 'toilet' ? .48 : 0;
     this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful + 4 * ownerWag
@@ -641,7 +662,7 @@ export class PetActor {
           + playBow * .13 - happyHop * .28 : 0
           : i === 0 ? -1.25 * grooming * (0.87 + .13 * Math.sin(t * 8))
           - .35 * pounce : 0)
-        - (front ? .30 : -.10) * stretching
+        - (front ? .30 : -.10) * stretching-(dog&&i===0?puzzle*.85*Math.max(0,Math.sin(toyBeat*2)):0)-(!dog&&front?catStrike*.65*Math.max(0,Math.sin(toyBeat*4+i)):0)
         - (dog && front ? 1.06 * begging + .14 * begging *
           Math.sin(this.idleTime * 8 + i * 2) : 0);
       paw.position.y = (dog ? (front ? .225 : .268) : front ? .245 : .27) +
@@ -653,7 +674,7 @@ export class PetActor {
           + pawWave * .21 * (0.5 + .5 * Math.sin(this.idleTime * 6.5))
           - playBow * .035 + happyHop * .11 : 0)
         + (!dog && i < 2 ? pounce * -.045 : 0)
-        + (dog && front ? .47 * begging : 0);
+        + (dog && front ? .47 * begging : 0)+(dog&&i===0?puzzle*.15*Math.max(0,Math.sin(toyBeat*2)):0);
       if(dog){
         const phase=travel*19+(i===0||i===3?Math.PI:0);
         const swing=Math.max(0,-Math.cos(phase));
@@ -676,7 +697,7 @@ export class PetActor {
       this.head.updateWorldMatrix(true,false);
       this.playToy.position.copy(this.root.worldToLocal(this.head.localToWorld(this.perchLocal.set(0,-.139,.365))));
     }
-    if(dog)this.animateHouseToys(toyPlay,toyBeat);
+    this.animateHouseToys(toyPlay,toyBeat);
     if(this.simbaRig){
       const rest=Math.max(sleeping*.94,catNap,lookout*.60);
       const phase=this.perchProgress;
@@ -685,7 +706,7 @@ export class PetActor {
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
       const loaf=Math.max(curled,lookout*.72,catNap);
       const coil=Math.max(curled,lookout*.36,catNap*.85);
-      const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation;
+      const crouch=.24*rest+.075*eating+.075*stretching+.105*toilet+.085*(playBow+pounce)+anticipation+catToy*(toy?.kind==='mouse'?.13*(1-catPounce):.04);
       // A real curled cat is a skeletal pose, not a stretched walking mesh.
       // Keep the silhouette recognizable; the bones do the actual tucking.
       this.body.scale.set(1,
@@ -702,10 +723,10 @@ export class PetActor {
       const distance=post?Math.hypot(post.x-this.root.position.x,post.z-this.root.position.z):0;
       const step=post?Math.max(0,distance/this.root.scale.z-.35):.16;
       // Lift only enough to clear the upholstery after bending the knees.
-      const groundBodyY=-.025-crouch+lift*.022+.19*scratching;
+      const groundBodyY=-.025-crouch+lift*.022+.19*scratching+catPounce*.19;
       this.body.position.set(0,
         THREE.MathUtils.lerp(groundBodyY, -(restPreset?.sink??0),restWeight),
-        step*scratching);
+        step*scratching+catPounce*.16);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,entering?0:surface.entry==='jump'?.35:.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.08,entering?.65:surface.entry==='jump'?.56:.82);
@@ -725,10 +746,12 @@ export class PetActor {
       const contact=post?this.body.worldToLocal(this.perchLocal.set(
         post.x-.135*Math.sin(this.root.rotation.y),.57,
         post.z-.135*Math.cos(this.root.rotation.y))):undefined;
+      const toyModel=catToy?this.homeToys.children[this.toyIndex!]:undefined;
+      const toyContact=toyModel?this.body.worldToLocal(new THREE.Vector3(toyModel.position.x,toyModel.position.y+(toy?.kind==='feather'?.28:.055),toyModel.position.z)):undefined;
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
         t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
-        airborne,rest,target,loaf,coil,restPoseId,restWeight);
+        airborne+catPounce,rest,target,loaf,coil,restPoseId,restWeight,toyContact,catStrike,toy?.kind==='spring');
       animate(contact);
       if(post){
         // The scratch target is a fixed REAL post, not a hand-waved offset.
