@@ -971,6 +971,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onPetEvent(_role, _pet, _action, message) {
+    if(_action==='treat')world.showPetTreat(_pet);
     statusEl.textContent = message;
     notify(message);
   },

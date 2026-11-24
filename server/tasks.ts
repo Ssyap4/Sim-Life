@@ -155,13 +155,13 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||
         typeof command.action !== 'string' ||
-        !['feed', 'play', 'pet', 'brush'].includes(command.action)) return null;
+        !['feed', 'play', 'pet', 'brush','treat'].includes(command.action)) return null;
     const pet = command.pet as PetId;
     const action = command.action as CareAction;
     return {
       command: { type: 'pet_action', pet, action },
       label: PET_ACTION_NAMES[action] + ': ' + PETS[pet].name,
-      durationMs: action === 'play' ? 9_000 : 5_000,
+      durationMs: action === 'play' ? 9_000 : action==='treat'?6_000:5_000,
       resource: 'pet:' + pet,
     };
   }

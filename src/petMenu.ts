@@ -1,5 +1,5 @@
 import {
-  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel, type PetId, type PetAction,
+  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel,treatsRemaining, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
 import { catPerchCandidates } from './shared/CatPerches';
@@ -127,6 +127,7 @@ export function renderPetChoices(
       hint: 'Радость и дружба · немного энергии игрока',
       disabled: stats.satiety < 8,
     },
+    {action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0},
     { action: 'pet', icon: '❤️', hint: 'Ласка, настроение и доверие', disabled: false },
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
 

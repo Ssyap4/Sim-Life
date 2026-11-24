@@ -1,3 +1,5 @@
+import { diningLocation } from '../src/shared/furnitureUse';
+import { PET_IDS, treatsRemaining } from '../src/shared/pets';
 import { grantStarterPetFurniture } from './starterPets';
 import { yieldSimbaFurniture } from './pets';
 import { catSeatOverlap } from '../src/shared/catOccupancy';
@@ -370,7 +372,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     for(const pet of ['simba','verdell'] as const) if(homeTasks.reserved('pet:'+pet))occupiedPets.add(pet);
-    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved);
+    const diners=homeTasks.diners();
+    for(const [role,task] of running)if(task.plan.command.type==='eat'||task.plan.command.type==='eat_takeout'){const r=diningLocation(next.state,role,task.plan.command.furnitureId)?.route;diners.set(role,r?(r.path.at(-1)??r.from):homeSeat('table',role).approach);}
+    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved,diners);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
@@ -1265,6 +1269,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role,pauseTimers.now());
         all({type:'store_event',role,message:result.message});
         return;
+      }
+      // A snack handed to a begging pet at the table is a side interaction:
+      // keep the owner's 32-second meal running and charge the shared limit once.
+      if(message.type==='pet_action'&&message.action==='treat'&&PET_IDS.some(id=>id===message.pet)){
+        const pet=message.pet as PetId,animal=state.pets[pet];
+        const ownerEating=homeTasks.diners().has(role)||['eat','eat_takeout'].includes(running.get(role)?.plan.command.type??'');
+        if(ownerEating&&state.world.places[role]==='home'&&animal.routine?.kind==='beg'&&animal.routine.target===(role==='vlad'?0:1)){
+          if(treatsRemaining(animal,state.clock.day)<=0){packet(socket,{type:'error',reason:'Сегодня уже получены три лакомства'});return;}
+          const next=structuredClone(state);
+          pausePetRoutine(next,pet,liveGameTime());
+          const result=applyPetAction(next,role,pet,'treat');
+          if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+          Object.assign(result.state.characters[role],{x:state.characters[role].x,z:state.characters[role].z,pose:state.characters[role].pose});
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить лакомство'});return;}
+          state=result.state;
+          all({type:'snapshot',state});
+          all({type:'pet_event',role,pet,action:'treat',message:result.message});
+          return;
+        }
       }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',

@@ -2,7 +2,7 @@ import { catOccupiedPerch } from '../src/shared/catOccupancy';
 import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
-  DOG_TOYS, dogToyApproach, PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
+  DOG_TOYS, dogToyApproach, treatsRemaining,PET_TREAT_REWARD,PETS, PET_IDS, PET_ROAM, PET_SPEED, PET_BOWL_CAPACITY, PET_AUTO_EAT_BELOW, PET_EAT_SATIETY_GAIN,
   petApproach, petDestination, type PetId, type PetAction, type PetRoutine,
 } from '../src/shared/pets';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
@@ -53,11 +53,12 @@ function arrivesAt(route:WalkRoute,point:FloorPoint):boolean {
   return Math.hypot(end.x-point.x,end.z-point.z)<.035;
 }
 /** A call finds an unobstructed floor point near, but not INSIDE, the owner. */
-function ownerPetPoint(state:GameState,id:PetId,role:CharacterId) {
-  const actor=state.characters[role];
+function ownerPetPoint(state:GameState,id:PetId,role:CharacterId,position?:FloorPoint) {
+  const actor=position??state.characters[role];
   const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
-  const other=state.pets[id==='verdell'?'simba':'verdell'].position;
-  const offsets=[[0,1],[1,0],[-1,0],[0,-1],[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8]];
+  const otherPet=state.pets[id==='verdell'?'simba':'verdell'];
+  const other=otherPet.routine?.kind==='beg'&&otherPet.routine.goal?otherPet.routine.goal:otherPet.position;
+  const offsets=[[0,1],[1,0],[-1,0],[0,-1],[.8,.8],[-.8,.8],[.8,-.8],[-.8,-.8],[0,1.65],[1.65,0],[-1.65,0],[0,-1.65],[1.2,1.2],[-1.2,1.2],[1.2,-1.2],[-1.2,-1.2]];
   for(const [dx,dz] of offsets){
     const point={x:actor.x+dx,z:actor.z+dz};
     if(!pointIsClear(point,geometry.obstacles,geometry.floor)||
@@ -163,7 +164,7 @@ function findScratcher(state:GameState) {
 
 /** Called on the clock's isolated state. Routes are cosmetic, supplies are authoritative. */
 export function runPetRoutines(state: GameState, minutes: number, now: number,
-  occupied: ReadonlySet<PetId>, random = Math.random, blocked?:(site:CatPerch)=>boolean): void {
+  occupied: ReadonlySet<PetId>, random = Math.random, blocked?:(site:CatPerch)=>boolean, diners:ReadonlyMap<CharacterId,FloorPoint>=new Map()): void {
   for (const id of PET_IDS) {
     const pet = state.pets[id];
     const drain = (value: number, rate: number) => Math.round(clamp(value - minutes * rate / 60) * 100) / 100;
@@ -192,9 +193,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
       return !pointIsClear(toy,geometry.obstacles,geometry.floor)||!pointIsClear(dogToyApproach(previous.target),geometry.obstacles,geometry.floor);
     })();
+    const diningOwner=(['vlad','alina'] as const).find(role=>diners.has(role)&&state.world.places[role]==='home');
+    const wantBeg=!!diningOwner&&treatsRemaining(pet,state.clock.day)>0&&pet.energy>=28&&pet.bladder>=25;
+    const begRoute=wantBeg&&(!previous||['wander','toy','beg'].includes(previous.kind))&&
+      (previous?.kind!=='beg'||previous.until<=now)?ownerPetPoint(state,id,diningOwner!,diners.get(diningOwner!)):null;
+    const invalidBeg=previous?.kind==='beg'&&(!wantBeg||!diners.has(previous.target===0?'vlad':'alina'));
     const urgentInterrupt=previous && ['come','fetch','perch','scratch','toy'].includes(previous.kind) &&
       (pet.satiety<20||pet.energy<15||pet.bladder<18);
-    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !urgentInterrupt &&
+    if (previous && previous.until > now && !invalidPerch && !invalidEquipment && !invalidToy && !invalidBeg && !begRoute && !urgentInterrupt &&
         !(previous.kind === 'eat' && state.petBowls[id] === 0)) continue;
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
@@ -251,6 +257,9 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       const bed=findPetBed(state,id);
       if(bed){chosenRoute=bed.route;chosenGoal=bed.goal;chosenEquipment=bed.equipment;}
     }
+    if(begRoute&&diningOwner&&pet.bladder>=25&&pet.energy>=28&&!(pet.satiety<=PET_AUTO_EAT_BELOW&&state.petBowls[id]>0)){
+      kind='beg';target=diningOwner==='vlad'?0:1;chosenRoute=begRoute.route;chosenGoal=begRoute.point;
+    }
     // Occasional voluntary scratching is only a real action if there is
     // an installed and reachable scratcher; no virtual scratchers.
     if(id==='simba'&&kind==='wander'&&previous?.kind!=='scratch'&&
@@ -299,10 +308,10 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
         : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
-      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
+      : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind==='beg'?16:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
     const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
       petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy')
+    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg')
       ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
     pet.routine = route ? { kind, target, startedAt: now, until: now + duration+travel, route,
       ...(chosenPerch?{perch:chosenPerch}:{}),
@@ -319,7 +328,7 @@ export function applyPetAction(
   blocked?:(site:CatPerch)=>boolean,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
-  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch'].includes(action))
+  if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -395,6 +404,15 @@ export function applyPetAction(
   }
 
   switch (kind) {
+    case 'treat':
+      if(next.world.places[role]!=='home'||id==='verdell'&&next.world.dogWalker)return {ok:false,reason:'Лакомство можно дать питомцу дома'};
+      if(treatsRemaining(data,next.clock.day)<=0)return {ok:false,reason:'Сегодня все три лакомства уже получены'};
+      data.treats={day:next.clock.day,used:(data.treats?.day===next.clock.day?data.treats.used:0)+1};
+      for(const key of ['satiety','happiness','bond'] as const)data[key]=clamp(data[key]+PET_TREAT_REWARD[key]);
+      delete data.routine;
+      actor.mood=clamp(actor.mood+3);
+      message=spec.name+' получил лакомство! Осталось сегодня: '+treatsRemaining(data,next.clock.day)+'/3';
+      break;
     case 'buyFood':
       return {ok:false,reason:'Корм продаётся в супермаркете и через доставку продуктов'};
     case 'feed':

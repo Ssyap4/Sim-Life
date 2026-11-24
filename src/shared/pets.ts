@@ -1,8 +1,8 @@
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch';
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy'] as const;
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat';
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
   {kind:'rope',name:'Канатик',x:.17,z:-.47},
@@ -44,6 +44,7 @@ export interface PetState {
   routine?: PetRoutine;
   /** Retained preference only while a matching purchased bed remains installed. */
   favoriteBedId?: number;
+  treats?:{day:number;used:number};
   furnitureYield?: {perch:import('./CatPerches').CatPerch;clearAt:number;cooldownUntil:number};
 }
 export type PetFamily = Record<PetId, PetState>;
@@ -55,6 +56,9 @@ export const PET_FOOD_MAX_REFILLS = 50;
 // Pets approach their own filled bowl at 40% or lower, before red hunger.
 export const PET_AUTO_EAT_BELOW = 40;
 export const PET_EAT_SATIETY_GAIN = 36;
+export const PET_TREAT_LIMIT=3;
+export const PET_TREAT_REWARD={satiety:30,happiness:12,bond:8} as const;
+export function treatsRemaining(pet:PetState,day:number):number{return PET_TREAT_LIMIT-(pet.treats?.day===day?pet.treats.used:0);}
 
 // One shared, read-only classification for 3D signals, menus and any later
 // veterinarian/health feature. It does not introduce illnesses or penalties.
@@ -120,7 +124,7 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
   if(routine.kind==='toy')return dogToyApproach(routine.target);
-  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch') return routine.goal ?? pet.home;
+  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }
 
@@ -144,5 +148,6 @@ export const PET_ACTION_NAMES: Record<PetAction, string> = {
   fetch: 'Принести мячик',
   mat: 'Отдохнуть на лежанке',
   scratch: 'Поточить когти',
+  treat: 'Дать лакомство',
 };
 export const PET_IDS = ['verdell', 'simba'] as const;

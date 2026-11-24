@@ -143,6 +143,7 @@ const isValidState = (value: unknown): value is GameState => {
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
+      (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
       (pet.favoriteBedId===undefined||Number.isSafeInteger(pet.favoriteBedId)&&pet.favoriteBedId>0) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
@@ -161,6 +162,7 @@ const isValidState = (value: unknown): value is GameState => {
           (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku===STARTER_CAT_SCRATCHER||routine.equipment.sku==='pet-house-tower')||
           routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
           routine.target===0&&point(routine.goal)) &&
+        (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
         (routine.kind!=='toy'||id==='verdell'&&routine.target<DOG_TOYS.length&&point(routine.goal)&&Math.hypot(routine.goal!.x-dogToyApproach(routine.target).x,routine.goal!.z-dogToyApproach(routine.target).z)<.03) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&

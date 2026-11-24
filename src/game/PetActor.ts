@@ -395,11 +395,15 @@ export class PetActor {
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
     const canIdle = !this.route.length &&
-      (this.routine === null || this.routine === 'wander') && !this.reaction && pace < .08;
+      (this.routine === null || this.routine === 'wander'||this.routine==='beg') && !this.reaction && pace < .08;
     if (!canIdle) {
       this.idleGesture = null;
       this.idleTime = 0;
       this.idleCooldown = Math.max(this.idleCooldown, 2.0);
+    } else if(this.routine==='beg'){
+      const gesture=this.id==='verdell'?'beg':'pawWave';
+      if(this.idleGesture!==gesture){this.idleGesture=gesture;this.idleTime=0;}
+      this.idleTime=(this.idleTime+dt)%PET_IDLE_SECONDS;
     } else if (this.idleGesture) {
       this.idleTime += dt;
       if (this.idleTime >= PET_IDLE_SECONDS) {
@@ -456,7 +460,7 @@ export class PetActor {
     const pickup=dog&&this.routine==='fetch'&&this.fetchSpot&&!this.fetchPickedUp
       ? 1-THREE.MathUtils.smoothstep(Math.hypot(this.root.position.x-this.fetchSpot.x,
         this.root.position.z-this.fetchSpot.z),.22,.85) : 0;
-    const eating = this.reaction === 'feed' ? weight : this.routine === 'eat' ? settled : 0;
+    const eating = (this.reaction === 'feed'||this.reaction==='treat') ? weight : this.routine === 'eat' ? settled : 0;
     const surface=(descending?this.leavingPerch:this.perch);
     const perched=this.id==='simba' && surface && (descending||!this.route.length) ?
       THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;
@@ -709,7 +713,7 @@ export class PetActor {
         post.x-.135*Math.sin(this.root.rotation.y),.57,
         post.z-.135*Math.cos(this.root.rotation.y))):undefined;
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
-        t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful,eating,
+        t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
         airborne,rest,target,loaf,coil,restPoseId,restWeight);
       animate(contact);
