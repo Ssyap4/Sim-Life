@@ -1,5 +1,5 @@
 import { LEISURE, isLeisureAction, leisureAction } from './leisure';
-import { FURNITURE_BY_ID, workstationLayout,isNotebookDesk, type FurnitureShape, type PlacedFurniture } from './furniture';
+import { FURNITURE_BY_ID, workstationLayout,isNotebookDesk,diningSeatTop, type FurnitureShape, type PlacedFurniture } from './furniture';
 import { HOME_WORLD_FLOOR } from './district';
 import { placeObstacles,stationById,HOME_LAPTOP } from './locations';
 import type { CharacterId, GameState } from './protocol';
@@ -127,9 +127,9 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   }
   const actorSeats=softSeats.has(shape);
   const isBareSeat=seats.has(shape);
-  const seatTop=shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
+  const seatTop=diningSeatTop(item.sku)??(shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
     shape==='bench'?info.height*.54:shape==='ottoman'?info.height*.56:
-    shape==='armchair'?info.height*.52:info.height*.50;
+    shape==='armchair'?info.height*.52:info.height*.50);
   const isTable=['tableRest','tableTalk','tablePlan'].includes(action);
   const isSofa=['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action)||
     (action==='read_book'&&(shape==='sofa'||shape==='corner'));
@@ -188,7 +188,9 @@ export function diningLocation(state:GameState,role:CharacterId,requestedId?:num
     const info=FURNITURE_BY_ID.get(table.sku)!;
     const available=state.furnishing.placed.filter(item=>
       item.id!==table.id&&seats.has(FURNITURE_BY_ID.get(item.sku)!.shape)&&
-      Math.hypot(table.x-item.x,table.z-item.z)<=Math.max(1.35,info.width/2+1.1));
+      Math.hypot(table.x-item.x,table.z-item.z)<=Math.max(1.35,info.width/2+1.1)&&
+      (diningSeatTop(item.sku)===undefined||FURNITURE_BY_ID.get(item.sku)!.shape==='stool'||
+        ((table.x-item.x)*Math.sin(item.rotation*Math.PI/2)+(table.z-item.z)*Math.cos(item.rotation*Math.PI/2))>Math.hypot(table.x-item.x,table.z-item.z)*.5));
     // Two characters must not independently pick the first chair and sit
     // inside each other. Reserve opposite sides deterministically by role.
     // With only one chair keep it usable by either player when dining alone.

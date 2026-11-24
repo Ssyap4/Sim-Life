@@ -33,7 +33,7 @@ test('both players can edit furniture during sleep and active tasks; only affect
  const files=openServerFiles(dir),initial=files.load();
  initial.money=10000;
  initial.characters.vlad.energy=10;
- initial.furnishing.stored=[1,2,3].map(id=>({id,sku:'stool-basic',finish:'sage'}));
+ initial.furnishing.stored=[1,2,3].map(id=>({id,sku:'stool-cube',finish:'sage'}));
  initial.furnishing.nextId=4;
  files.save(initial);
  const server=await startServer({port:0,dataDir:dir,taskTimeScale:.1});
@@ -51,7 +51,7 @@ test('both players can edit furniture during sleep and active tasks; only affect
   await other;
   assert.equal(files.load().characters.vlad.pose,'sleep');
   const sale=next(a,p=>p.type==='snapshot'&&p.state.furnishing.orders.length===1);
-  v.send(JSON.stringify({type:'furniture_order',sku:'stool-basic',finish:'sage',shipping:'express',quantity:1}));
+  v.send(JSON.stringify({type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1}));
   await sale;assert.equal(files.load().money,6910);
   const denied=next(a,p=>p.type==='error');
   a.send(JSON.stringify({type:'furniture_order',sku:'plant-mini',finish:'sage',shipping:'express',quantity:1}));

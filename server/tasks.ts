@@ -1,5 +1,5 @@
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
-import {isNotebookDesk} from '../src/shared/furniture';
+import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
@@ -192,7 +192,10 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     const selected=furnitureSource(state,command.furnitureId,command.action);
     if(!selected.ok)return selected;
     if(state.world.places[role]!=='home')return {ok:false,reason:'Мебель находится дома'};
-    const position=furnitureUseLocation(state,role,command.furnitureId,command.action);
+    const tableAction=['tableRest','tableTalk','tablePlan'].includes(command.action)&&!RETIRED_DINING.some(p=>p.id===selected.item.sku);
+    const dining=tableAction?diningLocation(state,role,command.furnitureId):null;
+    if(tableAction&&!dining?.seated)return {ok:false,reason:'Поставь рядом стул лицом к столу'};
+    const position=dining??furnitureUseLocation(state,role,command.furnitureId,command.action);
     if(!position)return {ok:false,reason:'Не получается безопасно подойти к мебели'};
     const reason=catSeatError(state,'placed:'+command.furnitureId,position.pose);
     if(reason)return {ok:false,reason};

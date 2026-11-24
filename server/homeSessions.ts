@@ -1,5 +1,5 @@
-import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
-import {isNotebookDesk} from '../src/shared/furniture';
+import {laptopDesk,laptopWorkplace,diningLocation} from '../src/shared/furnitureUse';
+import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { routeHitsLayout } from './furnishing';
 import type { FloorRect } from '../src/game/navigation';
 import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
@@ -135,7 +135,10 @@ export function createHomeSessions(hooks: Hooks) {
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
-      const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
+      const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);
+      const dining=table&&['tableRest','tableTalk','tablePlan'].includes(command.action)&&!RETIRED_DINING.some(p=>p.id===table.sku)?diningLocation(hooks.state(),role,table.id):null;
+      if(dining&&!dining.seated)return null;
+      const choice=dining??furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
       if(!choice)return null;
       const seated=(isLeisureAction(command.action)&&LEISURE[command.action].seated)||['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','tableTalk',
         'tablePlan','youtube','movie','free_tv'].includes(command.action)||

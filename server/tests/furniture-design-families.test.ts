@@ -1,11 +1,11 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { FURNITURE_CATALOG,FURNITURE_STYLES,furnitureStyle } from '../../src/shared/furniture';
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 
 test('the 0.32 catalogue has unique IDs, five style families and all eight categories',()=>{
-  assert.equal(FURNITURE_CATALOG.length,92);
+  assert.equal(FURNITURE_CATALOG.length,98);
   const ids=new Set(FURNITURE_CATALOG.map(item=>item.id));
   assert.equal(ids.size,FURNITURE_CATALOG.length);
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,FURNITURE_CATALOG.length);
@@ -78,9 +78,10 @@ test('old and new models are interleaved by furniture type, never appended as se
     lastRank=rank!;
     lastItem=item;
   }
-  const old=new Set(FURNITURE_CATALOG.slice(0,39).map(x=>x.id));
-  const newOnes=new Set(FURNITURE_CATALOG.slice(39).map(x=>x.id));
-  for(const group of ['sofa','bed','wardrobe','table','lamp','plant']){
+  const familyStart=FURNITURE_CATALOG.findIndex(p=>p.id==='sofa-chester');
+  const old=new Set(FURNITURE_CATALOG.slice(0,familyStart).map(x=>x.id));
+  const newOnes=new Set(FURNITURE_CATALOG.slice(familyStart).map(x=>x.id));
+  for(const group of ['sofa','bed','wardrobe','lamp','plant']){
     const items=SORTED_FURNITURE_CATALOG.filter(x=>furnitureDisplayGroup(x)===group);
     assert.ok(items.some(x=>old.has(x.id)),group+' has no original item');
     assert.ok(items.some(x=>newOnes.has(x.id)),group+' has no new item');

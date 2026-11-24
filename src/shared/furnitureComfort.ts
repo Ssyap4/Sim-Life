@@ -1,8 +1,8 @@
 import {FURNITURE_BY_ID} from './furniture';
 /** Grade reflects support and cushioning, not price. 1–5; zero means not seating/sleep furniture. */
-const premium=new Set(['sofa-arc','sofa-chester','sofa-modular','chair-cloud','chair-wing','bed-canopy','bed-storage','bed-platform']);
-const basic=new Set(['sofa-micro','bench-mori','bed-solo','daybed-iron','chair-dining','stool-basic','pouf-joy']);
-const good=new Set(['sofa-nord','bed-aurora','bed-rattan','chair-nest','chair-padded','sofa-futon']);
+const premium=new Set(['sofa-arc','sofa-chester','sofa-modular','chair-cloud','chair-wing','chair-velour','chair-lounge','bed-canopy','bed-storage','bed-platform']);
+const basic=new Set(['sofa-micro','bench-mori','bed-solo','daybed-iron','chair-dining','stool-basic','chair-lino','stool-cube','pouf-joy']);
+const good=new Set(['sofa-nord','bed-aurora','bed-rattan','chair-nest','chair-padded','chair-mellow','chair-mono','stool-petal','sofa-futon']);
 export function furnitureComfort(sku:string):number{
   const info=FURNITURE_BY_ID.get(sku);
   if(!info||!['sofa','corner','armchair','ottoman','bench','chair','stool','bed','daybed'].includes(info.shape))return 0;
