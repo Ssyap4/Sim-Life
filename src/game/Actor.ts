@@ -57,6 +57,7 @@ export class Actor {
   private gaitBlend = 0;
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
+  private readonly teaCup = new THREE.Group();
   private readonly dirtyPlate: THREE.Mesh;
   private readonly foodContainer = new THREE.Group();
   private readonly selectionRing: THREE.Mesh;
@@ -222,6 +223,10 @@ export class Actor {
     });
 
     this.props = activityProps(this.figure,this.rig.wrists);
+    const cup=new THREE.Mesh(new THREE.CylinderGeometry(.047,.036,.083,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));
+    const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic'));liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
+    const cupHandle=new THREE.Mesh(new THREE.TorusGeometry(.026,.006,6,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));cupHandle.position.x=.051;
+    this.teaCup.add(cup,liquid,cupHandle);this.teaCup.visible=false;this.rig.wrists[1].add(this.teaCup);
     const frameMat=finish(id==='vlad'?0x31495e:0x8b425e,'metal'),gripMat=finish(0x25282b,'fabric'),stringMat=finish(0xe8e7db,'fabric');
     const rod=(radius:number,length:number,z:number,mat:THREE.Material)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,10),mat);m.rotation.x=Math.PI/2;m.position.z=z;this.racket.add(m);};
     rod(.017,.155,0,gripMat);rod(.019,.012,-.079,frameMat);rod(.0065,.255,.205,frameMat);
@@ -245,6 +250,7 @@ export class Actor {
     this.spoon.position.set(-0.012, -0.044, 0.024);
     this.spoon.rotation.x = 0.31;
     this.spoon.visible = false;
+    this.teaCup.visible = false;
     this.rig.wrists[1].add(this.spoon);
     this.dirtyPlate = new THREE.Mesh(drum, finish(0xeee2ce, 'ceramic'));
     this.dirtyPlate.scale.set(.12, .013, .12);
@@ -318,6 +324,7 @@ export class Actor {
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
+    this.teaCup.visible = false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
     this.props.brush.visible = false;
@@ -390,6 +397,7 @@ export class Actor {
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
+    this.teaCup.visible = false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
   }
@@ -996,6 +1004,10 @@ export class Actor {
           if(inward>0)rightY+=.13*contact;else leftY+=.13*contact;
           expression+=.30*contact;break;
         }
+        case 'teaTogether':
+          expression+=.16*rise;gaze+=.025*Math.sin(sec*1.5);break;
+        case 'musicTogether':
+          expression+=.16*rise;partnerHead=.035*Math.sin(sec*2);gaze+=.035*Math.sin(sec*1.6);break;
         case 'bedRest':
           expression+=.16*rise;
           partnerYaw=(this.id==='vlad'?.18:-.18)*contact;
@@ -1665,6 +1677,19 @@ export class Actor {
       }
     }
 
+    this.teaCup.visible=pair?.motion==='teaTogether';
+    if(this.teaCup.visible&&pair){
+      const phase=(pair.time+(pair.leads?0:2.4))%8;
+      const sip=THREE.MathUtils.smoothstep(phase,2,3.2)*(1-THREE.MathUtils.smoothstep(phase,4.2,5.5));
+      const head=this.rig.head.getWorldPosition(new THREE.Vector3());
+      const resting=this.bodyPosition(new THREE.Vector3()).add(new THREE.Vector3(.20,.80,.25).applyAxisAngle(up,this.root.rotation.y));
+      const mouth=head.add(new THREE.Vector3(.035,-.13,.15).applyAxisAngle(up,this.root.rotation.y));
+      this.reach(1,resting.lerp(mouth,sip),alpha*0.9);
+      this.aimHand(1,this.handDirection.set(0,-.5,.6).applyAxisAngle(up,this.root.rotation.y),alpha);
+      this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
+      this.teaCup.quaternion.copy(this.parentRotation);
+      this.teaCup.position.set(0,-.055,.035);
+    }
     this.racket.visible=this.activity==='badminton';
     if(this.racket.visible){
       const f=this.badmintonFrame,hit=f?.hit??0,height=f?.height??1.65;

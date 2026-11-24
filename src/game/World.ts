@@ -2629,6 +2629,7 @@ export class World {
         if(pair.leads&&pair.motion==='highFive')gameAudio.cue(role+'-contact',pair.time,[{at:.78,sound:'clap'}],'effects',.60,p);
         if(pair.leads&&['kiss','cheek'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.8,sound:'kiss'}],'effects',.30,p);
         if(pair.leads&&['hug','closeHug','cuddle'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.65,sound:'cloth'}],'effects',.25,p);
+        if(pair.leads&&pair.motion==='musicTogether')gameAudio.loop('shared-music','scoreMorning','music',.32,p);
         if(pair.leads&&['dance','slowDance'].includes(pair.motion))gameAudio.loop('dance',pair.motion==='slowDance'?'scoreEvening':'scoreDance','music',.38,p);
       }
       if(role==='vlad'&&m.gesture==='highFive')gameAudio.cue(role+'-gesture',m.gestureTime,[{at:.28,sound:'clap'}],'effects',.60,p);

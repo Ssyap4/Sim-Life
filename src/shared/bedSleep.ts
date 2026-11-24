@@ -48,8 +48,8 @@ export function bedPose(state:GameState,role:CharacterId,id:SleepBedId):BedPose|
   const day=info.shape==='daybed';
   const capacity=bedCapacity(item);
   // The root is near the foot; the existing rig reclines toward the head.
-  const x=day?info.width*.39:capacity===2?(role==='vlad'?-1:1)*info.width*.215:0;
-  const z=day?0:info.depth*.39;
+  const x=day?info.width*.43:capacity===2?(role==='vlad'?-1:1)*info.width*.215:0;
+  const z=day?0:info.depth*.42;
   const center=rotated(item,x,z);
   const mattress=item.sku==='bed-canopy'?.48:item.sku==='bed-platform'?.30:
     day?.40:.42;

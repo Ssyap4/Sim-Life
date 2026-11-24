@@ -56,10 +56,10 @@ import { FURNITURE_BY_ID } from './furniture';
 import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
-  'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
+  'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
@@ -121,6 +121,10 @@ const objects: readonly SocialActivity[] = [
   {id:'sofaKiss',title:'Поцеловаться на диване',group:'romance',lines:['Хочу тебя поцеловать, можно?'],replies:['Иди сюда.','Конечно.'],motion:'sofaKiss',seconds:8,object:'sofa'},
   {id:'sofaHug',title:'Обнять за плечи на диване',group:'romance',lines:['Хочу обнять тебя и немного посидеть рядом.'],replies:['Давай.','Мне так уютно.'],motion:'sofaHug',seconds:20,object:'sofa'},
   {id:'bedRest',title:'Полежать вместе в кровати',group:'romance',lines:['Давай полежим рядом и немного отдохнём, не засыпая.'],replies:['Хорошая идея.','Побудем рядом.'],motion:'bedRest',seconds:35,object:'bedRest'},
+  {id:'teaTogether',title:'Выпить чай вместе',group:'home',lines:['Заварим по кружке чая и посидим за столом?'],replies:['Давай.','С удовольствием.'],motion:'teaTogether',seconds:35,object:'teaTogether',resource:'shared-tea'},
+  {id:'yardTea',title:'Попить чай во дворе',group:'home',lines:['Возьмём чай и посидим на свежем воздухе?'],replies:['Хорошая идея.','Давай выйдем.'],motion:'teaTogether',seconds:40,object:'yardTea',resource:'shared-tea'},
+  {id:'yardRest',title:'Посидеть вместе во дворе',group:'fun',lines:['Давай немного отдохнём за столиком во дворе.'],replies:['Давай.','Хочется немного тишины.'],motion:'sitTalk',seconds:35,object:'yardRest'},
+  {id:'musicTogether',title:'Послушать музыку вместе',group:'fun',lines:['Включим музыку и посидим рядом?'],replies:['Да, хочется расслабиться.','Давай послушаем.'],motion:'musicTogether',seconds:60,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
   {id:'eveningTea',title:'Обсудить вечер за столом',group:'talk',lines:['Посидим за столом и выберем, как провести вечер?'],replies:['Давай сначала выберем время для отдыха.','Я бы начал с чего-нибудь совсем простого.'],motion:'sitTalk',seconds:12,object:'table'},
   {id:'moneyReview',title:'Спланировать бюджет вдвоём',group:'home',
@@ -303,6 +307,8 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
     }))return 'Сначала дождитесь своих заказов и сядьте за столик';
     if(!individual&&(state.world.cafe[from]?.table??'cafe-left')!==(state.world.cafe[to]?.table??'cafe-left'))return 'Выберите один столик на двоих';
   }
+  if((name==='teaTogether'||name==='yardTea')&&state.pantry.tea<2)return 'Нужны две порции чая';
+  if(name==='teaTogether'&&state.furnishing.soldFixtures?.includes('table'))return 'Для чаепития пока нужен основной обеденный стол';
   if (name==='dishes'&&!state.dirtyDishes.table&&!state.dirtyDishes.yardTable) return 'Грязная посуда пока не накопилась';
   if (name==='unpack') return 'Покупки теперь автоматически раскладываются при возвращении домой';
   const now=gameMinutes(state.clock);

@@ -21,11 +21,11 @@ export function sleepPosture(id:CharacterId,seconds:number,awake=false):RestPose
   legs:[limb(-.24,.06,-.055,.49,-.16),limb(-.065,-.08,.045,.16,-.12)],
  };
  if(id==='alina'){back.arms.reverse();back.legs.reverse();for(const l of back.arms){l.y=-l.y;l.z=-l.z;}for(const l of back.legs){l.y=-l.y;l.z=-l.z;}}
- const lower=limb(-.80,sign*.10,-sign*.12,-1.78,.12);
+ const lower=limb(-.57,sign*.18,sign*.10,-1.65,.12);
  const upper=limb(-.19,sign*.88,sign*.11,-1.28,-.12);
  const curled=limb(-.60,0,0,1.04,-.10);
  const loose=limb(-.31,0,0,.56,-.10);
- const turn:RestPose={roll:sign*1.03,lift:.065,headYaw:-sign*.10,headPitch:.065,headRoll:sign*.045,chestPitch:.075,
+ const turn:RestPose={roll:sign*.88,lift:-.025,headYaw:-sign*.10,headPitch:.065,headRoll:sign*.045,chestPitch:.075,
   arms:id==='vlad'?[lower,upper]:[upper,lower],
   legs:id==='vlad'?[loose,curled]:[curled,loose]};
  return {roll:mix(back.roll,turn.roll,side),lift:mix(back.lift,turn.lift,side),

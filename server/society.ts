@@ -179,7 +179,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const seated:HomeSeat|undefined=
     ['tv','film','youtube','lesson','sofa'].includes(a.object??'')?'sofa':
     a.object==='eat'||a.object==='bring'?isGrillRecipe(p as RecipeId)?'yardTable':'table':
-    ['takeout','read','table'].includes(a.object??'')?'table':undefined;
+    ['takeout','read','table','teaTogether'].includes(a.object??'')?'table':['yardTea','yardRest'].includes(a.object??'')?'yardTable':undefined;
   const work:Partial<Record<CharacterId,{motion:PairMotion; destination:Point; target?:Point; stops?:Point[]}>>={};
   let seats:Partial<Record<CharacterId,HomeSeat>>=seated?{vlad:seated,alina:seated}:{};
   const table=(role:CharacterId)=>homeSeat('table',role).approach;
@@ -390,6 +390,14 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       }
       break;
     }
+    case 'teaTogether':case 'yardTea':{
+      if(state.pantry.tea<roles.length)return fail('Закончился чай');
+      state.pantry.tea-=roles.length;
+      for(const role of roles)change(state,role,{fun:8,energy:3,mood:4,comfort:4});
+      break;
+    }
+    case 'yardRest':for(const role of roles)change(state,role,{comfort:9,fun:4});break;
+    case 'sofa':if(a.id==='musicTogether')for(const role of roles)change(state,role,{fun:14,comfort:6});break;
     case 'walk':for(const role of roles) change(state,role,{energy:-1,fun:4});break;
   }
   if(rejected&&!rejected.ok) return rejected;
