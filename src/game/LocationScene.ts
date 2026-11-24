@@ -138,6 +138,36 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     if (station.center.z > 4) root.rotation.y = Math.PI;
     facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
+  } else if(kind==='clothes-rack'){
+    shape(root,[2.24,.08,.78],[0,.05,0],0x9f8069);
+    for(const x of [-1.04,1.04])shape(root,[.055,1.8,.055],[x,.95,0],0x48474b,drum);
+    shape(root,[2.13,.055,.055],[0,1.82,0],0x48474b,cube);
+    const palette=station.id==='clothes-alina'?[0xe6a9a8,0xf0e8dc,0xb35672,0x8c9dba,0xc5b4d5]:[0x53665d,0xf2f0e9,0x30343b,0x667d91,0x202933];
+    for(let i=0;i<5;i++){
+      const x=(i-2)*.40,c=palette[i];
+      shape(root,[.32,.025,.06],[x,1.68,0],0xc49e6c,cube);
+      shape(root,[.235,.52,.08],[x,1.39,0],c);
+      for(const side of [-1,1]){
+        const sleeve=shape(root,[.12,.22,.08],[x+side*.14,1.53,0],c);
+        sleeve.rotation.z=-side*.37;
+      }
+      for(const side of [-1,1])shape(root,[.12,.35,.10],[x+side*.067,.55,.07],i%2?0x6988a2:0x54515d);
+    }
+    sign(root,station.name,2.08,.11,2.06,C.paper,textures,materials);
+  } else if(kind==='fitting'){
+    for(const x of [-.80,.80])shape(root,[.10,2.20,1.48],[x,1.10,0],0xb2a297);
+    shape(root,[1.72,2.20,.10],[0,1.10,-.70],0xb2a297);
+    shape(root,[.69,1.72,.06],[0,1.12,-.61],0xbfd1d4,cube);
+    for(let i=0;i<8;i++)shape(root,[.087,1.98,.07],[-.77+i*.075,1.10,.70],i%2?0x87728a:0x9a849d);
+    shape(root,[1.61,.045,1.37],[0,.025,0],0xd5c3ae);
+    sign(root,'ПРИМЕРОЧНАЯ',2.37,.68,1.65,C.paper,textures,materials);
+  } else if(kind==='clothes-checkout'){
+    shape(root,[1.65,.94,.76],[0,.47,0],0xa88978);
+    shape(root,[1.72,.11,.81],[0,.99,0],0xe5ded1);
+    shape(root,[.45,.28,.11],[-.43,1.18,-.16],0x44464c);
+    shape(root,[.36,.21,.03],[-.43,1.18,-.08],0x98afb4,cube);
+    packageBox(root,.48,-.08,0x967d99).scale.setScalar(.68);
+    sign(root,'КАССА',.61,.40,1.30,C.paper,textures,materials);
   } else if(kind==='swing'){
     root.add(buildFurnishingModel('leisure-swing','oak'));
   } else if(kind==='picnic'){
@@ -256,6 +286,14 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
       }
     }
   }
+  if(place==='clothing'){
+    sign(floor,'СТИЛЬ',2.55,-4.88,3.2,C.paper,textures,materials);
+    shape(floor,[2.5,.025,3.1],[0,.016,-.28],0xc6b7c4,cube);
+    for(const x of [-4.55,4.55]){
+      shape(floor,[1.38,.08,.50],[x,.78,-4.32],0xded1be);
+      for(let i=0;i<3;i++)shape(floor,[.35,.12,.35],[x+(i-1)*.39,.88,-4.32],accents[i]);
+    }
+  }
   if (place === 'park') {
     shape(floor, [3.12, .23, 2.53], [-.08, .13, -1.94], C.limestone, softCube, true);
     shape(floor, [2.88, .10, 2.28], [-.08, .25, -1.94], 0x79aeb4);
@@ -344,6 +382,12 @@ export function homeExtensions() {
   for (const station of HOME_STATIONS) {
     // World owns car geometry; never create a generic wall cupboard for it.
     if (station.action.kind === 'waypoint'||station.action.kind==='courier'||station.action.kind==='car') continue;
+    if(station.action.kind==='wardrobe'){
+      const cabinet=buildFurnishingModel('wardrobe-tall',station.id==='wardrobe-alina'?'ivory':'oak');
+      cabinet.position.set(station.center.x,0,station.center.z);
+      cabinet.rotation.y=Math.PI;
+      group.add(cabinet);stations.set(station.id,cabinet);continue;
+    }
     if (station.action.kind === 'career') {
       const laptop = careerStation(station,'marketing');
       group.add(laptop); stations.set(station.id,laptop); continue;

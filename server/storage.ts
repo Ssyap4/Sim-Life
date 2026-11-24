@@ -106,7 +106,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services','education','furniture'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education','furniture','clothing'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||

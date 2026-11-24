@@ -12,6 +12,7 @@ import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOU
 export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
+  clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
   cafe: { name: 'Кафе «Тёплый угол»', icon: '☕', detail: 'Заказ, выдача и столики для двоих' },
   park: { name: 'Сосновый парк', icon: '🌿', detail: 'Прогулки, отдых и Верделл' },
@@ -41,6 +42,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
@@ -101,6 +103,8 @@ export const CAR_APPROACH={x:CAR_PARKING.x-1.85,z:CAR_PARKING.z};
 export const HOME_STATIONS: readonly Station[] = [
   site('family-car','Семейный автомобиль',CAR_PARKING.x,CAR_PARKING.z,2.46,4.96,{kind:'car'},{approach:CAR_APPROACH}),
   site('home-gate','Выйти на улицу',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'district'},{blocks:false,approach:HOME_GATE_INSIDE}),
+  site('wardrobe-alina','Шкаф Алины',-8.57,1.48,1.16,.58,{kind:'wardrobe'},{approach:{x:-8.57,z:.57}}),
+  site('wardrobe-vlad','Шкаф Влада',8.65,-1.53,1.16,.58,{kind:'wardrobe'},{approach:{x:8.65,z:-2.44}}),
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
   site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
@@ -125,6 +129,13 @@ export const DISTRICT_STATIONS: readonly Station[] = [
 export const STATIONS: Record<PlaceId, readonly Station[]> = {
   home: HOME_STATIONS,
   district:DISTRICT_STATIONS,
+  clothing: [
+    site('clothes-alina','Женская одежда',-3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
+    site('clothes-vlad','Мужская одежда',3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
+    site('clothes-fitting','Примерочная',-3.85,1.38,1.72,1.48,{kind:'fitting'}),
+    site('clothes-cash','Касса',3.70,1.48,1.65,.76,{kind:'clothes-checkout'}),
+    door('clothes-exit','Выход на улицу','district',-2.75,4.60,true),
+  ],
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
     shelf('bakery', 'Хлеб и выпечка', 0, -3.63, ['bakery']),
@@ -255,6 +266,7 @@ export interface WorldState {
   deliveries: Delivery[];
   courierDepartAt?:number;
   carDriver?:CharacterId;
+  wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
   picnic?: PicnicBasket;
@@ -273,7 +285,8 @@ export type WorldCommand =
   | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park' }
+  | { type:'clothing_buy'|'clothing_wear'; look:string }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

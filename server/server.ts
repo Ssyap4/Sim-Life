@@ -1,4 +1,3 @@
-import { isPreviewLook } from '../src/shared/previewWardrobe';
 import { diningLocation } from '../src/shared/furnitureUse';
 import { PET_IDS, treatsRemaining } from '../src/shared/pets';
 import { grantStarterPetFurniture } from './starterPets';
@@ -96,7 +95,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const host = options.host ?? '127.0.0.1';
   // Explicit no-code previews must have separate saves and a non-production
   // port. Binding to 0.0.0.0 permits trusted home-LAN phone testing only.
-  const previewOutfits=new Map<CharacterId,string>();
   const previewNoCodes=options.testNoCodes===true &&
     (host==='127.0.0.1'||host==='0.0.0.0') &&
     (port===0&&host==='127.0.0.1'||port>=3120&&port<=3199) &&
@@ -957,7 +955,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         active.set(role, socket);
         lastIntent.set(role, pauseTimers.now());
         packet(socket, { type: 'ready', role, state, online: online() });
-        if(previewNoCodes)for(const [id,look] of previewOutfits)packet(socket,{type:'preview_outfit',role:id,look});
         if (state.world.places[role] === 'home') sendLeisure(socket);
         homeTasks.replay(socket);
         for(const id of ['vlad','alina'] as const)packet(socket,queueSnapshot(id));
@@ -967,13 +964,6 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if(message.type==='preview_outfit'){
-        if(!previewNoCodes||state.world.places[role]!=='home'||typeof message.look!=='string'||!isPreviewLook(role,message.look)){
-          packet(socket,{type:'error',reason:'Примерка недоступна'});return;
-        }
-        previewOutfits.set(role,message.look);
-        all({type:'preview_outfit',role,look:message.look});return;
-      }
       if (message.type === 'pause_toggle') {
         if (isPaused) { setPaused(false); return; }
         if (pauseRequestedBy === role) { clearPauseRequest(); announceTime(); return; }

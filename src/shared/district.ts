@@ -22,6 +22,7 @@ export const DISTRICT_SITES = [
   { place: 'market', x: -23.8, z: 6.65, w: 6.8, d: 5.4, turn: 1, name: 'Супермаркет', sign: 'ПРОДУКТЫ', color: 0x397766 },
   { place: 'cafe', x: -23.8, z: -.50, w: 5.30, d: 4.8, turn: 1, name: 'Кафе «Тёплый угол»', sign: 'ТЁПЛЫЙ УГОЛ', color: 0xa85846 },
   { place: 'education', x: -23.8, z: -6.98, w: 5.65, d: 5.1, turn: 1, name: 'Центр «Потенциал»', sign: 'ПОТЕНЦИАЛ', color: 0xc09058 },
+  { place: 'clothing', x: 25.5, z: .30, w: 5.8, d: 4.9, turn: -1, name: 'Магазин одежды «Стиль»', sign: 'СТИЛЬ', color: 0x776987 },
   { place: 'work-it', x: -23.8, z: -13, w: 4.95, d: 4.90, turn: 1, name: 'IT-офис «Север»', sign: 'СЕВЕР · IT', color: 0x517986 },
   { place: 'work-detail', x: -23.8, z: 14.05, w: 7.4, d: 4.9, turn: 1, name: 'Детейлинг «Линия блеска»', sign: 'ЛИНИЯ БЛЕСКА', color: 0x546569 },
   { place: 'work-marketing', x: -23.8, z: 20.90, w: 5.25, d: 4.8, turn: 1, name: 'Агентство «Искра»', sign: 'ИСКРА', color: 0xaa704f },
@@ -48,6 +49,7 @@ export const DISTRICT_PLAZA = {x:-8.6,z:-4.45,w:11.5,d:8.0};
 export const DISTRICT_PATHS = [
   { x: -1.9, z: 7.3, w: 33.6, d: 2.36 },
   { x: -19.45, z: 7.2, w: 3.10, d: 45.4 },
+  { x: 17.7, z: .30, w: 9.7, d: 1.9 },
   { x: -7.4, z: -.6, w: 20, d: 1.8 },
   { x: 13.35, z: -6.20, w: 2.2, d: 28.1 },
   { x: 1.9, z: -10, w: 33.4, d: 1.78 },

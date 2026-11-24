@@ -169,7 +169,6 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch'> };
 
 export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | EducationCommand | CareerCommand | SocialCommand
-  | { type: 'preview_outfit'; look: string }
   | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
@@ -206,7 +205,6 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
 export type QueuedTask = { id: number; label: string };
 
 export type ServerPacket =
-  | { type:'preview_outfit'; role:CharacterId; look:string }
   | { type: 'study_progress'; role: CharacterId; taskId: number; elapsed: number; total: number }
   | { type: 'education_feedback'; taskId: number; correct: boolean; message: string; question?: string }
   | { type: 'education_notice'; role: CharacterId; message: string }

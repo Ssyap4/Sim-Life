@@ -180,3 +180,6 @@
 
 ### Family SUV visual reference
 - Black boxy full-size 1999–2000 Escalade-style SUV, clean uninterrupted roof (no rails/racks/attachments), chrome grille and five-spoke wheels, distinct doors, tinted glass and real wheel wells. Keep car station/collision aligned to geometry, route to driver side and existing travel mechanics. Mobile budget: 3 merged meshes, approximately 6740 triangles. Visual QA uses cloud, not ALINA-PC.
+
+## Android graphics invariant (0.33)
+Confirmed by the player on physical Android Chrome: use the same antialias and WebGL context power preference as Firefox/iPhone. Normal Android Chrome must not enter the emergency low-resolution profile; gfx=safe is explicit recovery only (embedded WebViews may retain fallback). Do not silently restore Chromium-specific MSAA disabling or low-resolution rendering. Keep iPhone settings unchanged.

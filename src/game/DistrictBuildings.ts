@@ -146,6 +146,14 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     for(const x of [-w*.45,w*.45]) box(group,[.17,2.56,.38],[x,1.34,face+.11],0x456963);
     entrance(frame,1.68);
     for(const x of [-2.72,2.72]) {pots(group,x,face+.73,1); box(group,[.055,.51,.055],[x,.265,face+1.0],graphite);}
+  } else if(site.place==='clothing'){
+    wall(frame,3.65,0xd4c9bd,2.55);roofDeck(frame,3.65,site.color);
+    box(group,[w+.13,.32,.62],[0,2.76,face+.18],site.color);
+    for(const x of [-1.75,1.75]){
+      pane(frame,x,1.40,1.56,1.95,'office');
+      box(group,[1.56,.13,.25],[x,.43,face+.07],0xbcae9c);
+    }
+    entrance(frame,1.38,true);
   } else if(site.place==='cafe') {
     wall(frame,3.57,0xcda78a,2.51);gable(frame,3.59,.79,0x80574e);
     for(const x of [-1.58,1.58]){
@@ -219,6 +227,7 @@ export function buildRoofBillboard(site:DistrictSite,resources:LocationResources
 
   // Eave/ridge heights match the actual roof shapes above (including gables).
   const rooflines={
+    clothing:{eave:3.65,rise:.36,gable:false},
     market:{eave:3.85,rise:.36,gable:false},
     cafe:{eave:3.59,rise:.79,gable:true},
     education:{eave:4.16,rise:.36,gable:false},
@@ -233,6 +242,7 @@ export function buildRoofBillboard(site:DistrictSite,resources:LocationResources
   const centerY=bottom+height/2;
   const z=site.d/2-.23;
   const palette:Record<Exclude<DistrictSite['place'],'park'>,readonly [number,string,string]>={
+    clothing:[0x675771,'#675771','#fff3e6'],
     market:[0x275a4f,'#245649','#fff6d9'],
     cafe:[0x763f34,'#70392f','#fff0d9'],
     education:[0x795e41,'#715338','#fff3d4'],

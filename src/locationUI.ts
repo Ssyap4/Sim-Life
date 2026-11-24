@@ -1,3 +1,5 @@
+import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
+import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
 import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
 import type { LocalActivity } from './shared/locations';
@@ -44,11 +46,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let cafeChoice: CafeItem | null = null;
   let cafeTopicsOpen=false;
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
+  const clothesCart=new Set<string>();
+  let fittingLook:string|null=null;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
+    if(fittingLook&&state&&getWorld()){fitWardrobe(getWorld().actors[role].root,role,outfitChoices((state.world.wardrobe??defaultWardrobe())[role].worn));fittingLook=null;}
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
     cafeChoice=null;
@@ -155,9 +160,38 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
+    } else if(kind==='wardrobe'||kind==='clothes-rack'||kind==='fitting'||kind==='clothes-checkout'){
+      const personal=(place.world.wardrobe??defaultWardrobe())[role];
+      const catalog=PREVIEW_LOOKS[role];
+      if(kind==='wardrobe'){
+        for(const [look,label] of catalog.filter(([id])=>personal.owned.includes(id)))
+          options.append(button(label+(personal.worn===look?' · На тебе':''),()=>send({type:'clothing_wear',look}),personal.worn===look));
+      }else if(kind==='clothes-rack'){
+        if(station.id!=='clothes-'+role)options.append(element('small','','Выбери свой отдел одежды.'));
+        else for(const [look,label] of catalog.filter(([id])=>id!=='signature')){
+          const owned=personal.owned.includes(look);
+          options.append(button(label+' · '+(owned?'Куплено':clothesCart.has(look)?'В корзине ✓':formatRub(outfitPrice(look))),()=>{
+            if(clothesCart.has(look))clothesCart.delete(look);else clothesCart.add(look);draw();
+          },owned));
+        }
+        options.append(element('small','','Примерь комплект в примерочной, оплати на кассе.'));
+      }else if(kind==='fitting'){
+        for(const [look,label] of catalog.filter(([id])=>id!=='signature')){
+          options.append(button(label+(fittingLook===look?' ✓':''),()=>{
+            fittingLook=look;fitWardrobe(getWorld().actors[role].root,role,outfitChoices(look));draw();
+          }));
+        }
+        if(fittingLook&&!personal.owned.includes(fittingLook))options.append(button('В корзину · '+formatRub(outfitPrice(fittingLook)),()=>{if(fittingLook)clothesCart.add(fittingLook);draw();}));
+      }else{
+        for(const [look,label] of catalog.filter(([id])=>clothesCart.has(id)&&!personal.owned.includes(id))){
+          options.append(button('Купить '+label+' · '+formatRub(outfitPrice(look)),()=>send({type:'clothing_buy',look}),place.money<outfitPrice(look)));
+          options.append(button('Убрать из корзины',()=>{clothesCart.delete(look);draw();}));
+        }
+        if(![...clothesCart].some(id=>!personal.owned.includes(id)))options.append(element('small','','Корзина пуста. Выбери комплект на стойке или в примерочной.'));
+      }
     } else if (kind === 'shelf' || kind === 'checkout') {
       const lines = list();
       const summary = element('strong', 'world-cart-total', 'Корзина: ' + lines.reduce((n, line) => n + line.quantity, 0) + ' уп. · ' + formatRub(basketPrice(lines)));
@@ -394,6 +428,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
+        if(location==='clothing')clothesCart.clear();
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -408,6 +443,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }
