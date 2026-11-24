@@ -35,6 +35,7 @@ export function catBedError(state:GameState,key:string,pose:{x:number;z:number;y
   return perch&&catBedOverlap(perch,key,pose)?catOccupiedPerch(state)?CAT_BLOCKED:CAT_DESCENDING:undefined;
 }
 export function catHomeSeatOverlap(perch:CatPerch,role:CharacterId,home:HomePresentation):boolean {
+  if(home.pair?.bed!==undefined&&home.furniturePose)return catBedOverlap(perch,home.pair.bed==='starter'?'starter:bed':'placed:'+home.pair.bed,home.furniturePose);
   if(home.furnitureId!==undefined&&home.furnitureSeat)
     return catSeatOverlap(perch,'placed:'+home.furnitureId,home.furniturePose);
   return home.station==='sofa'&&catSeatOverlap(perch,'starter:sofa',homeSeat('sofa',role).position);

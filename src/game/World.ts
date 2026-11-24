@@ -992,7 +992,7 @@ export class World {
       }else actor.walkPath(route,arrived);
     };
     const seated=this.household&&pair.place==='cafe'&&pair.station&&cafeSeatAt(this.household,role)?.id===pair.station;
-    if(seated) {arrived();return true;}
+    if(seated||this.household?.characters[role].pose==='sit'&&home.route.path.length===0&&(pair.seat==='sofa'||home.furnitureSeat)) {arrived();return true;}
     actor.setPose('idle');
     if(pair.offsetMs) this.preparations.set(role,{remaining:pair.offsetMs/1000,next:walk});
     else walk();
@@ -1007,7 +1007,8 @@ export class World {
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
-    if(home.furniturePose&&home.furnitureSeat){const p=home.furniturePose;actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
+    if(pair.motion==='bedRest'&&home.furniturePose){const p=home.furniturePose;actor.setFurniturePose('idle',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
+    else if(home.furniturePose&&home.furnitureSeat){const p=home.furniturePose;actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
     else if(pair.seat) {
       const seat=homeSeat(pair.seat,role);
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
@@ -1111,6 +1112,8 @@ export class World {
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
+      case 'sofaLean':case 'sofaHands':case 'sofaKiss':case 'sofaHug':case 'bedRest':case 'cuddle':
+        actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       case 'hug':case 'closeHug':
         actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       default:actor.playPartnerGesture(pair.motion,leads);
@@ -1375,7 +1378,7 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
-    if(home?.pair?.motion==='stroll')this.actors[role].setPose('idle');
+    if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest')this.actors[role].setPose('idle');
     if (dishes) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
       this.actors[role].setPose('idle');

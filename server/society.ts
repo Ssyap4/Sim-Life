@@ -19,6 +19,8 @@ import { evaluateTask, type EvaluatedTask } from './tasks';
 import { dishCount, dirtyDishStops } from '../src/shared/dirtyDishes';
 import { expireReadyFood, moveReadyFoodToTable, readyFoodTableUsage, TABLE_READY_CAPACITY } from '../src/shared/readyFood';
 import { planWalk, pointIsClear } from '../src/game/navigation';
+import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import { bedCapacity, selectSleepBed } from '../src/shared/bedSleep';
 import { RESIDENT_CLEARANCE } from '../src/game/residentCollision';
 
 export const BOND_WINDOW=240;
@@ -120,6 +122,49 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const tennisWinner=action==='pingPong'?badmintonWinner():undefined;
     const build=(l:typeof v):HomePresentation=>({route:l.route,station:'furniture',furnitureId:item.id,furniturePose:l.pose,furnitureSeat:LEISURE[action].seated,pair:{motion:'leisure',place,from,item:action,target:{x:item.x,z:item.z},tennisWinner}});
     return {vlad:build(v),alina:build(al)};
+  }
+  if(a.object==='bedRest'){
+    if(place!=='home')return null;
+    const candidates=state.furnishing.soldFixtures?.includes('bed')?state.furnishing.placed.filter(item=>bedCapacity(item)===2).map(item=>item.id):[undefined];
+    for(const id of candidates){
+      const v=selectSleepBed(state,'vlad',id),al=selectSleepBed(state,'alina',id);
+      if(!v.ok||!al.ok||v.bed.id!==al.bed.id||v.bed.capacity!==2)continue;
+      const result={} as Record<CharacterId,HomePresentation>;
+      for(const [role,bed] of [['vlad',v.bed],['alina',al.bed]] as const){
+        const side=role==='vlad'?-1:1,yaw=bed.pose.yaw;
+        const alternatives=[{x:bed.approach.x+side*.55*Math.cos(yaw),z:bed.approach.z-side*.55*Math.sin(yaw)},bed.approach,
+          {x:bed.pose.x+side*1.15*Math.cos(yaw),z:bed.pose.z-side*1.15*Math.sin(yaw)}];
+        const route=alternatives.filter(p=>pointIsClear(p,obstacles,floor)).map(p=>planWalk(state.characters[role],p,obstacles,floor)).find(r=>r&&(!result.vlad||Math.hypot((r.path.at(-1)??r.from).x-(result.vlad.route.path.at(-1)??result.vlad.route.from).x,(r.path.at(-1)??r.from).z-(result.vlad.route.path.at(-1)??result.vlad.route.from).z)>=RESIDENT_CLEARANCE));
+        if(!route)break;
+        result[role]={route,station:'furniture',furnitureId:typeof bed.id==='number'?bed.id:undefined,furniturePose:bed.pose,pair:{motion:'bedRest',place,from,bed:bed.id}};
+      }
+      if(result.vlad&&result.alina)return result;
+    }
+    return null;
+  }
+  if(a.object==='sofa'&&state.furnishing.soldFixtures?.includes('sofa')){
+    for(const item of state.furnishing.placed){
+      const spec=FURNITURE_BY_ID.get(item.sku);
+      if(!spec||!['sofa','corner'].includes(spec.shape)||spec.width<1.8)continue;
+      const v=furnitureUseLocation(state,'vlad',item.id,'sofaRest'),al=furnitureUseLocation(state,'alina',item.id,'sofaRest');
+      if(!v||!al)continue;
+      const yaw=item.rotation*Math.PI/2;
+      const local=(x:number,z:number)=>({x:item.x+x*Math.cos(yaw)+z*Math.sin(yaw),z:item.z-x*Math.sin(yaw)+z*Math.cos(yaw)});
+      const routes=(role:CharacterId,l:typeof v)=>{
+        const side=role==='vlad'?-1:1;
+        const options=[l.route,...[[-side*spec.width*.20,spec.depth/2+.75],[side*spec.width*.20,spec.depth/2+.75],
+          [side*spec.width*.20,-spec.depth/2-.75],[0,-spec.depth/2-.75],[side*(spec.width/2+.75),0],
+          [-side*(spec.width/2+.75),0],[side*(spec.width/2+.75),.85],[side*(spec.width/2+.75),-.85]].map(([x,z])=>local(x,z))
+          .filter(p=>pointIsClear(p,obstacles,floor)).map(p=>planWalk(state.characters[role],p,obstacles,floor))];
+        return options.filter((r):r is NonNullable<typeof r>=>!!r);
+      };
+      const build=(l:typeof v,route:typeof v.route):HomePresentation=>({route,station:'furniture',furnitureId:item.id,furniturePose:l.pose,furnitureSeat:true,pair:{motion:a.motion,place,from}});
+      for(const vr of routes('vlad',v))for(const ar of routes('alina',al)){
+        const ve=vr.path.at(-1)??vr.from,ae=ar.path.at(-1)??ar.from;
+        if(Math.hypot(ve.x-ae.x,ve.z-ae.z)>=RESIDENT_CLEARANCE)return {vlad:build(v,vr),alina:build(al,ar)};
+      }
+    }
+    return null;
   }
   const walk=(src:Point,destination:Point)=>planWalk(src,destination,obstacles,floor);
   const chain=(src:Point,stops:Point[])=>{

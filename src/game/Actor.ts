@@ -369,6 +369,7 @@ export class Actor {
 
   finishActivity(): void {
     this.props.phone.visible=false;
+    if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
     this.partnerGesture=null;
     this.gesture=null;
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
@@ -524,6 +525,7 @@ export class Actor {
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
     const asleep = this.pose === 'sleep';
+    const reclining=this.partnerGesture?.motion==='bedRest';
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
     const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat'||this.activity==='bathe';
@@ -631,7 +633,7 @@ export class Actor {
       rightZ = .30;
     }
     let expression = asleep ? 0.07 : 0.055 + 0.055 * Math.max(0, Math.sin(t * 0.39)) ** 5;
-    if (asleep) {
+    if (asleep||reclining) {
       // Relax the arms beside the torso. The old bent-chest pose rotated the
       // hands straight up into the air when the whole rig reclined in bed.
       leftY = -data.upperArm - data.lowerArm + 0.11;
@@ -934,7 +936,7 @@ export class Actor {
     }
 
     const pair=this.partnerGesture;
-    let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0;
+    let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0,partnerYaw=0,partnerSide=0;
     if(pair){
       const sec=pair.time;
       const rise=THREE.MathUtils.smoothstep(sec,.12,.78);
@@ -943,7 +945,7 @@ export class Actor {
       const longDance = pair.motion==='slowDance'||pair.motion==='dance';
       const shortContact = pair.motion==='hug'||pair.motion==='closeHug'||
         pair.motion==='kiss'||pair.motion==='cheek'||pair.motion==='highFive';
-      const duration = longDance ? 13 : shortContact ? 5 : 8;
+      const duration = pair.motion==='bedRest'?35:pair.motion==='sofaLean'||pair.motion==='sofaHug'?20:pair.motion==='sofaHands'?18:pair.motion==='cuddle'?15:longDance ? 13 : shortContact ? 5 : 8;
       const contact=rise*(1-THREE.MathUtils.smoothstep(sec,duration-1.45,duration-.40));
       switch(pair.motion){
         case 'hug':case 'closeHug': {
@@ -974,10 +976,24 @@ export class Actor {
           if(pair.leads) { rightY+=.43*contact; rightZ+=.22*contact; lean+=.06*contact; }
           else partnerHead=.10*contact;
           expression+=.20*rise; break;
-        case 'cuddle':
-          partnerRoll=(this.id==='vlad'?.15:-.15)*contact;
-          partnerHead=partnerRoll*.5;
-          lean-=.055*contact; expression+=.29*contact; break;
+        case 'cuddle':case 'sofaLean':case 'sofaHands':case 'sofaKiss':case 'sofaHug':{
+          // Seats face the same direction. Derive the inward side from the actual
+          // partner body anchor, including rotated purchased sofas.
+          const side=pair.partner?Math.sign(this.root.worldToLocal(pair.partner.bodyPosition(new THREE.Vector3())).x-this.figure.position.x):this.id==='vlad'?-1:1;
+          const inward=side||1;
+          const strength=pair.motion==='sofaLean'?(pair.leads?1:.22):pair.motion==='sofaKiss'?.8:pair.motion==='sofaHands'?.25:.62;
+          partnerRoll=-inward*.16*contact*strength;
+          partnerHead=-inward*.12*contact*strength;
+          partnerSide=inward*.065*contact*strength;
+          partnerYaw=inward*(pair.motion==='sofaKiss'?.68:.20)*contact;
+          if(pair.motion==='sofaHands'||pair.motion==='sofaHug'&&pair.leads)partnerReach=contact;
+          if(inward>0)rightY+=.13*contact;else leftY+=.13*contact;
+          expression+=.30*contact;break;
+        }
+        case 'bedRest':
+          expression+=.16*rise;
+          partnerYaw=(this.id==='vlad'?.18:-.18)*contact;
+          gaze+=.025*Math.sin(sec*1.6);break;
         case 'dance':
           partnerRoll=Math.sin(sec*3.6)*.16*contact; crouch+=.055*(1+Math.cos(sec*4.2))*contact;
           leftY+=.36*(.60+.4*Math.sin(sec*3.6))*contact; rightY+=.36*(.60-.4*Math.sin(sec*3.6))*contact;
@@ -1334,7 +1350,7 @@ export class Actor {
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
-    const look = 0.20 * idleLook + lead + idleHeadYaw + chatYaw;
+    const look = 0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, gaze + 0.022 * breath - lean * 0.55 + chatNod, alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
@@ -1357,9 +1373,9 @@ export class Actor {
     // Close the visual gap during a hug while the path endpoints stay fixed.
     this.figure.position.z += embrace;
     this.figure.position.y -= stanceDrop + this.crouchBlend;
-    this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15;
+    this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
-    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
+    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep||reclining ? -Math.PI / 2 : 0, alpha);
     if (typing) {
       const spec=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]:undefined;
       const variant=spec?.animation??0;
@@ -1468,6 +1484,21 @@ export class Actor {
         this.aimHand(hand,this.handDirection.set(hand===0?.8:-.8,-.33,.40)
           .applyAxisAngle(up,this.root.rotation.y),blend);
       }
+    } else if(pair?.partner&&partnerReach>0.002&&(pair.motion==='sofaHands'||pair.motion==='sofaHug')){
+      const other=pair.partner;
+      const own=this.bodyPosition(new THREE.Vector3()),theirs=other.bodyPosition(new THREE.Vector3());
+      const local=this.root.worldToLocal(theirs.clone());
+      const hand=local.x-this.figure.position.x>0?1:0;
+      const blend=Math.min(1,alpha*3*partnerReach);
+      if(pair.motion==='sofaHands'){
+        this.target.copy(own).lerp(theirs,.5).add(new THREE.Vector3(0,.80,.24).applyAxisAngle(up,this.root.rotation.y));
+      }else{
+        this.target.set(0,.02,-.04);
+        other.rig.chest.localToWorld(this.target);
+        this.target.y+=.34;
+      }
+      this.reach(hand,this.target,blend);
+      this.aimHand(hand,this.handDirection.set(0,-.8,.2).applyAxisAngle(up,this.root.rotation.y),blend);
     } else if(pair?.target&&partnerReach>0.002) {
       const hand=pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
       this.reach(hand,this.target.copy(pair.target),Math.min(1,alpha*4*partnerReach));

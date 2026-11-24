@@ -53,12 +53,13 @@ export function eveningSelection(item:string) {
 }
 import { LEISURE, leisureAction } from './leisure';
 import { FURNITURE_BY_ID } from './furniture';
+import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
-  'slowDance'|'dance'|'highFive'|'cuddle'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
+  'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
@@ -115,6 +116,11 @@ const objects: readonly SocialActivity[] = [
     lines:['Как думаешь, Симба уже захватил наш диван, пока мы здесь?','Представляю, как Верделл обрадуется, когда мы вернёмся домой.'],
     replies:['Уверен, дома нас ждёт целая делегация.','Надо устроить им уютный вечер.'],motion:'sitTalk',seconds:18,object:'cafeTalk'},
   {id:'sofaTalk',title:'Поговорить на диване',group:'care',lines:['Давай сядем на диван. Можно спокойно поговорить, если хочется.'],replies:['Расскажу, что у меня на уме.','Давай начнём с тишины.'],motion:'sitTalk',seconds:14,object:'sofa'},
+  {id:'sofaLean',title:'Положить голову на плечо',group:'romance',lines:['Можно я немного побуду рядом и положу голову тебе на плечо?'],replies:['Конечно, устраивайся.','Давай посидим так.'],motion:'sofaLean',seconds:20,object:'sofa'},
+  {id:'sofaHands',title:'Взяться за руки на диване',group:'romance',lines:['Дай руку, посидим немного вместе?'],replies:['Держи.','С удовольствием.'],motion:'sofaHands',seconds:18,object:'sofa'},
+  {id:'sofaKiss',title:'Поцеловаться на диване',group:'romance',lines:['Хочу тебя поцеловать, можно?'],replies:['Иди сюда.','Конечно.'],motion:'sofaKiss',seconds:8,object:'sofa'},
+  {id:'sofaHug',title:'Обнять за плечи на диване',group:'romance',lines:['Хочу обнять тебя и немного посидеть рядом.'],replies:['Давай.','Мне так уютно.'],motion:'sofaHug',seconds:20,object:'sofa'},
+  {id:'bedRest',title:'Полежать вместе в кровати',group:'romance',lines:['Давай полежим рядом и немного отдохнём, не засыпая.'],replies:['Хорошая идея.','Побудем рядом.'],motion:'bedRest',seconds:35,object:'bedRest'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
   {id:'eveningTea',title:'Обсудить вечер за столом',group:'talk',lines:['Посидим за столом и выберем, как провести вечер?'],replies:['Давай сначала выберем время для отдыха.','Я бы начал с чего-нибудь совсем простого.'],motion:'sitTalk',seconds:12,object:'table'},
   {id:'moneyReview',title:'Спланировать бюджет вдвоём',group:'home',
@@ -164,11 +170,11 @@ export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
   motion:PairMotion; place:GameState['world']['places'][CharacterId]; from:CharacterId; target?:Point;
   seat?:HomeSeat; station?:string; pet?:string; item?:string; stroll?:Point[];
-  offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId; tennisWinner?:CharacterId;
+  bed?:import('./bedSleep').SleepBedId; offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId; tennisWinner?:CharacterId;
 }
 
 export function otherPerson(role:CharacterId):CharacterId { return role==='vlad'?'alina':'vlad'; }
-const contacts=new Set<PairMotion>(['hug','closeHug','kiss','cheek','hands','hair','shoulder','slowDance','highFive']);
+const contacts=new Set<PairMotion>(['hug','closeHug','kiss','cheek','hands','hair','shoulder','slowDance','highFive','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest','cuddle']);
 export const isContact=(motion:PairMotion)=>contacts.has(motion);
 
 function recentCareer(state:GameState,role:CharacterId,titles:string[],minutes:number){
@@ -304,6 +310,8 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (name==='film'&&!serviceAvailable(state.billing,'netflix',now)) return 'Нужна подписка Netflix';
   if (name==='youtube'&&!serviceAvailable(state.billing,'youtube',now)) return 'Нужна подписка YouTube Premium';
   if (needsItem(a)&&!(individual&&(name==='eat'||name==='takeout'))&&!activityItems(a,state,from).length) return 'Нет подходящих запасов, материалов или свободного питомца';
+  if(a.object==='sofa'&&state.furnishing.soldFixtures?.includes('sofa')&&!state.furnishing.placed.some(item=>{const model=FURNITURE_BY_ID.get(item.sku);return model&&(model.shape==='sofa'||model.shape==='corner')&&model.width>=1.8;}))return 'Нужен диван на двоих';
+  if(a.object==='bedRest'&&state.furnishing.soldFixtures?.includes('bed')&&!state.furnishing.placed.some(item=>bedCapacity(item)===2))return 'Нужна двуспальная кровать';
   if (isContact(a.motion)&&[from,to].some(role=>state.characters[role].energy<11||state.characters[role].bladder<8))
     return 'Сначала лучше заняться самочувствием';
 }
