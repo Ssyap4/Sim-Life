@@ -1317,9 +1317,7 @@ function openPurchasedFurnitureActions(id:number):void{
     const pc=document.createElement('button');
     pc.type='button';pc.className='action-button';pc.textContent='💻 Открыть стационарный компьютер';
     pc.addEventListener('click',()=>{
-      selectedDesktopFurnitureId=id;
-      world.focusDesktopFurniture(id);
-      actionsEl.hidden=true;computer.open('desktop');
+      openComputer('desktop',id);
     });
     actionsEl.append(pc);
   }
@@ -1328,13 +1326,24 @@ function openPurchasedFurnitureActions(id:number):void{
   edit.addEventListener('click',()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);});
   actionsEl.append(edit);
 }
+/** Every physical computer starts a new desktop view, not the prior overlay. */
+function openComputer(device:import('./shared/computer').ComputerDevice,furnitureId?:number):void {
+  if(!active||!state||!net.isReady())return;
+  actionsEl.hidden=true;phone.close();skillsPanel.close();furnishing.close();
+  locationUI.close();locationUI.closeMap();toggleNeeds(false);
+  if(device==='desktop'){
+    selectedDesktopFurnitureId=furnitureId??null;
+    if(furnitureId!==undefined)world.focusDesktopFurniture(furnitureId);
+  }
+  computer.open(device);
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
     notify('Сначала войди в дом');
     return;
   }
-  if (item === 'desk') { computer.open('desktop'); return; }
+  if (item === 'desk') { openComputer('desktop'); return; }
   if(item==='delivery' && state) {
     actionsEl.hidden=true;
     phone.open('delivery');
@@ -1519,7 +1528,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         actionsEl.hidden = true;
         locationUI.close(); locationUI.closeMap();
         if (world.place === 'home' && id === HOME_LAPTOP) {
-          computer.open('laptop');
+          openComputer('laptop');
           return;
         }
         if (stationById(world.place,id)?.action.kind==='career') {

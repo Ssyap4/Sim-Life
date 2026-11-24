@@ -49,6 +49,10 @@ const apps: ReadonlyArray<[ComputerApp, string, string, string]> = [
   ['mail','✉️','Почта','Рабочие сообщения'],
   ['notes','📝','Заметки','Практика и записи'],
 ];
+const nestedAppTitles:Partial<Record<ComputerApp,string>>={
+  internet:'Интернет и подключение',mobile:'Мобильная связь',
+  utilities:'Коммунальные платежи',subscriptions:'Подписки',
+};
 const deviceName = (device: ComputerDevice) => device === 'laptop' ? 'Ноутбук Алины' : 'ПК Влада';
 const button = (title: string, action: () => void, description?: string) => {
   const control = document.createElement('button');
@@ -104,6 +108,16 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const shopRoot = section('section','market-overlay computer-market-root');
   shopRoot.hidden = true;
   const shop = createMarketUI(shopRoot,callbacks.checkout,()=>show('mobile'),()=>show('browser'));
+  // The canvas opens this overlay on pointerup. A synthetic click from the
+  // same touch must never activate an application underneath that finger.
+  let freshPointer=false;
+  root.addEventListener('pointerdown',()=>{freshPointer=true;},{capture:true});
+  root.addEventListener('pointercancel',()=>{freshPointer=false;},{capture:true});
+  root.addEventListener('click',event=>{
+    const pointerClick=event.detail>0||(event instanceof PointerEvent&&!!event.pointerType);
+    if(pointerClick&&!freshPointer){event.preventDefault();event.stopImmediatePropagation();}
+    freshPointer=false;
+  },{capture:true});
   let device: ComputerDevice = 'desktop';
   let app: ComputerApp | null = null;
   let filter: GameFilter = 'all';
@@ -149,7 +163,8 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const close=()=>{
     stopPreview();
     callbacks.preview(device,null);
-    root.hidden=true;app=null;content.replaceChildren();
+    root.hidden=true;freshPointer=false;app=null;windowEl.hidden=true;desktop.hidden=false;
+    content.replaceChildren();desktop.scrollTop=0;content.scrollTop=0;
   };
   const act=(action:ActionId)=>{if(callbacks.act(action,device))close();};
   const career=createCareerUI(content,command=>
@@ -175,9 +190,13 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     app=next;windowEl.hidden=next===null;desktop.hidden=next!==null;
     content.replaceChildren();
     gameSignature=videoSignature='';
+    content.scrollTop=0;
+    if(next===null){
+      appTitle.textContent='';
+      desktop.scrollTop=0;desktop.scrollLeft=0;
+    }
     if(next){
-      appTitle.textContent=apps.find(row=>row[0]===next)![2];
-      content.scrollTop=0;
+      appTitle.textContent=apps.find(row=>row[0]===next)?.[2]??nestedAppTitles[next]??'';
       if(next==='career'||next==='mail')career.open();
       if(next==='study')education.open('academy');
       if(next==='shop') {
@@ -395,8 +414,12 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   root.addEventListener('click',event=>{if(event.target===root)close();});
   return {
     open(nextDevice:ComputerDevice) {
-      device=nextDevice;
-      root.hidden=false;show(null);closeButton.focus();
+      if(!currentView())return;
+      if(!root.hidden)callbacks.preview(device,null);
+      device=nextDevice;freshPointer=false;
+      root.hidden=false;show(null);
+      closeButton.focus({preventScroll:true});
+      desktop.scrollTop=0;
     },
     close,refresh,
     acknowledgeOrder(){if(app==='shop')shop.acknowledge();},
