@@ -23,7 +23,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -361,6 +361,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.props.phone.visible=false;
     this.partnerGesture=null;
     this.gesture=null;
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
@@ -812,6 +813,10 @@ export class Actor {
           armSpread = .31;
           gaze = .26+.034*Math.sin(a*1.3);
           break;
+        case 'scrollPhone':
+          rightY=-.25+.027*Math.sin(a*3.3);rightZ=.36;
+          leftY=-.26+.034*Math.sin(a*4.1);leftZ=.31;
+          armSpread=.24;gaze=.29;lean=.05;expression=.07;break;
         case 'phone':
           rightY = 0.075 + 0.016 * Math.sin(a * 2.3);
           rightZ = 0.11;
@@ -1239,6 +1244,7 @@ export class Actor {
     this.spoon.visible = (this.activity === 'cook' &&
       (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
       (this.activity === 'eat' && eatingWith === 'spoon');
+    this.props.phone.visible=this.activity==='scrollPhone';
     this.props.fork.visible = this.activity === 'eat' && eatingWith === 'fork';
     this.props.knife.visible = (this.activity === 'cook' && kitchenStep === 'chop') ||
       (this.activity === 'prep' && helperChop(a));

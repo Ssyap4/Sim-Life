@@ -11,7 +11,7 @@ function expected(item:FurnitureProduct){
  const shape=item.shape;
  if(shape==='leisure')return [leisureAction(item.id)!];
  if(shape==='bed'||shape==='daybed')return [] as string[];
- if(shape==='sofa'||shape==='corner')return ['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie','read_book'];
+ if(shape==='sofa'||shape==='corner')return ['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie','read_book'];
  if(seats.has(shape))return ['officeChairSit','read_book'];
  if(containers.has(shape))return ['tidy'];
  if(shape==='shelves')return ['read_book','tidy'];

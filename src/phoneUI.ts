@@ -1,3 +1,4 @@
+import { electronicsModel } from './shared/electronics';
 import { renderRelationship } from './socialUI';
 import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
@@ -21,9 +22,10 @@ import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
 import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
-type App = 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  feed:['📲','Лента'],
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
@@ -41,7 +43,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -86,6 +88,11 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='feed'){
+      const phone=electronicsModel(state,role,'phone');
+      const card=block(phone.name,'Полистать новости, фотографии и короткие ролики. 20 сек. · досуг +'+(18+phone.bonus)+' · настроение +'+(4+phone.comfort));
+      const start=document.createElement('button');start.type='button';start.textContent='Полистать ленту';start.disabled=state.world.places[role]!=='home';start.addEventListener('click',()=>{if(openFeed?.())close();});card.append(start);info.replaceChildren(card);
+    }
     if(app==='autonomy'){
       const scroll=info.scrollTop;
       const intro=block('🧠 Живая повседневность',
@@ -252,7 +259,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='delivery') openDelivery(view.state);

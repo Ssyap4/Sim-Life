@@ -1,3 +1,4 @@
+import { electronicsModel } from '../src/shared/electronics';
 import { COMPUTER_GAMES, GAME_BY_ID, VIDEO_CLIPS, gamePreference, isComputerGameId,
   isVideoClipId } from '../src/shared/computerGames';
 import { computerDevice } from '../src/shared/computer';
@@ -21,10 +22,11 @@ export function completeComputerGame(source:GameState,role:CharacterId,id:unknow
   if (source.world.places[role]!=='home') return fail('Играть можно за домашним компьютером');
   const game=GAME_BY_ID.get(id)!;
   const state=structuredClone(source),profile=state.computerLibrary[role];
-  adjust(state,role,'fun',game.fun+gamePreference(role,game.genre));
+  const hardware=electronicsModel(state,role,device);
+  adjust(state,role,'fun',game.fun+gamePreference(role,game.genre)+hardware.bonus);
   adjust(state,role,'mood',game.mood);
   adjust(state,role,'energy',game.energy);
-  adjust(state,role,'comfort',game.comfort);
+  adjust(state,role,'comfort',game.comfort+hardware.comfort);
   if (game.skill) adjust(state,role,'skill',game.skill);
   profile.recent=[id,...profile.recent.filter(other=>other!==id)].slice(0,5);
   profile.last=id;
@@ -39,7 +41,9 @@ export function completeComputerVideo(source:GameState,role:CharacterId,id:unkno
   if (source.world.places[role]!=='home') return fail('Смотреть ролики можно дома');
   if (!serviceAvailable(source.billing,'internet',gameMinutes(source.clock))) return fail('Для ролика нужен действующий интернет');
   const state=structuredClone(source),clip=VIDEO_CLIPS[id];
-  adjust(state,role,'fun',clip.fun);
+  const hardware=electronicsModel(state,role,device);
+  adjust(state,role,'fun',clip.fun+hardware.bonus);
+  adjust(state,role,'comfort',hardware.comfort);
   adjust(state,role,'mood',clip.mood);
   adjust(state,role,'energy',-2);
   pose(state,role,device);

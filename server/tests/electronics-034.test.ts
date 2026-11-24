@@ -54,6 +54,37 @@ test('upgraded computers shorten actual order time, retain quest count and full 
 test('upgraded TV and personal phones have measurable effects without changing basic equipment',()=>{
  const s=initialState();s.world.electronics={...initialElectronics(),tv:'tvOLED',phones:{vlad:'phonePro',alina:'phoneStart'}};
  Object.assign(s.characters.vlad,{fun:20,mood:20,social:20});Object.assign(s.characters.alina,{fun:20,mood:20,social:20});
- const tv=evaluateTask(s,'vlad',{type:'free_tv'});assert.ok(tv.ok);assert.equal(tv.state.characters.vlad.fun,32);assert.equal(tv.state.characters.vlad.mood,27);
- for(const role of ['vlad','alina'] as const){const call=applyAction(s,role,'sofaCall');assert.ok(call.ok);assert.equal(call.state.characters[role].social,role==='vlad'?48:42);}
+ const tv=evaluateTask(s,'vlad',{type:'free_tv'});assert.ok(tv.ok);assert.equal(tv.state.characters.vlad.fun,37);assert.equal(tv.state.characters.vlad.mood,20);assert.equal(tv.state.characters.vlad.comfort,Math.min(100,s.characters.vlad.comfort+9));
+ for(const role of ['vlad','alina'] as const){const call=applyAction(s,role,'sofaCall');assert.ok(call.ok);assert.equal(call.state.characters[role].social,42);const feed=applyAction(s,role,'sofaScroll');assert.ok(feed.ok);assert.equal(feed.state.characters[role].fun,role==='vlad'?50:38);assert.equal(feed.state.characters[role].mood,role==='vlad'?30:24);}
+});
+
+import { completeComputerGame, completeComputerVideo } from '../computers';
+import { COMPUTER_GAMES, VIDEO_CLIPS } from '../../src/shared/computerGames';
+import { MATERIALS } from '../../src/shared/educationCatalog';
+import { educationalXP } from '../../src/shared/education';
+import { completeStudy } from '../education';
+import { planTask } from '../tasks';
+test('PC and laptop upgrades grant device-specific entertainment and comfort gains',()=>{
+ const base=initialState();Object.assign(base.characters.vlad,{fun:0,comfort:20});
+ const upgraded=structuredClone(base);upgraded.world.electronics={...initialElectronics(),desktop:'pcPro',laptop:'laptopAir'};
+ for(const device of ['desktop','laptop'] as const){
+  const game=COMPUTER_GAMES[0].id;
+  const a=completeComputerGame(base,'vlad',game,device),b=completeComputerGame(upgraded,'vlad',game,device);
+  assert.ok(a.ok&&b.ok);assert.equal(b.state.characters.vlad.fun-a.state.characters.vlad.fun,device==='desktop'?9:3);
+  assert.equal(b.state.characters.vlad.comfort-a.state.characters.vlad.comfort,device==='desktop'?6:2);
+  const clip=Object.keys(VIDEO_CLIPS)[0];const c=completeComputerVideo(base,'vlad',clip,device),d=completeComputerVideo(upgraded,'vlad',clip,device);
+  assert.ok(c.ok&&d.ok);assert.equal(d.state.characters.vlad.fun-c.state.characters.vlad.fun,device==='desktop'?9:3);
+  assert.equal(d.state.characters.vlad.comfort-c.state.characters.vlad.comfort,device==='desktop'?6:2);
+ }
+});
+test('Educational TV XP bonus applies only to completed TV materials',()=>{
+ const a=initialState(),b=structuredClone(a);b.world.electronics={...initialElectronics(),tv:'tvOLED'};
+ const item=MATERIALS.find(m=>m.channel==='tv'&&educationalXP(m,'vlad',a.education.characters.vlad)>10)!;assert.ok(item);
+ const xp=educationalXP(item,'vlad',a.education.characters.vlad);completeStudy(a,'vlad',item,0);completeStudy(b,'vlad',item,0);
+ assert.equal(b.education.characters.vlad.xp[item.skill]-a.education.characters.vlad.xp[item.skill],Math.round(xp*1.15)-xp);
+});
+test('Phone feed is a real timed activity, not a menu-open reward',()=>{
+ const s=initialState();const plan=planTask({type:'act',actionId:'sofaScroll'});assert.ok(plan);assert.equal(plan.durationMs,20000);
+ const r=evaluateTask(s,'vlad',plan.command);assert.ok(r.ok);
+ s.world.places.vlad='district';assert.equal(evaluateTask(s,'vlad',plan.command).ok,false);
 });

@@ -75,6 +75,11 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   fork.rotation.x=.25;
   fork.visible=false;
   wrists[1].add(fork);
+  const phone=new THREE.Group();phone.name="Held smartphone";
+  part(phone,material(0x25323d),[.075,.016,.145],[0,0,0]);
+  part(phone,material(0x9cbad6),[.064,.003,.128],[0,.009,0]);
+  for(let i=0;i<4;i++)part(phone,material(i%2?0xf3e3c0:0x516f90),[.048,.002,.018],[0,.011,-.042+i*.028]);
+  wrists[1].add(phone);phone.position.set(0,-.048,.052);phone.rotation.x=-.34;phone.visible=false;
   const tongs = new THREE.Group();
   tongs.position.set(0, -.090, .043);
   const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
@@ -83,6 +88,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   const left=new THREE.Vector3(),right=new THREE.Vector3();
   return {
     brush,
+    phone,
     groomingBrush,
     knife,
     fork,

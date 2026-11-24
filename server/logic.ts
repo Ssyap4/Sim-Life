@@ -49,8 +49,13 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'fun', 14); change(state, role, 'mood', 6);
       message = name + ': отдых под музыку'; break;
     case 'sofaCall':
-      change(state, role, 'social', 22+electronicsModel(state,role,'phone').bonus); change(state, role, 'mood', 4);
+      change(state, role, 'social', 22); change(state, role, 'mood', 4);
       message = name + ': приятный разговор по телефону'; break;
+    case 'sofaScroll': {
+      const phone=electronicsModel(state,role,'phone');
+      change(state,role,'fun',18+phone.bonus);change(state,role,'mood',4+phone.comfort);
+      message=name+': полистал(а) ленту';break;
+    }
     case 'bedSleep':
       change(state, role, 'energy', 37); change(state, role, 'hunger', -6);
       change(state, role, 'comfort', 12);
@@ -74,7 +79,8 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       change(state, role, 'skill', 11); change(state, role, 'energy', -7);
       message = 'Влад изучил приёмы разработки'; break;
     case 'deskGames':
-      change(state, role, 'fun', 25); change(state, role, 'energy', -4);
+      const pc=electronicsModel(state,role,'desktop');
+      change(state, role, 'fun', 25+pc.bonus); change(state, role, 'comfort', pc.comfort); change(state, role, 'energy', -4);
       change(state, role, 'mood', 5);
       message = name + ': поиграл(а) на компьютере'; break;
     case 'deskJournal':

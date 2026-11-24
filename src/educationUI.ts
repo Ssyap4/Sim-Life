@@ -1,3 +1,4 @@
+import { electronicsModel } from "./shared/electronics";
 import {
   CLASS_WINDOW, SKILLS, SKILL_IDS, educationalXP, materialRepeatFactor, missingKnowledge, nextClassSlots, rankTitle, skillRank, talent,
   type EducationCommand, type EducationProfile, type LearningChannel, type SkillId, type StudyMaterial,
@@ -210,8 +211,9 @@ export function createEducationUI(root: HTMLElement, submit: (command: Education
         other.attended === other.dates.length;
     });
     const fee = feeIncluded ? 0 : item.price;
-    const xp = course && level >= item.min && level < item.max
+    let xp = course && level >= item.min && level < item.max
       ? Math.round(item.xp * (1 + talent(role, item.skill) / 100)) : educationalXP(item, role, profile);
+    if(item.channel==="tv")xp=Math.round(xp*(1+electronicsModel(state,role,"tv").study/100));
     const card = node('article', '', 'education-card');
     card.dataset.material = item.id;
     card.append(node('h3', item.title + (item.retired ? ' · Архив' : '')), node('p', item.description),

@@ -37,7 +37,7 @@ export interface TaskPlan {
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
-  sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
+  sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8, sofaScroll: 20,
   officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
@@ -171,11 +171,11 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   return null;
 }
 
-export function entertainmentReward(command: Entertainment, together = false, bonus=0): NeedEffects {
+export function entertainmentReward(command: Entertainment, together = false, bonus=0, comfort=0): NeedEffects {
   if (command.type === 'read_book') return READING_REWARD;
-  if (command.type === 'free_tv') return { fun: 5+bonus, ...(bonus?{mood:bonus}:{}) };
-  if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10, ...(bonus?{mood:bonus}:{}) };
-  return { fun: 100, ...(together?{social:100}:{}), comfort: 15, ...(bonus?{mood:bonus}:{}) };
+  if (command.type === 'free_tv') return { fun: 5+bonus, ...(comfort?{comfort}:{}) };
+  if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10+comfort };
+  return { fun: 100, ...(together?{social:100}:{}), comfort: 15+comfort };
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
@@ -203,7 +203,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         action==='youtube'?'youtube':'netflix',clockMinutes(state.clock));
       if(denial)return {ok:false,reason:denial};
     }
-    if(action==='sofaCall' && !serviceAvailable(state.billing,'mobile',clockMinutes(state.clock)))
+    if((action==='sofaCall'||action==='sofaScroll') && !serviceAvailable(state.billing,'mobile',clockMinutes(state.clock)))
       return {ok:false,reason:SERVICE_MESSAGES.mobile};
     if(['deskGames','vladStudy','alinaStudy','vladOrder','alinaConsult'].includes(action)&&
       !serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))
@@ -219,7 +219,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         const reward=isLeisureAction(action)?{fun:LEISURE[action].fun,mood:LEISURE[action].mood,comfort:LEISURE[action].comfort,energy:LEISURE[action].energy}:action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
           action==='read_book'?{type:'read_book',book:command.book!}:
           action==='movie'?{type:'movie',genre:command.genre!}:
-          action==='youtube'?{type:'youtube'}:{type:'free_tv'},false,electronicsModel(state,role,'tv').bonus);
+          action==='youtube'?{type:'youtube'}:{type:'free_tv'},false,electronicsModel(state,role,'tv').bonus,electronicsModel(state,role,'tv').comfort);
         for(const [key,amount]of Object.entries(reward)){
           const field=key as keyof typeof reward & keyof typeof resident;
           const change=Number(amount);
@@ -231,7 +231,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         return {ok:true as const,state:next,message:FURNITURE_ACTIONS[action]+' — выполнено'};
       })();
     if(!result.ok)return result;
-    if(['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
+    if(['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
       const before=state.characters[role],after=result.state.characters[role];
       const bonus=seatingComfortBonus(selected.item.sku);
       if(after.comfort>before.comfort)after.comfort=Math.max(before.comfort,Math.min(100,after.comfort+bonus));
@@ -239,7 +239,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     const destination=position.route.path.at(-1)??position.route.from;
     Object.assign(result.state.characters[role],destination,{
-      pose:(isLeisureAction(action)&&LEISURE[action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',
+      pose:(isLeisureAction(action)&&LEISURE[action].seated)||['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','tableTalk','tablePlan',
         'youtube','movie','free_tv'].includes(action)||
         (action==='read_book'&&FURNITURE_BY_ID.get(selected.item.sku)?.shape!=='shelves')?'sit':'idle'});
     return result;
@@ -270,7 +270,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book' || command.type === 'free_tv') {
     const next = structuredClone(state);
     const needs = next.characters[role];
-    for (const [key, amount] of Object.entries(entertainmentReward(command, together,electronicsModel(state,role,"tv").bonus))) {
+    for (const [key, amount] of Object.entries(entertainmentReward(command, together,electronicsModel(state,role,"tv").bonus,electronicsModel(state,role,"tv").comfort))) {
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }

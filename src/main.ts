@@ -795,7 +795,11 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
       const task=active&&tasks.get(active);
       if(task&&task.paired)return task.label+(task.since===null?' · готовимся':'');
     },
-  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts);
+  },()=>furnishing.open(),mode=>net.setAutonomyMode(mode),thoughts,()=>{
+    if(!state||!active)return false;
+    if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
+    return net.perform('sofaScroll');
+  });
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1503,7 +1507,7 @@ function openActions(item: ItemId): void {
       actionsEl.hidden = true;
       const denial = state && taskAccessError(state, {type:'act', actionId:actionId as ActionId});
       if (denial) {
-        phone.open(actionId === 'sofaCall' || actionId === 'tableTalk' ? 'mobile' : 'internet');
+        phone.open(actionId === 'sofaCall' || actionId === 'sofaScroll' || actionId === 'tableTalk' ? 'mobile' : 'internet');
         phone.billingMessages([denial]);
         notify(denial);
         return;

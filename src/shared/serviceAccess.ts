@@ -6,7 +6,7 @@ import { FURNITURE_BY_ID } from './furniture';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from './services';
 
 const onlineComputer = new Set<ActionId>(['vladOrder', 'vladStudy', 'alinaStudy', 'alinaConsult', 'deskGames']);
-const mobileCommunication = new Set<ActionId>(['sofaCall', 'tableTalk']);
+const mobileCommunication = new Set<ActionId>(['sofaCall', 'sofaScroll', 'tableTalk']);
 
 export function taskAccessError(state: GameState, command: TimedCommand): string | undefined {
   const now = clockMinutes(state.clock);

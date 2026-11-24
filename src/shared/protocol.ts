@@ -124,6 +124,7 @@ export const ACTIONS = {
   sofaMovie: { label: '🎬 Посмотреть фильм (диван + ТВ)', item: 'sofa', pose: 'sit' },
   sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },
   sofaMusic: { label: '🎵 Послушать музыку', item: 'sofa', pose: 'sit' },
+  sofaScroll: { label:'📱 Полистать ленту',item:'sofa',pose:'sit' },
   sofaCall: { label: '📱 Позвонить близким', item: 'sofa', pose: 'sit' },
   officeChairSit: { label: 'Посидеть в кресле', item: 'officeChair', pose: 'sit' },
   bedSleep: { label: '🌙 Поспать', item: 'bed', pose: 'sleep' },

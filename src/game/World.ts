@@ -83,7 +83,7 @@ const deskKeys = [
 const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
 // Reuse the existing light articulated rig instead of loading extra animations.
 const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
-  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
+  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone', sofaScroll:'scrollPhone',
   bedMake: 'tidy', bedStretch: 'stretch',
   deskGames: 'games', deskJournal: 'journal',
   kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
@@ -863,6 +863,7 @@ export class World {
             else if(command.action==='billiards')actor.playDomesticActivity('billiards');
           }
           else if(command.action==='tidy')actor.playDomesticActivity('tidy');
+          else if(command.action==='sofaScroll')actor.playDomesticActivity('scrollPhone');
           else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
           else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
         }

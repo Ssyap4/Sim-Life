@@ -12,6 +12,7 @@ export const FURNITURE_ACTIONS = {
   sofaRest:'Отдохнуть',
   sofaMusic:'Послушать музыку',
   sofaCall:'Позвонить с дивана',
+  sofaScroll:'Полистать ленту',
   officeChairSit:'Посидеть',
   tableRest:'Посидеть за столом',
   tableTalk:'Поговорить за столом',
@@ -49,7 +50,7 @@ export function canFurniturePerform(item:PlacedFurniture,action:FurnitureUseActi
   if(shape==='leisure')return leisureAction(item.sku)===action;
   if(isLeisureAction(action))return false;
   if(action==='officeChairSit')return seats.has(shape);
-  if(['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action))
+  if(['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action))
     return shape==='sofa'||shape==='corner';
   if(['tableRest','tableTalk','tablePlan'].includes(action))
     return shape==='table'&&info.height>=.63;
@@ -130,7 +131,7 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
     shape==='bench'?info.height*.54:shape==='ottoman'?info.height*.56:
     shape==='armchair'?info.height*.52:info.height*.50;
   const isTable=['tableRest','tableTalk','tablePlan'].includes(action);
-  const isSofa=['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action)||
+  const isSofa=['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action)||
     (action==='read_book'&&(shape==='sofa'||shape==='corner'));
   const isDesk=shape==='desk';
   const isShelf=shape==='shelves';
