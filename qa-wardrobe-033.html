@@ -16,7 +16,7 @@ for(const [i,id] of ['alina','vlad'].entries()){
  const actor=new Actor(id,[0,0],models[id]);scene.add(actor.root);
  const visible=[];
  actor.root.traverse(o=>{if(o.userData.garmentId&&o.visible)visible.push(o.userData.garmentId);});
- for(const slot of ['upper','lower'])if(!visible.includes(id+'-'+(isPreviewLook(id,look)?look:'signature')+'-'+slot))throw Error('Missing selected '+id+' '+look+' '+slot);
+ for(const slot of ['upper','lower','footwear'])if(!visible.includes(id+'-'+(isPreviewLook(id,look)?look:'signature')+'-'+slot))throw Error('Missing selected '+id+' '+look+' '+slot);
  if(pose==='walk')actor.walkPath([new THREE.Vector3(0,0,2)],()=>{});
  else if(pose==='cook'||pose==='eat')actor.playActivity(pose);
  else actor.setPose(pose);

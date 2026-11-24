@@ -18,17 +18,22 @@ export const PREVIEW_LOOKS = {
  vlad:[
   ['signature','Исходный комплект'],
   ['home','Зелёная футболка · длинные шорты'],
-  ['denim','Белая футболка · синие джинсы'],
+  ['denim','Терракотовая футболка оверсайз · широкие тёмные джинсы'],
   ['city','Чёрная футболка · бежевые брюки'],
   ['cozy','Синее худи · спортивные штаны'],
   ['street','Серое худи · тёмные джинсы'],
   ['track','Тёмный спортивный костюм · три полоски'],
+  ['polo','Синее поло · светлые брюки'],
+  ['cargo','Песочная футболка · брюки карго'],
+  ['graphic','Графитовая футболка с принтом · джинсы'],
+  ['athletic','Коричневое худи на молнии · джоггеры'],
+  ['weekend','Голубое поло · длинные светлые шорты'],
  ],
 } as const;
 export function isPreviewLook(role:CharacterId,look:string):boolean{
  return PREVIEW_LOOKS[role].some(([id])=>id===look);
 }
-export const LONG_SLEEVE_LOOKS = ['cozy','street','sportshort','lounge','track'] as const;
+export const LONG_SLEEVE_LOOKS = ['cozy','street','sportshort','lounge','track','athletic'] as const;
 export function previewLongSleeves(look:string):boolean{
  return LONG_SLEEVE_LOOKS.some(id=>id===look);
 }
@@ -37,7 +42,7 @@ export type OwnedWardrobe = Record<CharacterId,{owned:string[];worn:string}>;
 export function defaultWardrobe():OwnedWardrobe {
  return {vlad:{owned:['signature'],worn:'signature'},alina:{owned:['signature'],worn:'signature'}};
 }
-export const outfitPrice=(look:string):number=>({signature:0,home:1290,summer:2490,pink:1890,sportshort:3290,denim:2990,city:2790,cozy:3290,street:3890,wide:3590,highrise:3190,lounge:4290,track:4990} as Record<string,number>)[look]??0;
+export const outfitPrice=(look:string):number=>({signature:0,home:1290,summer:2490,pink:1890,sportshort:3290,denim:2990,city:2790,cozy:3290,street:3890,wide:3590,highrise:3190,lounge:4290,track:4990,polo:3290,cargo:3690,graphic:2990,athletic:4490,weekend:2690} as Record<string,number>)[look]??0;
 export function validWardrobe(value:unknown):value is OwnedWardrobe{
  if(!value||typeof value!=='object')return false;
  const w=value as OwnedWardrobe;

@@ -5,7 +5,7 @@ const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use
 try{
  const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  page.on('pageerror',e=>console.error(e));
- for(const look of ['home','denim','city','cozy','street','summer','pink','sportshort','wide','highrise','lounge','track']){
+ for(const look of ['home','denim','city','cozy','street','summer','pink','sportshort','wide','highrise','lounge','track','polo','cargo','graphic','athletic','weekend']){
   for(const pose of ['idle','walk','sit','work','sleep','cook','eat']){
    await page.goto('http://127.0.0.1:4173/qa-wardrobe-033.html?look='+look+'&pose='+pose);
    await page.waitForFunction(()=>document.body.dataset.ready==='true',{timeout:30000});

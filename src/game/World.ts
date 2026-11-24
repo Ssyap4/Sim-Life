@@ -455,7 +455,13 @@ export class World {
     if(away && this.inspected===id)this.showcase(null);
   }
 
+  private fittingAngle:number|null=null;
+  fittingCamera(role:CharacterId|null,angle=0):void{
+    this.fittingAngle=role===null?null:angle;
+    this.showcase(role);
+  }
   showcase(subject: CharacterId | PetId | null): void {
+    if(!subject)this.fittingAngle=null;
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.neighborhoodView=false;
@@ -492,7 +498,10 @@ export class World {
           perch.approach.z-perch.surface.z)
       : subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
         : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1);
-    const band = this.viewBand(true);
+    const fitting=person&&this.fittingAngle!==null;
+    if(fitting){angle.set(Math.sin(this.fittingAngle!),.12,Math.cos(this.fittingAngle!));
+      angle.applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y);}
+    const band = fitting?{top:.09,bottom:.62}:this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);
     if (this.place === 'home' && !perch && !this.canSeeCharacter(bounds,this.cameraMove)) {

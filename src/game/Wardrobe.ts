@@ -21,15 +21,15 @@ export function outfitChoices(look:string):readonly string[] {
   if(look==='signature')return [];
   return (['alina','vlad'] as const).filter(id=>isPreviewLook(id,look)).flatMap(id=>[
     id+'-'+look+'-upper',id+'-'+look+'-lower',
-    ...(id==='alina'||look==='track'?[id+'-sneakers-footwear']:[])
+    id+'-'+look+'-footwear'
   ]);
 }
 const NEW_GARMENTS:Garment[]=(['alina','vlad'] as const).flatMap(id=>[
-  {id:id+'-sneakers-footwear',name:'Кеды',slot:'footwear' as const,fit:id+'-021',layers:['footwear'] as const},
   ...PREVIEW_LOOKS[id].slice(1).flatMap(([look])=>[
     {id:id+'-'+look+'-upper',name:look,slot:'upper' as const,fit:id+'-021',layers:['upper'] as const,
      covers:previewLongSleeves(look)?['forearms'] as const:undefined},
     {id:id+'-'+look+'-lower',name:look,slot:'lower' as const,fit:id+'-021',layers:['lower'] as const},
+    {id:id+'-'+look+'-footwear',name:look,slot:'footwear' as const,fit:id+'-021',layers:['footwear'] as const},
   ])]);
 export const GARMENTS: readonly Garment[] = [
   ...NEW_GARMENTS,

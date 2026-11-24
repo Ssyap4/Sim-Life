@@ -48,11 +48,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
   const clothesCart=new Set<string>();
   let fittingLook:string|null=null;
+  let fittingAngle=0;
+  let fittingIndex=0;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
+    if(current?.action.kind==='fitting'){getWorld()?.fittingCamera(null);panel.classList.remove('clothes-fitting-panel');}
     if(fittingLook&&state&&getWorld()){fitWardrobe(getWorld().actors[role].root,role,outfitChoices((state.world.wardrobe??defaultWardrobe())[role].worn));fittingLook=null;}
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
@@ -179,12 +182,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         }
         options.append(element('small','','Примерь комплект в примерочной, оплати на кассе.'));
       }else if(kind==='fitting'){
-        for(const [look,label] of catalog.filter(([id])=>id!=='signature')){
-          options.append(button(label+(fittingLook===look?' ✓':''),()=>{
-            fittingLook=look;fitWardrobe(getWorld().actors[role].root,role,outfitChoices(look));draw();
-          }));
-        }
-        if(fittingLook&&!personal.owned.includes(fittingLook))options.append(button('В корзину · '+formatRub(outfitPrice(fittingLook)),()=>{if(fittingLook)clothesCart.add(fittingLook);draw();}));
+        const looks=catalog.filter(([id])=>id!=='signature');
+        const [look,label]=looks[fittingIndex%looks.length];
+        const pick=(index:number)=>{fittingIndex=(index+looks.length)%looks.length;fittingLook=looks[fittingIndex][0];fitWardrobe(getWorld().actors[role].root,role,outfitChoices(fittingLook));draw();};
+        const nav=element('div','fitting-navigation');
+        nav.append(button('‹',()=>pick(fittingIndex-1)),element('strong','', (fittingIndex+1)+' / '+looks.length),button('›',()=>pick(fittingIndex+1)));
+        const rotate=element('div','fitting-navigation');
+        rotate.append(button('↶',()=>{fittingAngle-=Math.PI/2;getWorld().fittingCamera(role,fittingAngle);}),element('span','','Повернуть'),button('↷',()=>{fittingAngle+=Math.PI/2;getWorld().fittingCamera(role,fittingAngle);}));
+        options.append(element('strong','',label),nav,rotate,
+          button(personal.owned.includes(look)?'Уже в гардеробе':clothesCart.has(look)?'В корзине ✓':'В корзину · '+formatRub(outfitPrice(look)),()=>{if(clothesCart.has(look))clothesCart.delete(look);else clothesCart.add(look);draw();},personal.owned.includes(look)));
       }else{
         for(const [look,label] of catalog.filter(([id])=>clothesCart.has(id)&&!personal.owned.includes(id))){
           options.append(button('Купить '+label+' · '+formatRub(outfitPrice(look)),()=>send({type:'clothing_buy',look}),place.money<outfitPrice(look)));
@@ -421,6 +427,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       ingredient = null;
       panel.hidden = false;
       panel.dataset.station = station.id;
+      if(station.action.kind==='fitting'){
+        panel.classList.add('clothes-fitting-panel');
+        fittingAngle=0;fittingIndex=0;
+        fittingLook=PREVIEW_LOOKS[role][1][0];
+        fitWardrobe(getWorld().actors[role].root,role,outfitChoices(fittingLook));
+        getWorld().fittingCamera(role,0);
+      }
       if (station.action.kind === 'fridge' || station.action.kind === 'cupboard') getWorld().openStorage(station.id);
       draw();
     },

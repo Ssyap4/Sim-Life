@@ -154,3 +154,10 @@
 #app #pets-btn .ui-outline-icon ellipse{fill:currentColor;stroke:none}
 #app #map-btn .ui-outline-icon{width:20px;height:20px}
 #app .showcase-toggle .ui-outline-icon{width:18px;height:18px}
+
+/* Fitting uses a compact bottom control deck, leaving the upper view clear. */
+#app .location-panel.clothes-fitting-panel{top:auto!important;bottom: max(12px,env(safe-area-inset-bottom))!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;width:min(94%,440px)!important;max-height:36dvh!important;z-index:95}
+#app .clothes-fitting-panel .world-station-options{display:grid;grid-template-columns:1fr;gap:5px}
+#app .clothes-fitting-panel .world-station-options>*{grid-column:1/-1;text-align:center}
+#app .fitting-navigation{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:8px;text-align:center}
+#app .fitting-navigation button{min-height:36px;font-size:18px;padding:4px}

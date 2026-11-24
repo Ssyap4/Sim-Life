@@ -15,7 +15,7 @@ test('complete looks use the correct character and hide forearms only for long s
    const choice=fitWardrobe(model,id,outfitChoices(look));
    assert.equal(choice.get('upper'),id+'-'+look+'-upper');
    assert.equal(choice.get('lower'),id+'-'+look+'-lower');
-   assert.equal(choice.get('footwear'),id+((id==='alina'&&look!=='signature')||look==='track'?'-sneakers-footwear':'-signature-footwear'));
+   assert.equal(choice.get('footwear'),id+'-'+look+'-footwear');
    assert.equal(arm.visible,!(previewLongSleeves(look)||(look==='signature'&&id==='alina')));
    assert.equal(model.children.filter(p=>p.visible&&p.userData.garmentId).length,3);
   }
