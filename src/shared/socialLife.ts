@@ -1,7 +1,7 @@
-import { cafeSeatAt, CAFE_EAT_SECONDS, CAFE_TALK_SECONDS } from './locations';
+import { cafeSeatAt, CAFE_TALK_SECONDS } from './locations';
 import { dialogue } from './social/dialogue';
 import { BOOKS, GENRES, HOME_SECONDS, type HomeSeat } from './homeLife';
-import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
+import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { MATERIALS } from './educationCatalog';
 import { skillRank } from './education';
 import { recipeAvailability } from './recipeAvailability';
@@ -70,9 +70,9 @@ const objects: readonly SocialActivity[] = [
     motion:'sitTalk',seconds:16,object:'sofa',context:'eveningUnwind',memorable:true},
   {id:'cook',title:'Приготовить вместе',group:'home',lines:['Поможешь подготовить продукты? Приготовим одну порцию рецепта на двоих.'],replies:['Я подготовлю ингредиенты.','Давай распределим работу у столешницы.'],motion:'cook',seconds:10,object:'cook',resource:'kitchen',memorable:true},
   {id:'grill',title:'Готовить на гриле вдвоём',group:'home',lines:['Поставим блюдо на гриль? Я буду у жаровни, а ты помоги у стола.'],replies:['Подготовлю посуду во дворе.','Скажи, когда нужна помощь с подачей.'],motion:'grill',seconds:13,object:'grill',resource:'grill',memorable:true},
-  {id:'eat',title:'Позвать к столу',group:'home',lines:['На двоих хватит. Поедим вместе?'],replies:['Да, расскажу, как прошёл день.','Хочу попробовать и спокойно посидеть.'],motion:'eat',seconds:10,object:'eat',independent:true,memorable:true},
-  {id:'takeout',title:'Разделить готовую еду',group:'home',lines:['Разогревать ничего не нужно. Достанем две готовые порции и сядем за стол?'],replies:['Да, давай накроем вместе.','Хорошо, выберу своё место.'],motion:'eat',seconds:9,object:'takeout',independent:true,memorable:true},
-  {id:'bring',title:'Угостить готовой порцией',group:'care',lines:['Хочешь, принесу тебе порцию? Можешь сесть за стол и подождать.'],replies:['Да, спасибо. Сейчас это очень кстати.','С удовольствием попробую, пока ты рядом.'],motion:'serve',seconds:9,object:'bring',memorable:true},
+  {id:'eat',title:'Позвать к столу',group:'home',lines:['На двоих хватит. Поедим вместе?'],replies:['Да, расскажу, как прошёл день.','Хочу попробовать и спокойно посидеть.'],motion:'eat',seconds:MEAL_EAT_SECONDS,object:'eat',independent:true,memorable:true},
+  {id:'takeout',title:'Разделить готовую еду',group:'home',lines:['Разогревать ничего не нужно. Достанем две готовые порции и сядем за стол?'],replies:['Да, давай накроем вместе.','Хорошо, выберу своё место.'],motion:'eat',seconds:MEAL_EAT_SECONDS,object:'takeout',independent:true,memorable:true},
+  {id:'bring',title:'Угостить готовой порцией',group:'care',lines:['Хочешь, принесу тебе порцию? Можешь сесть за стол и подождать.'],replies:['Да, спасибо. Сейчас это очень кстати.','С удовольствием попробую, пока ты рядом.'],motion:'serve',seconds:MEAL_EAT_SECONDS,object:'bring',memorable:true},
   {id:'serve',title:'Подать еду на общий стол',group:'home',lines:['Есть готовая еда в холодильнике. Вынесем одну порцию к столу?'],replies:['Займу место у стола и помогу с подачей.','Давай освобожу место.'],motion:'serve',seconds:7,object:'serve',resource:'serving'},
   {id:'dishes',title:'Убрать посуду вдвоём',group:'home',lines:['Я у раковины, а ты соберёшь тарелки? Управимся вместе.'],replies:['Соберу тарелки с обоих столов.','Давай сложу посуду у раковины.'],motion:'wash',seconds:9,object:'dishes',resource:'kitchen',memorable:true},
   {id:'unpack',title:'Разобрать покупки вместе',group:'home',lines:['На столе остались пакеты. Разложим всё по местам?'],replies:['Разберу пакеты с этой стороны.','Давай сначала освободим стол.'],motion:'unpack',seconds:7,object:'unpack',resource:'shopping'},
@@ -87,8 +87,23 @@ const objects: readonly SocialActivity[] = [
   {id:'petBrush',title:'Расчесать питомца вместе',group:'home',lines:['Подержишь внимание питомца, пока я возьму щётку?'],replies:['Да, побуду рядом с другой стороны.','Хорошо, поможем ему привыкнуть к щётке.'],motion:'pet',seconds:10,object:'petBrush',memorable:true},
   {id:'walk',title:'Прогуляться вместе',group:'fun',lines:['Пройдёмся вместе? Выберем такой темп, чтобы было удобно обоим.'],replies:['Давай пройдём по дорожке.','Хочу немного свежего воздуха.'],motion:'stroll',seconds:22,object:'walk',memorable:true},
   {id:'parkRest',title:'Отдохнуть на скамье',group:'fun',lines:['Передохнём в парке? На скамье есть место для двоих.'],replies:['С удовольствием.','Давай послушаем, что вокруг.'],motion:'sitTalk',seconds:14,object:'parkRest',memorable:true},
-  {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, приятного аппетита!','Давай поедим и поболтаем.'],motion:'eat',seconds:CAFE_EAT_SECONDS,object:'cafeMeal',independent:true,memorable:true},
-  {id:'cafeTalk',title:'Поболтать за столиком',group:'talk',lines:['Расскажи, как проходит твой день? Пока ждём заказ, можно спокойно поговорить.','Хорошо иногда выбраться из дома вдвоём. О чём думаешь?'],replies:['Расскажу с удовольствием.','Давай просто поболтаем о приятном.'],motion:'sitTalk',seconds:CAFE_TALK_SECONDS,object:'cafeTalk'},
+  {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, приятного аппетита!','Давай поедим и поболтаем.'],motion:'eat',seconds:MEAL_EAT_SECONDS,object:'cafeMeal',independent:true,memorable:true},
+  {id:'cafeTalk',title:'Как прошёл день?',group:'talk',lines:['Расскажи, как проходит твой день? Пока ждём заказ, можно спокойно поговорить.','Хорошо иногда выбраться из дома вдвоём. О чём думаешь?'],replies:['Расскажу с удовольствием.','Давай просто поболтаем о приятном.'],motion:'sitTalk',seconds:CAFE_TALK_SECONDS,object:'cafeTalk'},
+  {id:'cafePlans',title:'Обсудить планы на будущее',group:'talk',
+    lines:['Куда бы нам хотелось выбраться в следующий выходной?','Какой маленький совместный план мы могли бы осуществить на этой неделе?'],
+    replies:['Давай выберем место, где ещё не были.','Хочу запланировать спокойный день вдвоём.'],motion:'sitTalk',seconds:20,object:'cafeTalk'},
+  {id:'cafeDreams',title:'Помечтать вместе',group:'romance',
+    lines:['Представь, что у нас впереди идеальный год. Каким бы он был?','Мне нравится представлять, как будет меняться наша жизнь. О чём ты мечтаешь?'],
+    replies:['Хочу, чтобы мы нашли время и на работу, и друг на друга.','Давай понемногу воплощать наши мечты.'],motion:'sitTalk',seconds:22,object:'cafeTalk',memorable:true},
+  {id:'cafeCare',title:'Поговорить по душам',group:'care',
+    lines:['Что тебя сейчас больше всего радует или тревожит?','Мне важно, чтобы тебе было хорошо. Хочешь поделиться тем, что на душе?'],
+    replies:['Спасибо, что спросил. Мне хочется выговориться.','Давай просто побудем рядом.'],motion:'sitTalk',seconds:20,object:'cafeTalk'},
+  {id:'cafeJoke',title:'Пошутить и посмеяться',group:'fun',
+    lines:['У меня есть история, которую точно не стоит рассказывать с серьёзным лицом.','Интересно, кто из нас смешнее изображает строгого ресторанного критика?'],
+    replies:['Ладно, рассмеши меня!','Ха-ха, это надо запомнить.'],motion:'sitTalk',seconds:16,object:'cafeTalk'},
+  {id:'cafePets',title:'Обсудить Симбу и Верделла',group:'fun',
+    lines:['Как думаешь, Симба уже захватил наш диван, пока мы здесь?','Представляю, как Верделл обрадуется, когда мы вернёмся домой.'],
+    replies:['Уверен, дома нас ждёт целая делегация.','Надо устроить им уютный вечер.'],motion:'sitTalk',seconds:18,object:'cafeTalk'},
   {id:'sofaTalk',title:'Поговорить на диване',group:'care',lines:['Давай сядем на диван. Можно спокойно поговорить, если хочется.'],replies:['Расскажу, что у меня на уме.','Давай начнём с тишины.'],motion:'sitTalk',seconds:14,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
   {id:'eveningTea',title:'Обсудить вечер за столом',group:'talk',lines:['Посидим за столом и выберем, как провести вечер?'],replies:['Давай сначала выберем время для отдыха.','Я бы начал с чего-нибудь совсем простого.'],motion:'sitTalk',seconds:12,object:'table'},
@@ -117,6 +132,7 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
 }));
 export const SOCIAL_ACTIVITIES = [...exchanges,...objects];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
+export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
 export type SocialIntent = { type:'together'; action:string; item?:string; moment?:string };
 export type SocialCommand =

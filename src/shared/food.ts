@@ -1,3 +1,4 @@
+export const MEAL_EAT_SECONDS = 32;
 // Moscow-region inspired *game balancing* prices in RUB, not live shop quotations.
 // Stock counts are usable units: 1 egg, 1 bread slice, 1 carton of milk, etc.
 // The catalogue is data-first so many goods reuse the same lightweight 3D models.

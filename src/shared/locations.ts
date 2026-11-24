@@ -220,7 +220,6 @@ export const CAFE_MENU = {
   tunaPoke: { name: 'Поке с тунцом и авокадо', price: 990, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 27 },
   bbqRibs: { name: 'Свиные рёбрышки BBQ с коул-слоу', price: 1290, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 30 },
 } as const;
-export const CAFE_EAT_SECONDS=32;
 export const CAFE_TALK_SECONDS=18;
 export function cafeSeatAt(state:Pick<import('./protocol').GameState,'world'|'characters'>,role:CharacterId):Station|undefined{
   if(state.world.places[role]!=='cafe'||state.characters[role].pose!=='sit')return;

@@ -1,3 +1,4 @@
+import { CAFE_TALK_TOPICS } from './shared/socialLife';
 import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
@@ -38,6 +39,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let ingredient: IngredientId | null = null;
   let pending: number | null = null;
   let cafeChoice: CafeItem | null = null;
+  let cafeTopicsOpen=false;
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
@@ -47,6 +49,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
     cafeChoice=null;
+    cafeTopicsOpen=false;
     panel.hidden = true;
     panel.replaceChildren();
     getWorld()?.closeStorage();
@@ -287,8 +290,18 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const seated=cafeSeatAt(place,role)?.id===station.id;
       const partner=role==='vlad'?'alina':'vlad';
       const sameTable=seated&&cafeSeatAt(place,partner)?.id===station.id;
+      if(cafeTopicsOpen&&sameTable&&cafeSocial){
+        title.textContent='О чём поговорим?';
+        options.append(element('small','','Выберите тему разговора. Ваш заказ продолжит готовиться.'));
+        for(const topic of CAFE_TALK_TOPICS)options.append(button(topic.title,()=>{if(cafeSocial(topic.id))close();}));
+        options.append(button('Назад к столику',()=>{cafeTopicsOpen=false;draw();}));
+        panel.append(options);
+        panel.scrollTop=y;
+        return;
+      }
+      if(!sameTable)cafeTopicsOpen=false;
       if(sameTable&&cafeSocial){
-        options.append(button('Поболтать за столиком',()=>{if(cafeSocial('cafeTalk'))close();}));
+        options.append(button('Поболтать за столиком ›',()=>{cafeTopicsOpen=true;draw();}));
         const other=place.world.cafe[partner];
         if(order?.table===station.id&&other?.table===station.id&&order.readyAt<=now&&other.readyAt<=now)options.append(button('Поесть вместе',()=>{if(cafeSocial('cafeMeal'))close();}));
       }
@@ -338,6 +351,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }
       current = station;
       cafeChoice=null;
+      cafeTopicsOpen=false;
       ingredient = null;
       panel.hidden = false;
       panel.dataset.station = station.id;

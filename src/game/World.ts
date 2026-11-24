@@ -1,4 +1,4 @@
-import { CAFE_EAT_SECONDS, cafeSeatAt } from '../shared/locations';
+import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
 import { buildHomeWing } from './HomeWing';
@@ -2468,7 +2468,7 @@ export class World {
       const elapsed = actor.eatingElapsed();
       const plate = this.meals.get(id)!;
       if (plate.visible && elapsed !== null) {
-        const scale = mealServingScale(elapsed,this.place==='cafe'?CAFE_EAT_SECONDS:10);
+        const scale = mealServingScale(elapsed);
         plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }

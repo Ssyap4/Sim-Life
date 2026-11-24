@@ -1,4 +1,3 @@
-import { CAFE_EAT_SECONDS } from '../src/shared/locations';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
@@ -14,7 +13,7 @@ import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/sha
 import { localActivity, localLabels } from './locations';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import { BATH_ACTIONS } from '../src/shared/home';
@@ -105,7 +104,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action === 'dine' ? CAFE_EAT_SECONDS*1000 : 5800, resource: null };
+      durationMs: action === 'dine' ? MEAL_EAT_SECONDS*1000 : 5800, resource: null };
   }
   if (command.type === 'act') {
     const id = command.actionId;
@@ -142,7 +141,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
         ...(command.type==='eat'&&typeof command.furnitureId==='number'?
           {furnitureId:command.furnitureId}:{}) },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
-      durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : 7_000,
+      durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : MEAL_EAT_SECONDS*1000,
       resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
     };
   }
@@ -151,7 +150,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof item !== 'string' || !own(TAKEOUT,item)) return null;
     return {command:{type:'eat_takeout',item:item as TakeoutId,
       ...(typeof command.furnitureId==='number'?{furnitureId:command.furnitureId}:{})},
-      label:'🍽️ Едим: '+TAKEOUT[item as TakeoutId].name, durationMs:7_000,resource:null};
+      label:'🍽️ Едим: '+TAKEOUT[item as TakeoutId].name, durationMs:MEAL_EAT_SECONDS*1000,resource:null};
   }
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||

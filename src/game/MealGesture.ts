@@ -1,3 +1,4 @@
+import { MEAL_EAT_SECONDS } from '../shared/food';
 import type { CharacterId } from '../shared/protocol';
 
 // Tiny time-based loops keep meals expressive without extra rigs, files or a
@@ -33,7 +34,7 @@ export function mealGesture(time: number, role: CharacterId): MealGesture {
 }
 
 /** Visual shrink only; food stock and benefits are owned by the server. */
-export function mealServingScale(elapsed: number, duration=10): number {
+export function mealServingScale(elapsed: number, duration=MEAL_EAT_SECONDS): number {
   if (!Number.isFinite(elapsed)) return 1;
   return 1 - .72 * Math.max(0, Math.min(1, elapsed / Math.max(1,duration)));
 }

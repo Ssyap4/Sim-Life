@@ -1,8 +1,10 @@
+import { CAFE_TALK_TOPICS, SOCIAL_BY_ID } from '../../src/shared/socialLife';
+import { planTask } from '../tasks';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, STATIONS, approachFor, clockMinutes, type CafeItem } from '../../src/shared/locations';
-import { RECIPES } from '../../src/shared/food';
+import { RECIPES, TAKEOUT } from '../../src/shared/food';
 import { applyWorld, localActivity, validWorld } from '../locations';
 import { advanceLife } from '../life';
 import { cooperationDenial, pairScenes, completeTogether } from '../society';
@@ -122,4 +124,34 @@ test('cafe conversation keeps both seated while cooking continues, consumes no o
   assert.equal(r.state.characters.vlad.pose,'sit');
   assert.equal(r.state.characters.alina.pose,'sit');
   assert.ok(cooperationDenial({...s,characters:{...s.characters,alina:{...s.characters.alina,pose:'idle'}}},'vlad',command));
+});
+
+test('six distinct cafe topics require the same seated table and preserve paid orders',()=>{
+  let s=guests();
+  for(const role of ['vlad','alina'] as const){
+    s=send(s,role,{type:'cafe_seat',station:'cafe-center'});
+    s=send(s,role,{type:'cafe_order',table:'cafe-center',item:'bbqRibs',sequence:0});
+  }
+  assert.equal(CAFE_TALK_TOPICS.length,6);
+  assert.equal(new Set(CAFE_TALK_TOPICS.map(t=>t.lines[0])).size,6);
+  for(const topic of CAFE_TALK_TOPICS){
+    const command={type:'together' as const,action:topic.id};
+    assert.equal(cooperationDenial(s,'vlad',command),undefined);
+    const scenes=pairScenes(s,'vlad',command)!;
+    assert.equal(scenes.vlad.pair?.motion,'sitTalk');
+    const r=completeTogether(s,'vlad',command,['vlad','alina'],0,scenes);
+    if(!r.ok)assert.fail(r.reason);
+    assert.deepEqual(r.state.world.cafe,s.world.cafe);
+    assert.equal(r.state.characters.vlad.pose,'sit');
+    assert.equal(r.state.characters.alina.pose,'sit');
+    const separated={...s,characters:{...s.characters,alina:{...s.characters.alina,pose:'idle' as const}}};
+    assert.ok(cooperationDenial(separated,'vlad',command));
+  }
+});
+test('all home and cafe meal plans use a shared 32-second duration',()=>{
+  for(const command of [{type:'eat',recipe:'omelette'},{type:'eat',recipe:'grillSteak'},{type:'eat_takeout',item:Object.keys(TAKEOUT)[0]},{type:'local_activity',station:'cafe-left',action:'dine'}]){
+    assert.equal(planTask(command)?.durationMs,32000);
+  }
+  for(const action of ['eat','takeout','bring','cafeMeal'])assert.equal(SOCIAL_BY_ID.get(action)?.seconds,32);
+  assert.equal(planTask({type:'cook',recipe:'omelette'})?.durationMs,12000);
 });

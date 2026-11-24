@@ -26,7 +26,8 @@ test('Meal gestures include pickup, chewing and calm pauses without syncing two 
   }
   assert.equal(mealServingScale(0), 1);
   assert.ok(mealServingScale(5) < 1);
-  assert.equal(mealServingScale(20), .28);
+  assert.ok(mealServingScale(20) > .28);
+  assert.equal(mealServingScale(32), .28);
   assert.equal(mealServingScale(-5), 1);
 });
 
