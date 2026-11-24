@@ -17,4 +17,24 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npx tsx --test server/tests/separated-district-029.test.ts server/tests/neighborhood-018.test.ts server/tests/neighbors.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/autonomy.test.ts server/tests/petFurniture-028.test.ts server/tests/simbaOccupancy-028.test.ts
+      - run: npx tsx --test server/tests/separated-district-029.test.ts server/tests/neighborhood-018.test.ts server/tests/neighbors.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/autonomy.test.ts server/tests/petFurniture-028.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/locations.test.ts server/tests/location-network.test.ts server/tests/careers.test.ts server/tests/grill-delivery-receipt.test.ts
+  mobile-scenes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npx tsx scripts/qa-029-district-courier.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-029-district-courier-mobile
+          path: /tmp/simlife-029-district-courier
+          if-no-files-found: warn
