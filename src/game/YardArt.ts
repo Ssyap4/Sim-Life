@@ -3,6 +3,7 @@ import { GRILL_RECIPES, type RecipeId } from '../shared/food';
 import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 
+import {seasonalMaterial} from './SeasonalPalette';
 import { snowPreview } from './LandscapePalette';
 import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
 import { canopyShade, limestone, paintGround } from './LandscapeGround';
@@ -49,7 +50,8 @@ function paving() {
 
 function flat(parent: THREE.Group, x: number, y: number, z: number, width: number, depth: number,
   map: THREE.Texture | null, color: number) {
-  panel(parent, [x, y, z], [width, depth], map, color).rotation.x = -Math.PI / 2;
+  const ground=panel(parent,[x,y,z],[width,depth],map,color);ground.rotation.x=-Math.PI/2;
+  seasonalMaterial(ground.material as THREE.Material,'ground');
 }
 
 function skewerFood(recipe: RecipeId, food: THREE.Group) {
@@ -278,7 +280,8 @@ export function buildYard(scene: THREE.Scene) {
   const plot=HOME_FLOOR,w=plot.maxX-plot.minX+.5,d=plot.maxZ-plot.minZ+.9;
   const cx=(plot.maxX+plot.minX)/2,cz=(plot.maxZ+plot.minZ)/2;
   shape(yard,[w,.26,d],[cx,-.39,cz],0x94775e,cube);
-  shape(yard,[w,.10,d],[cx,-.079,cz],snowPreview()?0xe1e8ec:0x82965d,cube);
+  const base=shape(yard,[w,.10,d],[cx,-.079,cz],snowPreview()?0xe1e8ec:0x82965d,cube);
+  base.material=seasonalMaterial(base.material.clone(),'ground');
   for(const x of [plot.minX-.24,plot.maxX+.24]){
     shape(yard,[.14,.82,d],[x,.41,cz],C.oak,cube);
   }

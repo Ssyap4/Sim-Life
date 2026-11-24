@@ -13,6 +13,7 @@ import { DISTRICT_OFFSET_Z } from '../shared/district';
 import { locationGeometry, painted, lettering } from './LocationArt';
 import { buildDistrict } from './DistrictArt';
 import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, landscapeSharedGeometry, PlantBatch } from './LandscapePlants';
+import {seasonalMaterial} from './SeasonalPalette';
 import { canopyShade, limestone, paintGround, type GroundArea } from './LandscapeGround';
 import { buildMarket, marketCashier, marketOutline, marketStation } from './MarketArt';
 import { buildEducationCenter, educationStation } from './EducationArt';
@@ -55,7 +56,7 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
   });
   const material=new THREE.MeshStandardMaterial({color:map?0xffffff:0x8fab73,map,roughness:1});
   resources.materials.push(material);
-  const ground=new THREE.Mesh(plane,material);
+  const ground=new THREE.Mesh(plane,seasonalMaterial(material,'ground'));
   ground.rotation.x=-Math.PI/2;
   ground.scale.set(21,14,1);ground.position.x=2.5;
   ground.position.y=.002;

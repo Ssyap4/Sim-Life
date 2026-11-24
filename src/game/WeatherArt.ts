@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type {WeatherKind} from '../shared/weather';
 import type { PlaceId } from '../shared/locations';
 import { HOUSE, HOUSE_WING } from '../shared/home';
 
@@ -67,23 +68,39 @@ function precipitation(snow:boolean, storm:boolean) {
 }
 
 export class WeatherArt {
-  private readonly mode: Weather | undefined;
+  private mode: Weather | undefined;
+  private readonly preview?:Weather;
+  private readonly safe:boolean;
+  private readonly cached=new Map<Weather,ReturnType<typeof precipitation>>();
   private readonly tint=new THREE.Color();
-  private readonly particles?: ReturnType<typeof precipitation>;
+  private particles?: ReturnType<typeof precipitation>;
   private readonly reducedMotion:boolean;
   private stormLight?:THREE.DirectionalLight;
   private stormBase=0;
 
   constructor(query:string, motionLimited:boolean, safe:boolean) {
     const name=new URLSearchParams(query).get('weather')??'';
-    this.reducedMotion=motionLimited;
-    if (!Object.hasOwn(skies,name))return;
-    this.mode=name as Weather;
-    this.tint.setHex(skies[this.mode].tint);
-    if(!motionLimited&&!safe&&['rain','snow','storm'].includes(name))
-      this.particles=precipitation(name==='snow',name==='storm');
+    this.reducedMotion=motionLimited;this.safe=safe;
+    if(Object.hasOwn(skies,name)){this.preview=name as Weather;this.change(this.preview);}
   }
 
+  private change(mode:Weather|undefined){
+    if(mode===this.mode)return false;
+    this.particles?.batch.removeFromParent();
+    this.mode=mode;this.particles=undefined;
+    if(mode){
+      this.tint.setHex(skies[mode].tint);
+      if(!this.reducedMotion&&!this.safe&&['rain','snow','storm'].includes(mode)){
+        if(!this.cached.has(mode))this.cached.set(mode,precipitation(mode==='snow',mode==='storm'));
+        this.particles=this.cached.get(mode);
+      }
+    }
+    this.stormLight=undefined;
+    return true;
+  }
+  setWeather(kind:WeatherKind,scene:THREE.Scene,place:PlaceId){
+    if(this.change(this.preview??(kind==='clear'?undefined:kind)))this.enter(scene,place);
+  }
   get haze(){
     if(this.mode==='fog')return .95;
     return this.mode ? skies[this.mode].cloud : .21;
@@ -99,14 +116,19 @@ export class WeatherArt {
   }
 
   light(scene:THREE.Scene,place:PlaceId,sun:THREE.DirectionalLight,ambient:THREE.HemisphereLight) {
-    if(!this.mode)return;
+    if(!this.mode){
+      this.stormLight=undefined;
+      if(scene.fog instanceof THREE.Fog){scene.fog.near=place==='district'?125:49;scene.fog.far=place==='district'?171:75;}
+      return;
+    }
     const preset=skies[this.mode];
     // Distant mist follows daylight luminance, including the darkest hours.
+    const outdoors=['home','district','park','industrial'].includes(place);
+    if(!outdoors){this.stormLight=undefined;return;}
     const sky=scene.background as THREE.Color;
     const brightness=THREE.MathUtils.clamp(.26+sun.intensity*.34,.32,1);
     sky.lerp(this.tint,preset.cloud).multiplyScalar(brightness);
     const fog=scene.fog;
-    const outdoors=['home','district','park','industrial'].includes(place);
     if(fog instanceof THREE.Fog&&outdoors){
       fog.color.copy(sky);
       // The home overview camera is much farther away than the park camera.

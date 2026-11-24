@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import botanicals from '../assets/environment/botanicals.json';
 import type { XYZ } from './ArtKit';
+import {seasonalMaterial} from './SeasonalPalette';
 import { snowPreview } from './LandscapePalette';
 
 export function landscapeRandom(seed: number) {
@@ -59,7 +60,7 @@ leaf.setIndex([0,1,6, 1,2,6, 2,3,6, 3,4,6, 4,5,6, 5,0,6,
 leaf.computeVertexNormals();
 
 // Foliage carries its diffuse light in vertex colours and has no glossy lobe.
-const plantMaterial = new THREE.MeshLambertMaterial({vertexColors:true});
+const plantMaterial = seasonalMaterial(new THREE.MeshLambertMaterial({vertexColors:true}),'plants');
 
 /** Opaque botanical parts share one draw per patch. Indexed meshes retain their smooth normals. */
 export class PlantBatch {
@@ -378,7 +379,7 @@ export function grassMaterial() {
     shader.vertexShader = 'uniform float landscapeWind;\n' + shader.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\ntransformed.x += transformed.y * transformed.y * sin(landscapeWind * 1.48 + instanceMatrix[3].x * .81 + instanceMatrix[3].z * .62) * .37;');
   };
-  return {material, wind};
+  return {material:seasonalMaterial(material,'grass'),wind};
 }
 
 export function addTufts(parent: THREE.Object3D, tufts: readonly GrassTuft[], material: THREE.Material) {

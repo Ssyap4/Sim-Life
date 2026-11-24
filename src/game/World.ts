@@ -1,5 +1,7 @@
 import { residentEmotion } from '../shared/emotions';
 import { LandscapeHorizon } from './LandscapeHorizon';
+import {weatherAt} from '../shared/weather';
+import {applySeason} from './SeasonalPalette';
 import { WeatherArt } from './WeatherArt';
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
@@ -71,7 +73,7 @@ import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkpla
 import { buildCottageLights } from './CottageLights';
 import { polishFurniture } from './FurnitureSurfaceArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
-import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
+import { clockAt, dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
 import { residentTraffic, resetResidentTraffic, smoothResidentTrafficStep, type TrafficBody } from './ResidentFlow';
 
@@ -1560,6 +1562,9 @@ export class World {
   }
 
   setTimeOfDay(minute: number): void {
+    const current=weatherAt(clockAt(Math.max(0,minute)));
+    this.weather.setWeather(current.kind,this.scene,this.place);
+    applySeason(current);
     const hour = THREE.MathUtils.euclideanModulo(minute,1440);
     const phase = dayPhase({day:1,minute:hour});
     if(phase!==this.lastDayPhase) {
@@ -2230,7 +2235,7 @@ export class World {
     // House NPCs share the server clock, without persisting visual-only traffic.
     if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
     if (changed) this.switchPlace(place);
-    this.setTimeOfDay(state.clock.minute);
+    this.setTimeOfDay(gameMinutes(state.clock));
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
       this.actors[id].setNeeds(state.characters[id],residentEmotion(state,id).id);

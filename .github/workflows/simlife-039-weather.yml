@@ -1,0 +1,32 @@
+name: Sim-Life 0.39 seasonal mobile visual
+on:
+  push:
+    branches: [feat/living-weather-039]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [clear, rain, snow, storm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-039-weather.mjs ${{ matrix.kind }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-${{ matrix.kind }}
+          path: /tmp/simlife-039-weather
+          retention-days: 7

@@ -62,6 +62,7 @@ import { HOME_OBJECT_DETAILS, storageUsage, FRIDGE_CAPACITY, CUPBOARD_CAPACITY }
 import {feedingStation,feederModel,feederReserve,dryRefills} from './shared/petFeeders';
 import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
+import {weatherAt,WEATHER_INFO,weatherTemperature} from './shared/weather';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus } from './shared/timeControl';
 import {
@@ -615,15 +616,16 @@ function renderClock(): void {
   previousClockSpeed = speed;
   const clock = clockAt(minute);
   const date = gameDate(clock.day);
-  const icon = { night: '🌙', morning: '☀️', day: '☀️', evening: '🌇' }[dayPhase(clock)];
+  const weather=weatherAt(clock);
+  const icon = weather.kind!=='clear'?WEATHER_INFO[weather.kind].icon:{ night: '🌙', morning: '☀️', day: '☀️', evening: '🌇' }[dayPhase(clock)];
   const hours = timeLabel(clock);
   const fullDate = date.day + ' ' + date.monthName + ' · ' + hours;
   const compactDate = String(date.day).padStart(2, '0') + '.' + String(date.month).padStart(2, '0') + ' · ' + hours;
-  const season = date.season + ' · год ' + date.year +
+  const season = weatherTemperature(weather.temp)+' · '+date.season + ' · год ' + date.year +
     (speed > 1 ? ' · ×' + speed.toLocaleString('ru-RU') : '');
-  clockTime.title = fullDate;
+  clockTime.title = fullDate+' · '+WEATHER_INFO[weather.kind].name+' · '+weatherTemperature(weather.temp)+' · ветер '+weather.wind+' м/с';
   clockFull.textContent = icon + ' ' + fullDate;
-  clockCompact.textContent = compactDate;
+  clockCompact.textContent = icon+' '+compactDate;
   if (clockSeason.textContent !== season) clockSeason.textContent = season;
   phone.refreshClock(clock);
 }
@@ -678,7 +680,7 @@ function render(reset = false): void {
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
   needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
   needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
-  world?.setTimeOfDay(state.clock.minute);
+  world?.setTimeOfDay(gameMinutes(state.clock));
   phone.refresh();
   skillsPanel.refresh();
   computer.refresh();
@@ -946,7 +948,7 @@ const net = new LiveConnection({
     renderClock();
     furnishing.tick();
     world.updateFurnitureDeliveryTime(displayClock.read(performance.now()));
-    world.setTimeOfDay(displayClock.read(performance.now()) % 1440);
+    world.setTimeOfDay(displayClock.read(performance.now()));
   },
   onDisconnect() {
     gameAudio.setPlaying(false);
