@@ -1,3 +1,4 @@
+import { badmintonWinner } from '../src/shared/badminton';
 import { picnicPortions } from '../src/shared/picnic';
 import { LEISURE, leisureAction } from '../src/shared/leisure';
 import { furnitureUseLocation } from '../src/shared/furnitureUse';
@@ -176,6 +177,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const localStation=a.object==='parkRest'?'park-bench':a.object==='parkBadminton'?'park-badminton':a.object==='parkTalk'?(['park-swing','park-picnic'].find(id=>{const s=stationById('park',id)!,p=approachFor(s,from);return Math.hypot(p.x-state.characters[from].x,p.z-state.characters[from].z)<.28;})??null):a.object==='parkSwing'?'park-swing':a.object==='picnic'?'park-picnic':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
+  const matchWinner=a.object==='parkBadminton'?badmintonWinner():undefined;
   for(const role of ['vlad','alina'] as const){
     const seat=seats[role],entry=work[role];
     const station=localStation&&stationById(place,localStation);
@@ -198,7 +200,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const picked=carry&&stops.length?walk(origins[role],stops[0])?.path.length:undefined;
     const pair:PairPresentation={motion:entry?.motion??(seatedChat?'sitTalk':a.object==='petFeed'&&role!==from?'listen':a.motion),
       place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:a.object==='picnic'?picnicPortions(state,role)[0]?.item:p,stroll:onward,
-      offsetMs:a.object==='read'&&role!==from?900:0,carry};
+      offsetMs:a.object==='read'&&role!==from?900:0,carry,badmintonWinner:matchWinner};
     result[role]={route,station:seat??'studyPractice',program,lesson:a.object==='lesson'?p:undefined,
       pickup:picked,pickupMs:picked!==undefined?600:undefined,pair};
   }
@@ -318,7 +320,10 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'parkSwing':rejected=each({type:'local_activity',station:'park-swing',action:'swing'});break;
     case 'parkBadminton':
       rejected=each({type:'local_activity',station:'park-badminton',action:'badminton'});
-      if(!rejected||rejected.ok)for(const role of roles)practiceXP(state,role,'coop:parkBadminton','fitness',a.title,12,8);
+      if(!rejected||rejected.ok){
+        for(const role of roles)practiceXP(state,role,'coop:parkBadminton','fitness',a.title,12,8);
+        if(roles.length===2){const winner=homes.vlad?.pair?.badmintonWinner??badmintonWinner();message=winner==='vlad'?'🏆 Влад победил в бадминтоне!':'🏆 Алина победила в бадминтоне!';change(state,winner,{mood:5});}
+      }
       break;
     case 'leisure': {
       const item=state.furnishing.placed.find(i=>String(i.id)===id),action=item&&leisureAction(item.sku);

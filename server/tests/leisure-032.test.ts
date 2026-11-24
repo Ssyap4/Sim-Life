@@ -89,3 +89,23 @@ test('park chat has real choices and independent rewards without consuming a pic
  const next=parkConversation(s,'vlad',t,0);
  assert.equal(next.world.picnic?.portions.vlad.length,1);assert.ok(next.characters.vlad.social>0);
 });
+
+import { badmintonPlayer,badmintonShuttle,badmintonStrikes,badmintonWinner,strikePoint,BADMINTON_SECONDS } from '../../src/shared/badminton';
+test('badminton uses eight alternating returns per player, varied arcs and a final miss on the losing side',()=>{
+ for(const winner of ['vlad','alina'] as const){
+  const strikes=badmintonStrikes(winner);assert.equal(strikes.length,16);assert.equal(strikes.at(-1)!.role,winner);
+  for(const role of ['vlad','alina'] as const){const hits=strikes.filter(s=>s.role===role);assert.equal(hits.length,8);assert.ok(new Set(hits.map(h=>h.x)).size>=6);
+   for(const h of hits){const f=badmintonPlayer(role,h.time,winner);assert.ok(Math.abs(f.x-h.x)<.001&&Math.abs(f.z-h.z)<.001);assert.ok(f.hit>.99);const shuttle=badmintonShuttle(h.time,winner),p=strikePoint(h);assert.ok(Math.hypot(shuttle.x-p.x,shuttle.y-p.y,shuttle.z-p.z)<.001);}
+  }
+  for(let i=0;i<strikes.length-1;i++){const a=strikes[i],b=strikes[i+1];assert.notEqual(a.role,b.role);const f=badmintonShuttle((a.time+b.time)/2,winner);assert.ok(f.y>1.55);}
+  const landed=badmintonShuttle(BADMINTON_SECONDS,winner);assert.ok(landed.y<.1);assert.equal(Math.sign(landed.z),winner==='vlad'?-1:1);
+ }
+ assert.equal(badmintonWinner(()=>0),'vlad');assert.equal(badmintonWinner(()=>.49999),'vlad');assert.equal(badmintonWinner(()=>.5),'alina');assert.equal(badmintonWinner(()=>.99999),'alina');
+});
+test('both players receive the same authoritative match result as the shared choreography',()=>{
+ const s=initialState();for(const role of ['vlad','alina'] as const)locate(s,role,'park','park-badminton');
+ const cmd={type:'together' as const,action:'parkBadminton'};
+ const homes=pairScenes(s,'vlad',cmd)!;assert.ok(homes.vlad.pair?.badmintonWinner);assert.equal(homes.vlad.pair?.badmintonWinner,homes.alina.pair?.badmintonWinner);
+ const winner=homes.vlad.pair!.badmintonWinner!;s.characters.vlad.mood=s.characters.alina.mood=0;
+ const result=completeTogether(s,'vlad',cmd,['vlad','alina'],0,homes);assert.ok(result.ok);assert.match(result.message,winner==='vlad'?/\u0412\u043b\u0430\u0434/:/\u0410\u043b\u0438\u043d\u0430/);assert.ok(result.state.characters[winner].mood>result.state.characters[winner==='vlad'?'alina':'vlad'].mood);
+});

@@ -1001,7 +1001,7 @@ const net = new LiveConnection({
     const task=tasks.get(role);
     if(task?.taskId!==taskId) return;
     task.since=taskNow()-elapsedMs;
-    world.activateHomeTask(role);
+    world.activateHomeTask(role,elapsedMs);
     if(role===active&&task.paired)phone.refreshRelationship();
     if (task.material) drawTaskPanel(); else updateTaskProgress();
   },

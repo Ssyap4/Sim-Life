@@ -26,7 +26,7 @@ async function scenario(s,fn){
   page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{
    const Native=window.WebSocket;
-   window.WebSocket=class extends Native{constructor(...args){super(...args);if(this.url.includes('/sync')){window.qaSocket=this;this.addEventListener('message',e=>{const p=JSON.parse(e.data);if(p.type==='snapshot'||p.type==='ready')window.qaState=p.state;if(p.type==='task_started')window.qaTask=p;if(p.type==='task_ended')window.qaEnded=p;});}}};
+   window.WebSocket=class extends Native{constructor(...args){super(...args);if(this.url.includes('/sync')){window.qaSocket=this;this.addEventListener('message',e=>{const p=JSON.parse(e.data);if(p.type==='snapshot'||p.type==='ready')window.qaState=p.state;if(p.type==='task_started')window.qaTask=p;if(p.type==='task_ended')window.qaEnded=p;if(p.type==='task_active')window.qaActive=p;});}}};
   });
   buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(buddy,'open');
   buddy.send(JSON.stringify({type:'auth',role:'alina',code:auth}));
@@ -54,8 +54,18 @@ try{
   const s=base();
   for(const role of ['vlad','alina']){s.world.places[role]='park';Object.assign(s.characters[role],approachFor(stationById('park',station),role),{pose:'sit',hunger:15});}
   s.world.picnic={portions:{vlad:[{kind:'meal',item:'omelette',expiresAt:clockMinutes(s.clock)+480}],alina:[{kind:'meal',item:'omelette',expiresAt:clockMinutes(s.clock)+480}]}};
-  await scenario(s,async(page,shot,send)=>{
+  await scenario(s,async(page,shot,send,files,buddy)=>{
    await shot(station+'-overview');
+   if(action==='badminton'){
+     const accept=raw=>{const p=JSON.parse(raw);if(p.type==='social_pending'&&p.offer.action==='parkBadminton')buddy.send(JSON.stringify({type:'social_reply',inviteId:p.offer.id,choice:0}));};
+     buddy.on('message',accept);await send({type:'social_propose',action:'parkBadminton'});
+     await page.waitForFunction(()=>window.qaActive&&window.qaTask?.command?.action==='parkBadminton',undefined,{timeout:25000});
+     await page.waitForTimeout(3500);await shot('badminton-rally-a');
+     await page.waitForTimeout(5500);await shot('badminton-rally-b');
+     await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="vlad"]').click();
+     await page.waitForTimeout(2500);await shot('badminton-grip');
+     buddy.off('message',accept);return;
+   }
    await send({type:'local_activity',station,action});
    await page.waitForTimeout(2500);
    await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="vlad"]').click();

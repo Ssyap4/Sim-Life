@@ -10,6 +10,7 @@ import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
+import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
 import { picnicPortions } from '../shared/picnic';
@@ -166,6 +167,7 @@ export class World {
   private lastQualityUpdate = performance.now();
   private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
   private socialSequence = 0;
+  private badmintonStarted:number|null=null;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly kitchenEffects = buildCookingStation(this.homeScene);
@@ -904,11 +906,12 @@ export class World {
     return true;
   }
 
-  activateHomeTask(role: CharacterId): void {
+  activateHomeTask(role: CharacterId,elapsedMs=0): void {
     const home = this.homeTasks.get(role);
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
+      if(pair.action==='parkBadminton'&&this.badmintonStarted===null)this.badmintonStarted=this.visualSeconds-elapsedMs/1000;
       this.playPair(role);
       this.playPair(role==='vlad'?'alina':'vlad');
       return;
@@ -955,7 +958,7 @@ export class World {
     const stage=this.pairStages.get(role), home=this.homeTasks.get(role), pair=home?.pair;
     if(!stage?.active||!stage.arrived||stage.playing||!pair)return;
     const other=role==='vlad'?'alina':'vlad', opposite=this.pairStages.get(other);
-    if(isContact(pair.motion)&&opposite&&(!opposite.active||!opposite.arrived))return;
+    if((isContact(pair.motion)||pair.motion==='badminton')&&opposite&&(!opposite.active||!opposite.arrived))return;
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
@@ -977,7 +980,7 @@ export class World {
         else if(pair.item==='billiards')actor.playDomesticActivity('billiards');
         break;
       }
-      case 'badminton':actor.playDomesticActivity('badminton');break;
+      case 'badminton':if(focus)actor.faceTowards(new THREE.Vector3(actor.root.position.x,0,focus.z));actor.playDomesticActivity('badminton');break;
       case 'chess':actor.playDomesticActivity('chess');break;
       case 'stroll':
         actor.walkPath((pair.stroll??[]).map(p=>new THREE.Vector3(p.x,0,p.z)),()=>actor.playPartnerGesture('talk',leads));break;
@@ -1070,6 +1073,7 @@ export class World {
     if (!home) return false;
     this.homeTasks.delete(role);
     this.pairStages.delete(role);
+    if(![...this.pairStages.values()].some(p=>p.action==='parkBadminton'))this.badmintonStarted=null;
     // Hold the last framing when the shared action ends, then return to free camera.
     if(this.pairStages.size===0)this.followingPair=false;
     this.homeEffects.television(role);
@@ -2023,7 +2027,7 @@ export class World {
     this.frameDistrictResident();
     this.neighborBodies=[];
     this.computerScreens.resetPreviews();
-    this.pairStages.clear();
+    this.pairStages.clear();this.badmintonStarted=null;
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
     this.place = place;
@@ -2530,6 +2534,10 @@ export class World {
       actor.setIdleSurroundings(petYaw, partnerYaw);
       if (!actor.isWalking()) resetResidentTraffic(this.collisionFlow[id]);
       if(this.place==='park'&&actor.isParkSwing())actor.parkSwing(Math.sin(this.visualSeconds*1.7)*.15);
+      if(this.place==='park'&&this.badmintonStarted!==null&&this.pairStages.get(id)?.action==='parkBadminton'&&this.pairStages.get(id)?.playing){
+        const s=stationById('park','park-badminton')!,f=badmintonPlayer(id,this.visualSeconds-this.badmintonStarted,this.homeTasks.get(id)?.pair?.badmintonWinner);
+        actor.setBadmintonFrame(s.center.x+f.x,s.center.z+f.z,f.hit,f.height,f.aim);
+      }
       actor.update(dt, this.steering[id]);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
@@ -2734,7 +2742,7 @@ export class World {
       const flames=this.remote.stations.get('park-fire')?.getObjectByName('Park campfire flames');
       if(flames){flames.visible=!!this.household&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock);flames.scale.set(1+.07*Math.sin(this.visualSeconds*7),.87+.16*Math.sin(this.visualSeconds*11),1);}
       const shuttle=this.remote.stations.get('park-badminton')?.getObjectByName('Park shuttlecock');
-      if(shuttle){shuttle.visible=[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);const phase=this.visualSeconds*1.25;shuttle.position.set(.18*Math.sin(phase*2),1.65+1.1*Math.abs(Math.sin(phase)),1.75*Math.cos(phase));shuttle.rotation.x=phase;}
+      if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),new THREE.Vector3(f.dx,f.dy,f.dz).normalize());}}
     }
     try {
       this.renderer.render(this.scene, this.camera);

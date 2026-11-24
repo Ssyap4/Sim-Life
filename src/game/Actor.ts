@@ -7,7 +7,7 @@ import { kitchenMove, grillMove, helperChop, mealUtensil } from './CookingChoreo
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
-import { drum, finish, orb } from './ArtKit';
+import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
 import { mealGesture } from './MealGesture';
@@ -74,6 +74,14 @@ export class Actor {
   isParkSwing():boolean{return this.swingBase!==null&&this.pose==='sit';}
   parkConversation():void{this.parkChatUntil=this.clock+9;}
   private readonly racket=new THREE.Group();
+  private badmintonFrame:{hit:number;height:number;aim:number}|null=null;
+  private badmintonTravel=0;
+  setBadmintonFrame(x:number,z:number,hit:number,height:number,aim:number):void{
+    if(this.activity!=='badminton')return;
+    const p=new THREE.Vector3(x-this.root.position.x,0,z-this.root.position.z).applyAxisAngle(up,-this.root.rotation.y);
+    this.badmintonTravel=Math.hypot(p.x-this.poseOffset.x,p.z-this.poseOffset.z);
+    this.poseOffset.copy(p);this.badmintonFrame={hit,height,aim};
+  }
   private cookingRecipe: RecipeId | undefined;
   private diningDish: RecipeId | TakeoutId | undefined;
   private readonly props: ReturnType<typeof activityProps>;
@@ -192,9 +200,12 @@ export class Actor {
     });
 
     this.props = activityProps(this.figure,this.rig.wrists);
-    const handleR=new THREE.Mesh(drum,finish(0x765640,'wood'));handleR.scale.set(.019,.24,.019);handleR.position.y=.15;this.racket.add(handleR);
-    const headR=new THREE.Mesh(new THREE.TorusGeometry(.115,.010,6,24),finish(0x345d63,'metal'));headR.position.y=.37;headR.scale.y=1.35;this.racket.add(headR);
-    for(let i=-3;i<=3;i++){const bar=new THREE.Mesh(orb,finish(0xe9e2d1,'fabric'));bar.scale.set(.003,.125*Math.sqrt(1-(i/4.2)**2),.003);bar.position.set(i*.027,.37,0);this.racket.add(bar);const cross=new THREE.Mesh(orb,finish(0xe9e2d1,'fabric'));cross.scale.set(.10*Math.sqrt(1-(i/4.2)**2),.003,.003);cross.position.set(0,.37+i*.034,0);this.racket.add(cross);}
+    const frameMat=finish(id==='vlad'?0x31495e:0x8b425e,'metal'),gripMat=finish(0x25282b,'fabric'),stringMat=finish(0xe8e7db,'fabric');
+    const rod=(radius:number,length:number,z:number,mat:THREE.Material)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,10),mat);m.rotation.x=Math.PI/2;m.position.z=z;this.racket.add(m);};
+    rod(.017,.155,0,gripMat);rod(.019,.012,-.079,frameMat);rod(.0065,.255,.205,frameMat);
+    const frame=new THREE.Mesh(new THREE.TorusGeometry(.103,.009,8,44),frameMat);frame.rotation.x=Math.PI/2;frame.scale.y=1.30;frame.position.z=.455;this.racket.add(frame);
+    for(let i=-5;i<=5;i++){const f=i/6;const a=new THREE.Mesh(new THREE.BoxGeometry(.0018,.0018,.25*Math.sqrt(1-f*f)),stringMat);a.position.set(f*.096,0,.455);this.racket.add(a);const b=new THREE.Mesh(new THREE.BoxGeometry(.192*Math.sqrt(1-f*f),.0018,.0018),stringMat);b.position.set(0,0,.455+f*.125);this.racket.add(b);}
+    batchRigidParts(this.racket);this.racket.position.set(0,-.049,.021);
     this.racket.visible=false;this.rig.wrists[1].add(this.racket);
     const utensil = finish(0xb68354, 'wood');
     const handle = new THREE.Mesh(orb, utensil);
@@ -263,7 +274,7 @@ export class Actor {
   setPose(pose: Pose): void {
     this.waypoints = [];
     this.callback = null;
-    this.pose = pose;this.swingBase=null;
+    this.pose = pose;this.swingBase=null;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
@@ -330,6 +341,7 @@ export class Actor {
   finishActivity(): void {
     this.partnerGesture=null;
     this.gesture=null;
+    if(this.activity==='badminton'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;}
     this.heart.visible=false;
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
     this.carryingBook = false;
@@ -473,8 +485,8 @@ export class Actor {
     this.gestureTime += dt;
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;
-    const traveled = this.advance(dt, steer);
-    const walking = this.waypoints.length > 0 && traveled > 0;
+    const traveled = this.advance(dt, steer)+(this.activity==='badminton'?this.badmintonTravel:0);this.badmintonTravel=0;
+    const walking = (this.waypoints.length > 0 || this.activity==='badminton') && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend, walking ? 1 : 0, alpha);
     const strideLength = walkStrideLength(this.id);
@@ -798,7 +810,7 @@ export class Actor {
           const aim=(Math.sin(a*2.2)+1)/2;rightY=-.12+.28*aim;rightZ=.24+.35*aim;gaze=.04;expression=.20;break;
         }
         case 'badminton': {
-          const hit=Math.max(0,Math.sin(a*2.5+(this.id==='vlad'?0:Math.PI)));lean=.06+.12*hit;rightY=-.20+.72*hit;rightZ=.19+.25*hit;leftY=-.22;leftZ=.24;gaze=-.08;expression=.20;break;
+          const hit=this.badmintonFrame?.hit??0;lean=.12+.12*hit;rightY=-.20+.32*hit;rightZ=.25;leftY=-.22;leftZ=.24+.08*hit;gaze=-.08;expression=.20;break;
         }
         case 'pingPong': {
           const hit=Math.sin(a*4.3);lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.45+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
@@ -1536,6 +1548,17 @@ export class Actor {
     }
 
     this.racket.visible=this.activity==='badminton';
+    if(this.racket.visible){
+      const f=this.badmintonFrame,hit=f?.hit??0,height=f?.height??1.65;
+      const axis=new THREE.Vector3(.28+.22*hit,.82-.16*hit,.32+.22*hit).normalize().applyAxisAngle(up,this.root.rotation.y);
+      const wristGoal=new THREE.Vector3(.29+.025*hit,THREE.MathUtils.lerp(1.10,height-.30,hit),.18+.08*hit).applyAxisAngle(up,this.root.rotation.y).add(this.bodyPosition(new THREE.Vector3()));
+      this.reach(1,wristGoal,alpha);
+      const y=new THREE.Vector3(0,1,0);y.addScaledVector(axis,-y.dot(axis)).normalize();
+      const x=new THREE.Vector3().crossVectors(y,axis).normalize();y.crossVectors(axis,x).normalize();
+      const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,axis));
+      this.rig.elbows[1].getWorldQuaternion(this.parentRotation).invert();
+      this.rig.wrists[1].quaternion.slerp(q.premultiply(this.parentRotation),alpha);
+    }
     this.selectionRing.position.x = this.figureBase.x;
     this.selectionRing.position.z = this.figureBase.z;
     if (this.carryingBook || this.closingBook > 0) {

@@ -1,3 +1,4 @@
+import { BADMINTON_SECONDS } from './badminton';
 import { PICNIC_SECONDS } from './park';
 import { picnicPortions } from './picnic';
 import { cafeSeatAt, CAFE_TALK_SECONDS, stationById, approachFor } from './locations';
@@ -93,7 +94,7 @@ const objects: readonly SocialActivity[] = [
   {id:'petBrush',title:'Расчесать питомца вместе',group:'home',lines:['Подержишь внимание питомца, пока я возьму щётку?'],replies:['Да, побуду рядом с другой стороны.','Хорошо, поможем ему привыкнуть к щётке.'],motion:'pet',seconds:10,object:'petBrush',memorable:true},
   {id:'walk',title:'Прогуляться вместе',group:'fun',lines:['Пройдёмся вместе? Выберем такой темп, чтобы было удобно обоим.'],replies:['Давай пройдём по дорожке.','Хочу немного свежего воздуха.'],motion:'stroll',seconds:22,object:'walk',memorable:true},
   {id:'parkSwing',title:'Отдохнуть на качелях вдвоём',group:'fun',lines:['Покачаемся вместе?'],replies:['Давай!','Хорошая идея.'],motion:'sitTalk',seconds:24,object:'parkSwing',memorable:true},
-  {id:'parkBadminton',title:'Играть в бадминтон вдвоём',group:'fun',lines:['Поиграем с воланчиком?'],replies:['Хорошо, начинай.','Давай, посмотрим кто выиграет.'],motion:'badminton',seconds:45,object:'parkBadminton',memorable:true},
+  {id:'parkBadminton',title:'Играть в бадминтон вдвоём',group:'fun',lines:['Поиграем с воланчиком?'],replies:['Хорошо, начинай.','Давай, посмотрим кто выиграет.'],motion:'badminton',seconds:BADMINTON_SECONDS,object:'parkBadminton',memorable:true},
   {id:'picnic',title:'Устроить пикник вдвоём',group:'fun',lines:['Достанем еду из корзины и пообедаем на свежем воздухе?'],replies:['Да, приятного аппетита!','Давай отдохнём вместе.'],motion:'eat',seconds:PICNIC_SECONDS,object:'picnic',memorable:true},
   {id:'parkRest',title:'Отдохнуть на скамье',group:'fun',lines:['Передохнём в парке? На скамье есть место для двоих.'],replies:['С удовольствием.','Давай послушаем, что вокруг.'],motion:'sitTalk',seconds:14,object:'parkRest',memorable:true},
   {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, приятного аппетита!','Давай поедим и поболтаем.'],motion:'eat',seconds:MEAL_EAT_SECONDS,object:'cafeMeal',independent:true,memorable:true},
@@ -161,7 +162,7 @@ export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
   motion:PairMotion; place:GameState['world']['places'][CharacterId]; from:CharacterId; target?:Point;
   seat?:HomeSeat; station?:string; pet?:string; item?:string; stroll?:Point[];
-  offsetMs?:number; carry?:'book'|'plate';
+  offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId;
 }
 
 export function otherPerson(role:CharacterId):CharacterId { return role==='vlad'?'alina':'vlad'; }
