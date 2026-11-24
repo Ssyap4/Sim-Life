@@ -46,7 +46,14 @@ export const EVENTS={
  study:{label:'Успешное занятие',emotion:'inspired',minutes:120},
  promotion:{label:'Повышение на работе',emotion:'inspired',minutes:240},
  shift:{label:'Рабочий день завершён',emotion:'inspired',minutes:120},
- music:{label:'Музыкальный отдых',emotion:'calm',minutes:75}
+ music:{label:'Музыкальный отдых',emotion:'calm',minutes:75},
+ quietMorning:{label:'Приятное начало дня',emotion:'calm',minutes:90},
+ creativeSpark:{label:'Пришла интересная идея',emotion:'inspired',minutes:120},
+ cozyEvening:{label:'Спокойный вечер дома',emotion:'calm',minutes:90},
+ teaMoment:{label:'Чайный перерыв',emotion:'calm',minutes:75},
+ readingMoment:{label:'Интересная книга',emotion:'inspired',minutes:90},
+ tidyMoment:{label:'Дома стало уютнее',emotion:'happy',minutes:90},
+ friendlyCall:{label:'Приятное общение',emotion:'happy',minutes:90}
 } as const;
 export type EventKind=keyof typeof EVENTS;
 export type EmotionalEvent={kind:EventKind;emotion:EmotionId;until:number};
@@ -66,10 +73,15 @@ export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedComm
  if(c.type==='pet_action'&&['pet','play','brush'].includes(c.action))recordEmotion(s,role,c.pet===PERSONALITIES[role].pet?'favoritePet':'pet');
  else if(c.type==='together')recordEmotion(s,role,'together');
  else if(c.type==='study')recordEmotion(s,role,'study');
+ else if(c.type==='read_book')recordEmotion(s,role,'readingMoment');
  else if(['movie','youtube','free_tv','computer_video'].includes(c.type))recordEmotion(s,role,'movie');
  else if(c.type==='act'||c.type==='furniture_use'){
   const a=c.type==='act'?c.actionId:c.action;
-  if(a==='sofaMusic')recordEmotion(s,role,'music');
+  if(a==='kitchenTea')recordEmotion(s,role,'teaMoment');
+  else if(a==='sofaRead')recordEmotion(s,role,'readingMoment');
+  else if(a==='kitchenTidy'||a==='kitchenDishes')recordEmotion(s,role,'tidyMoment');
+  else if(a==='sofaCall'||a==='tableTalk')recordEmotion(s,role,'friendlyCall');
+  else if(a==='sofaMusic')recordEmotion(s,role,'music');
   else if(['movie','youtube','free_tv'].includes(a))recordEmotion(s,role,'movie');
   else if(['vladStudy','alinaStudy'].includes(a))recordEmotion(s,role,'study');
  }
@@ -115,7 +127,9 @@ export function wishEmotionPriority(id:string,role:CharacterId,e:EmotionId):numb
  if(id.includes('music'))return emotionPreference(role,e,'music');
  if(id.startsWith('learn-'))return emotionPreference(role,e,'study');
  if(id==='game-break')return emotionPreference(role,e,'games');
- if(id==='tea-break')return emotionPreference(role,e,'rest');
+ if(id==='tea-break'||id==='rest-break')return emotionPreference(role,e,'rest');
+ if(id==='cozy-home')return emotionPreference(role,e,'home');
+ if(id.startsWith('cook-')&&e==='inspired')return 2;
  if(id==='reading')return emotionPreference(role,e,'reading');
  return 0;
 }
