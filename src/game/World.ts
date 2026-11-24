@@ -1869,7 +1869,12 @@ export class World {
     if(station.action.kind==='picnic'){
       actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.50:.50),role==='vlad'?-.76:-.71,station.center.z+.39),Math.PI);return;
     }
-    if(station.action.kind==='swing'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.47:.47),role==='vlad'?-.30:-.25,station.center.z),0);actor.markParkSwing();return;}
+    if(station.action.kind==='swing'){
+      actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.47:.47),0,station.center.z-.035),0);
+      const pivot=this.remote?.stations.get(station.id)?.getObjectByName('Leisure swing pivot');
+      if(pivot)actor.markParkSwing(pivot.getWorldPosition(new THREE.Vector3()),.6075);
+      return;
+    }
     const cafe = station.action.kind === 'dine';
     actor.setFurniturePose('sit', new THREE.Vector3(approachFor(station, role).x,
       role === 'vlad' ? -.24 : -.19, station.center.z + (cafe ? .51 : .12)), cafe ? Math.PI : 0);

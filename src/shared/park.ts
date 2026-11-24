@@ -3,7 +3,8 @@ export const PICNIC_SECONDS=90;
 export const CAMP_RECIPES={
  campPotato:{name:'Картофель в фольге на углях',ingredients:{potato:2,butter:1,herbs:1},hunger:70,mood:12},
  campBread:{name:'Хрустящий хлеб на костре с сыром',ingredients:{bread:2,cheese:1,butter:1},hunger:65,mood:12},
- campSkewers:{name:'Сосиски на палочках с овощами',ingredients:{sausage:2,tomato:1,onion:1},hunger:80,mood:14},
+ campSkewers:{name:'Колбаски на шпажках с помидорами и луком',ingredients:{sausage:2,tomato:1,onion:1},hunger:80,mood:14},
+ campMarshmallow:{name:'Маршмеллоу на шпажках',ingredients:{marshmallow:4},hunger:35,mood:20},
 } as const;
 export type CampRecipe=keyof typeof CAMP_RECIPES;
 export const isCampRecipe=(v:unknown):v is CampRecipe=>typeof v==='string'&&Object.hasOwn(CAMP_RECIPES,v);

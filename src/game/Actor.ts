@@ -68,10 +68,15 @@ export class Actor {
   private activityTime = 0;
   private mealSlow=false;
   private parkChatUntil=0;
-  private swingBase:THREE.Vector3|null=null;
-  parkSwing(angle:number):void{if(this.swingBase){this.poseOffset.copy(this.swingBase);this.poseOffset.y+=1.4*(1-Math.cos(angle));this.poseOffset.z-=1.4*Math.sin(angle);}}
-  markParkSwing():void{this.swingBase=this.poseOffset.clone();}
-  isParkSwing():boolean{return this.swingBase!==null&&this.pose==='sit';}
+  private swingHinge:THREE.Vector3|null=null;
+  private swingAngle=0;
+  parkSwing(angle:number):void{this.swingAngle=angle;}
+  markParkSwing(hinge:THREE.Vector3,seatTop:number):void{
+    this.swingHinge=this.root.worldToLocal(hinge.clone());
+    this.poseOffset.y=seatTop-(this.rig.waistY-.035);
+    this.swingAngle=0;this.snapFurnitureOffset();
+  }
+  isParkSwing():boolean{return this.swingHinge!==null&&this.pose==='sit';}
   parkConversation():void{this.parkChatUntil=this.clock+9;}
   private readonly racket=new THREE.Group();
   private badmintonFrame:{hit:number;height:number;aim:number}|null=null;
@@ -274,7 +279,7 @@ export class Actor {
   setPose(pose: Pose): void {
     this.waypoints = [];
     this.callback = null;
-    this.pose = pose;this.swingBase=null;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;
+    this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
@@ -1559,8 +1564,12 @@ export class Actor {
       this.rig.elbows[1].getWorldQuaternion(this.parentRotation).invert();
       this.rig.wrists[1].quaternion.slerp(q.premultiply(this.parentRotation),alpha);
     }
-    this.selectionRing.position.x = this.figureBase.x;
-    this.selectionRing.position.z = this.figureBase.z;
+    if(this.isParkSwing()&&this.swingHinge){
+      this.figure.position.sub(this.swingHinge).applyAxisAngle(new THREE.Vector3(1,0,0),this.swingAngle).add(this.swingHinge);
+      this.figure.rotation.x=this.swingAngle;
+    }
+    this.selectionRing.position.x = this.figure.position.x;
+    this.selectionRing.position.z = this.figure.position.z;
     if (this.carryingBook || this.closingBook > 0) {
       this.props.book(this.activityTime,this.activity === 'read',this.closingBook/.36);
       this.closingBook = Math.max(0,this.closingBook-dt);

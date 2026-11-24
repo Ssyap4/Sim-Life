@@ -66,6 +66,7 @@ export const GROCERY_DETAILS: Record<IngredientId,{area:StorageArea;description:
   dijonMustard:{area:'fridge',description:'Дижонская горчица для говядины Веллингтон.'},
   seaBass:{area:'fridge',description:'Охлаждённое филе сибаса.'},
   saffron:{area:'cupboard',description:'Шафран для насыщенного золотистого ризотто.'},
+  marshmallow:{area:'cupboard',description:'Мягкий маршмеллоу для поджаривания на шпажках у костра. В упаковке 12 штук.'},
   darkChocolate:{area:'cupboard',description:'Тёмный шоколад для фондана с жидкой сердцевиной.'},
 };
 export const TAKEOUT_DESCRIPTIONS: Record<TakeoutId,string> = {

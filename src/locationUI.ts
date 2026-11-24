@@ -209,7 +209,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           for(const food of mine){if(food.kind==='campfire'){options.append(element('small','',picnicName(food)));continue;}const kind=food.kind;options.append(button('Вернуть: '+picnicName(food),()=>send({type:'picnic_unpack',kind,item:food.item})));}
           const kit=place.world.campKit?.[role];
           options.append(element('strong','','Припасы для костра'),button('Уголь + розжиг · '+(kit?.fuel??0),()=>send({type:'camp_pack',item:'fuel'}),place.pantry.charcoal<1||place.pantry.lighterFluid<1||(kit?.fuel??0)>=3));
-          for(const [id,meal] of Object.entries(CAMP_RECIPES)){const item=id as CampRecipe;options.append(button('Собрать: '+meal.name+' · '+(kit?.recipes[item]??0),()=>send({type:'camp_pack',item}),campIngredients(item).some(([k,n])=>place.pantry[k]<n)||(kit?.recipes[item]??0)>=3));}
+          for(const [id,meal] of Object.entries(CAMP_RECIPES)){const item=id as CampRecipe;const ingredients=campIngredients(item);options.append(element('small','',ingredients.map(([k,n])=>GROCERIES[k].name.split(' · ')[0]+' '+place.pantry[k]+'/'+n).join(' · ')));options.append(button('Собрать: '+meal.name+' · '+(kit?.recipes[item]??0),()=>send({type:'camp_pack',item}),ingredients.some(([k,n])=>place.pantry[k]<n)||(kit?.recipes[item]??0)>=3));}
           for(const batch of fridgeReady)options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
         }
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));

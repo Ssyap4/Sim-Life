@@ -109,3 +109,19 @@ test('both players receive the same authoritative match result as the shared cho
  const winner=homes.vlad.pair!.badmintonWinner!;s.characters.vlad.mood=s.characters.alina.mood=0;
  const result=completeTogether(s,'vlad',cmd,['vlad','alina'],0,homes);assert.ok(result.ok);assert.match(result.message,winner==='vlad'?/\u0412\u043b\u0430\u0434/:/\u0410\u043b\u0438\u043d\u0430/);assert.ok(result.state.characters[winner].mood>result.state.characters[winner==='vlad'?'alina':'vlad'].mood);
 });
+import { MARKET_BY_ID } from '../../src/shared/market';
+import { checkout } from '../market';
+import { clockAt } from '../../src/shared/life';
+import { Actor } from '../../src/game/Actor';
+import { Vector3 } from 'three';
+test('marshmallows can be purchased or delivered and become exactly two picnic servings',()=>{
+ const lines=[{id:'grocery:marshmallow',quantity:1}];assert.equal(MARKET_BY_ID.get(lines[0].id)?.price,180);
+ const s=initialState();s.money=100000;const bought=checkout(s,'vlad',lines);assert.ok(bought.ok);assert.equal(bought.state.pantry.marshmallow,12);assert.equal(bought.state.money,s.money-180);
+ const ordered=send(s,'alina',{type:'delivery_order',sequence:0,lines});assert.equal(ordered.money,s.money-329);const parcel=ordered.world.deliveries[0];ordered.clock=clockAt(parcel.readyAt+1);
+ locate(ordered,'vlad','home','courier-handoff');let delivered=send(ordered,'vlad',{type:'delivery_handoff',id:parcel.id});locate(delivered,'vlad','home','parcel');delivered=send(delivered,'vlad',{type:'delivery_claim',id:parcel.id});assert.equal(delivered.pantry.marshmallow,12);assert.equal(delivered.money,ordered.money);
+ let state=bought.state;locate(state,'vlad','market','checkout');state=send(state,'vlad',{type:'picnic_buy'});locate(state,'vlad','home','fridge');state.pantry.charcoal=1;state.pantry.lighterFluid=1;state=send(state,'vlad',{type:'camp_pack',item:'fuel'});state=send(state,'vlad',{type:'camp_pack',item:'campMarshmallow'});assert.equal(state.pantry.marshmallow,8);
+ locate(state,'vlad','park','park-fire');const lit=localActivity(state,'vlad','campIgnite','park-fire');assert.ok(lit.ok);const cooked=localActivity(lit.state,'vlad','campMarshmallow','park-fire');assert.ok(cooked.ok);for(const role of ['vlad','alina'] as const)assert.equal(picnicPortions(cooked.state,role)[0].item,'campMarshmallow');assert.equal(localActivity(cooked.state,'vlad','campMarshmallow','park-fire').ok,false);
+});
+test('seated actor rotates around the same hinge as the swing rather than an approximate offset',()=>{
+ for(const role of ['vlad','alina'] as const){const actor=new Actor(role,[3,2]);const hinge=new Vector3(3,1.97,1);actor.setFurniturePose('sit',new Vector3(3,0,.965),0);actor.markParkSwing(hinge,.6075);actor.parkSwing(0);actor.update(.1);const base=actor.bodyPosition(new Vector3());for(const angle of [.15,-.15,0]){actor.parkSwing(angle);actor.update(.1);const expected=base.clone().sub(hinge).applyAxisAngle(new Vector3(1,0,0),angle).add(hinge);assert.ok(actor.bodyPosition(new Vector3()).distanceTo(expected)<.025);}}
+});

@@ -64,6 +64,7 @@ export const GROCERIES = {
   dijonMustard: { name:'Дижонская горчица · 200 г', emoji:'🫙', price:210, quantity:8, unit:'порц.', category:'pantry' },
   seaBass: { name:'Филе сибаса · 500 г', emoji:'🐟', price:950, quantity:3, unit:'порц.', category:'fish' },
   saffron: { name:'Шафран · 1 г', emoji:'🌸', price:850, quantity:6, unit:'порц.', category:'pantry' },
+  marshmallow: { name:'Зефир маршмеллоу · 150 г', emoji:'🍡', price:180, quantity:12, unit:'шт.', category:'pantry' },
   darkChocolate: { name:'Тёмный шоколад · 200 г', emoji:'🍫', price:280, quantity:4, unit:'порц.', category:'pantry' },
 } as const;
 export type IngredientId = keyof typeof GROCERIES;

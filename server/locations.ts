@@ -394,7 +394,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
-  swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name, picnic: 'Поесть на пикнике',
+  swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
 };

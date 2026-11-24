@@ -256,6 +256,8 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
     for(const x of [-.065,.065]){bit(g,0xada9a3,x,.045,0,.12,.063,.10,orb);bit(g,0xd4a961,x,.074,0,.089,.035,.076,orb);bit(g,0xe8d3a0,x,.091,.01,.038,.015,.035,softCube);}
   }else if(id==='campBread'){
     for(const x of [-.06,.06]){bit(g,0x9d6737,x,.038,0,.099,.045,.14,softCube);bit(g,0xe5b95f,x,.065,0,.082,.012,.119,softCube);for(let j=0;j<3;j++)bit(g,0x69452b,x,.074,-.035+j*.035,.075,.005,.008,softCube);}
+  }else if(id==='campMarshmallow'){
+    for(const x of [-.06,.06]){const stick=bit(g,0xb88c51,x,.035,0,.012,.012,.27,softCube);stick.rotation.y=x*.55;for(const z of [-.065,.012]){bit(g,0xffedd4,x,.058,z,.060,.054,.060,softCube);bit(g,0xc58b54,x,.085,z,.052,.009,.049,softCube);bit(g,0x996439,x-.015,.088,z+.012,.013,.004,.019,orb);}}
   }else if(id==='campSkewers'){
     for(const x of [-.06,.06]){bit(g,0xa7774c,x,.033,0,.012,.014,.29,softCube);for(let j=0;j<5;j++)bit(g,j%2?0xd85e43:0xa65b3a,x,.048,-.09+j*.042,.047,.038,.040,softCube);}
   }else if (id==='cappuccino'||id==='tea'){
