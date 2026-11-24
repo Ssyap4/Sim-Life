@@ -53,11 +53,11 @@ async function joinAs(port:number,role:CharacterId,code:string){
   return {ws,send,take,ready,role};
 }
 type Client=Awaited<ReturnType<typeof joinAs>>;
-async function meet(options:{state?:GameState;ttl?:number;scale?:number}={}){
+async function meet(options:{state?:GameState;ttl?:number;scale?:number;fixedClock?:boolean}={}){
   const dir=mkdtempSync(join(tmpdir(),'sim-life-social-'));
   const files=openServerFiles(dir);
   files.save(options.state??sample());
-  const server=await startServer({port:0,dataDir:dir,taskTimeScale:options.scale??.022,socialTtlMs:options.ttl});
+  const server=await startServer({port:0,dataDir:dir,taskTimeScale:options.scale??.022,socialTtlMs:options.ttl,...(options.fixedClock?{lifeClock:{now:()=>0,tickMs:600000}}:{})});
   return {files,server,connect:(role:CharacterId)=>joinAs(server.port,role,files.access[role]),
     async close(){await server.close();rmSync(dir,{recursive:true,force:true});}};
 }
@@ -511,7 +511,9 @@ test('A declined evening invitation cannot reserve food or create a shared eveni
 });
 
 test('A two-phone home evening stays synchronized through every real server action',async()=>{
-  const f=await meet({scale:.018});
+  // This scenario exercises consent, inventory and synchronized completion, not autonomous pet timing.
+  // Freeze the life clock so Simba cannot randomly occupy a required seat mid-fixture.
+  const f=await meet({scale:.018,fixedClock:true});
   try{
     const v=await f.connect('vlad'),a=await f.connect('alina');
     const stages=[

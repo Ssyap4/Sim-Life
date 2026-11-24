@@ -37,12 +37,14 @@ export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
+  if(place==='fitness')return {x:role==='vlad'?-.44:.44,z:5.56};
   if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
   if (place === 'district') return districtArrival('home',role);
   if (place === 'education') return { x: role === 'vlad' ? .47 : 1.38, z: 3.94 };
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
+  if(place==='fitness')return {x:role==='vlad'?-.44:.44,z:5.00};
   if(place==='district')return districtPoint({x:role==='vlad'?-9.02:-8.18,z:-8.8});
   return { x: role === 'vlad' ? -0.42 : 0.42, z: place === 'home' ? 2.38 : 3.35 };
 }
