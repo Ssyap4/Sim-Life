@@ -1,3 +1,6 @@
+# Current approved release 0.41.0 — PULSE Fitness (25.11.2026)
+Owner explicitly approved production and closing fitness scope. Verify main/tag v0.41.0 and port 3111, read docs/RELEASE_041.md. Release code bd76cf488579a6c44ad943b53f63db4b91a1d5f4; full cloud regression 732/732, mobile visual QA success, physical device FPS/contact/audio not verified. Next stage not selected; deep careers only near full release, no new NPC interaction, no excessive gym mechanics. No development-turn counter; weather v2 paused, no RGB/lights. Preserve existing mobile-first/isolated test/reset rules; no heavy QA on ALINA-PC. Older sections below historical where superseded.
+
 # Sim-Life 0.40.0 — Умная техника (24.11.2026)
 
 Owner explicitly approved production. Code/tag v0.40.0: e49b3cd7b13c13b386df91bca559de169990d488. Production main D:\Sim-Life port 3111, http://192.168.0.124:3111/. Deployed PID 8588; health OK, testNoCodes:false; /assets/index-f21ZktA-.js and speaker-track-house-0.wav HTTP 200. Initial household reset once to 10000 RUB, default layout and two free pet furnishings. Access and trusted-device hashes unchanged. Backup D:\Sim-Life-Backups\v040-predeploy-20261124\at-switch verified SHA-256. Never reset on ordinary restart.
