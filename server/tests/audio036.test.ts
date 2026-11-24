@@ -4,10 +4,10 @@ import {AUDIO_DEFAULTS,readAudioSettings,clampVolume,ambientFor,spatialGain,acti
 test('audio settings default and corrupted storage are safe',()=>{assert.deepEqual(readAudioSettings(null),AUDIO_DEFAULTS);assert.deepEqual(readAudioSettings('broken'),AUDIO_DEFAULTS);assert.deepEqual(readAudioSettings('{"master":0,"music":2,"ui":-1,"pets":"x"}'),{...AUDIO_DEFAULTS,master:0,music:1,ui:0});assert.equal(clampVolume(NaN,.5),.5);});
 test('sound fades with distance, never louder than near listener',()=>{assert.equal(spatialGain(0),1);assert.equal(spatialGain(4),.5);assert.ok(spatialGain(12)<spatialGain(8));});
 test('ambience follows indoor/outdoor scene',()=>{assert.equal(ambientFor('home',false),'room');assert.equal(ambientFor('home',true),'wind');assert.equal(ambientFor('park',false),'wind');assert.equal(ambientFor('district',false),'street');assert.equal(ambientFor('petshop',false),'cafe');});
-test('continuous and intermittent actions have distinct cues',()=>{assert.deepEqual(activitySound('shower','idle'),{sound:'water',interval:0,loop:true});assert.equal(activitySound('cook','idle')?.sound,'cook');assert.equal(activitySound('eat','sit')?.sound,'eat');assert.equal(activitySound(null,'work')?.sound,'keyboard');assert.equal(activitySound('music','sit')?.sound,'music');assert.equal(activitySound(null,'sleep'),undefined);});
+test('continuous and intermittent actions have distinct cues',()=>{assert.deepEqual(activitySound('shower','idle'),{sound:'water',interval:0,loop:true});assert.equal(activitySound('cook','idle')?.sound,'cook');assert.equal(activitySound('eat','sit')?.sound,'eat');assert.equal(activitySound(null,'work')?.sound,'keyboard');assert.equal(activitySound('games','work'),undefined);assert.ok(activitySound(null,'work')!.interval>=1);assert.equal(activitySound('music','sit')?.sound,'music');assert.equal(activitySound(null,'sleep'),undefined);});
 
 import {mediaSound,MEDIA_DEVICE_GAIN,petPlaybackRate} from '../../src/game/GameAudio';
-test('media follows program genre and device output',()=>{assert.equal(mediaSound('horror'),'mediaSuspense');assert.equal(mediaSound('concert'),'scoreDance');assert.notEqual(mediaSound('comedy'),mediaSound('racing'));assert.ok(MEDIA_DEVICE_GAIN.laptop<MEDIA_DEVICE_GAIN.desktop);assert.ok(MEDIA_DEVICE_GAIN.stereo>MEDIA_DEVICE_GAIN.smartSpeaker);});
+test('media follows program genre and device output',()=>{assert.equal(mediaSound('horror'),'mediaSuspense');assert.equal(mediaSound('concert'),'scoreDance');assert.notEqual(mediaSound('comedy'),mediaSound('racing'));assert.ok(MEDIA_DEVICE_GAIN.laptop<MEDIA_DEVICE_GAIN.desktop);assert.ok(MEDIA_DEVICE_GAIN.tv<=.25);assert.ok(MEDIA_DEVICE_GAIN.stereo>MEDIA_DEVICE_GAIN.smartSpeaker);});
 test('pet recordings use short high-pitched variation',()=>{assert.ok(petPlaybackRate('meow',0)>petPlaybackRate('bark',0));assert.ok(petPlaybackRate('meow',1)>petPlaybackRate('meow',0));});
 
 import {crossedCue,speakingTurn} from '../../src/game/GameAudio';
@@ -36,6 +36,7 @@ test('mixer stops cancelled action, scene change, pause and sign-out for indepen
   assert.equal(a.beginFrame('home',{x:0,z:0},false,false),true);
   a.loop('shower','water','effects',.3,{x:0,z:0});a.beat('speech','voiceVlad','voices',8,.3);a.endFrame();
   const ambient=sources[0],shower=sources[1],speech=sources[2];
+  const count=sources.length;for(const sound of ['stepWood','stepGrass','stepTile','paw'] as const)a.play(sound);assert.equal(sources.length,count);
   assert.equal(shower.stopped,false);assert.equal(speech.stopped,false);
   b.beginFrame('home',{x:0,z:0},false,false);b.loop('tv','mediaCozy','effects',.3);b.endFrame();const other=sources.at(-1)!;
   a.beginFrame('home',{x:0,z:0},false,false);a.endFrame();assert.equal(shower.stopped,true);assert.equal(speech.stopped,true);assert.equal(ambient.stopped,false);assert.equal(other.stopped,false);

@@ -2602,11 +2602,10 @@ export class World {
     if(!gameAudio.beginFrame(this.place,listener,night,outside(listener)))return;
     for(const role of ['vlad','alina'] as const){
       const actor=this.actors[role],p=actor.root.position;if(!actor.root.visible)continue;
-      const m=actor.audioMotion(),surface=this.place==='park'||(this.place==='home'&&outside(p))?'stepGrass':this.place==='home'?'stepWood':'stepTile';
-      gameAudio.step(role,p,m.walking,surface);
+      const m=actor.audioMotion();
       const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
-      const cue=mediaTask&&m.activity==='read'||m.activity==='eat'||m.activity==='toilet'||m.activity==='music'?undefined:activitySound(m.activity,m.pose);
-      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,.40,p);}
+      const cue=mediaTask||m.activity==='eat'||m.activity==='toilet'||m.activity==='music'?undefined:activitySound(m.activity,m.pose);
+      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,cue.sound==='keyboard'?.12:.30,p);}
       if(!m.walking&&m.activity==='music')gameAudio.loop(role+'-act','scoreMorning','music',.34,p);
       if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.27,p);}
       if(!m.walking&&m.activity==='toilet')gameAudio.cue(role+'-flush',m.activityTime,[{at:2.5,sound:'flush'}],'effects',.28,p);
@@ -2635,7 +2634,7 @@ export class World {
     }
     for(const id of PET_IDS){
       const pet=this.pets[id],p=pet.root.position;if(!pet.root.visible)continue;
-      const m=pet.audioMotion();gameAudio.step(id,p,m.walking,'paw',true);
+      const m=pet.audioMotion();
       if(m.settled>.18&&!m.walking){
         if(m.routine==='train'&&m.training?.success&&m.training.command==='bark')gameAudio.beat(id+'-bark','bark','pets',.79,.65,p);
         if(m.routine==='eat'||m.reaction==='feed'||m.reaction==='treat')gameAudio.beat(id+'-eat','eat','pets',.9,.24,p);
