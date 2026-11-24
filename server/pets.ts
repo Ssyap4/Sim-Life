@@ -281,7 +281,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if(kind==='sleep'&&id==='simba'&&pet.energy>=22&&previous?.kind!=='perch'){
       const houses=catPerchCandidates(state.furnishing).filter(site=>site.entry==='inside'||site.entry==='jump');
       if(houses.length){
-        const entry=random()<.70?'jump':'inside',prefer=random()<.7;
+        const entry=random()<.70?'jump':'inside',prefer=random()<.7&&houses.some(site=>{const key=housePreferenceKey(state.furnishing,site);return key&&pet.furniturePreferences?.[key]!==undefined;});
         const picked=safeCatPerch(state,pet.position,false,Math.floor(random()*houses.length),
           site=>!site.entry||!prefer&&site.entry!==entry||Boolean(blocked?.(site)),prefer);
         if(picked){chosenPerch=picked.site;chosenRoute=picked.route;kind='perch';target=0;}

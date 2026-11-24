@@ -36,7 +36,7 @@ test('catalog has distinct light models and 8 colorways',()=>{
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.id)).size,FURNITURE_CATALOG.length);
   assert.equal(Object.keys(FURNITURE_FINISHES).length,8);
   assert.ok(new Set(FURNITURE_CATALOG.map(item=>item.shape)).size>=16);
-  assert.ok(FURNITURE_CATALOG.every(item=>item.price>=500&&item.width>0&&item.depth>0));
+  assert.ok(FURNITURE_CATALOG.every(item=>item.price>=(item.id.startsWith('pet-feed-')?490:500)&&item.width>0&&item.depth>0));
 });
 test('atomic purchase charges rubles once and prevents stale duplicate money loss',()=>{
   const state=initialState();

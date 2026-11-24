@@ -305,6 +305,9 @@ function dayPlans(day:number,count:number):Plan[] {
         return false;
       }));
       if(collision)continue;
+      // Bound simultaneous reservations rather than hiding a moving NPC mid-route.
+      const combined=[...plans,...prepared];
+      if(combined.some(p=>p.start>=start&&p.start<Math.max(...prepared.map(v=>v.end))&&combined.filter(v=>v.start<=p.start&&p.start<v.end).length>10))continue;
       plans.push(...prepared);
       return;
     }
