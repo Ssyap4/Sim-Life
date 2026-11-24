@@ -10,6 +10,7 @@ const HOURLY_DRAIN: Record<VitalNeed, number> = {
   hunger: 1.8, energy: 1.2, hygiene: 0.85, social: 0.65, fun: 0.9, comfort: 0.45, bladder: 6.5,
 };
 import {initialDust,advanceDust,roomAt,dustLoss} from '../src/shared/homeDust';
+import {advanceVacuum} from '../src/shared/vacuum';
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 100) / 100));
 
 /** A pure, deterministic clock step suitable for server tests and offline-safe persistence. */
@@ -47,6 +48,7 @@ export function advanceLife(source: GameState, gameMinutes: number,
       visit.toilets++;visit.toiletUntil=(state.clock.day-1)*1440+state.clock.minute+3;state.pets.verdell.bladder=100;
     }
   }
+  if(online.length)advanceVacuum(state,gameMinutes);
   protectNeeds(state);
   state.revision++;
   return state;

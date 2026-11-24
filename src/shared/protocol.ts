@@ -61,6 +61,7 @@ export interface CharacterState extends Needs {
 import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
   homeDust?: HomeDust;
+  vacuum?: import('./vacuum').VacuumState;
   version: 2;
   revision: number;
   clock: GameClock;

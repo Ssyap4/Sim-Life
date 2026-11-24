@@ -1,3 +1,4 @@
+import {VACUUM_MODELS} from './vacuumCatalog';
 import {FEEDING_MODELS} from './petFeeders';
 import type { FloorRect } from '../game/navigation';
 
@@ -212,7 +213,8 @@ export const RETIRED_DINING:readonly FurnitureProduct[]=[
   product('stool-round','Табурет «Кафе»','tables','stool',3600,.43,.43,.60,'🪑','Круглый высокий табурет на четырёх ножках.'),
 ];
 export const diningSeatTop=(sku:string)=>["chair-lino","chair-mellow","chair-mono","chair-windsor","chair-frame","chair-lounge","chair-velour","stool-cube","stool-petal"].includes(sku)? .45:undefined;
-export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
+export const VACUUM_FURNITURE=Object.entries(VACUUM_MODELS).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🧹',m.spec));
+export const FURNITURE_BY_ID = new Map([...VACUUM_FURNITURE,...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.

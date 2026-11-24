@@ -1,3 +1,4 @@
+import {isVacuumSku} from './vacuumCatalog';
 import {feederModel,feedingAnchor,feedingStation,feedingOwnerPoint} from './petFeeders';
 import { leisureAction } from './leisure';
 import { furnitureUseLocation } from './furnitureUse';
@@ -137,6 +138,12 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   const changed=[...others,candidate];
   const obstacles=walkObstacles(state,changed);
   const dynamicBlocking=furnitureFootprint(candidate,.30);
+  for(const device of changed.filter(i=>isVacuumSku(i.sku))){
+    const angle=device.rotation*Math.PI/2, dock={x:device.x+Math.sin(angle)*.18,z:device.z+Math.cos(angle)*.18};
+    const inside={minX:HOUSE.minX+.18,maxX:HOUSE_WING.maxX-.18,minZ:HOUSE.minZ+.18,maxZ:HOUSE.maxZ-.18};
+    const robotObstacles=walkObstacles(state,changed.filter(i=>i.id!==device.id));
+    if(!pointIsClear(dock,robotObstacles,inside)||!findRoute(dock,center,robotObstacles,inside))return deny('Оставь свободный выезд со станции пылесоса');
+  }
   const newPetGeometry=()=>petNavigationGeometry(obstacles,HOME_FLOOR);
   for(const device of changed.filter(i=>feederModel(i.sku))){const model=feederModel(device.sku)!,anchor=feedingAnchor(device),g=newPetGeometry();if(!pointIsClear(anchor.goal,g.obstacles,g.floor)||!findRoute(PETS[model.pet].home,anchor.goal,g.obstacles,g.floor)||!pointIsClear(anchor.goal,obstacles,HOME_FLOOR))return deny('Оставь свободный подход к миске или кормушке');}
   for(const id of PET_IDS){const station=feedingStation({...state.furnishing,placed:changed},id);if(station.item&&!feedingOwnerPoint(station,center,obstacles,HOME_FLOOR))return deny('Оставь сбоку место для хозяина');}

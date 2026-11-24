@@ -1,3 +1,5 @@
+import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
+import {vacuumItem,vacuumState} from '../shared/vacuum';
 import {DustArt} from './DustArt';
 import {dustRoute} from '../shared/dustRoute';
 import { residentEmotion } from '../shared/emotions';
@@ -184,6 +186,7 @@ export class World {
   private lastFrame = performance.now();
   private paused = false;
   private visualSeconds = 0;
+  private vacuumStamp=0;
   private quality: 'standard'|'high'|'low' = 'standard';
   private readonly graphics = graphicsProfile(navigator.userAgent, window.location.search);
   private readonly horizon = new LandscapeHorizon();
@@ -2216,6 +2219,7 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    if(!previous||previous.clock.day!==state.clock.day||previous.clock.minute!==state.clock.minute||JSON.stringify(previous.vacuum)!==JSON.stringify(state.vacuum))this.vacuumStamp=this.visualSeconds;
     this.dustArt.sync(state.homeDust);
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
     this.homeEffects.setTv(installedElectronics(state,role,'tv'));
@@ -2968,6 +2972,18 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if (this.place === 'home') {
+      if(this.household){
+        const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);
+        const model=item&&this.furnishingModels.get(item.id),body=model?.getObjectByName('Vacuum moving body');
+        if(v&&body&&model){
+          const active=v.mode==='cleaning'||v.mode==='returning';
+          const sampled=active?sampleWalk({from:v.position,path:v.route},Math.min(4,Math.max(0,this.visualSeconds-this.vacuumStamp))*GAME_MINUTES_PER_REAL_SECOND*VACUUM_MODELS[item.sku as VacuumSku].speed):{from:v.position,path:[]};
+          const target=model.worldToLocal(new THREE.Vector3(sampled.from.x,.01,sampled.from.z));
+          target.y=0;body.position.copy(target);
+          if(sampled.path.length){const next=sampled.path[0];body.rotation.y=Math.atan2(next.x-sampled.from.x,next.z-sampled.from.z)-model.rotation.y;}
+          else if(v.mode==='docked')body.rotation.y=0;
+        }
+      }
       for(const [id,model] of this.furnishingModels){const ball=model.getObjectByName('Table tennis live ball');if(!ball)continue;
         const h=[...this.homeTasks.values()].find(h=>h.furnitureId===id&&h.pair?.item==='pingPong');
         const playing=this.tennisStarted!==null&&!!h&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='leisureTogether');

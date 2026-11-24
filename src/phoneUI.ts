@@ -24,6 +24,8 @@ import type { TimeStatus } from './shared/timeControl';
 import { gameAudio,AUDIO_LABELS,type AudioChannel } from './game/GameAudio';
 import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
+import {vacuumItem,vacuumState,type VacuumCommand} from './shared/vacuum';
+import {VACUUM_MODELS,type VacuumSku} from './shared/vacuumCatalog';
 import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './shared/homeDust';
 type App = 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
@@ -48,7 +50,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -104,7 +106,19 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         button.disabled=state.world.places[role]!=='home'||dust[r.id]<288;
         button.addEventListener('click',()=>{if(cleanRoom?.(r.id))close();});card.append(button);return card;
       });
-      info.replaceChildren(intro,...cards);info.scrollTop=scroll;
+      const item=vacuumItem(state),v=item&&vacuumState(state,item);
+      const robot=block('Робот-пылесос',item&&v?VACUUM_MODELS[item.sku as VacuumSku].name+' · '+({docked:'На станции',cleaning:'Убирает дом',returning:'Возвращается',stopped:'Остановлен'}[v.mode]):'Купи в «Импульсе» и установи станцию из склада мебели.');
+      if(v){
+        for(const [action,label] of [['start','Начать уборку'],['stop','Остановить'],['return','На станцию']] as const){
+          const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=action==='start'?v.mode==='cleaning':v.mode==='docked';b.onclick=()=>{vacuumControl?.({type:'vacuum_control',action});};robot.append(b);
+        }
+        const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=v.auto;check.onchange=()=>{vacuumControl?.({type:'vacuum_control',action:'auto',enabled:check.checked});};label.append(check,document.createTextNode(' Убирать ежедневно в 10:00'));robot.append(label);
+        if(v.skipped.length){const note=document.createElement('small');note.textContent='Недоступные комнаты: '+v.skipped.map(id=>DUST_ROOMS.find(r=>r.id===id)?.label).join(', ');robot.append(note);}
+        for(const [i,card] of cards.entries()){
+          const b=document.createElement('button');b.type='button';b.textContent='Убрать роботом';b.disabled=v.mode==='cleaning';b.onclick=()=>{vacuumControl?.({type:'vacuum_control',action:'start',room:DUST_ROOMS[i].id});};card.append(b);
+        }
+      }
+      info.replaceChildren(intro,robot,...cards);info.scrollTop=scroll;
     }
     if(app==='feed'){
       const phone=electronicsModel(state,role,'phone');

@@ -69,7 +69,9 @@ function releaseBed(state:GameState,bed:number|'starter'){
 export function applyFurnishing(source:GameState,role:CharacterId,
   command:FurnishingCommand,now:number):FurnishingResult {
   if(source.world.places[role]!=='home')return fail('Обустройство доступно, когда персонаж дома');
+  if(source.vacuum&&source.vacuum.mode!=='docked'&&source.vacuum.mode!=='stopped'&&'id' in command&&command.id===source.vacuum.id)return fail('Сначала верни робот-пылесос на станцию');
   const next=structuredClone(source);
+  if(next.vacuum&&'id' in command&&command.id===next.vacuum.id&&['furniture_move','furniture_store','furniture_sell'].includes(command.type))delete next.vacuum;
   const home=next.furnishing;
   const dog=next.pets.verdell.routine;
   if(dog?.kind==='bedTogether'&&dog.dogBed&&(
@@ -130,6 +132,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     const destination={...current,
       x:Math.round(command.x*100)/100,z:Math.round(command.z*100)/100,
       rotation:command.rotation as Rotation};
+    if(next.vacuum&&next.vacuum.id!==current.id&&next.vacuum.mode!=='docked'&&!FURNITURE_BY_ID.get(current.sku)?.walkable&&!pointIsClear(next.vacuum.position,[furnitureFootprint(destination,.30)],HOME_FLOOR))return fail('На этом месте находится робот-пылесос');
     const others=home.placed.filter(item=>item.id!==current.id);
     const validation=checkFurniturePlacement(next,destination,others);
     if(!validation.valid)return fail(validation.reason);
