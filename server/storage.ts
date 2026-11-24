@@ -21,7 +21,7 @@ import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
-import { JOBS, isJobId } from '../src/shared/jobs';
+import { JOBS, isJobId, validShiftPay } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
@@ -123,9 +123,7 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(shift.endsAt) &&
         Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60 &&
         (shift.targetPay === undefined ||
-          Number.isSafeInteger(shift.targetPay) &&
-          Number(shift.targetPay) >= JOBS[shift.job].payMin &&
-          Number(shift.targetPay) <= JOBS[shift.job].payMax);
+          validShiftPay(shift.job,shift.targetPay));
     }))) return false;
   // Pet fields were introduced after version 2 shipped; old saves may omit them.
   const petData = state.pets as Record<string, PetState> | undefined;

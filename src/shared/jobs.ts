@@ -14,32 +14,47 @@ export interface ShiftAssignment {
 export const JOBS = {
   taxi: {
     name: 'Таксист', emoji: '🚕', location: 'Город · таксопарк',
-    payMin: 2500, payMax: 4500, hoursMin: 10, hoursMax: 12,
+    payMin: 3700, payMax: 6700, hoursMin: 10, hoursMax: 12,
     energyCost: 26, hungerCost: 16, hygieneCost: 8,
     description: 'Принимай заказы в городе, встречай пассажиров, выбирай маршруты. Попадутся и короткие поездки, и длинный заказ в пригород.',
     stages: ['Получение автомобиля и проверка маршрутов','Утренние поездки по району','Дальние заказы и ожидание клиентов','Завершение смены и сдача машины'],
   },
   courier: {
     name: 'Курьер', emoji: '🛵', location: 'Город · доставки',
-    payMin: 2300, payMax: 4300, hoursMin: 8, hoursMax: 10,
+    payMin: 3200, payMax: 6000, hoursMin: 8, hoursMax: 10,
     energyCost: 26, hungerCost: 17, hygieneCost: 8,
     description: 'Собирай заказы в ресторанах и пунктах выдачи, доставляй их по адресам. Влияют количество заказов и расстояния.',
     stages: ['Получение сумки и первых заказов','Доставка по соседним улицам','Час пик: новые адреса','Последние доставки и сдача сумки'],
   },
   ozon: {
     name: 'Стикеровщик Ozon', emoji: '🏷️', location: 'Промзона · склад Ozon',
-    payMin: 2500, payMax: 5250, hoursMin: 14, hoursMax: 16,
+    payMin: 5000, payMax: 6800, hoursMin: 14, hoursMax: 16,
     energyCost: 36, hungerCost: 23, hygieneCost: 11,
     description: 'Принимай коробки на линии, сверяй маркировку, наклеивай штрихкоды и отправляй товары на сортировку.',
     stages: ['Инструктаж и рабочее место','Стикеровка первой партии','Проверка маркировки на конвейере','Последняя партия и сдача смены'],
   },
   wildberries: {
     name: 'Упаковщик Wildberries', emoji: '📦', location: 'Промзона · склад Wildberries',
-    payMin: 2400, payMax: 5400, hoursMin: 14, hoursMax: 16,
+    payMin: 5000, payMax: 6800, hoursMin: 14, hoursMax: 16,
     energyCost: 37, hungerCost: 22, hygieneCost: 11,
     description: 'Собирай заказ по накладной, проверяй товар, выбирай упаковку и передавай коробки на отправку.',
     stages: ['Инструктаж и накладные','Сборка заказов','Упаковка хрупких отправлений','Отгрузка и завершение смены'],
   },
+  petsitter: {
+    name: 'Зооняня', emoji: '🐾', location: 'Город · дома клиентов',
+    payMin: 2300, payMax: 3300, hoursMin: 6, hoursMax: 7,
+    energyCost: 17, hungerCost: 10, hygieneCost: 7,
+    description: 'Навещай питомцев клиентов, корми их, гуляй и играй с ними, следи за самочувствием и отправляй владельцам отчёты.',
+    stages: ['Знакомство с питомцами и инструкции','Кормление и прогулки','Игры и уход за питомцами','Отчёт владельцам и завершение смены'],
+  },
+  driver: {
+    name: 'Личный водитель', emoji: '🚘', location: 'Город · частные поездки',
+    payMin: 3200, payMax: 4500, hoursMin: 7, hoursMax: 8,
+    energyCost: 20, hungerCost: 12, hygieneCost: 5,
+    description: 'Встречай клиента, заранее проверяй маршрут, отвози его на встречи и жди между поездками. В конце смены сдавай автомобиль.',
+    stages: ['Проверка автомобиля и расписания','Поездки по делам клиента','Ожидание и дополнительные адреса','Возвращение и сдача автомобиля'],
+  },
+  // Retired jobs remain readable ONLY for finishing shifts from old saves.
   barista: {
     name: 'Помощник бариста', emoji: '☕', location: 'Кофейня у метро',
     payMin: 2200, payMax: 3600, hoursMin: 7, hoursMax: 9,
@@ -56,16 +71,21 @@ export const JOBS = {
   },
 } as const;
 export type JobId = keyof typeof JOBS;
-export const JOB_IDS = Object.keys(JOBS) as JobId[];
+export const JOB_IDS = ['taxi','courier','ozon','wildberries','petsitter','driver'] as const satisfies readonly JobId[];
+export function isOfferedJob(id:unknown):id is typeof JOB_IDS[number]{return JOB_IDS.some(job=>job===id);}
 export function isJobId(id: unknown): id is JobId {
   return typeof id === 'string' && Object.prototype.hasOwnProperty.call(JOBS,id);
+}
+const OLD_PAY:Partial<Record<JobId,readonly [number,number]>>={taxi:[2500,4500],courier:[2300,4300],ozon:[2500,5250],wildberries:[2400,5400]};
+export function validShiftPay(id:JobId,pay:unknown):boolean{
+ const spec=JOBS[id],old=OLD_PAY[id];
+ return typeof pay==='number'&&Number.isSafeInteger(pay)&&((pay>=spec.payMin&&pay<=spec.payMax)||!!old&&pay>=old[0]&&pay<=old[1]);
 }
 /** Compatibility for shifts created before early-leave payments existed.
  * Computes a stable value, so old assignments cannot reroll on reconnect. */
 export function shiftFullPay(shift: ShiftAssignment): number {
   const spec=JOBS[shift.job];
-  if(Number.isSafeInteger(shift.targetPay) &&
-     shift.targetPay!>=spec.payMin && shift.targetPay!<=spec.payMax) return shift.targetPay!;
+  if(validShiftPay(shift.job,shift.targetPay))return shift.targetPay!;
   let hash=(shift.startedAt*17+shift.hours*101)>>>0;
   for(const char of shift.job)hash=(Math.imul(hash,31)+char.charCodeAt(0))>>>0;
   return spec.payMin+(hash%(spec.payMax-spec.payMin+1));
