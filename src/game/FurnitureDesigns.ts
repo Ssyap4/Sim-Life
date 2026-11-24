@@ -185,6 +185,33 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
 
   // Pet accessories have the EXACT same lightweight model in catalogue cards,
   // placement preview and the installed house. They are not reskinned rugs.
+  if(s.startsWith('pet-bed-dog-')||s.startsWith('pet-bed-cat-')){
+    const round=s.endsWith('nest')||s.endsWith('donut'),shell=s.endsWith('shell');
+    if(round){
+      cyl(w*.48,.035,d*.48,0,.023,0,D,'fabric');
+      ball(w*.38,.060,d*.36,0,.066,0,F);
+      for(let i=0;i<14;i++){const a=i*Math.PI*2/14;ball(w*.13,.073,d*.13,Math.cos(a)*w*.35,.08,Math.sin(a)*d*.35,M);}
+    }else{
+      box(w*.96,.05,d*.94,0,.025,0,D,'fabric',true);
+      box(w*.83,.082,d*.75,0,.084,.01,F,'fabric',true);
+      if(shell){for(let i=0;i<7;i++){const a=Math.PI*i/6;ball(.105,.083,.11,Math.cos(a)*w*.37,.069,-Math.sin(a)*d*.37,M);}}
+      else{box(w*.94,.14,.16,0,.075,-d*.38,M,'fabric',true);for(const side of [-1,1])box(.16,.12,d*.67,side*w*.42,.065,-.04,M,'fabric',true);}
+      for(const x of [-w*.20,0,w*.20])ball(.022,.004,.022,x,.127,.04,D);
+    }
+    return root;
+  }
+  if(s==='pet-scratcher-mini'||s==='pet-scratcher-palm'||s==='pet-scratcher-duet'){
+    const duet=s.endsWith('duet'),mini=s.endsWith('mini');
+    box(w*.94,.065,d*.94,0,.034,0,D,'wood',true);
+    for(const x of duet?[-.18,.18]:[0]){
+      const height=duet&&x<0?h*.68:h*.88;
+      cyl(.095,height,.095,x,.07+height/2,0,0xb79c70,'fabric');
+      for(let i=0;i<13;i++)cyl(.101,.015,.101,x,.09+i*height/14,0,i%2?0xdac39b:0xbba076,'fabric');
+      cyl(.13,.045,.13,x,.07+height,0,M,'wood');
+    }
+    if(!mini){line(0,h*.94,0,.21,h*.66,.12,.008,D);ball(.06,.06,.06,.21,h*.61,.12,0xe19d72);}
+    return root;
+  }
   if(s==='pet-bed-verdell'||s==='pet-bed-simba'){
     const cat=s==='pet-bed-simba';
     box(w*.96,.032,d*.95,0,.023,0,D,'fabric',true);
@@ -196,6 +223,19 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     for(const x of [-.07,.07])for(const z of [-.045,.045])
       ball(.020,.004,.018,x,.137,z,D);
     ball(.035,.005,.028,0,.138,.075,D);
+    return root;
+  }
+  if(s==='pet-house-nook'){
+    box(w*.97,.07,d*.97,0,.036,0,0x9b7757,'wood',true);
+    box(w*.78,.08,d*.78,0,.11,-.015,F,'fabric',true);
+    for(const side of [-1,1]){
+      box(.085,h-.16,d*.88,side*w*.43,.08+(h-.16)/2,0,0xc2a27b,'wood',true);
+      box(.115,.10,d*.9,side*w*.41,.22,0,0xe3c9a5,'wood');
+    }
+    box(w*.9,h-.16,.08,0,.08+(h-.16)/2,-d*.43,0xb99b77,'wood',true);
+    box(w*.96,.09,d*.96,0,h-.11,0,M,'fabric',true);
+    box(w*.82,.054,d*.8,0,h-.04,0,F,'fabric',true);
+    for(const x of [-.21,0,.21])box(.045,.10,.02,x,h-.17,d*.46,0x866747,'wood',true);
     return root;
   }
   if(s==='pet-house-starter'){
@@ -220,10 +260,13 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     return root;
   }
   if(s.startsWith('pet-house-')){
-    const tower=s==='pet-house-tower',soft=s==='pet-house-soft';
+    const tower=s==='pet-house-tower'||s==='pet-house-sky',soft=s==='pet-house-soft'||s==='pet-house-igloo';
     const cw=tower?1.08:w*.95, cx=tower?-.37:0;
     const roof=tower?.79:h-(soft?.14:.065);
     const wall=soft?.12:.075;
+    if(s==='pet-house-igloo'){for(const side of [-1,1])ball(.16,.23,.13,side*cw*.34,.43,d*.37,M);}
+    if(s==='pet-house-loft'){for(const side of [-1,1])box(.06,.48,.07,side*cw*.45,.30,d*.42,D,'wood');}
+    if(s==='pet-house-sky'){box(.56,.065,.55,.48,.64,.06,M,'wood',true);box(.49,.04,.49,.48,.69,.06,F,'fabric',true);}
     box(w*.98,.07,d*.97,0,.036,0,D,'wood',true);
     box(cw-wall*2,.08,d*.78,cx,.11,-.015,F,'fabric',true);
     for(const side of [-1,1]){

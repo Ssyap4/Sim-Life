@@ -15,8 +15,9 @@ if(existsSync(file)){
  if(mode==='preview'){
   fresh.money=100000;
   if(isValidFurnishing(prior.furnishing)){
-   const f=prior.furnishing;
-   fresh.furnishing={nextId:f.nextId,placed:structuredClone(f.placed),orders:[],stored:[],soldFixtures:[...(f.soldFixtures??[])],...(f.starterPetsGranted?{starterPetsGranted:true as const}:{})};
+   const f=prior.furnishing as import('../src/shared/furniture').FurnishingState;
+   const replacements:Record<string,string>={'pet-house-starter':'pet-house-nook','pet-scratcher-starter':'pet-scratcher-mini','pet-bed-verdell':'pet-bed-dog-nest','pet-bed-simba':'pet-bed-cat-donut','pet-scratcher-simba':'pet-scratcher-palm','pet-house-cabin':'pet-house-igloo','pet-house-soft':'pet-house-loft','pet-house-tower':'pet-house-sky'};
+   fresh.furnishing={nextId:f.nextId,placed:f.placed.map(item=>({...item,sku:replacements[item.sku]??item.sku})),orders:[],stored:[],soldFixtures:[...(f.soldFixtures??[])],...(f.starterPetsGranted?{starterPetsGranted:true as const}:{})};
   }
  }
  const backups=join(dir,'release-backups');mkdirSync(backups,{recursive:true});

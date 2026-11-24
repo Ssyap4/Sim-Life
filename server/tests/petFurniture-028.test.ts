@@ -15,9 +15,9 @@ import {applyPetAction,runPetRoutines} from '../pets';
 import {openServerFiles} from '../storage';
 
 const items:PlacedFurniture[]=[
- {id:31,sku:'pet-bed-verdell',finish:'sage',x:-2.90,z:3.34,rotation:0},
- {id:32,sku:'pet-bed-simba',finish:'ivory',x:2,z:3,rotation:0},
- {id:33,sku:'pet-scratcher-simba',finish:'walnut',x:1.12,z:1.84,rotation:0},
+ {id:31,sku:'pet-bed-dog-nest',finish:'sage',x:-2.90,z:3.34,rotation:0},
+ {id:32,sku:'pet-bed-cat-donut',finish:'ivory',x:2,z:3,rotation:0},
+ {id:33,sku:'pet-scratcher-palm',finish:'walnut',x:1.12,z:1.84,rotation:0},
 ];
 function furnished():GameState{
  const s=initialState();
@@ -50,14 +50,14 @@ test('0.28: pet beds are walkable but cannot be hidden inside large furniture',(
  const product=FURNITURE_BY_ID.get(bed.sku)!;
  assert.equal(product.walkable,true);
  assert.equal(checkFurniturePlacement(state,bed,[{...bed,id:200,sku:'sofa-nord'}]).valid,false);
- assert.equal(checkFurniturePlacement(state,bed,[{...bed,id:201,sku:'pet-bed-simba'}]).valid,false);
+ assert.equal(checkFurniturePlacement(state,bed,[{...bed,id:201,sku:'pet-bed-cat-donut'}]).valid,false);
  assert.equal(checkFurniturePlacement(state,{...items[2],x:bed.x,z:bed.z},[bed]).valid,false,
    'a scratcher cannot be placed ON an installed pet bed');
 });
 
 test('0.28: old furniture commerce can actually buy, deliver, unpack and install pet bed',()=>{
  const state=initialState();
- const product=FURNITURE_BY_ID.get('pet-bed-verdell')!;
+ const product=FURNITURE_BY_ID.get('pet-bed-dog-nest')!;
  const order=applyFurnishing(state,'vlad',{
   type:'furniture_order',sku:product.id,finish:'sage',quantity:1,shipping:'express'
  },480);
@@ -91,7 +91,7 @@ test('0.28: both pets use their OWN reachable purchased mats, keep favorites onl
   assert.deepEqual(out.state.pets[id].position,previous);
   const routine=out.state.pets[id].routine!;
   assert.equal(routine.kind,'sleep');
-  assert.equal(routine.equipment?.sku,'pet-bed-'+id);
+  assert.equal(routine.equipment?.sku,id==='verdell'?'pet-bed-dog-nest':'pet-bed-cat-donut');
   assert.deepEqual(routine.route.path.at(-1)??routine.route.from,routine.goal);
   const complete=out.state;
   runPetRoutines(complete,0,routine.until,new Set(),()=>.99);
@@ -131,7 +131,7 @@ test('0.28: automatic bedtime prefers installed equipment instead of an imaginar
  state.pets.verdell.energy=24;
  runPetRoutines(state,0,480,new Set(),()=>.99);
  assert.equal(state.pets.verdell.routine?.kind,'sleep');
- assert.equal(state.pets.verdell.routine?.equipment?.sku,'pet-bed-verdell');
+ assert.equal(state.pets.verdell.routine?.equipment?.sku,'pet-bed-dog-nest');
 });
 
 test('0.28: sold or repositioned beds are invalid on reload, legacy save unaffected',()=>{
@@ -143,7 +143,7 @@ test('0.28: sold or repositioned beds are invalid on reload, legacy save unaffec
   assert.equal(out.ok,true,out.ok?'':out.reason);
   if(!out.ok)return;
   files.save(out.state);
-  assert.equal(files.load().pets.verdell.routine?.equipment?.sku,'pet-bed-verdell');
+  assert.equal(files.load().pets.verdell.routine?.equipment?.sku,'pet-bed-dog-nest');
   const moved=structuredClone(out.state);
   moved.furnishing.placed[0].x+=.52;
   moved.pets.verdell.favoriteBedId=31;

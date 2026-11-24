@@ -158,20 +158,33 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('leisure-billiards','Бильярдный стол','leisure','leisure',69900,1.47,2.42,.92,'🎱','Зелёное сукно, лузы, шары и кии.'),
   // Real pet accessories use the existing buy/delivery/placement/move/sell pipeline.
   // Low washable cushions are walkable (no fake invisible collision walls).
+  product("pet-bed-dog-nest","Лежанка «Бублик» для собак","pets","rug",2490,1.08,0.94,0.15,"🐕","Круглый мягкий валик и низкая подушка.",true),
+  product("pet-bed-dog-sofa","Лежанка «Софа» для собак","pets","rug",4990,1.24,1,0.15,"🐕","Прямоугольный матрас с мягкой спинкой.",true),
+  product("pet-bed-cat-donut","Лежанка «Пончик» для кошек","pets","rug",2190,1.02,0.9,0.15,"🐈","Круглая плюшевая лежанка.",true),
+  product("pet-bed-cat-shell","Лежанка «Ракушка» для кошек","pets","rug",4490,1.14,0.96,0.15,"🐈","Овальный матрас с фигурной спинкой.",true),
+  product("pet-scratcher-palm","Когтеточка «Пальма»","pets","plant",2290,0.66,0.66,0.88,"🐾","Столбик с сизалем и подвесным шариком."),
+  product("pet-scratcher-duet","Когтеточка «Дуэт»","pets","plant",5490,0.88,0.76,1.12,"🐾","Два столбика на устойчивом основании."),
+  product("pet-house-igloo","Домик «Иглу»","pets","plant",3990,1.16,1.04,0.8,"🐈","Мягкое укрытие с открытым входом и площадкой."),
+  product("pet-house-loft","Домик «Лофт»","pets","plant",6990,1.22,1.12,0.92,"🐈","Деревянный домик с матрасом и верхней площадкой."),
+  product("pet-house-sky","Комплекс «Небоскрёб»","pets","plant",15900,1.92,1.18,1.34,"🐾","Два уровня отдыха и отдельный сизалевый столбик."),
+] as const;
+// Keep the old models for already-owned furniture, but no new decorative purchases.
+export const PURCHASABLE_FURNITURE=FURNITURE_CATALOG.filter(item=>item.category!=='decor');
+export const RETIRED_PET_PRODUCTS:readonly FurnitureProduct[]=[
   product('pet-bed-verdell','Лежанка Верделла «Облачко»','pets','rug',4900,1.08,.94,.15,'🐕','Уютная низкая лежанка с мягкими бортиками; Верделл может на ней спать.',true),
   product('pet-bed-simba','Лежанка Симбы «Полумесяц»','pets','rug',4500,1.14,.90,.15,'🐈','Мягкая лежанка для кота; Симба выбирает её для отдыха.',true),
   product('pet-scratcher-simba','Когтеточка «Рыжий инспектор»','pets','plant',6900,.78,.72,1.12,'🐾','Устойчивая когтеточка со столбиком и подвесной игрушкой.'),
   product('pet-house-cabin','Домик «Лисья нора»','pets','plant',5900,1.15,1.05,.84,'🐈','Деревянное укрытие с открытым входом, мягким матрасом и площадкой на крыше.'),
   product('pet-house-soft','Домик «Плюшевый кокон»','pets','plant',8900,1.22,1.12,.92,'🐈','Мягкая капсула с просторным входом и утопленной лежанкой сверху.'),
   product('pet-house-tower','Комплекс «Король Симба»','pets','plant',14900,1.92,1.18,1.34,'🐾','Домик, отдельная сизалевая когтеточка, игрушка и широкая верхняя лежанка.'),
-] as const;
-// Keep the old models for already-owned furniture, but no new decorative purchases.
-export const PURCHASABLE_FURNITURE=FURNITURE_CATALOG.filter(item=>item.category!=='decor');
-export const STARTER_CAT_HOUSE='pet-house-starter';
-export const STARTER_CAT_SCRATCHER='pet-scratcher-starter';
+  product('pet-house-starter','Первый домик Симбы','pets','plant',2400,1.16,1.04,.75,'🐈','Старый домик.'),
+  product('pet-scratcher-starter','Первая когтеточка Симбы','pets','plant',1100,.62,.62,.82,'🐾','Старый столбик.'),
+];
+export const STARTER_CAT_HOUSE='pet-house-nook';
+export const STARTER_CAT_SCRATCHER='pet-scratcher-mini';
 export const STARTER_PET_PRODUCTS:readonly FurnitureProduct[]=[
-  product(STARTER_CAT_HOUSE,'Первый домик Симбы','pets','plant',2400,1.16,1.04,.75,'🐈','Невысокий тканевый домик с мягкой крышей для сна.'),
-  product(STARTER_CAT_SCRATCHER,'Первая когтеточка Симбы','pets','plant',1100,.62,.62,.82,'🐾','Простой столбик из сизаля на круглой подставке.'),
+  product(STARTER_CAT_HOUSE,'Домик «Уголок»','pets','plant',2400,1.16,1.04,.75,'🐈','Невысокий тканевый домик с мягкой крышей для сна.'),
+  product(STARTER_CAT_SCRATCHER,'Когтеточка «Мини»','pets','plant',1100,.62,.62,.82,'🐾','Простой столбик из сизаля на круглой подставке.'),
 ];
 export const RETIRED_DESKS:readonly FurnitureProduct[]=[
   product('desk-simple','Письменный стол «Лайн»','tables','desk',14300,1.35,.64,.75,'💻','Рабочая поверхность с удобной полкой.'),
@@ -196,7 +209,7 @@ export const RETIRED_DINING:readonly FurnitureProduct[]=[
   product('stool-round','Табурет «Кафе»','tables','stool',3600,.43,.43,.60,'🪑','Круглый высокий табурет на четырёх ножках.'),
 ];
 export const diningSeatTop=(sku:string)=>["chair-lino","chair-mellow","chair-mono","chair-windsor","chair-frame","chair-lounge","chair-velour","stool-cube","stool-petal"].includes(sku)? .45:undefined;
-export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
+export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.

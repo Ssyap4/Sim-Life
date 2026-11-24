@@ -1,3 +1,4 @@
+import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
 import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
 import { qualityLabel } from './shared/foodQuality';
@@ -181,8 +182,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         const pref=place.pets[pet].foodPreferences?.[p.id];
         options.append(element('strong','',p.name+' · '+formatRub(p.price)),element('small','',petFoodBenefit(p)+' · '+(pref===undefined?'Вкус ещё неизвестен':FOOD_REACTIONS[pref])),button(petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();}));
       }
+    } else if(kind==='pet-furniture-display'){
+      for(const p of PURCHASABLE_FURNITURE.filter(p=>p.category==='pets')){options.append(element('strong','',p.name+' · '+formatRub(p.price)),element('small','',p.description),button(petCart===p.id?'В корзине ✓':'Выбрать',()=>{petCart=petCart===p.id?undefined:p.id;draw();}));}
     } else if(kind==='pet-checkout'){
-      const p=petFoodProduct(petCart);if(!p)options.append(element('small','','Выбери корм на витрине.'));
+      const p=petFoodProduct(petCart),f=PURCHASABLE_FURNITURE.find(i=>i.category==='pets'&&i.id===petCart);
+      if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
+      else if(!p)options.append(element('small','','Выбери товар на витрине.'));
       else options.append(element('strong','',p.name),element('small','',petFoodBenefit(p)),button('Купить · '+formatRub(p.price),()=>{if(send({type:'pet_food_buy',product:p.id})){petCart=undefined;close();}},place.money<p.price||place.petFood[p.pet]+p.refills>50),button('Отмена',()=>{petCart=undefined;draw();}));
     } else if(station.action.kind==='electronics-display'){
       const category=station.action.category;const current=installedElectronics(place,role,category);

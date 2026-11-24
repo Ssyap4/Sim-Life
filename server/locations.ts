@@ -1,3 +1,4 @@
+import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
 import { petFoodProduct } from '../src/shared/petShop';
 import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
@@ -81,7 +82,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'pet_food_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'pet_food_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -95,6 +96,15 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='pet_furniture_buy'){
+    if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
+    const item=PURCHASABLE_FURNITURE.find(p=>p.category==='pets'&&p.id===command.sku);
+    if(!item)return fail('Такого товара нет');
+    if(source.money<item.price)return fail('Недостаточно денег');
+    const f=source.furnishing;if(f.nextId>=1000000||f.placed.length+f.stored.length+f.orders.length>=10000)return fail('Инвентарь заполнен');
+    const next=structuredClone(source);next.money-=item.price;next.furnishing.stored.push({id:next.furnishing.nextId++,sku:item.id,finish:'sage'});
+    addLedger(next,role,'expense','pets',item.price,item.name);return done(next,'Куплено: '+item.name+' · можно установить дома');
+  }
   if(command.type==='pet_food_buy'){
     if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
     const product=petFoodProduct(command.product);if(!product)return fail('Неизвестный корм');

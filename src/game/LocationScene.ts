@@ -192,6 +192,10 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       sign(root,p.name.split(' · ')[0],.73,.49,.49,C.paper,textures,materials);const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.095;
     });
     sign(root,station.name,2.12,.35,2.06,C.paper,textures,materials);
+  } else if(kind==='pet-furniture-display'){
+    shape(root,[2.35,.48,.95],[0,.24,0],0x669078);shape(root,[2.43,.08,1.01],[0,.52,0],0xf2e3c8);
+    ['pet-bed-dog-nest','pet-house-igloo','pet-scratcher-palm','pet-bed-cat-shell','pet-house-loft','pet-scratcher-duet'].forEach((id,i)=>{const m=buildFurnishingModel(id,i<3?'sage':'oak');m.scale.setScalar(.36);m.position.set((i%3-1)*.76,.565,i<3?.19:-.23);root.add(m);});
+    sign(root,'ДОМИКИ И ЛЕЖАНКИ',2.0,.36,2.06,C.paper,textures,materials);
   } else if(station.action.kind==='electronics-display'){
     const category=station.action.category;
     shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);

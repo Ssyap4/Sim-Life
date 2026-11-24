@@ -13,7 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
-  petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Сухой и влажный корм для Верделла и Симбы'},
+  petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Корм, лежанки, домики и когтеточки'},
   electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры и смартфоны'},
   clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
@@ -51,6 +51,7 @@ type SiteAction =
   | {kind:'electronics-checkout'}
   | {kind:'pet-food-display';pet:import('./pets').PetId;form:'dry'|'wet'}
   | {kind:'pet-checkout'}
+  | {kind:'pet-furniture-display'}
   | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
@@ -149,6 +150,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('pet-cat-dry','Сухой корм для кошек',0,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'dry'}),
     site('pet-cat-wet','Влажный корм для кошек',3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'wet'}),
     site('pet-dog-wet','Влажный корм для собак',-3.75,.85,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'wet'}),
+    site('pet-furniture','Лежанки, домики и когтеточки',0,.85,2.35,.95,{kind:'pet-furniture-display'}),
     site('pet-cash','Касса',3.65,1.45,1.75,.8,{kind:'pet-checkout'}),
     door('pet-exit','Выход на улицу','district',-2.75,4.60,true),
   ],
@@ -318,6 +320,7 @@ export type WorldCommand =
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
   | {type:'pet_food_buy';product:string}
+  | {type:'pet_furniture_buy';sku:string}
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
   | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial' }

@@ -11,15 +11,19 @@ export const PET_BED_SKUS:Readonly<Record<PetId,string>>={
   simba:'pet-bed-simba',
 };
 export const CAT_SCRATCHER_SKU='pet-scratcher-simba';
+export const isPetBed=(sku:string,id:PetId)=>sku===PET_BED_SKUS[id]||(id==='verdell'?sku.startsWith('pet-bed-dog-'):sku.startsWith('pet-bed-cat-'));
+export const isPetTower=(sku:string)=>sku==='pet-house-tower'||sku==='pet-house-sky';
+export const isPetScratcher=(sku:string)=>sku===CAT_SCRATCHER_SKU||sku===STARTER_CAT_SCRATCHER||sku==='pet-scratcher-starter'||sku==='pet-scratcher-palm'||sku==='pet-scratcher-duet'||isPetTower(sku);
 
 export function petBeds(furnishing:Pick<FurnishingState,'placed'>,id:PetId):PlacedFurniture[] {
-  return furnishing.placed.filter(item=>item.sku===PET_BED_SKUS[id]);
+  return furnishing.placed.filter(item=>isPetBed(item.sku,id));
 }
 export function petScratchers(furnishing:Pick<FurnishingState,'placed'>):PlacedFurniture[] {
-  return furnishing.placed.filter(item=>item.sku===CAT_SCRATCHER_SKU||item.sku===STARTER_CAT_SCRATCHER||item.sku==='pet-house-tower');
+  return furnishing.placed.filter(item=>isPetScratcher(item.sku));
 }
 export function petScratchPoint(item:{sku:string;x:number;z:number;rotation:number}):{x:number;z:number}{
-  if(item.sku!=='pet-house-tower')return {x:item.x,z:item.z};
+  if(item.sku==='pet-scratcher-duet'){const a=item.rotation*Math.PI/2;return {x:item.x+.18*Math.cos(a),z:item.z-.18*Math.sin(a)};}
+  if(!isPetTower(item.sku))return {x:item.x,z:item.z};
   const yaw=item.rotation*Math.PI/2;
   return {x:item.x+.48*Math.cos(yaw)+.06*Math.sin(yaw),z:item.z-.48*Math.sin(yaw)+.06*Math.cos(yaw)};
 }

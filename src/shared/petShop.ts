@@ -3,9 +3,10 @@ export type FoodTier=0|1|2|3;
 export type FoodForm='dry'|'wet';
 export interface PetFoodProduct {id:string;pet:PetId;name:string;price:number;refills:number;satiety:number;happiness:number;lasting:number;color:number}
 const tiers=['Эконом','Стандарт','Премиум','Суперпремиум'];
+const brands={verdell:{dry:['Pedigree','Brit Premium','Royal Canin','Farmina N&D'],wet:['Pedigree','Brit Premium','Royal Canin','Farmina N&D']},simba:{dry:['Whiskas','Purina ONE','Pro Plan','Farmina N&D'],wet:['Whiskas','Purina ONE','Pro Plan','Royal Canin']}};
 export const PET_SHOP_FOOD:PetFoodProduct[]=(['verdell','simba'] as const).flatMap(pet=>
   (['dry','wet'] as const).flatMap(form=>tiers.map((tier,i)=>({
-    id:pet+'-'+form+'-'+i,pet,name:tier+' · '+(form==='dry'?'сухой':'влажный')+' корм '+(pet==='verdell'?'для собак':'для кошек'),
+    id:pet+'-'+form+'-'+i,pet,name:brands[pet][form][i]+' · '+tier+' · '+(form==='dry'?'сухой':'влажный')+' корм '+(pet==='verdell'?'для собак':'для кошек'),
     price:(form==='dry'?[390,850,1690,3290]:[560,1090,2390,4190])[i],refills:10,
     satiety:(form==='dry'?[30,39,47,56]:[33,42,50,60])[i],happiness:[1,4,7,10][i],
     lasting:[0,45,105,180][i],color:[0xcaa16c,0x72a58e,0x6b85b6,0x976da5][i]

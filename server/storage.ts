@@ -1,5 +1,4 @@
 import { DOG_TOYS,dogToyApproach } from '../src/shared/pets';
-import { STARTER_CAT_SCRATCHER } from '../src/shared/furniture';
 import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
@@ -28,7 +27,7 @@ import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, P
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
 import { currentCatPerch } from '../src/shared/CatPerches';
-import {currentPetEquipment,petBeds,PET_BED_SKUS,CAT_SCRATCHER_SKU} from '../src/shared/petFurniture';
+import {currentPetEquipment,petBeds,isPetBed,isPetScratcher} from '../src/shared/petFurniture';
 import { BOOKS } from '../src/shared/homeLife';
 import { migrateEducation, validEducation } from './education';
 import { recoverCareers, validCareers } from './careers';
@@ -164,8 +163,8 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
-          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku===STARTER_CAT_SCRATCHER||routine.equipment.sku==='pet-house-tower')||
-          routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
+          (routine.kind==='scratch'&&id==='simba'&&isPetScratcher(routine.equipment.sku)||
+          routine.kind==='sleep'&&isPetBed(routine.equipment.sku,id))&&
           routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
