@@ -6,7 +6,7 @@ export function oakFloor() {
   return paintedMap('oak-floor', 640, 512, ctx => {
     ctx.fillStyle = '#83644e';
     ctx.fillRect(0,0,640,512);
-    const tones = ['#b99574','#bc9a78','#ac896b','#c3a281','#b28e72','#c0a086'];
+    const tones = ['#bc956b','#c9a47c','#aa815b','#d0ad83','#b88b61','#c6a077'];
     const length=72, width=16;
     function stave(x:number,y:number,angle:number,seed:number) {
       ctx.save();
@@ -16,11 +16,11 @@ export function oakFloor() {
       ctx.fillRect(.45,.4,length-.9,width-.8);
       ctx.fillStyle='#f3dfbc54';
       ctx.fillRect(.6,.6,length-1.4,.75);
-      for(let line=0;line<4;line++){
-        const v=2+line*3.2, bend=Math.sin(seed+line)*2;
+      for(let line=0;line<6;line++){
+        const v=1.5+line*2.3, bend=Math.sin(seed+line)*2;
         ctx.beginPath();ctx.moveTo(1,v);
         ctx.bezierCurveTo(22,v+bend,49,v-bend,71,v+.5);
-        ctx.strokeStyle=line%2?'#f3d6ad40':'#78523838';
+        ctx.strokeStyle=line%2?'#f3d6ad62':'#78523855';
         ctx.lineWidth=.65;ctx.stroke();
       }
       ctx.restore();

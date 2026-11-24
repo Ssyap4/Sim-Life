@@ -3,12 +3,13 @@ import { GRILL_RECIPES, type RecipeId } from '../shared/food';
 import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 
+import { snowPreview } from './LandscapePalette';
 import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
 import { canopyShade, limestone, paintGround } from './LandscapeGround';
 
 const edging = 0xb29e83;
 const flagstone = 0xc8b59b;
-const lawn = 0x87995b;
+const lawn = snowPreview()?0xf2f6ff:0xffffff;
 
 function shape(parent: THREE.Object3D, size: XYZ, position: XYZ, color: number,
   geometry: THREE.BufferGeometry = softCube, shadow = false, surface: Parameters<typeof finish>[1] = 'fabric') {
@@ -235,15 +236,15 @@ function garden(yard: THREE.Group): void {
   shape(yard, [.49,.031,3.69], [x,.219,center], 0x6d503b, softCube);
   const plants = new PlantBatch();
   for (const [i, dz] of [-1.58,-.89,-.19,.50,1.24].entries()) {
-    growShrub(plants,x,.225,center+dz,.37,.38,.54,i%3,700+i*71);
-    growFlowers(plants,x+.03,.255,center+dz+.18,.35,.45,i%4,4,737+i*88);
+    growShrub(plants,x,.225,center+dz,.42,.43,.59,i%3,700+i*71);
+    growFlowers(plants,x+.03,.255,center+dz+.18,.39,.50,i%4,8,737+i*88);
   }
   // Climbing roses on a timber espalier within the existing planter.
   for(const dz of [-1.66,0,1.66])
     shape(yard,[.045,1.37,.045],[x-.13,.90,center+dz],C.walnut,cube,false,'wood');
   for(const y of [.58,.89,1.20,1.50])
     shape(yard,[.036,.028,3.46],[x-.13,y,center],C.oak,cube,false,'wood');
-  const blush=[0xd08986,0xe8afa5,0xf1c4ae];
+  const blush=[0xc84c75,0xf293ab,0xffc4d3];
   for(let cane=0;cane<6;cane++){
     const z=center-1.43+cane*.55;
     const top=.89+.52*Math.abs(Math.sin(cane*1.80+.31));
@@ -252,7 +253,7 @@ function garden(yard: THREE.Group): void {
       const y=.46+(top-.46)*j/5, angle=cane*2.4+j*1.86;
       const p:XYZ=[x-.07+Math.cos(angle)*.075,y,z+j*.036];
       plants.blade(j%2?0x708b60:0x48715c,p,[.098,.09,.16],angle,-.5);
-      if(j>=3)plants.bloom(blush[(cane+j)%3],p,.090,angle,.75);
+      if(j>=2){plants.bloom(blush[(cane+j)%3],p,.115,angle,.75);if(j%2===0)plants.bloom(blush[(cane+j+1)%3],[p[0]+.08,p[1]-.06,p[2]+.08],.078,angle+.8,.5);}
     }
   }
   plants.attach(yard,'Flowers and shrubs in the family garden');

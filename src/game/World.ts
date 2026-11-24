@@ -1546,17 +1546,17 @@ export class World {
     // Smooth solar cycle: cool predawn, amber sunrise, clear midday, honeyed
     // golden hour and a blue twilight. No shadow maps or extra render passes.
     const keys = [
-      {t:0,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
-      {t:300,sky:0x65778a,sun:.37,ambient:1.12,warm:0xb7cbed,glow:.78},
-      {t:365,sky:0xada5a3,sun:1.10,ambient:1.32,warm:0xffaf83,glow:.47},
-      {t:445,sky:0xd9c5a2,sun:1.92,ambient:1.64,warm:0xffd0a3,glow:.15},
-      {t:625,sky:0xc1d2c9,sun:2.35,ambient:1.80,warm:0xffecda,glow:0},
-      {t:900,sky:0xbcd3d3,sun:2.46,ambient:1.86,warm:0xfff0df,glow:0},
-      {t:1050,sky:0xd4c7b0,sun:1.90,ambient:1.67,warm:0xffd4a4,glow:.06},
-      {t:1145,sky:0xc2988d,sun:1.15,ambient:1.46,warm:0xffad79,glow:.42},
-      {t:1230,sky:0x78839a,sun:.59,ambient:1.20,warm:0xb5c2f1,glow:.76},
-      {t:1320,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
-      {t:1440,sky:0x566782,sun:.33,ambient:1.11,warm:0xadc9ee,glow:.86},
+      {t:0,sky:0x344461,sun:.25,ambient:.94,warm:0x9fb9ef,glow:1.36},
+      {t:300,sky:0x55657f,sun:.30,ambient:1.02,warm:0xb7cbed,glow:1.18},
+      {t:365,sky:0xd29b8c,sun:1.24,ambient:1.12,warm:0xffa36b,glow:.55},
+      {t:445,sky:0xeac6a0,sun:2.05,ambient:1.46,warm:0xffc28c,glow:.15},
+      {t:625,sky:0xb1d2e2,sun:2.42,ambient:1.57,warm:0xffeed8,glow:0},
+      {t:900,sky:0xaacfe1,sun:2.46,ambient:1.63,warm:0xfff0df,glow:0},
+      {t:1050,sky:0xeac39d,sun:2.02,ambient:1.36,warm:0xffbd76,glow:.12},
+      {t:1145,sky:0xd38c86,sun:1.28,ambient:1.13,warm:0xffa36b,glow:.74},
+      {t:1230,sky:0x566382,sun:.42,ambient:1.04,warm:0x9eb7ef,glow:1.20},
+      {t:1320,sky:0x344461,sun:.25,ambient:.94,warm:0x9fb9ef,glow:1.36},
+      {t:1440,sky:0x344461,sun:.25,ambient:.94,warm:0x9fb9ef,glow:1.36},
     ];
     const index = keys.findIndex(key=>key.t>=hour);
     const end = keys[Math.max(1,index)];
@@ -1575,10 +1575,10 @@ export class World {
     const sky=mixed(begin.sky,end.sky);
     (this.scene.background as THREE.Color).copy(sky);
     if(this.scene.fog)this.scene.fog.color.copy(sky);
-    this.roomGlow.intensity=mix(begin.glow,end.glow);
+    this.roomGlow.intensity=this.place==='home'?mix(begin.glow,end.glow):0;
     const solarAngle=(hour-360)/720*Math.PI;
     this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
-      3+Math.max(0,Math.sin(solarAngle))*10,
+      1.8+Math.max(0,Math.sin(solarAngle))*11,
       4.2+Math.cos(solarAngle)*3);
     this.weather.light(this.scene,this.place,this.sun,this.ambient);
     this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze);

@@ -70,7 +70,7 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
     const bed: GroundArea={x,z,w:1.14,d:.52};
     shape(parent,[bed.w+.08,.13,bed.d+.12],[x,.047,z],0xb49374,softCube);
     shape(parent,[bed.w,.036,bed.d],[x,.110,z],0x725b43,softCube);
-    growFlowers(plants,x,.121,z,bed.w-.16,bed.d-.12,hue,18,975+i*442);
+    growFlowers(plants,x,.121,z,bed.w-.16,bed.d-.12,hue,22,975+i*442);
   }
   for(const [i,[x,z]] of [[-1.81,-2.95],[1.78,-2.77],[-1.73,-1.15],[1.68,-.93]].entries()){
     growShrub(plants,x,0,z,.63,.39,.67,i%4,957+i*82);
@@ -85,7 +85,7 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
     if((Math.abs(x-8.4)<2.4&&Math.abs(z-2.25)<2.6)||(Math.abs(x-8.45)<1.2&&Math.abs(z+2.4)<1.2)||(Math.abs(x+4.15)<1.15&&Math.abs(z-.98)<.85))continue;
     if (parkPaths.some(p=>Math.abs(x-p.x)<p.w/2+.18&&Math.abs(z-p.z)<p.d/2+.18)||
         (Math.abs(x+.08)<1.69&&Math.abs(z+1.94)<1.38)) continue;
-    tufts.push({x,z,size:.46+random()*.72,yaw:random()*Math.PI*2,color:i%3?0x87a962:0x648f59});
+    tufts.push({x,z,size:.46+random()*.72,yaw:random()*Math.PI*2,color:i%3?0x9ab96c:0x4d864d});
   }
   const grass=grassMaterial();
   resources.materials.push(grass.material);

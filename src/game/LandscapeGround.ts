@@ -1,3 +1,4 @@
+import { snowPreview } from './LandscapePalette';
 import { landscapeRandom } from './LandscapePlants';
 
 export type GroundArea = {x:number;z:number;w:number;d:number};
@@ -13,7 +14,7 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
   const [sx, sz] = [width / area.w,height / area.d];
   const px = (x:number) => (x - area.x + area.w / 2) * sx;
   const pz = (z:number) => (z - area.z + area.d / 2) * sz;
-  ctx.fillStyle = style === 'meadow' ? '#8ca875' : '#91ad75';
+  ctx.fillStyle = style === 'meadow' ? '#80a566' : '#86a65e';
   ctx.fillRect(0,0,width,height);
 
   function field(x:number,z:number,w:number,d:number,ink:[number,number,number],opacity:number,edge=.22) {
@@ -29,7 +30,7 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
     ctx.restore();
   }
 
-  const wash: [number,number,number][] = [[104,153,96],[181,193,125],[108,125,77],[202,180,113]];
+  const wash: [number,number,number][] = [[67,126,71],[182,201,119],[84,121,59],[213,193,123]];
   for (let i=0;i<120;i++) {
     field(random()*width,random()*height,width*(.026+random()*.11),height*(.028+random()*.09),wash[i%4],.12+random()*.29);
   }
@@ -59,12 +60,12 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
   // Brush marks are baked into the ground; 3D blades are reserved for the foreground.
   // Extra tonal brush variation replaces the repeated smooth lawn look
   // without spending any additional per-frame WebGL work.
-  const count = Math.round(width*height*.058);
+  const count = Math.round(width*height*.075);
   const size = Math.max(.54,Math.min(sx,sz)*.051);
   for (let i=0;i<count;i++) {
     const x=random()*width,z=random()*height;
     ctx.strokeStyle=green[i%green.length];
-    ctx.globalAlpha=.13+random()*.28;
+    ctx.globalAlpha=.20+random()*.32;
     ctx.lineWidth=.53+size*.42;
     ctx.beginPath();
     ctx.moveTo(x-size*.56,z+size*.67);
@@ -77,6 +78,10 @@ export function paintGround(ctx: CanvasRenderingContext2D, area: GroundArea, pat
     ctx.fillRect(random()*width,random()*height,size*(.50+random()),size*.60);
   }
   ctx.globalAlpha=1;
+  if(snowPreview()){
+    ctx.fillStyle='#e0eaf1db';ctx.fillRect(0,0,width,height);
+    for(let i=0;i<72;i++)field(random()*width,random()*height,width*(.025+random()*.11),height*(.03+random()*.1),i%3?[249,250,248]:[158,181,196],.20+random()*.33);
+  }
 }
 
 /** Dust and sunken joints are painted once. Coordinates refer to the ground
@@ -108,6 +113,7 @@ export function limestone(ctx:CanvasRenderingContext2D, x:number, y:number, widt
       left+=span;
     }
   }
+  if(snowPreview()){const frost=ctx.createLinearGradient(x,y,x+width,y+height);frost.addColorStop(0,'#e3edf4a0');frost.addColorStop(.5,'#eff4f52e');frost.addColorStop(1,'#c9dbe5a0');ctx.fillStyle=frost;ctx.fillRect(x,y,width,height);}
   ctx.restore();
 }
 
@@ -121,8 +127,8 @@ export function canopyShade(ctx:CanvasRenderingContext2D, area:GroundArea,x:numb
     const a=rng()*Math.PI*2, r=Math.sqrt(rng())*.80;
     const dx=.20+Math.cos(a)*r, dz=-.10+Math.sin(a)*r*.70, size=.28+rng()*.39;
     const gradient=ctx.createRadialGradient(dx,dz,0,dx,dz,size);
-    gradient.addColorStop(0,'rgba(44,64,59,.18)');
-    gradient.addColorStop(.58,'rgba(48,67,57,.11)');
+    gradient.addColorStop(0,'rgba(32,49,39,.25)');
+    gradient.addColorStop(.58,'rgba(41,58,45,.15)');
     gradient.addColorStop(1,'rgba(55,70,54,0)');
     ctx.fillStyle=gradient;ctx.fillRect(dx-size,dz-size,size*2,size*2);
   }

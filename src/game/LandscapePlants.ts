@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import botanicals from '../assets/environment/botanicals.json';
 import type { XYZ } from './ArtKit';
+import { snowPreview } from './LandscapePalette';
 
 export function landscapeRandom(seed: number) {
   return () => {
@@ -39,6 +40,7 @@ function botanical(name: keyof typeof botanicals) {
   return geometry;
 }
 
+const WINTER=snowPreview();
 const crown = botanical('broadleaf');
 const birchCrown = botanical('birch');
 const spruceBough = botanical('spruce');
@@ -84,11 +86,12 @@ export class PlantBatch {
     const start = this.position.length / 3;
     for (let i = 0; i < p.count; i++) {
       const shade = (pigment?.getX(i) ?? 1) + THREE.MathUtils.clamp(p.getY(i), -1, 1) * gradient;
+      const snow=geometry!==twig&&WINTER?THREE.MathUtils.smoothstep(p.getY(i),.05,.70)*.85:0;
       this.vector.fromBufferAttribute(p, i).applyMatrix4(t.matrix);
       this.position.push(this.vector.x, this.vector.y, this.vector.z);
       this.vector.fromBufferAttribute(n, i).applyNormalMatrix(this.normalMatrix);
       this.normal.push(this.vector.x, this.vector.y, this.vector.z);
-      this.color.push(this.rgb.r * shade, this.rgb.g * shade, this.rgb.b * shade);
+      this.color.push(THREE.MathUtils.lerp(this.rgb.r*shade,.79,snow),THREE.MathUtils.lerp(this.rgb.g*shade,.86,snow),THREE.MathUtils.lerp(this.rgb.b*shade,.91,snow));
     }
     const index = geometry.getIndex();
     if (!index) return;
@@ -137,17 +140,17 @@ export class PlantBatch {
 }
 
 const species = {
-  birch: { bark:0xe4ddd0, branch:0x988979, hues:[0x698253,0x91a663,0xb3bd7e], height:3.55, spread:.98 },
-  linden: { bark:0x826449, branch:0x765942, hues:[0x406e56,0x668a61,0x8fa46f], height:3.32, spread:1.36 },
-  maple: { bark:0x86624d, branch:0x805e4a, hues:[0x956244,0xbd8252,0xd6a36a], height:3.13, spread:1.45 },
-  ornamental: { bark:0x96725e, branch:0x805d50, hues:[0xa95d7b,0xd194a8,0xefbdd1], height:2.52, spread:1.18 },
-  spruce: { bark:0x755b43, branch:0x655144, hues:[0x365d55,0x4c7768,0x769485], height:4.23, spread:1.07 },
+  birch: { bark:0xe4ddd0, branch:0x988979, hues:[0x3f7447,0x75a64b,0xb6cf79], height:3.55, spread:.98 },
+  linden: { bark:0x826449, branch:0x765942, hues:[0x245e40,0x4e9147,0x8cb85a], height:3.32, spread:1.36 },
+  maple: { bark:0x86624d, branch:0x805e4a, hues:[0x994b39,0xcf7043,0xeab16c], height:3.13, spread:1.45 },
+  ornamental: { bark:0x96725e, branch:0x805d50, hues:[0xad547c,0xe68ba7,0xffd0dc], height:2.52, spread:1.18 },
+  spruce: { bark:0x755b43, branch:0x655144, hues:[0x215448,0x397c60,0x81ae83], height:4.23, spread:1.07 },
 } as const;
 export type LandscapeTree = keyof typeof species;
 
 export function growTree(batch: PlantBatch, x: number, z: number, kind: LandscapeTree, size: number, seed: number, distant = false) {
   const style = species[kind], rng = landscapeRandom(seed);
-  const h = style.height * size, w = style.spread * size;
+  const h = style.height * size * (.94+rng()*.13), w = style.spread * size * (1.07+rng()*.13);
   const dx = (rng() - .5) * .46 * size, dz = (rng() - .5) * .34 * size;
   const fork: XYZ = [x + dx * .30, h * .45, z + dz * .30];
   const apex: XYZ = [x + dx, h * .97, z + dz];
@@ -192,11 +195,11 @@ export function growTree(batch: PlantBatch, x: number, z: number, kind: Landscap
       batch.stem(style.branch, elbow, end, radius * .27);
     }
     const height = (birch ? .73 : .50) * size;
-    batch.cluster(style.hues[i % 3], end, [w * (.45 + i%3*.034),height * (.91+i%2*.19),w * (.47-i%3*.032)], a, distant, (i % 2 - .5) * .44, birch ? birchCrown : crown);
+    batch.cluster(style.hues[i % 3], end, [w * (.55 + i%3*.045),height * (1.03+i%2*.22),w * (.55-i%3*.032)], a, distant, (i % 2 - .5) * .44, birch ? birchCrown : crown);
     if (distant) continue;
     const lift = (i % 2 ? .38 : .25) * size;
     batch.cluster(style.hues[(i + 1) % 3], [end[0] + Math.sin(a + 1.7) * .27 * w,end[1] + lift,end[2] + Math.cos(a + 1.7) * .27 * w],
-      [w * .32,height * .82,w * .34], a + 1.6);
+      [w * .39,height * .98,w * .40], a + 1.6);
     for (let spray = 0; spray < 3; spray++) {
       const spin = a + spray * 1.5;
       batch.spray(style.hues[(i+spray)%2+1],
@@ -233,8 +236,8 @@ export function growShrub(batch: PlantBatch, x: number, y: number, z: number, w:
 }
 
 const flowerPalettes = [
-  [0xffecbf,0xf5f1d8,0xe0a446], [0xe787a6,0xf2b1c0,0xb85570],
-  [0x997acb,0xc3abe6,0x8066b9], [0xef9160,0xffb565,0xc96045],
+  [0xffdf7d,0xfff7de,0xe6a42c], [0xed6d9a,0xffbbce,0xc34578],
+  [0x8861c5,0xd0b5f7,0x6844a5], [0xef7c43,0xffc06b,0xc84d39],
 ] as const;
 
 export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, w: number, d: number,
@@ -249,7 +252,7 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
     const a = i * 2.39996 + rng() * .7, r = Math.sqrt((i + .5) / stems) * .49;
     const px = x + Math.sin(a) * w * r, pz = z + Math.cos(a) * d * r;
     const kind=(dominant+(i%7===0?1:0))%4; // daisies, tall spikes, tulips, pompons
-    const h=.17+rng()*(kind===1?.36:kind===2?.23:.19);
+    const h=.19+rng()*(kind===1?.42:kind===2?.28:.24);
     if(canPlant&&!canPlant(px,pz))continue;
     const tip: XYZ = [px + Math.sin(a) * .04,y + h,pz + Math.cos(a) * .04];
     if(distant) {
@@ -288,7 +291,7 @@ export function growFlowers(batch: PlantBatch, x: number, y: number, z: number, 
       }
       continue;
     }
-    batch.bloom(hues[i%2], tip, palette===0?.105:.087, a, .14*Math.sin(a));
+    batch.bloom(hues[i%2], tip, palette===0?.125:.111, a, .14*Math.sin(a));
     batch.bud(palette===0?0xf1a52b:hues[2],
       [tip[0],tip[1]+.030,tip[2]],[.033,.022,.033]);
   }
@@ -389,7 +392,7 @@ export function addTufts(parent: THREE.Object3D, tufts: readonly GrassTuft[], ma
     t.rotation.y = b.yaw;
     t.updateMatrix();
     mesh.setMatrixAt(i,t.matrix);
-    mesh.setColorAt(i,rgb.setHex(b.color));
+    mesh.setColorAt(i,rgb.setHex(WINTER?0xd6e4e9:b.color));
   }
   mesh.computeBoundingSphere();
   parent.add(mesh);
