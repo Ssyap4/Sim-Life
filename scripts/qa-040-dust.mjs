@@ -1,0 +1,32 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState} from '../src/shared/protocol.ts';
+import {advanceDust,initialDust} from '../src/shared/homeDust.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simlife-040-dust';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'dust-qa-'));let browser,page,server;
+try{
+ const s=initialState();s.homeDust=advanceDust(initialDust(),4320);s.autonomy={vlad:'off',alina:'off'};s.clock.minute=750;
+ Object.assign(s.characters.vlad,{x:1.6,z:-2,pose:'idle'});openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.08,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:'+server.port+'/?perf=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(2200);
+ await page.screenshot({path:join(out,'dusty-home.jpg'),type:'jpeg',quality:84});
+ await page.locator('#phone-btn').click();await page.locator('[data-phone-app=home]').click();
+ const info=page.locator('.phone-info');assert.equal(await info.locator('progress').count(),10);
+ assert.ok((await info.innerText()).includes('25%'));assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+ await page.screenshot({path:join(out,'dust-phone.jpg'),type:'jpeg',quality:85});
+ await info.getByRole('button',{name:'Убрать комнату'}).first().click();
+ await page.waitForTimeout(6000);await page.locator('#phone-btn').click();await page.locator('[data-phone-app=home]').click();
+ assert.equal(await info.locator('progress').first().getAttribute('value'),'100');
+ await page.screenshot({path:join(out,'after-cleaning.jpg'),type:'jpeg',quality:85});assert.deepEqual(errors,[]);
+}finally{await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

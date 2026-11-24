@@ -1,3 +1,4 @@
+import {dustRoute} from '../src/shared/dustRoute';
 import {isNotebookDesk} from '../src/shared/furniture';
 import { isHomeJob } from "../src/shared/jobs";
 import { computerDevice, computerResource } from "../src/shared/computer";
@@ -742,7 +743,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
     // A long walk through the room must not consume the entire activity timer.
     // This estimates travel conservatively without calculating a second path.
-    const destination = plan.command.type === 'local_activity'
+    const cleaningRoute=plan.command.type==='clean_room'?dustRoute(state,role,plan.command.room):null;
+    const destination = cleaningRoute?(cleaningRoute.path.at(-1)??cleaningRoute.from):plan.command.type === 'local_activity'
       ? approachFor(stationById(state.world.places[role], plan.command.station)!, role)
       : plan.command.type === 'act' ? plan.command.actionId in KITCHEN_ACTIONS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
@@ -772,7 +774,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
     const bathRoute=bath?dogBathPlan(state,role):null;
     if(bath&&!bathRoute){packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
-    const duration = bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? plan.durationMs + travelBudgetMs
+    const duration = cleaningRoute?plan.durationMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? plan.durationMs + travelBudgetMs
       : Math.max(plan.durationMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
     const id = ++nextTaskId;
@@ -1498,7 +1500,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'clean_room' || message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
           (message.type === 'pet_action' && !(['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

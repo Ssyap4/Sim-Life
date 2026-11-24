@@ -58,7 +58,9 @@ export interface CharacterState extends Needs {
   /** Keeps the chosen half/full sleep goal through a server restart. */
   sleepMode?: import('./timeControl').SleepMode;
 }
+import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
+  homeDust?: HomeDust;
   version: 2;
   revision: number;
   clock: GameClock;
@@ -170,6 +172,7 @@ export type ActionId = keyof typeof ACTIONS;
 export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
+  | { type: 'clean_room'; room: DustRoomId }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
@@ -187,6 +190,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'simba_yield'; key:string }
   | { type: 'forget_device' }
   | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
+  | { type: 'clean_room'; room: DustRoomId }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
@@ -252,7 +256,7 @@ export type ServerPacket =
 
 export function initialState(): GameState {
   return {
-    version: 2, revision: 0, world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
+    version: 2, revision: 0, homeDust: initialDust(), world: initialWorld(), clock: { ...INITIAL_CLOCK }, money: 10000,
     furnishing: emptyFurnishing(),
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },

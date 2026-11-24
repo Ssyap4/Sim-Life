@@ -1,3 +1,4 @@
+import {initialDust} from '../src/shared/homeDust';
 import { electronicsModel } from "../src/shared/electronics";
 import {
   ACTIONS, points, names, type ActionId, type CharacterId,
@@ -179,6 +180,7 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
       break;
     }
     case 'kitchenTidy':
+      state.homeDust={...(state.homeDust??initialDust()),kitchen:0};
       change(state, role, 'comfort', 16); change(state, role, 'hygiene', 4);
       change(state, role, 'energy', -4);
       message = name + ': кухня стала чище и уютнее'; break;

@@ -49,12 +49,14 @@ export interface ServerFiles {
 import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/happiness';
 
 import {validEmotionalHistory} from '../src/shared/emotions';
+import {initialDust,validDust} from '../src/shared/homeDust';
 const isValidState = (value: unknown): value is GameState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<GameState>;
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if(state.homeDust!==undefined&&!validDust(state.homeDust))return false;
   if(state.kitchenWindowOpen!==undefined&&typeof state.kitchenWindowOpen!=='boolean')return false;
   if(state.kitchenCurtainsClosed!==undefined&&typeof state.kitchenCurtainsClosed!=='boolean')return false;
   if (state.emotionalEvents !== undefined && !validEmotionalHistory(state.emotionalEvents)) return false;
@@ -317,6 +319,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         ((districtLayout===undefined || districtLayout===1) || (districtLayout===4?inHomeGrounds(data.characters[role]):legacyHomeGrounds(data.characters[role])));
       const household: GameState = {
         ...data,
+        homeDust: data.homeDust ?? initialDust(),
         happiness: data.happiness ?? {vlad:initialHappiness(),alina:initialHappiness()},
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {

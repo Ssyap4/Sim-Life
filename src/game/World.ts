@@ -1,3 +1,5 @@
+import {DustArt} from './DustArt';
+import {dustRoute} from '../shared/dustRoute';
 import { residentEmotion } from '../shared/emotions';
 import { LandscapeHorizon } from './LandscapeHorizon';
 import {weatherAt} from '../shared/weather';
@@ -198,6 +200,7 @@ export class World {
   private badmintonStarted:number|null=null;
   private tennisStarted:number|null=null;
   private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
+  private readonly dustArt = new DustArt(this.homeScene);
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly kitchenEffects = buildCookingStation(this.homeScene);
   private kitchenCooking = false;
@@ -1237,6 +1240,11 @@ export class World {
         this.actors[role].playDomesticActivity('coffee', target);
       });
     }
+    if(command.type==='clean_room'){
+      const route=this.household&&dustRoute(this.household,role,command.room);
+      const point=route&&(route.path.at(-1)??route.from);if(!point)return false;
+      return this.walkTo(role,point,()=>{if(!current())return;this.actors[role].playDomesticActivity('tidy',new THREE.Vector3(point.x+.4,.35,point.z));});
+    }
     if (command.type === 'act') {
       const def = ACTIONS[command.actionId];
       if (def.item==='desk') {
@@ -2208,6 +2216,7 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    this.dustArt.sync(state.homeDust);
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
     this.homeEffects.setTv(installedElectronics(state,role,'tv'));
     for(const leaf of this.kitchenCurtains?.children??[]){

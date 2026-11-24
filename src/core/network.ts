@@ -91,6 +91,7 @@ export class LiveConnection {
     return true;
   }
 
+  cleanRoom(room:import('../shared/homeDust').DustRoomId):boolean {return this.sendAuthenticated({type:'clean_room',room});}
   furnitureUse(command:import('../shared/furnitureUse').FurnitureUseCommand):boolean {
     return this.sendAuthenticated(command);
   }

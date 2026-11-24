@@ -30,6 +30,8 @@ import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
+import {DUST_ROOMS,isDustRoom,initialDust} from '../src/shared/homeDust';
+import {dustRoute} from '../src/shared/dustRoute';
 export type CareAction = Exclude<PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('../src/shared/dogTraining').DogTrainingAction>;
 export interface TaskPlan {
   command: TimedCommand;
@@ -112,6 +114,10 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
       durationMs: action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
+  }
+  if(command.type==='clean_room'){
+    if(!isDustRoom(command.room))return null;
+    return {command:{type:'clean_room',room:command.room},label:'Уборка: '+DUST_ROOMS.find(r=>r.id===command.room)!.label,durationMs:18000,resource:'dust:'+command.room};
   }
   if (command.type === 'act') {
     const id = command.actionId;
@@ -287,6 +293,20 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     if (command.type === 'read_book' && !next.readBooks[role].includes(command.book)) next.readBooks[role].push(command.book);
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
+  }
+  if(command.type==='clean_room'){
+    const dust=state.homeDust??initialDust();
+    if(dust[command.room]<288)return {ok:false,reason:'В комнате и так чисто'};
+    const route=dustRoute(state,role,command.room);
+    if(!route)return {ok:false,reason:'Нет свободного прохода в комнату'};
+    const next=structuredClone(state);next.homeDust={...dust,[command.room]:0};
+    const resident=next.characters[role],point=route.path.at(-1)??route.from;
+    Object.assign(resident,point,{pose:'idle'});
+    resident.energy=Math.max(0,resident.energy-3);
+    resident.comfort=Math.min(100,resident.comfort+4);
+    resident.mood=Math.min(100,resident.mood+2);
+    next.revision++;
+    return {ok:true,state:next,message:'Комната убрана: '+DUST_ROOMS.find(r=>r.id===command.room)!.label};
   }
   if (command.type === 'act') {
     const loc=command.computer==='laptop'&&laptopDesk(state)?laptopWorkplace(state,role):null;

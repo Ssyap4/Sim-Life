@@ -9,6 +9,7 @@ import { syncBudgetPeriod } from '../src/shared/familyBudget';
 const HOURLY_DRAIN: Record<VitalNeed, number> = {
   hunger: 1.8, energy: 1.2, hygiene: 0.85, social: 0.65, fun: 0.9, comfort: 0.45, bladder: 6.5,
 };
+import {initialDust,advanceDust,roomAt,dustLoss} from '../src/shared/homeDust';
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 100) / 100));
 
 /** A pure, deterministic clock step suitable for server tests and offline-safe persistence. */
@@ -24,6 +25,8 @@ export function advanceLife(source: GameState, gameMinutes: number,
   // Spend caps refresh at the exact start of each ten-day household period,
   // even when nobody opens the Finance app or buys anything that day.
   syncBudgetPeriod(state.savings,state.clock);
+  const beforeDust=source.homeDust??initialDust();
+  if(online.length)state.homeDust=advanceDust(beforeDust,gameMinutes);
   for (const role of online) {
     const character = state.characters[role];
     for (const need of VITAL_NEEDS) {
@@ -31,6 +34,9 @@ export function advanceLife(source: GameState, gameMinutes: number,
       const unlocked=until?Math.max(0,Math.min(gameMinutes,(state.clock.day-1)*1440+state.clock.minute-until)):gameMinutes;
       character[need] = clamp(character[need] - HOURLY_DRAIN[need] * unlocked / 60);
     }
+    const shift=state.activeShifts[role];
+    const room=state.world.places[role]==='home'&&(!shift||shift.homeDevice)?roomAt(character):undefined;
+    if(room){const loss=dustLoss(beforeDust[room.id],gameMinutes);character.mood=clamp(character.mood-loss.mood);character.comfort=clamp(character.comfort-loss.comfort);}
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
     if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8);
   }
