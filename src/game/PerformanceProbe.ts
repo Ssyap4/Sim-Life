@@ -65,7 +65,7 @@ export function createPerformanceProbe(host: HTMLElement) {
   const ready = document.createElement('div');
   ready.textContent = 'Загрузка моделей…';
   const caveat = document.createElement('small');
-  caveat.textContent = 'Кадры браузера · не GPU-таймер';
+  caveat.textContent = 'DPR экрана '+window.devicePixelRatio+' · кадры браузера';
   panel.append(heading, frame, gpu, ready, caveat);
   host.append(panel);
 

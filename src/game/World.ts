@@ -2784,7 +2784,7 @@ export class World {
     }
     try {
       this.renderer.render(this.scene, this.camera);
-      if (this.graphics.safe && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
+      if (this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
         this.graphicsChecked = true;
         const gl = this.renderer.getContext();
         if (gl.isContextLost()) {
