@@ -6,6 +6,11 @@ import { join } from 'node:path';
 import { once } from 'node:events';
 import WebSocket, {type RawData} from 'ws';
 import {startServer} from '../server';
+import {openServerFiles} from '../storage';
+import {beginShift} from '../jobs';
+import {initialState} from '../../src/shared/protocol';
+import {clockAt} from '../../src/shared/life';
+import {homeQuestContent,correctQuestChoice} from '../../src/shared/homeJobQuests';
 import type {CharacterId,ServerPacket} from '../../src/shared/protocol';
 
 function next(ws:WebSocket,predicate:(msg:ServerPacket)=>boolean):Promise<ServerPacket> {
@@ -65,5 +70,33 @@ test('Two players see long-term job status; reconnect keeps the shift; cancel pa
   sockets.forEach(s=>s.terminate());
   await server.close();
   rmSync(dir,{recursive:true,force:true});
+ }
+});
+
+test('Home quest websocket answers are synchronized, owner-only, durable and replay-safe',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-home-quest-network-'));
+ const files=openServerFiles(dir);
+ const result=beginShift(initialState(),'vlad','gameFix','desktop');assert.ok(result.ok);
+ const state=result.state,shift=state.activeShifts.vlad!,run=shift.quests![0];
+ const choice=correctQuestChoice(homeQuestContent(shift,run)!,run);
+ shift.targetPay=2200;state.clock=clockAt(run.at);files.save(state);
+ const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await enter(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await enter(server.port,'alina',files.access.alina);sockets.push(a);
+  const rejected=next(a,m=>m.type==='error');
+  a.send(JSON.stringify({type:'home_job_answer',nonce:run.nonce,choice}));await rejected;
+  const sync=next(a,m=>m.type==='snapshot'&&m.state.activeShifts.vlad?.quests?.[0]?.result==='correct');
+  v.send(JSON.stringify({type:'home_job_answer',nonce:run.nonce,choice}));await sync;
+  const saved=files.load();
+  assert.equal(saved.activeShifts.vlad?.targetPay,2350);
+  assert.equal(saved.activeShifts.vlad?.quests?.[0].result,'correct');
+  assert.equal(saved.money,10000);
+  const duplicate=next(v,m=>m.type==='error');
+  v.send(JSON.stringify({type:'home_job_answer',nonce:run.nonce,choice}));await duplicate;
+  assert.equal(files.load().activeShifts.vlad?.targetPay,2350);
+ }finally{
+  sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});
  }
 });

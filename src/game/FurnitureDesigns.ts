@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FURNITURE_BY_ID,FURNITURE_FINISHES,type FurnitureFinish } from '../shared/furniture';
+import { FURNITURE_BY_ID,FURNITURE_FINISHES,workstationLayout,isNotebookDesk,type FurnitureFinish } from '../shared/furniture';
 import { cube,softCube,orb,drum,finish,batchRigidParts } from './ArtKit';
 
 // Deliberately authored visual identities, shared by product photos and world.
@@ -687,6 +687,92 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
         line(x,0,-d*.37,-x,h*.87,d*.37,.036,D);
         line(x,0,d*.37,-x,h*.87,-d*.37,.036,D);
       }
+
+    }else if(s==='table-duet'){
+      cyl(w*.49,.065,d*.49,0,h-.0325,0,M,'wood');
+      cyl(.105,h-.10,.105,0,(h-.10)/2,0,D,'metal');
+      cyl(w*.33,.045,d*.33,0,.0225,0,D,'metal');
+    }else if(s==='table-bento'||s==='table-haven'){
+      box(w*.98,.065,d*.98,0,h-.0325,0,M,'wood',true);
+      for(const x of [-w*.40,w*.40])for(const z of [-d*.37,d*.37]){
+        line(x*1.10,.025,z*1.10,x,.70,z,s==='table-bento'?.029:.043,D,'wood');
+      }
+      if(s==='table-haven')box(w*.76,.09,.055,0,h-.11,-d*.35,L);
+    }else if(s==='table-silk'){
+      cyl(w*.49,.07,d*.49,0,h-.035,0,L,'wood');
+      for(const x of [-w*.25,w*.25]){cyl(.15,h-.12,.24,x,(h-.12)/2,0,M,'wood');cyl(.23,.045,.31,x,.0225,0,D);}
+    }else if(s==='table-aura'){
+      const glass=box(w*.98,.048,d*.98,0,h-.024,0,0x9ac4cd,'ceramic',true);
+      glass.material=glass.material.clone();glass.material.transparent=true;glass.material.opacity=.78;
+      for(const x of [-w*.36,w*.36]){
+        for(const z of [-d*.34,d*.34])line(x,.025,z,x*.86,h-.048,-z,.030,D,'metal');
+        box(.055,.045,d*.77,x,.045,0,D,'metal');
+      }
+      box(w*.76,.038,.035,0,h-.074,0,D,'metal');
+    }else if(s==='table-forge'){
+      box(w*.98,.09,d*.98,0,h-.045,0,M,'wood',true);
+      for(const x of [-w*.37,w*.37]){
+        for(const z of [-d*.40,d*.40])line(x,.03,z,x,h-.09,z*.69,.043,0x31373b,'metal');
+        box(.085,.055,d*.83,x,.0275,0,0x31373b,'metal');
+        box(.085,.055,d*.62,x,h-.115,0,0x31373b,'metal');
+      }
+      for(const x of [-w*.25,0,w*.25])box(.008,.004,d*.87,x,h-.003,0,D);
+    }else if(s==='table-grand'){
+      box(w*.98,.085,d*.98,0,h-.0425,0,L,'wood',true);
+      for(const x of [-w*.26,w*.26]){
+        cyl(.23,h-.085,.31,x,(h-.085)/2,0,M);
+        for(let i=0;i<12;i++){const a=i*Math.PI/6;cyl(.018,h-.12,.018,x+Math.cos(a)*.22,(h-.12)/2,Math.sin(a)*.29,D);}
+        cyl(.25,.035,.33,x,.0175,0,D);
+      }
+    }else if(s==='table-pebble'){
+      const top=ball(w*.48,.043,d*.47,0,h-.043,0,M,'wood');top.rotation.y=.12;
+      for(const a of [0,2.094,4.189])line(Math.cos(a)*w*.30,0,Math.sin(a)*d*.30,Math.cos(a)*w*.22,h-.08,Math.sin(a)*d*.22,.036,D,'wood');
+    }else if(s==='table-nest'){
+      for(const [x,z,rx,rz,y] of [[-.23,-.05,.40,.35,h],[.34,.12,.28,.24,h*.68]]){
+        cyl(rx,.055,rz,x,y-.0275,z,M);
+        for(const a of [0,2.094,4.189])line(x+Math.cos(a)*rx*.74,0,z+Math.sin(a)*rz*.74,x+Math.cos(a)*rx*.55,y-.055,z+Math.sin(a)*rz*.55,.023,D,'metal');
+      }
+    }else if(desk&&workstationLayout(s)){
+      const compact=isNotebookDesk(s),gaming=s==='desk-gamer',loft=s==='desk-loft',studio=s==='desk-studio',angle=s==='desk-angle',creator=s==='desk-creator';
+      const z=-.24,topDepth=Math.min(d-.58,.76),topWidth=w*.96;
+      box(topWidth,.075,topDepth,0,.7225,z,gaming?0x30383f:M,'wood',true);
+      const left=-w*.42,right=w*.42;
+      if(loft||gaming){
+        for(const x of [left,right]){
+          box(.075,.69,.075,x,.345,z-topDepth*.34,D,'metal');
+          box(.075,.69,.075,x,.345,z+topDepth*.34,D,'metal');
+          box(.075,.045,topDepth*.80,x,.045,z,D,'metal');
+          if(gaming)box(.08,.055,topDepth*.72,x,.64,z,0x5aa869,'metal');
+        }
+        box(w*.70,.075,.07,0,.52,z-topDepth*.40,D,'metal');
+      }else if(studio){
+        for(const x of [left,right])box(.20,.68,topDepth*.77,x,.34,z,L,'wood',true);
+        box(w*.65,.07,.12,0,.57,z-topDepth*.37,D,'metal');
+      }else{
+        for(const x of [left,right])for(const zz of [z-topDepth*.34,z+topDepth*.34]){
+          const leg=box(compact?.045:.065,.68,.055,x,.34,zz,D,'metal');if(s==='desk-neo')leg.rotation.z=x<0?-.07:.07;
+        }
+      }
+      if(s==='desk-office'||creator||studio){
+        for(const x of creator?[-w*.32,w*.32]:[w*.32]){
+          box(w*.25,.53,topDepth*.83,x,.38,z,L,'wood',true);
+          for(let n=0;n<(studio?2:3);n++){
+            const yy=.22+n*(studio?.22:.15);
+            box(w*.22,.115,.025,x,yy,z+topDepth*.43,M,'wood',true);
+            box(w*.09,.019,.035,x,yy,z+topDepth*.46,D,'metal');
+          }
+        }
+      }
+      if(s==='desk-air')box(w*.32,.048,.24,-w*.27,.59,z-.06,L,'wood',true);
+      if(angle){box(w*.29,.075,.88,w*.34,.7225,.01,M,'wood',true);box(.075,.68,.075,w*.43,.34,.36,D,'metal');}
+      if(gaming||creator){box(w*.80,.035,.11,0,.765,z-topDepth*.43,D,'metal');box(w*.58,.009,.022,0,.77,z+topDepth*.44,gaming?0x66bd79:0x698b9e,'metal');}
+      // Integrated real seat within the declared footprint.
+      const seatZ=.40,seatW=gaming?.54:.48,seatH=.45;
+      box(seatW,.085,.43,0,seatH,seatZ,F,'fabric',true);
+      box(seatW,.43,.09,0,.72,seatZ+.20,gaming?0x39454d:F,'fabric',true);
+      if(gaming){box(.10,.28,.10,-.22,.79,seatZ+.18,0x6ea56f,'fabric',true);box(.10,.28,.10,.22,.79,seatZ+.18,0x6ea56f,'fabric',true);}
+      if(compact){for(const x of [-.18,.18])for(const zz of [seatZ-.15,seatZ+.15])box(.045,.40,.045,x,.20,zz,D,'metal');}
+      else{cyl(.045,.35,.045,0,.22,seatZ,D,'metal');for(let i=0;i<5;i++){const a=i*Math.PI*2/5;line(0,.09,seatZ,Math.cos(a)*.20,.09,seatZ+Math.sin(a)*.20,.022,D,'metal');}}
     }else if(s==='desk-corner'){
       // Real L-shaped desk: empty notch on viewer side.
       box(w*.96,.079,d*.44,0,.72,-d*.27,M,'wood',true);
@@ -738,7 +824,27 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
   if(item.shape==='chair'){
     const industrial=s==='chair-industrial',bistro=s==='chair-bistro',padded=s==='chair-padded';
     const seat=h*.48;
-    if(bistro){
+
+    if(s.startsWith('chair-')&&['chair-lino','chair-mellow','chair-mono','chair-windsor','chair-frame','chair-lounge','chair-velour'].includes(s)){
+      const soft=['chair-mellow','chair-lounge','chair-velour'].includes(s),high=['chair-lounge','chair-velour'].includes(s),frame=s==='chair-frame',mono=s==='chair-mono',windsor=s==='chair-windsor';
+      const sy=.45,th=soft?.09:.058;
+      box(w*.93,th,d*.87,0,sy-th/2,0,soft?F:M,soft?'fabric':'wood',true);
+      for(const x of [-w*.38,w*.38])for(const z of [-d*.35,d*.35]){
+        line(x*1.12,.018,z*1.12,x,sy-th,z,frame?.018:soft?.027:.032,D,frame?'metal':'wood');
+      }
+      if(windsor){
+        for(let i=0;i<7;i++){const x=(i-3)*w*.115;line(x,sy,-d*.36,x*1.10,h-.045,-d*.39,.018,M,'wood');}
+        box(w*.94,.058,.075,0,h-.035,-d*.39,L,'wood',true);
+      }else if(mono||soft){
+        box(w*.93,(h-sy)*.92,mono?.058:.11,0,sy+(h-sy)*.50,-d*.37,soft?F:M,soft?'fabric':'wood',true);
+        if(high)box(w*.83,.055,.025,0,sy+.11,-d*.26,L,'fabric',true);
+        if(s==='chair-velour')for(const x of [-w*.23,0,w*.23])box(.012,(h-sy)*.65,.015,x,sy+(h-sy)*.53,-d*.25,D,'fabric');
+      }else{
+        for(const x of [-w*.39,w*.39])line(x,sy,-d*.36,x,h-.035,-d*.38,.027,D,frame?'metal':'wood');
+        for(const y of (frame?[.61,.72,.83]:[.67,.80]))box(w*.83,.052,.043,0,y,-d*.37,M,'wood',true);
+      }
+    }else if(bistro){
+
       cyl(w*.42,.065,d*.38,0,seat,0,M,'wood');
       for(const x of [-w*.34,w*.34])for(const z of [-d*.32,d*.32])
         line(x,0,z,x,seat,z,.026,D,'wood');
@@ -779,7 +885,11 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
   }
   if(item.shape==='stool'){
     const round=s==='stool-round';
-    if(round){
+    if(s==='stool-cube'||s==='stool-petal'){
+      const petal=s==='stool-petal';
+      if(petal){cyl(w*.46,.085,d*.46,0,.4075,0,F,'fabric');for(const a of [0,2.094,4.189])line(Math.cos(a)*w*.34,.015,Math.sin(a)*d*.34,Math.cos(a)*w*.26,.365,Math.sin(a)*d*.26,.027,D,'wood');}
+      else{box(w*.95,.07,d*.95,0,.415,0,M,'wood',true);for(const x of [-w*.37,w*.37])for(const z of [-d*.37,d*.37])box(.055,.38,.055,x,.19,z,D);box(w*.80,.045,.035,0,.20,-d*.34,D);}
+    }else if(round){
       cyl(w*.45,h*.10,d*.45,0,h*.93,0,M);
       for(let i=0;i<4;i++){
         const ang=Math.PI*(i+.5)/2;

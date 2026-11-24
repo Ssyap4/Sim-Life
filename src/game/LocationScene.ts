@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { buildElectronicsModel } from './ElectronicsArt';
+import { ELECTRONICS,electronicsFor } from '../shared/electronics';
 import { PARK_TREES } from '../shared/park';
 import { buildFurnishingModel } from './FurnishingArt';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
@@ -180,6 +182,19 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     if (station.center.z > 4) root.rotation.y = Math.PI;
     facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
+  } else if(station.action.kind==='electronics-display'){
+    const category=station.action.category;
+    shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);
+    electronicsFor(category).forEach((id,i)=>{
+      const model=buildElectronicsModel(id),x=(i-1)*.74;
+      const scale=category==='desktop'?.47:category==='tv'?.37:category==='laptop'?1:1.8;
+      model.position.set(x,.924,-.075);model.scale.setScalar(scale);root.add(model);
+      sign(root,ELECTRONICS[id].name,.79,.52,.69,C.paper,textures,materials);
+      const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.105;
+    });
+    sign(root,station.name,2.10,.30,1.83,C.paper,textures,materials);
+  } else if(kind==='electronics-checkout'){
+    shape(root,[1.75,.94,.80],[0,.47,0],0x456574);shape(root,[1.82,.10,.85],[0,.99,0],0xe0e9ee);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);
   } else if(kind==='clothes-rack'){
     shape(root,[2.24,.08,.78],[0,.05,0],0x9f8069);
     for(const x of [-1.04,1.04])shape(root,[.055,1.8,.055],[x,.95,0],0x48474b,drum);
@@ -346,6 +361,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
         shape(floor, [.23, .13, 10.1], [-5.99, y, 0], C.paper);
       }
     }
+  }
+  if(place==='electronics'){
+    sign(floor,'ИМПУЛЬС · ТЕХНИКА',2.55,-4.88,4.5,C.paper,textures,materials);
+    shape(floor,[2.6,.025,3.3],[0,.016,.25],0xaebec8,cube);
+    const cashier=marketCashier(resources,{title:'Продавец',color:0x396d8c,shirt:0xe2edf1,animated:true});cashier.position.set(3.65,0,.48);root.add(cashier);
+    animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.13;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.055);};
   }
   if(place==='clothing'){
     sign(floor,'СТИЛЬ',2.55,-4.88,3.2,C.paper,textures,materials);

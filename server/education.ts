@@ -1,3 +1,4 @@
+import { electronicsModel } from '../src/shared/electronics';
 import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import {
   CLASS_WINDOW, SKILL_IDS, SKILLS, classDates, educationalXP, initialEducation, isSkillId,
@@ -118,6 +119,7 @@ export function completeStudy(state: GameState, role: CharacterId, material: Stu
   }
   record.minutes = 0;
   record.completions = Math.min(record.completions + 1, 9999);
+  if(material.channel==='tv')earned=Math.round(earned*(1+electronicsModel(state,role,'tv').study/100));
   const actual = grant(profile, material.skill, earned, material.title, now);
   if (material.secondary && actual) grant(profile, material.secondary, Math.round(earned * .15), material.title, now);
   achievements(profile, now);
@@ -233,6 +235,14 @@ export function practiceXP(state: GameState, role: CharacterId, id: string, skil
   grant(profile, skill, Math.max(1, Math.round(base * repetition * difficulty *
     (1 + talent(role, skill) / 100))), label, now);
   achievements(profile, now);
+}
+
+/** Fixed incidental job practice, already capped by the shared home-order rule. */
+export function awardHomeJobPractice(state:GameState,role:CharacterId,skill:SkillId,xp:number,label:string):number {
+  const profile=profileOf(state,role),now=gameMinutes(state.clock);
+  const earned=grant(profile,skill,xp,label,now);
+  achievements(profile,now);
+  return earned;
 }
 
 /** Award only after the food transaction actually succeeds, for manual, autonomous

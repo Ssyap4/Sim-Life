@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { BATH_FIXTURES, HOME_PLACEMENTS } from '../shared/home';
+import { electronicsDisplay,electronicsVariants } from './ElectronicsArt';
+import type { ElectronicsId } from '../shared/electronics';
+import { BATH_FIXTURES } from '../shared/home';
 import type { Program } from '../shared/homeLife';
 import { GENRES } from '../shared/homeLife';
 import { SKILL_IDS, SKILLS } from '../shared/education';
@@ -29,6 +31,8 @@ export class HomeEffects {
   private readonly context: CanvasRenderingContext2D;
   private readonly texture: THREE.CanvasTexture;
   private readonly screen: THREE.Mesh;
+  private readonly tvHardware=electronicsVariants('tv');
+  private tvId:ElectronicsId='tvStart';
   private readonly shower: THREE.LineSegments;
   private readonly foam: THREE.InstancedMesh;
   private readonly handWater: THREE.LineSegments;
@@ -44,10 +48,10 @@ export class HomeEffects {
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.generateMipmaps = false;
     this.texture.minFilter = THREE.LinearFilter;
-    this.screen = new THREE.Mesh(new THREE.PlaneGeometry(1.744,.938),
+    this.screen = new THREE.Mesh(new THREE.PlaneGeometry(1,1),
       new THREE.MeshBasicMaterial({ map: this.texture, toneMapped: false }));
-    const tv = HOME_PLACEMENTS.tv;
-    this.screen.position.set(tv.x,1.26,tv.z-.006);
+    this.screen.position.set(0,0,.003);
+    electronicsDisplay(this.tvHardware.select('tvStart'))!.add(this.screen);
     this.screen.visible = false;
 
     const lines = Array.from({length:18},(_,i) => {
@@ -84,9 +88,11 @@ export class HomeEffects {
     ]), new THREE.LineBasicMaterial({ color: 0xb6e6ed, transparent: true, opacity: .82 }));
     this.handWater.position.set(sink.x, .983, sink.z + .025);
     this.handWater.visible = false;
-    scene.add(this.screen,this.shower,this.foam,this.handWater);
+    scene.add(this.shower,this.foam,this.handWater);
   }
 
+  mountTv(parent:THREE.Group){parent.add(this.tvHardware.group);this.tvHardware.group.position.y=.574;return this.tvHardware.group;}
+  setTv(id:ElectronicsId){if(this.tvId===id)return;this.tvId=id;electronicsDisplay(this.tvHardware.select(id))!.add(this.screen);}
   television(id: string, program?: Program, lesson?: string) {
     if (lesson) this.lesson = lesson;
     if(program) this.media.set(id,program); else this.media.delete(id);

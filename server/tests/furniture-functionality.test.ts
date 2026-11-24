@@ -17,7 +17,7 @@ test('purchased sofa retains real relaxation, music, calls, TV and rotated seati
  s.furnishing.placed=[install('sofa-luna',1,-2.36,2.02)];
  s.furnishing.nextId=2;
  assert.deepEqual(furnitureActionList(s.furnishing.placed[0]).filter(a=>a.startsWith('sofa')),
-   ['sofaRest','sofaMusic','sofaCall']);
+   ['sofaRest','sofaMusic','sofaCall','sofaScroll']);
  const loc=furnitureUseLocation(s,'vlad',1,'sofaRest');
  assert.ok(loc,'must approach bought sofa safely');
  assert.notDeepEqual(loc.pose,{x:-2.36,y:0,z:2.02,yaw:0});

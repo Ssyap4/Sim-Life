@@ -124,6 +124,7 @@ export const ACTIONS = {
   sofaMovie: { label: '🎬 Посмотреть фильм (диван + ТВ)', item: 'sofa', pose: 'sit' },
   sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },
   sofaMusic: { label: '🎵 Послушать музыку', item: 'sofa', pose: 'sit' },
+  sofaScroll: { label:'📱 Полистать ленту',item:'sofa',pose:'sit' },
   sofaCall: { label: '📱 Позвонить близким', item: 'sofa', pose: 'sit' },
   officeChairSit: { label: 'Посидеть в кресле', item: 'officeChair', pose: 'sit' },
   bedSleep: { label: '🌙 Поспать', item: 'bed', pose: 'sleep' },
@@ -183,9 +184,10 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
-  | { type: 'job_start'; job: import('./jobs').JobId }
+  | { type: 'job_start'; job: import('./jobs').JobId; device?: import('./computer').ComputerDevice }
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
+  | { type: 'home_job_answer'; nonce:string; choice:number }
   | { type: 'autonomy_mode'; mode: AutonomyMode }
   | { type: 'shift_speed'; enabled: boolean }
   | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }

@@ -21,7 +21,8 @@ import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
-import { JOBS, isJobId, validShiftPay } from '../src/shared/jobs';
+import { validHomeQuests } from "../src/shared/homeJobQuests";
+import { JOBS, isJobId, isHomeJob, HOME_JOBS, validShiftPay } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
@@ -106,22 +107,27 @@ const isValidState = (value: unknown): value is GameState => {
         Number.isSafeInteger(row.amount) && row.amount >= 0 &&
         (row.actor === 'vlad' || row.actor === 'alina' || row.actor === 'family') &&
         (row.kind === 'income' || row.kind === 'expense') &&
-        ['groceries','takeout','pets','work','services','education','furniture','clothing'].includes(row.category) &&
+        ['groceries','takeout','pets','work','services','education','furniture','clothing','electronics'].includes(row.category) &&
         typeof row.label === 'string' && row.label.length <= 140))) return false;
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
     Object.keys(activeShifts).some(role => role !== 'vlad' && role !== 'alina') ||
-    !Object.values(activeShifts).every(raw => {
+    !Object.entries(activeShifts).every(([role,raw]) => {
       if (!raw || typeof raw !== 'object') return false;
       const shift=raw as Record<string, unknown>;
       if (!isJobId(shift.job)) return false;
+      if(isHomeJob(shift.job)){
+        if(HOME_JOBS[shift.job].owner!==role||!["desktop","laptop"].includes(String(shift.homeDevice))||role==="vlad"&&shift.homeDevice!=="desktop")return false;
+        if(shift.homeSpeed!==undefined&&(typeof shift.homeSpeed!=="number"||!(shift.homeDevice==="desktop"?[0,10,18,25]:[0,8,15,22]).includes(shift.homeSpeed)))return false;
+      }else if(shift.homeDevice!==undefined||shift.homeSpeed!==undefined)return false;
+      if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
-        Number(hours) >= JOBS[shift.job].hoursMin &&
+        Number(hours) >= (isHomeJob(shift.job)?2:JOBS[shift.job].hoursMin) &&
         Number(hours) <= JOBS[shift.job].hoursMax &&
         Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
         Number.isSafeInteger(shift.endsAt) &&
-        Number(shift.endsAt) === Number(shift.startedAt) + Number(hours) * 60 &&
+        Number(shift.endsAt) === Number(shift.startedAt) + Math.round(Number(hours)*60*(100-Number(shift.homeSpeed??0))/100) &&
         (shift.targetPay === undefined ||
           validShiftPay(shift.job,shift.targetPay));
     }))) return false;

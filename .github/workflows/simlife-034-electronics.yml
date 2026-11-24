@@ -1,0 +1,31 @@
+name: Sim-Life 0.34 electronics mobile visual
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/home-jobs-034]
+    paths: ['src/game/ElectronicsArt.ts','src/game/HomeComputerScreens.ts','src/game/HomeEffects.ts','src/game/LocationScene.ts','scripts/qa-034-electronics.mjs','.github/workflows/simlife-034-electronics.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-electronics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-034-electronics.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-034-electronics-frames
+          path: /tmp/simlife-034-electronics
+          retention-days: 7

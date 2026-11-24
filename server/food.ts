@@ -1,10 +1,11 @@
+import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { recipeAvailability } from '../src/shared/recipeAvailability';
 import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { homeSeat } from '../src/shared/home';
 import { addDirtyDish } from '../src/shared/dirtyDishes';
 import { addLedger } from '../src/shared/economy';
 import { storageCanFit } from '../src/shared/storageSpace';
-import { addReadyFood, consumeReadyFood, expireReadyFood, reconcileReadyFood } from '../src/shared/readyFood';
+import { addReadyFood, consumeReadyFood, consumeReadyPortion, expireReadyFood, reconcileReadyFood } from '../src/shared/readyFood';
 import { names, points, type CharacterId, type GameState } from '../src/shared/protocol';
 
 export type FoodCommand =
@@ -16,7 +17,7 @@ export type FoodResult = { ok: true; state: GameState; message: string } | { ok:
 const owns = <T extends object>(record: T, key: string): key is Extract<keyof T, string> =>
   Object.prototype.hasOwnProperty.call(record, key);
 
-export function applyFoodAction(source: GameState, role: CharacterId, command: FoodCommand): FoodResult {
+export function applyFoodAction(source: GameState, role: CharacterId, command: FoodCommand, random:()=>number=Math.random): FoodResult {
   const state = structuredClone(source);
   reconcileReadyFood(state);
   expireReadyFood(state);
@@ -45,27 +46,31 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     const {effort}=availability;
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
-    addReadyFood(state,'meal',id,recipe.servings,'table');
+    const quality=cookingQuality(state,role,random);
+    addReadyFood(state,'meal',id,recipe.servings,'table',undefined,quality);
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
     actor.energy = Math.max(0, actor.energy - effort);
     actor.mood = Math.min(100, actor.mood + 2);
     actor.comfort = Math.min(100, actor.comfort + 3);
     Object.assign(actor, isGrillRecipe(id) ? { ...points.grill, pose: 'idle' } : { ...points.kitchen, pose: 'work' });
-    message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции · на столе';
+    message = names[role] + ': приготовлено ' + recipe.name + ', ' + recipe.servings + ' порции · на столе · качество: '+qualityLabel(quality);
   } else {
     if (!owns(RECIPES, command.recipe)) return { ok: false, reason: 'Неизвестное блюдо' };
     const id: RecipeId = command.recipe;
     const meal = RECIPES[id];
     if (state.meals[id] < 1) return { ok: false, reason: 'Готовых порций нет — сначала приготовь' };
-    if (!consumeReadyFood(state,'meal',id,'table')) return { ok: false, reason: 'Это блюдо уже испортилось' };
+    const portion=consumeReadyPortion(state,'meal',id,'table');
+    if (!portion) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
-    actor.mood = Math.min(100, actor.mood + meal.mood);
+    const effect=foodQualityEffect(portion.quality,meal.mood);
+    actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
+    actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));
     actor.comfort = Math.min(100, actor.comfort + 4);
     addDirtyDish(state.dirtyDishes, isGrillRecipe(id) ? 'yardTable' : 'table');
     Object.assign(actor, { ...homeSeat(isGrillRecipe(id) ? 'yardTable' : 'table', role).approach,
       pose: 'sit' as const });
-    message = names[role] + ': ' + (role==='vlad'?'поел':'поела') + ' ' + meal.name;
+    message = names[role] + ': ' + (role==='vlad'?'поел':'поела') + ' ' + meal.name+' · '+qualityLabel(portion.quality)+(effect.fun<0?' · настроение и досуг '+effect.fun:'');
   }
   state.revision += 1;
   return { ok: true, state, message };

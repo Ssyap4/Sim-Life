@@ -1,3 +1,4 @@
+import { HOME_JOBS } from "../shared/jobs";
 import * as THREE from 'three';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PairMotion } from '../shared/socialLife';
@@ -22,7 +23,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -158,6 +159,7 @@ export class Actor {
       this.idleCooldown=0;
     }
   }
+  setPhoneModel(id:import('../shared/electronics').ElectronicsId){this.props.setPhone(id);}
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   carryFoodContainer(): void { this.foodContainer.visible = true; }
@@ -289,7 +291,10 @@ export class Actor {
     this.callback = onArrive;
   }
 
+  private homeWorkStyle:import("../shared/jobs").JobId|undefined;
+  setHomeWorkStyle(style:import("../shared/jobs").JobId){this.homeWorkStyle=style;}
   setPose(pose: Pose): void {
+    this.homeWorkStyle=undefined;
     this.waypoints = [];
     this.callback = null;
     this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;
@@ -357,6 +362,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.props.phone.visible=false;
     this.partnerGesture=null;
     this.gesture=null;
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
@@ -633,11 +639,13 @@ export class Actor {
     if (this.pose === 'work') {
       // Existing keyboard placement is untouched. Add believable cycles:
       // bursts of typing, a short pause to check the monitor, then typing.
-      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
+      const variant=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]?.animation??0:0;
+      const cycle=(t*(1+variant*.035) + (this.id==='vlad'?0:2.8))%11.6;
       const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
         (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
       gaze += 0.032*Math.sin(t*1.18) - .10*pause;
-      lean+=.035*pause;
+      lean+=.035*pause+(this.homeWorkStyle?Math.sin(t*.36+variant)*(.012+variant*.003):0);
+      if(this.homeWorkStyle)gaze+=Math.sin(t*.75+variant)*(.02+variant*.004);
       const beats=1-pause;
       const leftTap = beats * Math.max(0, Math.sin(t * 9.0)) ** 2;
       const rightTap = beats * Math.max(0, Math.sin(t * 11.4 + 1.3)) ** 2;
@@ -806,6 +814,10 @@ export class Actor {
           armSpread = .31;
           gaze = .26+.034*Math.sin(a*1.3);
           break;
+        case 'scrollPhone':
+          rightY=-.25+.027*Math.sin(a*3.3);rightZ=.36;
+          leftY=-.26+.034*Math.sin(a*4.1);leftZ=.31;
+          armSpread=.24;gaze=.29;lean=.05;expression=.07;break;
         case 'phone':
           rightY = 0.075 + 0.016 * Math.sin(a * 2.3);
           rightZ = 0.11;
@@ -1233,6 +1245,7 @@ export class Actor {
     this.spoon.visible = (this.activity === 'cook' &&
       (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
       (this.activity === 'eat' && eatingWith === 'spoon');
+    this.props.phone.visible=this.activity==='scrollPhone';
     this.props.fork.visible = this.activity === 'eat' && eatingWith === 'fork';
     this.props.knife.visible = (this.activity === 'cook' && kitchenStep === 'chop') ||
       (this.activity === 'prep' && helperChop(a));
@@ -1329,16 +1342,22 @@ export class Actor {
     this.figure.position.z += partnerForward;
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, asleep ? -Math.PI / 2 : 0, alpha);
     if (typing) {
-      const cycle=(t + (this.id==='vlad'?0:2.8))%11.6;
-      const pause=THREE.MathUtils.smoothstep(cycle,4.8,5.5) *
-        (1-THREE.MathUtils.smoothstep(cycle,6.6,7.15));
-      const beats = (0.52 + 0.48 * Math.max(0, Math.sin(t * 0.85)))*(1-pause);
+      const spec=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]:undefined;
+      const variant=spec?.animation??0;
+      const period=spec?14+variant*1.2:11.6;
+      const cycle=(t + (this.id==='vlad'?0:2.8))%period;
+      const phase=cycle/period;
+      const pause=THREE.MathUtils.smoothstep(phase,.38,.48) * (1-THREE.MathUtils.smoothstep(phase,.60,.73));
+      const beats = (0.52 + 0.48 * Math.max(0, Math.sin(t * (spec?.style==="code"?1.3:.85))))*(1-pause);
       for (const i of [0, 1] as const) {
-        const tap = beats * Math.max(0, Math.sin(t * (i === 0 ? 8.5 : 10.2) + i * 1.3)) ** 2;
+        const tap = beats * Math.max(0, Math.sin(t * ((i === 0 ? 8.5 : 10.2)+variant*.22) + i * 1.3)) ** 2;
         this.target.copy(typing[i]);
-        this.target.y += 0.028 - 0.018 * tap;
-        this.target.add(this.handDirection.set(0, 0,
-          0.018 * Math.sin(t * 1.82 + i) - 0.008 * tap)
+        const pointer=!!spec&&["video","design","trade","notes"].includes(spec.style)&&i===1;
+        const teaching=spec?.style==="hair"&&pause>.05;
+        const listening=spec?.style==="mail"&&i===1;
+        this.target.y += 0.028 - 0.018 * tap + (teaching?pause*(.14+.07*Math.sin(t*2.4+i)):0)+(listening?pause*.20:0);
+        this.target.add(this.handDirection.set(pointer?.10+.025*Math.sin(t*1.5):teaching?pause*(i===0?-.10:.10):0, 0,
+          0.018 * Math.sin(t * 1.82 + i) - 0.008 * tap + (pointer?.05*Math.cos(t*1.7):0) - (listening?pause*.12:0))
           .applyAxisAngle(up, this.root.rotation.y));
         this.reach(i, this.target, alpha);
         this.aimHand(i, this.handDirection.set(0, -0.27, -1)

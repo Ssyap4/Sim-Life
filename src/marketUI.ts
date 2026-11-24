@@ -9,6 +9,7 @@ import { PETS, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS } from './shared/pets';
 import { GROCERY_DETAILS, TAKEOUT_DESCRIPTIONS, RECIPE_DESCRIPTIONS,
   FRIDGE_CAPACITY, CUPBOARD_CAPACITY, storageUsage, storageCanFit } from './shared/storageSpace';
 import type { GameState } from './shared/protocol';
+import { qualitySuffix } from './shared/foodQuality';
 import { addReadyFood, readyFoodName, readyFoodRemaining, readyFoodTableUsage, TABLE_READY_CAPACITY } from './shared/readyFood';
 
 type Tab = 'shop' | 'stock' | 'ledger';
@@ -260,7 +261,7 @@ export function createMarketUI(
       scroll.append(el('h3','market-subtitle','🍲 Готовая еда · срок 2–3 игровых дня'));
       for(const batch of [...state.readyFood].sort((a,b)=>a.expiresAt-b.expiresAt)) {
         scroll.append(el('div','market-stock-row',
-          (batch.kind==='meal'?'🍳 ':'🍕 ')+readyFoodName(batch.kind,batch.item)+' · '+batch.portions+
+          (batch.kind==='meal'?'🍳 ':'🍕 ')+readyFoodName(batch.kind,batch.item)+qualitySuffix(batch)+' · '+batch.portions+
           ' порц. · '+(batch.storage==='fridge'?'🧊 холодильник':'🍽️ стол')+' · '+readyFoodRemaining(batch.expiresAt,state.clock)));
       }
       scroll.append(el('h3','market-subtitle','🍳 Приготовлено дома'));

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { CharacterId } from '../shared/protocol';
 import type { ComputerDevice } from '../shared/computer';
+import { electronicsVariants,electronicsDisplay } from './ElectronicsArt';
+import { workstationLayout } from '../shared/furniture';
+import type { ElectronicsId } from '../shared/electronics';
 import { drawComputerScene, type ComputerScene } from './ComputerScreenArt';
 
 type Screen = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; texture: THREE.CanvasTexture;
@@ -14,67 +17,51 @@ export class HomeComputerScreens {
   private readonly careers = new Map<CharacterId,{device:ComputerDevice;scene:ComputerScene}>();
   private readonly previews: Partial<Record<ComputerDevice, ComputerScene>> = {};
   private readonly initialDesktop:THREE.Group;
-  private desktopPanel!:THREE.Mesh;
-  private monitorStand:THREE.Group|null=null;
+  private readonly initialLaptop:THREE.Group;
+  private readonly hardware={desktop:electronicsVariants('desktop'),laptop:electronicsVariants('laptop')};
+  private readonly panels:Record<ComputerDevice,THREE.Mesh>;
+  private selected:Record<ComputerDevice,ElectronicsId>={desktop:'pcStart',laptop:'laptopStart'};
 
   constructor(desktop:THREE.Group,laptop:THREE.Group) {
-    this.initialDesktop=desktop;
-    const add=(parent:THREE.Group,device:ComputerDevice):Screen=>{
-      const canvas=document.createElement('canvas');
-      canvas.width=256;canvas.height=144;
+    this.initialDesktop=desktop;this.initialLaptop=laptop;
+    desktop.add(this.hardware.desktop.group);this.hardware.desktop.group.position.y=1.053;
+    laptop.add(this.hardware.laptop.group);this.hardware.laptop.group.position.set(0,.86,-.105);
+    const panels={} as Record<ComputerDevice,THREE.Mesh>;
+    const add=(device:ComputerDevice):Screen=>{
+      const canvas=document.createElement('canvas');canvas.width=256;canvas.height=144;
       const ctx=canvas.getContext('2d')!;
       const texture=new THREE.CanvasTexture(canvas);
-      texture.colorSpace=THREE.SRGBColorSpace;
-      texture.generateMipmaps=false;
-      texture.minFilter=THREE.LinearFilter;
-      texture.magFilter=THREE.LinearFilter;
-      const laptopScreen=device==='laptop';
-      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(laptopScreen?.456:.994,laptopScreen?.2565:.634),
-        new THREE.MeshBasicMaterial({map:texture,toneMapped:false,side:laptopScreen?THREE.FrontSide:THREE.DoubleSide,depthWrite:laptopScreen}));
-      const surface=laptopScreen?parent.getObjectByName('Laptop display surface'):parent;
-      if (!laptopScreen) {
-        mesh.position.set(0,1.52,-.211);
-        this.desktopPanel=mesh;
-      }
-      mesh.renderOrder=5;
-      mesh.castShadow=false;mesh.receiveShadow=false;
-      surface?.add(mesh);
+      texture.colorSpace=THREE.SRGBColorSpace;texture.generateMipmaps=false;
+      texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:texture,toneMapped:false,side:THREE.DoubleSide}));
+      mesh.position.z=.003;mesh.renderOrder=5;panels[device]=mesh;
+      electronicsDisplay(this.hardware[device].select(this.selected[device]))!.add(mesh);
       return {canvas,ctx,texture,lastFrame:-1,lastMode:''};
     };
-    this.screens={desktop:add(desktop,'desktop'),laptop:add(laptop,'laptop')};
+    this.screens={desktop:add('desktop'),laptop:add('laptop')};this.panels=panels;
   }
-
-  /** Reattach the SAME working desktop screen to a replacement desk.
-   * It keeps the old texture and 8fps budget; no second simulated PC is spawned. */
+  setHardware(desktop:ElectronicsId,laptop:ElectronicsId){
+    for(const device of devices){const id=device==='desktop'?desktop:laptop;if(this.selected[device]===id)continue;
+      this.selected[device]=id;const model=this.hardware[device].select(id);electronicsDisplay(model)!.add(this.panels[device]);this.screens[device].lastMode='';
+    }
+  }
+  hardwareGroup(device:ComputerDevice){return this.hardware[device].group;}
+  /** The exact same hardware and animated texture move to a purchased desk. */
   hostDesktop(desk:THREE.Group|null):void{
-    if(!desk){
-      this.monitorStand?.removeFromParent();
-      this.initialDesktop.add(this.desktopPanel);
-      this.desktopPanel.position.set(0,1.52,-.211);
-      return;
-    }
-    if(!this.monitorStand){
-      const stand=new THREE.Group();
-      const shell=new THREE.Mesh(new THREE.BoxGeometry(1.10,.73,.085),
-        new THREE.MeshStandardMaterial({color:0x303b42,roughness:.68}));
-      shell.position.set(0,1.255,-.15);
-      const pillar=new THREE.Mesh(new THREE.BoxGeometry(.075,.27,.08),
-        new THREE.MeshStandardMaterial({color:0x53616b,roughness:.71}));
-      pillar.position.set(0,.905,-.15);
-      const base=new THREE.Mesh(new THREE.BoxGeometry(.34,.035,.22),
-        new THREE.MeshStandardMaterial({color:0x36414a}));
-      base.position.set(0,.77,-.15);
-      const keyboard=new THREE.Mesh(new THREE.BoxGeometry(.64,.025,.23),
-        new THREE.MeshStandardMaterial({color:0xb8bcb7,roughness:.78}));
-      keyboard.position.set(0,.775,.19);
-      stand.add(shell,pillar,base,keyboard);
-      this.monitorStand=stand;
-    }
-    desk.add(this.monitorStand);
-    this.monitorStand.add(this.desktopPanel);
-    this.desktopPanel.position.set(0,1.255,-.103);
+    const group=this.hardware.desktop.group;(desk??this.initialDesktop).add(group);
+    const layout=desk&&workstationLayout(String(desk.userData.sku));
+    group.position.set(0,desk?(layout?.top??.75):1.053,layout?.z??0);
+    group.scale.setScalar(desk?(layout?.scale??.82):1);
+    group.traverse(part=>{if(part instanceof THREE.Mesh){
+      if(desk){delete part.userData.interactable;part.userData.furnitureId=desk.userData.furnitureId;}
+      else{delete part.userData.furnitureId;part.userData.interactable='desk';}
+    }});
   }
 
+  hostLaptop(desk:THREE.Group|null){const group=this.hardware.laptop.group;
+    (desk??this.initialLaptop).add(group);group.position.set(0,desk?.76:.86,desk?-.24:-.105);
+    group.traverse(part=>{if(part instanceof THREE.Mesh){if(desk){delete part.userData.station;part.userData.furnitureId=desk.userData.furnitureId;}else{delete part.userData.furnitureId;part.userData.station='career-laptop';}}});
+  }
   private current(device:ComputerDevice):ComputerScene {
     for (const entry of this.tasks.values()) if(entry.device===device)return entry.scene;
     for (const entry of this.careers.values()) if(entry.device===device)return entry.scene;
@@ -95,18 +82,18 @@ export class HomeComputerScreens {
     if(old)this.screens[old.device].lastMode='';
     this.tasks.delete(role);
   }
-  career(role:CharacterId,device:ComputerDevice|null) {
+  career(role:CharacterId,device:ComputerDevice|null,job?:import("../shared/jobs").JobId) {
     const old=this.careers.get(role);
-    if(old?.device===device)return;
+    if(old?.device===device&&old?.scene.job===job)return;
     if(old)this.screens[old.device].lastMode='';
-    if(device)this.careers.set(role,{device,scene:{mode:role==='vlad'?'code':'hair',role}});
+    if(device)this.careers.set(role,{device,scene:{mode:role==='vlad'?'code':'hair',role,job}});
     else this.careers.delete(role);
   }
   resetPreviews(){for(const device of devices)this.preview(device,null);}
   update(seconds:number) {
     for(const device of devices) {
       const screen=this.screens[device],scene=this.current(device);
-      const key=[scene.mode,scene.role,scene.game??'',scene.clip??''].join(':');
+      const key=[scene.mode,scene.role,scene.game??'',scene.clip??'',scene.job??''].join(':');
       const active=scene.mode!=='idle';
       const frame=Math.floor(seconds*(active?8:1));
       if(key===screen.lastMode && frame===screen.lastFrame)continue;

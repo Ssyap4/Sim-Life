@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { electronicsVariants } from './ElectronicsArt';
+import type { ElectronicsId } from '../shared/electronics';
 import { batchRigidParts, cube } from './ArtKit';
 
 const material = (color: number) => new THREE.MeshStandardMaterial({color,roughness:.89});
@@ -75,6 +77,8 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   fork.rotation.x=.25;
   fork.visible=false;
   wrists[1].add(fork);
+  const phoneVariants=electronicsVariants('phone'),phone=phoneVariants.group;
+  phoneVariants.select('phoneStart');wrists[1].add(phone);phone.position.set(0,-.048,.052);phone.rotation.x=-.34;phone.visible=false;
   const tongs = new THREE.Group();
   tongs.position.set(0, -.090, .043);
   const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
@@ -83,6 +87,8 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   const left=new THREE.Vector3(),right=new THREE.Vector3();
   return {
     brush,
+    phone,
+    setPhone(id:ElectronicsId){phoneVariants.select(id);},
     groomingBrush,
     knife,
     fork,

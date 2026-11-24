@@ -1,7 +1,7 @@
 import { LEISURE, isLeisureAction, leisureAction } from './leisure';
-import { FURNITURE_BY_ID, type FurnitureShape, type PlacedFurniture } from './furniture';
+import { FURNITURE_BY_ID, workstationLayout,isNotebookDesk,diningSeatTop, type FurnitureShape, type PlacedFurniture } from './furniture';
 import { HOME_WORLD_FLOOR } from './district';
-import { placeObstacles } from './locations';
+import { placeObstacles,stationById,HOME_LAPTOP } from './locations';
 import type { CharacterId, GameState } from './protocol';
 import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 
@@ -12,6 +12,7 @@ export const FURNITURE_ACTIONS = {
   sofaRest:'Отдохнуть',
   sofaMusic:'Послушать музыку',
   sofaCall:'Позвонить с дивана',
+  sofaScroll:'Полистать ленту',
   officeChairSit:'Посидеть',
   tableRest:'Посидеть за столом',
   tableTalk:'Поговорить за столом',
@@ -49,7 +50,7 @@ export function canFurniturePerform(item:PlacedFurniture,action:FurnitureUseActi
   if(shape==='leisure')return leisureAction(item.sku)===action;
   if(isLeisureAction(action))return false;
   if(action==='officeChairSit')return seats.has(shape);
-  if(['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action))
+  if(['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action))
     return shape==='sofa'||shape==='corner';
   if(['tableRest','tableTalk','tablePlan'].includes(action))
     return shape==='table'&&info.height>=.63;
@@ -126,16 +127,16 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   }
   const actorSeats=softSeats.has(shape);
   const isBareSeat=seats.has(shape);
-  const seatTop=shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
+  const seatTop=diningSeatTop(item.sku)??(shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
     shape==='bench'?info.height*.54:shape==='ottoman'?info.height*.56:
-    shape==='armchair'?info.height*.52:info.height*.50;
+    shape==='armchair'?info.height*.52:info.height*.50);
   const isTable=['tableRest','tableTalk','tablePlan'].includes(action);
-  const isSofa=['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie'].includes(action)||
+  const isSofa=['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action)||
     (action==='read_book'&&(shape==='sofa'||shape==='corner'));
   const isDesk=shape==='desk';
   const isShelf=shape==='shelves';
   const localX=isTable?-side*(info.width/2+.36):isSofa?side*info.width*.20:0;
-  const localZ=isTable?0:isSofa?0:isDesk?info.depth/2+.28:isShelf?info.depth/2+.56:0;
+  const localZ=isTable?0:isSofa?0:isDesk?(workstationLayout(item.sku)?.seat??info.depth/2+.28):isShelf?info.depth/2+.56:0;
   const posePoint=rotate(item,localX,localZ);
   const pose={
     ...posePoint,
@@ -170,6 +171,10 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   return selected?{item,action,route:selected,pose}:null;
 }
 
+/** A purchased notebook desk hosts the one shared laptop; legacy homes keep the starter station. */
+export const laptopDesk=(state:GameState)=>state.furnishing.placed.find(item=>isNotebookDesk(item.sku));
+export const laptopWorkplace=(state:GameState,role:CharacterId)=>{const desk=laptopDesk(state);return desk?furnitureUseLocation(state,role,desk.id,'deskJournal'):null;};
+export function laptopApproach(state:GameState,role:CharacterId){const loc=laptopWorkplace(state,role);return loc?(loc.route.path.at(-1)??loc.route.from):stationById('home',HOME_LAPTOP)!.approach;}
 /** Eating always uses a real current table, never the sold starter's coordinates. */
 export function diningLocation(state:GameState,role:CharacterId,requestedId?:number){
   const requested=requestedId!==undefined?
@@ -183,7 +188,9 @@ export function diningLocation(state:GameState,role:CharacterId,requestedId?:num
     const info=FURNITURE_BY_ID.get(table.sku)!;
     const available=state.furnishing.placed.filter(item=>
       item.id!==table.id&&seats.has(FURNITURE_BY_ID.get(item.sku)!.shape)&&
-      Math.hypot(table.x-item.x,table.z-item.z)<=Math.max(1.35,info.width/2+1.1));
+      Math.hypot(table.x-item.x,table.z-item.z)<=Math.max(1.35,info.width/2+1.1)&&
+      (diningSeatTop(item.sku)===undefined||FURNITURE_BY_ID.get(item.sku)!.shape==='stool'||
+        ((table.x-item.x)*Math.sin(item.rotation*Math.PI/2)+(table.z-item.z)*Math.cos(item.rotation*Math.PI/2))>Math.hypot(table.x-item.x,table.z-item.z)*.5));
     // Two characters must not independently pick the first chair and sit
     // inside each other. Reserve opposite sides deterministically by role.
     // With only one chair keep it usable by either player when dining alone.

@@ -21,7 +21,7 @@ import { petNavigationGeometry } from '../../src/game/PetNavigation';
 function orderSmall(){
   const initial=initialState();
   const bought=applyFurnishing(initial,'vlad',
-    {type:'furniture_order',sku:'stool-basic',finish:'sage',shipping:'express',quantity:1},100);
+    {type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1},100);
   assert.ok(bought.ok,'furniture order must succeed');
   return bought.state;
 }
@@ -40,7 +40,7 @@ test('catalog has distinct light models and 8 colorways',()=>{
 });
 test('atomic purchase charges rubles once and prevents stale duplicate money loss',()=>{
   const state=initialState();
-  const order={type:'furniture_order' as const,sku:'stool-basic',finish:'sage' as const,
+  const order={type:'furniture_order' as const,sku:'stool-cube',finish:'sage' as const,
     shipping:'express' as const,quantity:2};
   const result=applyFurnishing(state,'vlad',order,110);
   assert.ok(result.ok);
@@ -164,7 +164,7 @@ test('selling starter furniture frees its original floor and permits replacing i
   const after=placeObstacles('home',cleared.state.furnishing);
   assert.ok(pointIsClear({x:-2.36,z:2.02},after,HOME_FLOOR));
   const order=applyFurnishing(cleared.state,'vlad',
-    {type:'furniture_order',sku:'stool-basic',finish:'sage',shipping:'express',quantity:1},210);
+    {type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1},210);
   assert.ok(order.ok);
   const unboxed=applyFurnishing(order.state,'alina',{type:'furniture_unbox',id:1},225);
   assert.ok(unboxed.ok);
@@ -204,7 +204,7 @@ test('selling one starter item remains saved after restart, while older 0.15 sav
 
 test('rotated footprints, walkable carpets and metadata survive validation',()=>{
   const state=unbox();
-  const model={id:1,sku:'stool-basic',finish:'sage' as const,x:12,z:-5,rotation:1 as const};
+  const model={id:1,sku:'stool-cube',finish:'sage' as const,x:12,z:-5,rotation:1 as const};
   assert.notEqual(furnitureFootprint(model).minX,0);
   assert.equal(furnishingObstacles({placed:[model]}).length,1);
   assert.equal(furnishingObstacles({placed:[{...model,sku:'rug-weave'}]}).length,0);

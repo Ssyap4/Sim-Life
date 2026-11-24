@@ -1,3 +1,5 @@
+import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
+import { ELECTRONICS,initialElectronics,validElectronics,isElectronicsId,installedElectronics } from '../src/shared/electronics';
 import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
 import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
@@ -43,7 +45,8 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','industrial'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','industrial'].includes(w.places![w.carDriver]))) &&
+    (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
     (w.campLitUntil===undefined||count(w.campLitUntil)) &&
@@ -76,7 +79,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -90,6 +93,18 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='electronics_buy'){
+    if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');
+    if(!isElectronicsId(command.model))return fail('Неизвестная модель');
+    const id=command.model,model=ELECTRONICS[id];
+    if(!model.price)return fail('Это штатная техника');
+    if(installedElectronics(source,role,model.kind)===id)return fail('Эта модель уже установлена');
+    if(source.money<model.price)return fail('Недостаточно денег');
+    const next=structuredClone(source),devices=next.world.electronics??=initialElectronics();
+    if(model.kind==='phone')devices.phones[role]=id;else devices[model.kind]=id;
+    next.money-=model.price;addLedger(next,role,'expense','electronics',model.price,model.name);
+    return done(next,'Куплено и установлено: '+model.name);
+  }
   if(command.type==='clothing_buy'||command.type==='clothing_wear'){
     const look=command.look;
     if(typeof look!=='string'||!isPreviewLook(role,look))return fail('Такого комплекта нет');
@@ -114,7 +129,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='industrial')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='industrial')return fail('Выбери доступное место');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
@@ -348,7 +363,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const remaining=Math.max(1,Math.floor((batch.expiresAt-now)*tableShelfMinutes(item)/(readyFoodShelfDays(kind,item,'fridge')*MINUTES_PER_DAY)));
       const expiresAt=now+Math.min(batch.expiresAt-now,remaining,tableShelfMinutes(item));
       if(!consumeReadyFood(next,kind,item,'fridge'))return fail('Порция уже недоступна');
-      portions.push({kind,item,expiresAt});
+      portions.push({kind,item,expiresAt,...(batch.quality===undefined?{}:{quality:batch.quality})});
       return done(next,'В корзину: '+readyFoodName(kind,item));
     }
     const index=portions.findIndex(p=>p.kind===kind&&p.item===item);
@@ -456,13 +471,14 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     if((next.world.campLitUntil??0)<=now)return fail('Сначала разожги костёр');
     if(!kit.recipes[action])return fail('Нет подготовленных ингредиентов');
     cleanPicnic(next);const basket=next.world.picnic;if(!basket||basket.portions.vlad.length+basket.portions.alina.length+2>PICNIC_CAPACITY)return fail('Нужно два свободных места в корзине');
-    kit.recipes[action]!--;const partner=role==='vlad'?'alina':'vlad';for(const owner of [role,partner] as const)basket.portions[owner].push({kind:'campfire',item:action,expiresAt:now+480});
-    bump('fun',10);bump('mood',10);return done(next,CAMP_RECIPES[action].name+' · 2 порции в корзине');
+    kit.recipes[action]!--;const quality=cookingQuality(next,role);const partner=role==='vlad'?'alina':'vlad';for(const owner of [role,partner] as const)basket.portions[owner].push({kind:'campfire',item:action,expiresAt:now+480,quality});
+    bump('fun',10);bump('mood',10);return done(next,CAMP_RECIPES[action].name+' · 2 порции в корзине · '+qualityLabel(quality));
   } else if(action==='picnic'){
     cleanPicnic(next);const food=next.world.picnic?.portions[role].shift();
     if(!food)return fail('В твоём отделении корзины нет свежих порций');
     const meal=food.kind==='campfire'&&isCampRecipe(food.item)?CAMP_RECIPES[food.item]:food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
-    bump('hunger',meal.hunger);bump('mood',meal.mood+8);bump('fun',18);bump('comfort',8);
+    const effect=foodQualityEffect(food.quality,meal.mood+8,18);
+    bump('hunger',meal.hunger);bump('mood',effect.mood);bump('fun',effect.fun);bump('comfort',8);
     return done(next,'Пикник: '+picnicName(food));
   } else if(action==='swing'){bump('comfort',24);bump('fun',24);bump('mood',15);bump('energy',5);
   } else if (action === 'badminton') {

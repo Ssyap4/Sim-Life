@@ -1,3 +1,8 @@
+import {isNotebookDesk} from '../src/shared/furniture';
+import { isHomeJob } from "../src/shared/jobs";
+import { computerDevice, computerResource } from "../src/shared/computer";
+import { FURNITURE_BY_ID } from "../src/shared/furniture";
+import { furnitureUseLocation,laptopWorkplace,laptopApproach,laptopDesk } from "../src/shared/furnitureUse";
 import { diningLocation } from '../src/shared/furnitureUse';
 import { PET_IDS, treatsRemaining } from '../src/shared/pets';
 import { grantStarterPetFurniture } from './starterPets';
@@ -48,7 +53,7 @@ import { selectSleepBed } from '../src/shared/bedSleep';
 import { recoverSleep } from './timeControl';
 import { PausableTimers } from './pausableTimers';
 import type { PetId } from '../src/shared/pets';
-import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
+import { beginShift, leaveShiftEarly, settleCompletedShifts, answerHomeQuest, expireHomeQuests } from './jobs';
 import { advanceCareers, applyCareer, careerCommands } from './careers';
 import { sampleWalk,planWalk, type WalkRoute } from '../src/game/navigation';
 
@@ -303,7 +308,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({type:'snapshot',state});
       }
     }, socialTtlMs:options.socialTtlMs,
-    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource),
+    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource)||Object.values(state.activeShifts).some(shift=>shift?.homeDevice&&computerResource(shift.homeDevice)===resource),
     prepare(role, tv) {
       if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
       closeStorage(role);
@@ -360,7 +365,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         Object.assign(state.characters[role], from, { pose });
       }
     }
-    const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    const advanced=advanceLife(state, gameMinutes, online());
+    expireHomeQuests(advanced);
+    const next = settleCompletedShifts(advanced);
+    for(const id of ["vlad","alina"] as const){const job=next.state.activeShifts[id];if(job?.homeDevice&&job.startedAt<=clockMinutes(next.state.clock))next.state.characters[id].pose="work";}
     advanceCareers(next.state, clockMinutes(state.clock), clockMinutes(next.state.clock), online());
     homeTasks.checkpoint(next.state);
     const spoiled = expireReadyFood(next.state);
@@ -551,6 +559,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if(!state.world.dogWalker)oldOptions.push('verdell');
       const oldChoices=oldOptions.filter(activity=>
         ![...leisure.values()].some(current=>current.activity===activity)&&
+        !(activity==='computer'&&Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop'))&&
         !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity)&&
         ![...running.values()].some(task=>task.plan.resource===
           (activity==='computer'?'desk':'pet:'+activity)));
@@ -623,7 +632,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const ordered=[...rotated.filter(activity=>activity!==recent),
         ...rotated.filter(activity=>activity===recent)];
       for(const activity of ordered){
-        if(activity==='computer'&&!serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))continue;
+        if(activity==='computer'&&(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock))||Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop')))continue;
         if(activity==='verdell'&&state.world.dogWalker)continue;
         const resource=activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity;
         if([...leisure.values()].some(current=>current.activity===activity)||
@@ -671,6 +680,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     walkingHome.delete(role);
+    if(plan.resource && state.activeShifts[otherRole(role)]?.homeDevice && computerResource(state.activeShifts[otherRole(role)]!.homeDevice!)===plan.resource){packet(socket,{type:"error",reason:"Компьютер занят домашним заказом"});return;}
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
     if ((plan.resource && homeTasks.reserved(plan.resource)) || (plan.command.type==='local_activity'&&
         plan.command.action==='unpack'&&homeTasks.reserved('shopping'))) {
@@ -702,9 +712,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       : plan.command.type === 'act' ? plan.command.actionId in KITCHEN_ACTIONS
         ? KITCHEN_WORK[KITCHEN_ACTIONS[plan.command.actionId as keyof typeof KITCHEN_ACTIONS]].position
         : plan.command.computer === 'laptop' && ACTIONS[plan.command.actionId].item === 'desk'
-          ? stationById('home','career-laptop')!.approach : points[ACTIONS[plan.command.actionId].item]
+          ? laptopApproach(state,role) : points[ACTIONS[plan.command.actionId].item]
       : plan.command.type === 'play_game' || plan.command.type === 'computer_video'
-        ? plan.command.device === 'laptop' ? stationById('home','career-laptop')!.approach : points.desk
+        ? plan.command.device === 'laptop' ? laptopApproach(state,role) : points.desk
       : plan.command.type === 'brew_coffee' ? KITCHEN_WORK.coffee.position
       : plan.command.type === 'pet_action' ? petCarePoint(state, plan.command.pet, plan.command.action) ?? state.characters[role]
         : plan.command.type === 'cook' ? points.kitchen
@@ -1099,6 +1109,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const time = Math.floor(liveGameTime());
         const occupied = running.has(role) || homeTasks.busy(role) || sleepers.has(role);
         if (message.type === 'career_start' && !occupied) { closeStorage(role); stopLeisure(role); }
+        if(message.type==='career_approach'&&careerShift?.mode==='remote'&&state.activeShifts[otherRole(role)]?.homeDevice===(message.device??'laptop')){packet(socket,{type:'error',reason:'Компьютер занят домашним заказом'});return;}
         const result = applyCareer(state, role, message, time, occupied, active.has(otherRole(role)));
         if (!result.ok) { packet(socket,{type:'error',reason:result.reason}); return; }
         if (message.type === 'career_start' && result.state.world.dogWalker === role) {
@@ -1218,6 +1229,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           ?state.furnishing.placed.find(item=>item.id===message.id):undefined;
         const fixture=message.type==='furniture_sell_static'&&typeof message.fixture==='string'?message.fixture:undefined;
         const spatial=!!moved||!!fixture||message.type==='furniture_place';
+        const adding=message.type==='furniture_place'?state.furnishing.stored.find(p=>p.id===message.id):undefined;
+        const deskEdit=fixture==='desk'||[moved,adding].some(p=>p&&FURNITURE_BY_ID.get(p.sku)?.shape==='desk');
+        if(deskEdit&&(Object.values(state.activeShifts).some(s=>s?.homeDevice)||Object.values(state.careers.residents).some(r=>r.shift?.mode==='remote')||homeTasks.reserved('career-laptop')||homeTasks.reserved('desk')||[...running.values()].some(t=>['career-laptop','desk'].includes(t.plan.resource??'')))){packet(socket,{type:'error',reason:'Нельзя переставлять рабочий стол во время заказа'});return;}
         const before=state;
         const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
           Math.floor(liveGameTime()));
@@ -1308,6 +1322,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       stopLeisure(role);
       if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
       if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
+      if(message.type==='home_job_answer'){
+        commitLife();
+        const result=answerHomeQuest(state,role,message.nonce,message.choice);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить ответ'});return;}
+        state=result.state;
+        all({type:'snapshot',state});
+        packet(socket,{type:'world_event',role,message:result.message});
+        return;
+      }
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
         accountTime();
@@ -1360,7 +1384,31 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (message.type === 'job_start') {
         clearQueue(role);
-        const result=beginShift(state,role,message.job);
+        commitLife();
+        const home=isHomeJob(message.job), device=message.device;
+        let route:WalkRoute|null=null;
+        if(home){
+          if(!computerDevice(device)||state.world.places[role]!=='home'){packet(socket,{type:'error',reason:'Открой компьютер дома'});return;}
+          const resource=computerResource(device),partner=otherRole(role);
+          if(homeTasks.reserved(resource)||[...running.values()].some(t=>t.plan.resource===resource)||
+            state.activeShifts[partner]?.homeDevice===device||(device==='desktop'&&leisure.get(partner)?.activity==='computer')||
+            (state.careers.residents[partner].shift?.mode==='remote'&&(state.careers.residents[partner].shift?.homeDevice??'laptop')===device)){
+            packet(socket,{type:'error',reason:'Компьютер занят вторым персонажем'});return;
+          }
+          const notebook=device==='laptop'?laptopDesk(state):undefined;
+          const replacement=device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')
+            ?state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku)):undefined;
+          if(device==='desktop'&&state.furnishing.soldFixtures?.includes('desk')&&!replacement){packet(socket,{type:'error',reason:'Установи компьютерный стол'});return;}
+          const target=device==='laptop'?laptopApproach(state,role):points.desk;
+          route=notebook?laptopWorkplace(state,role)?.route??null:replacement?furnitureUseLocation(state,role,replacement.id,'deskJournal')?.route??null:
+            planWalk(state.characters[role],target,placeObstacles('home',state.furnishing),floorFor('home'));
+          if(!route){packet(socket,{type:'error',reason:'Освободи подход к компьютеру'});return;}
+        }
+        let last=route?.from,meters=0;
+        for(const point of route?.path??[]){meters+=Math.hypot(point.x-last!.x,point.z-last!.z);last=point;}
+        const travel=Math.ceil(meters/HOME_WALK_SPEED*GAME_MINUTES_PER_REAL_SECOND);
+        const result=beginShift(state,role,message.job,device,travel);
+        if(result.ok&&home&&last)Object.assign(result.state.characters[role],last,{pose:travel?'idle':'work'});
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         if (result.state.world.dogWalker === role) {
           result.state.world.dogWalker = null;
@@ -1370,8 +1418,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         state=result.state;
         shiftVotes.clear();
         announceTime();
+        walkingHome.delete(role);
         all({type:'job_event',role,outcome:'started',message:result.message});
         all({type:'snapshot',state});
+        if(route?.path.length)all({type:'world_path',place:'home',role,path:route.path});
         return;
       }
       if (state.activeShifts[role]) {

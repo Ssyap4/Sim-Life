@@ -1,3 +1,5 @@
+import {laptopDesk,laptopWorkplace,diningLocation} from '../src/shared/furnitureUse';
+import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { routeHitsLayout } from './furnishing';
 import type { FloorRect } from '../src/game/navigation';
 import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
@@ -19,6 +21,7 @@ import { MATERIAL_BY_ID, studyQuestion, studyQuestions } from '../src/shared/edu
 import { answerMatches, awardActivity, completeStudy, saveBookMinutes, studyDenial, studyMinutes } from './education';
 import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
+import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
 import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
@@ -85,7 +88,7 @@ export function usesHomeSession(command: TimedCommand): boolean {
   return command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
-      ['sofaRest','sofaMusic','sofaCall','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
+      ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
 }
 
 export function createHomeSessions(hooks: Hooks) {
@@ -132,9 +135,12 @@ export function createHomeSessions(hooks: Hooks) {
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
-      const choice=furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
+      const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);
+      const dining=table&&['tableRest','tableTalk','tablePlan'].includes(command.action)&&!RETIRED_DINING.some(p=>p.id===table.sku)?diningLocation(hooks.state(),role,table.id):null;
+      if(dining&&!dining.seated)return null;
+      const choice=dining??furnitureUseLocation(hooks.state(),role,command.furnitureId,command.action);
       if(!choice)return null;
-      const seated=(isLeisureAction(command.action)&&LEISURE[command.action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk',
+      const seated=(isLeisureAction(command.action)&&LEISURE[command.action].seated)||['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','tableTalk',
         'tablePlan','youtube','movie','free_tv'].includes(command.action)||
         (command.action==='read_book'&&FURNITURE_BY_ID.get(choice.item.sku)?.shape!=='shelves');
       return {route:choice.route,station:'furniture',furnitureId:choice.item.id,
@@ -178,12 +184,13 @@ export function createHomeSessions(hooks: Hooks) {
       }
       if (material.channel === 'academy') {
         if (command.computer === 'laptop') {
-          const route = walk(from, stationById('home',HOME_LAPTOP)!.approach);
+          const notebook=laptopDesk(hooks.state());
+          const route=notebook?(laptopWorkplace(hooks.state(),role)?.route??null):walk(from, stationById('home',HOME_LAPTOP)!.approach);
           return route && { route, station: 'studyLaptop' };
         }
         if(hooks.state().furnishing.soldFixtures?.includes('desk')){
           const deskId=hooks.state().furnishing.placed.find(item=>
-            FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+            FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
           const desk=deskId!==undefined?
             furnitureUseLocation(hooks.state(),role,deskId,'deskJournal'):null;
           return desk&&{route:desk.route,station:'studyDesk',furnitureId:deskId,
@@ -389,7 +396,7 @@ export function createHomeSessions(hooks: Hooks) {
       const before = hooks.state();
       const result = material || cooperation ? undefined : evaluateTask(before, role, command, roles.length === 2);
       if (result && !result.ok) { if (!automatic) error(initiator, result.reason); return; }
-      const effects = !result ? undefined : isEntertainment(command) ? entertainmentReward(command, roles.length === 2)
+      const effects = !result ? undefined : isEntertainment(command) ? entertainmentReward(command, roles.length === 2,electronicsModel(before,role,"tv").bonus,electronicsModel(before,role,"tv").comfort)
         : command.type === 'act' && command.actionId === 'bathTeeth' ? {hygiene:20}
         : command.type === 'act' && command.actionId === 'bathShower' ? {hygiene:75}
         : gains(before,result.state,role);

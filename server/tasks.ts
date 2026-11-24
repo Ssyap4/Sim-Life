@@ -1,3 +1,5 @@
+import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
+import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
@@ -23,6 +25,7 @@ import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
 import { brewInstantCoffee } from './coffee';
 import { applyAction } from './logic';
+import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
 import { applyPetAction } from './pets';
 
@@ -36,7 +39,7 @@ export interface TaskPlan {
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
-  sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8,
+  sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8, sofaScroll: 20,
   officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
@@ -170,11 +173,11 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   return null;
 }
 
-export function entertainmentReward(command: Entertainment, together = false): NeedEffects {
+export function entertainmentReward(command: Entertainment, together = false, bonus=0, comfort=0): NeedEffects {
   if (command.type === 'read_book') return READING_REWARD;
-  if (command.type === 'free_tv') return { fun: 5 };
-  if (command.type === 'youtube') return { fun: 20, comfort: 10 };
-  return together ? { fun: 100, social: 100, comfort: 15 } : { fun: 100, comfort: 15 };
+  if (command.type === 'free_tv') return { fun: 5+bonus, ...(comfort?{comfort}:{}) };
+  if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10+comfort };
+  return { fun: 100, ...(together?{social:100}:{}), comfort: 15+comfort };
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
@@ -189,11 +192,15 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     const selected=furnitureSource(state,command.furnitureId,command.action);
     if(!selected.ok)return selected;
     if(state.world.places[role]!=='home')return {ok:false,reason:'Мебель находится дома'};
-    const position=furnitureUseLocation(state,role,command.furnitureId,command.action);
+    const tableAction=['tableRest','tableTalk','tablePlan'].includes(command.action)&&!RETIRED_DINING.some(p=>p.id===selected.item.sku);
+    const dining=tableAction?diningLocation(state,role,command.furnitureId):null;
+    if(tableAction&&!dining?.seated)return {ok:false,reason:'Поставь рядом стул лицом к столу'};
+    const position=dining??furnitureUseLocation(state,role,command.furnitureId,command.action);
     if(!position)return {ok:false,reason:'Не получается безопасно подойти к мебели'};
     const reason=catSeatError(state,'placed:'+command.furnitureId,position.pose);
     if(reason)return {ok:false,reason};
     const {action}=command;
+    if(isNotebookDesk(selected.item.sku))return {ok:false,reason:'Открой ноутбук на этом столе'};
     if(action==='read_book'&&state.furnishing.soldFixtures?.includes('bookcase')&&
       !state.furnishing.placed.some(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='shelves'))
       return {ok:false,reason:'Для чтения сначала установи книжный стеллаж'};
@@ -202,7 +209,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         action==='youtube'?'youtube':'netflix',clockMinutes(state.clock));
       if(denial)return {ok:false,reason:denial};
     }
-    if(action==='sofaCall' && !serviceAvailable(state.billing,'mobile',clockMinutes(state.clock)))
+    if((action==='sofaCall'||action==='sofaScroll') && !serviceAvailable(state.billing,'mobile',clockMinutes(state.clock)))
       return {ok:false,reason:SERVICE_MESSAGES.mobile};
     if(['deskGames','vladStudy','alinaStudy','vladOrder','alinaConsult'].includes(action)&&
       !serviceAvailable(state.billing,'internet',clockMinutes(state.clock)))
@@ -218,7 +225,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         const reward=isLeisureAction(action)?{fun:LEISURE[action].fun,mood:LEISURE[action].mood,comfort:LEISURE[action].comfort,energy:LEISURE[action].energy}:action==='tidy'?{comfort:6,mood:3}:entertainmentReward(
           action==='read_book'?{type:'read_book',book:command.book!}:
           action==='movie'?{type:'movie',genre:command.genre!}:
-          action==='youtube'?{type:'youtube'}:{type:'free_tv'});
+          action==='youtube'?{type:'youtube'}:{type:'free_tv'},false,electronicsModel(state,role,'tv').bonus,electronicsModel(state,role,'tv').comfort);
         for(const [key,amount]of Object.entries(reward)){
           const field=key as keyof typeof reward & keyof typeof resident;
           const change=Number(amount);
@@ -230,7 +237,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         return {ok:true as const,state:next,message:FURNITURE_ACTIONS[action]+' — выполнено'};
       })();
     if(!result.ok)return result;
-    if(['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
+    if(['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
       const before=state.characters[role],after=result.state.characters[role];
       const bonus=seatingComfortBonus(selected.item.sku);
       if(after.comfort>before.comfort)after.comfort=Math.max(before.comfort,Math.min(100,after.comfort+bonus));
@@ -238,7 +245,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     const destination=position.route.path.at(-1)??position.route.from;
     Object.assign(result.state.characters[role],destination,{
-      pose:(isLeisureAction(action)&&LEISURE[action].seated)||['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',
+      pose:(isLeisureAction(action)&&LEISURE[action].seated)||['sofaRest','sofaMusic','sofaCall','sofaScroll','officeChairSit','tableRest','tableTalk','tablePlan',
         'youtube','movie','free_tv'].includes(action)||
         (action==='read_book'&&FURNITURE_BY_ID.get(selected.item.sku)?.shape!=='shelves')?'sit':'idle'});
     return result;
@@ -247,7 +254,8 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     const purchased=command.device==='desktop'&&
       (command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('desk'));
     const deskId=command.furnitureId??state.furnishing.placed.find(item=>
-      FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+      FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
+    if(purchased&&deskId!==undefined){const host=state.furnishing.placed.find(p=>FURNITURE_BY_ID.get(p.sku)?.shape==='desk'&&!isNotebookDesk(p.sku));if(host?.id!==deskId)return {ok:false,reason:'ПК установлен на другом столе'};}
     const location=purchased&&deskId!==undefined?
       furnitureUseLocation(state,role,deskId,'deskGames'):null;
     if(purchased&&!location)return {ok:false,reason:'Установи рабочий стол для стационарного компьютера'};
@@ -269,7 +277,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book' || command.type === 'free_tv') {
     const next = structuredClone(state);
     const needs = next.characters[role];
-    for (const [key, amount] of Object.entries(entertainmentReward(command, together))) {
+    for (const [key, amount] of Object.entries(entertainmentReward(command, together,electronicsModel(state,role,"tv").bonus,electronicsModel(state,role,"tv").comfort))) {
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }
@@ -277,7 +285,13 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };
   }
-  if (command.type === 'act') return applyAction(state, role, command.actionId);
+  if (command.type === 'act') {
+    const loc=command.computer==='laptop'&&laptopDesk(state)?laptopWorkplace(state,role):null;
+    if(command.computer==='laptop'&&laptopDesk(state)&&!loc)return {ok:false,reason:'Освободи подход к ноутбуку'};
+    const result=applyAction(state,role,command.actionId,command.computer);
+    if(result.ok&&loc)Object.assign(result.state.characters[role],loc.route.path.at(-1)??loc.route.from,{pose:'work'});
+    return result;
+  }
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type==='eat'||command.type==='eat_takeout'){
     const purchased=command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('table');

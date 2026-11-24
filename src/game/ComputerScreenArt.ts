@@ -1,3 +1,4 @@
+import { HOME_JOBS, JOBS, isHomeJob, type JobId } from "../shared/jobs";
 import { GAME_BY_ID, type ComputerGame, type VideoClipId } from '../shared/computerGames';
 import type { CharacterId } from '../shared/protocol';
 import { drawComputerDetails } from './ComputerScreenDetails';
@@ -6,6 +7,7 @@ export type ComputerScene = {
   mode: 'idle'|'game'|'video'|'code'|'hair'|'study'|'browser'|'mail'|'notes';
   role: CharacterId;
   game?: string;
+  job?: JobId;
   clip?: VideoClipId;
 };
 const W=256,H=144;
@@ -204,7 +206,20 @@ export function drawComputerScene(c:CanvasRenderingContext2D,scene:ComputerScene
   bg.addColorStop(0,dark);bg.addColorStop(1,scene.role==='alina'?'#745a79':'#2f5b70');
   paint(c,bg as unknown as string,0,0,W,H);
   const game=scene.mode==='game' && scene.game ? GAME_BY_ID.get(scene.game) : undefined;
-  if(game)gamePicture(c,game,t);
+  if(isHomeJob(scene.job)){
+    const job=HOME_JOBS[scene.job],spec=JOBS[scene.job];
+    paint(c,'#142331',8,23,240,106);label(c,spec.name,15,36,'#e5edf5',10,true);
+    const style=job.style;
+    if(style==='trade'){
+      for(let i=0;i<15;i++){const y=65+Math.sin(i*.8+t*.3)*16+Math.cos(i*2)*7;paint(c,i%3?'#66dbad':'#ed8593',17+i*15,y,7,8+Math.abs(Math.sin(i+t))*17);}
+    }else if(style==='video'||style==='design'||style==='hair'){
+      for(let i=0;i<3;i++){rounded(c,['#c397a9','#7bacc9','#b8ae83'][i],16+i*76,43,65,46,4);dot(c,48+i*76,63,12+Math.sin(t+i)*2,'#e8d5bc');}
+      for(let i=0;i<6;i++)paint(c,i%2?'#997cce':'#70b7ae',16+i*37,95,31,7);
+    }else{
+      for(let i=0;i<7;i++)paint(c,['#77c9d4','#d8a1b8','#a3b9dd'][i%3],20+(i%3)*12,44+i*8,70+(i*29+job.animation*13)%115,3);
+    }
+    label(c,spec.stages[Math.floor(t/14)%4],15,123,'#c8d8e6',8);bar(c,15,127,225,(t%14)/14,'#79c9b0');
+  }else if(game)gamePicture(c,game,t);
   else if(scene.mode!=='idle'){
     workPicture(c,scene,t);
     drawComputerDetails(c,scene,t);

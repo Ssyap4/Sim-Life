@@ -1,3 +1,5 @@
+import {isNotebookDesk,workstationLayout} from '../shared/furniture';
+import { installedElectronics } from '../shared/electronics';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
@@ -57,7 +59,7 @@ import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './Interio
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
-import { canFurniturePerform, diningLocation, furnitureUseLocation } from '../shared/furnitureUse';
+import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
@@ -77,13 +79,13 @@ function relativeLookYaw(root: THREE.Object3D, target: THREE.Vector3): number {
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
 // targets only: the server and route planner still use the approach tiles.
 const deskKeys = [
-  new THREE.Vector3(HOME_PLACEMENTS.desk.x + .17, 1.116, HOME_PLACEMENTS.desk.z + .436),
-  new THREE.Vector3(HOME_PLACEMENTS.desk.x - .17, 1.116, HOME_PLACEMENTS.desk.z + .436),
+  new THREE.Vector3(HOME_PLACEMENTS.desk.x + .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
+  new THREE.Vector3(HOME_PLACEMENTS.desk.x - .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
 ] as const;
 const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
 // Reuse the existing light articulated rig instead of loading extra animations.
 const DOMESTIC_MOTIONS: Partial<Record<ActionId, DomesticMotion>> = {
-  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone',
+  sofaRead: 'read', sofaMusic: 'music', sofaCall: 'phone', sofaScroll:'scrollPhone',
   bedMake: 'tidy', bedStretch: 'stretch',
   deskGames: 'games', deskJournal: 'journal',
   kitchenWash: 'wash', kitchenTidy: 'tidy', kitchenTea: 'tea',
@@ -649,11 +651,18 @@ export class World {
     }
   }
 
+  private placedDeskKeys(id:number|undefined):readonly [THREE.Vector3,THREE.Vector3]|undefined{
+    if(id===undefined)return undefined;const model=this.furnishingModels.get(id);if(!model)return undefined;
+    const layout=workstationLayout(String(model.userData.sku));
+    return [model.localToWorld(new THREE.Vector3(.14,(layout?.top??.75)+.05,(layout?.z??0)+.29)),model.localToWorld(new THREE.Vector3(-.14,(layout?.top??.75)+.05,(layout?.z??0)+.29))];
+  }
   private laptopPose(role: CharacterId): void {
     const site = stationById('home', HOME_LAPTOP)!;
     const actor = this.actors[role];
+    const replacement=this.household&&laptopWorkplace(this.household,role);
+    if(replacement){const p=replacement.pose;const model=this.furnishingModels.get(replacement.item.id);const keys=model&&[new THREE.Vector3(.16,.81,-.175),new THREE.Vector3(-.16,.81,-.175)].map(v=>model.localToWorld(v)) as [THREE.Vector3,THREE.Vector3]|undefined;actor.setFurniturePose('work',new THREE.Vector3(p.x,p.y,p.z),p.yaw,keys);actor.playDomesticActivity('games');return;}
     const { x, z } = site.center;
-    const keys = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+    const keys = [new THREE.Vector3(x+.16,.90,z-.025),new THREE.Vector3(x-.16,.90,z-.025)] as const;
     actor.setFurniturePose('work',new THREE.Vector3(x,role==='alina'?-.23:-.28,z+.64),Math.PI,keys);
     actor.playDomesticActivity('games');
   }
@@ -811,7 +820,7 @@ export class World {
       if (station === 'studyDesk') {
         const target=home.furniturePose;
         if(target)actor.setFurniturePose('work',
-          new THREE.Vector3(target.x,target.y,target.z),target.yaw);
+          new THREE.Vector3(target.x,target.y,target.z),target.yaw,this.placedDeskKeys(home.furnitureId));
         else this.applyFurniturePose(role,'desk','work');
         actor.playDomesticActivity('games');
         return;
@@ -848,7 +857,7 @@ export class World {
           actor.setFurniturePose('sit',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
         }else if(command.type==='furniture_use'&&
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
-          actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+          actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
@@ -863,6 +872,7 @@ export class World {
             else if(command.action==='billiards')actor.playDomesticActivity('billiards');
           }
           else if(command.action==='tidy')actor.playDomesticActivity('tidy');
+          else if(command.action==='sofaScroll')actor.playDomesticActivity('scrollPhone');
           else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
           else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
         }
@@ -1162,7 +1172,7 @@ export class World {
       if(device==='desktop'&&this.household&&
         (command.furnitureId!==undefined||this.household.furnishing.soldFixtures?.includes('desk'))){
         const deskId=command.furnitureId??this.household.furnishing.placed.find(item=>
-          FURNITURE_BY_ID.get(item.sku)?.shape==='desk')?.id;
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku))?.id;
         const place=deskId!==undefined?furnitureUseLocation(this.household,role,deskId,'deskGames'):null;
         if(!place)return false;
         const destination=place.route.path.at(-1)??place.route.from;
@@ -1170,13 +1180,13 @@ export class World {
           if(!current())return;
           const pose=place.pose;
           this.actors[role].setFurniturePose('work',
-            new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+            new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(place.item.id));
           if(command.type==='play_game')this.actors[role].playDomesticActivity('games');
           else this.actors[role].playDomesticActivity('read');
         });
       }
       return device==='laptop'
-        ? this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,begin)
+        ? this.walkTo(role,(this.household?laptopApproach(this.household,role):stationById('home',HOME_LAPTOP)!.approach),begin)
         : this.perform(role,'desk','work',begin);
     }
     if (command.type === 'brew_coffee') {
@@ -1281,7 +1291,7 @@ export class World {
         });
       }
       if (def.item === 'desk' && command.computer === 'laptop') {
-        return this.walkTo(role,stationById('home',HOME_LAPTOP)!.approach,() => {
+        return this.walkTo(role,(this.household?laptopApproach(this.household,role):stationById('home',HOME_LAPTOP)!.approach),() => {
           if (!current()) return;
           this.laptopPose(role);
           const motion = DOMESTIC_MOTIONS[command.actionId];
@@ -1592,9 +1602,11 @@ export class World {
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture, true);
       if(id==='desk')desktop=furniture;
+      if(id==='tv')this.homeEffects.mountTv(furniture);
       this.register(id, furniture, point);
     });
     this.computerScreens=new HomeComputerScreens(desktop!,this.extensions.stations.get(HOME_LAPTOP)!);
+    this.computerScreens.hardwareGroup('desktop').traverse(part=>{if(part instanceof THREE.Mesh){part.userData.interactable='desk';this.interactiveMeshes.push(part);}});
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
     this.createPetBowls();
@@ -1629,7 +1641,7 @@ export class World {
     const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false]);
     if(signature===this.furnishingVisualKey)return;
     this.furnishingVisualKey=signature;
-    this.computerScreens.hostDesktop(null);
+    this.computerScreens.hostDesktop(null);this.computerScreens.hostLaptop(null);
     for(const model of this.furnishingModels.values()){
       model.traverse(part=>{
         const at=this.interactiveMeshes.indexOf(part);
@@ -1646,7 +1658,7 @@ export class World {
       const model=buildFurnishingModel(item.sku,item.finish);
       model.position.set(item.x,.01,item.z);
       model.rotation.y=item.rotation*Math.PI/2;
-      model.userData.furnitureId=item.id;
+      model.userData.furnitureId=item.id;model.userData.sku=item.sku;
       model.traverse(part=>{
         if(part instanceof THREE.Mesh){
           part.userData.furnitureId=item.id;
@@ -1656,8 +1668,10 @@ export class World {
       this.homeScene.add(model);
       this.furnishingModels.set(item.id,model);
     }
+    const notebook=placed.find(item=>isNotebookDesk(item.sku));
+    if(notebook)this.computerScreens.hostLaptop(this.furnishingModels.get(notebook.id)!);
     if(this.household?.furnishing.soldFixtures?.includes('desk')){
-      const replacement=placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+      const replacement=placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku));
       if(replacement)this.computerScreens.hostDesktop(this.furnishingModels.get(replacement.id)!);
     }
   }
@@ -1665,7 +1679,7 @@ export class World {
   focusDesktopFurniture(id:number):void{
     if(!this.household?.furnishing.soldFixtures?.includes('desk'))return;
     const item=this.household.furnishing.placed.find(entry=>entry.id===id);
-    if(item&&FURNITURE_BY_ID.get(item.sku)?.shape==='desk'){
+    if(item&&FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku)){
       const model=this.furnishingModels.get(id);
       if(model)this.computerScreens.hostDesktop(model);
     }
@@ -2076,12 +2090,12 @@ export class World {
     if (shift.mode === 'remote' && shift.homeDevice === 'desktop') {
       if(this.household?.furnishing.soldFixtures?.includes('desk')){
         const desk=this.household.furnishing.placed.find(item=>
-          FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+          FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku));
         const target=desk&&furnitureUseLocation(this.household,id,desk.id,'deskJournal');
         if(!target)return;
         const pose=target.pose;
         this.actors[id].setFurniturePose('work',
-          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
+          new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(target.item.id));
       }else this.applyFurniturePose(id,'desk','work');
       this.actors[id].playDomesticActivity('games');
       return;
@@ -2093,7 +2107,7 @@ export class World {
     const {x,z} = site.center;
     if (key === HOME_LAPTOP) this.laptopPose(id);
     else if (shift.station === 'desk') {
-      const keyboard = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+      const keyboard = [new THREE.Vector3(x+.16,.90,z-.025),new THREE.Vector3(x-.16,.90,z-.025)] as const;
       actor.setFurniturePose('work',new THREE.Vector3(x,id==='alina'?-.23:-.28,z+.64),Math.PI,keyboard);
       actor.playDomesticActivity('games');
     } else {
@@ -2110,6 +2124,8 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
+    this.homeEffects.setTv(installedElectronics(state,role,'tv'));
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
       const previousObstacles=[...this.obstacles];
@@ -2133,15 +2149,18 @@ export class World {
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
       this.actors[id].setNeeds(state.characters[id]);
+      this.actors[id].setPhoneModel(installedElectronics(state,id,'phone'));
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
       if(state.characters[id].pose==='sleep')this.rememberedBeds.set(id,state.characters[id].sleepingOn??'starter');
       const work = state.careers.residents[id].shift;
-      this.computerScreens.career(id,place==='home' && state.world.places[id]==='home' && work?.mode==='remote'
-        ? work.homeDevice??'laptop':null);
+      this.computerScreens.career(id,place==='home' && state.world.places[id]==='home'
+        ? (work?.mode==='remote'?work.homeDevice??'laptop':state.activeShifts[id]?.homeDevice??null):null,state.activeShifts[id]?.homeDevice?state.activeShifts[id]?.job:undefined);
+      const homeOrder=state.activeShifts[id]?.homeDevice?state.activeShifts[id]:undefined;
+      const priorOrder=previous?.activeShifts[id]?.homeDevice?previous.activeShifts[id]:undefined;
       const previousWork = previous?.careers.residents[id].shift;
       const sleep = offline && place === 'home' && state.world.places[id]==='home' && !state.activeShifts[id] && !work;
-      const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
+      const away = (!!state.activeShifts[id]&&!homeOrder) || (offline&&!homeOrder ? !sleep : state.world.places[id] !== place);
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
       if (away || sleep) this.closeStorage(id);
@@ -2170,6 +2189,20 @@ export class World {
           work.task?.phase !== previousWork?.task?.phase && work.task?.phase !== 'walking')) {
         this.showCareerStation(id,work);
       }
+      if(!away&&homeOrder&&place==='home'&&minute>=homeOrder.startedAt){
+        this.computerScreens.career(id,homeOrder.homeDevice!,homeOrder.job);
+        if(reset||changed||homeOrder.startedAt!==priorOrder?.startedAt||previous?.characters[id].pose!=='work'){
+          this.actors[id].root.position.set(state.characters[id].x,0,state.characters[id].z);
+          if(homeOrder.homeDevice==='laptop')this.laptopPose(id);
+          else if(state.furnishing.soldFixtures?.includes('desk')){
+            const desk=state.furnishing.placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku));
+            const target=desk&&furnitureUseLocation(state,id,desk.id,'deskJournal');
+            if(target){const p=target.pose;this.actors[id].setFurniturePose('work',new THREE.Vector3(p.x,p.y,p.z),p.yaw,this.placedDeskKeys(target.item.id));}
+          }else this.applyFurniturePose(id,'desk','work');
+          this.actors[id].setHomeWorkStyle(homeOrder.job);
+        }
+      }
+      if(!away&&!homeOrder&&priorOrder){this.actors[id].setPose('idle');}
       if (!away && !work && previousWork?.mode === 'remote') this.actors[id].setPose('idle');
       if(place==='cafe'){
         const order=state.world.cafe[id], plate=this.meals.get(id)!;
@@ -2190,7 +2223,7 @@ export class World {
     const partner=role==='vlad'?'alina':'vlad';
     if(previous&&place==='home'&&previous.world.places[role]==='home'&&online.includes(partner)&&
       state.world.places[partner]==='home'&&
-      (previous.world.places[partner]!=='home'||previous.activeShifts[partner]&&!state.activeShifts[partner]))
+      (previous.world.places[partner]!=='home'||previous.activeShifts[partner]&&!previous.activeShifts[partner]?.homeDevice&&!state.activeShifts[partner]))
       this.actors[role].noticePartnerArrival();
     const dog = this.pets.verdell.root;
     const walker = state.world.dogWalker;

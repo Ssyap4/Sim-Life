@@ -1,3 +1,4 @@
+import { electronicsModel } from "./shared/electronics";
 import { createCareerUI } from './careerUI';
 import { createBillingUI, type BillingApp } from './billingUI';
 import { createMarketUI } from './marketUI';
@@ -29,6 +30,9 @@ type Callbacks = {
   watchVideo(clip: VideoClipId, device: ComputerDevice): boolean;
   preview(device: ComputerDevice, scene: ComputerScene|null): void;
   career(command: CareerCommand): boolean;
+  homeJob(id:import("./shared/jobs").JobId,device:ComputerDevice):boolean;
+  leaveJob():boolean;
+  answerHomeJob(nonce:string,choice:number):boolean;
   education(command: EducationCommand): boolean;
   vote(enabled: boolean): boolean;
   travel(): boolean;
@@ -169,7 +173,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const act=(action:ActionId)=>{if(callbacks.act(action,device))close();};
   const career=createCareerUI(content,command=>
     callbacks.career(command.type==='career_approach'?{...command,device}:command),
-    id=>openEducation('academy',id),close,callbacks.vote,()=>device);
+    id=>openEducation('academy',id),close,callbacks.vote,()=>device,{start:id=>callbacks.homeJob(id,device),leave:callbacks.leaveJob,answer:callbacks.answerHomeJob});
   const education=createEducationUI(content,command=>{
     if(command.type==='study' && MATERIAL_BY_ID.get(command.material)?.channel==='academy')
       return callbacks.education({...command,computer:device});
@@ -283,10 +287,11 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     const name=section('h3','',selected.icon+' '+selected.title);
     const desc=section('p','computer-hint',selected.subtitle+' · '+GAME_GENRES[selected.genre].title);
     const rewards=section('div','computer-game-rewards');
-    rewards.append(section('span','','💚 Досуг +'+(selected.fun+gamePreference(role,selected.genre))),
+    const hardware=electronicsModel(view.state,role,device);
+    rewards.append(section('span','','💚 Досуг +'+(selected.fun+gamePreference(role,selected.genre)+hardware.bonus)),
       section('span','','✨ Настроение +'+selected.mood),
       section('span','','⚡ Энергия '+selected.energy),
-      section('span','','🛋 Комфорт '+(selected.comfort>=0?'+':'')+selected.comfort));
+      section('span','','🛋 Комфорт '+(selected.comfort+hardware.comfort>=0?'+':'')+(selected.comfort+hardware.comfort)));
     if(selected.skill)rewards.append(section('span','','🧠 Навык +'+selected.skill));
     const controls=section('div','computer-game-controls');
     const run=button('▶ Играть · '+selected.duration+' сек',()=>{
@@ -339,7 +344,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     detail.append(canvas);
     const clip=VIDEO_CLIPS[selectedClip];
     detail.append(section('h3','',clip.icon+' '+clip.title));
-    detail.append(section('p','computer-hint','Досуг +'+clip.fun+' · настроение +'+clip.mood+' · энергия −2'));
+    detail.append(section('p','computer-hint','Досуг +'+(clip.fun+electronicsModel(state,role,device).bonus)+' · комфорт +'+electronicsModel(state,role,device).comfort+' · настроение +'+clip.mood+' · энергия −2'));
     const play=button('▶ Смотреть · '+clip.duration+' сек',()=>{
       if(callbacks.watchVideo(selectedClip,device))close();
     },internet?'Видео покажется на выбранном устройстве':'Интернет не подключён');
