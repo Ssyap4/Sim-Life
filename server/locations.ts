@@ -1,3 +1,4 @@
+import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
 import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
@@ -348,7 +349,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const remaining=Math.max(1,Math.floor((batch.expiresAt-now)*tableShelfMinutes(item)/(readyFoodShelfDays(kind,item,'fridge')*MINUTES_PER_DAY)));
       const expiresAt=now+Math.min(batch.expiresAt-now,remaining,tableShelfMinutes(item));
       if(!consumeReadyFood(next,kind,item,'fridge'))return fail('Порция уже недоступна');
-      portions.push({kind,item,expiresAt});
+      portions.push({kind,item,expiresAt,...(batch.quality===undefined?{}:{quality:batch.quality})});
       return done(next,'В корзину: '+readyFoodName(kind,item));
     }
     const index=portions.findIndex(p=>p.kind===kind&&p.item===item);
@@ -456,13 +457,14 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     if((next.world.campLitUntil??0)<=now)return fail('Сначала разожги костёр');
     if(!kit.recipes[action])return fail('Нет подготовленных ингредиентов');
     cleanPicnic(next);const basket=next.world.picnic;if(!basket||basket.portions.vlad.length+basket.portions.alina.length+2>PICNIC_CAPACITY)return fail('Нужно два свободных места в корзине');
-    kit.recipes[action]!--;const partner=role==='vlad'?'alina':'vlad';for(const owner of [role,partner] as const)basket.portions[owner].push({kind:'campfire',item:action,expiresAt:now+480});
-    bump('fun',10);bump('mood',10);return done(next,CAMP_RECIPES[action].name+' · 2 порции в корзине');
+    kit.recipes[action]!--;const quality=cookingQuality(next,role);const partner=role==='vlad'?'alina':'vlad';for(const owner of [role,partner] as const)basket.portions[owner].push({kind:'campfire',item:action,expiresAt:now+480,quality});
+    bump('fun',10);bump('mood',10);return done(next,CAMP_RECIPES[action].name+' · 2 порции в корзине · '+qualityLabel(quality));
   } else if(action==='picnic'){
     cleanPicnic(next);const food=next.world.picnic?.portions[role].shift();
     if(!food)return fail('В твоём отделении корзины нет свежих порций');
     const meal=food.kind==='campfire'&&isCampRecipe(food.item)?CAMP_RECIPES[food.item]:food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
-    bump('hunger',meal.hunger);bump('mood',meal.mood+8);bump('fun',18);bump('comfort',8);
+    const effect=foodQualityEffect(food.quality,meal.mood+8,18);
+    bump('hunger',meal.hunger);bump('mood',effect.mood);bump('fun',effect.fun);bump('comfort',8);
     return done(next,'Пикник: '+picnicName(food));
   } else if(action==='swing'){bump('comfort',24);bump('fun',24);bump('mood',15);bump('energy',5);
   } else if (action === 'badminton') {

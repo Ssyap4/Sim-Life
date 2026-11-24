@@ -3,6 +3,7 @@ import { recipeAvailability } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
 import { COOKING_ORDER, COOKING_RECIPES, cookingExperience } from './shared/cookingProgression';
 import { gameMinutes } from './shared/life';
+import { qualityLabel, foodQualityChances, type FoodQuality } from './shared/foodQuality';
 import { readyFoodRemaining } from './shared/readyFood';
 import type { CharacterId } from './shared/protocol';
 import type { GameState } from './shared/protocol';
@@ -53,6 +54,10 @@ export function showFoodChoices(
       (skill.next?skill.current+'/'+skill.next+' XP':'максимальный уровень')+
       '. Новые рецепты открываются с ростом уровня. Прогресс всех навыков — кнопка «Навыки» в главном интерфейсе.';
     container.append(info);
+    const chance=document.createElement("small");chance.className="food-cooking-skill";
+    const [bad,average,good,perfect]=foodQualityChances(skill.level);
+    chance.textContent="Шансы качества: плохое "+bad+"% · среднячок "+average+"% · хорошее "+good+"% · идеальное "+perfect+"%";
+    container.append(chance);
     // On a phone, dozens of long ingredient lists were making recipes
     // impossible to browse. Keep availability visible; reveal composition on tap.
     const recipes=COOKING_ORDER
@@ -144,12 +149,12 @@ export function showFoodChoices(
     const batches=state.readyFood.filter(b=>b.kind==='meal'&&b.storage==='table'&&
       b.portions>0&&b.expiresAt>now&&
       isGrillRecipe(b.item as RecipeId)===(location==='yardTable'));
-    const groups=new Map<RecipeId,{portions:number;expiresAt:number}>();
+    const groups=new Map<RecipeId,{portions:number;expiresAt:number;quality?:FoodQuality;mixed:boolean}>();
     for(const batch of batches){
       const id=batch.item as RecipeId;
       const previous=groups.get(id);
       groups.set(id,{portions:(previous?.portions??0)+batch.portions,
-        expiresAt:Math.min(previous?.expiresAt??batch.expiresAt,batch.expiresAt)});
+        expiresAt:Math.min(previous?.expiresAt??batch.expiresAt,batch.expiresAt),quality:!previous||batch.expiresAt<previous.expiresAt?batch.quality:previous.quality,mixed:!!previous&&(previous.mixed||(previous.quality??"good")!==(batch.quality??"good"))});
     }
     for(const [id,stored] of groups){
       const recipe=RECIPES[id];
@@ -159,10 +164,10 @@ export function showFoodChoices(
       title.textContent=recipe.emoji+' '+recipe.name+' · '+stored.portions+' порц.';
       const hint=document.createElement('small');
       hint.textContent='Голод +'+recipe.hunger+' · '+readyFoodRemaining(stored.expiresAt,state.clock)+
-        ' · на столе портится быстрее';
+        ' · '+(stored.mixed?'Следующая порция: ':'Качество: ')+qualityLabel(stored.quality)+' · на столе портится быстрее';
       const actions=document.createElement('div');
       actions.className='food-serving-actions';
-      entry(actions,'🍽️ Съесть','1 порция',false,()=>submit('eat',id));
+      entry(actions,'🍽️ Съесть','1 порция · '+qualityLabel(stored.quality),false,()=>submit('eat',id));
       entry(actions,'🧊 Убрать в холодильник','1 порция · холод замедлит порчу',false,()=>submit('store',id));
       card.append(title,hint,actions);
       container.append(card);

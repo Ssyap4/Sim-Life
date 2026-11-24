@@ -1,3 +1,4 @@
+import { isFoodQuality, type FoodQuality } from './foodQuality';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from './food';
 import { gameMinutes, MINUTES_PER_DAY, type GameClock } from './life';
 import type { GameState } from './protocol';
@@ -11,6 +12,7 @@ export interface ReadyFoodBatch {
   item: string;
   portions: number;
   storage: ReadyFoodStorage;
+  quality?: FoodQuality; // Legacy portions without quality are good.
   expiresAt: number; // Absolute game minute, not wall-clock time.
 }
 export const READY_FOOD_SLOTS = 2; // One plated serving uses two fridge cells.
@@ -39,7 +41,7 @@ export function isReadyFoodBatch(raw: unknown): raw is ReadyFoodBatch {
     batch.kind === 'takeout' && typeof batch.item === 'string' && owns(TAKEOUT, batch.item)) &&
     (batch.storage === 'fridge' || batch.storage === 'table') &&
     Number.isSafeInteger(batch.portions) && Number(batch.portions) >= 1 && Number(batch.portions) <= 40 &&
-    Number.isSafeInteger(batch.expiresAt) && Number(batch.expiresAt) >= 0;
+    Number.isSafeInteger(batch.expiresAt) && Number(batch.expiresAt) >= 0 && (batch.quality===undefined||isFoodQuality(batch.quality));
 }
 
 export function readyFoodName(kind: ReadyFoodKind, item: string): string {
@@ -57,10 +59,10 @@ export function readyFoodShelfDays(kind: ReadyFoodKind, item: string, storage: R
 }
 
 export function addReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, item: string,
-  portions: number, storage: ReadyFoodStorage, bornAt = gameMinutes(state.clock)): void {
+  portions: number, storage: ReadyFoodStorage, bornAt = gameMinutes(state.clock), quality?:FoodQuality): void {
   if (!Number.isSafeInteger(portions) || portions < 1 || portions > 40 ||
     !(kind === 'meal' ? owns(RECIPES, item) : owns(TAKEOUT, item))) throw new Error('Invalid ready food');
-  state.readyFood.push({ kind, item, portions, storage,
+  state.readyFood.push({ kind, item, portions, storage, ...(quality===undefined?{}:{quality}),
     expiresAt: bornAt + (storage==='table' ? tableShelfMinutes(item)
       : readyFoodShelfDays(kind, item, storage) * MINUTES_PER_DAY) });
 }
@@ -118,17 +120,21 @@ export function expireReadyFood(state: ReadyFoodState): ReadyFoodBatch[] {
  * legacy callers that eat from the combined household stock. */
 export function consumeReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, item: string,
   location?:ReadyFoodStorage): boolean {
+  return !!consumeReadyPortion(state,kind,item,location);
+}
+export function consumeReadyPortion(state: ReadyFoodState, kind:ReadyFoodKind,item:string,location?:ReadyFoodStorage):ReadyFoodBatch|undefined {
   reconcileReadyFood(state);
   expireReadyFood(state);
   const batch = state.readyFood.filter(b => b.kind === kind && b.item === item &&
       (location===undefined||b.storage===location))
     .sort((a,b) => a.expiresAt - b.expiresAt)[0];
-  if (!batch) return false;
+  if (!batch) return undefined;
+  const portion={...batch,portions:1};
   batch.portions--;
   if (!batch.portions) state.readyFood.splice(state.readyFood.indexOf(batch), 1);
   if (kind === 'meal') state.meals[item as RecipeId]--;
   else state.takeout[item as TakeoutId]--;
-  return true;
+  return portion;
 }
 
 /** Moving changes the rate of spoilage, never restores freshness.

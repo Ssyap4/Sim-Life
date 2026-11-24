@@ -1,3 +1,4 @@
+import { qualityLabel } from './shared/foodQuality';
 import { JOBS, type JobId } from './shared/jobs';
 import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
@@ -240,7 +241,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
             if (batch.storage !== location || batch.expiresAt <= now) continue;
             const key = batch.kind + ':' + batch.item;
             const current = grouped.get(key);
-            if (current) { current.portions += batch.portions; current.expiresAt = Math.min(current.expiresAt, batch.expiresAt); }
+            if (current) { current.portions += batch.portions; if(batch.expiresAt<current.expiresAt){current.expiresAt=batch.expiresAt;current.quality=batch.quality;} }
             else grouped.set(key, { ...batch });
           }
           return [...grouped.values()].sort((a,b) => a.expiresAt - b.expiresAt);
@@ -258,7 +259,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         }
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
         for (const batch of fridgeReady) {
-          const name = readyFoodName(batch.kind, batch.item);
+          const name = readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"");
           options.append(element('small', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
             ' · ' + batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
           options.append(button('🍽️ Достать 1 порцию на стол', () =>
@@ -272,7 +273,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           options.append(element('strong', '', '🍽️ Готовая еда на столе · ' +
             readyFoodTableUsage(place) + '/' + TABLE_READY_CAPACITY));
           for (const batch of onTable) {
-            options.append(element('small', '', readyFoodName(batch.kind, batch.item) + ' · ' +
+            options.append(element('small', '', readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"") + ' · ' +
               batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
             options.append(button('🧊 Убрать 1 порцию в холодильник', () =>
               send({ type: 'ready_food_move', kind: batch.kind, item: batch.item }),
