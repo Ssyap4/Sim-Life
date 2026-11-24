@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { batchRigidParts, colors, cube, drum, finish as mat, orb, panel, softCube, torus, type XYZ } from './ArtKit';
-import { deskDisplay, kitchenTiles, tvStill, upholsteryWeave, wovenRug } from './ArtTextures';
+import { kitchenTiles, upholsteryWeave, wovenRug } from './ArtTextures';
 import { cushionGeometry } from './FurnitureGeometry';
 import { buildBathFixture } from './BathroomArt';
 import { BATH_FIXTURES, COUNTER, DINING_TOP, HOME_PLACEMENTS } from '../shared/home';
@@ -274,16 +274,6 @@ function makeDesk(): THREE.Group {
     }
     part(desk, [0.09, 0.072, 0.72], [x, 0.12, 0], C.woodDark, 'square', false, 'wood');
   }
-  part(desk, [1.09, 0.74, 0.09], [0, 1.52, -0.28], C.graphite, 'soft', true, 'metal');
-  panel(desk, [0, 1.52, -0.228], [1.00, 0.64], deskDisplay(), C.slate, 0.25);
-  part(desk, [0.08, 0.32, 0.08], [0, 1.12, -0.27], C.graphite, 'soft', false, 'metal');
-  part(desk, [0.40, 0.045, 0.26], [0, 1.075, -0.26], C.graphite, 'soft', false, 'metal');
-  part(desk, [0.93, 0.017, 0.41], [0, 1.052, 0.23], C.mossDark, 'soft');
-  part(desk, [0.70, 0.035, 0.18], [0, 1.08, 0.34], C.linen, 'soft');
-  for (const z of [0.298, 0.342, 0.386]) {
-    part(desk, [0.6, 0.009, 0.019], [0, 1.104, z], C.slate, 'square');
-  }
-  oval(desk, [0.063, 0.035, 0.09], [0.55, 1.10, 0.34], C.cream);
   // Curved back and padded seat leave the rig's shoulder and knee space clear.
   part(desk, [0.61, 0.15, 0.56], [0, 0.48, 1.06], C.terracotta, cushionGeometry, true);
   const back = part(desk, [0.65, 0.16, 0.61], [0, 0.88, 1.34], C.terracotta, cushionGeometry, true);
@@ -317,12 +307,6 @@ function makeTv(): THREE.Group {
     part(tv, [0.15, 0.018, 0.021], [x, 0.442, 0.271], C.brass, 'soft', false, 'metal');
   }
   part(tv, [1.88, 0.048, 0.55], [0, 0.55, 0], C.woodDark, 'soft', false, 'wood');
-  for (const x of [-0.65, 0.65]) {
-    part(tv, [0.06, 0.20, 0.21], [x, 0.632, -0.03], C.graphite, 'square', false, 'metal');
-  }
-  part(tv, [1.82, 1.04, 0.068], [0, 1.25, -0.045], C.graphite, 'soft', true, 'metal');
-  panel(tv, [0, 1.26, -0.010], [1.744, 0.938], tvStill(), C.softBlue, 0.28);
-  part(tv, [0.043, 0.012, 0.010], [0.80, 0.756, -0.009], C.glass);
   return tv;
 }
 

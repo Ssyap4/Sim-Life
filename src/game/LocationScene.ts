@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { buildElectronicsModel } from './ElectronicsArt';
+import { ELECTRONICS,electronicsFor } from '../shared/electronics';
 import { PARK_TREES } from '../shared/park';
 import { buildFurnishingModel } from './FurnishingArt';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
@@ -183,11 +185,13 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
   } else if(station.action.kind==='electronics-display'){
     const category=station.action.category;
     shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);
-    for(let i=0;i<3;i++){const x=(i-1)*.74;const hue=[0x5e91b4,0x668a83,0x9188be][i];
-      if(category==='phone'){shape(root,[.18,.07,.34],[x,.95,0],0x222c37);shape(root,[.15,.012,.28],[x,.996,0],hue);shape(root,[.27,.035,.40],[x,.927,0],0xaebac0);}
-      else if(category==='laptop'){shape(root,[.62,.052,.42],[x,.956,.03],0x485766);shape(root,[.57,.37,.035],[x,1.15,-.17],0x263340);shape(root,[.51,.30,.014],[x,1.15,-.145],hue);shape(root,[.36,.012,.18],[x,.99,-.015],0x263340);}
-      else {const w=category==='tv'?.68:.47,h=category==='tv'?.42:.30;shape(root,[w,.045,.24],[x,.94,0],0x273746);shape(root,[.07,.17,.06],[x,1.04,0],0x455968);shape(root,[w,h,.055],[x,1.19+h/3,-.05],0x23313e);shape(root,[w-.045,h-.045,.018],[x,1.19+h/3,-.015],hue);if(category==='desktop'){shape(root,[.15,.37,.30],[x+.25,1.11,.19],0x26313c);shape(root,[.025,.25,.018],[x+.25,1.11,.35],0x73bccd);}}
-    }
+    electronicsFor(category).forEach((id,i)=>{
+      const model=buildElectronicsModel(id),x=(i-1)*.74;
+      const scale=category==='desktop'?.47:category==='tv'?.37:category==='laptop'?1:1.8;
+      model.position.set(x,.924,-.075);model.scale.setScalar(scale);root.add(model);
+      sign(root,ELECTRONICS[id].name,.79,.52,.69,C.paper,textures,materials);
+      const label=root.children.at(-1)!;label.position.x=x;label.scale.y=.105;
+    });
     sign(root,station.name,2.10,.30,1.83,C.paper,textures,materials);
   } else if(kind==='electronics-checkout'){
     shape(root,[1.75,.94,.80],[0,.47,0],0x456574);shape(root,[1.82,.10,.85],[0,.99,0],0xe0e9ee);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);

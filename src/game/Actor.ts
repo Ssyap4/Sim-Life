@@ -159,6 +159,7 @@ export class Actor {
       this.idleCooldown=0;
     }
   }
+  setPhoneModel(id:import('../shared/electronics').ElectronicsId){this.props.setPhone(id);}
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   carryFoodContainer(): void { this.foodContainer.visible = true; }

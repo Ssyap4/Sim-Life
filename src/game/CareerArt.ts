@@ -118,7 +118,7 @@ export function careerStation(station: Station, career: CareerId, resources?: Lo
   const scheme = palettes[career], id = station.action.kind === 'career' ? station.action.station : 'desk';
   if (id==='desk') {
     desk(root,station.width,scheme.accent,true);
-    screen(root,[0,.875,-.105],career==='marketing',0xa2caca);
+    if(station.id!=='career-laptop')screen(root,[0,.875,-.105],career==='marketing',0xa2caca);
     note(root,.58,.87,.042);
   } else if (id==='board' && career!=='clinic') {
     board(root,resources!,station.name,scheme.accent);

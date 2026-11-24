@@ -1,3 +1,4 @@
+import { installedElectronics } from '../shared/electronics';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
@@ -77,8 +78,8 @@ function relativeLookYaw(root: THREE.Object3D, target: THREE.Vector3): number {
 // Coordinates of the visible keys and pan in InteriorArt. These are pose
 // targets only: the server and route planner still use the approach tiles.
 const deskKeys = [
-  new THREE.Vector3(HOME_PLACEMENTS.desk.x + .17, 1.116, HOME_PLACEMENTS.desk.z + .436),
-  new THREE.Vector3(HOME_PLACEMENTS.desk.x - .17, 1.116, HOME_PLACEMENTS.desk.z + .436),
+  new THREE.Vector3(HOME_PLACEMENTS.desk.x + .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
+  new THREE.Vector3(HOME_PLACEMENTS.desk.x - .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
 ] as const;
 const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
 // Reuse the existing light articulated rig instead of loading extra animations.
@@ -653,7 +654,7 @@ export class World {
     const site = stationById('home', HOME_LAPTOP)!;
     const actor = this.actors[role];
     const { x, z } = site.center;
-    const keys = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+    const keys = [new THREE.Vector3(x+.16,.90,z-.025),new THREE.Vector3(x-.16,.90,z-.025)] as const;
     actor.setFurniturePose('work',new THREE.Vector3(x,role==='alina'?-.23:-.28,z+.64),Math.PI,keys);
     actor.playDomesticActivity('games');
   }
@@ -1593,9 +1594,11 @@ export class World {
     buildFurniture((id, furniture, point) => {
       batchRigidParts(furniture, true);
       if(id==='desk')desktop=furniture;
+      if(id==='tv')this.homeEffects.mountTv(furniture);
       this.register(id, furniture, point);
     });
     this.computerScreens=new HomeComputerScreens(desktop!,this.extensions.stations.get(HOME_LAPTOP)!);
+    this.computerScreens.hardwareGroup('desktop').traverse(part=>{if(part instanceof THREE.Mesh){part.userData.interactable='desk';this.interactiveMeshes.push(part);}});
     this.scene.add(this.extensions.group);
     for (const [id, group] of this.extensions.stations) this.trackStation(this.stationMeshes, id, group);
     this.createPetBowls();
@@ -2094,7 +2097,7 @@ export class World {
     const {x,z} = site.center;
     if (key === HOME_LAPTOP) this.laptopPose(id);
     else if (shift.station === 'desk') {
-      const keyboard = [new THREE.Vector3(x+.16,.90,z+.07),new THREE.Vector3(x-.16,.90,z+.07)] as const;
+      const keyboard = [new THREE.Vector3(x+.16,.90,z-.025),new THREE.Vector3(x-.16,.90,z-.025)] as const;
       actor.setFurniturePose('work',new THREE.Vector3(x,id==='alina'?-.23:-.28,z+.64),Math.PI,keyboard);
       actor.playDomesticActivity('games');
     } else {
@@ -2111,6 +2114,8 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
+    this.homeEffects.setTv(installedElectronics(state,role,'tv'));
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
       const previousObstacles=[...this.obstacles];
@@ -2134,6 +2139,7 @@ export class World {
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
       this.actors[id].setNeeds(state.characters[id]);
+      this.actors[id].setPhoneModel(installedElectronics(state,id,'phone'));
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
       if(state.characters[id].pose==='sleep')this.rememberedBeds.set(id,state.characters[id].sleepingOn??'starter');
