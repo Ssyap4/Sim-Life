@@ -47,6 +47,7 @@ import './district-minimal-021.css';
 import { installMobileInput } from './mobileInput';
 import { installMobileBack } from './mobileBack';
 import { subtleHaptic } from './mobileHaptics';
+import { gameAudio } from './game/GameAudio';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -213,6 +214,7 @@ app.innerHTML = `
 `;
 
 installMobileInput(app);
+gameAudio.install(app);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
@@ -727,6 +729,7 @@ const locationUI = createLocationUI(locationPanel, mapPanel, () => world, comman
   station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job));
 
 function signOut(): void {
+  gameAudio.setPlaying(false);
   net.forgetDevice();
   deliverySequence = null;
   active = null;
@@ -869,6 +872,8 @@ const net = new LiveConnection({
   onReady(role, household, players) {
     selectedDesktopFurnitureId=null;
     active = role;
+    gameAudio.setPlaying(true);
+    gameAudio.setPaused(false);
     state = household;
     thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
@@ -940,6 +945,7 @@ const net = new LiveConnection({
     world.setTimeOfDay(displayClock.read(performance.now()) % 1440);
   },
   onDisconnect() {
+    gameAudio.setPlaying(false);
     displayClock.pause(performance.now());
     socialInvite.clear();
     waitingTasks.clear();
@@ -967,6 +973,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onDeliveryArrived() {
+    if(active&&world.place==='home')gameAudio.play('ring','ui',.55);
     notify('Доставка у двери дома');
   },
   onAction(_role, _actionId, message) {
@@ -978,6 +985,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onStoreEvent(role,message) {
+    if(role===active)gameAudio.play('confirm','ui',.55);
     if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();subtleHaptic('confirm');}
     statusEl.textContent=message;
     notify(message);
@@ -988,6 +996,7 @@ const net = new LiveConnection({
   },
   onPetEvent(_role, _pet, _action, message) {
     if(_action==='treat')world.showPetTreat(_pet);
+    if(world.place==='home'&&world.pets[_pet].root.visible&&_action==='call')gameAudio.play(_pet==='simba'?'meow':'bark','pets',.48,world.pets[_pet].root.position);
     statusEl.textContent = message;
     notify(message);
   },
@@ -996,6 +1005,7 @@ const net = new LiveConnection({
   },
   onStorageEvent(role, station) {
     if (world.place !== 'home') return;
+    if (station) gameAudio.play('door','effects',.45,world.actors[role].root.position);
     if (station) world.openStorage(station, role);
     else world.closeStorage(role);
   },
@@ -1042,6 +1052,7 @@ const net = new LiveConnection({
     const previous = tasks.get(role);
     if (previous?.taskId === taskId) {
       if (outcome === 'completed') {
+        if(role===active&&!previous.automatic)gameAudio.play('confirm','ui',.36);
         world.finishTimedAction(role);
         feedback.show(role,previous.label,effects);
         statusEl.textContent=message;
@@ -1076,6 +1087,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    if(active)gameAudio.play('error','ui',.35);
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
       phone.close();computer.close();
       showActionMenu('🐈 Симба');
@@ -1096,6 +1108,7 @@ const net = new LiveConnection({
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
       authEl.hidden = false;
       active = null;
+      gameAudio.setPlaying(false);
       mapBtn.disabled = true;
       phoneBtn.disabled = true;
       petsBtn.disabled = true;

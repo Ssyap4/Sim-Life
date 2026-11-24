@@ -21,6 +21,7 @@ export class PetActor {
   private bathLift=0;
   private bathElapsed=0;
   setBath(active:boolean){if(this.id!=='verdell')return;if(active&&!this.bathActive)this.bathElapsed=0;this.bathActive=active;}
+  audioMotion(){return {routine:this.routine,settled:this.settled,walking:this.route.length>0,training:this.training,toy:this.toyIndex===undefined?undefined:this.toys[this.toyIndex]?.kind,reaction:this.reaction};}
   get bathPhase(){return this.bathLift<.95?'lift':this.bathElapsed<6?'wet':this.bathElapsed<16?'soap':'rinse';}
   private event:import('../shared/petPreferences').PetEvent|undefined;
   private training:import('../shared/dogTraining').TrainingAttempt|undefined;

@@ -90,3 +90,5 @@
 @media(max-width:640px) and (orientation:portrait){
   #app:has(#actions:not([hidden]),#location-panel:not([hidden])) .camera-dock{visibility:hidden;}
 }
+
+.audio-settings label{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px;margin:12px 0;font-size:13px}.audio-settings input[type=range]{grid-column:1/-1;width:100%;min-height:30px;accent-color:#86bda7;touch-action:pan-y}.audio-settings output{font-variant-numeric:tabular-nums}.audio-settings button{width:100%}

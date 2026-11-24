@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {AUDIO_DEFAULTS,readAudioSettings,clampVolume,ambientFor,spatialGain,activitySound} from '../../src/game/GameAudio';
+test('audio settings default and corrupted storage are safe',()=>{assert.deepEqual(readAudioSettings(null),AUDIO_DEFAULTS);assert.deepEqual(readAudioSettings('broken'),AUDIO_DEFAULTS);assert.deepEqual(readAudioSettings('{"master":0,"music":2,"ui":-1,"pets":"x"}'),{...AUDIO_DEFAULTS,master:0,music:1,ui:0});assert.equal(clampVolume(NaN,.5),.5);});
+test('sound fades with distance, never louder than near listener',()=>{assert.equal(spatialGain(0),1);assert.equal(spatialGain(4),.5);assert.ok(spatialGain(12)<spatialGain(8));});
+test('ambience follows indoor/outdoor scene',()=>{assert.equal(ambientFor('home',false),'room');assert.equal(ambientFor('home',true),'wind');assert.equal(ambientFor('park',false),'wind');assert.equal(ambientFor('district',false),'street');assert.equal(ambientFor('petshop',false),'cafe');});
+test('continuous and intermittent actions have distinct cues',()=>{assert.deepEqual(activitySound('shower','idle'),{sound:'water',interval:0,loop:true});assert.equal(activitySound('cook','idle')?.sound,'cook');assert.equal(activitySound('eat','sit')?.sound,'eat');assert.equal(activitySound(null,'work')?.sound,'keyboard');assert.equal(activitySound('music','sit')?.sound,'music');assert.equal(activitySound(null,'sleep'),undefined);});

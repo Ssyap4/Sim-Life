@@ -1,5 +1,7 @@
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
+import { gameAudio, activitySound } from './GameAudio';
+import { HOUSE as AUDIO_HOUSE } from '../shared/home';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
@@ -2508,6 +2510,7 @@ export class World {
 
   setPaused(value: boolean): void {
     this.paused = value;
+    gameAudio.setPaused(value);
     this.lastFrame = performance.now();
   }
 
@@ -2562,6 +2565,41 @@ export class World {
     const { position, rotation } = actor.root;
     bag.position.set(position.x + Math.cos(rotation.y) * .37, .20, position.z - Math.sin(rotation.y) * .37);
     bag.rotation.y = rotation.y;
+  }
+
+  private lastAudioFrame=0;
+  private audioFrame():void {
+    const now=performance.now();if(now-this.lastAudioFrame<80)return;this.lastAudioFrame=now;
+    if(!this.household)return;
+    const listener=this.actors[this.localRole].root.position;
+    const outside=(p:Point)=>p.x<AUDIO_HOUSE.minX||p.x>AUDIO_HOUSE.maxX||p.z<AUDIO_HOUSE.minZ||p.z>AUDIO_HOUSE.maxZ;
+    const minute=this.household.clock.minute,night=minute<360||minute>=1200;
+    if(!gameAudio.beginFrame(this.place,listener,night,outside(listener)))return;
+    for(const role of ['vlad','alina'] as const){
+      const actor=this.actors[role],p=actor.root.position;if(!actor.root.visible)continue;
+      const m=actor.audioMotion(),surface=this.place==='park'||(this.place==='home'&&outside(p))?'stepGrass':this.place==='home'?'stepWood':'stepTile';
+      gameAudio.step(role,p,m.walking,surface);
+      const cue=activitySound(m.activity,m.pose);
+      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,.40,p);}
+    }
+    for(const id of PET_IDS){
+      const pet=this.pets[id],p=pet.root.position;if(!pet.root.visible)continue;
+      const m=pet.audioMotion();gameAudio.step(id,p,m.walking,'paw',true);
+      if(m.settled>.18&&!m.walking){
+        if(m.routine==='train'&&m.training?.success&&m.training.command==='bark')gameAudio.beat(id+'-bark','bark','pets',.79,.65,p);
+        if(m.routine==='eat'||m.reaction==='feed'||m.reaction==='treat')gameAudio.beat(id+'-eat','eat','pets',.9,.24,p);
+        if(m.routine==='scratch')gameAudio.beat(id+'-scratch','scratch','pets',.65,.38,p);
+        if(m.routine==='toy'&&m.toy)gameAudio.beat(id+'-toy',m.toy==='bone'||m.toy==='marfa'?'squeak':m.toy==='spring'?'spring':m.toy==='feather'?'paper':'hit','pets',1.35,.36,p);
+        if(id==='simba'&&(m.reaction==='pet'||m.reaction==='brush'))gameAudio.loop(id+'-purr','purr','pets',.40,p);
+        if(m.routine==='beg')gameAudio.beat(id+'-beg',id==='simba'?'meow':'bark','pets',8,.28,p);
+      }
+      if(this.place==='home'&&this.feederVisual[id]?.started!==undefined)gameAudio.beat(id+'-feeder','feeder','pets',4,.38,p);
+    }
+    if(this.bathWashing&&this.place==='home')gameAudio.loop('dogBath','water','effects',.36,this.pets.verdell.root.position);
+    if(this.place==='park'&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock)){const s=stationById('park','park-fire');if(s)gameAudio.loop('campfire','fire','ambient',.44,s.center);}
+    if(this.badmintonStarted!==null&&this.place==='park'){const s=stationById('park','park-badminton');if(s)gameAudio.beat('badminton','hit','effects',.85,.40,s.center);}
+    if(this.tennisStarted!==null&&this.place==='home')gameAudio.beat('tennis','hit','effects',.65,.36,listener);
+    gameAudio.endFrame();
   }
 
   private animate = (): void => {
@@ -2835,6 +2873,7 @@ export class World {
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }
+    this.audioFrame();
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
     if(this.place==='park'&&this.remote){

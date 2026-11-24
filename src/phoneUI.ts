@@ -20,12 +20,14 @@ import { PETS, PET_IDS } from './shared/pets';
 import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
+import { gameAudio,AUDIO_LABELS,type AudioChannel } from './game/GameAudio';
 import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
-type App = 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   feed:['📲','Лента'],
+  audio:['🔊','Звук'],
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
   utilities:['🏠','ЖКХ'], mobile:['📱','Мобильная связь'],
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
@@ -259,9 +261,20 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
+    if(next==='audio'){
+      const card=block('🔊 Звук','Настройки действуют только на этом устройстве. Звук включается после первого касания.');
+      card.dataset.audioSetting='';card.classList.add('audio-settings');
+      for(const key of Object.keys(AUDIO_LABELS) as AudioChannel[]){
+        const row=document.createElement('label'),name=document.createElement('span'),slider=document.createElement('input'),value=document.createElement('output');
+        name.textContent=AUDIO_LABELS[key];slider.type='range';slider.min='0';slider.max='100';slider.step='5';slider.value=String(Math.round(gameAudio.settings[key]*100));slider.setAttribute('aria-label',AUDIO_LABELS[key]);value.textContent=slider.value+'%';
+        slider.addEventListener('input',()=>{gameAudio.setVolume(key,Number(slider.value)/100);value.textContent=slider.value+'%';});
+        row.append(name,value,slider);card.append(row);
+      }
+      const demo=document.createElement('button');demo.type='button';demo.textContent='Проверить звук';demo.addEventListener('click',()=>{void gameAudio.unlock().then(()=>gameAudio.play('confirm','ui',.65));});card.append(demo);info.replaceChildren(card);
+    }
     if(next==='delivery') openDelivery(view.state);
     if(next==='jobs') openJobs(view.state,view.role);
     refresh();
