@@ -1,3 +1,15 @@
+# Sim-Life — current release v0.34.0 (2026-11-24)
+- Owner approved v11. PR #64 merged: 431e1629e5171d7fd7b31c02227d5bc20dfd0146, tag v0.34.0 published. Tested head 81d252877353e8a863636d320019c0bfddf365a5 has identical release tree.
+- Cloud regression attempt 2 SUCCESS: 604/604, zero failures/skips; catalog audit 368 actions, build/isolation and mobile regression passed: https://github.com/Ssyap4/Sim-Life/actions/runs/45365826117 . Attempt 1 had one intermittent two-phone evening failure; focused rerun and full repeat passed. Do not claim root cause fixed. Electronics mobile QA SUCCESS https://github.com/Ssyap4/Sim-Life/actions/runs/45365826164 ; real 390x844 showroom purchase, home and smartphone frames inspected. New dining/workstation close-up poses not visually confirmed; physical iPhone FPS not measured.
+- Production D:\Sim-Life, http://192.168.0.124:3111/ ; listener PID 8236, host 0.0.0.0, health ok/testNoCodes=false, LAN asset index-CSf2n5WU.js HTTP 200. Production reset explicitly approved: balance 10000, 2 free starter pet items, normal fixtures, no purchased progress. Keep access and trusted devices. Reset script backs up prior household in release-backups.
+- Preview feat/home-jobs-034, D:\Sim-Life-034-HomeJobs, port 3166, D:\Sim-Life-034-HomeJobsData, no codes, 100k. Keep separate; next preview use unused port and directory. Main changes require fresh owner approval.
+- Release details docs/RELEASE_034.md. Next 0.35 «Жизнь с питомцами»: physical pet shop, pet preferences, meaningful food/toys, training and individual behavior. Health/poisoning and veterinary clinic later. No laundry, fishing, or main business careers yet.
+- Weak ALINA-PC: no heavy local WebGL/Blender/full regression; cloud heavy QA, phone portrait iPhone 11 primary; maintain equal Android normal graphics. Read AGENTS.md, README, docs/RELEASE_034.md, ROADMAP and verify actual main/health first.
+
+---
+
+## Historical handoff (not current)
+
 # Sim-Life — current release v0.33.0 (2026-11-24)
 - Owner approved, PR #63 merged: 5660632cd8780ce7366d2c7b4f1c2b2262bfa7e4, tag v0.33.0 pushed. Tested head ea378b734b809d94ba64dc180476f82b115110fb. Full cloud QA SUCCESS https://github.com/Ssyap4/Sim-Life/actions/runs/45350305216 : 573/573 tests, furniture audit (282 actions), build, isolation, mobile visual regression. User checked wardrobe/shop and Android on physical phones; latest fitting camera geometry test passed, final screenshots not personally inspected.
 - Production D:\Sim-Life, http://192.168.0.124:3111/ ; PID 4204 listening, health ok/testNoCodes=false, HTML/new bundle index-zd0hNhK9.js HTTP 200. Production reset explicitly approved: balance 10000, 2 free starter pet items, no purchased items, no sold static fixtures, no active shifts; access and trusted-devices files retained. Prior household backed up by reset script under server-data/release-backups. Never copy preview data into main.
