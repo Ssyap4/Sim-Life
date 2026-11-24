@@ -37,10 +37,16 @@ test('the exported Simba rig plants its paws and reaches a physical cushion befo
     };
     assert.ok(Math.abs(bounds().min.y) < .055, `ground height ${bounds().min.y}`);
     const awakeHead = scene.getObjectByName('Head')!.position.y;
-    const cushion = perch.surface.y - .055;
+    const cushion = perch.surface.y - .085;
     simba.followRoute([], 'perch', undefined, perch, undefined, false, cushion);
     for (let i = 0; i < 35; i++) simba.update(.04);
-    assert.ok(Math.abs(bounds().min.y - cushion) < .095, `cushion height ${bounds().min.y} vs ${cushion}`);
+    // Authored curl folds the paws and tail below the old standing AABB.
+    // Check real support bones, using the same cushion offset as World.
+    assert.ok(Math.abs(bounds().min.y - cushion) < .16, `cushion height ${bounds().min.y} vs ${cushion}`);
+    for(const name of ['ForeLPaw','ForeRPaw','HindLPaw','HindRPaw']){
+      const y=scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3()).y;
+      assert.ok(y>cushion-.13&&y<cushion+.25, name+' cushion contact '+y);
+    }
     assert.ok(scene.getObjectByName('Head')!.position.y < awakeHead-.015,
       'lying on upholstery must tuck the real rig head toward its chest');
     assert.deepEqual(simba.root.position.toArray(), [perch.approach.x, 0, perch.approach.z]);
