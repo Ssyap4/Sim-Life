@@ -29,6 +29,8 @@ type Callbacks = {
   watchVideo(clip: VideoClipId, device: ComputerDevice): boolean;
   preview(device: ComputerDevice, scene: ComputerScene|null): void;
   career(command: CareerCommand): boolean;
+  homeJob(id:import("./shared/jobs").JobId,device:ComputerDevice):boolean;
+  leaveJob():boolean;
   education(command: EducationCommand): boolean;
   vote(enabled: boolean): boolean;
   travel(): boolean;
@@ -169,7 +171,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const act=(action:ActionId)=>{if(callbacks.act(action,device))close();};
   const career=createCareerUI(content,command=>
     callbacks.career(command.type==='career_approach'?{...command,device}:command),
-    id=>openEducation('academy',id),close,callbacks.vote,()=>device);
+    id=>openEducation('academy',id),close,callbacks.vote,()=>device,{start:id=>callbacks.homeJob(id,device),leave:callbacks.leaveJob});
   const education=createEducationUI(content,command=>{
     if(command.type==='study' && MATERIAL_BY_ID.get(command.material)?.channel==='academy')
       return callbacks.education({...command,computer:device});

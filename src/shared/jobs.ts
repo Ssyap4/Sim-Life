@@ -7,6 +7,7 @@ export interface ShiftAssignment {
   endsAt: number;
   /** Rolled on the server at shift start; optional only for compatibility with older saves. */
   targetPay?: number;
+  homeDevice?: import("./computer").ComputerDevice;
 }
 
 
@@ -54,6 +55,18 @@ export const JOBS = {
     description: 'Встречай клиента, заранее проверяй маршрут, отвози его на встречи и жди между поездками. В конце смены сдавай автомобиль.',
     stages: ['Проверка автомобиля и расписания','Поездки по делам клиента','Ожидание и дополнительные адреса','Возвращение и сдача автомобиля'],
   },
+  vibeSite: { name: "Лендинг под ключ", emoji: "💻", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Небольшая кофейня ждёт адаптивный сайт с меню и формой заявки. Собери страницу с ИИ, исправь ошибки и передай рабочую ссылку.", stages: ["Бриф и структура","Вайбкодинг и интерфейс","Проверка мобильной версии","Передача проекта"] },
+  vibeBot: { name: "Telegram-бот на заказ", emoji: "🤖", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Магазину нужен бот для заявок и уведомлений. Настрой сценарии, проверь ответы и подготовь инструкцию.", stages: ["Сценарии бота","Разработка логики","Тестирование диалогов","Передача заказчику"] },
+  videoEdit: { name: "Монтаж ролика", emoji: "🎬", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Из исходников клиента собери динамичный ролик, подбери переходы, звук и титры.", stages: ["Разбор исходников","Монтаж таймлайна","Звук и цвет","Экспорт ролика"] },
+  marketTrade: { name: "Биржевая аналитика", emoji: "📈", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Подготовь обзор котировок и проведи учебную торговую сессию на виртуальном счёте клиента. Оплата за отчёт, без риска семейного бюджета.", stages: ["Обзор рынка","Виртуальные сделки","Проверка графиков","Отчёт клиенту"] },
+  gameFix: { name: "Исправление багов игры", emoji: "🎮", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Независимая студия прислала список ошибок прототипа. Воспроизведи их, исправь и отправь тестовую сборку.", stages: ["Воспроизведение ошибок","Исправления","Прогон тестов","Отправка сборки"] },
+  automation: { name: "Автоматизация для бизнеса", emoji: "⚙️", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Настрой обработку заявок и автоматический отчёт для небольшой компании.", stages: ["Изучение процесса","Настройка автоматизации","Проверка данных","Документация"] },
+  wbCards: { name: "Карточки Wildberries", emoji: "🛍️", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Создай привлекательные карточки товаров: обработай фото, собери инфографику и напиши понятные преимущества.", stages: ["Анализ товаров","Дизайн карточек","Описание и ключевые слова","Отправка макетов"] },
+  ozonCards: { name: "Карточки Ozon", emoji: "📦", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Оформи новую линейку товаров для магазина: характеристики, изображения, описание и проверка публикации.", stages: ["Изучение ассортимента","Подготовка изображений","Заполнение характеристик","Проверка карточек"] },
+  hairLesson: { name: "Онлайн-урок по реконструкции волос", emoji: "💇", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Проведи занятие для начинающих мастеров: разбор структуры волос, подбор ухода и ответы на вопросы учениц.", stages: ["Подготовка материалов","Объяснение теории","Разбор примеров","Вопросы и обратная связь"] },
+  support: { name: "Оператор поддержки", emoji: "🎧", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Помоги покупателям интернет-магазина: отвечай в чате, уточняй статусы и передавай сложные обращения специалистам.", stages: ["Очередь обращений","Ответы клиентам","Разбор сложных вопросов","Отчёт по обращениям"] },
+  socialDesign: { name: "Оформление соцсетей", emoji: "🎨", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Подготовь набор публикаций для студии красоты: визуальная концепция, обложки и тексты.", stages: ["Бриф студии","Дизайн обложек","Тексты публикаций","Передача контента"] },
+  hairConsult: { name: "Онлайн-консультации по уходу", emoji: "📝", location: "Дом · компьютер", payMin: 2000, payMax: 3500, hoursMin: 2, hoursMax: 3, energyCost: 8, hungerCost: 5, hygieneCost: 2, description: "Разбери анкеты клиентов, составь индивидуальные рекомендации по косметическому уходу и отправь памятки.", stages: ["Анкеты клиентов","Разбор состояния волос","Подбор ухода","Отправка памяток"] },
   // Retired jobs remain readable ONLY for finishing shifts from old saves.
   barista: {
     name: 'Помощник бариста', emoji: '☕', location: 'Кофейня у метро',
@@ -71,6 +84,10 @@ export const JOBS = {
   },
 } as const;
 export type JobId = keyof typeof JOBS;
+export const HOME_JOBS = {"vibeSite":{"owner":"vlad","style":"code","animation":0},"vibeBot":{"owner":"vlad","style":"code","animation":1},"videoEdit":{"owner":"vlad","style":"video","animation":2},"marketTrade":{"owner":"vlad","style":"trade","animation":3},"gameFix":{"owner":"vlad","style":"code","animation":4},"automation":{"owner":"vlad","style":"notes","animation":5},"wbCards":{"owner":"alina","style":"design","animation":6},"ozonCards":{"owner":"alina","style":"design","animation":7},"hairLesson":{"owner":"alina","style":"hair","animation":8},"support":{"owner":"alina","style":"mail","animation":9},"socialDesign":{"owner":"alina","style":"design","animation":10},"hairConsult":{"owner":"alina","style":"hair","animation":11}} as const;
+export type HomeJobId = keyof typeof HOME_JOBS;
+export function isHomeJob(id:unknown):id is HomeJobId {return typeof id==="string" && Object.hasOwn(HOME_JOBS,id);}
+export const homeJobsFor=(role: "vlad"|"alina")=>(Object.keys(HOME_JOBS) as HomeJobId[]).filter(id=>HOME_JOBS[id].owner===role);
 export const JOB_IDS = ['taxi','courier','ozon','wildberries','petsitter','driver'] as const satisfies readonly JobId[];
 export function isOfferedJob(id:unknown):id is typeof JOB_IDS[number]{return JOB_IDS.some(job=>job===id);}
 export function isJobId(id: unknown): id is JobId {

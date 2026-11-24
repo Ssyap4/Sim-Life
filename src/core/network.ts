@@ -102,7 +102,7 @@ export class LiveConnection {
 
   brewCoffee(blend: InstantCoffeeId): boolean {return this.sendAuthenticated({type:'brew_coffee',blend});}
 
-  startJob(job:JobId):boolean {return this.sendAuthenticated({type:'job_start',job});}
+  startJob(job:JobId,device?:import('../shared/computer').ComputerDevice):boolean {return this.sendAuthenticated({type:'job_start',job,device});}
   leaveJobEarly():boolean {return this.sendAuthenticated({type:'job_leave_early'});}
   setShiftSpeed(enabled: boolean): boolean {return this.sendAuthenticated({type:'shift_speed',enabled});}
   togglePause(): boolean { return this.sendAuthenticated({type:'pause_toggle'}); }

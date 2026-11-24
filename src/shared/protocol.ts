@@ -183,7 +183,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
-  | { type: 'job_start'; job: import('./jobs').JobId }
+  | { type: 'job_start'; job: import('./jobs').JobId; device?: import('./computer').ComputerDevice }
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
   | { type: 'autonomy_mode'; mode: AutonomyMode }

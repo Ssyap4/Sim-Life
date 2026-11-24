@@ -1,3 +1,6 @@
+import { computerDevice } from "../src/shared/computer";
+import { serviceAvailable } from "../src/shared/services";
+import { isHomeJob, HOME_JOBS } from "../src/shared/jobs";
 import { protectNeeds } from '../src/shared/happiness';
 import { randomInt } from 'node:crypto';
 import { JOBS, isOfferedJob, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
@@ -8,10 +11,15 @@ import { names, type CharacterId, type GameState } from '../src/shared/protocol'
 export type JobResult = {ok:true;state:GameState;message:string}|{ok:false;reason:string};
 
 /** Starts one persistent shift per paid game day. A whole-shift salary is rolled only once. */
-export function beginShift(source:GameState,role:CharacterId,id:unknown):JobResult {
-  if(!isOfferedJob(id))return {ok:false,reason:'Неизвестная подработка'};
+export function beginShift(source:GameState,role:CharacterId,id:unknown,device?:unknown,travelMinutes=0):JobResult {
+  const home=isHomeJob(id);
+  if(!isHomeJob(id)&&!isOfferedJob(id))return {ok:false,reason:'Неизвестная подработка'};
+  if(home && (!computerDevice(device)||HOME_JOBS[id as keyof typeof HOME_JOBS].owner!==role||(role==='vlad'&&device!=='desktop')))return {ok:false,reason:'Заказ недоступен этому персонажу или устройству'};
+  if(home && Object.values(source.activeShifts).some(shift=>shift?.homeDevice===device))return {ok:false,reason:"Компьютер уже занят"};
+  if(home && source.world.places[role]!=='home')return {ok:false,reason:'Заказ выполняется дома'};
+  if(home && !serviceAvailable(source.billing,'internet',totalGameMinutes(source.clock)))return {ok:false,reason:'Для заказов нужен домашний интернет'};
   if(source.activeShifts[role]||source.careers.residents[role].shift)return {ok:false,reason:'Сначала закончи текущую смену'};
-  if(source.shiftDays[role]===source.clock.day)return {ok:false,reason:'Смена на сегодня уже отработана'};
+  if(!home&&source.shiftDays[role]===source.clock.day)return {ok:false,reason:'Смена на сегодня уже отработана'};
   const resident=source.characters[role];
   if(resident.energy<25)return {ok:false,reason:'Для длинной смены нужно хотя бы 25% энергии'};
   if(resident.hunger<20)return {ok:false,reason:'Перед сменой нужно поесть'};
@@ -19,10 +27,10 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown):JobResu
   const hours=randomInt(spec.hoursMin,spec.hoursMax+1);
   const targetPay=randomInt(spec.payMin,spec.payMax+1);
   const state=structuredClone(source);
-  const startedAt=totalGameMinutes(state.clock);
-  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60,targetPay};
+  const startedAt=totalGameMinutes(state.clock)+(home?Math.max(0,Math.ceil(travelMinutes)):0);
+  state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60,targetPay,...(home&&computerDevice(device)?{homeDevice:device}:{})};
   state.revision++;
-  return {ok:true,state,message:names[role]+' отправился(-ась) на подработку: '+spec.name+' · '+hours+' ч. игрового времени'};
+  return {ok:true,state,message:names[role]+(home?' принял(а) домашний заказ: ':' отправился(-ась) на подработку: ')+spec.name+' · '+hours+' ч. игрового времени'};
 }
 
 /** The same settlement path pays complete and partial shifts. Client never supplies money or duration. */
@@ -41,7 +49,8 @@ function payAndClose(source:GameState,role:CharacterId,shift:ShiftAssignment,ear
   actor.hunger=Math.max(0,actor.hunger-Math.round(job.hungerCost*fraction));
   actor.hygiene=Math.max(0,actor.hygiene-Math.round(job.hygieneCost*fraction));
   actor.mood=Math.max(0,Math.min(100,actor.mood+Math.round(3*fraction)));
-  state.shiftDays[role]=state.clock.day;
+  if(shift.homeDevice)actor.pose="idle";
+  else state.shiftDays[role]=state.clock.day;
   if(payment>0){
     const workedHours=(worked/60).toFixed(1).replace('.',',');
     addLedger(state,role,'income','work',payment,

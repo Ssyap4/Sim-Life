@@ -95,18 +95,18 @@ export class HomeComputerScreens {
     if(old)this.screens[old.device].lastMode='';
     this.tasks.delete(role);
   }
-  career(role:CharacterId,device:ComputerDevice|null) {
+  career(role:CharacterId,device:ComputerDevice|null,job?:import("../shared/jobs").JobId) {
     const old=this.careers.get(role);
-    if(old?.device===device)return;
+    if(old?.device===device&&old?.scene.job===job)return;
     if(old)this.screens[old.device].lastMode='';
-    if(device)this.careers.set(role,{device,scene:{mode:role==='vlad'?'code':'hair',role}});
+    if(device)this.careers.set(role,{device,scene:{mode:role==='vlad'?'code':'hair',role,job}});
     else this.careers.delete(role);
   }
   resetPreviews(){for(const device of devices)this.preview(device,null);}
   update(seconds:number) {
     for(const device of devices) {
       const screen=this.screens[device],scene=this.current(device);
-      const key=[scene.mode,scene.role,scene.game??'',scene.clip??''].join(':');
+      const key=[scene.mode,scene.role,scene.game??'',scene.clip??'',scene.job??''].join(':');
       const active=scene.mode!=='idle';
       const frame=Math.floor(seconds*(active?8:1));
       if(key===screen.lastMode && frame===screen.lastFrame)continue;

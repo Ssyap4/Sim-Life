@@ -1,3 +1,4 @@
+import { JOBS, homeJobsFor, shiftFullPay, shiftWage, stageForJob, type JobId } from './shared/jobs';
 import type { ComputerDevice } from './shared/computer';
 import { CAREERS, CAREER_IDS, CLINIC_MODULES, DETAIL_SERVICES, nextCareerShift, shiftWindow, dayOf,
   type CareerCommand, type CareerProgress } from './shared/careers';
@@ -116,7 +117,7 @@ export function createCareerHUD(root: HTMLElement, send: Submit, open: () => voi
 }
 
 export function createCareerUI(root: HTMLElement, send: Submit, education: (materialId: string) => void,
-  close: () => void, vote: (enabled: boolean) => boolean, device: () => ComputerDevice = () => 'laptop') {
+  close: () => void, vote: (enabled: boolean) => boolean, device: () => ComputerDevice = () => 'laptop', homeOrders?: {start:(id:JobId)=>boolean;leave:()=>boolean}) {
   const labels = { job:'Работа', vacancies:'Вакансии', inbox:'Письма', pay:'Зарплата' };
   let page: keyof typeof labels = 'job';
   let prior = '', confirmed = '';
@@ -171,8 +172,22 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
         if (item.choice) card.append(node('small','Решение · '+item.choice));
         section.append(card);
       }
+    } else if(page==='vacancies' && homeOrders) {
+      section.append(node('h2','Домашние заказы'),node('p','Разовые проекты · 2–3 игровых часа · 2 000–3 500 ₽ за заказ'));
+      const active=state.activeShifts[role];
+      if(active?.homeDevice){
+        const spec=JOBS[active.job],fraction=Math.max(0,Math.min(1,(now-active.startedAt)/(active.endsAt-active.startedAt)));
+        const card=block('В работе · '+spec.name,now<active.startedAt?'Персонаж идёт к компьютеру':stageForJob(active.job,fraction));
+        const progress=node('progress');progress.max=1;progress.value=fraction;
+        card.append(progress,node('p',Math.round(fraction*100)+'% · осталось '+Math.max(0,active.endsAt-Math.max(now,active.startedAt))+' мин.'),node('small','Оплата: '+formatRub(shiftFullPay(active))),button('Завершить досрочно · '+formatRub(shiftWage(active,state.clock)),()=>homeOrders.leave()));section.append(card);
+      }
+      if(role==='vlad'&&device()!=='desktop')section.append(block('Заказы Влада доступны на ПК'));
+      else for(const key of homeJobsFor(role)){
+        const job=JOBS[key],card=block(job.emoji+' '+job.name,job.description);
+        card.append(node('small','2–3 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
+      }
     } else if (page === 'vacancies' || !id) {
-      section.append(node('h2','Вакансии'));
+      section.append(node('h2',homeOrders?'Основная работа':'Вакансии'));
       for (const career of CAREER_IDS.filter(candidate=>CAREERS[candidate].owner===role)) {
         const spec = CAREERS[career], progress = person.progress[career], rank = progress?.rank ?? 0;
         const card = block(spec.icon + ' ' + spec.title,spec.employer);

@@ -21,7 +21,7 @@ import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
-import { JOBS, isJobId, validShiftPay } from '../src/shared/jobs';
+import { JOBS, isJobId, isHomeJob, HOME_JOBS, validShiftPay } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
@@ -111,10 +111,13 @@ const isValidState = (value: unknown): value is GameState => {
   const activeShifts=state.activeShifts as Record<string, unknown> | undefined;
   if (activeShifts !== undefined && (!activeShifts || Array.isArray(activeShifts) ||
     Object.keys(activeShifts).some(role => role !== 'vlad' && role !== 'alina') ||
-    !Object.values(activeShifts).every(raw => {
+    !Object.entries(activeShifts).every(([role,raw]) => {
       if (!raw || typeof raw !== 'object') return false;
       const shift=raw as Record<string, unknown>;
       if (!isJobId(shift.job)) return false;
+      if(isHomeJob(shift.job)){
+        if(HOME_JOBS[shift.job].owner!==role||!["desktop","laptop"].includes(String(shift.homeDevice))||role==="vlad"&&shift.homeDevice!=="desktop")return false;
+      }else if(shift.homeDevice!==undefined)return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
         Number(hours) >= JOBS[shift.job].hoursMin &&

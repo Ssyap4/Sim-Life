@@ -832,6 +832,8 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   },
   preview: (device,scene) => world.previewComputer(device,scene),
   career: command => net.career(command),
+  homeJob: (id,device)=>net.startJob(id,device),
+  leaveJob: ()=>net.leaveJobEarly(),
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
   travel: () => locationUI.go('education'),

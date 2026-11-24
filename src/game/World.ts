@@ -2137,11 +2137,13 @@ export class World {
       const wasSleeping = this.sleepingOffline.has(id);
       if(state.characters[id].pose==='sleep')this.rememberedBeds.set(id,state.characters[id].sleepingOn??'starter');
       const work = state.careers.residents[id].shift;
-      this.computerScreens.career(id,place==='home' && state.world.places[id]==='home' && work?.mode==='remote'
-        ? work.homeDevice??'laptop':null);
+      this.computerScreens.career(id,place==='home' && state.world.places[id]==='home'
+        ? (work?.mode==='remote'?work.homeDevice??'laptop':state.activeShifts[id]?.homeDevice??null):null,state.activeShifts[id]?.homeDevice?state.activeShifts[id]?.job:undefined);
+      const homeOrder=state.activeShifts[id]?.homeDevice?state.activeShifts[id]:undefined;
+      const priorOrder=previous?.activeShifts[id]?.homeDevice?previous.activeShifts[id]:undefined;
       const previousWork = previous?.careers.residents[id].shift;
       const sleep = offline && place === 'home' && state.world.places[id]==='home' && !state.activeShifts[id] && !work;
-      const away = !!state.activeShifts[id] || (offline ? !sleep : state.world.places[id] !== place);
+      const away = (!!state.activeShifts[id]&&!homeOrder) || (offline&&!homeOrder ? !sleep : state.world.places[id] !== place);
       const appeared = !away && (!!previous?.activeShifts[id] || previous?.world.places[id] !== place);
       this.setAway(id, away);
       if (away || sleep) this.closeStorage(id);
@@ -2170,6 +2172,20 @@ export class World {
           work.task?.phase !== previousWork?.task?.phase && work.task?.phase !== 'walking')) {
         this.showCareerStation(id,work);
       }
+      if(!away&&homeOrder&&place==='home'&&minute>=homeOrder.startedAt){
+        this.computerScreens.career(id,homeOrder.homeDevice!,homeOrder.job);
+        if(reset||changed||homeOrder.startedAt!==priorOrder?.startedAt||previous?.characters[id].pose!=='work'){
+          this.actors[id].root.position.set(state.characters[id].x,0,state.characters[id].z);
+          if(homeOrder.homeDevice==='laptop')this.laptopPose(id);
+          else if(state.furnishing.soldFixtures?.includes('desk')){
+            const desk=state.furnishing.placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk');
+            const target=desk&&furnitureUseLocation(state,id,desk.id,'deskJournal');
+            if(target){const p=target.pose;this.actors[id].setFurniturePose('work',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
+          }else this.applyFurniturePose(id,'desk','work');
+          this.actors[id].setHomeWorkStyle(homeOrder.job);
+        }
+      }
+      if(!away&&!homeOrder&&priorOrder){this.actors[id].setPose('idle');}
       if (!away && !work && previousWork?.mode === 'remote') this.actors[id].setPose('idle');
       if(place==='cafe'){
         const order=state.world.cafe[id], plate=this.meals.get(id)!;
@@ -2190,7 +2206,7 @@ export class World {
     const partner=role==='vlad'?'alina':'vlad';
     if(previous&&place==='home'&&previous.world.places[role]==='home'&&online.includes(partner)&&
       state.world.places[partner]==='home'&&
-      (previous.world.places[partner]!=='home'||previous.activeShifts[partner]&&!state.activeShifts[partner]))
+      (previous.world.places[partner]!=='home'||previous.activeShifts[partner]&&!previous.activeShifts[partner]?.homeDevice&&!state.activeShifts[partner]))
       this.actors[role].noticePartnerArrival();
     const dog = this.pets.verdell.root;
     const walker = state.world.dogWalker;

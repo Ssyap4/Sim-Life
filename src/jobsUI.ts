@@ -50,12 +50,12 @@ export function makeJobBoard(root:HTMLElement,
       const p=JOBS[s.job];
       const percent=Math.max(0,Math.min(1,(now-s.startedAt)/(s.endsAt-s.startedAt)));
       const card=create('div','jobs-active');
-      card.append(create('strong','','🚧 '+names[r]+' на смене: '+p.emoji+' '+p.name));
+      card.append(create('strong','',(s.homeDevice?'💻 '+names[r]+' выполняет заказ: ':'🚧 '+names[r]+' на смене: ')+p.emoji+' '+p.name));
       card.append(create('p','',''+p.location+' · '+s.hours+' игровых часов'));
       const progress=create('div','jobs-progress');const fill=create('i');
       fill.style.width=Math.round(percent*100)+'%';progress.append(fill);
-      card.append(progress,create('small','',Math.round(percent*100)+'% · '+stageForJob(s.job,percent)));
-      const minutesRemain=Math.max(0,s.endsAt-now);
+      card.append(progress,create('small','',Math.round(percent*100)+'% · '+(now<s.startedAt?'Идёт к компьютеру':stageForJob(s.job,percent))));
+      const minutesRemain=Math.max(0,s.endsAt-Math.max(now,s.startedAt));
       card.append(create('small','','Осталось '+Math.ceil(minutesRemain/60)+' ч. '+Math.round(minutesRemain%60)+' мин. игрового времени (≈'+Math.ceil(minutesRemain/0.5/60)+' мин. реального времени при непрерывной игре)'));
       card.append(create('strong','jobs-earnings','Отработано: '+(shiftWorkedMinutes(s,state.clock)/60).toFixed(1).replace('.',',')+
         ' ч. · при уходе сейчас: '+formatRub(shiftWage(s,state.clock))+
