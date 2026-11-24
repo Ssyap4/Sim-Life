@@ -28,7 +28,7 @@ async function connect(port:number,role:CharacterId,code:string){
   assert.equal((await ready).type,'ready');
   return ws;
 }
-test('two residents share one bought double bed, receive synchronized poses, and cannot sell it while occupied',async()=>{
+test('two residents share one bought double bed, receive synchronized poses, and moving it releases both sleepers',async()=>{
   const dir=mkdtempSync(join(tmpdir(),'sim-life-replacement-sleep-'));
   const files=openServerFiles(dir);
   const base=files.load();
@@ -65,22 +65,19 @@ test('two residents share one bought double bed, receive synchronized poses, and
     assert.equal(bothV.state.characters.vlad.sleepingOn,1);
     assert.equal(files.load().furnishing.placed.length,1);
     assert.equal(files.load().money,65000);
-    const denied=next(a,p=>p.type==='error');
+    const waking=next(v,p=>p.type==='time_status'&&!p.status.sleepers.vlad&&!p.status.sleepers.alina);
+    const stored=next(a,p=>p.type==='snapshot'&&p.state.furnishing.stored.some(i=>i.id===1));
     a.send(JSON.stringify({type:'furniture_store',id:1}));
-    assert.match((await denied as Extract<ServerPacket,{type:'error'}>).reason,/сон|спя|кроват/i);
-    const wakingA=next(v,p=>p.type==='time_status'&&!p.status.sleepers.alina);
-    a.send(JSON.stringify({type:'sleep_stop'}));
-    await wakingA;
-    const wakingV=next(a,p=>p.type==='time_status'&&!p.status.sleepers.vlad);
-    v.send(JSON.stringify({type:'sleep_stop'}));
-    await wakingV;
+    await stored;await waking;
     const restored=files.load();
     assert.equal(restored.characters.vlad.sleepingOn,undefined);
     assert.equal(restored.characters.alina.sleepingOn,undefined);
     assert.equal(restored.characters.vlad.pose,'idle');
-    assert.equal(restored.furnishing.placed[0].id,1);
+    assert.equal(restored.characters.alina.pose,'idle');
+    assert.equal(restored.furnishing.placed.length,0);
+    assert.equal(restored.furnishing.stored[0].id,1);
     assert.deepEqual(restored.furnishing.soldFixtures,['bed']);
-    assert.equal(openServerFiles(dir).load().furnishing.placed[0].id,1);
+    assert.equal(openServerFiles(dir).load().furnishing.stored[0].id,1);
   }finally{
     for(const socket of sockets)socket.terminate();
     await server.close();

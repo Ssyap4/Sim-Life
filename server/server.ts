@@ -1,3 +1,6 @@
+import { diningLocation } from '../src/shared/furnitureUse';
+import { PET_IDS, treatsRemaining } from '../src/shared/pets';
+import { grantStarterPetFurniture } from './starterPets';
 import { yieldSimbaFurniture } from './pets';
 import { catSeatOverlap } from '../src/shared/catOccupancy';
 import type { CatPerch } from '../src/shared/CatPerches';
@@ -13,7 +16,7 @@ import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
 import { applyWorld, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
-import { clockMinutes, stationById, approachFor } from '../src/shared/locations';
+import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
@@ -24,7 +27,7 @@ import {
 } from '../src/shared/protocol';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
-import { applyFurnishing } from './furnishing';
+import { applyFurnishing,layoutBlock,routeHitsLayout,settleLayout } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, fullLeisureCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
@@ -47,7 +50,7 @@ import { PausableTimers } from './pausableTimers';
 import type { PetId } from '../src/shared/pets';
 import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
 import { advanceCareers, applyCareer, careerCommands } from './careers';
-import { sampleWalk, type WalkRoute } from '../src/game/navigation';
+import { sampleWalk,planWalk, type WalkRoute } from '../src/game/navigation';
 
 export interface ServerOptions {
   port?: number;
@@ -61,6 +64,8 @@ export interface ServerOptions {
   testNoCodes?:boolean;
   /** Money only for a brand-new, isolated no-code preview household. */
   previewStartMoney?:number;
+  /** The actual game entry point provisions free starter pet furniture. */
+  starterPetFurniture?:boolean;
   /** Deterministic clock input and tick cadence for isolated integration tests. */
   lifeClock?: { now: () => number; tickMs: number };
   /** Isolated integration tests can shorten the real-world autonomy delays. */
@@ -113,6 +118,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     state.money=options.previewStartMoney!;
     files.save(state);
   }
+  if(options.starterPetFurniture&&grantStarterPetFurniture(state))files.save(state);
   const spoiledOnBoot = expireReadyFood(state);
   const serviceUpdatesOnBoot = settleFamilyServices(state, false, false);
   if (spoiledOnBoot.length || serviceUpdatesOnBoot.length) {
@@ -144,7 +150,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // Ephemeral habit memory: never alter saved household state or manual queues.
   const recentHomeHabits=new Map<CharacterId,import('../src/shared/protocol').ActionId[]>();
 
-  const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number }>();
+  const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number; station?:string }>();
   const storageOpen = new Map<CharacterId, string>();
   interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean }
   const running = new Map<CharacterId, RunningTask>();
@@ -366,7 +372,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     for(const pet of ['simba','verdell'] as const) if(homeTasks.reserved('pet:'+pet))occupiedPets.add(pet);
-    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved);
+    const diners=homeTasks.diners();
+    for(const [role,task] of running)if(task.plan.command.type==='eat'||task.plan.command.type==='eat_takeout'){const r=diningLocation(next.state,role,task.plan.command.furnitureId)?.route;diners.set(role,r?(r.path.at(-1)??r.from):homeSeat('table',role).approach);}
+    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved,diners);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
@@ -1205,44 +1213,81 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         'furniture_order','furniture_unbox','furniture_place',
         'furniture_move','furniture_store','furniture_sell','furniture_sell_static',
       ].includes(message.type)) {
-        // A store command must never wake or cancel a resident.
-        if (running.has(role) || homeTasks.busy(role) || sleepers.has(role)) {
-          packet(socket,{type:'error',reason:'Сначала заверши занятие или сон'});
-          return;
-        }
-        // Spatial changes must never interrupt a pre-existing chore, walk,
-        // sleep or the partner's scripted scene.
-        const spatial=message.type==='furniture_place'||message.type==='furniture_move'||message.type==='furniture_sell_static';
-        if (spatial && (running.size>0 || leisure.size>0 || homeTasks.busy('vlad') || homeTasks.busy('alina') ||
-          sleepers.size>0 || [...walkingHome.values()].some(walk=>{
-            const distance=(pauseTimers.now()-walk.started)/1000*HOME_WALK_SPEED;
-            const total=walk.route.path.reduce((sum,point,index)=>{
-              const from=walk.route.path[index-1]??walk.route.from;
-              return sum+Math.hypot(point.x-from.x,point.z-from.z);
-            },0);
-            return distance<total;
-          }))) {
-          packet(socket,{type:'error',reason:'Дождись завершения прогулки или действия перед перестановкой'});
-          return;
-        }
-        if(['furniture_move','furniture_store','furniture_sell'].includes(String(message.type))&&
-          typeof message.id==='number'&&(
-            homeTasks.reserved('furniture:'+message.id)||
-            [...running.values()].some(task=>
-              'furnitureId' in task.plan.command && task.plan.command.furnitureId===message.id))){
-          packet(socket,{type:'error',reason:'Сначала дождись окончания действия на этой мебели'});
-          return;
-        }
+        // Editing the layout is independent of both residents' actions.
+        const moved=typeof message.id==='number'&&['furniture_move','furniture_store','furniture_sell'].includes(message.type)
+          ?state.furnishing.placed.find(item=>item.id===message.id):undefined;
+        const fixture=message.type==='furniture_sell_static'&&typeof message.fixture==='string'?message.fixture:undefined;
+        const spatial=!!moved||!!fixture||message.type==='furniture_place';
+        const before=state;
         const result=applyFurnishing(state,role,message as import('../src/shared/furniture').FurnishingCommand,
           Math.floor(liveGameTime()));
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         try{files.save(result.state);}
         catch{packet(socket,{type:'error',reason:'Не удалось сохранить мебель'});return;}
         state=result.state;
+        if(spatial){
+          const added=message.type==='furniture_place'||message.type==='furniture_move'
+            ?state.furnishing.placed.find(item=>item.id===message.id):undefined;
+          const block=layoutBlock(added),now=pauseTimers.now();
+          const obstacles=placeObstacles('home',state.furnishing),floor=floorFor('home');
+          homeTasks.interruptLayout(block,moved?.id,fixture);
+          for(const resident of ['vlad','alina'] as const){
+            if(state.world.places[resident]!=='home')continue;
+            if(sleepers.has(resident)&&before.characters[resident].pose==='sleep'&&state.characters[resident].pose!=='sleep')stopSleep(resident);
+            const task=running.get(resident);
+            if(task){
+              const c=task.plan.command;
+              const direct=moved&&('furnitureId' in c&&c.furnitureId===moved.id||task.plan.resource==='furniture:'+moved.id);
+              const crossing=routeHitsLayout({from:before.characters[resident],path:[]},block);
+              if(direct||crossing||taskAccessError(state,c))stopTask(resident,'Мебель переставлена — место занятия изменилось');
+            }
+            const rest=leisure.get(resident);
+            if(rest&&(routeHitsLayout(leisureRoute(resident,now),block)||fixture==='sofa'&&rest.activity==='tv'||fixture==='desk'&&rest.activity==='computer'))stopLeisure(resident,now);
+          }
+          const reroutes:{role:CharacterId;path:import('../src/game/navigation').FloorPoint[];station?:string}[]=[];
+          for(const [resident,walk] of walkingHome){
+            if(state.world.places[resident]!=='home')continue;
+            const remaining=sampleWalk(walk.route,Math.max(0,now-walk.started)/1000*HOME_WALK_SPEED);
+            if(!routeHitsLayout(remaining,block))continue;
+            const target=remaining.path.at(-1)??remaining.from;
+            const replacement=planWalk(remaining.from,target,obstacles,floor);
+            if(replacement){
+              walkingHome.set(resident,{route:replacement,started:now,station:walk.station});
+              Object.assign(state.characters[resident],replacement.path.at(-1)??replacement.from,{pose:'idle'});
+              reroutes.push({role:resident,path:[replacement.from,...replacement.path],station:walk.station});
+            }else{
+              walkingHome.delete(resident);
+              Object.assign(state.characters[resident],remaining.from,{pose:'idle'});
+            }
+          }
+          homeTasks.recheckAccess();
+          settleLayout(state,added,Math.floor(liveGameTime()));
+          try{files.save(state);}catch(error){console.error('Could not checkpoint adjusted furniture routes:',error);}
+          all({type:'snapshot',state});
+          for(const reroute of reroutes)all({type:'world_path',place:'home',...reroute});
+        }else all({type:'snapshot',state});
         lastIntent.set(role,pauseTimers.now());
-        all({type:'snapshot',state});
         all({type:'store_event',role,message:result.message});
         return;
+      }
+      // A snack handed to a begging pet at the table is a side interaction:
+      // keep the owner's 32-second meal running and charge the shared limit once.
+      if(message.type==='pet_action'&&message.action==='treat'&&PET_IDS.some(id=>id===message.pet)){
+        const pet=message.pet as PetId,animal=state.pets[pet];
+        const ownerEating=homeTasks.diners().has(role)||['eat','eat_takeout'].includes(running.get(role)?.plan.command.type??'');
+        if(ownerEating&&state.world.places[role]==='home'&&animal.routine?.kind==='beg'&&animal.routine.target===(role==='vlad'?0:1)){
+          if(treatsRemaining(animal,state.clock.day)<=0){packet(socket,{type:'error',reason:'Сегодня уже получены три лакомства'});return;}
+          const next=structuredClone(state);
+          pausePetRoutine(next,pet,liveGameTime());
+          const result=applyPetAction(next,role,pet,'treat');
+          if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+          Object.assign(result.state.characters[role],{x:state.characters[role].x,z:state.characters[role].z,pose:state.characters[role].pose});
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить лакомство'});return;}
+          state=result.state;
+          all({type:'snapshot',state});
+          all({type:'pet_event',role,pet,action:'treat',message:result.message});
+          return;
+        }
       }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',
@@ -1304,7 +1349,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         if (result.path) {
           if (state.world.places[role] === 'home'||state.world.places[role]==='district') walkingHome.set(role,{
-            route:{from:{x:from.x,z:from.z},path:result.path},started:pauseTimers.now(),
+            route:{from:{x:from.x,z:from.z},path:result.path},started:pauseTimers.now(),station:result.station,
           });
           if (state.world.places[role] === 'home' && (result.station === 'fridge' || result.station === 'cupboard')) {
             storageOpen.set(role, result.station);

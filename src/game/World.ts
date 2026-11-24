@@ -1,3 +1,4 @@
+import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
 import { buildHomeWing } from './HomeWing';
@@ -15,7 +16,7 @@ import { MATERIAL_BY_ID } from '../shared/educationCatalog';
 import { isCareerPlace, type CareerShift } from '../shared/careers';
 import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from '../shared/food';
 import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from './LocationScene';
-import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
+import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station, type CafeItem } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
@@ -286,6 +287,7 @@ export class World {
     const vlad = spawn('home', 'vlad'), alina = spawn('home', 'alina');
     this.actors = { vlad: new Actor('vlad', [vlad.x, vlad.z], characters.vlad), alina: new Actor('alina', [alina.x, alina.z], characters.alina) };
     this.pets = { verdell: new PetActor('verdell'), simba: new PetActor('simba',simbaRig) };
+    this.homeScene.add(this.pets.verdell.homeToys);
     for (const subject of [...Object.values(this.actors), ...Object.values(this.pets)]) {
       const visual = subject.root.children[0];
       this.scene.add(subject.root);
@@ -930,6 +932,8 @@ export class World {
         });
       }else actor.walkPath(route,arrived);
     };
+    const seated=this.household&&pair.place==='cafe'&&pair.station&&cafeSeatAt(this.household,role)?.id===pair.station;
+    if(seated) {arrived();return true;}
     actor.setPose('idle');
     if(pair.offsetMs) this.preparations.set(role,{remaining:pair.offsetMs/1000,next:walk});
     else walk();
@@ -996,7 +1000,7 @@ export class World {
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }else if(pair.station) {
           const site=stationById(this.place,pair.station)!;
-          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.25:.25),1.02,site.center.z-.10,pair.item as RecipeId|undefined);
+          const plate=this.showMeal(role,site.center.x+(role==='vlad'?-.40:.40),1.01,site.center.z-.10,pair.item as CafeItem|undefined);
           actor.playActivity('eat',plate,pair.item as RecipeId|undefined);
         }break;
       }
@@ -1085,11 +1089,12 @@ export class World {
           actor.playPetActivity('play');
           this.pets.verdell.react('play');
         }
-        if (command.action === 'dine' && this.household?.world.cafe[role]?.pickedUp) {
-          const plate=this.showMeal(role, station.center.x + (role === 'vlad' ? -.25 : .25), 1.022, station.center.z - .10);
+        if (command.action === 'dine' && (this.household?.world.cafe[role]?.pickedUp || this.household?.world.cafe[role]?.table===station.id)) {
+          const plate=this.showMeal(role, station.center.x + (role === 'vlad' ? -.40 : .40), 1.01, station.center.z - .10,this.household?.world.cafe[role]?.item);
           actor.playActivity('eat',plate);
         }
       };
+      if(this.household&&command.action==='dine'&&cafeSeatAt(this.household,role)?.id===station.id){start();return true;}
       return this.walkTo(role, approachFor(station, role), start);
     }
     const sequence = ++this.taskSequence[role];
@@ -1306,6 +1311,8 @@ export class World {
     this.actors[role].clearProps();
     this.actors[role].setPose('idle');
   }
+
+  showPetTreat(id:PetId):void{if(this.place==='home')this.pets[id].react('treat');}
 
   performPet(role: CharacterId, petId: PetId, action: PetAction, current = () => true): boolean {
     if (action === 'buyFood') return true;
@@ -1810,7 +1817,7 @@ export class World {
   }
 
   private showMeal(role: CharacterId, x: number, y: number, z: number,
-    dish?:RecipeId|TakeoutId): THREE.Vector3 {
+    dish?:RecipeId|TakeoutId|CafeItem): THREE.Vector3 {
     const meal = this.meals.get(role)!;
     meal.position.set(x, y, z);
     const grilled = dish!==undefined && isGrillRecipe(dish as RecipeId);
@@ -1950,7 +1957,7 @@ export class World {
     this.scene.add(this.ambient, this.sun, this.sun.target,
       ...Object.values(this.actors).map(actor => actor.root), ...Object.values(this.pets).map(pet => pet.root),
       ...Object.values(this.bags), ...this.meals.values());
-    for (const meal of this.meals.values()) meal.visible = false;
+    for (const meal of this.meals.values()) {meal.visible=false;delete meal.userData.cafeKey;}
     if (this.cart) { this.cart.visible = false; this.scene.add(this.cart); }
     this.homeEffects.reset();
     this.grillCooking = false;
@@ -2024,9 +2031,18 @@ export class World {
     this.household = state;
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
+      const previousObstacles=[...this.obstacles];
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
       this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
+      this.pets.verdell.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor);
+      if(place==='home'&&!changed)for(const actor of Object.values(this.actors)){
+        const pos=actor.root.position;
+        if(pointIsClear(pos,previousObstacles,HOME_FLOOR)&&!pointIsClear(pos,this.obstacles,HOME_FLOOR)){
+          const safe=nearestClearPoint(pos,this.obstacles,HOME_FLOOR);
+          if(safe)pos.set(safe.x,0,safe.z);
+        }
+      }
     }
     const minute = gameMinutes(state.clock);
     // House NPCs share the server clock, without persisting visual-only traffic.
@@ -2064,7 +2080,7 @@ export class World {
             this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,'sleep',bed.bed.id);
           }else this.restoreCharacter(id,resident.x,resident.z,'idle');
         }
-      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping)) {
+      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping || (place==='cafe'&&state.characters[id].pose==='sit'&&previous?.characters[id].pose!=='sit')||(place==='home'&&previous?.characters[id].pose==='sleep'&&state.characters[id].pose!=='sleep'))) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
       }
@@ -2074,6 +2090,18 @@ export class World {
         this.showCareerStation(id,work);
       }
       if (!away && !work && previousWork?.mode === 'remote') this.actors[id].setPose('idle');
+      if(place==='cafe'){
+        const order=state.world.cafe[id], plate=this.meals.get(id)!;
+        const station=stationById('cafe',order?.table);
+        const visible=!!station&&!!order&&order.readyAt<=minute;
+        if(visible){
+          const key=order!.item+':'+order!.readyAt+':'+station!.id;
+          if(!plate.visible||plate.userData.cafeKey!==key){
+            this.showMeal(id,station!.center.x+(id==='vlad'?-.40:.40),1.01,station!.center.z-.10,order!.item);
+            plate.userData.cafeKey=key;
+          }
+        }else if(plate.userData.cafeKey){plate.visible=false;delete plate.userData.cafeKey;}
+      }
       const carryingThroughGate = !changed && place==='home' && this.bags[id].visible &&
         !inHomeGrounds(this.actors[id].root.position);
       this.bags[id].visible = !away && (state.world.bags[id] > 0 || carryingThroughGate);
@@ -2213,13 +2241,13 @@ export class World {
         }
       }
       pet.followRoute(route.path.map(p => new THREE.Vector3(p.x, 0, p.z)), routine.kind,
-        scratchFace??(routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
+        scratchFace??(routine.kind==='beg'&&routine.goal?Math.atan2(state.characters[routine.target===0?'vlad':'alina'].x-routine.goal.x,state.characters[routine.target===0?'vlad':'alina'].z-routine.goal.z):routine.kind==='toy'?0:routine.kind === 'eat' ? Math.PI : routine.kind === 'sleep' ? Math.PI / 2 : undefined),
         perch??undefined,
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined);
     }
   }
 

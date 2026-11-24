@@ -8,7 +8,7 @@ import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
 import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
 import { FURNITURE_BY_ID } from './shared/furniture';
-import { PLACES, stationById } from './shared/locations';
+import { PLACES, stationById, cafeSeatAt } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
 import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
@@ -715,7 +715,7 @@ const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobi
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room),
-  station => net.career({type:'career_start',via:station}), () => phone.open('career'));
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}));
 
 function signOut(): void {
   net.forgetDevice();
@@ -971,6 +971,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onPetEvent(_role, _pet, _action, message) {
+    if(_action==='treat')world.showPetTreat(_pet);
     statusEl.textContent = message;
     notify(message);
   },
@@ -1555,6 +1556,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           if(fridge)locationUI.visit(fridge);
           return;
         }
+        const seated=state&&cafeSeatAt(state,active);
+        if(seated?.id===id){locationUI.visit(seated);return;}
         net.world({ type: 'approach', place: world.place, station: id });
       },
       dismissTap() {

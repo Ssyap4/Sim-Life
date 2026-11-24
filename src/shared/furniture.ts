@@ -145,7 +145,15 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('pet-house-soft','Домик «Плюшевый кокон»','pets','plant',8900,1.22,1.12,.92,'🐈','Мягкая капсула с просторным входом и утопленной лежанкой сверху.'),
   product('pet-house-tower','Комплекс «Король Симба»','pets','plant',14900,1.92,1.18,1.34,'🐾','Домик, отдельная сизалевая когтеточка, игрушка и широкая верхняя лежанка.'),
 ] as const;
-export const FURNITURE_BY_ID = new Map(FURNITURE_CATALOG.map(item=>[item.id,item]));
+// Keep the old models for already-owned furniture, but no new decorative purchases.
+export const PURCHASABLE_FURNITURE=FURNITURE_CATALOG.filter(item=>item.category!=='decor');
+export const STARTER_CAT_HOUSE='pet-house-starter';
+export const STARTER_CAT_SCRATCHER='pet-scratcher-starter';
+export const STARTER_PET_PRODUCTS:readonly FurnitureProduct[]=[
+  product(STARTER_CAT_HOUSE,'Первый домик Симбы','pets','plant',2400,1.16,1.04,.75,'🐈','Невысокий тканевый домик с мягкой крышей для сна.'),
+  product(STARTER_CAT_SCRATCHER,'Первая когтеточка Симбы','pets','plant',1100,.62,.62,.82,'🐾','Простой столбик из сизаля на круглой подставке.'),
+];
+export const FURNITURE_BY_ID = new Map([...FURNITURE_CATALOG,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.
@@ -247,6 +255,7 @@ export interface FurnishingState {
   placed:PlacedFurniture[];
   /** Permanent tombstones for sold starter models, synced across both players. */
   soldFixtures?:StaticFurnitureId[];
+  starterPetsGranted?:true;
 }
 export const emptyFurnishing = ():FurnishingState => ({nextId:1,orders:[],stored:[],placed:[],soldFixtures:[]});
 export function furnitureFootprint(item:PlacedFurniture,clearance=0):FloorRect {
@@ -270,6 +279,7 @@ export function isValidFurnishing(raw:unknown):raw is FurnishingState {
      state.soldFixtures.length>STATIC_FURNITURE_IDS.length||
      new Set(state.soldFixtures).size!==state.soldFixtures.length||
      !state.soldFixtures.every(isStaticFurnitureId)))return false;
+  if(state.starterPetsGranted!==undefined&&state.starterPetsGranted!==true)return false;
   const all=[...state.orders,...state.stored,...state.placed];
   const ids=new Set<number>();
   return all.every(item=>{

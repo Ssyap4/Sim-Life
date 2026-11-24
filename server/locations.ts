@@ -46,7 +46,7 @@ export function validWorld(value: unknown): value is WorldState {
       ROLES.includes(d.role) && count(d.cost) && count(d.readyAt) && (d.handedAt===undefined||count(d.handedAt)&&d.handedAt>=d.readyAt) && quoteCart(d.lines).ok) &&
     !!w.cafe && !Array.isArray(w.cafe) && typeof w.cafe === 'object' &&
     Object.entries(w.cafe).every(([role, order]) => ROLES.includes(role as CharacterId) && order &&
-      isCafeItem(order.item) && count(order.readyAt) && typeof order.pickedUp === 'boolean');
+      isCafeItem(order.item) && count(order.readyAt) && typeof order.pickedUp === 'boolean' && (order.table===undefined || (stationById('cafe',order.table)?.action.kind==='dine' && count(order.orderedAt) && order.orderedAt!<=order.readyAt)));
 }
 
 function at(source: GameState, role: CharacterId, station: Station | undefined): boolean {
@@ -68,7 +68,7 @@ export function setDogParkPosition(state: GameState): void {
 
 export const worldMessages = new Set([
   'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
+  'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
 export function applyWorld(source: GameState, role: CharacterId, command: Record<string, unknown>, neighborOnline = false): Result {
@@ -184,6 +184,14 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     return { ok: true, state: next, message: '', path, station: station?.id };
   }
 
+  if(command.type==='cafe_seat'){
+    const table=stationById('cafe',command.station);
+    if(place!=='cafe'||table?.action.kind!=='dine'||!at(source,role,table))return fail('Сначала подойди к столику');
+    const next=structuredClone(source);
+    Object.assign(next.characters[role],approachFor(table,role),{pose:'sit'});
+    return done(next,'Вы сели за столик');
+  }
+
   if (command.type === 'store_pay' || command.type === 'delivery_order' || command.type === 'cafe_order') {
     if (command.sequence !== source.world.sequence[role]) return fail('Эта операция уже обработана. Проверь заказ');
     if (command.type === 'store_pay') {
@@ -218,16 +226,21 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return done(next, 'Заказ оплачен: товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE +
         ' ₽ = ' + cost + ' ₽. Курьер будет через ' + DELIVERY_MINUTES + ' игровых мин.');
     }
-    if (place !== 'cafe' || !at(source, role, stationById('cafe', 'terminal'))) return fail('Подойди к терминалу кафе');
+    const table=stationById('cafe',command.table);
+    if(place!=='cafe')return fail('Заказ доступен в кафе');
+    if(command.table!==undefined){
+      if(table?.action.kind!=='dine'||!at(source,role,table)||source.characters[role].pose!=='sit')return fail('Сначала сядь за выбранный столик');
+    }else if(!at(source,role,stationById('cafe','terminal')))return fail('Подойди к терминалу кафе');
     if (!isCafeItem(command.item)) return fail('Такого блюда нет в меню');
+    if(!table&&!['cappuccino','tea','brioche','pastry'].includes(command.item))return fail('Блюдо можно заказать только за столиком');
     if (source.world.cafe[role]) return fail('Сначала забери и закончи предыдущий заказ');
     const item = CAFE_MENU[command.item];
     if (source.money < item.price) return fail('Недостаточно денег');
     next.money -= item.price;
     next.world.sequence[role]++;
-    next.world.cafe[role] = { item: command.item, readyAt: now + CAFE_MINUTES, pickedUp: false };
+    next.world.cafe[role] = { item: command.item, readyAt: now + (table?item.minutes:CAFE_MINUTES), pickedUp: false, ...(table?{table:table.id,orderedAt:now}:{}) };
     addLedger(next, role, 'expense', 'takeout', item.price, 'Кафе · ' + item.name);
-    return done(next, 'Заказ оплачен. Забери его на стойке выдачи');
+    return done(next, table?'Заказ оплачен. Блюдо подадут к столику':'Заказ оплачен. Забери его на стойке выдачи');
   }
 
   if(command.type==='delivery_handoff'){
@@ -303,7 +316,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if (command.type === 'cafe_pickup') {
     if (place !== 'cafe' || !at(source, role, stationById('cafe', 'pickup'))) return fail('Подойди к выдаче');
     const order = source.world.cafe[role];
-    if (!order || order.pickedUp || order.readyAt > clockMinutes(source.clock)) return fail('Нет готового заказа для выдачи');
+    if (!order || order.table || order.pickedUp || order.readyAt > clockMinutes(source.clock)) return fail('Нет готового заказа для выдачи');
     const next = structuredClone(source);
     next.world.cafe[role]!.pickedUp = true;
     return done(next, 'Заказ получен. Выбери свободное место за столиком');
@@ -341,9 +354,11 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   resident.pose = action === 'rest' || action === 'dine' ? 'sit' : 'idle';
   if (action === 'dine') {
     const order = next.world.cafe[role];
-    if (order?.pickedUp) {
+    if(order?.table && (order.table!==id || order.readyAt>clockMinutes(source.clock) || source.characters[role].pose!=='sit'))
+      return fail('Сядь за свой столик и дождись приготовления');
+    if (order?.pickedUp || order?.table) {
       const meal = CAFE_MENU[order.item];
-      bump('hunger', meal.hunger); bump('energy', meal.energy); bump('mood', meal.mood);
+      bump('hunger', meal.hunger); bump('energy', meal.energy); bump('mood', meal.mood); bump('comfort',meal.comfort);
       delete next.world.cafe[role];
     } else { bump('comfort', 8); bump('mood', 3); }
   } else if (action === 'rest') {

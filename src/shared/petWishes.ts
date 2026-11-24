@@ -202,6 +202,8 @@ export function petWish(state: GameState, id: PetId): PetWish {
   if(routine==='come')return {kind:'affection',title:'🐾 Идёт на зов',
     message:PETS[id].name+' обходит мебель и направляется к хозяину.',
     advice:'Дай питомцу добраться самостоятельно',urgent:false};
+  if(routine==='beg')return {kind:'play',title:'🍪 Просит лакомство',message:'Ждёт вкусняшку рядом с хозяином.',advice:'Можно угостить питомца',urgent:false};
+  if(routine==='toy'&&id==='verdell')return {kind:'play',title:'🐾 Играет с игрушкой',message:'Занимается любимыми игрушками самостоятельно.',advice:'Можно оставить Верделла играть',urgent:false};
   if(routine==='fetch'&&id==='verdell')return {kind:'play',title:'🎾 Несёт мяч',
     message:'Верделл бежит к мячу и возвращается с ним к хозяину.',
     advice:'Подожди, пока Верделл принесёт игрушку',urgent:false};

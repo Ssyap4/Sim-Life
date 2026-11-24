@@ -41,10 +41,10 @@ test('All bathroom actions complete at their shared approach and restore the int
   const effects = [
     { action: 'toiletUse', bladder: 100, hygiene: 12, comfort: 28 },
     { action: 'bathWash', bladder: 8, hygiene: 35, comfort: 28 },
-    { action: 'bathShower', bladder: 8, hygiene: 87, comfort: 28 },
+    { action: 'bathShower', bladder: 8, hygiene: 92, comfort: 28 },
     { action: 'bathTeeth', bladder: 8, hygiene: 32, comfort: 28 },
-    { action: 'bathFoam', bladder: 8, hygiene: 100, comfort: 43 },
-    { action: 'bathSoak', bladder: 8, hygiene: 76, comfort: 52 },
+    { action: 'bathFoam', bladder: 8, hygiene: 100, comfort: 63 },
+    { action: 'bathSoak', bladder: 8, hygiene: 100, comfort: 52 },
   ] as const;
   for (const { action, bladder, hygiene, comfort } of effects) {
     const result = applyAction(start, 'vlad', action);

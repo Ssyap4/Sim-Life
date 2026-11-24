@@ -1,4 +1,4 @@
-import {FURNITURE_CATALOG,FURNITURE_BY_ID,type FurnitureProduct,type FurnitureShape,type PlacedFurniture} from '../src/shared/furniture';
+import {PURCHASABLE_FURNITURE,FURNITURE_BY_ID,type FurnitureProduct,type FurnitureShape,type PlacedFurniture} from '../src/shared/furniture';
 import {initialState} from '../src/shared/protocol';
 import {checkFurniturePlacement} from '../src/shared/furnishingPlacement';
 import {furnitureActionList,furnitureUseLocation,furnitureSource,type FurnitureUseAction} from '../src/shared/furnitureUse';
@@ -31,7 +31,7 @@ let validated=0,actionsVerified=0;
 const start=performance.now();
 const book=Object.keys(BOOKS)[0];
 const genre=Object.keys(GENRES)[0];
-for(const info of FURNITURE_CATALOG){
+for(const info of PURCHASABLE_FURNITURE){
  let state=initialState();
  state.money=500000;
  state.furnishing.soldFixtures=[...sold];
@@ -128,10 +128,10 @@ for(const info of FURNITURE_CATALOG){
  }catch(e){failures.push({sku:info.id,shape:info.shape,message:String(e)});rows.push({sku:info.id,result:'fail'});}
 }
 const passed=rows.filter(x=>x.result==='ok').length;
-if(failures.length||passed!==FURNITURE_CATALOG.length){
- console.error('FURNITURE_AUDIT_FAILURE: '+failures.length+' of '+FURNITURE_CATALOG.length);
+if(failures.length||passed!==PURCHASABLE_FURNITURE.length){
+ console.error('FURNITURE_AUDIT_FAILURE: '+failures.length+' of '+PURCHASABLE_FURNITURE.length);
  process.exitCode=1;
 }
-console.log(JSON.stringify({total:FURNITURE_CATALOG.length,passed,
+console.log(JSON.stringify({total:PURCHASABLE_FURNITURE.length,passed,
  placementValidated:validated,actionsVerified,durationMs:Math.round(performance.now()-start),failures,
  breakdown:Object.fromEntries([...new Set(rows.map(r=>r.shape))].map(shape=>[shape,rows.filter(r=>r.shape===shape).length]))},null,2));

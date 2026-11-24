@@ -1,4 +1,4 @@
-import { FURNITURE_BY_ID, furnitureFootprint, furnishingObstacles,
+import { FURNITURE_BY_ID, furnitureFootprint,
   type PlacedFurniture } from './furniture';
 import { HOME_FLOOR, HOUSE, HOUSE_WING, HOME_DOORS, HOUSE_ENTRY,
   HOME_WALLS, HOME_FURNITURE, HOME_DECOR, KITCHEN_WORK, homeSeat } from './home';
@@ -15,10 +15,8 @@ const yes:PlacementCheck={valid:true,reason:'Можно поставить'};
 const deny=(reason:string):PlacementCheck=>({valid:false,reason});
 const intersects=(a:FloorRect,b:FloorRect)=>
   a.minX<b.maxX&&a.maxX>b.minX&&a.minZ<b.maxZ&&a.maxZ>b.minZ;
-const contains=(a:FloorRect,p:FloorPoint,extra=0)=>
-  p.x>a.minX-extra&&p.x<a.maxX+extra&&p.z>a.minZ-extra&&p.z<a.maxZ+extra;
 const center:FloorPoint={x:0,z:1.4};
-const walkObstacles=(state:GameState)=>placeObstacles('home',state.furnishing);
+const walkObstacles=(state:GameState,placed:readonly PlacedFurniture[])=>placeObstacles('home',{...state.furnishing,placed:[...placed]});
 // Separate actual physical geometry from navigation's actor-expanded walls.
 const fixedPhysical=(state:GameState):FloorRect[]=>[
   ...HOME_WALLS,
@@ -62,8 +60,8 @@ function preservedRoutes(others:readonly PlacedFurniture[],state:GameState){
   const key=JSON.stringify([state.furnishing.soldFixtures??[],others]);
   const cached=routeCache.get(key);
   if(cached)return cached;
-  const baseline=walkObstacles(state);
-  const obstacles=[...baseline,...furnishingObstacles({placed:[...others]})];
+  const baseline=walkObstacles(state,[]);
+  const obstacles=walkObstacles(state,others);
   const found:ReachRoute[]=[];
   for(const p of requiredTargets){
     if(!pointIsClear(p,baseline,HOME_FLOOR))continue;
@@ -107,7 +105,6 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   if(!product)return deny('Предмет не найден в каталоге');
   if(!Number.isFinite(candidate.x)||!Number.isFinite(candidate.z)||
       ![0,1,2,3].includes(candidate.rotation))return deny('Некорректные координаты');
-  const footprint=furnitureFootprint(candidate);
   // A couple of centimetres of buffer avoid z-fighting without reserving
   // entire empty strips beside each wall.
   const physical=furnitureFootprint(candidate,.018);
@@ -131,21 +128,9 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   }))return deny('Лежанке нужно свободное место на полу');
   // Rugs and low pet cushions do not create invisible navigation walls.
   if(product.walkable)return yes;
-  if((['vlad','alina'] as const).some(role=>
-      state.world.places[role]==='home'&&contains(footprint,state.characters[role],.16)))
-    return deny('Сейчас здесь стоит персонаж');
-  if(PET_IDS.some(id=>contains(footprint,state.pets[id].position,.16)))
-    return deny('Подожди, пока питомец отойдёт');
-  if(PET_IDS.some(id=>{
-    const route=state.pets[id].routine?.route;
-    if(!route)return false;
-    const path=[route.from,...route.path];
-    const blocking=[furnitureFootprint(candidate,.24)];
-    return path.some((p,i)=>contains(footprint,p,.24)||
-      (i>0&&!segmentIsClear(path[i-1],p,blocking,HOME_FLOOR)));
-  }))return deny('Здесь проходит текущий маршрут питомца');
+  // Residents and pets are transient: their current positions/actions never decide build validity.
   const changed=[...others,candidate];
-  const obstacles=[...walkObstacles(state),...furnishingObstacles({placed:changed})];
+  const obstacles=walkObstacles(state,changed);
   const dynamicBlocking=furnitureFootprint(candidate,.30);
   // An existing route remains valid if the new object is nowhere along it.
   // A* is only needed for a route that actually crosses the new footprint.
@@ -159,10 +144,10 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // Pets are mostly on the old side of the house. Do not run a full pet
   // pathfinding simulation for furniture located far from all their paths.
   const oldPet=petNavigationGeometry(
-    [...walkObstacles(state),...furnishingObstacles({placed:[...others]})],HOME_FLOOR);
+    walkObstacles(state,others),HOME_FLOOR);
   const impacted: Array<{from:FloorPoint;dest:FloorPoint}>=[];
   for(const id of PET_IDS){
-    const from=state.pets[id].position;
+    const from=PETS[id].home;
     for(const dest of [PETS[id].bowl,PETS[id].home,PETS[id].toilet]){
       const offsets=[[0,.74],[-.74,0],[.74,0],[0,-.74]] as const;
       for(const [dx,dz] of offsets){

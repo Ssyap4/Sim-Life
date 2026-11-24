@@ -472,7 +472,7 @@ export class Actor {
     const asleep = this.pose === 'sleep';
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
-    const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed';
+    const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat';
     const breath = Math.sin(t * (asleep ? 1.35 : 1.85));
     let lean = this.pose === 'work' ? 0.26 : this.activity === 'cook' ? 0.14 : care ? 0.48 : 0;
     if (this.pose === 'sit' && !this.activity) lean = -0.08;
@@ -1329,7 +1329,7 @@ export class Actor {
         .015+.035*Math.sin(a*2.5),.10+.012*Math.sin(a*5.2),-.03),alpha);
       this.aimHand(1,this.handDirection.set(0,-.5,-1)
         .applyAxisAngle(up,this.root.rotation.y),alpha);
-    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet' || this.activity === 'feed' || this.activity === 'play')) {
+    } else if (this.petContact && (this.activity === 'brush' || this.activity === 'pet' || this.activity === 'feed' || this.activity === 'play'||this.activity==='treat')) {
       // Follow the actual animal's saved position; strokes travel across the
       // coat rather than moving a hand in place beside the standing resident.
       const brushing = this.activity === 'brush';

@@ -1,4 +1,4 @@
-import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_CATEGORIES,
+import { FURNITURE_BY_ID, PURCHASABLE_FURNITURE, FURNITURE_CATEGORIES,
   FURNITURE_STYLES, furnitureStyle, FURNITURE_GROUP_LABELS,
   SORTED_FURNITURE_CATALOG, furnitureDisplayGroup, compareFurnitureSkus,
   STATIC_FURNITURE, STATIC_FURNITURE_IDS,
@@ -85,7 +85,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     const {orders,stored,placed}=state.furnishing;
     const ready=orders.filter(item=>item.readyAt<=callbacks.minute()).length;
     const starterCount=STATIC_FURNITURE_IDS.filter(id=>!state.furnishing.soldFixtures?.includes(id)).length;
-    const counts={catalog:FURNITURE_CATALOG.length,delivery:orders.length,storage:stored.length,placed:placed.length+starterCount};
+    const counts={catalog:PURCHASABLE_FURNITURE.length,delivery:orders.length,storage:stored.length,placed:placed.length+starterCount};
     tabs.forEach(button=>{
       const t=button.dataset.tab as Tab;
       button.textContent=({catalog:'🛍️ Каталог',delivery:'📦 Доставка',storage:'🗄️ Склад',placed:'🏠 Установлено'}[t])+' · '+counts[t];
@@ -118,7 +118,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     searchInput.addEventListener('input',()=>{search=searchInput.value;renderCards(state);});
     const select=document.createElement('select');
     select.setAttribute('aria-label','Категория мебели');
-    for(const [id,label] of [['all','Все категории'],...Object.entries(FURNITURE_CATEGORIES)]){
+    for(const [id,label] of [['all','Все категории'],...Object.entries(FURNITURE_CATEGORIES).filter(([id])=>id!=='decor')]){
       const option=document.createElement('option');option.value=id;option.textContent=label;
       select.append(option);
     }
@@ -181,7 +181,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       }
     },{root:body,rootMargin:'220px'});
     const query=search.trim().toLocaleLowerCase('ru-RU');
-    const matching=SORTED_FURNITURE_CATALOG.filter(info=>
+    const matching=SORTED_FURNITURE_CATALOG.filter(info=>info.category!=='decor'&&
       (category==='all'||category===info.category)&&
       (style==='all'||furnitureStyle(info.id)===style)&&
       (!query||(info.name+' '+info.description+' '+FURNITURE_CATEGORIES[info.category]).toLocaleLowerCase('ru-RU').includes(query)));

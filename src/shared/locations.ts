@@ -139,6 +139,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('pickup', 'Выдача заказов', 3.44, -2.51, 1.65, 0.84, { kind: 'pickup' }),
     site('cafe-left', 'Столик у окна', -2.93, 0.63, 1.76, 1.42, { kind: 'dine' }),
     site('cafe-right', 'Столик у растений', 2.93, 0.63, 1.76, 1.42, { kind: 'dine' }),
+    site('cafe-center', 'Столик в центре', 0, -1.45, 1.76, 1.42, { kind: 'dine' }),
     door('cafe-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   park: [
@@ -187,7 +188,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 });
-  if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 });
+  if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
   if(place==='district')obstacles.push(...DISTRICT_WORLD_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);
   for (const { x,z,w,d } of WORK_DECOR[place] ?? []) obstacles.push({
@@ -210,11 +211,23 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
 }
 
 export const CAFE_MENU = {
-  cappuccino: { name: 'Капучино', price: 260, hunger: 5, energy: 14, mood: 6 },
-  tea: { name: 'Чай с ягодами', price: 190, hunger: 2, energy: 8, mood: 8 },
-  brioche: { name: 'Бриошь с сыром', price: 380, hunger: 29, energy: 3, mood: 10 },
-  pastry: { name: 'Ягодный тарт', price: 410, hunger: 20, energy: 4, mood: 14 },
+  cappuccino: { name: 'Капучино', price: 260, hunger: 5, energy: 14, mood: 20, comfort: 15, minutes: 12 },
+  tea: { name: 'Чай с ягодами', price: 190, hunger: 5, energy: 8, mood: 15, comfort: 10, minutes: 12 },
+  brioche: { name: 'Бриошь с сыром', price: 380, hunger: 35, energy: 3, mood: 25, comfort: 20, minutes: 16 },
+  pastry: { name: 'Ягодный тарт', price: 410, hunger: 25, energy: 4, mood: 45, comfort: 30, minutes: 16 },
+  caesar: { name: 'Цезарь с курицей', price: 590, hunger: 65, energy: 0, mood: 50, comfort: 45, minutes: 20 },
+  tomYum: { name: 'Том-ям с креветками и рисом', price: 890, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 24 },
+  tunaPoke: { name: 'Поке с тунцом и авокадо', price: 990, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 27 },
+  bbqRibs: { name: 'Свиные рёбрышки BBQ с коул-слоу', price: 1290, hunger: 100, energy: 0, mood: 100, comfort: 100, minutes: 30 },
 } as const;
+export const CAFE_TALK_SECONDS=18;
+export function cafeSeatAt(state:Pick<import('./protocol').GameState,'world'|'characters'>,role:CharacterId):Station|undefined{
+  if(state.world.places[role]!=='cafe'||state.characters[role].pose!=='sit')return;
+  return STATIONS.cafe.find(station=>{
+    const p=approachFor(station,role),c=state.characters[role];
+    return station.action.kind==='dine'&&Math.hypot(p.x-c.x,p.z-c.z)<.22;
+  });
+}
 export type CafeItem = keyof typeof CAFE_MENU;
 export function isCafeItem(value: unknown): value is CafeItem {
   return typeof value === 'string' && Object.hasOwn(CAFE_MENU, value);
@@ -223,7 +236,7 @@ export const DELIVERY_FEE = 149;
 export const DELIVERY_MINUTES = 18;
 export const CAFE_MINUTES = 2;
 export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number; handedAt?:number }
-export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean }
+export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean; table?: string; orderedAt?: number }
 export interface WorldState {
   districtLayout?: 1 | 2 | 3 | 4;
   places: Record<CharacterId, PlaceId>;
@@ -254,7 +267,8 @@ export type WorldCommand =
   | { type: 'ready_food_move'; kind: 'meal' | 'takeout'; item: string }
   | { type: 'ready_food_serve'; kind: 'meal' | 'takeout'; item: string }
   | { type: 'ready_food_discard'; kind: 'meal' | 'takeout'; item: string; storage: 'fridge' | 'table' }
-  | { type: 'cafe_order'; item: CafeItem; sequence: number }
+  | { type: 'cafe_seat'; station: string }
+  | { type: 'cafe_order'; item: CafeItem; sequence: number; table?: string }
   | { type: 'cafe_pickup' }
   | { type: 'dog_leash' }
   | { type: 'local_activity'; action: LocalActivity; station: string };

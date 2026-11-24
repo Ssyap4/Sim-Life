@@ -1,3 +1,5 @@
+import { CAFE_TALK_TOPICS } from './shared/socialLife';
+import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
 import { districtStation } from './shared/district';
@@ -29,13 +31,15 @@ function button(label: string, click: () => void, disabled = false) {
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
   openEducation: (room: string, exam?: boolean) => void,
-  enterWork: (station:string) => boolean, openCareer: () => void) {
+  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
   let current: Station | null = null;
   let ingredient: IngredientId | null = null;
   let pending: number | null = null;
+  let cafeChoice: CafeItem | null = null;
+  let cafeTopicsOpen=false;
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
   const cart = new Map<string, number>();
   const list = (): BasketLine[] => [...cart].map(([id, quantity]) => ({ id, quantity }));
@@ -44,6 +48,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   function close() {
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
     current = null;
+    cafeChoice=null;
+    cafeTopicsOpen=false;
     panel.hidden = true;
     panel.replaceChildren();
     getWorld()?.closeStorage();
@@ -266,26 +272,61 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }
     } else if (kind === 'terminal' || kind === 'pickup') {
       const order = place.world.cafe[role];
-      if (order) {
+      if (order?.table) options.append(element('small','','Ваш заказ подадут прямо к столику.'));
+      else if (order) {
         options.append(element('strong', '', CAFE_MENU[order.item].name + ' · ' + (order.pickedUp ? 'На подносе' : order.readyAt <= now
           ? 'Готово к выдаче' : 'Готовится · ' + (order.readyAt - now) + ' мин.')));
         if (kind === 'pickup' && !order.pickedUp)
           options.append(button('Забрать заказ', () => send({ type: 'cafe_pickup' }), order.readyAt > now));
       } else if (kind === 'pickup') options.append(element('small', '', 'Сначала сделай заказ у терминала.'));
-      else for (const [item, meal] of Object.entries(CAFE_MENU)) {
-        const option = button(meal.name + ' · ' + formatRub(meal.price),
-          () => transaction({ type: 'cafe_order', item: item as CafeItem, sequence: place.world.sequence[role] }),
-          pending !== null || place.money < meal.price);
-        option.dataset.menuItem = item;
-        options.append(option);
-      }
+      else options.append(element('small','','Выберите свободный столик и закажите блюдо там.'));
     } else if (station.action.kind === 'education') {
       const room = station.action.room;
       options.append(button(room === 'reception' ? 'Расписание и запись' : 'Занятия в этом зале', () => openEducation(room)));
       if (room === 'reception' || room === 'classroom')
         options.append(button('Квалификационные экзамены', () => openEducation('classroom', true)));
     } else if (kind === 'dine') {
-      options.append(local(place.world.cafe[role]?.pickedUp ? 'Сесть и поесть' : 'Сесть и отдохнуть', 'dine'));
+      const order=place.world.cafe[role];
+      const seated=cafeSeatAt(place,role)?.id===station.id;
+      const partner=role==='vlad'?'alina':'vlad';
+      const sameTable=seated&&cafeSeatAt(place,partner)?.id===station.id;
+      if(cafeTopicsOpen&&sameTable&&cafeSocial){
+        title.textContent='О чём поговорим?';
+        options.append(element('small','','Выберите тему разговора. Ваш заказ продолжит готовиться.'));
+        for(const topic of CAFE_TALK_TOPICS)options.append(button(topic.title,()=>{if(cafeSocial(topic.id))close();}));
+        options.append(button('Назад к столику',()=>{cafeTopicsOpen=false;draw();}));
+        panel.append(options);
+        panel.scrollTop=y;
+        return;
+      }
+      if(!sameTable)cafeTopicsOpen=false;
+      if(sameTable&&cafeSocial){
+        options.append(button('Поболтать за столиком ›',()=>{cafeTopicsOpen=true;draw();}));
+        const other=place.world.cafe[partner];
+        if(order?.table===station.id&&other?.table===station.id&&order.readyAt<=now&&other.readyAt<=now)options.append(button('Поесть вместе',()=>{if(cafeSocial('cafeMeal'))close();}));
+      }
+      if(!seated)options.append(button('Сесть за столик',()=>send({type:'cafe_seat',station:station.id})));
+      else if(order?.pickedUp)options.append(local('Съесть блюдо','dine'));
+      else if(order?.table===station.id){
+        const meal=CAFE_MENU[order.item];
+        const remaining=Math.max(0,order.readyAt-now);
+        options.append(element('strong','',meal.name));
+        if(remaining){
+          const progress=element('progress','cafe-order-progress');
+          progress.max=Math.max(1,order.readyAt-(order.orderedAt??(order.readyAt-meal.minutes))); progress.value=Math.max(0,progress.max-remaining);
+          progress.setAttribute('aria-label','Приготовление заказа');
+          options.append(element('small','','Готовится · '+remaining+' игровых мин.'),progress);
+        }else options.append(local('Съесть блюдо','dine'));
+      }else if(order)options.append(element('small','','Сначала закончи предыдущий заказ за своим столиком.'));
+      else if(cafeChoice){
+        const meal=CAFE_MENU[cafeChoice];
+        options.append(element('strong','',meal.name+' · '+formatRub(meal.price)),
+          element('small','','Сытость +'+meal.hunger+' · Настроение +'+meal.mood+' · Комфорт +'+meal.comfort+' · '+meal.minutes+' мин.'),
+          button('Подтвердить заказ',()=>{const item=cafeChoice!;cafeChoice=null;transaction({type:'cafe_order',item,table:station.id,sequence:place.world.sequence[role]});},pending!==null||place.money<meal.price),
+          button('Назад к меню',()=>{cafeChoice=null;draw();}));
+      }else for(const [id,meal] of Object.entries(CAFE_MENU)){
+        options.append(button(meal.name+' · '+formatRub(meal.price),()=>{cafeChoice=id as CafeItem;draw();},pending!==null||place.money<meal.price));
+      }
     } else if (kind === 'rest') options.append(local('Сесть на скамью', 'rest'));
     else if (kind === 'exercise') options.append(local('Сделать лёгкую зарядку', 'exercise'));
     else if (kind === 'dog') {
@@ -309,6 +350,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         return;
       }
       current = station;
+      cafeChoice=null;
+      cafeTopicsOpen=false;
       ingredient = null;
       panel.hidden = false;
       panel.dataset.station = station.id;

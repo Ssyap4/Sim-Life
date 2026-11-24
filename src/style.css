@@ -660,6 +660,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .world-map .action-button { min-height: 44px; }
 .world-map .action-button:disabled, .location-panel .action-button:disabled { opacity: .55; cursor: default; }
 .world-station-options { display: grid; gap: 7px; }
+.cafe-order-progress { width:100%;height:12px;accent-color:#bc8756; border-radius:12px; }
 .world-product {
   display: flex; align-items: center; justify-content: space-between;
   gap: 6px; min-width: 0; font-size: 12px;

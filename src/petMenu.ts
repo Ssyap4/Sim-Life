@@ -1,5 +1,5 @@
 import {
-  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel, type PetId, type PetAction,
+  PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel,treatsRemaining, type PetId, type PetAction,
 } from './shared/pets';
 import type { GameState } from './shared/protocol';
 import { catPerchCandidates } from './shared/CatPerches';
@@ -153,6 +153,7 @@ export function renderPetChoices(
     action:'fetch',icon:'🎾',hint:'Пробежать к мячику и принести его обратно',
     disabled:stats.satiety<40||stats.bladder<35||stats.energy<42,
   });
+  actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
   for (const row of actions) {
     const button = document.createElement('button');
     button.type = 'button';
