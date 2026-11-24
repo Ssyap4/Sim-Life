@@ -34,7 +34,7 @@ import type { CharacterModel } from './CharacterArt';
 import { PetActor } from './PetActor';
 import type { SimbaRig } from './SimbaRig';
 import { currentCatPerch } from '../shared/CatPerches';
-import {currentPetEquipment} from '../shared/petFurniture';
+import {currentPetEquipment,petScratchPoint} from '../shared/petFurniture';
 import { PET_PERSON_CLEARANCE, separatePetBodies } from './PetTraffic';
 import { petNavigationGeometry } from './PetNavigation';
 import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproach, type PetId, type PetAction } from '../shared/pets';
@@ -2150,8 +2150,9 @@ export class World {
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
       const route = sampleWalk(routine.route, distance);
       pet.syncGround(route.from.x,route.from.z);
-      const scratchFace=routine.kind==='scratch'&&routine.equipment&&routine.goal
-        ? Math.atan2(routine.equipment.x-routine.goal.x,routine.equipment.z-routine.goal.z):undefined;
+      const scratchPoint=routine.kind==='scratch'&&routine.equipment?petScratchPoint(routine.equipment):undefined;
+      const scratchFace=scratchPoint&&routine.goal
+        ? Math.atan2(scratchPoint.x-routine.goal.x,scratchPoint.z-routine.goal.z):undefined;
       // Read support height once per route from the rotated physical model.
       // The server's X/Z, floor approach and attachment key still apply.
       const perch=routine.perch?currentCatPerch(state.furnishing,routine.perch):null;
@@ -2194,7 +2195,7 @@ export class World {
         routine.kind==='fetch'&&routine.fetchPoint?{
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
-        }:undefined,!!bed,supportHeight,routine.kind==='scratch'?routine.equipment:undefined,
+        }:undefined,!!bed,supportHeight,scratchPoint,
         routine.startedAt);
     }
   }

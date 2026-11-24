@@ -8,7 +8,7 @@ export type CatRestPoseId =
   | 'sofa_side_rest'
   | 'bed_curl'
   | 'chair_compact'
-  | 'mat_curl';
+  | 'mat_curl' | 'house_cabin' | 'house_soft' | 'house_tower';
 
 export interface CatRestPose {
   /** Local yaw relative to the furniture's open/front direction. */
@@ -53,6 +53,21 @@ export const CAT_REST_POSES:Readonly<Record<CatRestPoseId,CatRestPose>>={
     yaw:0,pitch:.015,roll:0,sink:.230,length:.71,height:.91,
     forePawY:-.130,forePawZ:-.080,hindPawY:-.145,hindPawZ:.095,
     spineYaw:.10,spinePitch:.045,headPitch:.04,headTurn:.08,headDrop:.020,tailCurl:1.14,
+  },
+  house_cabin:{
+    yaw:0,pitch:.025,roll:.025,sink:.235,length:.78,height:.92,
+    forePawY:-.13,forePawZ:-.085,hindPawY:-.14,hindPawZ:.12,
+    spineYaw:.19,spinePitch:.06,headPitch:.16,headTurn:.12,headDrop:.05,tailCurl:1.15,
+  },
+  house_soft:{
+    yaw:Math.PI/2,pitch:.035,roll:.13,sink:.24,length:.79,height:.92,
+    forePawY:-.125,forePawZ:.055,hindPawY:-.145,hindPawZ:.15,
+    spineYaw:.25,spinePitch:.07,headPitch:.25,headTurn:.19,headDrop:.085,tailCurl:1.10,
+  },
+  house_tower:{
+    yaw:0,pitch:.02,roll:0,sink:.23,length:.73,height:.91,
+    forePawY:-.13,forePawZ:-.065,hindPawY:-.145,hindPawZ:.105,
+    spineYaw:.10,spinePitch:.04,headPitch:.05,headTurn:.08,headDrop:.025,tailCurl:1.16,
   },
   mat_curl:{
     yaw:0,pitch:.035,roll:.10,sink:.240,length:.83,height:.93,

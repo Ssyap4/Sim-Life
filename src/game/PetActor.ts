@@ -249,7 +249,7 @@ export class PetActor {
     // This prevents an instant disappearance through the sofa on cancellation.
     const descending=this.id==='simba' && !!this.leavingPerch && this.perchProgress>0;
     if(descending){
-      this.perchProgress=Math.max(0,this.perchProgress-dt/.88);
+      this.perchProgress=Math.max(0,this.perchProgress-dt/(this.leavingPerch?.entry==='inside'?1.45:.88));
       if(this.perchProgress<=0){
         this.leavingPerch=null;
         this.leavingPerchHeight=undefined;
@@ -336,7 +336,7 @@ export class PetActor {
     }
     if (this.routine) travel = this.distance;
     if(this.id==='simba' && this.perch && !this.route.length && !this.reaction && !descending){
-      this.perchProgress=Math.min(1,this.perchProgress+dt/.95);
+      this.perchProgress=Math.min(1,this.perchProgress+dt/(this.perch.entry==='inside'?1.65:.95));
       const targetYaw=this.perch.yaw;
       const delta=THREE.MathUtils.euclideanModulo(targetYaw-this.root.rotation.y+Math.PI,2*Math.PI)-Math.PI;
       this.root.rotation.y+=delta*(1-Math.exp(-dt*4.5));
@@ -613,7 +613,8 @@ export class PetActor {
     if(this.simbaRig){
       const rest=Math.max(sleeping*.94,catNap,lookout*.60);
       const phase=this.perchProgress;
-      const airborne=surface?Math.sin(Math.PI*phase):0;
+      const entering=surface?.entry==='inside';
+      const airborne=surface&&!entering?Math.sin(Math.PI*phase):0;
       const anticipation=surface?Math.sin(Math.PI*THREE.MathUtils.clamp(phase/.22,0,1))*.075:0;
       const loaf=Math.max(curled,lookout*.72,catNap);
       const coil=Math.max(curled,lookout*.36,catNap*.85);
@@ -639,8 +640,8 @@ export class PetActor {
         THREE.MathUtils.lerp(groundBodyY, -(restPreset?.sink??0),restWeight),
         step*scratching);
       if(surface&&phase>0){
-        const horizontal=THREE.MathUtils.smootherstep(phase,.25,1);
-        const vertical=THREE.MathUtils.smootherstep(phase,.12,.82);
+        const horizontal=THREE.MathUtils.smootherstep(phase,entering?0:surface.entry==='jump'?.35:.25,1);
+        const vertical=THREE.MathUtils.smootherstep(phase,.08,entering?.65:surface.entry==='jump'?.56:.82);
         const height=(descending?this.leavingPerchHeight:this.perchHeight)??surface.surface.y-.085;
         this.perchLocal.set(surface.surface.x,height,surface.surface.z);
         this.root.worldToLocal(this.perchLocal);
@@ -658,7 +659,7 @@ export class PetActor {
         post.x-.135*Math.sin(this.root.rotation.y),.57,
         post.z-.135*Math.cos(this.root.rotation.y))):undefined;
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
-        t,travel/this.root.scale.x,pace,crouch,scratching,grooming+.54*playful,eating,
+        t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
         airborne,rest,target,loaf,coil,restPoseId,restWeight);
       animate(contact);

@@ -12,7 +12,7 @@ import { GAME_MINUTES_PER_REAL_SECOND, gameMinutes } from '../src/shared/life';
 import { sampleWalk, segmentIsClear, pointIsClear, type FloorPoint, type WalkRoute } from '../src/game/navigation';
 import { petNavigationGeometry, planPetRoute } from '../src/game/PetNavigation';
 import { preferredPetWanderTarget } from '../src/shared/petPersonality';
-import {petBeds,petScratchers,petEquipmentRef,currentPetEquipment,
+import {petBeds,petScratchers,petEquipmentRef,currentPetEquipment,petScratchPoint,
   type PetEquipmentRef} from '../src/shared/petFurniture';
 
 export type PetResult =
@@ -150,7 +150,8 @@ function findScratcher(state:GameState) {
     Math.hypot(b.x-pet.position.x,b.z-pet.position.z));
   for(const post of posts){
     for(const [dx,dz] of points){
-      const goal={x:post.x+dx,z:post.z+dz};
+      const center=petScratchPoint(post);
+      const goal={x:center.x+dx,z:center.z+dz};
       if(!pointIsClear(goal,geometry.obstacles,geometry.floor))continue;
       const route=planPetRoute(pet.position,goal,geometry);
       if(route&&arrivesAt(route,goal))
@@ -229,6 +230,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     let chosenRoute:PetRoutine['route']|undefined;
     let chosenGoal:FloorPoint|undefined;
     let chosenEquipment:PetEquipmentRef|undefined;
+    if(kind==='sleep'&&id==='simba'&&pet.energy>=22&&previous?.kind!=='perch'){
+      const houses=catPerchCandidates(state.furnishing).filter(site=>site.entry==='inside');
+      if(houses.length){
+        const picked=safeCatPerch(state,pet.position,false,Math.floor(random()*houses.length),
+          site=>site.entry!=='inside'||Boolean(blocked?.(site)));
+        if(picked){chosenPerch=picked.site;chosenRoute=picked.route;kind='perch';target=0;}
+      }
+    }
     if(kind==='sleep'){
       const bed=findPetBed(state,id);
       if(bed){chosenRoute=bed.route;chosenGoal=bed.goal;chosenEquipment=bed.equipment;}

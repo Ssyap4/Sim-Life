@@ -160,7 +160,7 @@ const isValidState = (value: unknown): value is GameState => {
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&
-          Number.isFinite(routine.perch.surface.y) && routine.perch.surface.y>=.30 &&
+          Number.isFinite(routine.perch.surface.y) && routine.perch.surface.y>=.20 &&
           routine.perch.surface.y<=1.5 && Number.isFinite(routine.perch.yaw)));
 
   }))) return false;
