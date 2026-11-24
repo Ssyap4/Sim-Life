@@ -30,20 +30,23 @@ test('Home and district have independent floors, gate transition and shared fami
 });
 test('Courier arrives with existing NPC identity, handoff precedes parcel claim, and leaves',()=>{
  let s=initialState();const now=clockMinutes(s.clock);s.money=100000;
- const lines=[{id:'milk',quantity:1}]; // catalogue uses real product IDs in fixtures below
+ const lines=[{id:'grocery:milk',quantity:1}];
  const delivery=applyWorld(s,'vlad',{type:'delivery_order',lines,sequence:0});
  assert.ok(delivery.ok,delivery.ok?'':delivery.reason);s=delivery.state;
- const order=s.world.deliveries[0];assert.equal(courierVisit(s.world,now),null);
+ const order=s.world.deliveries[0];assert.equal(courierVisit(s.world,now)?.place,'district');
  assert.equal(NEIGHBORS[COURIER_INDEX].name,'Максим');
  const gate=courierVisit(s.world,order.readyAt-4)!;assert.deepEqual({x:gate.x,z:gate.z},COURIER_GATE);
  const porch=courierVisit(s.world,order.readyAt)!;assert.deepEqual({x:porch.x,z:porch.z},COURIER_PORCH);assert.ok(porch.waiting);
  s.clock.minute+=18;
  s=approach(s,'vlad','parcel');
  assert.equal(applyWorld(s,'vlad',{type:'delivery_claim',id:order.id}).ok,false);
+ s=approach(s,'vlad','courier-handoff');
  s=send(s,'vlad',{type:'delivery_handoff',id:order.id});assert.equal(s.world.deliveries[0].handedAt,order.readyAt);
  assert.equal(applyWorld(s,'vlad',{type:'delivery_handoff',id:order.id}).ok,false);
  assert.equal(courierVisit(s.world,order.readyAt+1)?.carrying,false);
- assert.equal(courierVisit(s.world,order.readyAt+4),null);
+ assert.equal(courierVisit(s.world,order.readyAt+4)?.place,'district');
+ assert.equal(courierVisit(s.world,order.readyAt+18),null);
+ s=approach(s,'vlad','parcel');
  s=send(s,'vlad',{type:'delivery_claim',id:order.id});assert.equal(s.world.deliveries.length,0);
  assert.equal(applyWorld(s,'vlad',{type:'delivery_claim',id:order.id}).ok,false);
  assert.ok(NEIGHBORS.some((_,i)=>neighborPose(i,now).visible)||NEIGHBORS.length===14);

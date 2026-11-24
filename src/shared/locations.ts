@@ -1,3 +1,4 @@
+import {COURIER_APPROACH,COURIER_PORCH} from './courier';
 import { CASHIER_OBSTACLE } from './locationLayout';
 import { DISTRICT_WORLD_FLOOR, DISTRICT_BENCH, DISTRICT_WORLD_OBSTACLES, HOME_GATE_INSIDE, HOME_GATE_APPROACH, DISTRICT_SITES, districtArrival, districtPoint, districtStation, sitePoint } from './district';
 import { furnishingObstacles } from './furniture';
@@ -41,7 +42,7 @@ type SiteAction =
   | { kind: 'education'; room: 'reception' | 'classroom' | 'lab' | 'workshop' }
   | { kind: 'career'; station: WorkStation }
   | { kind: 'employment'; career: CareerId }
-  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'unpack' };
+  | { kind: 'waypoint' | 'checkout' | 'terminal' | 'pickup' | 'dine' | 'rest' | 'exercise' | 'dog' | 'fridge' | 'cupboard' | 'parcel' | 'courier' | 'unpack' };
 
 export interface Station {
   id: string;
@@ -96,6 +97,7 @@ export const HOME_STATIONS: readonly Station[] = [
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
   site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
+  site('courier-handoff','Курьер Максим',COURIER_PORCH.x,COURIER_PORCH.z,.64,.64,{kind:'courier'},{blocks:false,approach:COURIER_APPROACH}),
   site('parcel', 'Заказы у двери', 1.48, 4.59, 0.51, 0.38, { kind: 'parcel' }, { approach: { x: 1.48, z: 3.92 } }),
   site('home-doorstep', 'Дом', HOUSE_ENTRY.x, HOUSE_ENTRY.z, 1.4,.20, { kind:'waypoint' },
     { blocks:false,approach:{x:HOUSE_ENTRY.x,z:HOUSE_ENTRY.z-.66} }),

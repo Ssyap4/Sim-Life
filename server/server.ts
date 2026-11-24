@@ -1285,7 +1285,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           homeTasks.replay(socket);
         }
         if (result.path) {
-          if (state.world.places[role] === 'home') walkingHome.set(role,{
+          if (state.world.places[role] === 'home'||state.world.places[role]==='district') walkingHome.set(role,{
             route:{from:{x:from.x,z:from.z},path:result.path},started:pauseTimers.now(),
           });
           if (state.world.places[role] === 'home' && (result.station === 'fridge' || result.station === 'cupboard')) {

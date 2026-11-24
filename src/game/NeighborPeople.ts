@@ -75,14 +75,16 @@ export class NeighborPeople {
     entry.model=model;
   }
 
-  update(gameMinute:number,camera?:THREE.Camera,excluded=-1):TrafficBody[] {
+  update(gameMinute:number,camera?:THREE.Camera,excluded=-1,delivery?:CourierVisit):TrafficBody[] {
     this.group.visible=true;
     this.group.position.z=this.offset;
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
     const traffic:TrafficBody[]=[];
     for(const [i,entry] of this.entries.entries()) {
-      if(i===excluded){entry.mounted.visible=false;continue;}
-      const pose=neighborPose(i,gameMinute);
+      if(i===excluded&&delivery?.place!=='district'){entry.mounted.visible=false;continue;}
+      const pose=i===COURIER_INDEX&&delivery?.place==='district'?
+        {x:delivery.x,z:delivery.z-this.offset,yaw:delivery.yaw,visible:true,opacity:1,action:'walk' as const,gestureBlend:0,gait:1,carrying:delivery.carrying,seat:0,lookYaw:0}:
+        neighborPose(i,gameMinute);
       entry.mounted.visible=pose.visible;
       if(!pose.visible)continue;
       entry.seen=seconds;
@@ -140,9 +142,9 @@ export class NeighborPeople {
   }
 
   updateCourier(gameMinute:number,visit:CourierVisit|null):TrafficBody[]{
-    this.group.visible=!!visit;this.group.position.z=0;
-    for(const [i,entry] of this.entries.entries())entry.mounted.visible=!!visit&&i===COURIER_INDEX;
-    if(!visit)return [];
+    this.group.visible=visit?.place==='home';this.group.position.z=0;
+    for(const [i,entry] of this.entries.entries())entry.mounted.visible=visit?.place==='home'&&i===COURIER_INDEX;
+    if(!visit||visit.place!=='home')return [];
     const entry=this.entries[COURIER_INDEX],seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
     entry.mounted.position.set(visit.x,0,visit.z);entry.mounted.rotation.y=visit.yaw;
     if(!entry.model)this.request(COURIER_INDEX,entry);
@@ -151,6 +153,15 @@ export class NeighborPeople {
       this.animateRig(rig,visit.walking?'walk':'look',visit.waiting?.5:0,seconds,COURIER_INDEX,visit.walking?1:0,visit.carrying);
     }
     return [{position:{x:visit.x,z:visit.z},clearance:.68,person:true,moving:visit.walking}];
+  }
+
+  courierMeshes():THREE.Object3D[]{
+    if(!this.group.visible)return [];
+    const entry=this.entries[COURIER_INDEX];const meshes:THREE.Object3D[]=[];
+    if(entry.mounted.visible)entry.model?.root.traverse(part=>{
+      if(part instanceof THREE.Mesh){part.userData.station='courier-handoff';meshes.push(part);}
+    });
+    return meshes;
   }
 
   private dispose(entry:Entry):void {

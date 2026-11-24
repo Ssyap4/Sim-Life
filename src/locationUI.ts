@@ -229,14 +229,19 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         }
         if (!count) options.append(element('small', '', 'Для этого продукта пока нет рецепта.'));
       }
-    } else if (kind === 'parcel') {
+    } else if (kind === 'parcel'||kind==='courier') {
       if (!place.world.deliveries.length) options.append(element('small', '', 'У двери нет заказов.'));
       for (const order of place.world.deliveries) {
         const row = element('div', 'world-order');
         row.append(element('strong', '', (order.handedAt!==undefined?'У двери':order.readyAt<=now?COURIER_NAME+' ждёт у двери':'Курьер едет · '+(order.readyAt-now)+' мин.') + ' · ' + formatRub(order.cost)),
           element('small', '', order.lines.map(line => marketProduct(line.id)!.name + ' ×' + line.quantity).join(', ')));
         if(order.handedAt===undefined){
-          row.append(button('🤝 Получить у курьера',()=>send({type:'delivery_handoff',id:order.id}),order.readyAt>now));
+          if(kind==='courier')row.append(button('🤝 Получить у курьера',()=>send({type:'delivery_handoff',id:order.id}),order.readyAt>now));
+          else row.append(button('Подойти к курьеру',()=>{close();send({type:'approach',place:'home',station:'courier-handoff'});},order.readyAt>now));
+          options.append(row);continue;
+        }
+        if(kind==='courier'){
+          row.append(button('📦 Забрать пакеты у двери',()=>{close();send({type:'approach',place:'home',station:'parcel'});}));
           options.append(row);continue;
         }
         const hasReady = order.lines.some(line => marketProduct(line.id)?.kind === 'takeout');

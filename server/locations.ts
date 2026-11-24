@@ -3,7 +3,7 @@ import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import {
-  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, WORLD_FLOOR, floorFor,
+  CAFE_MENU, CAFE_MINUTES, DELIVERY_FEE, DELIVERY_MINUTES, PLACES, floorFor,
   approachFor, clockMinutes, isCafeItem, isPlace, placeObstacles, spawn, stationById, doorwayArrival,
   type LocalActivity, type Point, type Station, type WorldState,
 } from '../src/shared/locations';
@@ -196,7 +196,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   }
 
   if(command.type==='delivery_handoff'){
-    if(place!=='home'||!at(source,role,stationById('home','parcel')))return fail('Подойди к двери, где ждёт курьер');
+    if(place!=='home'||!at(source,role,stationById('home','courier-handoff')))return fail('Подойди к Максиму у двери');
     const now=clockMinutes(source.clock);
     const order=source.world.deliveries.find(d=>d.id===command.id);
     const courier=courierVisit(source.world,now);

@@ -259,7 +259,7 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?64:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -449,7 +449,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?64:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -571,7 +571,7 @@ export class World {
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?64:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -1962,7 +1962,7 @@ export class World {
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
     this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?64:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -2231,7 +2231,7 @@ export class World {
       return true;
     };
     const meshes=this.place==='home'
-      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes]
+      ? [...this.interactiveMeshes,...this.stationMeshes,...this.subjectMeshes,...(this.household&&courierVisit(this.household.world,this.neighborMinute)?.waiting?this.neighbors.courierMeshes():[])]
       : [...this.remoteMeshes,...this.subjectMeshes];
     const intersections=(px:number,py:number)=>{
       this.raycaster.setFromCamera(ndc(px,py),this.camera);
@@ -2401,7 +2401,7 @@ export class World {
       this.neighborMinute+=dt*GAME_MINUTES_PER_REAL_SECOND;
       const visit=courierVisit(this.household.world,this.neighborMinute);
       if(this.place==='home')this.neighborBodies=this.neighbors.updateCourier(this.neighborMinute,visit);
-      else if(this.place==='district')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1);
+      else if(this.place==='district')this.neighborBodies=this.neighbors.update(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1,visit??undefined);
       else if(this.place==='park')this.neighborBodies=this.neighbors.updatePark(this.neighborMinute,this.camera,visit?COURIER_INDEX:-1);
     }
     for (const id of ['vlad', 'alina'] as const) {

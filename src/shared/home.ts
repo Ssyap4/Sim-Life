@@ -184,6 +184,9 @@ export const HOME_STRUCTURE_OBSTACLES = [
     minX: wall.minX - ACTOR_CLEARANCE, maxX: wall.maxX + ACTOR_CLEARANCE,
     minZ: wall.minZ - ACTOR_CLEARANCE, maxZ: wall.maxZ + ACTOR_CLEARANCE,
   })),
+  // The old floor boundary used to be the outer wall. Keep the actual walls solid on the expanded plot.
+  {minX:HOUSE.minX-.28,maxX:HOUSE.minX+.28,minZ:HOUSE.minZ-.28,maxZ:HOUSE.maxZ+.28},
+  {minX:HOUSE.minX-.28,maxX:HOUSE.maxX+.28,minZ:HOUSE.minZ-.28,maxZ:HOUSE.minZ+.28},
   // Keep the central courtyard fence, but open side reserve lawns from the front.
   { minX:-6.22,maxX:-5.68,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
   { minX:5.68,maxX:6.22,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
