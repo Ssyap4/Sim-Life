@@ -107,7 +107,7 @@ export const HOME_STATIONS: readonly Station[] = [
   site('family-car','Семейный автомобиль',CAR_PARKING.x,CAR_PARKING.z,2.46,4.96,{kind:'car'},{approach:CAR_APPROACH}),
   site('home-gate','Выйти на улицу',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'district'},{blocks:false,approach:HOME_GATE_INSIDE}),
   site('wardrobe-alina','Шкаф Алины',-8.57,1.48,1.16,.58,{kind:'wardrobe'},{approach:{x:-8.57,z:.57}}),
-  site('wardrobe-vlad','Шкаф Влада',8.65,-1.53,1.16,.58,{kind:'wardrobe'},{approach:{x:8.65,z:-2.44}}),
+  site('wardrobe-vlad','Шкаф Влада',5.64,-1.53,1.16,.58,{kind:'wardrobe'},{approach:{x:5.50,z:-2.44}}),
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
   site('cupboard', 'Кухонные полки', COUNTER.x - 1.72, COUNTER.z - .56, .70, .46, { kind: 'cupboard' }, { blocks: false, approach: KITCHEN_WORK.tea.position }),
