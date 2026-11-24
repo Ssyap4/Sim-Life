@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
-import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
-import { COUNTER, EAST_WALL, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, OFFICE_END, WC_START, WEST_WALL, HOUSE_WING } from '../shared/home';
-import { botanicalPrint, gardenView, limewashWall, oakFloor } from './ArtTextures';
+import { batchRigidParts, colors as C, cube, drum, finish, panel, plane, softCube, type XYZ } from './ArtKit';
+import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, HOUSE_WING } from '../shared/home';
+import { botanicalPrint, gardenView } from './ArtTextures';
+import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -24,21 +25,12 @@ function rearWall(home: THREE.Group): void {
   const right = center + 1.66;
   const bottom = 1.25;
   const top = 2.81;
-  const map=limewashWall();
-  if(map)map.wrapS=THREE.RepeatWrapping;
-  const plaster=new THREE.MeshStandardMaterial({map,color:map?0xffffff:C.limestone,roughness:.93});
+
   for (const [x1, x2, y1, y2] of [
     [HOUSE.minX, left, 0, height], [right, HOUSE.maxX, 0, height],
     [left, right, 0, bottom], [left, right, top, height],
   ]) {
-    const block=cube.clone(),uv=block.getAttribute('uv');
-    const position=block.getAttribute('position');
-    for(let i=0;i<uv.count;i++)
-      uv.setXY(i,(x1+(position.getX(i)+.5)*(x2-x1))/2.6,(y1+(position.getY(i)+.5)*(y2-y1))/height);
-    const wall=new THREE.Mesh(block,plaster);
-    wall.scale.set(x2-x1,y2-y1,.24);
-    wall.position.set((x1+x2)/2,(y1+y2)/2,z);
-    home.add(wall);
+    timberWall(home,[x2-x1,y2-y1,.24],[(x1+x2)/2,(y1+y2)/2,z]);
   }
   panel(home, [center, 2.03, z - .12], [3.36, 1.60], gardenView(), C.sky, .20);
   // The sash sits in shadow behind the casing. The sill projects into the room.
@@ -48,6 +40,7 @@ function rearWall(home: THREE.Group): void {
   }
   shape(home, softCube, [0.093, 1.57, 0.092], [center, 2.03, z + .012], C.paper, 'wood');
   shape(home, softCube, [3.42, 0.074, 0.084], [center, 2.19, z + .010], C.paper, 'wood');
+  for(const x of [left-.07,right+.07])shape(home,cube,[.055,1.77,.082],[x,2.03,z+.20],C.walnut,'wood');
   shape(home, softCube, [3.61, 0.105, 0.40], [center, bottom, z + .14], C.oat, 'wood');
   shape(home, softCube, [3.54, 0.092, 0.23], [center, top, z + .14], C.paper, 'wood');
   const rod = shape(home, drum, [0.036, 3.84, 0.036], [center, 2.97, z + .29], C.brass, 'metal');
@@ -89,8 +82,7 @@ function roomPartitions(home: THREE.Group): void {
     const x = (wall.minX + wall.maxX) / 2;
     const z = (wall.minZ + wall.maxZ) / 2;
     const height = z > HOUSE.maxZ - .10 ? .23 : .43;
-    const color = x > EAST_WALL - .15 && z > OFFICE_END - .15 ? C.sage : C.limestone;
-    shape(home, cube, [width, height, depth], [x, height / 2, z], color);
+    timberWall(home,[width,height,depth],[x,height/2,z]);
     shape(home, cube, [width + .028, .054, depth + .028], [x, height, z], C.walnut, 'wood');
   }
   // Deep rear and far side walls establish the volume. The viewer-facing sides are cut away.
@@ -104,8 +96,7 @@ function roomPartitions(home: THREE.Group): void {
     for (const [minZ, maxZ] of segments) {
       const span = maxZ - minZ;
       const mid = (minZ + maxZ) / 2;
-      shape(home, cube, [.22, height, span], [x, height / 2, mid], C.limestone);
-      shape(home, cube, [.052, height * .53, Math.max(.1, span - .20)], [x - side * .126, height * .265, mid], C.sage);
+      timberWall(home,[.22,height,span],[x,height/2,mid]);
       shape(home, cube, [.27, .07, span], [x, height, mid], C.walnut, 'wood');
     }
   }
@@ -123,21 +114,6 @@ function roomPartitions(home: THREE.Group): void {
   const width = HOUSE.maxX - HOUSE.minX;
   shape(home, cube, [width, .10, .30], [0, 3.16, HOUSE.minZ], C.paper, 'wood');
   shape(home, cube, [width - .22, .13, .079], [0, .085, HOUSE.minZ + .16], C.walnut, 'wood');
-}
-
-function tileFloor(home: THREE.Group, x1: number, x2: number, z1: number, z2: number, bathroom: boolean): void {
-  const seam = bathroom ? '#a5b8ac' : '#bcaa96';
-  const shades = bathroom ? ['#c8d8ca', '#d3dccb', '#bad0c2', '#dbe3d4'] : ['#dfcbb3', '#ead7c1', '#e3d1bb', '#d5bfa8'];
-  const map = paintedMap(bathroom ? 'bathroom-floor' : 'wc-floor', 256, 256, ctx => {
-    ctx.fillStyle = seam;
-    ctx.fillRect(0, 0, 256, 256);
-    for (let row = 0; row < 8; row++) for (let col = 0; col < 6; col++) {
-      ctx.fillStyle = shades[(row * 5 + col * 3 + (row + col) % 3) % shades.length];
-      ctx.fillRect(col * 43 + 1, row * 32 + 1, 41, 30);
-    }
-  });
-  const tile = panel(home, [(x1 + x2) / 2, .009, (z1 + z2) / 2], [x2 - x1, z2 - z1], map, C.sage);
-  tile.rotation.x = -Math.PI / 2;
 }
 
 function entryDoor(home: THREE.Group) {
@@ -205,10 +181,7 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
     const edge = new RoundedBoxGeometry(width + margin, height, depth + margin, 1, height * .42);
     shape(home, edge, [1, 1, 1], [0, y, z], color, surface, y < -.1);
   }
-  const floor = panel(home, [0, 0, z], [width, depth], oakFloor(), C.oak);
-  floor.rotation.x = -Math.PI / 2;
-  tileFloor(home, HOUSE.minX, WEST_WALL, WC_START, HOUSE.maxZ, false);
-  tileFloor(home, EAST_WALL, HOUSE.maxX, OFFICE_END, HOUSE.maxZ, true);
+  cottageFloor(home);
   rearWall(home);
   roomPartitions(home);
   const entry = entryDoor(home);
@@ -216,7 +189,9 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   const pictureX = -3.11;
   shape(home, softCube, [1.16, 1.28, .065], [pictureX, 2.07, HOUSE.minZ + .14], C.walnut, 'wood');
   panel(home, [pictureX, 2.07, HOUSE.minZ + .177], [1.02, 1.13], botanicalPrint(), C.paper);
-  shape(home, cube, [4.92, 1.25, .021], [COUNTER.x + .27, .71, HOUSE.minZ + .136], 0xe3cfb2);
+  // Separate washable sage tile cladding behind the cooking zone.
+  panel(home,[COUNTER.x+.27,1.31,HOUSE.minZ+.137],[5.55,2.50],kitchenAccent(),0xa4bfb0);
+  shape(home,cube,[5.63,.075,.052],[COUNTER.x+.27,2.58,HOUSE.minZ+.15],C.walnut,'wood');
   petNooks(home);
   batchRigidParts(home, true);
   scene.add(home);

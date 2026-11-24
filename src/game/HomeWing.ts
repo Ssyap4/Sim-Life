@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HOUSE_WING, HOUSE } from '../shared/home';
 import { batchRigidParts, colors as C, cube, finish } from './ArtKit';
+import {cottageFloor,timberWall} from './CottageArt';
 
 // A future-ready three-room wing. The established rooms, props, action anchors,
 // and old wall coordinates are deliberately left alone.
@@ -32,14 +33,13 @@ export function buildHomeWing(scene: THREE.Scene): void {
     add(width - .25, .065, z1 - z0 - .14, centerX, -.013, z,
       [0xc39f78, 0xd7b68e, 0xbfa083][i]);
     // Restrained parquet strips give the empty rooms scale without clutter.
-    for (let x = minX + .45; x < maxX - .18; x += .62) {
-      add(.018, .008, z1 - z0 - .17, x, .024, z, 0x886c53);
-    }
+
     // A low door-side marker reserved for a future room label or furniture edit.
     add(.68, .025, .085, maxX - .58, .033, z0 + .46, C.oat);
   }
+  cottageFloor(wing,true);
   // Rear exterior behind the new rooms, with a tall window and a light sill.
-  add(width, 2.84, .19, centerX, 1.42, minZ, C.limestone, 'ceramic');
+  timberWall(wing,[width,2.84,.19],[centerX,1.42,minZ]);
   for (const x of [11.28, 13.72]) {
     add(1.36, 1.13, .024, x, 1.85, minZ + .11, 0x8cabb0, 'ceramic');
     add(1.48, .065, .20, x, 1.20, minZ + .23, C.oat);
@@ -47,7 +47,7 @@ export function buildHomeWing(scene: THREE.Scene): void {
   }
   // Exterior posts hint at future windows but don't enclose the cutaway camera.
   for (const z of [-6.75, -3.05, .50, 4.18]) {
-    add(.24, .95, .21, maxX, .47, z, C.limestone, 'ceramic');
+    timberWall(wing,[.24,.95,.21],[maxX,.47,z]);
     add(.31, .058, .27, maxX, .97, z, C.walnut);
   }
   // Three open passageways are readable as doorframes from the overhead view.

@@ -378,11 +378,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor, [outdoor?21.3:12.3, .40, outdoor?14.3:10.3], [outdoor?2.5:0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [outdoor?21:12, .06, outdoor?14:10], [outdoor?2.5:0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (!outdoor) {
-      const seamColor = 0xaf8257;
-      for (let i = -5; i <= 5; i++) shape(floor, [.018, .006, 10], [i, .005, 0], seamColor, cube);
-      for (let i = -4; i <= 4; i++) shape(floor, [12, .006, .017], [0, .005, i], seamColor, cube);
+      const map=painted(resources,512,512,ctx=>{const colors=place==='cafe'?['#ad8259','#c39b70','#d0af87','#b88d60']:place==='electronics'?['#b6c5cc','#d1dbe0','#a5b7c2','#c5d1d7']:place==='petshop'?['#b5c7b1','#d3decd','#c2d0bf','#a9bda7']:['#c9b7b9','#e2d4cf','#d1c0c1','#bca6aa'];ctx.fillStyle='#8d8a80';ctx.fillRect(0,0,512,512);const tw=place==='cafe'?32:64,th=place==='cafe'?112:64;for(let j=0;j*th<512;j++)for(let i=-1;i*tw<512;i++){const x=i*tw+(j%2)*tw*.5,y=j*th;ctx.fillStyle=colors[((i+4)*3+j*5)%4];ctx.fillRect(x+1,y+1,tw-2,th-2);ctx.fillStyle='#ffffff36';ctx.fillRect(x+2,y+2,tw-4,1);if(place==='cafe')for(let k=0;k<4;k++){ctx.fillStyle='#714e3030';ctx.fillRect(x+4+k*6,y+3,1,th-6);}}});
+      const surface=new THREE.MeshStandardMaterial({map,color:map?0xffffff:0xc5ae91,roughness:.88});materials.push(surface);const tile=new THREE.Mesh(plane,surface);tile.rotation.x=-Math.PI/2;tile.scale.set(12,10,1);tile.position.y=.003;floor.add(tile);
       shape(floor, [12.2, 2.91, .19], [0, 1.46, -5.01], place === 'cafe' ? 0xd3b89b : 0xbbcec3, cube);
       shape(floor, [.19, 2.91, 10.1], [-6.05, 1.46, 0], place === 'cafe' ? 0x9fac88 : 0xa4b8b1, cube);
+      // Store-specific wall cladding in the existing rear wall footprint.
+      const accent=place==='cafe'?0x627d68:place==='electronics'?0x536e80:place==='petshop'?0x82a28a:0xa88992;
+      shape(floor,[11.9,.49,.025],[0,.51,-4.895],accent,cube);
       for (const y of [.25, .78, 2.86]) {
         shape(floor, [12.2, .13, .23], [0, y, -4.95], C.paper);
         shape(floor, [.23, .13, 10.1], [-5.99, y, 0], C.paper);

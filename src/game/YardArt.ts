@@ -266,6 +266,13 @@ function garden(yard: THREE.Group): void {
   shape(yard,[.12,.057,.17],[post,.87,gate.z+.10],0xe4c9a0,softCube);
 }
 
+function eveningGarden(parent:THREE.Group){
+  const glow=paintedMap('yard-lantern-pool',64,64,ctx=>{const g=ctx.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,201,115,.58)');g.addColorStop(.45,'rgba(255,181,89,.24)');g.addColorStop(1,'rgba(255,181,89,0)');ctx.fillStyle=g;ctx.fillRect(0,0,64,64);});
+  const night=new THREE.Group();night.name='Warm garden lantern pools';night.visible=false;
+  if(glow){const material=new THREE.MeshBasicMaterial({map:glow,transparent:true,depthWrite:false});const positions:number[]=[],uvs:number[]=[],indices:number[]=[];for(const [x,z] of [[.48,6.15],[.48,10.95],[-4.95,8.15]]){const j=positions.length/3;positions.push(x-1.05,.017,z-1.05,x+1.05,.017,z-1.05,x+1.05,.017,z+1.05,x-1.05,.017,z+1.05);uvs.push(0,0,1,0,1,1,0,1);indices.push(j,j+2,j+1,j,j+3,j+2);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geo.setIndex(indices);const mesh=new THREE.Mesh(geo,material);mesh.raycast=()=>{};night.add(mesh);}
+  parent.add(night);return night;
+}
+
 export function buildYard(scene: THREE.Scene) {
   const yard = new THREE.Group();
   const plot=HOME_FLOOR,w=plot.maxX-plot.minX+.5,d=plot.maxZ-plot.minZ+.9;
@@ -307,6 +314,7 @@ export function buildYard(scene: THREE.Scene) {
   garden(yard);
   fence(yard);
   batchRigidParts(yard, true);
+  const night=eveningGarden(yard);
   scene.add(yard);
   const furniture = grillAndTable();
   // Smoke and ember FX are visual-only overlays. Detach them from the
@@ -318,5 +326,5 @@ export function buildYard(scene: THREE.Scene) {
     scene.add(effect);
   }
   scene.add(furniture.platter);
-  return furniture;
+  return {...furniture,night};
 }

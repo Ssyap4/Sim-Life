@@ -1577,6 +1577,7 @@ export class World {
     (this.scene.background as THREE.Color).copy(sky);
     if(this.scene.fog)this.scene.fog.color.copy(sky);
     this.roomGlow.intensity=this.place==='home'?mix(begin.glow,end.glow):0;
+    if(this.yard?.night)this.yard.night.visible=this.place==='home'&&(hour>=1135||hour<375);
     const solarAngle=(hour-360)/720*Math.PI;
     this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
       1.8+Math.max(0,Math.sin(solarAngle))*11,
