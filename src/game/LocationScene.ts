@@ -4,7 +4,7 @@ import { buildFurnishingModel } from './FurnishingArt';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
 import { STATIONS, HOME_STATIONS, DISTRICT_STATIONS, type PlaceId, type Station } from '../shared/locations';
 import { DISTRICT_OFFSET_Z } from '../shared/district';
-import { locationGeometry, painted } from './LocationArt';
+import { locationGeometry, painted, lettering } from './LocationArt';
 import { buildDistrict } from './DistrictArt';
 import { addTufts, grassMaterial, growFlowers, growShrub, growTree, landscapeRandom, landscapeSharedGeometry, PlantBatch } from './LandscapePlants';
 import { paintGround, type GroundArea } from './LandscapeGround';
@@ -151,7 +151,19 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     shape(root,[w,3.10,d],[0,1.55,0],0xadb3b1,cube,true);
     shape(root,[w+.18,.18,d+.18],[0,3.19,0],0x4e565b,cube);
     shape(root,[w+.04,.56,.19],[0,2.65,d/2+.04],brand,cube);
-    sign(root,oz?'OZON':'WILDBERRIES',2.65,d/2+.15,w-.22,C.paper,textures,materials);
+    // Raised roof billboard, matching the commercial district's readable nameboards.
+    const board=new THREE.Group();
+    board.name='Roof sign: '+station.id;
+    const width=w-.36,height=1.32,bottom=3.58,cy=bottom+height/2,z=d/2-.24;
+    shape(board,[width+.18,height+.14,.18],[0,cy,z],0x36434a,cube);
+    shape(board,[width+.08,height+.04,.06],[0,cy,z+.11],brand,cube);
+    for(const side of [-1,1]){
+      const x=side*width*.32;
+      shape(board,[.12,.42,.16],[x,3.44,z-.09],0x4e565b,cube);
+      shape(board,[.33,.08,.35],[x,3.31,z-.09],0x36434a,cube);
+    }
+    lettering(board,{textures,materials},[0,cy,z+.15],width-.12,height-.12,oz?'OZON':'WILDBERRIES',[oz?'#2058b9':'#902d85','#ffffff']);
+    root.add(board);
     for(const x of [-1.94,1.94]){
       shape(root,[1.68,1.95,.09],[x,.99,d/2+.025],0x545d64,cube);
       for(let i=0;i<12;i++)shape(root,[1.61,.035,.03],[x,.15+i*.147,d/2+.08],0x929b9f,cube);
