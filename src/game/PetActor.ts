@@ -308,6 +308,15 @@ export class PetActor {
     let waiting = !!this.yieldingTo && !!traffic &&
       traffic.blockers.some(b => Math.hypot(
         b.x - this.yieldingTo!.x, b.z - this.yieldingTo!.z) < .26);
+    // A pet behind us is no longer blocking our next step. In a narrow
+    // corridor this releases the leading pet before the follower, instead
+    // of both waiting forever after a person has moved away.
+    if(waiting&&traffic?.otherPet&&this.yieldingTo&&this.route.length&&
+      Math.hypot(traffic.otherPet.x-this.yieldingTo.x,traffic.otherPet.z-this.yieldingTo.z)<.26&&
+      !traffic.blockers.some(b=>b!==traffic.otherPet&&Math.hypot(b.x-this.root.position.x,b.z-this.root.position.z)<1.8)){
+      const target=this.route[0],p=this.root.position,b=traffic.otherPet;
+      if((target.x-p.x)*(b.x-p.x)+(target.z-p.z)*(b.z-p.z)<=0){waiting=false;this.stuckFor=0;this.lastProgressGap=Infinity;}
+    }
     if (!waiting) this.yieldingTo = null;
     // Two pets sometimes mutually wait when both had to stop for a human.
     // Once the person leaves, let the dog repath from his *current* spot

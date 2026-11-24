@@ -107,7 +107,7 @@ for (const fps of [20, 30, 60]) {
         toDog: petDestination('verdell', { kind: 'eat', target: 0 }),
         fromCat: PETS.simba.home,
         toCat: petDestination('simba', { kind: 'eat', target: 0 }),
-        blockedAt: { x: 0, z: -1 }, unblockAfter: 12 },
+        blockedAt: { x: -.56, z: 1.5 }, unblockAfter: 12 },
     ];
     for (const scenario of scenarios) simulate(scenario, fps);
   });
