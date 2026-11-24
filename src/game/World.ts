@@ -1615,7 +1615,7 @@ export class World {
       1.8+Math.max(0,Math.sin(solarAngle))*11,
       4.2+Math.cos(solarAngle)*3);
     this.weather.light(this.scene,this.place,this.sun,this.ambient);
-    this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze);
+    this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze,current.snow);
   }
 
   private createLights(): void {

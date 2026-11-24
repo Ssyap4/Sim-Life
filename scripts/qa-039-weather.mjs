@@ -11,7 +11,7 @@ const kind=process.argv[2],out='/tmp/simlife-039-weather';mkdirSync(out,{recursi
 let selected;
 for(let day=1;day<=365&&!selected;day++){
  const c={day,minute:750},w=weatherAt(c);
- if(w.kind===kind&&(kind!=='snow'||w.snow>=.6))selected=c;
+ if((kind==='winter-clear'?w.season==='winter'&&w.kind==='clear':w.kind===kind)&&(kind!=='snow'||w.snow>=.6))selected=c;
 }
 assert.ok(selected,'missing actual calendar weather '+kind);
 const dir=mkdtempSync(join(tmpdir(),'weather-'));let browser,page,server;

@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kind: [clear, rain, snow, storm]
+        kind: [clear, rain, snow, storm, winter-clear]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

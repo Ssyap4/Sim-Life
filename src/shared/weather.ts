@@ -35,7 +35,7 @@ export function weatherAt(clock:GameClock){
   const c=clockAt(Math.max(0,minute-i*360)),t=temperatureAt(c);
   snow=Math.max(0,Math.min(1,snow+(frontAt(c)==='snow'?.26:0)-(t>1?Math.min(.34,t*.035):0)));
  }
- if(season==='winter'&&temp<0)snow=Math.max(snow,.60);
+ if(season==='winter')snow=1;
  const wind=kind==='storm'?12:kind==='rain'?5:kind==='snow'?4:kind==='fog'?1:2+Math.floor(hash(Math.floor(minute/360)+41)*4);
  return {kind,temp,season,snow:Math.round(snow*10)/10,wind,nextChangeAt:(Math.floor(minute/FRONT_MINUTES)+1)*FRONT_MINUTES};
 }

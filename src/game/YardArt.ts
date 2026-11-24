@@ -51,7 +51,7 @@ function paving() {
 function flat(parent: THREE.Group, x: number, y: number, z: number, width: number, depth: number,
   map: THREE.Texture | null, color: number) {
   const ground=panel(parent,[x,y,z],[width,depth],map,color);ground.rotation.x=-Math.PI/2;
-  seasonalMaterial(ground.material as THREE.Material,'ground');
+  seasonalMaterial(ground.material as THREE.Material,'lawn');
 }
 
 function skewerFood(recipe: RecipeId, food: THREE.Group) {
@@ -281,7 +281,7 @@ export function buildYard(scene: THREE.Scene) {
   const cx=(plot.maxX+plot.minX)/2,cz=(plot.maxZ+plot.minZ)/2;
   shape(yard,[w,.26,d],[cx,-.39,cz],0x94775e,cube);
   const base=shape(yard,[w,.10,d],[cx,-.079,cz],snowPreview()?0xe1e8ec:0x82965d,cube);
-  base.material=seasonalMaterial(base.material.clone(),'ground');
+  base.material=seasonalMaterial(base.material.clone(),'lawn');
   for(const x of [plot.minX-.24,plot.maxX+.24]){
     shape(yard,[.14,.82,d],[x,.41,cz],C.oak,cube);
   }
@@ -290,7 +290,8 @@ export function buildYard(scene: THREE.Scene) {
     shape(yard,[b-a,.82,.14],[(a+b)/2,.41,HOME_YARD.gate.z],C.oak,cube);
   }
   shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
-  shape(yard, [12.25, .11, 6.92], [0, -.071, 8.70], 0x69764f, softCube);
+  const turfBase=shape(yard,[12.25,.11,6.92],[0,-.071,8.70],0x69764f,softCube);
+  turfBase.material=seasonalMaterial(turfBase.material.clone(),'lawn');
   // Leave a depth gap above the deck for the wider home's overview camera.
   flat(yard, 0, -.005, 8.73, 12.18, 6.80, turf(), lawn);
 

@@ -15,7 +15,7 @@ test('same game clock yields the same forecast, stable fronts and plausible seas
   assert.equal(w.kind,weatherAt({day,minute:minute+359}).kind);
   assert.ok(w.temp>=-25&&w.temp<=40&&w.snow>=0&&w.snow<=1);
   const kinds=seen.get(w.season)??new Set();kinds.add(w.kind);seen.set(w.season,kinds);
-  if(w.season==='winter'){winterSnow+=w.snow;meanWinter+=w.temp;nWinter++;}
+  if(w.season==='winter'){assert.equal(w.snow,1);winterSnow+=w.snow;meanWinter+=w.temp;nWinter++;}
   if(w.season==='summer'){summerSnow+=w.snow;meanSummer+=w.temp;nSummer++;}
  }
  assert.ok(seen.get('winter')!.has('snow')&&seen.get('summer')!.has('storm'));
@@ -45,4 +45,8 @@ test('seasonal materials share uniforms and preserve existing shader hooks',()=>
  applySeason({...weatherAt({day:300,minute:0}),season:'winter',snow:.7});
  assert.equal(shader.uniforms.seasonIndex.value,3);assert.equal(shader.uniforms.snowCover.value,.7);
  applySeason(weatherAt({day:150,minute:0}));assert.equal(shader.uniforms.seasonIndex.value,1);
+ const lawn=seasonalMaterial(new THREE.MeshStandardMaterial(),'lawn');
+ const turf={uniforms:{},vertexShader:'',fragmentShader:'#include <color_fragment>'} as any;
+ lawn.onBeforeCompile(turf,null as any);
+ assert.ok(turf.fragmentShader.includes('float mask=1.0;')&&turf.fragmentShader.includes('snowCover*0.97'));
 });

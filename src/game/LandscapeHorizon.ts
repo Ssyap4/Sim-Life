@@ -36,13 +36,13 @@ export class LandscapeHorizon {
     geometry.setAttribute('color',new THREE.Float32BufferAttribute(inks,3));
     geometry.setIndex(index);
     const material=new THREE.ShaderMaterial({
-      uniforms:{sky:{value:new THREE.Color()},mist:{value:.25}},
+      uniforms:{sky:{value:new THREE.Color()},mist:{value:.25},snow:{value:0}},
       vertexColors:true,side:THREE.DoubleSide,depthWrite:false,depthTest:true,
       vertexShader:`varying vec3 ink;
         void main(){ink=color;vec3 dir=mat3(viewMatrix)*position;
           vec4 clip=projectionMatrix*vec4(dir,1.0);gl_Position=clip.xyww;}`,
-      fragmentShader:`uniform vec3 sky;uniform float mist;varying vec3 ink;
-        void main(){gl_FragColor=vec4(mix(ink*sky*1.48,sky,mist),1.0);
+      fragmentShader:`uniform vec3 sky;uniform float mist,snow;varying vec3 ink;
+        void main(){gl_FragColor=vec4(mix(mix(ink,vec3(.79,.85,.90),snow*smoothstep(-.06,.08,ink.g-ink.r))*sky*1.48,sky,mist),1.0);
           #include <colorspace_fragment>
         }`,
     });
@@ -58,8 +58,8 @@ export class LandscapeHorizon {
     if(['home','district','park','industrial'].includes(place))scene.add(this.mesh);
   }
 
-  tint(sky:THREE.Color,mist:number){
+  tint(sky:THREE.Color,mist:number,snow=0){
     this.mesh.material.uniforms.sky.value.copy(sky);
-    this.mesh.material.uniforms.mist.value=mist;
+    this.mesh.material.uniforms.mist.value=mist;this.mesh.material.uniforms.snow.value=snow;
   }
 }
