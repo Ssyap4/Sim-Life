@@ -292,14 +292,14 @@ export function buildYard(scene: THREE.Scene) {
   flat(yard, 0, -.005, 8.73, 12.18, 6.80, turf(), lawn);
 
   // Painted lawn extension covers the formerly empty parking-side reserve.
-  const extension=paintedMap('right-yard-v6',384,320,ctx=>paintGround(ctx,{x:9.2,z:8.63,w:6.3,d:6.35},[],9721,'lawn'));
-  flat(yard,9.2,-.009,8.63,6.3,6.35,extension,lawn);
+  const extension=paintedMap('right-yard-v6',512,320,ctx=>paintGround(ctx,{x:12.05,z:8.63,w:12.1,d:6.35},[],9721,'lawn'));
+  flat(yard,12.05,-.009,8.63,12.1,6.35,extension,lawn);
   const { x } = HOUSE_ENTRY;
   const { parking } = HOME_YARD;
   const stones=paving();
   const stoneFinish=new THREE.MeshStandardMaterial({map:stones,color:stones?0xffffff:flagstone,roughness:.93});
   for(const [px,y,z,width,depth] of [[x,.006,8.58,1.88,6.83],[-3.51,.004,6.67,4.24,2.75],
-    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17],[5.10,.006,8.25,5.8,1.56]]){
+    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17],[7.40,.006,8.25,10.8,1.56]]){
     const strip=new THREE.Mesh(plane,stoneFinish);
     strip.rotation.x=-Math.PI/2;
     strip.position.set(px,y,z);strip.scale.set(width,depth,1);

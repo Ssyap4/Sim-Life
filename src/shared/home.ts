@@ -175,7 +175,7 @@ export const HOME_DECOR = [
 
 export const HOME_YARD = {
   gate: { x: HOUSE_ENTRY.x, z: 12.06, width: 1.46 },
-  parking: { x: 8.85, z: 8.63 },
+  parking: { x: 14.2, z: 8.63 },
   sideOpening: { minZ: 6.85, maxZ: 9.65 },
   planter: { x: -5.73, z: 9.80 },
 };
