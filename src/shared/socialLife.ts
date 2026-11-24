@@ -61,12 +61,14 @@ export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'clo
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'breakfastCare';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
+export const BREAKFAST_RECIPES:readonly RecipeId[]=['omelette','toast','porridge','sandwich','pancakes','fruitSalad'];
 const objects: readonly SocialActivity[] = [
+  {id:'breakfastCare',title:'Приготовить завтрак для любимого человека',group:'care',lines:['Хочешь, приготовлю тебе свежий завтрак? Посиди за столом, я всё сделаю.'],replies:['Да, спасибо!','С удовольствием, очень приятно.'],motion:'cook',seconds:25,object:'breakfastCare',resource:'kitchen',memorable:true},
   {id:'leisureTogether',title:'Провести досуг вдвоём',group:'home',lines:['Давай поиграем или отдохнём вместе!'],replies:['С удовольствием!','Давай!'],motion:'leisure',seconds:28,object:'leisure',memorable:true},
   {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
     lines:['Давай устроим домашний вечер: можем приготовить вдвоём, доесть готовое или разделить доставку.',
@@ -253,9 +255,10 @@ const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'
   state.readyFood.reduce((total,batch)=>total+
     (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
       ? batch.portions:0),0);
-const pairItems = new Set<ObjectActivity>(['yardCoffee','cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
+const pairItems = new Set<ObjectActivity>(['breakfastCare','yardCoffee','cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
+  if(a.object==='breakfastCare')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'}));
   if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
   if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
@@ -319,6 +322,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
     }))return 'Сначала дождитесь своих заказов и сядьте за столик';
     if(!individual&&(state.world.cafe[from]?.table??'cafe-left')!==(state.world.cafe[to]?.table??'cafe-left'))return 'Выберите один столик на двоих';
   }
+  if(name==='breakfastCare'&&state.furnishing.soldFixtures?.includes('table'))return 'Для завтрака пока нужен основной обеденный стол';
   if(name==='yardCoffee'&&!sharedCoffeeOptions(state,from).length)return 'Нужны две порции кофе и свободный дневной лимит у обоих';
   if((name==='teaTogether'||name==='yardTea')&&state.pantry.tea<2)return 'Нужны две порции чая';
   if(name==='teaTogether'&&state.furnishing.soldFixtures?.includes('table'))return 'Для чаепития пока нужен основной обеденный стол';

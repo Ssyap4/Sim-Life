@@ -194,6 +194,11 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const yard=(role:CharacterId)=>homeSeat('yardTable',role).approach;
   const prep=KITCHEN_WORK.tidy;
   const fridge=stationById('home','fridge')!.approach;
+  if(a.object==='breakfastCare'){
+    seats={[to]:'table'};
+    work[from]={motion:'cook',destination:KITCHEN_WORK.stove.position,target:KITCHEN_WORK.stove.target};
+    work[to]={motion:'sitTalk',destination:table(to),target:KITCHEN_WORK.stove.target};
+  }
   if(a.object==='cook'||a.object==='grill'){
     const grill=a.object==='grill', unit=grill?GRILL_WORK:KITCHEN_WORK.stove;
     work[from]={motion:grill?'grill':'cook',destination:unit.position,target:unit.target};
@@ -322,6 +327,15 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   };
   let rejected:EvaluatedTask|undefined;
   switch(a.object){
+    case 'breakfastCare':{
+      if(roles.length!==2)return fail('Для заботы нужен второй участник');
+      rejected=run(from,{type:'cook',recipe:id as RecipeId});
+      if(rejected.ok){
+        awardCooking(state,from,id as RecipeId);
+        message='Завтрак готов: '+RECIPES[id as RecipeId].name+' · '+RECIPES[id as RecipeId].servings+' порц. на столе';
+      }
+      break;
+    }
     case 'cook':case 'grill': {
       rejected=run(from,{type:'cook',recipe:id as RecipeId});
       if(rejected.ok) {

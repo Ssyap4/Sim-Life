@@ -41,6 +41,7 @@ export const EVENTS={
  cookBad:{label:'Готовка не удалась',emotion:'sad',minutes:60},
  pet:{label:'Приятное время с питомцем',emotion:'happy',minutes:120},
  favoritePet:{label:'Время с любимым питомцем',emotion:'happy',minutes:150},
+ familyBreakfast:{label:'Завтрак с заботой друг о друге',emotion:'happy',minutes:120},
  familyCare:{label:'Поддержка близкого человека',emotion:'calm',minutes:100},
  familyCoffee:{label:'Кофе вдвоём на свежем воздухе',emotion:'calm',minutes:100},
  together:{label:'Приятное время вдвоём',emotion:'happy',minutes:150},
@@ -73,7 +74,7 @@ export function validEmotionalHistory(value:unknown):boolean{
 }
 export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedCommand):void{
  if(c.type==='pet_action'&&['pet','play','brush'].includes(c.action))recordEmotion(s,role,c.pet===PERSONALITIES[role].pet?'favoritePet':'pet');
- else if(c.type==='together')recordEmotion(s,role,c.action==='yardCoffee'?'familyCoffee':['nearTalk:listen','nearTalk:compliment','nearTalk:welcomeHome'].includes(c.action)?'familyCare':'together');
+ else if(c.type==='together')recordEmotion(s,role,c.action==='breakfastCare'?'familyBreakfast':c.action==='yardCoffee'?'familyCoffee':['nearTalk:listen','nearTalk:compliment','nearTalk:welcomeHome'].includes(c.action)?'familyCare':'together');
  else if(c.type==='study')recordEmotion(s,role,'study');
  else if(c.type==='read_book')recordEmotion(s,role,'readingMoment');
  else if(['movie','youtube','free_tv','computer_video'].includes(c.type))recordEmotion(s,role,'movie');
