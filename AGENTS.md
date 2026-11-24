@@ -169,3 +169,6 @@
 - Personal server-owned happiness wallets; real completed displayed wishes earn 5–75 points and +2–15 mood, no reward on cancellation, automation or clicks. Individual wish cooldown 24 game hours; goals require the actual skill level increase.
 - Exactly four approved consumables: hygiene 600, bladder 825, hunger 1200, energy 2250. Purchase into stock, activate separately; corresponding need immediately becomes 100 and stays at 100 for 1440 game minutes, including work and ordinary actions. No overlapping identical activation, independent boosts may coexist; no ruble conversion.
 - Save wallet, cooldowns, stock and expiry; older saves migrate to zero. Test-only seeded points may be used in isolated preview for testing purchases. Normal households start with zero points. Real family data never altered for testing.
+
+### Family SUV visual reference
+- Black boxy full-size 1999–2000 Escalade-style SUV, clean uninterrupted roof (no rails/racks/attachments), chrome grille and five-spoke wheels, distinct doors, tinted glass and real wheel wells. Keep car station/collision aligned to geometry, route to driver side and existing travel mechanics. Mobile budget: 3 merged meshes, approximately 6740 triangles. Visual QA uses cloud, not ALINA-PC.

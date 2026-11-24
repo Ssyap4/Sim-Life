@@ -94,9 +94,9 @@ export const WORK_VISITORS: Partial<Record<CareerId, Point>> = {
 };
 
 export const CAR_PARKING=HOME_YARD.parking;
-export const CAR_APPROACH={x:CAR_PARKING.x-1.62,z:CAR_PARKING.z};
+export const CAR_APPROACH={x:CAR_PARKING.x-1.85,z:CAR_PARKING.z};
 export const HOME_STATIONS: readonly Station[] = [
-  site('family-car','Семейный автомобиль',CAR_PARKING.x,CAR_PARKING.z,1.9,4.32,{kind:'car'},{approach:CAR_APPROACH}),
+  site('family-car','Семейный автомобиль',CAR_PARKING.x,CAR_PARKING.z,2.46,4.96,{kind:'car'},{approach:CAR_APPROACH}),
   site('home-gate','Выйти на улицу',HOME_YARD.gate.x,HOME_YARD.gate.z,1.46,.24,{kind:'door',destination:'district'},{blocks:false,approach:HOME_GATE_INSIDE}),
   site(HOME_LAPTOP, 'Ноутбук Алины', -7.35, -.80, 1.78, .81, { kind:'career', station:'desk' }, { approach:{ x:-7.35,z:.69 } }),
   site('fridge', 'Холодильник', HOME_PLACEMENTS.fridge.x, HOME_PLACEMENTS.fridge.z, .94, .88, { kind: 'fridge' }),
