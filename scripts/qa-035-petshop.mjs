@@ -8,6 +8,7 @@ import {once} from 'node:events';
 import {homeToysFor,homeToyApproach} from '../src/shared/pets.ts';
 import {PET_TOYS} from '../src/shared/petToys.ts';
 import {DOG_COMMANDS} from '../src/shared/dogTraining.ts';
+import {DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath.ts';
 import {applyPetAction} from '../server/pets.ts';
 import {initialState} from '../src/shared/protocol.ts';
 import {homeSeat} from '../src/shared/home.ts';
@@ -90,5 +91,17 @@ try{
   p.position=goal;lesson.route={from:goal,path:[]};
   await scenario(next,async(page,shot)=>{await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="verdell"]').click();await page.waitForTimeout(1600);await shot('training-'+command);});
  }
+ const bath=base();grantStarterPetFurniture(bath);bath.pets.verdell.cleanliness=31;
+ Object.assign(bath.characters.vlad,DOG_BATH_OWNER,{pose:'idle'});bath.pets.verdell.position={...DOG_BATH_APPROACH};delete bath.pets.verdell.routine;
+ await scenario(bath,async(page,shot,send)=>{
+  await send({type:'pet_action',pet:'verdell',action:'bathe'});
+  await page.waitForFunction(()=>window.qaState?.pets.verdell.routine?.kind==='bath');
+  await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="vlad"]').click();
+  await page.waitForTimeout(3100);await shot('dog-bath-wet');
+  await page.waitForTimeout(6500);await shot('dog-bath-soap');
+  await page.waitForTimeout(9000);await shot('dog-bath-rinse');
+  await page.waitForFunction(()=>window.qaState?.pets.verdell.cleanliness===100,undefined,{timeout:25000});
+  await shot('dog-bath-completed');
+ });
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

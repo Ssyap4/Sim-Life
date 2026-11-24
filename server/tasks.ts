@@ -20,6 +20,7 @@ import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCom
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
+import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { INSTANT_COFFEE, type InstantCoffeeId } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
@@ -160,14 +161,15 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||
         typeof command.action !== 'string' ||
-        !['feed', 'play', 'pet', 'brush','treat'].includes(command.action)) return null;
+        !['feed', 'play', 'pet', 'brush','treat','bathe'].includes(command.action)) return null;
     const pet = command.pet as PetId;
     const action = command.action as CareAction;
+    if(action==='bathe'&&pet!=='verdell')return null;
     return {
       command: { type: 'pet_action', pet, action },
       label: PET_ACTION_NAMES[action] + ': ' + PETS[pet].name,
-      durationMs: action === 'play' ? 9_000 : action==='treat'?6_000:5_000,
-      resource: 'pet:' + pet,
+      durationMs: action==='bathe'?DOG_BATH_SECONDS*1000:action === 'play' ? 9_000 : action==='treat'?6_000:5_000,
+      resource: action==='bathe'?'bathtub':'pet:' + pet,
     };
   }
   return null;

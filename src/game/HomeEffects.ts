@@ -36,6 +36,8 @@ export class HomeEffects {
   private readonly shower: THREE.LineSegments;
   private readonly foam: THREE.InstancedMesh;
   private readonly handWater: THREE.LineSegments;
+  private readonly dogWater:THREE.LineSegments;
+  private readonly dogFoam:THREE.InstancedMesh;
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
   private lesson?: string;
@@ -88,7 +90,15 @@ export class HomeEffects {
     ]), new THREE.LineBasicMaterial({ color: 0xb6e6ed, transparent: true, opacity: .82 }));
     this.handWater.position.set(sink.x, .983, sink.z + .025);
     this.handWater.visible = false;
-    scene.add(this.shower,this.foam,this.handWater);
+    const droplets:Array<THREE.Vector3>=[];
+    for(let i=0;i<18;i++){const x=(i%3-1)*.105,z=(Math.floor(i/3)-2.5)*.11,y=.70+(i%4)*.095;droplets.push(new THREE.Vector3(x,y,z),new THREE.Vector3(x-.05,y-.18,z+.025));}
+    this.dogWater=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(droplets),new THREE.LineBasicMaterial({color:0xa9e1ff,transparent:true,opacity:.85}));
+    this.dogWater.position.set(bath.x-.12,0,bath.z-.18);
+    this.dogFoam=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshStandardMaterial({color:0xf2fbff,roughness:.7}),20);
+    for(let i=0;i<20;i++){const a=i*2.4,r=.10+(i%4)*.055;dummy.position.set(Math.cos(a)*r,.72+(i%3)*.055,Math.sin(a)*r);const size=.055+(i%4)*.01;dummy.scale.set(size,size*.73,size);dummy.updateMatrix();this.dogFoam.setMatrixAt(i,dummy.matrix);}
+    this.dogFoam.position.set(bath.x-.13,0,bath.z-.20);
+    this.dogWater.visible=this.dogFoam.visible=false;
+    scene.add(this.shower,this.foam,this.handWater,this.dogWater,this.dogFoam);
   }
 
   mountTv(parent:THREE.Group){parent.add(this.tvHardware.group);this.tvHardware.group.position.y=.574;return this.tvHardware.group;}
@@ -106,12 +116,16 @@ export class HomeEffects {
     else this.foam.visible = active;
   }
 
+  dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}
   reset() {
     this.media.clear();
     this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
+    this.dogBath(null);
   }
 
   update(seconds: number) {
+    if(this.dogWater.visible)this.dogWater.position.y=-.045*(seconds*7%1);
+    if(this.dogFoam.visible)this.dogFoam.position.y=.012*Math.sin(seconds*4);
     if(this.shower.visible) this.shower.rotation.y = seconds*1.2;
     if(this.foam.visible) this.foam.position.y = .016*Math.sin(seconds*2.8);
     if(!this.screen.visible) return;

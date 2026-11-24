@@ -1,3 +1,4 @@
+import {dogBathPlan,DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath';
 import {trainingCommand,trainingChance,finishTraining,DOG_COMMAND_NAMES} from '../src/shared/dogTraining';
 import { toyOwned,toyPreference } from '../src/shared/petToys';
 import { petFoodProduct,discoverFoodPreference,nextPetFood } from "../src/shared/petShop";
@@ -26,6 +27,7 @@ const clamp = (number: number): number => Math.max(0, Math.min(100, number));
 
 
 export function petCarePoint(state: GameState, id: PetId, action?: PetAction) {
+  if(action==='bathe')return id==='verdell'?DOG_BATH_OWNER:undefined;
   return petApproach(action === 'feed' ? PETS[id].bowl : state.pets[id].position,
     placeObstacles('home',state.furnishing), HOME_FLOOR);
 }
@@ -174,13 +176,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.satiety = drain(pet.satiety, pet.foodFullUntil && pet.foodFullUntil>now ? 2.6 : 4);
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
+    if(id==='verdell')pet.cleanliness=drain(pet.cleanliness??100,state.world.dogWalker?5:pet.routine?.kind==='toy'?3:1.8);
     const previous = pet.routine;
     if(pet.furnitureYield && (now>=pet.furnitureYield.cooldownUntil||!currentCatPerch(state.furnishing,pet.furnitureYield.perch)))delete pet.furnitureYield;
     if(pet.favoriteBedId!==undefined && !petBeds(state.furnishing,id)
       .some(item=>item.id===pet.favoriteBedId))delete pet.favoriteBedId;
     if (previous) pet.position = sampleWalk(previous.route, (now - previous.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
     if ((id === 'verdell' && state.world.dogWalker) || occupied.has(id)) {
-      delete pet.routine;
+      if(!(id==='verdell'&&occupied.has(id)&&pet.routine?.kind==='bath'))delete pet.routine;
       continue;
     }
     // Furniture can be moved/sold while Simba is up on it: abandon that
@@ -355,7 +358,7 @@ export function applyPetAction(
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
   const training=trainingCommand(action);
-  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy'].includes(action))
+  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   const kind = action as PetAction;
@@ -365,6 +368,15 @@ export function applyPetAction(
   const actor = next.characters[role];
   let message = '';
 
+  if(kind==='bathe'){
+    if(id!=='verdell')return {ok:false,reason:'Симба сам ухаживает за шерстью'};
+    if(next.world.places[role]!=='home'||next.world.dogWalker)return {ok:false,reason:'Купать Верделла можно только дома'};
+    if(data.satiety<20||data.energy<15||data.bladder<18)return {ok:false,reason:'Сначала позаботься об основных потребностях Верделла'};
+    if(!dogBathPlan(next,role))return {ok:false,reason:'Нет свободного подхода к ванной'};
+    data.cleanliness=100;data.happiness=clamp(data.happiness+5);data.bond=clamp(data.bond+7);data.energy=clamp(data.energy-4);
+    data.position={...DOG_BATH_APPROACH};delete data.routine;Object.assign(actor,DOG_BATH_OWNER,{pose:'idle'});actor.energy=clamp(actor.energy-3);
+    next.revision++;return {ok:true,state:next,message:'Верделл искупан · чистота 100%'};
+  }
   if(training){
     if(id!=='verdell')return {ok:false,reason:'Эти команды предназначены для Верделла'};
     if(next.world.places[role]!=='home'||next.world.dogWalker||actor.pose!=='idle')return {ok:false,reason:'Тренироваться можно дома или во дворе, когда хозяин свободен'};

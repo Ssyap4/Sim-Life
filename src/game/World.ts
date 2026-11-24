@@ -25,6 +25,7 @@ import { GRILL_RECIPES, ingredientList, isGrillRecipe, type RecipeId, type Takeo
 import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from './LocationScene';
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station, type CafeItem } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
+import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBath';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
@@ -113,6 +114,8 @@ export class World {
   private readonly homeViewOccluders: THREE.Object3D[];
   private readonly stationMeshes: THREE.Object3D[] = [];
   private readonly bags = { vlad: carryingBag(), alina: carryingBag() };
+  private bathingRole:CharacterId|undefined;
+  private bathWashing=false;
   private readonly preparations = new Map<CharacterId, { remaining: number; next: () => void }>();
   private served: THREE.Group | null = null;
   private displayedMealRecipe: RecipeId | TakeoutId | undefined;
@@ -1342,6 +1345,7 @@ export class World {
   finishTimedAction(role: CharacterId): void {
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
+    this.endDogBath(role);
     const dishes = this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
@@ -1359,6 +1363,7 @@ export class World {
   cancelTimedAction(role: CharacterId): void {
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
+    this.endDogBath(role);
     this.dishTasks.delete(role);
     if (this.household && this.household.world.places[role] !== this.place) return;
     this.meals.get(role)!.visible = false;
@@ -1370,9 +1375,17 @@ export class World {
     this.actors[role].setPose('idle');
   }
 
+  private endDogBath(role:CharacterId){if(this.bathingRole!==role)return;this.bathingRole=undefined;this.bathWashing=false;this.pets.verdell.setBath(false);this.homeEffects.dogBath(null);}
   showPetTreat(id:PetId):void{if(this.place==='home')this.pets[id].react('treat');}
 
   performPet(role: CharacterId, petId: PetId, action: PetAction, current = () => true): boolean {
+    if(action==='bathe'){
+      if(petId!=='verdell')return false;this.bathingRole=role;this.bathWashing=false;const actor=this.actors[role],dog=this.pets.verdell;
+      const wait=()=>{if(!current()||this.bathingRole!==role)return;if(Math.hypot(dog.root.position.x-DOG_BATH_APPROACH.x,dog.root.position.z-DOG_BATH_APPROACH.z)>.15){this.preparations.set(role,{remaining:.25,next:wait});return;}
+        actor.faceTowards(new THREE.Vector3(DOG_BATH_SURFACE.x,0,DOG_BATH_SURFACE.z));dog.setBath(true);this.bathWashing=true;
+        actor.playPetActivity('bathe',(target:THREE.Vector3)=>dog.coatContact(target));};
+      const walking=this.walkTo(role,DOG_BATH_OWNER,wait);if(!walking)this.endDogBath(role);return walking;
+    }
     if (action === 'buyFood') return true;
     const actor = this.actors[role];
     const pet = this.pets[petId];
@@ -2020,6 +2033,7 @@ export class World {
     this.viewport = null;
     this.lastDayPhase = null;
     this.preparations.clear();
+    if(this.bathingRole)this.endDogBath(this.bathingRole);
     this.petRoutines.clear();
     this.homeLeisure.clear();
     this.sleepingOffline.clear();
@@ -2804,6 +2818,7 @@ export class World {
         ball.visible=playing;const resting=model.getObjectByName('Table tennis resting equipment');if(resting)resting.visible=!playing;
         if(playing){const f=tennisBall(this.visualSeconds-this.tennisStarted!,h!.pair!.tennisWinner);ball.position.set(f.x,f.y,f.z);}
       }
+      if(this.bathWashing)this.homeEffects.dogBath(this.pets.verdell.bathPhase);
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }

@@ -106,6 +106,7 @@ export function renderPetChoices(
     ['Туалет', stats.bladder, 'bond'],
     ['Радость', stats.happiness, 'happy'],
     ['Привязанность', stats.bond, 'bond'],
+    ...(selected==='verdell'?[['Чистота',stats.cleanliness??100,'food'] as [string,number,string]]:[]),
   ];
   for (const [label, value, className] of meters) {
     const line = document.createElement('div');
@@ -166,6 +167,7 @@ export function renderPetChoices(
     action:'fetch',icon:'🎾',hint:'Пробежать к мячику и принести его обратно',
     disabled:stats.satiety<40||stats.bladder<35||stats.energy<42,
   });
+  if(selected==='verdell')actions.unshift({action:'bathe',icon:'🛁',hint:'Купание в ванной · чистота 100% · привязанность +7',disabled:stats.routine?.kind==='bath'||stats.satiety<20||stats.energy<15||stats.bladder<18});
   actions.unshift({action:'toy',icon:'🧸',hint:'Питомец идёт к купленной игрушке. Повтори, чтобы сменить её.',disabled:!toys.length||stats.satiety<40||stats.bladder<35||stats.energy<45});
   actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
   for (const row of actions) {

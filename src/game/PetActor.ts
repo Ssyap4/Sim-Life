@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { SimbaRig } from './SimbaRig';
 import type { CatPerch } from '../shared/CatPerches';
 import { CAT_REST_POSES, chooseCatRestPose, type CatRestPoseId } from '../shared/CatRestPoses';
+import {DOG_BATH_SURFACE} from '../shared/dogBath';
 import { homeToysFor,homeToyApproach, PETS, PET_SPEED, type PetAction, type PetId, type PetRoutine, type PetHungerLevel } from '../shared/pets';
 import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
@@ -16,6 +17,11 @@ import { PET_IDLE_SECONDS, choosePetIdle, petCanWelcome, petIdleWeight,
 export class PetActor {
   readonly root = new THREE.Group();
   readonly homeToys=new THREE.Group();
+  private bathActive=false;
+  private bathLift=0;
+  private bathElapsed=0;
+  setBath(active:boolean){if(this.id!=='verdell')return;if(active&&!this.bathActive)this.bathElapsed=0;this.bathActive=active;}
+  get bathPhase(){return this.bathLift<.95?'lift':this.bathElapsed<6?'wet':this.bathElapsed<16?'soap':'rinse';}
   private training:import('../shared/dogTraining').TrainingAttempt|undefined;
   private toyIndex:number|undefined;
   private readonly toys:ReturnType<typeof homeToysFor>;
@@ -777,6 +783,17 @@ export class PetActor {
       }
     }
     this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
+    if(dog&&(this.bathActive||this.bathLift>0)){
+      this.bathLift=THREE.MathUtils.clamp(this.bathLift+dt*(this.bathActive?1:-1)/1.25,0,1);
+      if(this.bathActive&&this.bathLift>=.95)this.bathElapsed+=dt;
+      const w=THREE.MathUtils.smoothstep(this.bathLift,0,1),arc=Math.sin(Math.PI*this.bathLift);
+      this.root.updateWorldMatrix(true,false);this.perchLocal.set(DOG_BATH_SURFACE.x,DOG_BATH_SURFACE.y,DOG_BATH_SURFACE.z);this.root.worldToLocal(this.perchLocal);
+      this.body.position.x+=this.perchLocal.x*w;this.body.position.z+=this.perchLocal.z*w;this.body.position.y+=this.perchLocal.y*w+arc*.56;
+      this.body.rotation.y=THREE.MathUtils.euclideanModulo(-this.root.rotation.y+Math.PI,2*Math.PI)-Math.PI;this.body.rotation.y*=w;
+      this.head.rotation.x+=w*.055*Math.sin(this.bathElapsed*2);this.head.rotation.y+=w*.17*Math.sin(this.bathElapsed*1.8);
+      this.tail.rotation.y+=w*.28*Math.sin(this.bathElapsed*5);
+      if(this.bathElapsed>17){const shake=Math.max(0,Math.sin(this.bathElapsed*1.4))**4;this.body.rotation.z+=w*shake*.055*Math.sin(this.bathElapsed*18);}
+    }else if(dog){this.body.rotation.y=0;}
 
   }
 }

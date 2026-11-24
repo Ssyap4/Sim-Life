@@ -146,7 +146,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
@@ -169,6 +169,7 @@ const isValidState = (value: unknown): value is GameState => {
           routine.kind==='sleep'&&isPetBed(routine.equipment.sku,id))&&
           routine.target===0&&point(routine.goal)) &&
         (routine.training===undefined?routine.kind!=='train':id==='verdell'&&validTrainingAttempt(routine.training)&&routine.target===0&&point(routine.goal)&&(routine.kind==='train'||routine.kind==='fetch'&&routine.training.command==='fetch'&&routine.training.success)) &&
+        (routine.kind!=='bath'||id==='verdell'&&routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
         (routine.kind!=='toy'||(()=>{const toy=homeToysFor(id)[routine.target];return !!toy&&(!('id' in toy)||toyOwned(pet,toy.id))&&point(routine.goal)&&Math.hypot(routine.goal!.x-homeToyApproach(id,routine.target).x,routine.goal!.z-homeToyApproach(id,routine.target).z)<.03;})()) &&
@@ -251,6 +252,7 @@ function restorePet(id: PetId, saved: PetState | undefined,
     delete pet.favoriteBedId;
   if(pet.furnitureYield&&(!furnishing||!currentCatPerch(furnishing,pet.furnitureYield.perch)||
     !Number.isFinite(pet.furnitureYield.clearAt)||!Number.isFinite(pet.furnitureYield.cooldownUntil)))delete pet.furnitureYield;
+  if(pet.routine?.kind==='bath')delete pet.routine;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&

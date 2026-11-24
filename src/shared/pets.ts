@@ -2,8 +2,8 @@ import { toysFor } from './petToys';
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | import('./dogTraining').DogTrainingAction;
-export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train'] as const;
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | 'bathe' | import('./dogTraining').DogTrainingAction;
+export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
   {kind:'rope',name:'Канатик',x:.17,z:-.47},
@@ -51,6 +51,7 @@ export interface PetState {
   treats?:{day:number;used:number};
   training?:Partial<Record<import('./dogTraining').DogCommand,import('./dogTraining').CommandSkill>>;
   lastTraining?:{command:import('./dogTraining').DogCommand;success:boolean};
+  cleanliness?:number;
   ownedToys?:string[];
   toyPreferences?:Record<string,0|1|2|3>;
   foodQueue?:string[];
@@ -136,14 +137,14 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
   if(routine.kind==='toy')return homeToyApproach(id,routine.target);
-  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg'||routine.kind==='train') return routine.goal ?? pet.home;
+  if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg'||routine.kind==='train'||routine.kind==='bath') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }
 
 export const PET_SPEED: Record<PetId, number> = { verdell: 1.27, simba: 1.08 };
 
 export const INITIAL_PETS: PetFamily = {
-  verdell: { satiety: 72, happiness: 84, bond: 36, energy: 74, bladder: 80, position: PETS.verdell.home },
+  verdell: { cleanliness:100,satiety: 72, happiness: 84, bond: 36, energy: 74, bladder: 80, position: PETS.verdell.home },
   simba: { satiety: 78, happiness: 76, bond: 32, energy: 81, bladder: 76, position: PETS.simba.home },
 };
 export const INITIAL_PET_FOOD: PetFoodStock = { verdell: 2, simba: 2 };
@@ -162,6 +163,7 @@ export const PET_ACTION_NAMES: Record<PetAction, string> = {
   scratch: 'Поточить когти',
   treat: 'Дать лакомство',
   toy: 'Поиграть с игрушкой',
+  bathe: 'Искупать в ванной',
   'train-sit':'Сидеть','train-lie':'Лежать','train-paw':'Дай лапу','train-beg':'Зайка','train-bark':'Голос','train-fetch':'Апорт','train-stay':'Место',
 };
 export const PET_IDS = ['verdell', 'simba'] as const;
