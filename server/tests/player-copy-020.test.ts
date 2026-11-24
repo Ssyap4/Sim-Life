@@ -16,7 +16,7 @@ test('phone and thought lessons explain current autonomy rather than old version
   for(const filename of ['src/phoneUI.ts','src/shared/thoughtHelp.ts'])
     assert.doesNotMatch(content(filename),/(?:как в|поведение) 0\.\d+/);
 });
-test('package and lockfile versions mark the current 0.32 release',()=>{
-  assert.equal(JSON.parse(content('package.json')).version,'0.33.0');
-  assert.equal(JSON.parse(content('package-lock.json')).version,'0.33.0');
+test('package and lockfile versions mark the current 0.34 release',()=>{
+  assert.equal(JSON.parse(content('package.json')).version,'0.34.0');
+  assert.equal(JSON.parse(content('package-lock.json')).version,'0.34.0');
 });

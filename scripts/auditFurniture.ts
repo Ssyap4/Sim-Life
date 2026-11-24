@@ -1,5 +1,5 @@
 import {leisureAction} from '../src/shared/leisure';
-import {PURCHASABLE_FURNITURE,FURNITURE_BY_ID,type FurnitureProduct,type FurnitureShape,type PlacedFurniture} from '../src/shared/furniture';
+import {isNotebookDesk,PURCHASABLE_FURNITURE,FURNITURE_BY_ID,type FurnitureProduct,type FurnitureShape,type PlacedFurniture} from '../src/shared/furniture';
 import {initialState} from '../src/shared/protocol';
 import {checkFurniturePlacement} from '../src/shared/furnishingPlacement';
 import {furnitureActionList,furnitureUseLocation,furnitureSource,type FurnitureUseAction} from '../src/shared/furnitureUse';
@@ -16,7 +16,7 @@ const sold=['table','sofa','bed','desk','officeChair','nightstandLeft','nightsta
 const seats=new Set<FurnitureShape>(['armchair','ottoman','bench','chair','stool']);
 const storage=new Set<FurnitureShape>(['wardrobe','dresser','nightstand','sideboard']);
 const deskActs=['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'];
-const sofaActs=['sofaRest','sofaMusic','sofaCall','free_tv','youtube','movie','read_book'];
+const sofaActs=['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie','read_book'];
 function expected(info:FurnitureProduct):string[]{
  if(info.shape==='leisure')return [leisureAction(info.id)!];
  if(info.shape==='bed'||info.shape==='daybed')return [];
@@ -85,7 +85,9 @@ for(const info of scope){
         const deniedRole=role==='vlad'&&['alinaStudy','alinaConsult'].includes(action)||
            role==='alina'&&['vladOrder','vladStudy'].includes(action);
         const applied=evaluateTask(state,role,plan.command);
-        if(!applied.ok && !deniedRole)throw Error('DENIED '+role+' '+action+': '+applied.reason);
+        const prerequisite=isNotebookDesk(info.id)||info.shape==='table'&&info.height>=.63;
+        if(!applied.ok && !deniedRole && !prerequisite)throw Error('DENIED '+role+' '+action+': '+applied.reason);
+        if(!applied.ok&&prerequisite&&!deniedRole&&!/Открой ноутбук|Поставь рядом стул/.test(applied.reason))throw Error('UNEXPECTED PREREQUISITE '+applied.reason);
         if(applied.ok && deniedRole)throw Error('BAD ROLE GRANTED '+role+' '+action);
         if(applied.ok && applied.state.revision<=state.revision)throw Error('NO SAVE REVISION '+action);
         actionsVerified++;
