@@ -30,7 +30,7 @@ async function joinServer(port:number,role:CharacterId,code:string){
  assert.equal((await ready).type,'ready');
  return ws;
 }
-test('two-player sofa use has a real route/reward and partner cannot sell sofa mid-action',async()=>{
+test('two-player sofa use has a real route/reward and selling it cancels only its active user',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'sim-life-sofa-use-'));
  const files=openServerFiles(dir);
  const s=files.load();
@@ -52,9 +52,6 @@ test('two-player sofa use has a real route/reward and partner cannot sell sofa m
   assert.equal(packet.home?.station,'furniture');
   assert.equal(packet.home?.furnitureId,1);
   assert.equal(packet.home?.furnitureSeat,true);
-  const denied=next(a,p=>p.type==='error');
-  a.send(JSON.stringify({type:'furniture_sell',id:1}));
-  assert.match((await denied as Extract<ServerPacket,{type:'error'}>).reason,/действия|дождись|мебел/i);
   const finished=next(v,p=>p.type==='task_ended'&&p.outcome==='completed');
   assert.equal((await finished).type,'task_ended');
   const saved=files.load();
@@ -63,9 +60,15 @@ test('two-player sofa use has a real route/reward and partner cannot sell sofa m
   const invalid=next(v,p=>p.type==='error');
   v.send(JSON.stringify({type:'furniture_use',furnitureId:500,action:'sofaRest'}));
   assert.match((await invalid as Extract<ServerPacket,{type:'error'}>).reason,/мебель|предмет/i);
+  const again=next(v,p=>p.type==='task_started'&&p.command.type==='furniture_use');
+  v.send(JSON.stringify({type:'furniture_use',furnitureId:1,action:'sofaRest'}));
+  const activeTask=await again;assert.equal(activeTask.type,'task_started');
+  const cancelled=next(v,p=>p.type==='task_ended'&&p.taskId===activeTask.taskId&&p.outcome==='cancelled');
   const sold=next(a,p=>p.type==='snapshot'&&p.state.furnishing.placed.length===0);
   a.send(JSON.stringify({type:'furniture_sell',id:1}));
-  assert.equal((await sold).type,'snapshot');
+  assert.equal((await sold).type,'snapshot');await cancelled;
+  assert.ok(files.load().characters.vlad.energy<saved.characters.vlad.energy+1);
+  assert.equal(files.load().furnishing.placed.length,0);
  }finally{
   for(const ws of sockets)ws.terminate();
   await server.close();

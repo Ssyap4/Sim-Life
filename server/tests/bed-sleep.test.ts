@@ -68,16 +68,19 @@ test('single bed rejects simultaneous occupancy and another bed remains selectab
  const second=selectSleepBed(state,'alina',2);
  if(second.ok)assert.equal(second.bed.id,2);
 });
-test('selling an occupied purchased bed is rejected until wake-up and sleep increases energy',()=>{
+test('selling or storing an occupied bed releases only its sleeper and sleep still increases energy',()=>{
  const state=initialState();
  state.furnishing.soldFixtures=['bed'];
  state.furnishing.placed=[placed('bed-aurora')];state.furnishing.nextId=2;
  state.characters.vlad.pose='sleep';state.characters.vlad.sleepingOn=1;
  state.characters.vlad.energy=10;
  const blocked=applyFurnishing(state,'alina',{type:'furniture_sell',id:1},230);
- assert.equal(blocked.ok,false);
+ assert.ok(blocked.ok);
+ assert.equal(blocked.state.characters.vlad.pose,'idle');
+ assert.equal(blocked.state.characters.vlad.sleepingOn,undefined);
  const stored=applyFurnishing(state,'alina',{type:'furniture_store',id:1},230);
- assert.equal(stored.ok,false);
+ assert.ok(stored.ok);
+ assert.equal(stored.state.characters.vlad.pose,'idle');
  const res=recoverSleep(state,5,new Map([['vlad','full']]));
  assert.equal(res.length,0);
  assert.ok(state.characters.vlad.energy>10);

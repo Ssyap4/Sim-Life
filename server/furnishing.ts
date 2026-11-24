@@ -1,5 +1,13 @@
-import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_DELIVERY, FURNITURE_FINISHES,
-  STATIC_FURNITURE, isStaticFurnitureId,
+import { HOME_FLOOR } from '../src/shared/home';
+import { placeObstacles } from '../src/shared/locations';
+import { PET_IDS, PET_SPEED } from '../src/shared/pets';
+import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
+import { currentCatPerch } from '../src/shared/CatPerches';
+import { currentPetEquipment } from '../src/shared/petFurniture';
+import { petNavigationGeometry } from '../src/game/PetNavigation';
+import { nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear, type FloorRect, type WalkRoute } from '../src/game/navigation';
+import { FURNITURE_BY_ID, PURCHASABLE_FURNITURE, FURNITURE_DELIVERY, FURNITURE_FINISHES,
+  STATIC_FURNITURE, isStaticFurnitureId, furnitureFootprint, type PlacedFurniture,
   type FurnishingCommand, type Rotation } from '../src/shared/furniture';
 import { checkFurniturePlacement } from '../src/shared/furnishingPlacement';
 import { addLedger } from '../src/shared/economy';
@@ -10,15 +18,59 @@ export type FurnishingResult =
   | { ok:false; reason:string };
 
 const fail=(reason:string):FurnishingResult=>({ok:false,reason});
+export function layoutBlock(item:PlacedFurniture|undefined,extra=.30):FloorRect|undefined{
+  return item&&!FURNITURE_BY_ID.get(item.sku)?.walkable?furnitureFootprint(item,extra):undefined;
+}
+export function routeHitsLayout(route:WalkRoute,block:FloorRect|undefined):boolean{
+  if(!block)return false;
+  if(!pointIsClear(route.from,[block],HOME_FLOOR))return true;
+  return route.path.some((point,i)=>!segmentIsClear(route.path[i-1]??route.from,point,[block],HOME_FLOOR));
+}
+/** No temporary body or route is a placement obstacle. Recover its physical
+ * position after a valid spatial edit, without granting an interrupted reward. */
+export function settleLayout(state:GameState,added:PlacedFurniture|undefined,now:number):boolean{
+  let changed=false;
+  const obstacles=placeObstacles('home',state.furnishing),block=layoutBlock(added);
+  for(const role of ['vlad','alina'] as const){
+    const person=state.characters[role];
+    if(state.world.places[role]!=='home'||person.pose!=='idle'||!block||pointIsClear(person,[block],HOME_FLOOR))continue;
+    const safe=nearestClearPoint(person,obstacles,HOME_FLOOR);
+    if(safe){Object.assign(person,safe);changed=true;}
+  }
+  const geometry=petNavigationGeometry(obstacles,HOME_FLOOR),petBlock=layoutBlock(added,.44);
+  for(const id of PET_IDS){
+    const pet=state.pets[id],routine=pet.routine;
+    const remaining=routine&&sampleWalk(routine.route,Math.max(0,now-routine.startedAt)*PET_SPEED[id]/GAME_MINUTES_PER_REAL_SECOND);
+    const invalid=routine&&(routine.perch&&!currentCatPerch(state.furnishing,routine.perch)||
+      routine.equipment&&!currentPetEquipment(state.furnishing,routine.equipment)||
+      remaining&&routeHitsLayout(remaining,petBlock));
+    const pos=remaining?.from??pet.position;
+    if(invalid||petBlock&&!pointIsClear(pos,[petBlock],HOME_FLOOR)){
+      const safe=nearestClearPoint(pos,geometry.obstacles,geometry.floor);
+      if(safe)pet.position=safe;
+      delete pet.routine;changed=true;
+    }
+    if(pet.furnitureYield&&!currentCatPerch(state.furnishing,pet.furnitureYield.perch)){
+      delete pet.furnitureYield;changed=true;
+    }
+  }
+  return changed;
+}
+function releaseBed(state:GameState,bed:number|'starter'){
+  for(const role of ['vlad','alina'] as const){
+    const person=state.characters[role];
+    if(person.pose==='sleep'&&(person.sleepingOn??'starter')===bed){
+      person.pose='idle';delete person.sleepingOn;delete person.sleepMode;
+    }
+  }
+}
 export function applyFurnishing(source:GameState,role:CharacterId,
   command:FurnishingCommand,now:number):FurnishingResult {
   if(source.world.places[role]!=='home')return fail('Обустройство доступно, когда персонаж дома');
-  if(source.activeShifts[role]||source.careers.residents[role].shift)
-    return fail('Сначала закончи рабочую смену');
   const next=structuredClone(source);
   const home=next.furnishing;
   if(command.type==='furniture_order') {
-    if(!FURNITURE_CATALOG.some(item=>item.id===command.sku)||!Object.hasOwn(FURNITURE_FINISHES,command.finish)||
+    if(!PURCHASABLE_FURNITURE.some(item=>item.id===command.sku)||!Object.hasOwn(FURNITURE_FINISHES,command.finish)||
        !Object.hasOwn(FURNITURE_DELIVERY,command.shipping)||!Number.isSafeInteger(command.quantity)||
        command.quantity<1||command.quantity>5)return fail('Неверный товар или параметры заказа');
     if(home.nextId+command.quantity>1000000)
@@ -43,6 +95,8 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     const info=STATIC_FURNITURE[command.fixture];
     const proceeds=Math.floor(FURNITURE_BY_ID.get(info.sku)!.price*.55);
     home.soldFixtures=[...(home.soldFixtures??[]),command.fixture];
+    if(command.fixture==='bed')releaseBed(next,'starter');
+    settleLayout(next,undefined,now);
     next.money+=proceeds;
     addLedger(next,role,'income','furniture',proceeds,'Продажа: '+info.label);
     next.revision++;
@@ -52,10 +106,6 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   const order=home.orders.find(item=>item.id===command.id);
   const stored=home.stored.find(item=>item.id===command.id);
   const placed=home.placed.find(item=>item.id===command.id);
-  if(placed&&['furniture_move','furniture_store','furniture_sell'].includes(command.type)&&
-    (['vlad','alina'] as const).some(resident=>
-      source.characters[resident].pose==='sleep'&&source.characters[resident].sleepingOn===placed.id))
-    return fail('Сначала разбуди персонажа, спящего на этой кровати');
   if(command.type==='furniture_unbox') {
     if(!order)return fail('Этой посылки нет');
     if(order.readyAt>now)return fail('Посылка ещё в пути');
@@ -78,6 +128,8 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     if(!validation.valid)return fail(validation.reason);
     if(stored)home.stored=home.stored.filter(item=>item.id!==stored.id);
     home.placed=[...others,destination];
+    if(placed)releaseBed(next,placed.id);
+    settleLayout(next,destination,now);
     next.revision++;
     return {ok:true,state:next,message:'✅ '+FURNITURE_BY_ID.get(current.sku)!.name+' размещён в доме'};
   }
@@ -85,6 +137,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     if(!placed)return fail('Этот предмет ещё не установлен');
     home.placed=home.placed.filter(item=>item.id!==placed.id);
     home.stored.push({id:placed.id,sku:placed.sku,finish:placed.finish});
+    releaseBed(next,placed.id);settleLayout(next,undefined,now);
     next.revision++;
     return {ok:true,state:next,message:'📦 '+FURNITURE_BY_ID.get(placed.sku)!.name+' убран на склад'};
   }
@@ -95,6 +148,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     const proceeds=Math.floor(info.price*.55);
     home.stored=home.stored.filter(entry=>entry.id!==command.id);
     home.placed=home.placed.filter(entry=>entry.id!==command.id);
+    if(placed){releaseBed(next,placed.id);settleLayout(next,undefined,now);}
     next.money+=proceeds;
     addLedger(next,role,'income','furniture',proceeds,'Продан '+info.name);
     next.revision++;

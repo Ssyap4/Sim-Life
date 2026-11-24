@@ -1,3 +1,5 @@
+import { routeHitsLayout } from './furnishing';
+import type { FloorRect } from '../src/game/navigation';
 import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
 import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
@@ -632,7 +634,23 @@ export function createHomeSessions(hooks: Hooks) {
     }
   }
 
-  return { busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  function interruptLayout(block:FloorRect|undefined,moved:number|undefined,fixture:string|undefined){
+    for(const session of new Set(sessions.values())){
+      for(const participant of [...session.participants]){
+        const home=participant.packet.home;
+        if(!home||hooks.state().world.places[participant.role]!=='home')continue;
+        const elapsed=session.activeAt===null?Math.max(0,now()-session.started)/hooks.timeScale:Infinity;
+        const remaining=sampled(home,elapsed).route;
+        const direct=moved!==undefined&&(home.furnitureId===moved||session.plan.resource==='furniture:'+moved)
+          ||fixture!==undefined&&(home.station===fixture||home.pair?.seat===fixture);
+        const stroll=home.pair?.stroll;
+        const crossing=routeHitsLayout(remaining,block)||!!stroll?.length&&routeHitsLayout({from:remaining.path.at(-1)??remaining.from,path:stroll},block)
+          ||!!home.furniturePose&&routeHitsLayout({from:home.furniturePose,path:[]},block);
+        if(direct||crossing)cancel(participant.role,'Мебель переставлена — место занятия изменилось');
+      }
+    }
+  }
+  return { interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

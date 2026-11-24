@@ -21,7 +21,7 @@ import { petNavigationGeometry } from '../../src/game/PetNavigation';
 function orderSmall(){
   const initial=initialState();
   const bought=applyFurnishing(initial,'vlad',
-    {type:'furniture_order',sku:'plant-mini',finish:'sage',shipping:'express',quantity:1},100);
+    {type:'furniture_order',sku:'stool-basic',finish:'sage',shipping:'express',quantity:1},100);
   assert.ok(bought.ok,'furniture order must succeed');
   return bought.state;
 }
@@ -40,11 +40,11 @@ test('catalog has distinct light models and 8 colorways',()=>{
 });
 test('atomic purchase charges rubles once and prevents stale duplicate money loss',()=>{
   const state=initialState();
-  const order={type:'furniture_order' as const,sku:'plant-mini',finish:'sage' as const,
+  const order={type:'furniture_order' as const,sku:'stool-basic',finish:'sage' as const,
     shipping:'express' as const,quantity:2};
   const result=applyFurnishing(state,'vlad',order,110);
   assert.ok(result.ok);
-  assert.equal(result.state.money,state.money-1200*2-990);
+  assert.equal(result.state.money,state.money-2100*2-990);
   assert.equal(result.state.furnishing.orders.length,2);
   assert.equal(result.state.furnishing.nextId,3);
   assert.equal(result.state.ledger.at(-1)?.category,'furniture');
@@ -64,7 +64,7 @@ test('delivered item can be unboxed by partner but never twice',()=>{
   assert.equal(done.state.furnishing.stored.length,1);
   assert.equal(applyFurnishing(done.state,'vlad',{type:'furniture_unbox',id:1},115).ok,false);
 });
-test('server validates legal placement and forbids blocking doors, fixtures, existing furniture and actors',()=>{
+test('server validates legal placement and forbids blocking doors, fixtures and existing furniture',()=>{
   const ready=unbox();
   const good=applyFurnishing(ready,'alina',
     {type:'furniture_place',id:1,x:13.5,z:-5.5,rotation:0},125);
@@ -77,9 +77,11 @@ test('server validates legal placement and forbids blocking doors, fixtures, exi
   const staticSofa=applyFurnishing(ready,'vlad',
     {type:'furniture_place',id:1,x:-2.36,z:2.02,rotation:0},125);
   assert.equal(staticSofa.ok,false);
-  const player=applyFurnishing(ready,'vlad',
-    {type:'furniture_place',id:1,x:.5,z:3.5,rotation:0},125);
-  assert.equal(player.ok,false);
+  const occupied=structuredClone(ready);
+  Object.assign(occupied.characters.vlad,{x:13.5,z:-5.5,pose:'idle'});
+  const player=applyFurnishing(occupied,'vlad',{type:'furniture_place',id:1,x:13.5,z:-5.5,rotation:0},125);
+  assert.ok(player.ok);
+  assert.ok(pointIsClear(player.state.characters.vlad,placeObstacles('home',player.state.furnishing),HOME_FLOOR));
   const outside=applyFurnishing(ready,'vlad',
     {type:'furniture_place',id:1,x:22,z:-18,rotation:0},125);
   assert.equal(outside.ok,false);
@@ -121,7 +123,7 @@ test('can rotate and move safely, store, sell, with no duplication',()=>{
   assert.equal(store.state.furnishing.placed.length,0);
   const sold=applyFurnishing(store.state,'vlad',{type:'furniture_sell',id:1},123);
   assert.ok(sold.ok);
-  assert.equal(sold.state.money,store.state.money+660);
+  assert.equal(sold.state.money,store.state.money+1155);
   assert.equal(sold.state.furnishing.stored.length,0);
   assert.equal(sold.state.furnishing.placed.length,0);
   assert.equal(applyFurnishing(sold.state,'vlad',{type:'furniture_sell',id:1},124).ok,false);
@@ -162,7 +164,7 @@ test('selling starter furniture frees its original floor and permits replacing i
   const after=placeObstacles('home',cleared.state.furnishing);
   assert.ok(pointIsClear({x:-2.36,z:2.02},after,HOME_FLOOR));
   const order=applyFurnishing(cleared.state,'vlad',
-    {type:'furniture_order',sku:'plant-mini',finish:'sage',shipping:'express',quantity:1},210);
+    {type:'furniture_order',sku:'stool-basic',finish:'sage',shipping:'express',quantity:1},210);
   assert.ok(order.ok);
   const unboxed=applyFurnishing(order.state,'alina',{type:'furniture_unbox',id:1},225);
   assert.ok(unboxed.ok);
@@ -202,7 +204,7 @@ test('selling one starter item remains saved after restart, while older 0.15 sav
 
 test('rotated footprints, walkable carpets and metadata survive validation',()=>{
   const state=unbox();
-  const model={id:1,sku:'plant-mini',finish:'sage' as const,x:12,z:-5,rotation:1 as const};
+  const model={id:1,sku:'stool-basic',finish:'sage' as const,x:12,z:-5,rotation:1 as const};
   assert.notEqual(furnitureFootprint(model).minX,0);
   assert.equal(furnishingObstacles({placed:[model]}).length,1);
   assert.equal(furnishingObstacles({placed:[{...model,sku:'rug-weave'}]}).length,0);

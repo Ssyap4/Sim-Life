@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {initialState} from '../../src/shared/protocol';
-import {FURNITURE_BY_ID,FURNITURE_CATALOG} from '../../src/shared/furniture';
+import {FURNITURE_BY_ID,FURNITURE_CATALOG,PURCHASABLE_FURNITURE} from '../../src/shared/furniture';
 import {checkFurniturePlacement,suggestFurnitureSnap} from '../../src/shared/furnishingPlacement';
 import {applyFurnishing} from '../furnishing';
 import {placeObstacles} from '../../src/shared/locations';
 import {HOME_FLOOR} from '../../src/shared/home';
-import {findRoute} from '../../src/game/navigation';
+import {findRoute,pointIsClear} from '../../src/game/navigation';
 
 const state=()=> {
   const state=initialState();
@@ -79,4 +79,35 @@ test('all catalog products fit in a valid room somewhere (all four rotations tri
     }
     assert.ok(possible,'No installable space for '+product.id);
   }
+});
+
+test('placing furniture ignores temporary occupants and routes, safely releases blocked pet activities',()=>{
+  const base=state(),item={id:1,sku:'stool-basic',finish:'sage' as const,x:13.5,z:-5.5,rotation:0 as const};
+  base.furnishing.nextId=2;base.furnishing.stored=[{id:1,sku:item.sku,finish:item.finish}];
+  const free=checkFurniturePlacement(base,item);assert.ok(free.valid);
+  Object.assign(base.characters.vlad,{x:item.x,z:item.z,pose:'idle'});
+  Object.assign(base.characters.alina,{x:12.0,z:-5.5,pose:'work'});
+  base.pets.verdell.position={x:12.6,z:-5.5};
+  base.pets.verdell.routine={kind:'wander',target:0,startedAt:480,until:500,route:{from:{x:12.6,z:-5.5},path:[{x:14.4,z:-5.5}]}};
+  assert.deepEqual(checkFurniturePlacement(base,item),free);
+  const result=applyFurnishing(base,'vlad',{type:'furniture_place',id:1,x:item.x,z:item.z,rotation:0},480);
+  assert.ok(result.ok);
+  const after=result.state;
+  assert.ok(pointIsClear(after.characters.vlad,placeObstacles('home',after.furnishing),HOME_FLOOR));
+  assert.equal(after.characters.alina.pose,'work');
+  assert.equal(after.pets.verdell.routine,undefined);
+  assert.equal(after.pets.verdell.happiness,base.pets.verdell.happiness);
+});
+test('decor is no longer sold; already owned items can still be sold without losing money or other possessions',()=>{
+  const base=state();
+  const decor=FURNITURE_CATALOG.filter(p=>p.category==='decor');
+  assert.equal(decor.length,13);
+  assert.equal(PURCHASABLE_FURNITURE.length,FURNITURE_CATALOG.length-decor.length);
+  for(const product of decor){
+    const result=applyFurnishing(base,'vlad',{type:'furniture_order',sku:product.id,finish:'sage',shipping:'regular',quantity:1},480);
+    assert.equal(result.ok,false);
+  }
+  base.furnishing.nextId=2;base.furnishing.stored=[{id:1,sku:'plant-mini',finish:'sage'}];
+  const sale=applyFurnishing(base,'vlad',{type:'furniture_sell',id:1},480);assert.ok(sale.ok);
+  assert.equal(sale.state.money,base.money+660);assert.equal(sale.state.furnishing.stored.length,0);
 });

@@ -2029,10 +2029,18 @@ export class World {
     this.household = state;
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
     if(furnishingKey!==this.furnishedGeometryKey){
+      const previousObstacles=[...this.obstacles];
       this.furnishedGeometryKey=furnishingKey;
       this.obstacles.splice(0,this.obstacles.length,...placeObstacles('home',state.furnishing));
       this.petGeometry=petNavigationGeometry(this.obstacles,HOME_FLOOR);
       this.pets.verdell.setHomeToyAvailability(this.petGeometry.obstacles,this.petGeometry.floor);
+      if(place==='home'&&!changed)for(const actor of Object.values(this.actors)){
+        const pos=actor.root.position;
+        if(pointIsClear(pos,previousObstacles,HOME_FLOOR)&&!pointIsClear(pos,this.obstacles,HOME_FLOOR)){
+          const safe=nearestClearPoint(pos,this.obstacles,HOME_FLOOR);
+          if(safe)pos.set(safe.x,0,safe.z);
+        }
+      }
     }
     const minute = gameMinutes(state.clock);
     // House NPCs share the server clock, without persisting visual-only traffic.
@@ -2070,7 +2078,7 @@ export class World {
             this.restoreCharacter(id,bed.bed.approach.x,bed.bed.approach.z,'sleep',bed.bed.id);
           }else this.restoreCharacter(id,resident.x,resident.z,'idle');
         }
-      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping || (place==='cafe'&&state.characters[id].pose==='sit'&&previous?.characters[id].pose!=='sit'))) {
+      } else if (!away && !sleep && (reset || changed || appeared || wasSleeping || (place==='cafe'&&state.characters[id].pose==='sit'&&previous?.characters[id].pose!=='sit')||(place==='home'&&previous?.characters[id].pose==='sleep'&&state.characters[id].pose!=='sleep'))) {
         const resident = state.characters[id];
         this.restoreCharacter(id, resident.x, resident.z, resident.pose);
       }

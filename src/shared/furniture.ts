@@ -145,6 +145,8 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('pet-house-soft','Домик «Плюшевый кокон»','pets','plant',8900,1.22,1.12,.92,'🐈','Мягкая капсула с просторным входом и утопленной лежанкой сверху.'),
   product('pet-house-tower','Комплекс «Король Симба»','pets','plant',14900,1.92,1.18,1.34,'🐾','Домик, отдельная сизалевая когтеточка, игрушка и широкая верхняя лежанка.'),
 ] as const;
+// Keep the old models for already-owned furniture, but no new decorative purchases.
+export const PURCHASABLE_FURNITURE=FURNITURE_CATALOG.filter(item=>item.category!=='decor');
 export const STARTER_CAT_HOUSE='pet-house-starter';
 export const STARTER_CAT_SCRATCHER='pet-scratcher-starter';
 export const STARTER_PET_PRODUCTS:readonly FurnitureProduct[]=[
