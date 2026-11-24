@@ -125,3 +125,13 @@ test('marshmallows can be purchased or delivered and become exactly two picnic s
 test('seated actor rotates around the same hinge as the swing rather than an approximate offset',()=>{
  for(const role of ['vlad','alina'] as const){const actor=new Actor(role,[3,2]);const hinge=new Vector3(3,1.97,1);actor.setFurniturePose('sit',new Vector3(3,0,.965),0);actor.markParkSwing(hinge,.6075);actor.parkSwing(0);actor.update(.1);const base=actor.bodyPosition(new Vector3());for(const angle of [.15,-.15,0]){actor.parkSwing(angle);actor.update(.1);const expected=base.clone().sub(hinge).applyAxisAngle(new Vector3(1,0,0),angle).add(hinge);assert.ok(actor.bodyPosition(new Vector3()).distanceTo(expected)<.025);}}
 });
+import { TABLE_TENNIS_SECONDS,tennisBall,tennisPlayer,tennisStrikes } from '../../src/shared/tableTennis';
+test('table tennis lasts a minute and shares a fair result and alternating rally across clients',()=>{
+ const state=initialState();state.furnishing.placed.push({id:1,sku:'leisure-tennis',finish:'sage',x:10,z:8.6,rotation:0});
+ const cmd={type:'together' as const,action:'leisureTogether',item:'1'};assert.equal(socialDuration(SOCIAL_BY_ID.get(cmd.action)!,cmd,state),60000);
+ const homes=pairScenes(state,'vlad',cmd);assert.ok(homes);assert.equal(homes.vlad.pair?.tennisWinner,homes.alina.pair?.tennisWinner);
+ const winner=homes.vlad.pair!.tennisWinner!;assert.ok(winner);const result=completeTogether(state,'vlad',cmd,['vlad','alina'],0,homes);assert.ok(result.ok,result.ok?'':result.reason);assert.match(result.message,winner==='vlad'?/\u0412\u043b\u0430\u0434/:/\u0410\u043b\u0438\u043d\u0430/);
+ for(const w of ['vlad','alina'] as const){const hits=tennisStrikes(w);assert.equal(hits.length,24);assert.equal(hits.at(-1)!.role,w);for(const h of hits){const b=tennisBall(h.time,w);assert.ok(Math.hypot(b.x-h.x,b.y-h.y,b.z-h.z)<.00001);assert.ok(tennisPlayer(h.role,h.time,w).hit>.99);}
+ for(let i=0;i<hits.length-1;i++){const a=hits[i],b=hits[i+1];assert.notEqual(a.role,b.role);const bounce=tennisBall(a.time+(b.time-a.time)*(.70+(i%3)*.035),w);assert.ok(Math.abs(bounce.y-.823)<.00001);assert.ok(Math.abs(bounce.z)<1.2);for(let j=0;j<=100;j++){const f=tennisBall(a.time+(b.time-a.time)*j/100,w);if(Math.abs(f.z)<.035)assert.ok(f.y>.95);}}
+ const end=tennisBall(TABLE_TENNIS_SECONDS,w);assert.ok(end.y<.05);assert.equal(Math.sign(end.z),w==='vlad'?1:-1);}
+});

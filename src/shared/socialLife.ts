@@ -162,7 +162,7 @@ export const initialRelationship=():Relationship=>({memories:[],recent:[]});
 export interface PairPresentation {
   motion:PairMotion; place:GameState['world']['places'][CharacterId]; from:CharacterId; target?:Point;
   seat?:HomeSeat; station?:string; pet?:string; item?:string; stroll?:Point[];
-  offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId;
+  offsetMs?:number; carry?:'book'|'plate'; badmintonWinner?:CharacterId; tennisWinner?:CharacterId;
 }
 
 export function otherPerson(role:CharacterId):CharacterId { return role==='vlad'?'alina':'vlad'; }

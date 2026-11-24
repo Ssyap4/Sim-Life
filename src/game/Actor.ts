@@ -79,6 +79,14 @@ export class Actor {
   isParkSwing():boolean{return this.swingHinge!==null&&this.pose==='sit';}
   parkConversation():void{this.parkChatUntil=this.clock+9;}
   private readonly racket=new THREE.Group();
+  private readonly paddle=new THREE.Group();
+  private tennisTarget:THREE.Vector3|null=null;
+  private tennisHit=0;
+  setTennisFrame(x:number,z:number,hit:number,target?:THREE.Vector3):void{
+    if(this.activity!=='pingPong')return;
+    const p=new THREE.Vector3(x-this.root.position.x,0,z-this.root.position.z).applyAxisAngle(up,-this.root.rotation.y);
+    this.badmintonTravel=Math.hypot(p.x-this.poseOffset.x,p.z-this.poseOffset.z);this.poseOffset.copy(p);this.tennisHit=hit;this.tennisTarget=target??null;
+  }
   private badmintonFrame:{hit:number;height:number;aim:number}|null=null;
   private badmintonTravel=0;
   setBadmintonFrame(x:number,z:number,hit:number,height:number,aim:number):void{
@@ -212,6 +220,11 @@ export class Actor {
     for(let i=-5;i<=5;i++){const f=i/6;const a=new THREE.Mesh(new THREE.BoxGeometry(.0018,.0018,.25*Math.sqrt(1-f*f)),stringMat);a.position.set(f*.096,0,.455);this.racket.add(a);const b=new THREE.Mesh(new THREE.BoxGeometry(.192*Math.sqrt(1-f*f),.0018,.0018),stringMat);b.position.set(0,0,.455+f*.125);this.racket.add(b);}
     batchRigidParts(this.racket);this.racket.position.set(0,-.049,.021);
     this.racket.visible=false;this.rig.wrists[1].add(this.racket);
+    const paddlePart=(g:THREE.BufferGeometry,m:THREE.Material,p:THREE.Vector3)=>{const part=new THREE.Mesh(g,m);part.position.copy(p);this.paddle.add(part);return part;};
+    paddlePart(new THREE.BoxGeometry(.030,.023,.105),finish(0xb88955,'wood'),new THREE.Vector3(0,0,.008));
+    const core=paddlePart(new THREE.CylinderGeometry(.077,.077,.008,32),finish(0xc4a373,'wood'),new THREE.Vector3(0,0,.133));core.scale.z=1.12;
+    for(const side of [-1,1]){const rubber=paddlePart(new THREE.CylinderGeometry(.075,.075,.003,32),finish(side===1?0xb33237:0x282a2a,'fabric'),new THREE.Vector3(0,side*.0055,.133));rubber.scale.z=1.12;}
+    batchRigidParts(this.paddle);this.paddle.position.set(0,-.049,.021);this.paddle.visible=false;this.rig.wrists[1].add(this.paddle);
     const utensil = finish(0xb68354, 'wood');
     const handle = new THREE.Mesh(orb, utensil);
     handle.scale.set(0.011, 0.014, 0.122);
@@ -279,7 +292,7 @@ export class Actor {
   setPose(pose: Pose): void {
     this.waypoints = [];
     this.callback = null;
-    this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;
+    this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
@@ -346,7 +359,7 @@ export class Actor {
   finishActivity(): void {
     this.partnerGesture=null;
     this.gesture=null;
-    if(this.activity==='badminton'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;}
+    if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
     this.heart.visible=false;
     this.closingBook = this.activity === 'read' && this.carryingBook ? .36 : 0;
     this.carryingBook = false;
@@ -490,8 +503,8 @@ export class Actor {
     this.gestureTime += dt;
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;
-    const traveled = this.advance(dt, steer)+(this.activity==='badminton'?this.badmintonTravel:0);this.badmintonTravel=0;
-    const walking = (this.waypoints.length > 0 || this.activity==='badminton') && traveled > .001;
+    const traveled = this.advance(dt, steer)+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
+    const walking = (this.waypoints.length > 0 || this.activity==='badminton'||this.activity==='pingPong') && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend, walking ? 1 : 0, alpha);
     const strideLength = walkStrideLength(this.id);
@@ -818,7 +831,7 @@ export class Actor {
           const hit=this.badmintonFrame?.hit??0;lean=.12+.12*hit;rightY=-.20+.32*hit;rightZ=.25;leftY=-.22;leftZ=.24+.08*hit;gaze=-.08;expression=.20;break;
         }
         case 'pingPong': {
-          const hit=Math.sin(a*4.3);lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.45+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
+          const hit=this.tennisTarget?this.tennisHit:Math.max(0,Math.sin(a*3));lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.35+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
         }
         case 'billiards': {
           lean=.38+.10*Math.sin(a*1.5);gaze=.32;leftY=-.39;leftZ=.53;rightY=-.42+.08*Math.sin(a*3);rightZ=.30;break;
@@ -1563,6 +1576,17 @@ export class Actor {
       const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,axis));
       this.rig.elbows[1].getWorldQuaternion(this.parentRotation).invert();
       this.rig.wrists[1].quaternion.slerp(q.premultiply(this.parentRotation),alpha);
+    }
+    this.paddle.visible=this.activity==='pingPong';
+    if(this.paddle.visible){
+      const hit=this.tennisTarget?this.tennisHit:Math.max(0,Math.sin(a*3));
+      const forward=new THREE.Vector3(.12,.10,1).normalize().applyAxisAngle(up,this.root.rotation.y);
+      const wristGoal=new THREE.Vector3(.24,1.02,.30).applyAxisAngle(up,this.root.rotation.y).add(this.bodyPosition(new THREE.Vector3()));
+      if(this.tennisTarget)wristGoal.lerp(this.tennisTarget.clone().addScaledVector(forward,-.15),hit);
+      this.reach(1,wristGoal,alpha);
+      const normal=new THREE.Vector3(0,1,-.30).applyAxisAngle(up,this.root.rotation.y);normal.addScaledVector(forward,-normal.dot(forward)).normalize();
+      const across=new THREE.Vector3().crossVectors(normal,forward).normalize();normal.crossVectors(forward,across).normalize();
+      const q=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(across,normal,forward));this.rig.elbows[1].getWorldQuaternion(this.parentRotation).invert();this.rig.wrists[1].quaternion.slerp(q.premultiply(this.parentRotation),alpha);
     }
     if(this.isParkSwing()&&this.swingHinge){
       this.figure.position.sub(this.swingHinge).applyAxisAngle(new THREE.Vector3(1,0,0),this.swingAngle).add(this.swingHinge);

@@ -113,11 +113,15 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     box(.018,.010,d*.95,0,.803,0,0xf1eee1);
     for(let i=0;i<17;i++)box(.016,.135,.012,(i-8)*w/17,.865,0,0xe4e4db,'fabric');
     for(const y of [.807,.858,.928])box(w*.94,.012,.014,0,y,0,0xe4e4db,'fabric');
+    const equipment=new THREE.Group();equipment.name='Table tennis resting equipment';root.add(equipment);
     for(const side of [-1,1]){
-      ball(.084,.018,.102,side*.39,.831,side*.84,side<0?0xb63836:0x313333,'ceramic');
-      box(.045,.035,.14,side*.39,.825,side*.98,M,'wood',true);
+      equipment.add(ball(.145,.016,.165,side*.39,.82,side*.84,side<0?0xb63836:0x313333,'ceramic'));
+      equipment.add(box(.039,.023,.10,side*.39,.817,side*.965,M,'wood',true));
     }
-    ball(.020,.020,.020,.16,.83,.25,0xf0eee4,'ceramic');
+    equipment.add(ball(.040,.040,.040,.16,.823,.25,0xf0eee4,'ceramic'));
+    const live=new THREE.Group();live.name='Table tennis live ball';live.visible=false;live.position.set(0,.823,0);root.add(live);
+    live.add(ball(.040,.040,.040,0,0,0,0xfff3dd,'ceramic'));
+    batchRigidParts(equipment,true);
     return root;
   }
   if(s==='leisure-billiards'){

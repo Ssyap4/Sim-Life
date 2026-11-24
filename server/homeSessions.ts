@@ -585,7 +585,7 @@ export function createHomeSessions(hooks: Hooks) {
     const reason=cooperationDenial(hooks.state(),offer.from,command);
     if(reason)return closeSocial('interrupted',reason);
     const a=SOCIAL_BY_ID.get(offer.action)!;
-    const plan={command,label:a.title,durationMs:socialDuration(a,command),resource:socialResource(a,command.item)};
+    const plan={command,label:a.title,durationMs:socialDuration(a,command,hooks.state()),resource:socialResource(a,command.item)};
     if(cookTask){
       if(!pairScenes(hooks.state(),role,command))return closeSocial('interrupted','У столешницы нет двух свободных подходов');
       cancel(role,'Готовка продолжится вдвоём',cookTask);
