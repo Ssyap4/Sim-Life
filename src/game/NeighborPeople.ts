@@ -1,3 +1,4 @@
+import { COURIER_INDEX, type CourierVisit } from '../shared/courier';
 import { DISTRICT_OFFSET_Z } from '../shared/district';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
@@ -74,11 +75,13 @@ export class NeighborPeople {
     entry.model=model;
   }
 
-  update(gameMinute:number,camera?:THREE.Camera):TrafficBody[] {
+  update(gameMinute:number,camera?:THREE.Camera,excluded=-1):TrafficBody[] {
+    this.group.visible=true;
     this.group.position.z=this.offset;
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
     const traffic:TrafficBody[]=[];
     for(const [i,entry] of this.entries.entries()) {
+      if(i===excluded){entry.mounted.visible=false;continue;}
       const pose=neighborPose(i,gameMinute);
       entry.mounted.visible=pose.visible;
       if(!pose.visible)continue;
@@ -108,11 +111,13 @@ export class NeighborPeople {
 
   /** Four background park walkers when players enter the separate park
    * interior. The SAME GLB rigs are moved between scenes, never duplicated. */
-  updatePark(gameMinute:number,camera?:THREE.Camera):TrafficBody[] {
+  updatePark(gameMinute:number,camera?:THREE.Camera,excluded=-1):TrafficBody[] {
+    this.group.visible=true;
     const seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
     const traffic:TrafficBody[]=[];
     this.group.position.z=0;
     for(const [i,entry] of this.entries.entries()){
+      if(i===excluded){entry.mounted.visible=false;continue;}
       const pose=parkNeighborPose(i,gameMinute);
       entry.mounted.visible=pose.visible;
       if(!pose.visible)continue;
@@ -132,6 +137,20 @@ export class NeighborPeople {
       this.animateRig(rig,pose.action,pose.gestureBlend,seconds,i,pose.gait??0);
     }
     return traffic;
+  }
+
+  updateCourier(gameMinute:number,visit:CourierVisit|null):TrafficBody[]{
+    this.group.visible=!!visit;this.group.position.z=0;
+    for(const [i,entry] of this.entries.entries())entry.mounted.visible=!!visit&&i===COURIER_INDEX;
+    if(!visit)return [];
+    const entry=this.entries[COURIER_INDEX],seconds=gameMinute/GAME_MINUTES_PER_REAL_SECOND;
+    entry.mounted.position.set(visit.x,0,visit.z);entry.mounted.rotation.y=visit.yaw;
+    if(!entry.model)this.request(COURIER_INDEX,entry);
+    else{
+      const rig=entry.model;rig.root.visible=true;setFade(rig,1);
+      this.animateRig(rig,visit.walking?'walk':'look',visit.waiting?.5:0,seconds,COURIER_INDEX,visit.walking?1:0,visit.carrying);
+    }
+    return [{position:{x:visit.x,z:visit.z},clearance:.68,person:true,moving:visit.walking}];
   }
 
   private dispose(entry:Entry):void {

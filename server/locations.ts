@@ -1,3 +1,4 @@
+import { courierVisit, COURIER_NAME } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
@@ -37,10 +38,11 @@ export function validWorld(value: unknown): value is WorldState {
     // tableBags was added after existing 0.4 saves were created.
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
+    (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
     w.deliveries.every(d => d && typeof d.id === 'string' && /^D-(vlad|alina)-\d+$/.test(d.id) &&
-      ROLES.includes(d.role) && count(d.cost) && count(d.readyAt) && quoteCart(d.lines).ok) &&
+      ROLES.includes(d.role) && count(d.cost) && count(d.readyAt) && (d.handedAt===undefined||count(d.handedAt)&&d.handedAt>=d.readyAt) && quoteCart(d.lines).ok) &&
     !!w.cafe && !Array.isArray(w.cafe) && typeof w.cafe === 'object' &&
     Object.entries(w.cafe).every(([role, order]) => ROLES.includes(role as CharacterId) && order &&
       isCafeItem(order.item) && count(order.readyAt) && typeof order.pickedUp === 'boolean');
@@ -64,7 +66,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_claim',
+  'travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'dog_leash',
 ]);
 
@@ -193,10 +195,22 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     return done(next, 'Заказ оплачен. Забери его на стойке выдачи');
   }
 
+  if(command.type==='delivery_handoff'){
+    if(place!=='home'||!at(source,role,stationById('home','parcel')))return fail('Подойди к двери, где ждёт курьер');
+    const now=clockMinutes(source.clock);
+    const order=source.world.deliveries.find(d=>d.id===command.id);
+    const courier=courierVisit(source.world,now);
+    if(!order||order.handedAt!==undefined||order.readyAt>now||!courier?.waiting)return fail('Курьер ещё в пути или заказ уже передан');
+    const next=structuredClone(source);
+    next.world.deliveries.find(d=>d.id===order.id)!.handedAt=now;
+    next.world.courierDepartAt=now;
+    return done(next,COURIER_NAME+': заказ передан. Пакеты у двери — можно разобрать.');
+  }
+
   if (command.type === 'delivery_claim') {
     if (place !== 'home' || !at(source, role, stationById('home', 'parcel'))) return fail('Подойди к двери дома');
     const order = source.world.deliveries.find(d => d.id === command.id);
-    if (!order || order.readyAt > clockMinutes(source.clock)) return fail('Заказ ещё не доступен или уже получен');
+    if (!order || order.handedAt===undefined || order.readyAt > clockMinutes(source.clock)) return fail('Сначала забери заказ у курьера');
     const storage = command.storage ?? 'fridge';
     if (storage !== 'fridge' && storage !== 'table') return fail('Выбери, куда положить готовую еду');
     // Takeaway left at the doorstep for >= 2 game days is spoiled before

@@ -1,4 +1,5 @@
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
+import { COURIER_NAME } from './shared/courier';
 import { districtStation } from './shared/district';
 import { CAREERS, isCareerPlace, type CareerId } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
@@ -232,8 +233,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (!place.world.deliveries.length) options.append(element('small', '', 'У двери нет заказов.'));
       for (const order of place.world.deliveries) {
         const row = element('div', 'world-order');
-        row.append(element('strong', '', (order.readyAt <= now ? 'У двери' : 'Едет · ' + (order.readyAt - now) + ' мин.') + ' · ' + formatRub(order.cost)),
+        row.append(element('strong', '', (order.handedAt!==undefined?'У двери':order.readyAt<=now?COURIER_NAME+' ждёт у двери':'Курьер едет · '+(order.readyAt-now)+' мин.') + ' · ' + formatRub(order.cost)),
           element('small', '', order.lines.map(line => marketProduct(line.id)!.name + ' ×' + line.quantity).join(', ')));
+        if(order.handedAt===undefined){
+          row.append(button('🤝 Получить у курьера',()=>send({type:'delivery_handoff',id:order.id}),order.readyAt>now));
+          options.append(row);continue;
+        }
         const hasReady = order.lines.some(line => marketProduct(line.id)?.kind === 'takeout');
         if (hasReady) {
           if (now >= order.readyAt + 2 * MINUTES_PER_DAY)

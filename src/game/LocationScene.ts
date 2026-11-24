@@ -177,7 +177,13 @@ export function createHomeDistrict() {
   const district = buildDistrict(root, resources);
   for (const station of DISTRICT_STATIONS) {
     if (district.entries.has(station.id)) continue;
-    const object = buildStation(station, resources.textures, resources.materials);
+    const object=station.id==='district-gate'?new THREE.Group():buildStation(station, resources.textures, resources.materials);
+    if(station.id==='district-gate'){
+      object.position.set(station.center.x,0,station.center.z);
+      shape(object,[1.65,.08,.48],[0,.05,0],C.pine);
+      for(const x of [-.83,.83])shape(object,[.19,.88,.21],[x,.44,0],C.walnut);
+      sign(object,'ДОМ',.96,.06,1.30,C.paper,resources.textures,resources.materials);
+    }
     object.position.z -= DISTRICT_OFFSET_Z;
     root.add(object);
     district.entries.set(station.id, object);

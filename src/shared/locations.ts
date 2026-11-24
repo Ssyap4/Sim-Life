@@ -216,7 +216,7 @@ export function isCafeItem(value: unknown): value is CafeItem {
 export const DELIVERY_FEE = 149;
 export const DELIVERY_MINUTES = 18;
 export const CAFE_MINUTES = 2;
-export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number }
+export interface Delivery { id: string; role: CharacterId; lines: BasketLine[]; cost: number; readyAt: number; handedAt?:number }
 export interface CafeOrder { item: CafeItem; readyAt: number; pickedUp: boolean }
 export interface WorldState {
   districtLayout?: 1 | 2 | 3 | 4;
@@ -225,6 +225,7 @@ export interface WorldState {
   bags: Record<CharacterId, number>;
   tableBags: number;
   deliveries: Delivery[];
+  courierDepartAt?:number;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
 }
@@ -240,6 +241,7 @@ export type WorldCommand =
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }
   | { type: 'delivery_order'; lines: BasketLine[]; sequence: number }
+  | {type:'delivery_handoff';id:string}
   | { type: 'delivery_claim'; id: string; storage?: 'fridge' | 'table' }
   | { type: 'ready_food_move'; kind: 'meal' | 'takeout'; item: string }
   | { type: 'ready_food_serve'; kind: 'meal' | 'takeout'; item: string }

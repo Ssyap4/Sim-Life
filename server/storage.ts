@@ -137,7 +137,7 @@ const isValidState = (value: unknown): value is GameState => {
     const routine = pet?.routine;
     return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.favoriteBedId===undefined||Number.isSafeInteger(pet.favoriteBedId)&&pet.favoriteBedId>0) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&
         Number.isSafeInteger(routine.startedAt) && routine.startedAt >= 0 && Number.isSafeInteger(routine.until) &&
@@ -294,6 +294,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
         world: data.world ? {
           ...data.world, districtLayout: 4,
+          deliveries:data.world.deliveries.map(d=>districtLayout!==4&&d.readyAt<=clockMinutes(data.clock??INITIAL_CLOCK)?{...d,handedAt:d.readyAt}:d),
           places: {
             vlad: String(data.world.places.vlad)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.vlad==='home'&&!inHomeGrounds(data.characters.vlad)?'district':data.world.places.vlad,
             alina: String(data.world.places.alina)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.alina==='home'&&!inHomeGrounds(data.characters.alina)?'district':data.world.places.alina,
