@@ -1,3 +1,4 @@
+import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
@@ -1049,6 +1050,17 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
+      phone.close();computer.close();
+      showActionMenu('🐈 Симба');
+      const note=document.createElement('p');note.className='food-empty';note.textContent=reason;actionsEl.append(note);
+      const site=state&&catOccupiedPerch(state);
+      if(site&&reason===CAT_BLOCKED){
+        const button=document.createElement('button');button.type='button';button.className='action-button';button.textContent='🐾 Убрать Симбу';
+        button.addEventListener('click',()=>{if(net.yieldSimba(site.key)){actionsEl.hidden=true;notify('Симба освобождает место…');}});actionsEl.append(button);
+      }
+      return;
+    }
     furnishing.reject(reason);
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))

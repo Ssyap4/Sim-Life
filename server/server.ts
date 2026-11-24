@@ -1,3 +1,6 @@
+import { yieldSimbaFurniture } from './pets';
+import { catSeatOverlap } from '../src/shared/catOccupancy';
+import type { CatPerch } from '../src/shared/CatPerches';
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
 import { applyBudgetCommand } from './familyBudget';
@@ -355,7 +358,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
     for (const { activity } of leisure.values()) if (activity === 'verdell' || activity === 'simba') occupiedPets.add(activity);
     for(const pet of ['simba','verdell'] as const) if(homeTasks.reserved('pet:'+pet))occupiedPets.add(pet);
-    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets);
+    runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved);
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
@@ -623,6 +626,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     running.delete(role);
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
+  function catReserved(site:CatPerch):boolean {
+    if(homeTasks.blocksCat(site))return true;
+    for(const [role,routine] of leisure)if(routine.activity==='tv'){
+      if(site.key==='starter:sofa'&&catSeatOverlap(site,site.key,homeSeat('sofa',role).position))return true;
+      if(site.key.startsWith('placed:')&&Math.hypot((routine.route.path.at(-1)??routine.route.from).x-site.approach.x,(routine.route.path.at(-1)??routine.route.from).z-site.approach.z)<1.6)return true;
+    }
+    return [...running.values()].some(t=>t.plan.command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(t.plan.command.actionId)&&site.key==='starter:bed');
+  }
   const beginTask = (role: CharacterId, socket: WebSocket, plan: TaskPlan, automatic = false): void => {
     if (usesHomeSession(plan.command)) {
       homeTasks.start([role], plan, socket, automatic);
@@ -945,6 +956,29 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (isPaused) {
         packet(socket,{type:'error',reason:'Игра на паузе. Для продолжения нажми ▶'});
+        return;
+      }
+      if(message.type==='simba_yield'){
+        if(typeof message.key!=='string')return;
+        const result=yieldSimbaFurniture(state,role,message.key,liveGameTime());
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if(result.state!==state){
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось освободить мебель'});return;}
+          state=result.state;
+          all({type:'snapshot',state});
+          const release=state.pets.simba.furnitureYield!;
+          // The rig's descent takes .88s; a short pause-aware grace period
+          // keeps both clients clear without waiting for the 10s life tick.
+          pauseTimers.schedule(()=>{
+            const current=state.pets.simba.furnitureYield;
+            if(!current||current.clearAt!==release.clearAt||current.perch.key!==release.perch.key)return;
+            const next=structuredClone(state);
+            next.pets.simba.furnitureYield!.clearAt=clockMinutes(next.clock);
+            next.revision++;
+            try{files.save(next);state=next;all({type:'snapshot',state});}
+            catch(error){console.error('Could not save furniture release:',error);}
+          },1700);
+        }
         return;
       }
       if (message.type === 'autonomy_mode') {
@@ -1291,7 +1325,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
                 item: typeof message.item === 'string' ? message.item : '' })
             : applyPetAction(state, role,
                 typeof message.pet === 'string' ? message.pet : '',
-                typeof message.action === 'string' ? message.action : '');
+                typeof message.action === 'string' ? message.action : '',catReserved);
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
         try { files.save(result.state); }
         catch (error) {

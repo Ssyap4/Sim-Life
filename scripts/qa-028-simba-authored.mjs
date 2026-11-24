@@ -35,6 +35,7 @@ try{
     try{
       const state=initialState();
       state.money=100_000;
+      state.characters.vlad.energy=20;
       state.furnishing.nextId=43;
       state.furnishing.placed=[
         {id:41,sku:'chair-cloud',finish:'sage',x:2.45,z:2.1,rotation:1},
@@ -58,6 +59,21 @@ try{
       context=await browser.newContext({viewport:{width:390,height:844},
         isMobile:true,hasTouch:true,deviceScaleFactor:1});
       const page=await context.newPage();
+      await page.addInitScript(()=>{
+        const Native=window.WebSocket;
+        window.WebSocket=class extends Native{
+          constructor(...args){
+            super(...args);
+            if(this.url.includes('/sync')){
+              window.__simbaQA=this;
+              this.addEventListener('message',event=>{
+                const packet=JSON.parse(event.data);
+                if(packet.type==='snapshot')window.__simbaSnapshot=packet.state;
+              });
+            }
+          }
+        };
+      });
       page.on('pageerror',err=>errors.push(scenario.name+': '+err.message));
       page.on('console',msg=>{if(msg.type()==='error')
         errors.push(scenario.name+': browser console '+msg.text().slice(0,220));});
@@ -90,6 +106,23 @@ try{
       await shot('close-front');
       await page.waitForTimeout(460);
       await shot('close-stable');
+      if(scenario.key==='starter:bed'){
+        await page.evaluate(()=>window.__simbaQA.send(JSON.stringify({type:'sleep_start',mode:'full'})));
+        const release=page.getByRole('button',{name:/Убрать Симбу/});
+        await release.waitFor({state:'visible',timeout:15000});
+        await shot('sleep-blocked-menu');
+        await release.click();
+        await page.waitForFunction(()=>window.__simbaSnapshot?.pets.simba.furnitureYield,
+          {timeout:15000});
+        await page.waitForTimeout(2200);
+        await shot('cat-on-floor');
+        await page.evaluate(()=>window.__simbaQA.send(JSON.stringify({type:'sleep_start',mode:'full'})));
+        await page.waitForFunction(()=>window.__simbaSnapshot?.characters.vlad.pose==='sleep',
+          {timeout:15000});
+        await page.locator('#showcase-return').click();
+        await page.waitForTimeout(5500);
+        await shot('sleep-after-release');
+      }
       await context.close();
       context=undefined;
     }finally{

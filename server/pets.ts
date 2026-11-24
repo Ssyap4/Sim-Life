@@ -1,3 +1,4 @@
+import { catOccupiedPerch } from '../src/shared/catOccupancy';
 import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
 import {
@@ -30,6 +31,10 @@ export function pausePetRoutine(state: GameState, id: PetId, now: number): void 
   const pet = state.pets[id];
   if (!pet.routine) return;
   pet.position = sampleWalk(pet.routine.route, Math.max(0, now - pet.routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
+  if(id==='simba'&&pet.routine.kind==='perch'&&pet.routine.perch){
+    const site=currentCatPerch(state.furnishing,pet.routine.perch);
+    if(site)pet.furnitureYield={perch:site,clearAt:Math.floor(now)+2,cooldownUntil:Math.floor(now)+14};
+  }
   delete pet.routine;
 }
 
@@ -64,7 +69,7 @@ function ownerPetPoint(state:GameState,id:PetId,role:CharacterId) {
 }
 /** Both automatic and manual climbs must have a real floor launch, empty
  * furniture, clear arc and an obstacle-safe floor route. */
-function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0) {
+function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0,blocked?:(site:CatPerch)=>boolean) {
   const geometry=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
   const places=catPerchCandidates(state.furnishing);
   const ordered=nearest
@@ -72,6 +77,8 @@ function safeCatPerch(state:GameState,from:FloorPoint,nearest=false,first=0) {
       Math.hypot(b.approach.x-from.x,b.approach.z-from.z))
     : places.map((_,i)=>places[(i+first)%places.length]);
   for(const site of ordered){
+    const yielded=state.pets.simba.furnitureYield;
+    if(blocked?.(site)||yielded&&yielded.perch.key===site.key&&gameMinutes(state.clock)<yielded.cooldownUntil)continue;
     if((['vlad','alina'] as const).some(role=>{
       const person=state.characters[role];
       const bed=person.sleepingOn??'starter';
@@ -155,7 +162,7 @@ function findScratcher(state:GameState) {
 
 /** Called on the clock's isolated state. Routes are cosmetic, supplies are authoritative. */
 export function runPetRoutines(state: GameState, minutes: number, now: number,
-  occupied: ReadonlySet<PetId>, random = Math.random): void {
+  occupied: ReadonlySet<PetId>, random = Math.random, blocked?:(site:CatPerch)=>boolean): void {
   for (const id of PET_IDS) {
     const pet = state.pets[id];
     const drain = (value: number, rate: number) => Math.round(clamp(value - minutes * rate / 60) * 100) / 100;
@@ -163,6 +170,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
     const previous = pet.routine;
+    if(pet.furnitureYield && (now>=pet.furnitureYield.cooldownUntil||!currentCatPerch(state.furnishing,pet.furnitureYield.perch)))delete pet.furnitureYield;
     if(pet.favoriteBedId!==undefined && !petBeds(state.furnishing,id)
       .some(item=>item.id===pet.favoriteBedId))delete pet.favoriteBedId;
     if (previous) pet.position = sampleWalk(previous.route, (now - previous.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
@@ -194,7 +202,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     } else if (previous?.kind==='scratch' && !invalidEquipment && previous.until<=now) {
       pet.happiness=clamp(pet.happiness+9);
       pet.bond=clamp(pet.bond+2);
-    } else if (previous?.kind==='come' && previous.until<=now) {
+    } else if (previous?.kind==='come' && previous.until<=now && !pet.furnitureYield) {
       pet.bond=clamp(pet.bond+3);
       pet.happiness=clamp(pet.happiness+2);
     } else if (previous?.kind==='fetch' && previous.until<=now) {
@@ -206,6 +214,9 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       // amount of energy. An invalidated/sold cushion gives no reward.
       pet.energy=clamp(pet.energy+10);
       pet.happiness=clamp(pet.happiness+2);
+    }
+    if(id==='simba'&&previous?.kind==='perch'&&!invalidPerch&&previous.perch){
+      pet.furnitureYield={perch:previous.perch,clearAt:now+2,cooldownUntil:now+14};
     }
     let kind: PetRoutine['kind'] = 'wander';
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
@@ -236,7 +247,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
       pet.energy>=66 && pet.satiety>=50 && pet.bladder>=66 && random()<.42){
       const sites=catPerchCandidates(state.furnishing);
       const first=sites.length?Math.floor(random()*sites.length):0;
-      const picked=safeCatPerch(state,pet.position,false,first);
+      const picked=safeCatPerch(state,pet.position,false,first,blocked);
       if(picked){
         chosenPerch=picked.site;
         chosenRoute=picked.route;
@@ -274,6 +285,7 @@ export function applyPetAction(
   role: CharacterId,
   pet: string,
   action: string,
+  blocked?:(site:CatPerch)=>boolean,
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
   if (!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch'].includes(action))
@@ -298,6 +310,15 @@ export function applyPetAction(
     if(data.routine?.kind==='eat'||data.routine?.kind==='toilet')
       return {ok:false,reason:'Не будем отвлекать '+spec.name+' от важного дела'};
     const now=Math.floor(gameMinutes(next.clock));
+    if(data.furnitureYield&&now<data.furnitureYield.clearAt)return {ok:false,reason:'Симба ещё спускается с мебели'};
+    if(data.routine?.kind==='perch'&&kind!=='perch'){
+      const site=catOccupiedPerch(next);
+      if(site){
+        data.position=sampleWalk(data.routine.route,Math.max(0,now-data.routine.startedAt)*PET_SPEED[id]/GAME_MINUTES_PER_REAL_SECOND).from;
+        data.furnitureYield={perch:site,clearAt:now+2,cooldownUntil:now+14};
+      }
+    }
+    if(kind==='perch'&&data.routine?.kind==='perch')return {ok:false,reason:'Симба уже устроился на мебели'};
     if(kind==='mat'){
       const chosen=findPetBed(next,id);
       if(!chosen)return {ok:false,reason:'Сначала купи и поставь подходящую лежанку для '+spec.name};
@@ -315,7 +336,7 @@ export function applyPetAction(
       message='Симба идёт к своей когтеточке и точит коготки';
     }else if(kind==='perch'){
       if(id!=='simba')return {ok:false,reason:'Верделл предпочитает отдыхать на полу'};
-      const chosen=safeCatPerch(next,data.position,true);
+      const chosen=safeCatPerch(next,data.position,true,0,blocked);
       if(!chosen)return {ok:false,reason:'Нет свободной доступной мягкой мебели для Симбы'};
       const travel=Math.ceil(routeLength(chosen.route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]);
       data.routine={kind:'perch',target:0,startedAt:now,until:now+travel+27,
@@ -397,4 +418,20 @@ export function applyPetAction(
   }
   next.revision++;
   return { ok: true, state: next, message };
+}
+
+/** Cancel a reserved climb/rest and give the existing rig time to descend. */
+export function yieldSimbaFurniture(source:GameState,role:CharacterId,key:string,now:number):PetResult {
+  if(source.world.places[role]!=='home')return {ok:false,reason:'Убрать Симбу можно из дома'};
+  const site=catOccupiedPerch(source);
+  if(!site||site.key!==key)return {ok:true,state:source,message:'Симба уже освободил место'};
+  const next=structuredClone(source),pet=next.pets.simba,routine=pet.routine!;
+  const position=sampleWalk(routine.route,Math.max(0,now-routine.startedAt)*PET_SPEED.simba/GAME_MINUTES_PER_REAL_SECOND).from;
+  const start=Math.floor(now);
+  pet.position=position;
+  pet.furnitureYield={perch:site,clearAt:start+4,cooldownUntil:start+14};
+  // A stationary floor routine releases the existing client perch, without teleporting.
+  pet.routine={kind:'come',target:0,startedAt:start,until:start+4,route:{from:position,path:[]},goal:position};
+  next.revision++;
+  return {ok:true,state:next,message:'Симба освобождает место'};
 }

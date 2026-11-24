@@ -1,7 +1,7 @@
 name: Sim-Life 0.28 authored Simba 3D rest QA
 on:
   push:
-    branches: [feat/simba-authored-furniture-rest-028]
+    branches: [feat/simba-authored-furniture-rest-028, preview/simba-furniture-occupancy-028]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,7 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npx tsx --test server/tests/simbaAuthoredRest-028.test.ts server/tests/catPerches-027.test.ts
+      - run: npx tsx --test server/tests/simbaAuthoredRest-028.test.ts server/tests/catPerches-027.test.ts server/tests/simbaOccupancy-028.test.ts
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install --with-deps chromium
       - run: npx vite build

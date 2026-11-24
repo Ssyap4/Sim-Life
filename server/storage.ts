@@ -227,6 +227,8 @@ function restorePet(id: PetId, saved: PetState | undefined,
   if(pet.favoriteBedId!==undefined&& (!furnishing||
     !petBeds(furnishing,id).some(item=>item.id===pet.favoriteBedId)))
     delete pet.favoriteBedId;
+  if(pet.furnitureYield&&(!furnishing||!currentCatPerch(furnishing,pet.furnitureYield.perch)||
+    !Number.isFinite(pet.furnitureYield.clearAt)||!Number.isFinite(pet.furnitureYield.cooldownUntil)))delete pet.furnitureYield;
   const route = pet.routine?.route;
   if (route && pet.routine) {
     const invalidPerch=pet.routine.kind==='perch' &&

@@ -171,6 +171,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
   | { type: 'resume'; role: CharacterId; token: string }
+  | { type: 'simba_yield'; key:string }
   | { type: 'forget_device' }
   | { type: 'auth'; role: CharacterId; code: string; remember?: boolean }
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }

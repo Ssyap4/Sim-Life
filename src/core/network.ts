@@ -134,6 +134,8 @@ export class LiveConnection {
     return this.sendAuthenticated({ type: 'cancel_task', taskId });
   }
 
+  yieldSimba(key:string):boolean {return this.sendAuthenticated({type:'simba_yield',key});}
+
   petAction(pet: PetId, action: PetAction): boolean {
     return this.sendAuthenticated({ type: 'pet_action', pet, action });
   }

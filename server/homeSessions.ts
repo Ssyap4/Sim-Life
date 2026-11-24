@@ -1,3 +1,5 @@
+import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy';
+import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
@@ -223,7 +225,7 @@ export function createHomeSessions(hooks: Hooks) {
       const order = command.seat ? [command.seat] : [...readingSeats.slice(index), ...readingSeats.slice(0,index)];
       for (const station of order) {
         const route = walk(pickup.path.at(-1) ?? pickup.from, homeSeat(station, role).approach);
-        if (route) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
+        if (route && !catHomeSeatError(hooks.state(),role,{route,station})) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
           pickup: pickup.path.length, pickupMs: 720, station };
       }
       return null;
@@ -374,6 +376,8 @@ export function createHomeSessions(hooks: Hooks) {
       if (reason) { error(initiator, reason); return; }
       const home = pair?.[role]??presentation(role, command);
       if (!home) { if (!automatic) error(initiator, 'Не удалось найти свободный маршрут'); return; }
+      const catReason=catHomeSeatError(hooks.state(),role,home);
+      if(catReason){if(!automatic)error(initiator,catReason);return;}
       if (study?.questions[0]) home.question = study.questions[0];
       const before = hooks.state();
       const result = material || cooperation ? undefined : evaluateTask(before, role, command, roles.length === 2);
@@ -624,7 +628,7 @@ export function createHomeSessions(hooks: Hooks) {
     }
   }
 
-  return { busy, reserved, start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {
