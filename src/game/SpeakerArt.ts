@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {softCube,drum,orb,finish,batchRigidParts} from './ArtKit';
-import type {SpeakerSku} from '../shared/speakerCatalog';
+import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 export function buildSpeakerModel(sku:SpeakerSku){
  const g=new THREE.Group(),alice=sku==='speaker-alice',google=sku==='speaker-google';
  function part(geometry:THREE.BufferGeometry,size:[number,number,number],pos:[number,number,number],color:number){
@@ -24,5 +24,6 @@ export function buildSpeakerModel(sku:SpeakerSku){
   part(drum,[.15,.017,.15],[0,.412,0],0x25282f);
   part(drum,[.055,.006,.055],[0,.424,0],0x8193c4);
  }
- batchRigidParts(g,true);return g;
+ batchRigidParts(g,true);const bounds=new THREE.Box3().setFromObject(g),size=bounds.getSize(new THREE.Vector3()),m=SPEAKER_MODELS[sku];
+ const scale=Math.min(m.width/size.x,m.depth/size.z,m.height/size.y);const root=new THREE.Group();g.scale.setScalar(scale);g.position.y=-bounds.min.y*scale;root.add(g);return root;
 }

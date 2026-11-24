@@ -1,7 +1,7 @@
 export const SPEAKER_MODELS={
- 'speaker-alice':{name:'Яндекс Станция 3',assistant:'Алиса',price:24990,width:.42,depth:.42,height:.48,gain:.36,range:4.5},
- 'speaker-google':{name:'Google Home Speaker',assistant:'Google Assistant',price:19990,width:.40,depth:.40,height:.43,gain:.30,range:3.8},
- 'speaker-apple':{name:'Apple HomePod',assistant:'Siri',price:39990,width:.43,depth:.43,height:.43,gain:.46,range:5.5},
+ 'speaker-alice':{name:'Яндекс Станция 3',assistant:'Алиса',price:24990,width:.22,depth:.22,height:.29,gain:.36,range:4.5},
+ 'speaker-google':{name:'Google Home Speaker',assistant:'Google Assistant',price:19990,width:.20,depth:.20,height:.22,gain:.30,range:3.8},
+ 'speaker-apple':{name:'Apple HomePod',assistant:'Siri',price:39990,width:.23,depth:.23,height:.25,gain:.46,range:5.5},
 } as const;
 export type SpeakerSku=keyof typeof SPEAKER_MODELS;
 export const isSpeakerSku=(id:unknown):id is SpeakerSku=>typeof id==='string'&&Object.hasOwn(SPEAKER_MODELS,id);

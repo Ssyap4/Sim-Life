@@ -50,6 +50,7 @@ import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/ha
 
 import {validEmotionalHistory} from '../src/shared/emotions';
 import {initialDust,validDust} from '../src/shared/homeDust';
+import {migrateSpeakerMounts} from '../src/shared/speakerPlacement';
 import {validSpeakers} from '../src/shared/speaker';
 import {validVacuum} from '../src/shared/vacuum';
 const isValidState = (value: unknown): value is GameState => {
@@ -315,6 +316,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
       const savedFurnishing = {...(data.furnishing ?? emptyFurnishing()),
         soldFixtures:data.furnishing?.soldFixtures ?? []};
+      const migratedSpeakers=migrateSpeakerMounts(savedFurnishing);
       const restoredPetGeometry = petNavigationGeometry(
         placeObstacles('home', savedFurnishing), HOME_FLOOR);
       const districtLayout = data.world?.districtLayout;
@@ -372,6 +374,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       };
       // The first load of a legacy save permanently records expiration dates.
       // Merely reopening the file must never reset the countdown.
+      if(migratedSpeakers&&household.speakers)for(const id of Object.keys(household.speakers))if(!savedFurnishing.placed.some(p=>p.id===Number(id)))delete household.speakers[Number(id)];
       const migratedFood = reconcileReadyFood(household);
       const recoveredCareer = recoverCareers(household);
       const migratedBags = !!data.world && ((data.world.tableBags ?? 0) > 0 ||
@@ -403,7 +406,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (data.billing === undefined || data.relationship === undefined || data.readyFood === undefined || data.petBowls === undefined ||
           data.furnishing === undefined || data.furnishing.soldFixtures===undefined ||
           data.dirtyDishes === undefined || data.computerLibrary === undefined ||
-          migratedFood || recoveredCareer || migratedBags || migratedDistrict)
+          migratedSpeakers || migratedFood || recoveredCareer || migratedBags || migratedDistrict)
         this.save(household);
       return household;
     },

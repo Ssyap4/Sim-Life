@@ -12,7 +12,7 @@ import {advanceLife} from '../life';
 import {initialDust,advanceDust} from '../../src/shared/homeDust';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-const first={id:1,sku:'speaker-alice',finish:'ivory' as const,x:14,z:-6,rotation:0 as const};
+const first={id:1,sku:'speaker-alice',finish:'ivory' as const,x:2.39,z:-1.86,rotation:0 as const,mount:{support:'static:table',u:0,v:.36}};
 function home(){const s=initialState();s.furnishing.placed=[first];s.furnishing.nextId=2;return s;}
 test('three unique speakers can be purchased at cashier and placed through furniture inventory',()=>{
  for(const [sku,m] of Object.entries(SPEAKER_MODELS)){
@@ -22,7 +22,7 @@ test('three unique speakers can be purchased at cashier and placed through furni
   const bought=applyWorld(s,'vlad',{type:'speaker_buy',sku});assert.ok(bought.ok);s=bought.state;
   assert.equal(s.money,100000-m.price);assert.equal(s.furnishing.stored[0].sku,sku);
   s.world.places.vlad='home';
-  const placed=applyFurnishing(s,'vlad',{type:'furniture_place',id:s.furnishing.stored[0].id,x:14,z:-6,rotation:0},0);
+  const placed=applyFurnishing(s,'vlad',{type:'furniture_place',id:s.furnishing.stored[0].id,x:2.39,z:-1.86,rotation:0},0);
   assert.ok(placed.ok);
  }
  for(const role of ['vlad','alina'] as const)for(const st of STATIONS.electronics){const p=approachFor(st,role);assert.ok(pointIsClear(p,placeObstacles('electronics'),floorFor('electronics')),st.id);assert.ok(findRoute(spawn('electronics',role),p,placeObstacles('electronics'),floorFor('electronics')),st.id);}

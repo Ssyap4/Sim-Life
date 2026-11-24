@@ -6,6 +6,8 @@ import { FURNITURE_BY_ID, PURCHASABLE_FURNITURE, FURNITURE_CATEGORIES,
   FURNITURE_FINISHES, FINISH_IDS, FURNITURE_DELIVERY, type FurnitureCategory,
   type FurnitureFinish, type FurnitureInstance, type PlacedFurniture, type Rotation,
   type FurnishingCommand } from './shared/furniture';
+import {isSpeakerSku} from './shared/speakerCatalog';
+import {speakerMountAt} from './shared/speakerPlacement';
 import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
 import { furnitureComfort } from './shared/furnitureComfort';
@@ -360,13 +362,13 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     controls.dataset.valid='unknown';
     callbacks.start(item,rotation);
   }
-  function setTarget(x:number,z:number):{x:number;z:number}|null{
+  function setTarget(x:number,z:number):{x:number;z:number;y?:number}|null{
     if(!draft||draft.submitted)return null;
     const state=callbacks.read();
     if(!state)return null;
     const original={...draft.item,x:Math.round(x*100)/100,z:Math.round(z*100)/100,
       rotation:draft.rotation};
-    const snapped=suggestFurnitureSnap(original);
+    const snapped=suggestFurnitureSnap(original,state);
     const snappedCheck=checkFurniturePlacement(state,snapped);
     // Near a wall we use the magnet ONLY if the result is legal. The selected
     // location remains exact and visible if the proposed snap would block a door.
@@ -379,7 +381,9 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       ' · '+candidate.x.toFixed(2)+' / '+candidate.z.toFixed(2)+
       ' · '+draft.rotation*90+'°';
     apply.disabled=!result.valid;
-    return draft.target;
+    const surface=isSpeakerSku(candidate.sku)&&speakerMountAt(state.furnishing,candidate);
+    if(isSpeakerSku(candidate.sku))placeHint.textContent=surface?'Можно поставить: '+surface.label:'Выбери свободное место на столе, тумбе или комоде';
+    return {...draft.target,y:surface?surface.y:undefined};
   }
   function turn(amount:number){
     if(!draft||draft.submitted)return;

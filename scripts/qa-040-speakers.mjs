@@ -10,8 +10,8 @@ const out='/tmp/simlife-040-speakers';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'speakers-qa-'));let browser,page,server;
 try{
  const s=initialState();s.autonomy={vlad:'off',alina:'off'};s.clock.minute=750;
- s.furnishing.placed=[{id:1,sku:'speaker-alice',finish:'ivory',x:14,z:-6,rotation:0},{id:2,sku:'speaker-apple',finish:'ivory',x:13,z:-6,rotation:0},{id:3,sku:'vacuum-dreame',finish:'ivory',x:12.5,z:-6,rotation:0}];s.furnishing.nextId=4;
- Object.assign(s.characters.vlad,{x:12.5,z:-5.25,pose:'idle'});openServerFiles(dir).save(s);
+ s.furnishing.placed=[{id:1,sku:'speaker-alice',finish:'ivory',x:2.39,z:-1.86,rotation:0,mount:{support:'static:table',u:0,v:.36}},{id:2,sku:'speaker-apple',finish:'ivory',x:-8.70,z:-3.29,rotation:0,mount:{support:'static:vanity',u:.43,v:0}},{id:3,sku:'vacuum-dreame',finish:'ivory',x:12.5,z:-6,rotation:0}];s.furnishing.nextId=4;
+ Object.assign(s.characters.vlad,{x:1.5,z:1.4,pose:'idle'});openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});

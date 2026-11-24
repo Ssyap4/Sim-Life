@@ -1,4 +1,5 @@
-import {SPEAKER_MODELS} from './speakerCatalog';
+import type {SpeakerMount} from './speakerPlacement';
+import {SPEAKER_MODELS,isSpeakerSku} from './speakerCatalog';
 import {VACUUM_MODELS} from './vacuumCatalog';
 import {FEEDING_MODELS} from './petFeeders';
 import type { FloorRect } from '../game/navigation';
@@ -307,7 +308,7 @@ export const isStaticFurnitureId=(id:unknown):id is StaticFurnitureId=>
 
 export interface FurnitureInstance { id:number; sku:string; finish:FurnitureFinish }
 export interface PlacedFurniture extends FurnitureInstance {
-  x:number;z:number;rotation:Rotation;
+  x:number;z:number;rotation:Rotation;mount?:SpeakerMount;
 }
 export interface FurnitureOrder extends FurnitureInstance {
   readyAt:number; shipping:FurnitureShipping;
@@ -330,7 +331,7 @@ export function furnitureFootprint(item:PlacedFurniture,clearance=0):FloorRect {
   return {minX:item.x-w,maxX:item.x+w,minZ:item.z-d,maxZ:item.z+d};
 }
 export function furnishingObstacles(state:Pick<FurnishingState,'placed'>):FloorRect[] {
-  return state.placed.filter(item=>!FURNITURE_BY_ID.get(item.sku)?.walkable)
+  return state.placed.filter(item=>!isSpeakerSku(item.sku)&&!FURNITURE_BY_ID.get(item.sku)?.walkable)
     .map(item=>furnitureFootprint(item,.30));
 }
 export function isValidFurnishing(raw:unknown):raw is FurnishingState {
@@ -360,7 +361,7 @@ export function isValidFurnishing(raw:unknown):raw is FurnishingState {
       const placed=item as PlacedFurniture;
       return Number.isFinite(placed.x)&&Math.abs(placed.x)<=100&&
         Number.isFinite(placed.z)&&Math.abs(placed.z)<=100&&
-        [0,1,2,3].includes(placed.rotation);
+        [0,1,2,3].includes(placed.rotation)&&(!placed.mount||(isSpeakerSku(placed.sku)&&typeof placed.mount.support==='string'&&placed.mount.support.length<80&&Number.isFinite(placed.mount.u)&&Number.isFinite(placed.mount.v)));
     }
     return true;
   });

@@ -1,3 +1,5 @@
+import {isSpeakerSku} from './speakerCatalog';
+import {speakerMountAt,snapSpeaker} from './speakerPlacement';
 import {isVacuumSku} from './vacuumCatalog';
 import {feederModel,feedingAnchor,feedingStation,feedingOwnerPoint} from './petFeeders';
 import { leisureAction } from './leisure';
@@ -109,6 +111,8 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   if(!product)return deny('Предмет не найден в каталоге');
   if(!Number.isFinite(candidate.x)||!Number.isFinite(candidate.z)||
       ![0,1,2,3].includes(candidate.rotation))return deny('Некорректные координаты');
+  if(isSpeakerSku(candidate.sku)){const mount=speakerMountAt({...state.furnishing,placed:[...others]},candidate);return mount?yes:deny('Выбери свободную поверхность мебели');}
+  if(others.some(p=>isSpeakerSku(p.sku)&&!speakerMountAt({...state.furnishing,placed:[...others,candidate]},p)))return deny('Новое расположение мешает установленной колонке');
   // A couple of centimetres of buffer avoid z-fighting without reserving
   // entire empty strips beside each wall.
   const physical=furnitureFootprint(candidate,.018);
@@ -120,6 +124,7 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   if(fixedPhysical(state).some(obstacle=>intersects(physical,obstacle)))
     return deny('Здесь стена, встроенная мебель или сантехника');
   if(!product.walkable && others.some(other=>{
+      if(isSpeakerSku(other.sku))return false;
       const otherInfo=FURNITURE_BY_ID.get(other.sku);
       return (!otherInfo?.walkable||otherInfo?.category==='pets') &&
         intersects(physical,furnitureFootprint(other,.018));
@@ -128,7 +133,8 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // Ordinary rugs may be overlapped, but a PET BED must never be installed
   // underneath a sofa, cabinet, scratcher, or another pet bed.
   if(product.category==='pets'&&product.walkable&&others.some(other=>{
-    const otherInfo=FURNITURE_BY_ID.get(other.sku);
+    if(isSpeakerSku(other.sku))return false;
+      const otherInfo=FURNITURE_BY_ID.get(other.sku);
     return (otherInfo?.category==='pets'||!otherInfo?.walkable)&&
       intersects(physical,furnitureFootprint(other,.018));
   }))return deny('Лежанке нужно свободное место на полу');
@@ -202,7 +208,8 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
 
 /** A gentle wall/corner magnet within 22cm of the selected position, never
  * snapping through room walls. The final shared check still decides safety. */
-export function suggestFurnitureSnap(item:PlacedFurniture):PlacedFurniture {
+export function suggestFurnitureSnap(item:PlacedFurniture,state?:GameState):PlacedFurniture {
+  if(isSpeakerSku(item.sku))return state?snapSpeaker(state.furnishing,item):item;
   const size=furnitureFootprint({...item,x:0,z:0});
   const halfX=size.maxX,halfZ=size.maxZ;
   const xWalls=[HOUSE.minX,HOUSE.maxX,HOUSE_WING.maxX,

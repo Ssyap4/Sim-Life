@@ -1,3 +1,5 @@
+import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
+import {isSpeakerSku} from '../shared/speakerCatalog';
 import {speakerItems,speakerDevice} from '../shared/speaker';
 import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
@@ -178,7 +180,9 @@ export class World {
   private staticFixtureModels=new Map<StaticFurnitureId,THREE.Group>();
   private furnishingVisualKey='';
   private furnishingGhost:THREE.Group|null=null;
-  private furnishingPlaceCallback:((x:number,z:number)=>{x:number;z:number}|null)|null=null;
+  private speakerGhost=false;
+  private speakerSurfaceGuides:THREE.Group|null=null;
+  private furnishingPlaceCallback:((x:number,z:number)=>{x:number;z:number;y?:number}|null)|null=null;
   private furnishingFootprint:THREE.Mesh|null=null;
   private furnishingOutline:THREE.LineSegments|null=null;
   private furnishingGhostMaterials:THREE.MeshStandardMaterial[]=[];
@@ -1740,7 +1744,7 @@ export class World {
     this.furnishingModels.clear();
     for(const item of placed){
       const model=buildFurnishingModel(item.sku,item.finish);
-      model.position.set(item.x,.01,item.z);
+      model.position.set(item.x,isSpeakerSku(item.sku)&&this.household?(speakerHeight(this.household.furnishing,item)??.01):.01,item.z);
       model.rotation.y=item.rotation*Math.PI/2;
       if(item.sku==='pet-bed-stairs'&&this.household){
         const site=dogBedSites(this.household,item)[0];if(site)model.scale.y=site.height/.76;
@@ -1772,13 +1776,14 @@ export class World {
     }
   }
 
-  setFurnishingPick(onTarget:(x:number,z:number)=>{x:number;z:number}|null,onItem:(id:number)=>void):void {
+  setFurnishingPick(onTarget:(x:number,z:number)=>{x:number;z:number;y?:number}|null,onItem:(id:number)=>void):void {
     this.furnishingPlaceCallback=onTarget;
     this.furnishingItemCallback=onItem;
   }
 
   beginFurnishingPlacement(sku:string,finish:FurnitureFinish,rotation:Rotation):void {
     this.endFurnishingPlacement();
+    this.speakerGhost=isSpeakerSku(sku);
     this.furnishingGhost=createPlacementGhost(sku,finish);
     this.furnishingGhost.rotation.y=rotation*Math.PI/2;
     const info=FURNITURE_BY_ID.get(sku)!;
@@ -1802,11 +1807,14 @@ export class World {
         this.furnishingGhostMaterials.push(obj.material as THREE.MeshStandardMaterial);
     });
     this.homeScene.add(this.furnishingGhost);
+    if(this.speakerGhost&&this.household){const guides=new THREE.Group();for(const s of speakerSurfaces(this.household.furnishing)){const mesh=new THREE.Mesh(new THREE.PlaneGeometry(s.w,s.d),new THREE.MeshBasicMaterial({color:0x38b875,transparent:true,opacity:.20,depthWrite:false,side:THREE.DoubleSide}));const a=s.rotation*Math.PI/2;mesh.rotation.set(-Math.PI/2,0,a);mesh.position.set(s.x+s.u*Math.cos(a)+s.v*Math.sin(a),s.y+.005,s.z-s.u*Math.sin(a)+s.v*Math.cos(a));guides.add(mesh);}this.homeScene.add(guides);this.speakerSurfaceGuides=guides;}
     this.setFurnishingValidity(false);
     // Start with a meaningful home-room location instead of a ghost floating
     // above the center of the house. The same callback updates the UI.
-    const target=this.furnishingPlaceCallback?.(13.45,-5.65);
-    if(target)this.furnishingGhost.position.set(target.x,.04,target.z);
+    const first=this.speakerGhost&&this.household?speakerSurfaces(this.household.furnishing)[0]:undefined;
+    const a=(first?.rotation??0)*Math.PI/2;
+    const target=first?this.furnishingPlaceCallback?.(first.x+first.u*Math.cos(a)+first.v*Math.sin(a),first.z-first.u*Math.sin(a)+first.v*Math.cos(a)):this.furnishingPlaceCallback?.(13.45,-5.65);
+    if(target)this.furnishingGhost.position.set(target.x,target.y??.04,target.z);
   }
 
   turnFurnishingPlacement(rotation:Rotation):void {
@@ -1814,7 +1822,7 @@ export class World {
     if(!ghost)return;
     ghost.rotation.y=rotation*Math.PI/2;
     const newTarget=this.furnishingPlaceCallback?.(ghost.position.x,ghost.position.z);
-    if(newTarget)ghost.position.set(newTarget.x,.04,newTarget.z);
+    if(newTarget)ghost.position.set(newTarget.x,newTarget.y??.04,newTarget.z);
   }
 
   setFurnishingValidity(valid:boolean):void {
@@ -1835,15 +1843,22 @@ export class World {
     const x=(clientX-bounds.left)/bounds.width*2-1;
     const y=-(clientY-bounds.top)/bounds.height*2+1;
     this.raycaster.setFromCamera(new THREE.Vector2(x,y),this.camera);
-    const point=this.raycaster.ray.intersectPlane(
+    let surfacePoint:THREE.Vector3|undefined;
+    if(this.speakerGhost&&this.household){let distance=Infinity;for(const s of speakerSurfaces(this.household.furnishing)){
+      const hit=this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-s.y),new THREE.Vector3());if(!hit)continue;
+      const a=s.rotation*Math.PI/2,dx=hit.x-s.x,dz=hit.z-s.z,u=dx*Math.cos(a)-dz*Math.sin(a),v=dx*Math.sin(a)+dz*Math.cos(a);
+      const dist=hit.distanceTo(this.raycaster.ray.origin);if(Math.abs(u-s.u)<=s.w/2+.12&&Math.abs(v-s.v)<=s.d/2+.12&&dist<distance){distance=dist;surfacePoint=hit;}
+    }}
+    const point=surfacePoint??this.raycaster.ray.intersectPlane(
       new THREE.Plane(new THREE.Vector3(0,1,0),0),this.vector);
     if(!point)return;
     const selected=this.furnishingPlaceCallback?.(
       Math.round(point.x*100)/100,Math.round(point.z*100)/100);
-    if(selected)this.furnishingGhost.position.set(selected.x,.04,selected.z);
+    if(selected)this.furnishingGhost.position.set(selected.x,selected.y??.04,selected.z);
   }
 
   endFurnishingPlacement():void {
+    if(this.speakerSurfaceGuides){this.speakerSurfaceGuides.removeFromParent();this.speakerSurfaceGuides.traverse(obj=>{if(obj instanceof THREE.Mesh){obj.geometry.dispose();(obj.material as THREE.Material).dispose();}});this.speakerSurfaceGuides=null;}
     if(!this.furnishingGhost)return;
     const ghost=this.furnishingGhost;
     ghost.removeFromParent();
@@ -1858,7 +1873,7 @@ export class World {
         (part.material as THREE.Material).dispose();
       }
     });
-    this.furnishingGhost=null;
+    this.furnishingGhost=null;this.speakerGhost=false;
     this.furnishingFootprint=null;
     this.furnishingOutline=null;
     this.furnishingGhostMaterials=[];
@@ -2556,7 +2571,13 @@ export class World {
       this.onPick(id as ItemId);
     } else {
       this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);
-      const point=this.raycaster.ray.intersectPlane(
+      let surfacePoint:THREE.Vector3|undefined;
+    if(this.speakerGhost&&this.household){let distance=Infinity;for(const s of speakerSurfaces(this.household.furnishing)){
+      const hit=this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-s.y),new THREE.Vector3());if(!hit)continue;
+      const a=s.rotation*Math.PI/2,dx=hit.x-s.x,dz=hit.z-s.z,u=dx*Math.cos(a)-dz*Math.sin(a),v=dx*Math.sin(a)+dz*Math.cos(a);
+      const dist=hit.distanceTo(this.raycaster.ray.origin);if(Math.abs(u-s.u)<=s.w/2+.12&&Math.abs(v-s.v)<=s.d/2+.12&&dist<distance){distance=dist;surfacePoint=hit;}
+    }}
+    const point=surfacePoint??this.raycaster.ray.intersectPlane(
         new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);
       if(point&&pointIsClear(point,this.currentObstacles(),floorFor(this.place))){
         this.touchPulse(clientX,clientY,'walk');
