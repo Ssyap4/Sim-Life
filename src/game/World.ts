@@ -2056,7 +2056,7 @@ export class World {
     this.camera.far=place==='district'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
-    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'market' || place === 'education' || isCareerPlace(place);
+    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:51;
     this.controls.minDistance = 10;

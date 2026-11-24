@@ -1,3 +1,4 @@
+import { JOBS, type JobId } from './shared/jobs';
 import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
 import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
@@ -36,7 +37,7 @@ function button(label: string, click: () => void, disabled = false) {
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
   openEducation: (room: string, exam?: boolean) => void,
-  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean) {
+  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean, startWarehouse?: (job:JobId)=>boolean) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -163,9 +164,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park','clothing'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else for(const destination of ['market','cafe','park','clothing','industrial'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));
+    } else if(station.action.kind==='warehouse'){
+      const id=station.action.job,job=JOBS[id];
+      options.append(element('strong','',job.name),element('small','','Смена '+job.hoursMin+'–'+job.hoursMax+' ч. · '+formatRub(job.payMin)+'–'+formatRub(job.payMax)),element('p','',job.description));
+      options.append(button('Начать смену',()=>{if(startWarehouse?.(id))close();},!startWarehouse||!!place.activeShifts[role]||place.shiftDays[role]===place.clock.day||place.characters[role].energy<25||place.characters[role].hunger<20));
     } else if(kind==='wardrobe'||kind==='clothes-rack'||kind==='fitting'||kind==='clothes-checkout'){
       const personal=(place.world.wardrobe??defaultWardrobe())[role];
       const catalog=PREVIEW_LOOKS[role];

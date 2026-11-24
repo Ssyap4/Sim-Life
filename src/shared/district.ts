@@ -14,6 +14,7 @@ export const districtPoint = ({x,z}:Point):Point => ({x,z:z+DISTRICT_OFFSET_Z});
 export const DISTRICT_WORLD_FLOOR:FloorRect={minX:DISTRICT_FLOOR.minX,maxX:DISTRICT_FLOOR.maxX,minZ:HOME_YARD.gate.z+.38,maxZ:DISTRICT_FLOOR.maxZ+DISTRICT_OFFSET_Z};
 export const HOME_GATE_INSIDE={x:HOME_YARD.gate.x,z:HOME_YARD.gate.z-.78};
 export const HOME_GATE_APPROACH = { x:HOME_YARD.gate.x, z:HOME_YARD.gate.z+.66 };
+export const INDUSTRIAL_EXIT = {x:15.6,z:31.0};
 export const DISTRICT_FOUNTAIN = { x: -8.6, z: -4.45, radius: 1.69 };
 export const DISTRICT_POND = { x:21.38, z:21.05, radiusX:2.07, radiusZ:1.43 };
 export const inDistrictPond = ({x,z}:Point) =>
@@ -40,6 +41,7 @@ export function sitePoint(site: DistrictSite, side: number, depth: number): Poin
 }
 
 export function districtArrival(place: PlaceId, role: CharacterId): Point {
+  if(place==='industrial')return districtPoint({x:INDUSTRIAL_EXIT.x+(role==='vlad'?-.45:.45),z:INDUSTRIAL_EXIT.z-1.0});
   const site = districtSite(place);
   return site ? districtPoint(sitePoint(site, role === 'vlad' ? -.59 : .59, site.d / 2 + 1.06))
     : {x:HOME_GATE_APPROACH.x+(role==='vlad'?-.27:.27),z:HOME_GATE_APPROACH.z};
@@ -52,6 +54,8 @@ export const DISTRICT_PATHS = [
   { x: 17.7, z: .30, w: 9.7, d: 1.9 },
   { x: -7.4, z: -.6, w: 20, d: 1.8 },
   { x: 13.35, z: -6.20, w: 2.2, d: 28.1 },
+  { x: 15.6,z:19.5,w:1.7,d:23.0 },
+  { x:14.4,z:7.5,w:4.5,d:1.7 },
   { x: 1.9, z: -10, w: 33.4, d: 1.78 },
   { x: -.22, z: -15.35, w: 51.5, d: 1.8 },
   { x: HOME_YARD.gate.x, z:(HOME_YARD.gate.z-DISTRICT_OFFSET_Z+REAR_WALK_Z)/2,

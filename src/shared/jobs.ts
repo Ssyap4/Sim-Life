@@ -27,14 +27,14 @@ export const JOBS = {
     stages: ['Получение сумки и первых заказов','Доставка по соседним улицам','Час пик: новые адреса','Последние доставки и сдача сумки'],
   },
   ozon: {
-    name: 'Стикеровщик Ozon', emoji: '🏷️', location: 'Склад Ozon',
+    name: 'Стикеровщик Ozon', emoji: '🏷️', location: 'Промзона · склад Ozon',
     payMin: 2500, payMax: 5250, hoursMin: 14, hoursMax: 16,
     energyCost: 36, hungerCost: 23, hygieneCost: 11,
     description: 'Принимай коробки на линии, сверяй маркировку, наклеивай штрихкоды и отправляй товары на сортировку.',
     stages: ['Инструктаж и рабочее место','Стикеровка первой партии','Проверка маркировки на конвейере','Последняя партия и сдача смены'],
   },
   wildberries: {
-    name: 'Упаковщик Wildberries', emoji: '📦', location: 'Склад Wildberries',
+    name: 'Упаковщик Wildberries', emoji: '📦', location: 'Промзона · склад Wildberries',
     payMin: 2400, payMax: 5400, hoursMin: 14, hoursMax: 16,
     energyCost: 37, hungerCost: 22, hygieneCost: 11,
     description: 'Собирай заказ по накладной, проверяй товар, выбирай упаковку и передавай коробки на отправку.',
