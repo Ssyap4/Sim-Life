@@ -14,8 +14,8 @@ export function preferredPetWanderTarget(
   // rooms in the evening. Simba favors quiet warm nooks of the house,
   // occasionally visiting the entrance and lawn like an independent cat.
   const favorites:readonly number[] = id==='verdell'
-    ? daytime ? [7,8,9,10] : [0,1,4,5]
-    : daytime ? [2,3,4,5] : [0,2,4,5];
+    ? daytime ? [7,8,9,10,11,12,13,14] : [0,1,4,5]
+    : daytime ? [2,3,4,5,6] : [0,2,4,5];
   const chance=Math.min(.999999,Math.max(0,random()));
   const options=chance<.70?favorites:PET_ROAM.map((_,index)=>index);
   return options[Math.floor(Math.min(.999999,Math.max(0,random()))*options.length)];

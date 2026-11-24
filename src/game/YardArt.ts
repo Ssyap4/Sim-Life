@@ -205,28 +205,28 @@ function grillAndTable() {
 }
 
 function fence(yard: THREE.Group): void {
-  const { gate, parking } = HOME_YARD;
+  const { gate, sideOpening } = HOME_YARD;
   const left = gate.x - gate.width / 2;
   const right = gate.x + gate.width / 2;
-  const drivewayEdge = parking.x - 1.38;
+  const drivewayEdge = 3.1;
   for (const [start, end] of [[-6, left], [right, drivewayEdge], [drivewayEdge, 6]]) {
     const center = (start + end) / 2;
     const width = end - start - .04;
     shape(yard, [width, .21, .23], [center, .105, gate.z], edging, cube);
-    shape(yard, [width, .30, .09], [center, .365, gate.z], C.oak, cube, false, 'wood');
-    shape(yard, [width, .065, .13], [center, .54, gate.z], C.oat, softCube, false, 'wood');
+    shape(yard, [width, .57, .09], [center, .495, gate.z], C.oak, cube, false, 'wood');
+    shape(yard, [width, .075, .15], [center, .815, gate.z], C.oat, softCube, false, 'wood');
   }
   for (const x of [-6, left, right, drivewayEdge, 6]) {
-    shape(yard, [.18, .65, .22], [x, .33, gate.z], C.walnut, softCube, false, 'wood');
-    shape(yard, [.23, .07, .26], [x, .66, gate.z], C.oat, softCube);
+    shape(yard, [.18, .94, .22], [x, .47, gate.z], C.walnut, softCube, false, 'wood');
+    shape(yard, [.23, .07, .26], [x, .95, gate.z], C.oat, softCube);
   }
   shape(yard, [1.30, .025, .43], [gate.x, .016, gate.z - .14], C.oat);
-  for (const x of [-5.98, 5.98]) {
-    shape(yard, [.28, .22, 4.93], [x, .095, 7.68], edging, cube);
-    shape(yard, [.115, .37, 4.89], [x, .38, 7.68], C.oak, cube, false, 'wood');
-    for (const z of [5.42, 7.55, 9.73]) {
-      shape(yard, [.19, .64, .20], [x, .32, z], C.walnut, softCube, false, 'wood');
-    }
+  for(const [x,a,b] of [[-5.98,5.22,10.12],[5.98,5.22,sideOpening.minZ],[5.98,sideOpening.maxZ,10.12]]){
+    const d=b-a,z=(a+b)/2;
+    shape(yard,[.23,.21,d],[x,.105,z],edging,cube);
+    shape(yard,[.115,.58,d],[x,.50,z],C.oak,cube,false,'wood');
+    shape(yard,[.16,.075,d],[x,.82,z],C.oat,cube,false,'wood');
+    for(const at of [a+.10,b-.10]){shape(yard,[.19,.94,.20],[x,.47,at],C.walnut,softCube,false,'wood');shape(yard,[.25,.07,.25],[x,.95,at],C.oat,softCube);}
   }
 }
 
@@ -278,25 +278,28 @@ export function buildYard(scene: THREE.Scene) {
   const plot=HOME_FLOOR,w=plot.maxX-plot.minX+.5,d=plot.maxZ-plot.minZ+.9;
   const cx=(plot.maxX+plot.minX)/2,cz=(plot.maxZ+plot.minZ)/2;
   shape(yard,[w,.26,d],[cx,-.39,cz],0x94775e,cube);
-  shape(yard,[w,.10,d],[cx,-.079,cz],0x82965d,cube);
+  shape(yard,[w,.10,d],[cx,-.079,cz],snowPreview()?0xe1e8ec:0x82965d,cube);
   for(const x of [plot.minX-.24,plot.maxX+.24]){
-    shape(yard,[.14,.48,d],[x,.24,cz],C.oak,cube);
+    shape(yard,[.14,.82,d],[x,.41,cz],C.oak,cube);
   }
-  shape(yard,[w,.48,.14],[cx,.24,plot.minZ-.24],C.oak,cube);
+  shape(yard,[w,.82,.14],[cx,.41,plot.minZ-.24],C.oak,cube);
   for(const [a,b] of [[plot.minX-.24,-6],[6,plot.maxX+.24]]){
-    shape(yard,[b-a,.48,.14],[(a+b)/2,.24,HOME_YARD.gate.z],C.oak,cube);
+    shape(yard,[b-a,.82,.14],[(a+b)/2,.41,HOME_YARD.gate.z],C.oak,cube);
   }
   shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
   shape(yard, [12.25, .11, 6.92], [0, -.071, 8.70], 0x69764f, softCube);
   // Leave a depth gap above the deck for the wider home's overview camera.
   flat(yard, 0, -.005, 8.73, 12.18, 6.80, turf(), lawn);
 
+  // Painted lawn extension covers the formerly empty parking-side reserve.
+  const extension=paintedMap('right-yard-v6',384,320,ctx=>paintGround(ctx,{x:9.2,z:8.63,w:6.3,d:6.35},[],9721,'lawn'));
+  flat(yard,9.2,-.009,8.63,6.3,6.35,extension,lawn);
   const { x } = HOUSE_ENTRY;
   const { parking } = HOME_YARD;
   const stones=paving();
   const stoneFinish=new THREE.MeshStandardMaterial({map:stones,color:stones?0xffffff:flagstone,roughness:.93});
   for(const [px,y,z,width,depth] of [[x,.006,8.58,1.88,6.83],[-3.51,.004,6.67,4.24,2.75],
-    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17]]){
+    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17],[5.10,.006,8.25,5.8,1.56]]){
     const strip=new THREE.Mesh(plane,stoneFinish);
     strip.rotation.x=-Math.PI/2;
     strip.position.set(px,y,z);strip.scale.set(width,depth,1);
@@ -308,9 +311,13 @@ export function buildYard(scene: THREE.Scene) {
   for (const dx of [-1.23, 1.23]) {
     shape(yard, [.055, .012, 4.69], [parking.x + dx, .01, parking.z + .08], C.paper, cube);
   }
-  shape(yard, [2.50, .012, .055], [parking.x, .01, 6.61], C.paper, cube);
-  shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z - 2.52], 0x8a7e6d, softCube);
+  shape(yard, [2.50, .012, .055], [parking.x, .01, parking.z+2.26], C.paper, cube);
+  shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z + 2.52], 0x8a7e6d, softCube);
 
+  // Two compact planters beside the barbecue pad, outside the walking lane.
+  const shrubs=new PlantBatch();
+  for(const [x,z,i] of [[-5.65,7.85,0],[-5.82,5.58,1]]){growShrub(shrubs,x,0,z,.42,.34,.38,i,622+i);growFlowers(shrubs,x,0,z,.38,.36,i,5,999+i);}
+  shrubs.attach(yard,'Barbecue garden accents');
   garden(yard);
   fence(yard);
   batchRigidParts(yard, true);

@@ -125,6 +125,7 @@ export const PET_ROAM = [
   { x: -2.90, z: 3.34 }, { x: -6.26, z: -3.71 }, { x: -.25, z: 1.32 },
   { x: .17, z: -.47 }, { x: .48, z: 4.43 }, { x: 1.12, z: 1.84 }, { x: 7.65, z: -3.72 },
   { x: -2.70, z: 8.20 }, { x: -3.65, z: 9.55 }, { x: -.96, z: 10.28 }, { x: 1.40, z: 8.85 },
+  {x:3.2,z:8.1},{x:4.65,z:9.35},{x:6.85,z:8.1},{x:4.75,z:6.2},
 ] as const;
 
 export function petApproach(position: FloorPoint, obstacles: readonly FloorRect[], floor: FloorRect) {

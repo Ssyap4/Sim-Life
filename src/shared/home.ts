@@ -175,7 +175,8 @@ export const HOME_DECOR = [
 
 export const HOME_YARD = {
   gate: { x: HOUSE_ENTRY.x, z: 12.06, width: 1.46 },
-  parking: { x: 3.85, z: 8.87 },
+  parking: { x: 8.85, z: 8.63 },
+  sideOpening: { minZ: 6.85, maxZ: 9.65 },
   planter: { x: -5.73, z: 9.80 },
 };
 
@@ -189,8 +190,9 @@ export const HOME_STRUCTURE_OBSTACLES = [
   {minX:HOUSE.minX-.28,maxX:HOUSE.maxX+.28,minZ:HOUSE.minZ-.28,maxZ:HOUSE.minZ+.28},
   // Keep the central courtyard fence, but open side reserve lawns from the front.
   { minX:-6.22,maxX:-5.68,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
-  { minX:5.68,maxX:6.22,minZ:HOUSE_ENTRY.z,maxZ:10.10 },
-  homeFootprint(HOME_YARD.parking, -.99, .99, -2.79, -2.25),
+  { minX:5.68,maxX:6.22,minZ:HOUSE_ENTRY.z,maxZ:HOME_YARD.sideOpening.minZ },
+  { minX:5.68,maxX:6.22,minZ:HOME_YARD.sideOpening.maxZ,maxZ:10.10 },
+  homeFootprint(HOME_YARD.parking, -.99, .99, 2.25, 2.79),
   homeFootprint(HOME_YARD.planter, -.45, .50, -2.11, 2.11),
 ];
 
@@ -217,4 +219,5 @@ export const BATH_ACTIONS = {
 export const GRILL_WORK = { position: { x: HOME_PLACEMENTS.grill.x, z: HOME_PLACEMENTS.grill.z + .75 },
   target: { x: HOME_PLACEMENTS.grill.x, y: .93, z: HOME_PLACEMENTS.grill.z + .12 } };
 export type BathFixture = keyof typeof BATH_FIXTURES;
-export type HomeLeisure = 'tv' | 'computer' | 'verdell' | 'simba' | 'chat';
+export type HomeLeisure = 'tv' | 'computer' | 'verdell' | 'simba' | 'chat' | 'stroll';
+export const HOME_STROLL_STOPS = [{x:-2.8,z:9.0},{x:2.65,z:8.0},{x:4.65,z:9.35},{x:6.85,z:8.10}] as const;

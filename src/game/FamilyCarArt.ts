@@ -8,8 +8,9 @@ type Point3=[number,number,number];
 export function buildFamilyCar():THREE.Group{
   const group=new THREE.Group();group.name='Семейный внедорожник';
   group.position.set(CAR_PARKING.x,0,CAR_PARKING.z);
+  group.rotation.y=Math.PI;
   const paint=0x181a1e, shoulder=0x22262b, black=0x0c1013, rubber=0x242526,
-    chrome=0xc5cbd1, silver=0x89939d, glass=0x354d60, rearGlass=0x293d4c;
+    chrome=0xc5cbd1, silver=0x89939d, glass=0x58758a, rearGlass=0x293d4c;
   function part(w:number,h:number,d:number,x:number,y:number,z:number,color:number,geometry:THREE.BufferGeometry=softCube,surface:'metal'|'screen'|'fabric'='metal'){
     const m=new THREE.Mesh(geometry,finish(color,surface));m.scale.set(w,h,d);m.position.set(x,y,z);
     m.castShadow=true;m.receiveShadow=true;group.add(m);return m;
@@ -59,12 +60,12 @@ export function buildFamilyCar():THREE.Group{
     [[-baseX,cabinBottom,rearBottom],[-roofX,cabinTop-.09,rearTop],[-roofX+.065,cabinTop,rearTop+.045],[roofX-.065,cabinTop,rearTop+.045],[roofX,cabinTop-.09,rearTop],[baseX,cabinBottom,rearBottom]],
     [[-baseX,cabinBottom,-1.82],[-roofX,cabinTop-.09,-1.82],[-roofX+.065,cabinTop,-1.82],[roofX-.065,cabinTop,-1.82],[roofX,cabinTop-.09,-1.82],[baseX,cabinBottom,-1.82]],
     [[-baseX,cabinBottom,.45],[-roofX,cabinTop-.09,.45],[-roofX+.065,cabinTop,.45],[roofX-.065,cabinTop,.45],[roofX,cabinTop-.09,.45],[baseX,cabinBottom,.45]],
-    [[-baseX,cabinBottom,frontBottom],[-roofX,cabinTop-.09,frontTop],[-roofX+.065,cabinTop,frontTop-.045],[roofX-.065,cabinTop,frontTop-.045],[roofX,cabinTop-.09,frontTop],[baseX,cabinBottom,frontBottom]],
+    [[-baseX,cabinBottom,frontBottom],[-roofX,cabinTop-.09,frontTop],[-roofX+.065,cabinTop,frontTop-(frontBottom-frontTop)*.09/(cabinTop-.09-cabinBottom)],[roofX-.065,cabinTop,frontTop-(frontBottom-frontTop)*.09/(cabinTop-.09-cabinBottom)],[roofX,cabinTop-.09,frontTop],[baseX,cabinBottom,frontBottom]],
   ];
   loft(cabinRings,paint);
-  const bottomY=1.245,topY=1.805;
+  const bottomY=1.22,topY=1.825;
   const wx=(y:number)=>baseX+(roofX-baseX)*(y-cabinBottom)/(cabinTop-.09-cabinBottom)+.012;
-  const frontZ=(y:number)=>frontBottom+(frontTop-frontBottom)*(y-cabinBottom)/(cabinTop-.09-cabinBottom)+.012;
+  const frontZ=(y:number)=>frontBottom+(frontTop-frontBottom)*(y-cabinBottom)/(cabinTop-.09-cabinBottom)+.045;
   const rearZ=(y:number)=>rearBottom+(rearTop-rearBottom)*(y-cabinBottom)/(cabinTop-.09-cabinBottom)-.012;
   quad([-wx(bottomY)+.065,bottomY,frontZ(bottomY)],[wx(bottomY)-.065,bottomY,frontZ(bottomY)],
     [wx(topY)-.055,topY,frontZ(topY)],[-wx(topY)+.055,topY,frontZ(topY)],glass,'screen');

@@ -1,3 +1,4 @@
+import { HOUSE_ENTRY } from '../src/shared/home';
 import {discoverFurniture,furniturePreference,housePreferenceKey,type PetEvent} from '../src/shared/petPreferences';
 import {feedingStation,feedingOwnerPoint,loadFeeder,dispenseFeeder,dryRefills,feederReserve} from '../src/shared/petFeeders';
 import {dogBathPlan,DOG_BATH_APPROACH,DOG_BATH_OWNER} from '../src/shared/dogBath';
@@ -352,20 +353,23 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     // Keep real feeding/sleep/toilet destinations unchanged.
     const otherId = id === 'verdell' ? 'simba' : 'verdell';
     const other = state.pets[otherId].routine;
-    if (kind === 'wander' && other?.kind === 'wander' && other.target === target) {
-      // The last four roam points are on the lawn. If both wanted the lawn,
-      // keep them outside but at different destinations.
-      const lawnStart = PET_ROAM.length - 4;
-      target = target >= lawnStart
-        ? lawnStart + (target - lawnStart + 2) % 4
-        : (target + Math.floor(PET_ROAM.length / 2)) % PET_ROAM.length;
+    if(kind==='wander'){
+      const nav=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      const outdoor=PET_ROAM[target].z>HOUSE_ENTRY.z;
+      const candidates=PET_ROAM.map((_,i)=>(target+i)%PET_ROAM.length).sort((a,b)=>Number((PET_ROAM[b].z>HOUSE_ENTRY.z)===outdoor)-Number((PET_ROAM[a].z>HOUSE_ENTRY.z)===outdoor));
+      for(const i of candidates){
+        const goal=PET_ROAM[i];
+        if((previous?.kind==='wander'&&previous.target===i)||(other?.kind==='wander'&&other.target===i)||Math.hypot(goal.x-pet.position.x,goal.z-pet.position.z)<.65||!pointIsClear(goal,nav.obstacles,nav.floor))continue;
+        const route=planPetRoute(pet.position,goal,nav);
+        if(route&&arrivesAt(route,goal)){target=i;chosenRoute=route;chosenGoal=goal;break;}
+      }
     }
     const duration = kind === 'perch' ? 24 + Math.floor(random()*8)
       : kind === 'sleep' ? 16 : kind === 'scratch'?10 : kind==='toy'?12:kind==='beg'?16:kind==='event'?12:kind === 'wander' ? 8 + Math.floor(random() * 5) : 10;
     if(kind==='eat')chosenGoal=station.goal;
-    const route = chosenRoute ?? planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
-      petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR));
-    const travel=route&& (chosenEquipment||chosenPerch||kind==='toy'||kind==='beg'||kind==='event'||kind==='eat'&&!!station.item)
+    const route = chosenRoute ?? (kind==='wander'?null:planPetRoute(pet.position, petDestination(id, { kind, target,goal:chosenGoal }),
+      petNavigationGeometry(placeObstacles('home',state.furnishing), HOME_FLOOR)));
+    const travel=route&& (chosenEquipment||chosenPerch||kind==='wander'||kind==='toy'||kind==='beg'||kind==='event'||kind==='eat'&&!!station.item)
       ? Math.ceil(routeLength(route)*GAME_MINUTES_PER_REAL_SECOND/PET_SPEED[id]) : 0;
     pet.routine = route&&(kind!=='eat'||arrivesAt(route,station.goal)) ? { kind, target, startedAt: now, until: now + duration+travel, route,
       ...(chosenEvent?{event:chosenEvent}:{}),

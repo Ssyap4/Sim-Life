@@ -1459,6 +1459,7 @@ export class World {
     }
     for (const role of roles) {
       follow(role, () => {
+        if(activity==='stroll'){this.actors[role].setPose('idle');return;}
         if (activity === 'tv' || activity === 'computer') {
           const fixture=activity==='tv'?'sofa':'desk';
           const action=activity==='tv'?'free_tv':'deskGames';

@@ -19,7 +19,7 @@ test('SUV geometry fits parking collision, rests on four wheels, clean roof and 
  assert.ok(meshes<=4,'draw calls '+meshes);
  assert.ok(triangles<18000,'triangles '+triangles);
  // The roof is a single continuous surface at the highest point.
- const ray=new THREE.Raycaster(new THREE.Vector3(CAR_PARKING.x,3,CAR_PARKING.z-1),new THREE.Vector3(0,-1,0));
+ const ray=new THREE.Raycaster(car.localToWorld(new THREE.Vector3(0,3,-1)),new THREE.Vector3(0,-1,0));
  const hits=ray.intersectObject(car,true);assert.ok(hits.length);assert.ok(Math.abs(hits[0].point.y-1.94)<.015);
  for(const side of [-1,1])for(const axle of [-1.53,1.53]){
   const wheelRay=new THREE.Raycaster(new THREE.Vector3(CAR_PARKING.x+side*2,.1,CAR_PARKING.z+axle),new THREE.Vector3(-side,0,0));

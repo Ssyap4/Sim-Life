@@ -3,7 +3,7 @@ import { homeSeat } from '../src/shared/home';
 import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { VITAL_NEEDS, type VitalNeed } from '../src/shared/life';
 import { points, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { HOME_FLOOR, HOME_WALK_SPEED, type HomeLeisure } from '../src/shared/home';
+import { HOME_FLOOR, HOME_STROLL_STOPS, HOME_WALK_SPEED, type HomeLeisure } from '../src/shared/home';
 import { meeting, placeObstacles } from '../src/shared/locations';
 import { planWalk, type WalkRoute } from '../src/game/navigation';
 import { canFurniturePerform, furnitureUseLocation } from '../src/shared/furnitureUse';
@@ -16,6 +16,12 @@ const selfCare: Record<Exclude<VitalNeed, 'hunger'>, ActionId> = {
 
 
 export function planLeisure(state: GameState, role: CharacterId, activity: HomeLeisure) {
+  if(activity==='stroll'){
+    if(state.autonomy[role]!=='full')return null;
+    const obstacles=placeObstacles('home',state.furnishing),from=state.characters[role],offset=(Math.floor(state.clock.minute/95)+(role==='alina'?2:0))%HOME_STROLL_STOPS.length;
+    for(let i=0;i<HOME_STROLL_STOPS.length;i++){const goal=HOME_STROLL_STOPS[(offset+i)%HOME_STROLL_STOPS.length];if(Math.hypot(goal.x-from.x,goal.z-from.z)<1.4)continue;const route=planWalk(from,goal,obstacles,HOME_FLOOR),end=route?.path.at(-1);if(route&&end&&Math.hypot(end.x-goal.x,end.z-goal.z)<.02)return route;}
+    return null;
+  }
   if(activity==='tv'||activity==='computer'){
     // Never use the coordinates of a sold starter sofa or desk.
     // Purchased replacements are real navigable seats.

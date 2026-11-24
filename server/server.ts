@@ -625,8 +625,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=role==='vlad'?['computer','tv','verdell','simba']
-        : ['simba','tv','verdell','computer'];
+      const preferences:HomeLeisure[]=role==='vlad'?['computer','tv','simba','verdell','stroll']
+        : ['verdell','tv','simba','computer','stroll'];
       const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
       const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
       const recent=recentLeisure.get(role);
