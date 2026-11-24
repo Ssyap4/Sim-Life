@@ -76,7 +76,7 @@ import { residentTraffic, resetResidentTraffic, smoothResidentTrafficStep, type 
 
 type ItemId = Exclude<SharedItemId, 'delivery'>;
 type Point = { x: number; z: number };
-type BowlPick = 'bowl:verdell' | 'bowl:simba';
+type BowlPick = 'bowl:verdell' | 'bowl:simba' | 'dirtyDishes';
 
 // Reuse one helper, not a per-frame closure for each resident on mobile.
 function relativeLookYaw(root: THREE.Object3D, target: THREE.Vector3): number {
@@ -159,6 +159,7 @@ export class World {
   readonly pets: Record<PetId, PetActor>;
   private readonly raycaster = new THREE.Raycaster();
   private coffeeModels?:THREE.Group;
+  private kitchenCurtains?:THREE.Group;
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
   private readonly obstacles = placeObstacles('home');
@@ -1241,6 +1242,9 @@ export class World {
           role==='vlad'?'code':'hair';
         this.computerScreens.task(role,command.computer??'desktop',{mode,role,...(mode==='game'?{game:GAME_BY_ID.keys().next().value}: {})});
       }
+      if(command.actionId==='curtainsOpen'||command.actionId==='curtainsClose'){
+        return this.walkTo(role,points.kitchenWindow,()=>{if(!current())return;const target=new THREE.Vector3(-3.12,1.67,-7.28);this.actors[role].faceTowards(target);this.actors[role].playDomesticActivity('reach',target);});
+      }
       if (command.actionId === 'kitchenServe') {
         if (!this.household?.readyFood.some(batch=>batch.storage==='fridge' &&
             batch.portions>0 && batch.expiresAt>gameMinutes(this.household!.clock))) return false;
@@ -1642,6 +1646,8 @@ export class World {
 
   private createHome(): void {
     this.entryLeaf = decorateHome(this.scene);
+    this.kitchenCurtains=this.scene.getObjectByName('KitchenWindowCurtains') as THREE.Group;
+    if(this.kitchenCurtains)this.register('kitchenWindow',this.kitchenCurtains,points.kitchenWindow);
     this.cottageLamps=buildCottageLights(this.scene);
     buildHomeWing(this.scene);
     this.yard = buildYard(this.scene);
@@ -1857,6 +1863,11 @@ export class World {
         mesh.visible = false;
         this.homeScene.add(mesh);
         this.dirtyVisuals[station].push(mesh);
+        mesh.userData.interactable='dirtyDishes';
+        this.interactiveMeshes.push(mesh);
+        residue.userData.interactable='dirtyDishes';this.interactiveMeshes.push(residue);
+        const touch=new THREE.Mesh(new THREE.CylinderGeometry(1.55,1.55,1,12),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+        touch.position.y=.55;touch.userData.interactable='dirtyDishes';mesh.add(touch);this.interactiveMeshes.push(touch);
       }
     }
   }
@@ -2190,6 +2201,7 @@ export class World {
     this.household = state;
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
     this.homeEffects.setTv(installedElectronics(state,role,'tv'));
+    for(const leaf of this.kitchenCurtains?.children??[])if(leaf.name.startsWith('Curtain'))leaf.scale.x=state.kitchenCurtainsClosed?1:.25;
     const coffee=installedElectronics(state,role,'coffee');
     for(const model of this.coffeeModels?.children[0]?.children??[])model.visible=model.userData.electronicsId===coffee;
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);
@@ -2507,7 +2519,7 @@ export class World {
     }
     const id:unknown=hit?.object.userData.interactable;
     if(id==='vlad'||id==='alina'||id==='verdell'||id==='simba'||
-       id==='bowl:verdell'||id==='bowl:simba'){
+       id==='bowl:verdell'||id==='bowl:simba'||id==='dirtyDishes'){
       this.touchPulse(clientX,clientY,'select');
       this.onPick(id);
     } else if(typeof id==='string'&&id in objectNames){

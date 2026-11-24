@@ -272,6 +272,16 @@ function makeKitchen(): THREE.Group {
   part(kitchen,[.31,.065,.18],[1.87,1.099,-.23],C.woodDark,'soft',false,'wood');
   for (const x of [1.79,1.87,1.95])
     part(kitchen,[.022,.15,.012],[x,1.20,-.23],C.slate,'soft',false,'metal');
+  // End cabinet extends left toward the new feeding window without moving
+  // the hob, sink, coffee, kettle or their established interaction anchors.
+  const endX=-2.39;
+  part(kitchen,[.52,.77,.83],[endX,.525,0],C.mossDark,'square',true);
+  part(kitchen,[.52,.126,.96],[endX,.966,0],C.stone,'soft',false,'ceramic');
+  part(kitchen,[.48,.12,.74],[endX,.078,-.015],C.woodDark,'square',false,'wood');
+  part(kitchen,[.45,.67,.038],[endX,.51,.431],C.moss,'soft',false,'wood');
+  part(kitchen,[.34,.46,.018],[endX,.49,.453],0x5e8271,'soft',false,'wood');
+  for(let i=-2;i<=2;i++)part(kitchen,[.018,.30,.016],[endX+i*.056,.49,.466],0x779781,'square',false,'wood');
+  part(kitchen,[.24,.025,.038],[endX,.74,.480],C.brass,'soft',false,'metal');
   // Baking material colors into the static cabinet pieces keeps their new
   // ornamentation without a draw call for every handle and trim.
   batchRigidParts(kitchen, true);

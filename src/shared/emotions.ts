@@ -79,7 +79,9 @@ export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedComm
  else if(['movie','youtube','free_tv','computer_video'].includes(c.type))recordEmotion(s,role,'movie');
  else if(c.type==='act'||c.type==='furniture_use'){
   const a=c.type==='act'?c.actionId:c.action;
-  if(a==='kitchenTea')recordEmotion(s,role,'teaMoment');
+  if(a==='curtainsOpen'||a==='bedMake')recordEmotion(s,role,'tidyMoment');
+  else if(a==='curtainsClose')recordEmotion(s,role,'cozyEvening');
+  else if(a==='kitchenTea')recordEmotion(s,role,'teaMoment');
   else if(a==='sofaRead')recordEmotion(s,role,'readingMoment');
   else if(a==='kitchenTidy'||a==='kitchenDishes')recordEmotion(s,role,'tidyMoment');
   else if(a==='sofaCall'||a==='tableTalk')recordEmotion(s,role,'friendlyCall');

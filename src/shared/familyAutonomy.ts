@@ -3,7 +3,7 @@ import {gameMinutes} from './life';
 import {residentEmotion} from './emotions';
 import {SOCIAL_BY_ID,contextAvailable,socialRestriction} from './socialLife';
 
-export const FAMILY_ACTIONS=['nearTalk:day','nearTalk:joke','nearTalk:listen','nearTalk:compliment','nearTalk:plans','yardRest','musicTogether','sofaTalk'] as const;
+export const FAMILY_ACTIONS=['nearTalk:goodMorning','nearTalk:goodNight','nearTalk:day','nearTalk:joke','nearTalk:listen','nearTalk:compliment','nearTalk:plans','yardRest','musicTogether','sofaTalk'] as const;
 export function familyAutonomyReady(s:GameState):boolean{
  const now=gameMinutes(s.clock);
  return (['vlad','alina'] as const).every(r=>{
@@ -15,7 +15,8 @@ export function familyAutoTopics(s:GameState,from:CharacterId):string[]{
  if(!familyAutonomyReady(s))return [];
  const other=from==='vlad'?'alina':'vlad',emotion=residentEmotion(s,other).id;
  const preferred=emotion==='sad'||emotion==='tense'?['nearTalk:listen','nearTalk:compliment','nearTalk:day']:
-  ['nearTalk:day','nearTalk:joke','nearTalk:plans','nearTalk:compliment'];
+  ['nearTalk:goodMorning','nearTalk:goodNight','nearTalk:day','nearTalk:joke','nearTalk:plans','nearTalk:compliment'];
+ if(emotion!=='sad'&&emotion!=='tense')preferred.unshift(s.clock.minute>=1260?'nearTalk:goodNight':'nearTalk:goodMorning');
  const recent=s.relationship.recent.at(-1)?.action;
  return preferred.filter(id=>SOCIAL_BY_ID.has(id)&&contextAvailable(SOCIAL_BY_ID.get(id)!,s,from)&&!socialRestriction(SOCIAL_BY_ID.get(id)!,s,from)).sort((a,b)=>Number(a===recent)-Number(b===recent));
 }

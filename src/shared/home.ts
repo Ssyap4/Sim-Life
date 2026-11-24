@@ -153,7 +153,7 @@ const defaultFurnitureBounds = Object.fromEntries(
 
 export const HOME_FURNITURE = {
   ...defaultFurnitureBounds,
-  kitchen: homeFootprint(COUNTER, -2.195, 2.21, -.575, .49),
+  kitchen: homeFootprint(COUNTER, -2.70, 2.21, -.575, .49),
   kettle: homeFootprint(HOME_PLACEMENTS.kettle, -.31, .31, -.29, .29),
   coffeeMaker: homeFootprint(HOME_PLACEMENTS.coffeeMaker, -.21, .21, -.20, .19),
   toilet: homeFootprint(BATH_FIXTURES.toilet.center, -.66, .62, -.39, .39),

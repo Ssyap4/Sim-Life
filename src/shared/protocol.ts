@@ -27,7 +27,7 @@ export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
-export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker' | 'kettle';
+export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker' | 'kettle' | 'kitchenWindow';
 export type SocialKind = 'hug' | 'highFive';
 export const SOCIAL_LABELS: Record<SocialKind, string> = {
   hug: 'Обняться', highFive: 'Дать пять',
@@ -87,11 +87,13 @@ export interface GameState {
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
   happiness: Record<CharacterId, HappinessState>;
+  kitchenCurtainsClosed?:boolean;
   emotionalEvents?: import('./emotions').EmotionalHistory;
 }
 
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };
 export const itemNames: Record<ItemId, string> = {
+  kitchenWindow:'Кухонное окно',
   bookcase: '📚 Домашняя библиотека',
   officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
@@ -106,6 +108,7 @@ export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number 
   sofa: { x: HOME_PLACEMENTS.sofa.x, z: HOME_PLACEMENTS.sofa.z - 1.10 },
   bed: { x: HOME_PLACEMENTS.bed.x, z: HOME_PLACEMENTS.bed.z + 1.95 },
   desk: { x: HOME_PLACEMENTS.desk.x, z: HOME_PLACEMENTS.desk.z + 2.04 },
+  kitchenWindow:{x:-3.02,z:-6.33},
   kitchen: KITCHEN_WORK.stove.position, kettle: KITCHEN_WORK.tea.position, coffeeMaker: KITCHEN_WORK.coffee.position,
   grill: GRILL_WORK.position, yardTable: homeSeat('yardTable', 'vlad').approach,
   tv: { x: HOME_PLACEMENTS.tv.x + 1.53, z: HOME_PLACEMENTS.tv.z + .63 },
@@ -121,6 +124,8 @@ export interface ActionDefinition {
   role?: CharacterId;
 }
 export const ACTIONS = {
+  curtainsOpen:{label:'Открыть шторы',item:'kitchenWindow',pose:'idle'},
+  curtainsClose:{label:'Закрыть шторы',item:'kitchenWindow',pose:'idle'},
   sofaRest: { label: '🛋️ Отдохнуть', item: 'sofa', pose: 'sit' },
   sofaMovie: { label: '🎬 Посмотреть фильм (диван + ТВ)', item: 'sofa', pose: 'sit' },
   sofaRead: { label: '📖 Почитать книгу', item: 'sofa', pose: 'sit' },

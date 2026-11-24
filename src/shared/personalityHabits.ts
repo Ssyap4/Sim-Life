@@ -63,6 +63,11 @@ export function homeHabitCommands(
   state:GameState,role:CharacterId,turn:number,recent:readonly ActionId[]=[],
 ):HomeHabitCommand[] {
   const results:HomeHabitCommand[]=[];
+  if(state.autonomy[role]==='full'){
+    const hour=state.clock.minute/60;
+    const curtain=hour>=6&&hour<10&&state.kitchenCurtainsClosed?'curtainsOpen':hour>=20&&!state.kitchenCurtainsClosed?'curtainsClose':undefined;
+    if(curtain&&!recent.includes(curtain))results.push({habit:curtain,command:{type:'act',actionId:curtain}});
+  }
   for(const habit of homeHabitSuggestions(state,role,turn,recent)){
     if(habit==='kitchenDishes'&&state.dirtyDishes.table+state.dirtyDishes.yardTable===0)continue;
     const replacement=furnitureHabits[habit];

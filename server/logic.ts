@@ -32,6 +32,13 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
   const name = names[role];
   let message = '';
   switch (key) {
+    case 'curtainsOpen':case 'curtainsClose':{
+      const closed=key==='curtainsClose';
+      if(Boolean(state.kitchenCurtainsClosed)===closed)return {ok:false,reason:closed?'Шторы уже закрыты':'Шторы уже открыты'};
+      state.kitchenCurtainsClosed=closed;
+      message=name+(closed?': закрыл(а) шторы':': открыл(а) шторы');
+      break;
+    }
     case 'sofaRest':
     case 'officeChairSit':
       change(state, role, 'energy', 12); change(state, role, 'mood', 4);

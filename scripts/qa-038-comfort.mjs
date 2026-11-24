@@ -1,0 +1,35 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState,points} from '../src/shared/protocol.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simlife-038-comfort';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'comfort-'));let browser,page,server;
+try{
+ const s=initialState();s.autonomy={vlad:'off',alina:'off'};s.dirtyDishes={table:3,yardTable:2};
+ Object.assign(s.characters.vlad,points.kitchenWindow,{pose:'idle'});
+ s.characters.vlad.energy=80;openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);if(this.url.includes('/sync')){window.qaSocket=this;this.addEventListener('message',e=>{const p=JSON.parse(e.data);if(p.type==='snapshot'||p.type==='ready')window.qaState=p.state;if(p.type==='task_started')window.qaTask=p;});}}};});
+ await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});
+ await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(1800);await page.screenshot({path:join(out,'home-open.jpg'),type:'jpeg',quality:85});
+ const send=c=>page.evaluate(c=>window.qaSocket.send(JSON.stringify(c)),c);
+ await send({type:'act',actionId:'curtainsClose'});
+ await page.waitForFunction(()=>window.qaState?.kitchenCurtainsClosed===true,undefined,{timeout:20000});
+ await page.screenshot({path:join(out,'home-closed.jpg'),type:'jpeg',quality:85});
+ await send({type:'act',actionId:'kitchenDishes'});
+ await page.waitForFunction(()=>window.qaTask?.command?.actionId==='kitchenDishes');
+ await page.waitForFunction(()=>window.qaState?.dirtyDishes?.table===0&&window.qaState?.dirtyDishes?.yardTable===0,undefined,{timeout:60000});
+ await page.screenshot({path:join(out,'clean-table.jpg'),type:'jpeg',quality:85});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
+ assert.deepEqual(errors,[]);
+}finally{await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

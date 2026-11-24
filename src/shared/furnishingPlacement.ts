@@ -155,7 +155,9 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // An existing route remains valid if the new object is nowhere along it.
   // A* is only needed for a route that actually crosses the new footprint.
   // This keeps the live preview responsive even with many targets.
+  const replacementPet=feederModel(candidate.sku)?.pet;
   for(const {point,route} of preservedRoutes(others,state)){
+    if(replacementPet&&point===PETS[replacementPet].bowl)continue;
     if(!crossesExistingRoute(center,route,dynamicBlocking))continue;
     if(!pointIsClear(point,obstacles,HOME_FLOOR)||
       findRoute(center,point,obstacles,HOME_FLOOR)===null)
@@ -169,6 +171,7 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   for(const id of PET_IDS){
     const from=PETS[id].home;
     for(const dest of [PETS[id].bowl,PETS[id].home,PETS[id].toilet]){
+      if(dest===PETS[id].bowl&&replacementPet===id)continue;
       const offsets=[[0,.74],[-.74,0],[.74,0],[0,-.74]] as const;
       for(const [dx,dz] of offsets){
         const target={x:dest.x+dx,z:dest.z+dz};

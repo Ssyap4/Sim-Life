@@ -55,6 +55,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.version !== 2 || !Number.isSafeInteger(state.revision) ||
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
+  if(state.kitchenCurtainsClosed!==undefined&&typeof state.kitchenCurtainsClosed!=='boolean')return false;
   if (state.emotionalEvents !== undefined && !validEmotionalHistory(state.emotionalEvents)) return false;
   if (state.happiness !== undefined && !validHappiness(state.happiness)) return false;
   if (state.billing !== undefined && !validBilling(state.billing)) return false;

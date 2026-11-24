@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, panel, plane, softCube, type XYZ } from './ArtKit';
 import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, HOUSE_WING } from '../shared/home';
-import { botanicalPrint, gardenView } from './ArtTextures';
+import { gardenView } from './ArtTextures';
 import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
@@ -26,8 +26,9 @@ function rearWall(home: THREE.Group): void {
   const bottom = 1.25;
   const top = 2.81;
 
+  const kitchenLeft=-4.02,kitchenRight=-2.22,kitchenBottom=1.30,kitchenTop=2.78;
   for (const [x1, x2, y1, y2] of [
-    [HOUSE.minX, left, 0, height], [right, HOUSE.maxX, 0, height],
+    [HOUSE.minX, left, 0, height], [right,kitchenLeft,0,height],[kitchenRight,HOUSE.maxX,0,height],[kitchenLeft,kitchenRight,0,kitchenBottom],[kitchenLeft,kitchenRight,kitchenTop,height],
     [left, right, 0, bottom], [left, right, top, height],
   ]) {
     timberWall(home,[x2-x1,y2-y1,.24],[(x1+x2)/2,(y1+y2)/2,z]);
@@ -195,12 +196,27 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   roomPartitions(home);
   const entry = entryDoor(home);
 
-  const pictureX = -3.11;
-  shape(home, softCube, [1.16, 1.28, .065], [pictureX, 2.07, HOUSE.minZ + .14], C.walnut, 'wood');
-  panel(home, [pictureX, 2.07, HOUSE.minZ + .177], [1.02, 1.13], botanicalPrint(), C.paper);
+  const wx=-3.12,wz=HOUSE.minZ;
+  panel(home,[wx,2.04,wz-.12],[1.84,1.52],gardenView(),C.sky,.20);
+  for(const x of [-4.02,-2.22,wx])shape(home,softCube,[.09,1.53,.15],[x,2.04,wz+.10],C.paper,'wood');
+  shape(home,softCube,[1.88,.075,.15],[wx,2.13,wz+.10],C.paper,'wood');
+  shape(home,softCube,[1.98,.10,.30],[wx,1.30,wz+.14],C.oat,'wood');
+  shape(home,softCube,[1.95,.09,.20],[wx,2.78,wz+.14],C.paper,'wood');
+  const curtains=new THREE.Group();curtains.name='KitchenWindowCurtains';
+  for(const side of [-1,1]){
+    const leaf=new THREE.Group();leaf.name=side===-1?'CurtainLeft':'CurtainRight';
+    leaf.position.set(wx+side*.86,0,wz+.27);
+    for(let i=0;i<8;i++)shape(leaf,softCube,[.125,1.46,.075],[-side*(i+.5)*.108,2.04,.026*Math.cos(i*Math.PI)],i%2?0xe7c5a1:0xd7ab80,'fabric');
+    leaf.scale.x=.25;batchRigidParts(leaf,true);curtains.add(leaf);
+  }
+  const rod=shape(curtains,drum,[.032,2.05,.032],[wx,2.84,wz+.23],C.brass,'metal');rod.rotation.z=Math.PI/2;
+  // Wide but invisible selection surface makes the window tappable on phones.
+  const windowHit=new THREE.Mesh(new THREE.BoxGeometry(1.80,1.48,.025),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+  windowHit.position.set(wx,2.04,wz+.30);curtains.add(windowHit);
+  home.add(curtains);
   // Separate washable sage tile cladding behind the cooking zone.
-  panel(home,[COUNTER.x+.27,1.31,HOUSE.minZ+.137],[5.55,2.50],kitchenAccent(),0xa4bfb0);
-  shape(home,cube,[5.63,.075,.052],[COUNTER.x+.27,2.58,HOUSE.minZ+.15],C.walnut,'wood');
+  panel(home,[COUNTER.x+.15,1.31,HOUSE.minZ+.137],[5.79,2.50],kitchenAccent(),0xa4bfb0);
+  shape(home,cube,[5.87,.075,.052],[COUNTER.x+.15,2.58,HOUSE.minZ+.15],C.walnut,'wood');
   petNooks(home);
   batchRigidParts(home, true);
   scene.add(home);

@@ -1274,6 +1274,11 @@ function openPetBowlActions(pet: PetId): void {
     if(net.petAction(pet,'feed')) {actionsEl.hidden=true;statusEl.textContent='Насыпаем корм в миску…';}
   });
   actionsEl.append(refill);
+  if(!station.item){
+    const guide=document.createElement('p');guide.className='pet-note';
+    guide.textContent='Купи миску или кормушку в зоомагазине и размести её дома: стартовая исчезнет, а корм сохранится. Продать или переставить новую миску можно нажатием на неё.';
+    actionsEl.append(guide);
+  }
 }
 
 function addBedSleepActions(furnitureId?:number):void{
@@ -1415,6 +1420,13 @@ function openComputer(device:import('./shared/computer').ComputerDevice,furnitur
   }
   computer.open(device);
 }
+function openDirtyDishes():void{
+  if(!state||!active||!net.isReady())return;
+  const count=dishCount(state.dirtyDishes);
+  showActionMenu('Грязная посуда');
+  const note=document.createElement('p');note.className='food-empty';note.textContent='Грязных тарелок: '+count+'. Персонаж соберёт посуду и помоет её у раковины.';actionsEl.append(note);
+  const wash=document.createElement('button');wash.className='action-button';wash.textContent='🫧 Собрать и помыть · '+count+' шт.';wash.disabled=!count;wash.onclick=()=>{if(net.perform('kitchenDishes'))actionsEl.hidden=true;};actionsEl.append(wash);
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
@@ -1531,7 +1543,7 @@ function openActions(item: ItemId): void {
   }
   for (const [actionId, definition] of Object.entries(ACTIONS)) {
     if (definition.item !== item) continue;
-    if (['bedSleep','bedNap','sofaMovie','sofaRead','watchTv','tvMusic'].includes(actionId)) continue;
+    if (['bedSleep','bedNap','sofaMovie','sofaRead','watchTv','tvMusic','kitchenDishes'].includes(actionId)) continue;
     if ('role' in definition && definition.role !== active) continue;
     const button = document.createElement('button');
     button.type = 'button';
@@ -1546,6 +1558,7 @@ function openActions(item: ItemId): void {
       actionId==='kitchenLeftovers' ? definition.label+' · '+freshTable+' на столе' :
       actionId==='kitchenServe' ? definition.label+' · '+freshFridge+' в холодильнике' : definition.label;
     if (actionId === 'kitchenDishes') button.disabled = !state || dishCount(state.dirtyDishes) === 0;
+    if(actionId==='curtainsOpen'||actionId==='curtainsClose')button.disabled=!state||Boolean(state.kitchenCurtainsClosed)===(actionId==='curtainsClose');
     if (actionId === 'kitchenLeftovers') button.disabled = !state||!freshTable||
       storageUsage(state).fridge>=FRIDGE_CAPACITY;
     if (actionId === 'kitchenServe') button.disabled = !state||!freshFridge||
@@ -1593,6 +1606,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       if (id === 'vlad' || id === 'alina') openSocialActions(id);
       else if (id === 'verdell' || id === 'simba') openPetActions(id);
       else if (id === 'bowl:verdell' || id === 'bowl:simba') openPetBowlActions(id.slice(5) as PetId);
+      else if(id==='dirtyDishes')openDirtyDishes();
       else openActions(id);
     }, (inspection) => {
       const viewport = canvas.getBoundingClientRect();

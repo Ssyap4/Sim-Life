@@ -97,7 +97,7 @@ export const PETS = {
     foodPrice: 650,
     foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -3.52, z: 4.48 },
-    bowl: { x: -1.65, z: -2.63 },
+    bowl: { x: -3.85, z: -6.32 },
     toilet: { x: 3.25, z: 4.48 },
   },
   simba: {
@@ -108,7 +108,7 @@ export const PETS = {
     foodPrice: 550,
     foodAmount: PET_FOOD_REFILLS_PER_PACK,
     home: { x: -2.24, z: 4.48 },
-    bowl: { x: .15, z: -2.63 },
+    bowl: { x: -2.19, z: -6.32 },
     toilet: { x: 4.26, z: 4.48 },
   },
 } as const satisfies Record<PetId, {

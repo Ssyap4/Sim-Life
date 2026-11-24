@@ -40,6 +40,7 @@ export interface TaskPlan {
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
+  curtainsOpen:5,curtainsClose:5,
   sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8, sofaScroll: 20,
   officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,
@@ -127,7 +128,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
       command: { type: 'act', actionId, ...(computer ? { computer } : {}) }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
       resource: action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
-        : action.item === 'desk' ? computerResource(computer ?? 'desktop') : action.item === 'kitchen' || action.item === 'officeChair' ||
+        : action.item === 'desk' ? computerResource(computer ?? 'desktop') : action.item === 'kitchen' || action.item === 'officeChair' || action.item==='kitchenWindow' ||
           own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
