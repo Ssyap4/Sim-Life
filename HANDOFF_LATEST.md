@@ -1,3 +1,18 @@
+# Sim-Life — current release v0.32.0 (2026-11-24)
+
+- Owner approved after real multiplayer badminton and table tennis. PR #62 merged: 24077ba347eee384aeef896ddc816f11f4f6efd3; tag v0.32.0. Tested head 173766afe2e83e397ba1dd79577ff6d734f3739f has identical release tree.
+- Full cloud QA SUCCESS https://github.com/Ssyap4/Sim-Life/actions/runs/45335495337 : 569/569 tests, 75/75 furniture, 282 actions, TypeScript, build, isolation and mobile visual job. Actual 390x844 park/badminton/swing/picnic frames inspected. User approved live tennis. No physical iPhone FPS measured; close-up camera can be obstructed by foreground trees/benches.
+- Main D:\Sim-Life, http://192.168.0.124:3111/ ; restarted production PID 7944, health ok, testNoCodes=false, HTML and index-DSYIEhp-.js HTTP 200. Real data D:\Sim-Life\server-data; backup D:\Sim-Life-Backups\v032-predeploy-20261124-084531, 8 files SHA256 verified before deployment. No preview state copied.
+- Preview feat/leisure-032, D:\Sim-Life-032-Leisure, 3164, D:\Sim-Life-032-LeisureData. Test no codes, 100k on fresh saves. The table purchased in preview is not in main.
+- 0.32 forest park, badminton 45s/16 hits, table tennis 60s/24 hits, fair 50/50 shared server result, dog play/toilet, picnic 90s with actual portions and conversations, campfire recipes/ingredients, marshmallows, seven leisure furniture SKUs, swing hinge alignment. See docs/RELEASE_032.md.
+- New live testing method: lightweight authenticated WebSocket client for free role on preview only, with actual user consent. Real normal commands, not state cheats. User checks rendering; text logs are not visual inspection. Disconnect after activity. Match completed: Alina won.
+- Next 0.33 approved: clothing and appearance, full outfit skins, physical store/fitting/cashier, no delivery, no laundry. First prototype outfits and verify poses; then aim for 20 sets per character. 0.31 skipped; no fishing. 0.34 calendar later. No new stage started.
+- Weak ALINA-PC: no heavy local WebGL, Blender, or full regressions. Cloud for heavy jobs, physical iPhone 11 portrait primary; main only with user approval. Read AGENTS.md, docs/RELEASE_032.md.
+
+---
+
+## Historical handoff (not current)
+
 # Sim-Life - current release: v0.30.0 (2026-11-24)
 
 - User approved release after checks. PR #61 merged into main: bee28d04765e0084b2ed172ad48f62a815547f79; tag v0.30.0 pushed. Tested branch head 66d780e39997155d6f2d9ddd5d8e5a7b0b98c880 has identical tree.
