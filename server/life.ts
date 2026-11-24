@@ -11,6 +11,7 @@ const HOURLY_DRAIN: Record<VitalNeed, number> = {
 };
 import {initialDust,advanceDust,roomAt,dustLoss} from '../src/shared/homeDust';
 import {advanceSpeakers} from '../src/shared/speaker';
+import {advanceHumanHealth} from '../src/shared/health';
 import {advanceFitness,fitnessBonuses} from '../src/shared/fitness';
 import {advanceVacuum} from '../src/shared/vacuum';
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 100) / 100));
@@ -42,6 +43,7 @@ export function advanceLife(source: GameState, gameMinutes: number,
     const shift=state.activeShifts[role];
     const room=state.world.places[role]==='home'&&(!shift||shift.homeDevice)?roomAt(character):undefined;
     if(room){const loss=dustLoss(beforeDust[room.id],gameMinutes);character.mood=clamp(character.mood-loss.mood*bonuses.moodDrain);character.comfort=clamp(character.comfort-loss.comfort*bonuses.comfortDrain);}
+    advanceHumanHealth(state,source,role,gameMinutes);
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
     if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8 * bonuses.moodDrain);
   }

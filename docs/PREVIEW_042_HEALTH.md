@@ -1,0 +1,5 @@
+# 0.42 — Health and care (approved scope)
+Separate Dobry Doktor clinic, reception, therapist, diagnostics, treatment, pharmacy, phone bookings and health status; family care. Existing work-clinic Lapа i khvost is reused for pet treatment; preserve Alina's career. No HUD health bar; illnesses rare and tied to prolonged neglect, recovery by game time. Planned prices 1500/2500/4500/800 RUB, medicine 250–1800.
+First implementation: server health state, validation, clock penalties and recovery, food quality risk, prolonged independent pet neglect. Flu transmission, insomnia sleep effect, diagnosis, treatment and booking/UI/3D/transport are not implemented yet. Expired food remains blocked by existing spoilage logic. No production deployment.
+# 0.43 — approved later
+PS5: UFC 6 (flagship, priority original TV fight animation), Mortal Kombat 1, Forza Horizon 6, GTA 6, It Takes Two, Split Fiction. Nintendo Switch 2: previous proposed library unchanged. Local solo and two-player TV simulation, not actual games; expand Impulse store if necessary; no board games in this stage. No development before health stage is complete.

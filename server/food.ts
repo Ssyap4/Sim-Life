@@ -1,3 +1,4 @@
+import {foodIllness} from '../src/shared/health';
 import {recordEmotion} from '../src/shared/emotions';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { recipeAvailability } from '../src/shared/recipeAvailability';
@@ -66,6 +67,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (!portion) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     const effect=foodQualityEffect(portion.quality,meal.mood);
+    foodIllness(state,role,portion.quality,random);
     recordEmotion(state,role,effect.fun<0?'mealBad':'mealGood');
     actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
     actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));

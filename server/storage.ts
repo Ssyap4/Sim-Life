@@ -49,6 +49,7 @@ export interface ServerFiles {
 import { initialHappiness, validHappiness, protectNeeds } from '../src/shared/happiness';
 
 import {validEmotionalHistory} from '../src/shared/emotions';
+import {validHealth} from '../src/shared/health';
 import {initialDust,validDust} from '../src/shared/homeDust';
 import {migrateSpeakerMounts} from '../src/shared/speakerPlacement';
 import {validSpeakers} from '../src/shared/speaker';
@@ -61,6 +62,7 @@ const isValidState = (value: unknown): value is GameState => {
       !state.pantry || !state.characters) return false;
   if(state.speakers!==undefined&&!validSpeakers(state.speakers))return false;
   if(state.vacuum!==undefined&&!validVacuum(state.vacuum))return false;
+  if(state.health!==undefined&&!validHealth(state.health))return false;
   if(state.homeDust!==undefined&&!validDust(state.homeDust))return false;
   if(state.kitchenWindowOpen!==undefined&&typeof state.kitchenWindowOpen!=='boolean')return false;
   if(state.kitchenCurtainsClosed!==undefined&&typeof state.kitchenCurtainsClosed!=='boolean')return false;

@@ -1,3 +1,4 @@
+import {advancePetHealth} from '../src/shared/health';
 import {fitnessTaskSpeed,fitnessProgram,fitnessAccess,type FitnessProgramId} from '../src/shared/fitness';
 import {applySpeaker,type SpeakerCommand} from '../src/shared/speaker';
 import {dustRoute} from '../src/shared/dustRoute';
@@ -405,6 +406,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const diners=homeTasks.diners();
     for(const [role,task] of running)if(task.plan.command.type==='eat'||task.plan.command.type==='eat_takeout'){const r=diningLocation(next.state,role,task.plan.command.furnitureId)?.route;diners.set(role,r?(r.path.at(-1)??r.from):homeSeat('table',role).approach);}
     runPetRoutines(next.state, gameMinutes, clockMinutes(next.state.clock), occupiedPets,Math.random,catReserved,diners);
+    if(online().length)advancePetHealth(next.state,gameMinutes);
     applyLifeMoments(next.state,clockMinutes(state.clock),[...active.keys()].filter(role=>
       !sleepers.has(role)&&!running.has(role)&&!homeTasks.busy(role)&&
       !leisure.has(role)&&!walkingHome.has(role)&&!storageOpen.has(role)&&
