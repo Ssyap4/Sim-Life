@@ -14,7 +14,7 @@ import { Box3, InstancedMesh, LineSegments, Matrix4, Mesh, PerspectiveCamera, Sp
 import { initialState, type GameState, type CharacterId } from '../../src/shared/protocol';
 import { CAFE_MENU, DELIVERY_FEE, STATIONS, DISTRICT_STATIONS, approachFor, floorFor, meeting, placeObstacles, spawn, type PlaceId } from '../../src/shared/locations';
 import { CASHIER_SPOT } from '../../src/shared/locationLayout';
-import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_POND, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_PATHS, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, sitePoint } from '../../src/shared/district';
+import { DISTRICT_BEDS, DISTRICT_FOUNTAIN, DISTRICT_POND, DISTRICT_OFFSET_Z, DISTRICT_TREES, DISTRICT_SITES, DISTRICT_OBSTACLES, DISTRICT_FLOOR, DISTRICT_PATHS, districtArrival, districtPoint, districtStation, inHomeGrounds, HOME_GATE_APPROACH, HOME_GATE_INSIDE, sitePoint } from '../../src/shared/district';
 import { besideTrail } from '../../src/game/DistrictTrail';
 import { NEIGHBOR_HOMES, homeStops, yardFeatures } from '../../src/shared/neighborHomes';
 import { doorwayArrival } from '../../src/shared/locations';
@@ -28,8 +28,15 @@ const send = (state: GameState, role: CharacterId, command: Record<string, unkno
 };
 const at = (state: GameState, role: CharacterId, station: string) =>
   send(state, role, { type: 'approach', place: state.world.places[role], station });
-const travel = (state: GameState, role: CharacterId, place: PlaceId, dog = false) =>
-  send(state, role, { type: 'travel', place, dog });
+const travel = (state: GameState, role: CharacterId, place: PlaceId, dog = false):GameState=>{
+  const here=state.world.places[role];
+  if(here===place)return state;
+  const next=here==='home'?'district':here==='district'?place:'district';
+  const station=here==='home'?'home-gate':here==='district'?(place==='home'?'district-gate':districtStation(place)):STATIONS[here].find(s=>s.action.kind==='door'&&s.action.destination==='district')?.id;
+  if(!station)throw Error('No door from '+here+' to '+next);
+  const entered=send(at(state,role,station),role,{type:'travel',place:next,via:station,dog:dog&&here==='home'});
+  return next===place?entered:travel(entered,role,place);
+};
 
 test('Both spawns and every physical station are reachable in every scene', () => {
   for (const [place, stations] of Object.entries(STATIONS) as [PlaceId, typeof STATIONS.home][]) {
@@ -41,6 +48,8 @@ test('Both spawns and every physical station are reachable in every scene', () =
         const b = new Box3().setFromObject(group);
         obstacles.push({ minX: b.min.x - .27, maxX: b.max.x + .27, minZ: b.min.z - .27, maxZ: b.max.z + .27 });
       });
+    } else if(place==='district'){
+      assert.equal(createHomeDistrict().entries.size,stations.length);
     } else {
       const scene = createLocation(place);
       assert.equal(scene.stations.size, stations.length);
@@ -60,7 +69,7 @@ test('Both spawns and every physical station are reachable in every scene', () =
   }
 });
 
-test('Home, gate, district and both players share the same walkable coordinates', () => {
+test('Home and district keep the physical gate and all street buildings across transitions', () => {
   const stage = createHomeDistrict();
   // Textured name boards live above the roofs, outside the near/far
   // facade swap; every actual commercial building must have one.
@@ -80,37 +89,39 @@ test('Home, gate, district and both players share the same walkable coordinates'
   assert.ok(jets.rotation.y > 0);
   assert.equal(stage.entries.has('street-home'),false);
 
-  const floor = floorFor('home');
-  const obstacles = placeObstacles('home');
+  const floor = floorFor('district');
+  const obstacles = placeObstacles('district');
   let state = initialState();
   for (const role of ['vlad', 'alina'] as const) {
-    const start = state.characters[role];
-    assert.ok(inHomeGrounds(start));
+    assert.ok(inHomeGrounds(state.characters[role]));
+    assert.ok(pointIsClear(HOME_GATE_INSIDE,placeObstacles('home'),floorFor('home')));
     assert.ok(pointIsClear(HOME_GATE_APPROACH,obstacles,floor));
+    state=travel(state,role,'district');
+    const start=state.characters[role];
     const {gate}=HOME_YARD;
     assert.equal(segmentIsClear({x:gate.x+2,z:gate.z-.5},{x:gate.x+2,z:gate.z+.5},obstacles,floor),false);
     for (const object of [DISTRICT_FOUNTAIN, ...DISTRICT_BEDS, ...DISTRICT_TREES.map(([x,z])=>({x,z}))]) {
-      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', ...districtPoint(object) }).ok, false);
+      assert.equal(applyWorld(state, role, { type: 'walk', place: 'district', ...districtPoint(object) }).ok, false);
     }
     const target = districtPoint({ x: -11.00, z: -6.15 });
-    const walk = applyWorld(state, role, { type: 'walk', place: 'home', ...target });
+    const walk = applyWorld(state, role, { type: 'walk', place: 'district', ...target });
     assert.ok(walk.ok && walk.path && walk.path.length > 1);
     assert.ok(walk.path.every((end, index, path) => segmentIsClear(path[index - 1] ?? start, end, obstacles, floor)));
-    assert.equal(walk.state.world.places[role],'home');
+    assert.equal(walk.state.world.places[role],'district');
     assert.equal(inHomeGrounds(walk.state.characters[role]),false);
     state = walk.state;
     for (const station of DISTRICT_STATIONS) {
-      if (station.action.kind !== 'door') continue;
+      if (station.action.kind !== 'door'||station.action.destination==='home') continue;
       const destination = station.action.destination;
       state = send(at(state, role, station.id), role, { type: 'travel', place: destination, via: station.id });
       assert.equal(state.world.places[role], destination);
-      assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, doorwayArrival(destination,'home',role));
-      const exit = STATIONS[destination].find(item => item.action.kind === 'door' && item.action.destination === 'home');
+      assert.deepEqual({ x: state.characters[role].x, z: state.characters[role].z }, doorwayArrival(destination,'district',role));
+      const exit = STATIONS[destination].find(item => item.action.kind === 'door' && item.action.destination === 'district');
       assert.ok(exit);
-      state = send(at(state, role, exit.id), role, { type: 'travel', place: 'home', via: exit.id });
+      state = send(at(state, role, exit.id), role, { type: 'travel', place: 'district', via: exit.id });
       assert.deepEqual({x:state.characters[role].x,z:state.characters[role].z},districtArrival(destination,role));
     }
-    state=at(state,role,'home-doorstep');
+    state=at(travel(state,role,'home'),role,'home-doorstep');
     assert.ok(inHomeGrounds(state.characters[role]));
   }
 });
@@ -164,8 +175,8 @@ test('Neither player can enter the garden pond, routes go around it and existing
   const pond=districtPoint(DISTRICT_POND);
   const west=districtPoint({x:DISTRICT_POND.x-3.14,z:DISTRICT_POND.z});
   const east=districtPoint({x:DISTRICT_POND.x+3.30,z:DISTRICT_POND.z});
-  const obstacles=placeObstacles('home'), floor=floorFor('home');
-  const state=initialState();
+  const obstacles=placeObstacles('district'), floor=floorFor('district');
+  const state=initialState();state.world.places={vlad:'district',alina:'district'};
   assert.ok(pointIsClear(west,obstacles,floor));
   assert.ok(pointIsClear(east,obstacles,floor));
   assert.equal(segmentIsClear(west,east,obstacles,floor),false);
@@ -175,10 +186,10 @@ test('Neither player can enter the garden pond, routes go around it and existing
       const angle=i*Math.PI/6;
       const point={x:pond.x+Math.cos(angle)*DISTRICT_POND.radiusX*.92,
         z:pond.z+Math.sin(angle)*DISTRICT_POND.radiusZ*.92};
-      assert.equal(applyWorld(state,role,{type:'walk',place:'home',...point}).ok,false);
+      assert.equal(applyWorld(state,role,{type:'walk',place:'district',...point}).ok,false);
     }
-    assert.equal(applyWorld(state,role,{type:'walk',place:'home',...pond}).ok,false);
-    const detour=applyWorld(state,role,{type:'walk',place:'home',...east});
+    assert.equal(applyWorld(state,role,{type:'walk',place:'district',...pond}).ok,false);
+    const detour=applyWorld(state,role,{type:'walk',place:'district',...east});
     assert.ok(detour.ok&&detour.path&&detour.path.length>1);
     assert.ok(detour.path.every((point,i,path)=>segmentIsClear(path[i-1]??west,point,obstacles,floor)));
   }
@@ -190,7 +201,7 @@ test('Neither player can enter the garden pond, routes go around it and existing
     const restored=files.load();
     assert.ok(pointIsClear(restored.characters.vlad,obstacles,floor));
     assert.equal(restored.money,state.money);
-    assert.equal(restored.world.places.vlad,'home');
+    assert.equal(restored.world.places.vlad,'district');
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -258,6 +269,7 @@ test('A 0.6 save relocates only residents standing on the new fountain or cashie
     legacy = send(at(legacy, 'alina', 'checkout'), 'alina', {
       type: 'store_pay', sequence: 0, lines: [{ id: 'grocery:milk', quantity: 1 }],
     });
+    legacy.world.places.vlad='district';
     legacy.characters.vlad = { ...legacy.characters.vlad, ...districtPoint(DISTRICT_FOUNTAIN) };
     legacy.characters.alina = { ...legacy.characters.alina, x: CASHIER_SPOT.x, z: CASHIER_SPOT.z };
     files.save(legacy);
@@ -271,7 +283,7 @@ test('A 0.6 save relocates only residents standing on the new fountain or cashie
     }
     assert.deepEqual(restored, legacy);
     const edge = { x: .48, z: 10.22 };
-    const expanded = send(restored, 'vlad', { type: 'walk', place: 'home', ...edge });
+    const expanded = send(travel(restored,'vlad','home'), 'vlad', { type: 'walk', place: 'home', ...edge });
     files.save(expanded);
     assert.deepEqual(files.load(), expanded);
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -289,8 +301,8 @@ test('A 0.20 household on the old plaza keeps its progress and wakes at the corr
     const files=openServerFiles(dir);
     files.save(old);
     const restored=files.load();
-    assert.equal(restored.world.districtLayout,3);
-    assert.equal(restored.world.places.vlad,'home');
+    assert.equal(restored.world.districtLayout,4);
+    assert.equal(restored.world.places.vlad,'district');
     assert.deepEqual({x:restored.characters.vlad.x,z:restored.characters.vlad.z},districtArrival('market','vlad'));
     assert.equal(restored.characters.vlad.skill,47);
     assert.equal(restored.money,7357);
@@ -323,7 +335,7 @@ test('Both residents can save in the yard and walk back through the house thresh
     assert.deepEqual(state.world.places, { vlad: 'home', alina: 'home' });
     for (const role of ['vlad', 'alina'] as const) {
       assert.ok(applyWorld(state, role, { type: 'approach', place: 'home', station: 'fridge' }).ok);
-      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: 13 }).ok, true);
+      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: 13 }).ok, false);
       assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: floor.maxZ+1 }).ok, false);
     }
   } finally {
@@ -369,9 +381,9 @@ test('Several store visits accumulate shared food but never leave table packets'
     state=send(state,'vlad',{type:'store_pay',sequence:n,
       lines:[{id:'grocery:bread',quantity:1}]});
     assert.equal(state.world.bags.vlad,1);
-    state=travel(state,'vlad','home');
+    state=travel(state,'vlad','district');
     assert.equal(state.world.bags.vlad,1,'carry bag outside until reaching home');
-    state=at(state,'vlad','home-doorstep');
+    state=at(travel(state,'vlad','home'),'vlad','home-doorstep');
     assert.equal(state.world.bags.vlad,0);
     assert.equal(state.world.tableBags,0);
     assert.equal(state.pantry.bread,initialState().pantry.bread+GROCERIES.bread.quantity*(n+1));
@@ -421,7 +433,7 @@ test('Layout 1 positions move into the joined home once and preserve an outside 
     const files=openServerFiles(dir);
     files.save(old);
     const restored=files.load();
-    assert.equal(restored.world.places.vlad,'home');
+    assert.equal(restored.world.places.vlad,'district');
     assert.deepEqual({x:restored.characters.vlad.x,z:restored.characters.vlad.z},outside);
     assert.deepEqual(restored.characters.alina,old.characters.alina);
     assert.deepEqual(restored.world.bags,old.world.bags);
@@ -442,8 +454,8 @@ test('Moving the street preserves a resident and purchases on an occupied former
     const files=openServerFiles(dir);
     files.save(state);
     const migrated=files.load();
-    assert.equal(migrated.world.districtLayout,3);
-    assert.ok(pointIsClear(migrated.characters.vlad,placeObstacles('home'),floorFor('home')));
+    assert.equal(migrated.world.districtLayout,4);
+    assert.ok(pointIsClear(migrated.characters.vlad,placeObstacles('district'),floorFor('district')));
     assert.equal(migrated.world.bags.vlad,2);
     assert.equal(migrated.pantry.milk,7);
     assert.ok(existsSync(join(dir,'household.pre-street-redesign.json')));
@@ -467,6 +479,7 @@ test('A paid delivery survives restart and a full fridge, then can be collected 
     openServerFiles(dir).save(progressed);
     let state = openServerFiles(dir).load();
     assert.equal(state.world.deliveries[0].id, order.id);
+    state=send(at(state,'alina','courier-handoff'),'alina',{type:'delivery_handoff',id:order.id});
     state = at(state, 'alina', 'parcel');
     assert.equal(applyWorld(state, 'alina', take).ok, false);
     assert.equal(state.world.deliveries.length, 1);

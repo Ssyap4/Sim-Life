@@ -12,7 +12,7 @@ export const COURIER_APPROACH={x:HOUSE_ENTRY.x+1.02,z:HOUSE_ENTRY.z+1.18};
 export type CourierVisit={place:'home'|'district';x:number;z:number;yaw:number;walking:boolean;carrying:boolean;waiting:boolean};
 let streetPath:WalkRoute|null|undefined;
 function streetCourier(fraction:number,reverse:boolean):CourierVisit|null{
-  streetPath??=planWalk(districtArrival('market','vlad'),HOME_GATE_APPROACH,DISTRICT_WORLD_OBSTACLES,DISTRICT_WORLD_FLOOR);
+  if(streetPath===undefined)streetPath=planWalk(districtArrival('market','vlad'),HOME_GATE_APPROACH,DISTRICT_WORLD_OBSTACLES,DISTRICT_WORLD_FLOOR);
   if(!streetPath)return null;
   let length=0,previous=streetPath.from;
   for(const point of streetPath.path){length+=Math.hypot(point.x-previous.x,point.z-previous.z);previous=point;}

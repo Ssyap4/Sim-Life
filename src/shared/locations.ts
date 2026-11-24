@@ -33,6 +33,7 @@ export function spawn(place: PlaceId, role: CharacterId): Point {
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
+  if(place==='district')return districtPoint({x:role==='vlad'?-9.02:-8.18,z:-8.8});
   return { x: role === 'vlad' ? -0.42 : 0.42, z: place === 'home' ? 2.38 : 3.35 };
 }
 

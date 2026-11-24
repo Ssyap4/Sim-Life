@@ -301,6 +301,7 @@ export function homeExtensions() {
   const doors = new Map<string, THREE.Group>();
   const stock = new Map<string, THREE.Group[]>();
   const parcel = new THREE.Group();
+  let gateLeaf:THREE.Group|undefined;
   for (const station of HOME_STATIONS) {
     if (station.action.kind === 'waypoint'||station.action.kind==='courier') continue;
     if (station.action.kind === 'career') {
@@ -315,6 +316,13 @@ export function homeExtensions() {
       root.rotation.y = Math.PI;
       shape(root, [1.15, .08, .36], [0, .06, 0], C.pine);
       shape(root, [.74, .07, .11], [0, .105, .09], C.brass);
+      if(station.id==='home-gate'){
+        gateLeaf=new THREE.Group();gateLeaf.position.set(-.67,.08,0);
+        for(const y of [.17,.47])shape(gateLeaf,[1.34,.09,.09],[.67,y,0],C.oak);
+        for(let i=0;i<6;i++)shape(gateLeaf,[.135,.55,.065],[.12+i*.22,.30,0],C.walnut);
+        shape(gateLeaf,[.07,.10,.10],[1.17,.34,.065],C.brass);
+        root.add(gateLeaf);
+      }
     } else if (station.action.kind === 'parcel') {
       const marker = shape(root, [.55, .035, .31], [0, .028, 0], C.oat);
       marker.name = 'parcel-mat';
@@ -365,7 +373,7 @@ export function homeExtensions() {
       doors.set(station.id, door);
     }
   }
-  return { group, stations, doors, stock, parcel };
+  return { group, stations, doors, stock, parcel,gateLeaf };
 }
 
 export function carryingBag() {

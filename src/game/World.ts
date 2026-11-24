@@ -17,7 +17,7 @@ import { carryingBag, createHomeDistrict, createLocation, homeExtensions } from 
 import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacles, spawn, stationById, type PlaceId, type Station } from '../shared/locations';
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
-  KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
+  KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
 import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -587,7 +587,7 @@ export class World {
     }
     if (safe) this.actors[id].root.position.set(safe.x, 0, safe.z);
     if (this.place !== 'home') {
-      const seat = [...(this.remote?.stations.keys() ?? [])].map(key => stationById(this.place, key)!)
+      const seat = [...(this.place==='district'?this.district?.entries.keys()??[]:this.remote?.stations.keys()??[])].map(key => stationById(this.place, key)!)
         .find(s => {
           const point = approachFor(s, id);
           return (s.action.kind === 'rest' || s.action.kind === 'dine') && Math.hypot(x - point.x, z - point.z) < .22;
@@ -2469,6 +2469,13 @@ export class World {
           this.activeGrillRecipe==='grillVegetables'?.06:.027;
         this.yard.contents.rotation.z=Math.sin(this.grillClock*2.3)*motion;
       } else this.yard.contents.rotation.z=0;
+    }
+    if(this.place==='home'&&this.extensions.gateLeaf){
+      const gate=HOME_YARD.gate;
+      const near=(p:Point)=>Math.hypot(p.x-gate.x,p.z-gate.z)<1.65;
+      const courier=this.household?courierVisit(this.household.world,this.neighborMinute):null;
+      const open=Object.values(this.actors).some(a=>a.root.visible&&near(a.root.position))||Boolean(courier?.place==='home'&&near(courier));
+      this.extensions.gateLeaf.rotation.y=THREE.MathUtils.damp(this.extensions.gateLeaf.rotation.y,open?1.43:0,9,dt);
     }
     if (this.place === 'home' && this.entryLeaf) {
       const { x, z, width } = HOUSE_ENTRY;

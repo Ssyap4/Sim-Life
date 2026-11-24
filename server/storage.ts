@@ -1,4 +1,4 @@
-import { DISTRICT_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
+import { DISTRICT_FLOOR, HOME_WORLD_FLOOR, DISTRICT_SITES, districtArrival, inHomeGrounds, restoreDistrictPosition } from '../src/shared/district';
 import { initialRelationship } from '../src/shared/socialLife';
 import { INITIAL_AUTONOMY, validAutonomy } from '../src/shared/autonomy';
 import { validRelationship } from './society';
@@ -126,8 +126,8 @@ const isValidState = (value: unknown): value is GameState => {
   const petData = state.pets as Record<string, PetState> | undefined;
   const petFood = state.petFood as Record<string, number> | undefined;
   const petBowls = state.petBowls as Record<string, number> | undefined;
-  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home') => {
-    const { minX, maxX, minZ, maxZ } = String(place)==='street' ? DISTRICT_FLOOR : floorFor(place);
+  const point = (p: { x: number; z: number } | undefined, place: PlaceId = 'home', legacyHome=false) => {
+    const { minX, maxX, minZ, maxZ } = String(place)==='street' ? DISTRICT_FLOOR : legacyHome&&place==='home'?HOME_WORLD_FLOOR:floorFor(place);
     return p && Number.isFinite(p.x) && Number.isFinite(p.z) &&
       p.x >= minX - .38 && p.x <= maxX + .38 && p.z >= minZ - .38 && p.z <= (place === 'home' ? maxZ : Math.max(maxZ, 5));
   };
@@ -153,7 +153,7 @@ const isValidState = (value: unknown): value is GameState => {
           Number.isSafeInteger(routine.equipment.id)&&routine.equipment.id>0&&
           Number.isFinite(routine.equipment.x)&&Number.isFinite(routine.equipment.z)&&
           [0,1,2,3].includes(routine.equipment.rotation)&&
-          (routine.kind==='scratch'&&id==='simba'&&routine.equipment.sku===CAT_SCRATCHER_SKU||
+          (routine.kind==='scratch'&&id==='simba'&&(routine.equipment.sku===CAT_SCRATCHER_SKU||routine.equipment.sku==='pet-house-tower')||
           routine.kind==='sleep'&&routine.equipment.sku===PET_BED_SKUS[id])&&
           routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
@@ -176,7 +176,7 @@ const isValidState = (value: unknown): value is GameState => {
     ) && (['hygiene', 'social', 'fun', 'comfort', 'bladder'] as const).every((key) =>
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
-    ) && point(p, state.world?.places[role] ?? 'home') &&
+    ) && point(p, state.world?.places[role] ?? 'home',state.world?.districtLayout!==4) &&
       ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
   });
 };
@@ -191,6 +191,7 @@ const previousSeats = [
   { item: 'table', pose: 'sit', x: 3.02, z: -.26 },
 ] as const;
 
+const legacyHomeGrounds=(p:{x:number;z:number})=>p.x>=-9.18&&p.x<=15.34&&p.z>=-7.28&&p.z<=12.06;
 function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceId,
   furnishing: FurnishingState, districtLayout: 1 | 2 | 3 | 4 | undefined): CharacterState {
   const resident = { ...INITIAL_DAILY_NEEDS, ...saved };
@@ -198,13 +199,13 @@ function restoreResident(saved: CharacterState, role: CharacterId, place: PlaceI
     Object.assign(resident,restoreDistrictPosition(resident,role,districtLayout),{pose:'idle'});
     return resident;
   }
-  if(place==='home'&&(districtLayout===2||districtLayout===3)&&!inHomeGrounds(resident)){
+  if(place==='home'&&(districtLayout===2||districtLayout===3)&&!legacyHomeGrounds(resident)){
     const target=districtLayout===2?DISTRICT_SITES.map(site=>districtArrival(site.place,role))
       .sort((a,b)=>Math.hypot(a.x-resident.x,a.z-resident.z)-Math.hypot(b.x-resident.x,b.z-resident.z))[0]:resident;
     const point=nearestClearPoint(target,placeObstacles('district'),floorFor('district'))??spawn('district',role);
     return {...resident,...point,pose:'idle'};
   }
-  if (place === 'market') {
+  if (place === 'market'||place==='district') {
     // Preserve saved positions except where a newly added solid occupies them.
     const point = nearestClearPoint(resident, placeObstacles(place), floorFor(place)) ?? spawn(place, role);
     return { ...resident, x: point.x, z: point.z };
@@ -288,7 +289,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
       const districtLayout = data.world?.districtLayout;
       const migratedDistrict = districtLayout!==4;
       const bagAtHouse = (role:CharacterId) => data.world?.places[role]==='home' &&
-        ((districtLayout===undefined || districtLayout===1) || inHomeGrounds(data.characters[role]));
+        ((districtLayout===undefined || districtLayout===1) || (districtLayout===4?inHomeGrounds(data.characters[role]):legacyHomeGrounds(data.characters[role])));
       const household: GameState = {
         ...data,
         billing: data.billing ?? initialServices(clockMinutes(data.clock ?? INITIAL_CLOCK)),
@@ -296,8 +297,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
           ...data.world, districtLayout: 4,
           deliveries:data.world.deliveries.map(d=>districtLayout!==4&&d.readyAt<=clockMinutes(data.clock??INITIAL_CLOCK)?{...d,handedAt:d.readyAt}:d),
           places: {
-            vlad: String(data.world.places.vlad)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.vlad==='home'&&!inHomeGrounds(data.characters.vlad)?'district':data.world.places.vlad,
-            alina: String(data.world.places.alina)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.alina==='home'&&!inHomeGrounds(data.characters.alina)?'district':data.world.places.alina,
+            vlad: String(data.world.places.vlad)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.vlad==='home'&&!legacyHomeGrounds(data.characters.vlad)?'district':data.world.places.vlad,
+            alina: String(data.world.places.alina)==='street'||(districtLayout===2||districtLayout===3)&&data.world.places.alina==='home'&&!legacyHomeGrounds(data.characters.alina)?'district':data.world.places.alina,
           },
           // Old staged bags had already been credited to pantry / ready food.
           // Remove them without ever granting the same purchase twice.

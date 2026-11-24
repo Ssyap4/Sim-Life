@@ -1,4 +1,4 @@
-import { courierVisit, COURIER_NAME } from '../src/shared/courier';
+import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
 import { serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
@@ -124,8 +124,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const obstacles = placeObstacles(place,source.furnishing);
     const floor = floorFor(place);
     const other = neighborAt(place);
+    const courier=courierVisit(source.world,clockMinutes(source.clock));
     const body = other && Math.hypot(other.x-requested.x,other.z-requested.z)<1.05 ? other
-      : place === 'district' ? NEIGHBORS.map((_,index)=>neighborPose(index,clockMinutes(source.clock)))
+      : courier?.place===place&&Math.hypot(courier.x-requested.x,courier.z-requested.z)<.82?courier
+      : place === 'district' ? NEIGHBORS.flatMap((_,index)=>index===COURIER_INDEX&&courier?[]:[neighborPose(index,clockMinutes(source.clock))])
         .filter(person=>person.visible && person.opacity>.35).map(districtPoint)
         .find(person=>Math.hypot(person.x-requested.x,person.z-requested.z)<.82)
         : undefined;
