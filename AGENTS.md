@@ -1,3 +1,6 @@
+# Current approved release 0.39.0 (2026-11-24)
+See docs/RELEASE_039.md and HANDOFF_LATEST.md; verify main, tag and port 3111 before assuming deployment. Owner requested winter snow throughout the plot, then release; further 0.39 weather development is paused. Do not start 0.40 or another feature without the owner's choice. Earlier release notes below are historical.
+
 # Актуальное направление 0.37 (24.11.2026)
 Владелец утвердил условный выпуск 0.37 «Живой уют»: аудио 0.36 v1–v4, эмоции 0.37 v1–v2, графический эксперимент Astra, Graphics Polish v1–v5 и финальная полировка двора. Проверять фактическое развёртывание по HANDOFF_LATEST.md. Следующий этап: продолжение эмоций (мимика, язык тела, настроение, желания, небольшие события); затем 0.38 семейная жизнь, 0.39 полноценная погода и сезоны, 0.40 умный дом. Главные карьеры — ближе к полному релизу, не фиксировать в 0.41. Визуальные пресеты погоды не являются игровой погодой. Не трогать main без согласия, не запускать тяжёлые проверки на ALINA-PC.
 
