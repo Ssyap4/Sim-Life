@@ -234,6 +234,8 @@ class Resident:
             other=Mesh('Plain T-shirt','Cloth pigment',.91)
             self.figure(other,skin_mesh,lower,footwear,alternative=True)
             self.garment(rig,other,'upper','tee')
+        from wardrobe import add_wardrobe
+        add_wardrobe(self,rig)
         return rig
 
     def garment(self,rig,mesh,slot,look):

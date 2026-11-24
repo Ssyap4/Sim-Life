@@ -1517,7 +1517,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       return undefined;
     });
     const characters = useBlender ? await import('./game/BlenderCharacter')
-      .then(({ loadResidents }) => loadResidents(new URLSearchParams(location.search).get('outfit')==='tee' ? ['alina-tee-upper'] : []))
+      .then(async ({ loadResidents }) => {
+        const look=new URLSearchParams(location.search).get('outfit')??'signature';
+        const { outfitChoices }=await import('./game/Wardrobe');
+        return loadResidents(look==='tee'?['alina-tee-upper']:outfitChoices(look));
+      })
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};

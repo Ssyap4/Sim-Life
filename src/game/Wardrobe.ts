@@ -14,7 +14,20 @@ export interface Garment {
   covers?: readonly BodyRegion[];
 }
 
+export const WARDROBE_LOOKS = ['signature','home','denim','city','cozy','street'] as const;
+export type WardrobeLook = typeof WARDROBE_LOOKS[number];
+export function outfitChoices(look:string):readonly string[] {
+  if(!WARDROBE_LOOKS.includes(look as WardrobeLook)||look==='signature')return [];
+  return (['alina','vlad'] as const).flatMap(id=>['upper','lower'].map(slot=>id+'-'+look+'-'+slot));
+}
+const NEW_GARMENTS:Garment[]=(['alina','vlad'] as const).flatMap(id=>
+  WARDROBE_LOOKS.slice(1).flatMap(look=>[
+    {id:id+'-'+look+'-upper',name:look,slot:'upper' as const,fit:id+'-021',layers:['upper'] as const,
+     covers:look==='cozy'||look==='street'?['forearms'] as const:undefined},
+    {id:id+'-'+look+'-lower',name:look,slot:'lower' as const,fit:id+'-021',layers:['lower'] as const},
+  ]));
 export const GARMENTS: readonly Garment[] = [
+  ...NEW_GARMENTS,
   {id:'vlad-signature-upper', name:'Футболка Влада',slot:'upper',fit:'vlad-021',layers:['upper']},
   {id:'vlad-signature-lower', name:'Брюки Влада',slot:'lower',fit:'vlad-021',layers:['lower']},
   {id:'vlad-signature-footwear', name:'Кеды Влада',slot:'footwear',fit:'vlad-021',layers:['footwear']},

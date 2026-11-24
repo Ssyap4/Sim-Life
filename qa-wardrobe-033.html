@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#eee7df}canvas{display:block;width:390px;height:844px}</style></head><body><canvas></canvas><script type="module">
+import * as THREE from 'three';
+import {Actor} from './src/game/Actor.ts';
+import {loadResidents} from './src/game/BlenderCharacter.ts';
+import {outfitChoices} from './src/game/Wardrobe.ts';
+const q=new URLSearchParams(location.search),look=q.get('look')||'home',pose=q.get('pose')||'idle';
+const models=await loadResidents(outfitChoices(look));
+if(!models.vlad||!models.alina)throw Error('Original rig failed to load');
+const renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(390,844,false);
+const scene=new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff,0xc1b9ac,2));
+const light=new THREE.DirectionalLight(0xfff9f0,2);light.position.set(-1,4,3);scene.add(light);
+for(const [i,id] of ['alina','vlad'].entries()){
+ const actor=new Actor(id,[0,0],models[id]);scene.add(actor.root);
+ const visible=[];
+ actor.root.traverse(o=>{if(o.userData.garmentId&&o.visible)visible.push(o.userData.garmentId);});
+ for(const slot of ['upper','lower'])if(!visible.includes(id+'-'+look+'-'+slot))throw Error('Missing selected '+id+' '+look+' '+slot);
+ if(pose==='walk')actor.walkPath([new THREE.Vector3(0,0,2)],()=>{});
+ else if(pose==='cook'||pose==='eat')actor.playActivity(pose);
+ else actor.setPose(pose);
+ for(let j=0;j<20;j++)actor.update(1/30);
+ const camera=new THREE.PerspectiveCamera(32,390/422,.1,30);
+ const target=new THREE.Vector3();actor.bodyPosition(target);target.y+=pose==='sleep'?.35:.93;
+ const angle=q.get('back')==='1'?Math.PI+.35:.48;
+ camera.position.copy(target).add(new THREE.Vector3(Math.sin(angle)*3.4,1.0,Math.cos(angle)*3.4));camera.lookAt(target);
+ renderer.setViewport(0,422*(1-i),390,422);renderer.setScissor(0,422*(1-i),390,422);renderer.setScissorTest(true);renderer.setClearColor(i?0xe1e8e5:0xf0e7e3);renderer.clear();renderer.render(scene,camera);scene.remove(actor.root);
+}
+document.body.dataset.ready='true';
+</script></body></html>
