@@ -27,7 +27,7 @@ try{
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.waitForTimeout(2500);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
- const w=weatherAt(selected);assert.ok((await page.locator('[data-game-season]').textContent()).includes(weatherTemperature(w.temp)));
+ const w=weatherAt(selected);const shown=await page.locator('[data-game-season]').textContent();const clockText=await page.locator('.clock-compact').textContent();const match=clockText.match(/(\d{2}):(\d{2})/);assert.ok(match);const displayed={day:selected.day,minute:Number(match[1])*60+Number(match[2])};assert.ok(Math.abs(displayed.minute-selected.minute)<=6);assert.ok(shown.includes(weatherTemperature(weatherAt(displayed).temp)),shown);
  await page.screenshot({path:join(out,kind+'.jpg'),type:'jpeg',quality:82});
  console.log(kind,JSON.stringify(w),await page.locator('.performance-probe').innerText());
  assert.deepEqual(errors,[]);
