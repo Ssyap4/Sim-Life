@@ -59,7 +59,7 @@ try{
   const pet=s.pets[id],r=pet.routine;assert.equal(r.kind,'beg');
   pet.position=r.goal;r.route={from:r.goal,path:[]};
  }
- addReadyFood(s,'meal','omelette',2,'table');
+ s.meals.omelette=2;addReadyFood(s,'meal','omelette',2,'table');
  await scenario(s,async(page,shot,send,files)=>{
   await shot('01-home-starter-items');
   await send({type:'eat',recipe:'omelette'});
@@ -92,8 +92,10 @@ try{
   await send({type:'approach',place:'cafe',station:'cafe-center'});
   await page.getByRole('button',{name:/Сесть за столик|Съесть блюдо/}).waitFor({timeout:15000});
   const seat=page.getByRole('button',{name:'Сесть за столик'});
-  if(await seat.count()){await seat.click();await send({type:'approach',place:'cafe',station:'cafe-center'});}
+  if(await seat.count()){await seat.click();await page.waitForFunction(()=>window.qaState?.characters.vlad.pose==='sit',undefined,{timeout:15000});}
   await shot('07-cafe-table-panel');
+  const talk=page.getByRole('button',{name:/Поболтать за столиком/});
+  if(await talk.count()){await talk.click();await page.getByText('Как прошёл день?',{exact:true}).waitFor({timeout:10000});await shot('08-cafe-talk-menu');}
  });
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}

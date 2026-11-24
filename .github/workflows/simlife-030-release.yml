@@ -1,7 +1,5 @@
 name: Sim-Life 0.30 final release QA
 on:
-  push:
-    branches: [feat/cafe-table-service-030]
   pull_request:
     branches: [main]
   workflow_dispatch:
