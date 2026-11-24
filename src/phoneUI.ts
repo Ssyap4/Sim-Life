@@ -30,7 +30,7 @@ import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './sh
 import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
 import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
 import {roomAt} from './shared/homeDust';
-import {FITNESS_PASSES,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
+import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
 type App = 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
@@ -106,7 +106,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
     if(app==='fitness'){
-      const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60)]);
+      const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60),state.world.places[role]]);
       if(key!==fitnessKey){
         fitnessKey=key;const scroll=info.scrollTop;
         const formatTime=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':'+String(c.minute%60).padStart(2,'0')};
@@ -120,7 +120,11 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         const stats=fitnessStats(state,role),bonus=fitnessBonuses(state,role);
         const form=block('Физическая форма · '+Math.round(fitnessForm(state,role))+'%', 'Сила '+Math.round(stats.strength)+'% · Выносливость '+Math.round(stats.endurance)+'% · Гибкость '+Math.round(stats.flexibility)+'% · Восстановление '+Math.round(stats.recovery)+'%');
         form.append(block('Мышечная усталость · '+Math.round(p.fatigue)+'%','Завершено упражнений: '+(p.workouts??0)+' · Расход энергии −'+Math.round((1-bonus.energyDrain)*100)+'%'));
-        info.replaceChildren(card,booking,form);info.scrollTop=scroll;
+        const programs=block('Готовые тренировки','Выбери программу в клубе — персонаж сам сменит тренажёры.');
+        for(const id of Object.keys(FITNESS_PROGRAMS) as FitnessProgramId[]){const program=FITNESS_PROGRAMS[id],b=document.createElement('button');b.type='button';b.textContent=program.name+' · '+program.stations.length+' упр.';b.disabled=state.world.places[role]!=='fitness'||!fitnessAccess(state,role);b.onclick=()=>{if(fitnessControl?.({type:'fitness_program',program:id}))close();};programs.append(b);}
+        const history=block('Последние упражнения',p.history?.length?'':'Тренировок пока нет.');
+        for(const h of p.history??[]){const line=document.createElement('p');line.textContent='День '+h.day+' · '+(fitnessExercise(h.facility)?.name??'Тренировка');history.append(line);}
+        info.replaceChildren(card,booking,programs,form,history);info.scrollTop=scroll;
       }
     }
     if(app==='speakers'){

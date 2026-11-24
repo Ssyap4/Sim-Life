@@ -546,6 +546,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     stats[exercise.axis]+=gain;p.dailyGain=(p.dailyGain??0)+gain;
     stats.recovery=Math.min(100,stats.recovery+gain*.7);
     p.fatigue=Math.min(100,p.fatigue+exercise.fatigue);p.lastTrainingDay=source.clock.day;p.workouts=(p.workouts??0)+1;
+    (p.history??=[]).unshift({day:source.clock.day,facility:station.action.facility});p.history=p.history.slice(0,8);
     const clamp=(v:number)=>Math.max(0,Math.min(100,v));
     resident.energy=clamp(resident.energy-(exercise.fatigue*.8+2));
     resident.hunger=clamp(resident.hunger-(exercise.fatigue*.45+2));

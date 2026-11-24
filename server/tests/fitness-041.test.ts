@@ -121,3 +121,68 @@ test('maximal fitness improves passive needs, sleeping and household work; inact
  assert.equal(fitnessStats(aged,'vlad').strength,99);
  assert.equal(aged.education.characters.vlad.xp.fitness,s.education.characters.vlad.xp.fitness);
 });
+
+import {FITNESS_PROGRAMS} from '../../src/shared/fitness';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {once} from 'node:events';
+import WebSocket from 'ws';
+import {startServer} from '../server';
+import {openServerFiles} from '../storage';
+import type {ServerPacket} from '../../src/shared/protocol';
+
+test('all compact programs contain only valid beginner-friendly stations',()=>{
+ for(const p of Object.values(FITNESS_PROGRAMS)){
+  assert.ok(p.stations.length>=2&&p.stations.length<=3);
+  for(const id of p.stations){
+   const s=stationById('fitness',id);
+   assert.ok(s?.action.kind==='fitness'&&fitnessExercise(s.action.facility)?.minLevel===0);
+   assert.ok(planTask({type:'local_activity',station:id,action:'fitnessTrain'}));
+  }
+ }
+});
+async function gymClient(fn:(send:(o:object)=>void,take:<K extends ServerPacket['type']>(kind:K,where?:(e:Extract<ServerPacket,{type:K}>)=>boolean)=>Promise<Extract<ServerPacket,{type:K}>>)=>Promise<void>,paid=true){
+ const dir=mkdtempSync(join(tmpdir(),'pulse-program-'));const files=openServerFiles(dir);
+ const s=initialState();s.world.places.vlad='fitness';s.world.carDriver='vlad';s.world.fitness=initialFitness();
+ if(paid)s.world.fitness.vlad.until=clockMinutes(s.clock)+1440;
+ Object.assign(s.characters.vlad,doorwayArrival('fitness','district','vlad'),{energy:100,hunger:100,hygiene:100});
+ files.save(s);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.015,autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ const ws=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');
+ const inbox:ServerPacket[]=[];ws.on('message',m=>inbox.push(JSON.parse(m.toString())));
+ const send=(o:object)=>ws.send(JSON.stringify(o));
+ async function take<K extends ServerPacket['type']>(kind:K,where:(e:Extract<ServerPacket,{type:K}>)=>boolean=()=>true){
+  const end=Date.now()+7000;
+  while(Date.now()<end){const i=inbox.findIndex(e=>e.type===kind&&where(e as Extract<ServerPacket,{type:K}>));if(i>=0)return inbox.splice(i,1)[0] as Extract<ServerPacket,{type:K}>;await new Promise(r=>setTimeout(r,10));}
+  throw Error('Missing '+kind+'; '+inbox.map(e=>e.type).join(','));
+ }
+ try{await once(ws,'open');send({type:'auth',role:'vlad',code:files.access.vlad});await take('ready');await fn(send,take);}
+ finally{ws.terminate();await server.close();rmSync(dir,{recursive:true,force:true});}
+}
+test('one click runs every program station in order through the actual server',async()=>{
+ await gymClient(async(send,take)=>{
+  send({type:'fitness_program',program:'cardio'});
+  for(const id of FITNESS_PROGRAMS.cardio.stations){
+   const started=await take('task_started',p=>p.command.type==='local_activity'&&p.command.station===id);
+   await take('task_ended',p=>p.taskId===started.taskId&&p.outcome==='completed');
+  }
+  const final=await take('snapshot',p=>fitnessProfile(p.state,'vlad').workouts===3);
+  assert.equal(fitnessProfile(final.state,'vlad').history?.length,3);
+  assert.equal(fitnessProfile(final.state,'vlad').history?.[0].facility,'elliptical');
+  assert.deepEqual({x:final.state.characters.vlad.x,z:final.state.characters.vlad.z},approachFor(stationById('fitness','fitness-elliptical')!,'vlad'));
+ });
+});
+test('cancelling a running program removes its remaining queued steps',async()=>{
+ await gymClient(async(send,take)=>{
+  send({type:'fitness_program',program:'cardio'});
+  const first=await take('task_started');
+  await take('task_queue',p=>p.tasks.length===2);
+  send({type:'cancel_task',taskId:first.taskId});
+  await take('task_queue',p=>p.tasks.length===0);
+  await take('task_ended',p=>p.taskId===first.taskId&&p.outcome==='cancelled');
+ });
+});
+test('program cannot start without paid access',async()=>{
+ await gymClient(async(send,take)=>{send({type:'fitness_program',program:'cardio'});await take('error');},false);
+});

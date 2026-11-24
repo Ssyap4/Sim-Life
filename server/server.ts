@@ -1,4 +1,4 @@
-import {fitnessTaskSpeed} from '../src/shared/fitness';
+import {fitnessTaskSpeed,fitnessProgram,fitnessAccess,type FitnessProgramId} from '../src/shared/fitness';
 import {applySpeaker,type SpeakerCommand} from '../src/shared/speaker';
 import {dustRoute} from '../src/shared/dustRoute';
 import {isNotebookDesk} from '../src/shared/furniture';
@@ -698,6 +698,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     pauseTimers.clear(task.timer);
     running.delete(role);
     if(task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe'){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
+    if(task.plan.fitnessProgram)clearQueue(role);
     all({ type: 'task_ended', role, taskId: task.id, outcome: 'cancelled', message: reason });
   };
   function catReserved(site:CatPerch):boolean {
@@ -732,7 +733,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
       return;
     }
-    const validation = evaluateTask(state, role, plan.command);
+    const fitnessRoute=plan.command.type==='local_activity'&&plan.command.action==='fitnessTrain'&&state.world.places[role]==='fitness'
+      ?applyWorld(state,role,{type:'approach',place:'fitness',station:plan.command.station},active.has(otherRole(role))):undefined;
+    if(fitnessRoute&&!fitnessRoute.ok){packet(socket,{type:'error',reason:fitnessRoute.reason});return;}
+    const validation = evaluateTask(fitnessRoute?.ok?fitnessRoute.state:state, role, plan.command);
     if (!validation.ok) { packet(socket, { type: 'error', reason: validation.reason }); return; }
     if (occupied) stopTask(occupied.role, 'Место освободилось для игрока');
     for (const [resident, routine] of leisure) {
@@ -780,9 +784,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const bathRoute=bath?dogBathPlan(state,role):null;
     if(bath&&!bathRoute){packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
     const activityMs=plan.durationMs/fitnessTaskSpeed(state,role,plan.command);
-    const duration = cleaningRoute?activityMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? activityMs + travelBudgetMs
+    const gymTravelMs=fitnessRoute?.ok&&fitnessRoute.path?.length?Math.ceil(pathLengthForTalk({from:position,path:fitnessRoute.path})/HOME_WALK_SPEED*1000)+1000:0;
+    const duration = fitnessRoute?.ok?activityMs+gymTravelMs:cleaningRoute?activityMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? activityMs + travelBudgetMs
       : Math.max(activityMs, travelBudgetMs, cookBudget, dishBudget);
     const durationMs = Math.max(15, Math.round(duration * scale));
+    if(fitnessRoute?.ok)state=fitnessRoute.state;
     const id = ++nextTaskId;
     const wish=automatic?undefined:wishAtStart(state,role,plan.command);
     const timer = pauseTimers.schedule(() => {
@@ -793,6 +799,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // players cannot create food, rewards or inventory from stale resources.
       const result = evaluateTask(state, role, plan.command);
       if (!result.ok) {
+        if(plan.fitnessProgram)clearQueue(role);
         if(bath){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: result.reason });
         return;
@@ -809,6 +816,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       result.message+=fulfillWish(result.state,role,wish,state);
       try { files.save(result.state); }
       catch (error) {
+        if(plan.fitnessProgram)clearQueue(role);
         console.error('Could not persist completed task:', error);
         all({ type: 'task_ended', role, taskId: id, outcome: 'failed', message: 'Не удалось сохранить результат' });
         return;
@@ -903,7 +911,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if(!tasks.length)queuedTasks.delete(role);
     publishQueue(role);
     if(next.sleep)startSleepRequest(role,socket,next.sleep);
-    else if(next.plan)beginTask(role,socket,next.plan);
+    else if(next.plan){beginTask(role,socket,next.plan);if(next.plan.fitnessProgram&&!running.has(role))clearQueue(role);}
     // Invalid or stale queued work never strands later valid requests.
     if(!running.has(role)&&!homeTasks.busy(role)&&!sleepers.has(role)&&
         (queuedTasks.get(role)?.length??0)>0)
@@ -1432,6 +1440,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if ((running.has(role) || homeTasks.busy(role)) && !queueable) {
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
+        return;
+      }
+      if(message.type==='fitness_program'){
+        const program=fitnessProgram(message.program);
+        if(!program||state.world.places[role]!=='fitness'||!fitnessAccess(state,role)||state.activeShifts[role]||state.careers.residents[role].shift||sleepers.has(role)||(queuedTasks.get(role)?.length??0)>0){packet(socket,{type:'error',reason:'Для программы нужен оплаченный вход в клуб и свободный персонаж'});return;}
+        const plans=program.stations.map(station=>planTask({type:'local_activity',action:'fitnessTrain',station})!);
+        if(plans.some(p=>!p)){packet(socket,{type:'error',reason:'Программа недоступна'});return;}
+        const tagged=plans.map(p=>({...p,fitnessProgram:message.program as FitnessProgramId,label:program.name+' · '+p.label}));
+        beginTask(role,socket,tagged[0]);
+        if(running.has(role)){queuedTasks.set(role,tagged.slice(1).map(plan=>({id:++nextQueueId,plan,label:plan.label})));publishQueue(role);}
         return;
       }
       if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}

@@ -40,6 +40,7 @@ export interface TaskPlan {
   label: string;
   durationMs: number;
   resource: string | null;
+  fitnessProgram?:import('../src/shared/fitness').FitnessProgramId;
 }
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 

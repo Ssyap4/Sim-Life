@@ -32,7 +32,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
-import {FITNESS_PASSES,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
+import {FITNESS_PASSES,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
   const node = element('button', 'action-button', label);
   node.type = 'button';
@@ -181,7 +181,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if(station.action.kind==='fitness'){
       if(station.action.facility==='reception'){
         options.append(element('small','',fitnessAccess(place,role)?'Абонемент действует':'Выбери билет или абонемент'));
-        for(const pass of Object.keys(FITNESS_PASSES) as FitnessPass[]){const p=FITNESS_PASSES[pass];options.append(button(p.name+' · '+formatRub(p.price),()=>send({type:'fitness_pass',pass}),place.money<p.price||pass==='single'&&fitnessAccess(place,role)));}
+        for(const pass of Object.keys(FITNESS_PASSES) as FitnessPass[]){const p=FITNESS_PASSES[pass];options.append(button(p.name+' · '+formatRub(p.price),()=>send({type:'fitness_pass',pass}),place.money<p.price||pass==='single'&&(fitnessAccess(place,role)||!!fitnessProfile(place,role).ticket)));}
+        options.append(element('strong','','Программы тренировок'));
+        for(const id of Object.keys(FITNESS_PROGRAMS) as FitnessProgramId[]){const p=FITNESS_PROGRAMS[id];options.append(button(p.name+' · '+p.stations.length+' упр.',()=>{if(send({type:'fitness_program',program:id}))close();},!fitnessAccess(place,role)));}
       }else if(station.action.facility==='sauna'){
         options.append(element('small','','20 игровых минут · восстановление и комфорт'),local('Посетить сауну · '+formatRub(SAUNA_PRICE),'fitnessSauna'));
       }else{

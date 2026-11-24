@@ -7,9 +7,9 @@ export const FITNESS_PASSES={
   family:{name:'Семейный на 30 дней',price:19900,days:30},
 } as const;
 export type FitnessPass=keyof typeof FITNESS_PASSES;
-export type FitnessProfile={until:number;booking?:number;ticket?:boolean;visit?:boolean;fatigue:number;saunaDay:number;stats?:FitnessStats;lastTrainingDay?:number;trainingDay?:number;dailyGain?:number;workouts?:number};
+export type FitnessProfile={until:number;booking?:number;ticket?:boolean;visit?:boolean;fatigue:number;saunaDay:number;stats?:FitnessStats;lastTrainingDay?:number;trainingDay?:number;dailyGain?:number;workouts?:number;history?:{day:number;facility:string}[]};
 export type FitnessState=Record<CharacterId,FitnessProfile>;
-export type FitnessCommand={type:'fitness_pass';pass:FitnessPass}|{type:'fitness_book';at:number}|{type:'fitness_cancel'};
+export type FitnessCommand={type:'fitness_pass';pass:FitnessPass}|{type:'fitness_book';at:number}|{type:'fitness_cancel'}|{type:'fitness_program';program:FitnessProgramId};
 export const initialFitness=():FitnessState=>({vlad:{until:0,fatigue:0,saunaDay:0},alina:{until:0,fatigue:0,saunaDay:0}});
 export function fitnessProfile(s:GameState,r:CharacterId){return s.world.fitness?.[r]??initialFitness()[r]}
 export const fitnessAccess=(s:GameState,r:CharacterId)=>fitnessProfile(s,r).until>gameMinutes(s.clock)||!!fitnessProfile(s,r).visit&&s.world.places[r]==='fitness';
@@ -18,7 +18,7 @@ export function validFitness(v:unknown):v is FitnessState{
   if(!v||typeof v!=='object')return false;
   const state=v as FitnessState;
   const integer=(n:unknown)=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=0;
-  return (['vlad','alina'] as const).every(r=>{const p=state[r];return !!p&&integer(p.until)&&integer(p.saunaDay)&&(p.ticket===undefined||typeof p.ticket==='boolean')&&(p.visit===undefined||typeof p.visit==='boolean')&&typeof p.fatigue==='number'&&Number.isFinite(p.fatigue)&&p.fatigue>=0&&p.fatigue<=100&&(p.booking===undefined||integer(p.booking))&&(p.lastTrainingDay===undefined||integer(p.lastTrainingDay))&&(p.trainingDay===undefined||integer(p.trainingDay))&&(p.dailyGain===undefined||Number.isFinite(p.dailyGain)&&p.dailyGain>=0&&p.dailyGain<=8)&&(p.workouts===undefined||integer(p.workouts))&&(p.stats===undefined||(['strength','endurance','flexibility','recovery'] as const).every(k=>Number.isFinite(p.stats![k])&&p.stats![k]>=0&&p.stats![k]<=100))});
+  return (['vlad','alina'] as const).every(r=>{const p=state[r];return !!p&&integer(p.until)&&integer(p.saunaDay)&&(p.ticket===undefined||typeof p.ticket==='boolean')&&(p.visit===undefined||typeof p.visit==='boolean')&&typeof p.fatigue==='number'&&Number.isFinite(p.fatigue)&&p.fatigue>=0&&p.fatigue<=100&&(p.booking===undefined||integer(p.booking))&&(p.lastTrainingDay===undefined||integer(p.lastTrainingDay))&&(p.trainingDay===undefined||integer(p.trainingDay))&&(p.dailyGain===undefined||Number.isFinite(p.dailyGain)&&p.dailyGain>=0&&p.dailyGain<=8)&&(p.workouts===undefined||integer(p.workouts))&&(p.history===undefined||Array.isArray(p.history)&&p.history.length<=8&&p.history.every(h=>h&&integer(h.day)&&!!fitnessExercise(h.facility)))&&(p.stats===undefined||(['strength','endurance','flexibility','recovery'] as const).every(k=>Number.isFinite(p.stats![k])&&p.stats![k]>=0&&p.stats![k]<=100))});
 }
 export function fitnessBookingSlots(now:number){
   const start=Math.floor(now/60)*60+60;
@@ -66,3 +66,15 @@ export function advanceFitness(s:GameState,role:CharacterId,minutes:number,oldDa
   if(days)for(const axis of Object.keys(p.stats) as FitnessAxis[])p.stats[axis]=Math.max(0,p.stats[axis]-days);
  }
 }
+
+export const FITNESS_PROGRAMS={
+ cardio:{name:'Лёгкое кардио',stations:['fitness-treadmill-a','fitness-bike','fitness-elliptical']},
+ full:{name:'Всё тело',stations:['fitness-treadmill-a','fitness-legpress','fitness-chestpress']},
+ legs:{name:'Ноги и ягодицы',stations:['fitness-bike','fitness-legpress','fitness-legcurl']},
+ back:{name:'Спина и плечи',stations:['fitness-latpull','fitness-seatedrow','fitness-dumbbells']},
+ arms:{name:'Грудь и руки',stations:['fitness-chestpress','fitness-dumbbells','fitness-mat-a']},
+ stretch:{name:'Йога и растяжка',stations:['fitness-mat-a','fitness-mat-b']},
+ intensive:{name:'Интенсивное кардио',stations:['fitness-treadmill-b','fitness-rower','fitness-stepper']},
+} as const;
+export type FitnessProgramId=keyof typeof FITNESS_PROGRAMS;
+export function fitnessProgram(id:unknown){return typeof id==='string'&&Object.hasOwn(FITNESS_PROGRAMS,id)?FITNESS_PROGRAMS[id as FitnessProgramId]:undefined}
