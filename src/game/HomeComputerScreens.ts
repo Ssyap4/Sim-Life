@@ -62,6 +62,7 @@ export class HomeComputerScreens {
     (desk??this.initialLaptop).add(group);group.position.set(0,desk?.76:.86,desk?-.24:-.105);
     group.traverse(part=>{if(part instanceof THREE.Mesh){if(desk){delete part.userData.station;part.userData.furnitureId=desk.userData.furnitureId;}else{delete part.userData.furnitureId;part.userData.station='career-laptop';}}});
   }
+  audioTask(device:ComputerDevice):ComputerScene|undefined{for(const entry of this.tasks.values())if(entry.device===device)return entry.scene;return undefined;}
   private current(device:ComputerDevice):ComputerScene {
     for (const entry of this.tasks.values()) if(entry.device===device)return entry.scene;
     for (const entry of this.careers.values()) if(entry.device===device)return entry.scene;

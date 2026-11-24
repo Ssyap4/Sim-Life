@@ -42,6 +42,8 @@ export class HomeEffects {
   private lastScreen = -1;
   private lesson?: string;
 
+  audioProgram():Program|undefined{return this.media.values().next().value;}
+  audioPosition():THREE.Vector3{return this.tvHardware.group.getWorldPosition(new THREE.Vector3());}
   constructor(scene: THREE.Scene) {
     this.canvas.width = 256;
     this.canvas.height = 144;

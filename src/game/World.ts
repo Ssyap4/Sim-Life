@@ -2085,6 +2085,7 @@ export class World {
     this.frameDistrictResident();
     this.neighborBodies=[];
     this.computerScreens.resetPreviews();
+    for(const role of ['vlad','alina'] as const)this.computerScreens.endTask(role);
     this.pairStages.clear();this.badmintonStarted=null;this.tennisStarted=null;
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
@@ -2579,8 +2580,19 @@ export class World {
       const actor=this.actors[role],p=actor.root.position;if(!actor.root.visible)continue;
       const m=actor.audioMotion(),surface=this.place==='park'||(this.place==='home'&&outside(p))?'stepGrass':this.place==='home'?'stepWood':'stepTile';
       gameAudio.step(role,p,m.walking,surface);
-      const cue=activitySound(m.activity,m.pose);
+      const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
+      const cue=mediaTask&&m.activity==='read'?undefined:activitySound(m.activity,m.pose);
       if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,.40,p);}
+    }
+    if(this.place==='home'){
+      const tv=this.homeEffects.audioProgram();if(tv)gameAudio.media('tv','tv',tv,this.homeEffects.audioPosition());
+      for(const device of ['desktop','laptop'] as const){
+        const scene=this.computerScreens.audioTask(device);if(!scene)continue;
+        const actor=this.actors[scene.role],motion=actor.audioMotion();if(!actor.root.visible||motion.walking||motion.pose!=='work')continue;
+        const p=this.computerScreens.hardwareGroup(device).getWorldPosition(new THREE.Vector3());
+        if(scene.mode==='game'&&motion.activity==='games')gameAudio.media(device,device,GAME_BY_ID.get(scene.game??'')?.genre??'sim',p);
+        if(scene.mode==='video'&&motion.activity==='read')gameAudio.media(device,device,scene.clip??'vlog',p);
+      }
     }
     for(const id of PET_IDS){
       const pet=this.pets[id],p=pet.root.position;if(!pet.root.visible)continue;
