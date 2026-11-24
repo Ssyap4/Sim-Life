@@ -1,3 +1,4 @@
+import { seatingComfortBonus } from '../src/shared/furnitureComfort';
 import { catBedError, catSeatError } from '../src/shared/catOccupancy';
 import { bedPose } from '../src/shared/bedSleep';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
@@ -227,6 +228,12 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
         return {ok:true as const,state:next,message:FURNITURE_ACTIONS[action]+' — выполнено'};
       })();
     if(!result.ok)return result;
+    if(['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','read_book','youtube','movie','free_tv'].includes(action)){
+      const before=state.characters[role],after=result.state.characters[role];
+      const bonus=seatingComfortBonus(selected.item.sku);
+      if(after.comfort>before.comfort)after.comfort=Math.max(before.comfort,Math.min(100,after.comfort+bonus));
+      if(bonus>0)after.mood=Math.min(100,after.mood+bonus/3);
+    }
     const destination=position.route.path.at(-1)??position.route.from;
     Object.assign(result.state.characters[role],destination,{
       pose:['sofaRest','sofaMusic','sofaCall','officeChairSit','tableRest','tableTalk','tablePlan',

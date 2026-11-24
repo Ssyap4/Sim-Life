@@ -8,6 +8,7 @@ import { FURNITURE_BY_ID, FURNITURE_CATALOG, FURNITURE_CATEGORIES,
   type FurnishingCommand } from './shared/furniture';
 import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
+import { furnitureComfort } from './shared/furnitureComfort';
 import { checkFurniturePlacement, suggestFurnitureSnap } from './shared/furnishingPlacement';
 import { furnitureThumbnail } from './game/FurnitureThumbnails';
 import { furnitureActionList } from './shared/furnitureUse';
@@ -221,6 +222,11 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         node('small','',info.description),
         node('small','furnish-dimensions',info.width+' × '+info.depth+' м · '+info.height+' м высота'),
         node('strong','furnish-price',formatRub(info.price*quantity)));
+      const grade=furnitureComfort(info.id);
+      if(grade){
+        const quality=node('small','furnish-comfort','Комфорт '+grade+'/5 · '+'★'.repeat(grade)+'☆'.repeat(5-grade));
+        desc.insertBefore(quality,desc.lastElementChild);
+      }
       const purchase=node('div','furnish-card-actions','');
       for(const shipping of ['regular','express'] as const){
         const config=FURNITURE_DELIVERY[shipping];

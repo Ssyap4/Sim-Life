@@ -1,5 +1,5 @@
-import { clockLabel, type VitalNeed } from './shared/life';
-import { thoughtFor } from './shared/autonomy';
+import { clockLabel, gameMinutes, NEED_INFO, VITAL_NEEDS, type VitalNeed } from './shared/life';
+import { thoughtFor, foodSupplyProblem } from './shared/autonomy';
 import { wishesFor, type WishCommand } from './shared/wishes';
 import { modeShortLabel, thoughtLessons, thoughtStateLabel } from './shared/thoughtHelp';
 import type { CharacterId, GameState } from './shared/protocol';
@@ -45,6 +45,11 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   root.innerHTML=`
     <button id="thought-trigger" class="thought-trigger" type="button" aria-expanded="false"
       aria-controls="thought-panel" aria-label="Желания персонажа">💭 <span>Желания</span></button>
+    <div class="life-pop" hidden role="status" aria-live="polite">
+      <span class="life-pop-icon"></span><div class="life-pop-copy"><strong></strong><small></small><span class="life-pop-meter" hidden><i></i></span></div>
+      <button type="button" class="life-pop-open" aria-label="Открыть желания">›</button>
+      <button type="button" class="life-pop-dismiss" aria-label="Скрыть уведомление">×</button>
+    </div>
     <section id="thought-panel" class="thought-panel" aria-label="Мысли, желания и подсказки" hidden>
       <header class="thought-heading">
         <div><strong data-thought-title>💭 Мысли</strong><small data-thought-mode></small></div>
@@ -104,6 +109,50 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   const wishButton=root.querySelector<HTMLButtonElement>('[data-wish-do]')!;
   const wishFeedback=root.querySelector<HTMLElement>('[data-wish-feedback]')!;
   const moreButton=root.querySelector<HTMLButtonElement>('[data-thought-more]')!;
+  const pop=root.querySelector<HTMLElement>('.life-pop')!;
+  let popTimer:ReturnType<typeof setTimeout>|undefined;
+  let lastPopAt=-Infinity,lastWishMinute=-Infinity;
+  const alerted=new Map<string,number>();
+  const dismissPop=()=>{if(popTimer!==undefined)clearTimeout(popTimer);popTimer=undefined;pop.hidden=true;};
+  function showPop(icon:string,title:string,body:string,value?:number,urgent=false){
+    dismissPop();
+    pop.querySelector('.life-pop-icon')!.textContent=icon;
+    pop.querySelector('strong')!.textContent=title;
+    pop.querySelector('small')!.textContent=body;
+    const meter=pop.querySelector<HTMLElement>('.life-pop-meter')!;
+    meter.hidden=value===undefined;
+    meter.querySelector<HTMLElement>('i')!.style.width=Math.max(0,Math.min(100,value??0))+'%';
+    pop.classList.toggle('life-pop-urgent',urgent);pop.hidden=false;
+    lastPopAt=performance.now();popTimer=setTimeout(dismissPop,urgent?10500:7200);
+  }
+  function notifyLife(state:GameState,role:CharacterId){
+    if(!pref.show||isOpen)return;
+    const minute=gameMinutes(state.clock),now=performance.now(),name=role==='vlad'?'Влад':'Алина';
+    const person=state.characters[role];
+    const low=[...VITAL_NEEDS].sort((a,b)=>person[a]-person[b]);
+    for(const need of low)if(person[need]>65)alerted.delete('need:'+need);
+    if(!foodSupplyProblem(state,role))alerted.delete('food');
+    if(now-lastPopAt<16000)return;
+    if(state.autonomy[role]!=='off'&&foodSupplyProblem(state,role)&&minute-(alerted.get('food')??-Infinity)>=90){
+      alerted.set('food',minute);
+      showPop('🛒',name+' · Нет еды','Нужны продукты. Пополни запасы через телефон.',person.hunger,true);return;
+    }
+    const need=low.find(n=>person[n]<=50&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
+    if(need){
+      alerted.set('need:'+need,minute);
+      const info=NEED_INFO[need],wish=wishesFor(state,role).find(w=>w.need===need);
+      showPop(info.emoji,name+' · '+info.label+' '+Math.round(person[need])+'%',wish?.title??info.hint,person[need],person[need]<=25);return;
+    }
+    if(minute-lastWishMinute<55)return;
+    const wishes=wishesFor(state,role).filter(w=>w.command);
+    const wish=wishes[Math.floor(minute/55)%Math.max(1,wishes.length)];
+    if(wish&&minute-(alerted.get('wish:'+wish.id)??-Infinity)>=150){
+      lastWishMinute=minute;alerted.set('wish:'+wish.id,minute);
+      showPop(wish.icon,name+' · '+wish.title,wish.detail,undefined,false);
+    }
+  }
+  pop.querySelector('.life-pop-dismiss')!.addEventListener('click',dismissPop);
+  pop.querySelector('.life-pop-open')!.addEventListener('click',()=>{dismissPop();open(true);});
   let selectedWishId='', helpOpen=false, feedbackText='', feedbackAt=0;
   let viewer:CharacterId|null=null;
   let selected:CharacterId='vlad';
@@ -125,7 +174,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   function open(manual=true){
     const view=read();
     if(!view)return;
-    beforeOpen();
+    dismissPop();beforeOpen();
     selected=manual&&isOpen?selected:view.role;
     if(!isOpen){selectedWishId='';helpOpen=false;}
     isOpen=true;panel.hidden=false;
@@ -261,6 +310,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   panel.addEventListener('focusout',()=>scheduleClose());
   return {
     onReady(role:CharacterId){
+      dismissPop();alerted.clear();lastPopAt=performance.now()-16000;lastWishMinute=-Infinity;
       clearTimer();viewer=role;selected=role;isOpen=false;panel.hidden=true;root.hidden=false;
       trigger.setAttribute('aria-expanded','false');
       const loaded=readLocal(key('settings',role));
@@ -275,12 +325,12 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
       const view=read();
       if(!view||!viewer)return;
       capture(view.state);
-      // Unlike the old UI, no large pop-up opens automatically on login.
       render();
+      notifyLife(view.state,view.role);
     },
     close,
     reset(){
-      close();root.hidden=true;viewer=null;feedbackText='';
+      dismissPop();close();root.hidden=true;viewer=null;feedbackText='';
     },
     history(id:CharacterId):readonly ThoughtRecord[]{return histories[id];},
     preferences():ThoughtPreferences{return {...pref};},

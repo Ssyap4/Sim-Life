@@ -141,6 +141,9 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('pet-bed-verdell','Лежанка Верделла «Облачко»','pets','rug',4900,1.08,.94,.15,'🐕','Уютная низкая лежанка с мягкими бортиками; Верделл может на ней спать.',true),
   product('pet-bed-simba','Лежанка Симбы «Полумесяц»','pets','rug',4500,1.14,.90,.15,'🐈','Мягкая лежанка для кота; Симба выбирает её для отдыха.',true),
   product('pet-scratcher-simba','Когтеточка «Рыжий инспектор»','pets','plant',6900,.78,.72,1.12,'🐾','Устойчивая когтеточка со столбиком и подвесной игрушкой.'),
+  product('pet-house-cabin','Домик «Лисья нора»','pets','plant',5900,1.15,1.05,.84,'🐈','Деревянное укрытие с открытым входом, мягким матрасом и площадкой на крыше.'),
+  product('pet-house-soft','Домик «Плюшевый кокон»','pets','plant',8900,1.22,1.12,.92,'🐈','Мягкая капсула с просторным входом и утопленной лежанкой сверху.'),
+  product('pet-house-tower','Комплекс «Король Симба»','pets','plant',14900,1.92,1.18,1.34,'🐾','Домик, отдельная сизалевая когтеточка, игрушка и широкая верхняя лежанка.'),
 ] as const;
 export const FURNITURE_BY_ID = new Map(FURNITURE_CATALOG.map(item=>[item.id,item]));
 
@@ -173,7 +176,7 @@ export const FURNITURE_GROUP_LABELS: Record<FurnitureDisplayGroup,string> = {
   chair:'Стулья',
   stool:'Табуреты',
   lamp:'Светильники и торшеры',
-  'pet-care':'Лежанки и когтеточки',
+  'pet-care':'Домики, лежанки и когтеточки',
   plant:'Растения',
   rug:'Ковры',
   mirror:'Зеркала',

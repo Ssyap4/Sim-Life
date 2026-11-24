@@ -3,6 +3,7 @@ import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from '.
 import { recipeAvailability } from './recipeAvailability';
 import { BOOKS, type BookId } from './homeLife';
 import { COMPUTER_GAMES, VIDEO_CLIPS, type VideoClipId } from './computerGames';
+import { furnitureComfort } from './furnitureComfort';
 import { canFurniturePerform } from './furnitureUse';
 import { CALM_VARIANTS, THOUGHT_VARIANTS } from './thoughtNarrative';
 import type { CharacterId, GameState, TimedCommand } from './protocol';
@@ -45,7 +46,7 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
     }
     // Installed replacements are real stations. No ghost use of a sold
     // starter couch, desk or table and no fixed number of purchased items.
-    for(const item of state.furnishing.placed){
+    for(const item of [...state.furnishing.placed].sort((a,b)=>furnitureComfort(b.sku)-furnitureComfort(a.sku))){
       if(canFurniturePerform(item,action))
         offer(need,{type:'furniture_use',furnitureId:item.id,action},reason);
     }
