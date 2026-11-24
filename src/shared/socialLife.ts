@@ -86,7 +86,7 @@ const objects: readonly SocialActivity[] = [
   {id:'petBrush',title:'Расчесать питомца вместе',group:'home',lines:['Подержишь внимание питомца, пока я возьму щётку?'],replies:['Да, побуду рядом с другой стороны.','Хорошо, поможем ему привыкнуть к щётке.'],motion:'pet',seconds:10,object:'petBrush',memorable:true},
   {id:'walk',title:'Прогуляться вместе',group:'fun',lines:['Пройдёмся вместе? Выберем такой темп, чтобы было удобно обоим.'],replies:['Давай пройдём по дорожке.','Хочу немного свежего воздуха.'],motion:'stroll',seconds:22,object:'walk',memorable:true},
   {id:'parkRest',title:'Отдохнуть на скамье',group:'fun',lines:['Передохнём в парке? На скамье есть место для двоих.'],replies:['С удовольствием.','Давай послушаем, что вокруг.'],motion:'sitTalk',seconds:14,object:'parkRest',memorable:true},
-  {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, понесу свой заказ.','Давай сядем поближе к окну.'],motion:'eat',seconds:12,object:'cafeMeal',independent:true,memorable:true},
+  {id:'cafeMeal',title:'Сесть вместе в кафе',group:'home',lines:['Давай сядем за один столик и поедим то, что заказали.'],replies:['Да, приятного аппетита!','Давай поедим и поболтаем.'],motion:'eat',seconds:12,object:'cafeMeal',independent:true,memorable:true},
   {id:'sofaTalk',title:'Поговорить на диване',group:'care',lines:['Давай сядем на диван. Можно спокойно поговорить, если хочется.'],replies:['Расскажу, что у меня на уме.','Давай начнём с тишины.'],motion:'sitTalk',seconds:14,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},
   {id:'eveningTea',title:'Обсудить вечер за столом',group:'talk',lines:['Посидим за столом и выберем, как провести вечер?'],replies:['Давай сначала выберем время для отдыха.','Я бы начал с чего-нибудь совсем простого.'],motion:'sitTalk',seconds:12,object:'table'},
@@ -249,7 +249,14 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (name==='parkRest'&&place!=='park') return 'Скамья находится в парке';
   if (name==='cafeMeal'&&place!=='cafe') return 'Столик находится в кафе';
   if (name&&name!=='walk'&&name!=='parkRest'&&name!=='cafeMeal'&&place!=='home') return 'Это занятие доступно дома';
-  if (name==='cafeMeal'&&!individual&&![from,to].every(role=>state.world.cafe[role]?.pickedUp)) return 'Сначала заберите оба заказа';
+  if(name==='cafeMeal'){
+    const roles=individual?[from]:[from,to];
+    if(!roles.every(role=>{
+      const order=state.world.cafe[role];
+      return order&&(order.pickedUp||order.table&&order.readyAt<=gameMinutes(state.clock)&&state.characters[role].pose==='sit');
+    }))return 'Сначала дождитесь своих заказов и сядьте за столик';
+    if(!individual&&(state.world.cafe[from]?.table??'cafe-left')!==(state.world.cafe[to]?.table??'cafe-left'))return 'Выберите один столик на двоих';
+  }
   if (name==='dishes'&&!state.dirtyDishes.table&&!state.dirtyDishes.yardTable) return 'Грязная посуда пока не накопилась';
   if (name==='unpack') return 'Покупки теперь автоматически раскладываются при возвращении домой';
   const now=gameMinutes(state.clock);

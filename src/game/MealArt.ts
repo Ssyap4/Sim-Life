@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { drum, orb, softCube, batchRigidParts } from './ArtKit';
 import type { RecipeId, TakeoutId } from '../shared/food';
 
-export type ServedDish = RecipeId | TakeoutId;
+import type { CafeItem } from '../shared/locations';
+export type ServedDish = RecipeId | TakeoutId | CafeItem;
 
 // One lathed, gently curved glazed ceramic plate, shared by every portion.
 // This replaces the flat cylinder without introducing another draw call.
@@ -250,7 +251,71 @@ function restaurantDish(g: THREE.Group, id: ServedDish): void {
 
 function makeDish(id: ServedDish | 'default'): THREE.Group {
   const g=new THREE.Group();
-  if (RESTAURANT_DISHES.has(id)) restaurantDish(g,id as ServedDish);
+  if (id==='cappuccino'||id==='tea'){
+    bit(g,0xf5e8d6,0,.045,0,.135,.090,.135,drum);
+    bit(g,id==='tea'?0xaa6c36:0xb28150,0,.092,0,.115,.007,.115,drum);
+    bit(g,0xf5e8d6,.072,.054,0,.056,.046,.027,softCube);
+    if(id==='cappuccino'){
+      for(let i=0;i<5;i++)bit(g,0xf0dbc0,-.035+i*.016,.098,.013*Math.sin(i),.023,.004,.020,orb);
+    }else{
+      bit(g,palette.berry,-.026,.098,.016,.024,.008,.023,orb);
+      bit(g,palette.leaf,.021,.100,-.013,.033,.004,.018,softCube);
+    }
+  }else if(id==='brioche'){
+    bit(g,palette.crust,0,.024,0,.146,.046,.087,softCube).rotation.y=.16;
+    bit(g,palette.cheese,0,.054,0,.134,.012,.080,softCube).rotation.y=.16;
+    bit(g,palette.bread,0,.080,0,.145,.042,.085,orb).rotation.y=.16;
+    for(let i=0;i<3;i++)bit(g,0xf3d8a0,-.036+i*.036,.102,0,.015,.004,.008);
+  }else if(id==='pastry'){
+    bit(g,palette.crust,0,.028,0,.145,.052,.145,drum);
+    bit(g,palette.cream,0,.056,0,.130,.015,.130,drum);
+    for(let i=0;i<9;i++){
+      const a=i*2.4,r=.018+(i%3)*.014;
+      bit(g,i%2?palette.berry:palette.violet,Math.cos(a)*r,.075,Math.sin(a)*r,.024,.024,.024);
+    }
+  }else if(id==='caesar'){
+    for(let i=0;i<15;i++){
+      const a=i*2.4,r=.025+(i%5)*.016;
+      bit(g,i%2?0x81a85b:0x50783b,Math.sin(a)*r,.024+(i%3)*.009,Math.cos(a)*r,.065,.018,.039,softCube).rotation.y=a;
+    }
+    for(let i=0;i<5;i++){
+      const a=i*1.4;
+      bit(g,0xe6bf8a,Math.sin(a)*.068,.054,Math.cos(a)*.068,.055,.023,.026,softCube).rotation.y=a;
+      bit(g,palette.crust,Math.cos(a)*.081,.056,Math.sin(a)*.081,.026,.023,.025,softCube);
+    }
+    for(let i=0;i<4;i++)bit(g,palette.cream,-.052+i*.032,.069,.008,.041,.005,.012,softCube).rotation.y=i*.8;
+  }else if(id==='tomYum'){
+    bit(g,0xe7e1cc,-.035,.044,-.005,.218,.088,.218,drum);
+    bit(g,0xd66d31,-.035,.089,-.005,.195,.013,.195,drum);
+    for(let i=0;i<5;i++){
+      const a=i*1.25;
+      const x=-.035+Math.cos(a)*.064,z=-.005+Math.sin(a)*.064;
+      bit(g,0xf3a07b,x,.106,z,.044,.022,.028,orb).rotation.y=a;
+      bit(g,palette.cream,x+.012,.108,z+.012,.027,.011,.019,orb);
+      bit(g,0x548a42,-.035+Math.cos(a+.6)*.05,.10,-.005+Math.sin(a+.6)*.05,.028,.007,.018,softCube);
+    }
+    bit(g,palette.rice,.105,.034,.035,.085,.055,.091,orb);
+    bit(g,palette.leaf,.042,.101,-.04,.025,.007,.016,softCube);
+  }else if(id==='tunaPoke'){
+    bit(g,0x516b75,0,.039,0,.247,.079,.247,drum);
+    bit(g,palette.rice,0,.081,0,.221,.025,.221,drum);
+    for(let i=0;i<7;i++){
+      bit(g,0xa54250,-.061+(i%3)*.034,.105,-.063+Math.floor(i/3)*.034,.031,.027,.031,softCube);
+      bit(g,0x9dbd58,.026+(i%3)*.024,.102,-.055+Math.floor(i/3)*.035,.027,.021,.027,softCube);
+      bit(g,i%2?0x83a543:0xd89550,-.058+(i%4)*.038,.103,.03+Math.floor(i/4)*.03,.025,.021,.026,softCube);
+    }
+  }else if(id==='bbqRibs'){
+    for(let i=0;i<4;i++){
+      const z=-.064+i*.039;
+      bit(g,palette.bone,-.02,.035,z,.17,.026,.022,softCube).rotation.y=.11;
+      bit(g,0x7e3725,-.046,.058,z,.135,.047,.039,softCube).rotation.y=.11;
+      bit(g,0xad562e,-.05,.081,z,.106,.009,.031,softCube);
+    }
+    for(let i=0;i<8;i++){
+      const a=i*2.4;
+      bit(g,i%3===0?0xdc9852:0xdce2ac,.104+Math.cos(a)*.032,.034+(i%2)*.012,.04+Math.sin(a)*.032,.027,.011,.015,softCube).rotation.y=a;
+    }
+  }else if (RESTAURANT_DISHES.has(id)) restaurantDish(g,id as RecipeId|TakeoutId);
   else if (id==='omelette') {
     bit(g,palette.cheese,0,.023,0,.123,.035,.099,orb);
     for(let i=0;i<5;i++)bit(g,palette.leaf,Math.sin(i*2.5)*.070,.050,

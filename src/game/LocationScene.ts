@@ -137,12 +137,12 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     facade(root, C.pine);
     sign(root, station.name, 2.39, .20, 1.32, C.paper, textures, materials);
   } else if (kind === 'dine') {
-    shape(root, [.61, .13, .61], [0, .93, -.27], C.oak, drum, true);
+    shape(root, [1.38, .13, .78], [0, .93, -.27], C.oak, softCube, true);
     shape(root, [.13, .79, .13], [0, .46, -.27], C.walnut, drum);
-    bench(root, 1.47);
-    // Rotate the seats towards the table and align them with the role anchors.
-    for (const child of root.children.slice(2)) {
-      child.position.z = .53 - child.position.z;
+    for (const x of [-.40,.40]) {
+      const chair=new THREE.Group();
+      chair.position.set(x,0,.53); chair.rotation.y=Math.PI;
+      bench(chair,.59); root.add(chair);
     }
     const vase = shape(root, [.084, .19, .084], [.11, 1.09, -.29], C.leaf, drum);
     vase.rotation.z = .08;
@@ -200,6 +200,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const outdoor = place === 'park';
   const floor = new THREE.Group();
   let animatePark: ((seconds:number)=>void)|undefined;
+  let animateCafe: ((seconds:number)=>void)|undefined;
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
@@ -257,6 +258,14 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [-.40, -.11, .40]) shape(coffee, [.087, .11, .087], [x, 1.105, .17], C.paper, drum);
     floor.add(coffee);
     batchRigidParts(coffee);
+    const cashier=marketCashier(resources,{title:'Кассир',color:0x8b5142,shirt:0xf0d9b6,animated:true});
+    cashier.position.set(-1.35,0,-3.92);
+    cashier.rotation.y=0;
+    root.add(cashier);
+    animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.13;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.055);};
+    shape(floor,[1.85,1.00,.56],[-1.35,.50,-3.36],C.walnut,softCube,true);
+    shape(floor,[1.96,.10,.65],[-1.35,1.04,-3.36],C.oat);
+    shape(floor,[.37,.27,.14],[-1.65,1.22,-3.39],C.ink);
     sign(floor, 'ТЁПЛЫЙ УГОЛ', 2.18, -4.89, 3.02, C.paper, textures, materials);
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
@@ -279,7 +288,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
-    animate: animateWork ?? animatePark,
+    animate: animateWork ?? animatePark ?? animateCafe,
     setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();

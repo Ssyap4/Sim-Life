@@ -158,7 +158,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const spot=petTarget||(!a.object&&!seated)?twoSpots(state,place,origins,
     contact?RESIDENT_CLEARANCE+.05:1.10,petTarget):undefined;
   const result:Partial<Record<CharacterId,HomePresentation>>={};
-  const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?'cafe-left':null;
+  const localStation=a.object==='parkRest'?'park-bench':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):null;
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
   for(const role of ['vlad','alina'] as const){
@@ -182,7 +182,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const carry=a.object==='read'?'book':entry?.stops?.length?'plate':undefined;
     const picked=carry&&stops.length?walk(origins[role],stops[0])?.path.length:undefined;
     const pair:PairPresentation={motion:entry?.motion??(a.object==='petFeed'&&role!==from?'listen':a.motion),
-      place,from,target:focus,seat,station:localStation??undefined,pet,item:p,stroll:onward,
+      place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:p,stroll:onward,
       offsetMs:a.object==='read'&&role!==from?900:0,carry};
     result[role]={route,station:seat??'studyPractice',program,lesson:a.object==='lesson'?p:undefined,
       pickup:picked,pickupMs:picked!==undefined?600:undefined,pair};
@@ -295,7 +295,13 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'petPet':case 'petPlay':case 'petFeed':case 'petBrush':
       rejected=run(from,{type:'pet_action',pet:id as PetId,action:petActions[a.id]});break;
     case 'parkRest':rejected=each({type:'local_activity',station:'park-bench',action:'rest'});break;
-    case 'cafeMeal':rejected=each({type:'local_activity',station:'cafe-left',action:'dine'});break;
+    case 'cafeMeal':{
+      for(const role of roles){
+        rejected=run(role,{type:'local_activity',station:state.world.cafe[role]?.table??'cafe-left',action:'dine'});
+        if(!rejected.ok)break;
+      }
+      break;
+    }
     case 'walk':for(const role of roles) change(state,role,{energy:-1,fun:4});break;
   }
   if(rejected&&!rejected.ok) return rejected;
