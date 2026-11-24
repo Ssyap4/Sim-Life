@@ -71,6 +71,7 @@ export class Actor {
   private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; partner?:Actor; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
+  private gymDumbbells?:THREE.Group[];
   private mealSlow=false;
   private parkChatUntil=0;
   private swingHinge:THREE.Vector3|null=null;
@@ -315,6 +316,7 @@ export class Actor {
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
+    if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
     this.idleGesture = null;
@@ -371,6 +373,8 @@ export class Actor {
 
   playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
     this.activity = kind;
+    if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
+    if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=kind==='gymCurl';
     this.pan = target?.clone();
     this.cookingRecipe = kind === 'grill' || kind === 'prep' ? recipe : undefined;
     this.diningDish = undefined;

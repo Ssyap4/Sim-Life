@@ -1,0 +1,33 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState} from '../src/shared/protocol.ts';
+import {initialFitness} from '../src/shared/fitness.ts';
+import {approachFor,stationById,clockMinutes} from '../src/shared/locations.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simlife-041-fitness';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'pulse-mobile-'));let browser,page,server;
+try{
+ const s=initialState();s.autonomy={vlad:'off',alina:'off'};s.world.places.vlad='fitness';s.world.carDriver='vlad';
+ s.world.fitness=initialFitness();s.world.fitness.vlad.until=clockMinutes(s.clock)+43200;
+ Object.assign(s.characters.vlad,approachFor(stationById('fitness','fitness-treadmill-a'),'vlad'),{energy:100,hunger:100});
+ openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:'+server.port+'/?perf=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(2600);await page.screenshot({path:join(out,'club.jpg'),type:'jpeg',quality:90});
+ await page.locator('#phone-btn').click();await page.locator('[data-phone-app=fitness]').click();
+ const info=page.locator('.phone-info');assert.equal(await info.getByRole('button',{name:/Лёгкое кардио/}).count(),1);
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+ await page.screenshot({path:join(out,'phone.jpg'),type:'jpeg',quality:90});
+ await info.getByRole('button',{name:/Лёгкое кардио/}).click();
+ await page.waitForTimeout(5500);await page.screenshot({path:join(out,'treadmill.jpg'),type:'jpeg',quality:90});
+ assert.deepEqual(errors,[]);
+}finally{await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

@@ -1,4 +1,4 @@
-import {FITNESS_PASSES,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
+import {FITNESS_PASSES,FITNESS_BAR,fitnessBarItem,fitnessCareRole,fitnessCareAction,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
 import {skillRank} from '../src/shared/education';
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
 import { toyProduct,toyOwned } from '../src/shared/petToys';
@@ -88,6 +88,12 @@ export function setDogParkPosition(state: GameState): void {
 import {SPEAKER_MODELS,isSpeakerSku} from '../src/shared/speakerCatalog';
 import {VACUUM_MODELS,isVacuumSku} from '../src/shared/vacuumCatalog';
 import {controlVacuum} from '../src/shared/vacuum';
+export function fitnessTogetherTrip(source:GameState,driver:CharacterId):Result{
+  if(source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Для совместной поездки оба должны быть дома и свободны');
+  const next=structuredClone(source);next.world.carDriver=driver;
+  for(const r of ROLES){next.world.places[r]='fitness';Object.assign(next.characters[r],doorwayArrival('fitness','district',r),{pose:'idle'});const p=(next.world.fitness??=initialFitness())[r],now=clockMinutes(next.clock);if(p.ticket&&p.until<=now){delete p.ticket;p.visit=true;}if(p.booking!==undefined&&Math.abs(p.booking-now)<=60)delete p.booking;}
+  return done(next,'Приехали вместе в PULSE Fitness');
+}
 export const worldMessages = new Set(['fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
@@ -245,6 +251,12 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       Object.assign(next.characters[role],arrival,{pose:'idle'});
       return done(next,'Вернулись домой на машине');
     }
+    if(place==='fitness'){
+      const exit=stationById('fitness',command.via);if(command.place!=='district'||exit?.id!=='fitness-exit'||!at(source,role,exit))return fail('Подойди к выходу из клуба');
+      const next=structuredClone(source),parking=approachFor(stationById('home','family-car')!,role),other=neighborAt('home');
+      const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
+      if(!arrival)return fail('Парковка занята');if(next.world.fitness)delete next.world.fitness[role].visit;next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
+    }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
     if((place==='home'&&command.place==='district'||place==='district'&&command.place==='home')&&command.via===undefined)
@@ -260,7 +272,6 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     if(command.place==='fitness')return fail('До PULSE Fitness можно доехать на машине');
-    if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
     next.world.places[role] = command.place;
     if (command.dog === true) {
       pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
@@ -520,7 +531,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
-  fitnessSauna:'Сауна',fitnessTrain:'Тренировка',
+  fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
+  fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
@@ -529,9 +541,21 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
-  if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='fitness'&&!!fitnessExercise(station.action.facility)&&action==='fitnessTrain') && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
+  if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='fitness'&&!!fitnessExercise(station.action.facility)&&action==='fitnessTrain') && !(station.action.kind==='fitness'&&(fitnessCareAction(station.action.facility)===action||station.action.facility==='bar'&&!!fitnessBarItem(action))) && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
+  const bar=fitnessBarItem(action),care=station.action.kind==='fitness'?fitnessCareAction(station.action.facility):undefined;
+  if(bar||care===action){
+    if(place!=='fitness'||!fitnessAccess(source,role))return fail('Сначала оплати посещение клуба');
+    if(care===action&&station.action.kind==='fitness'&&fitnessCareRole(station.action.facility)!==role)return fail('Выбери свою раздевалку или санитарную зону');
+    if(bar&&source.money<bar.price)return fail('Недостаточно денег');
+    const next=structuredClone(source),c=next.characters[role];
+    if(bar){next.money-=bar.price;addLedger(next,role,'expense','takeout',bar.price,'PULSE · '+bar.name);c.hunger=Math.min(100,c.hunger+bar.hunger);c.energy=Math.min(100,c.energy+bar.energy);c.mood=Math.min(100,c.mood+4);const p=(next.world.fitness??=initialFitness())[role];p.fatigue=Math.max(0,p.fatigue-bar.fatigue);}
+    else if(action==='fitnessShower'){c.hygiene=100;c.comfort=Math.min(100,c.comfort+12);}
+    else if(action==='fitnessToilet')c.bladder=100;
+    else {c.comfort=Math.min(100,c.comfort+12);c.energy=Math.min(100,c.energy+3);}
+    c.pose='idle';return done(next,localLabels[action]+' · готово');
+  }
   if(action==='fitnessTrain'){
     if(place!=='fitness'||station.action.kind!=='fitness'||!fitnessAccess(source,role))return fail('Сначала оплати посещение клуба');
     const exercise=fitnessExercise(station.action.facility);if(!exercise)return fail('Выбери тренажёр');

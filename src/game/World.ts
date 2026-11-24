@@ -1,4 +1,4 @@
-import {fitnessExercise} from '../shared/fitness';
+import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
 import {isSpeakerSku} from '../shared/speakerCatalog';
 import {speakerItems,speakerDevice} from '../shared/speaker';
@@ -1204,7 +1204,11 @@ export class World {
           else actor.faceTowards(new THREE.Vector3(x,0,z));
           actor.playDomesticActivity(e.motion);
         }
-        if(command.action==='fitnessSauna')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x-.25,role==='vlad'?-.15:-.10,station.center.z-.52),0);
+        if(command.action==='fitnessLocker')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,role==='vlad'?-.25:-.20,station.center.z+.31),0);
+        if(command.action==='fitnessShower'){actor.setFurniturePose('idle',new THREE.Vector3(station.center.x,.10,station.center.z-.2),Math.PI);actor.playDomesticActivity('shower');}
+        if(command.action==='fitnessToilet'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x-.38,role==='vlad'?-.29:-.24,station.center.z-.06),0);actor.playDomesticActivity('toilet');}
+        if(fitnessBarItem(command.action)){actor.faceTowards(new THREE.Vector3(station.center.x,0,station.center.z));actor.playDomesticActivity('tea');}
+        if(command.action==='fitnessSauna')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.43:.43),role==='vlad'?-.15:-.10,station.center.z-.52),0);
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');
         if (command.action === 'unpack') actor.playDomesticActivity('tidy');
         if(isParkDogAction(command.action)){
@@ -3045,6 +3049,19 @@ export class World {
     this.audioFrame();
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
+    if(this.place==='fitness'&&this.remote){
+      const roles=['vlad','alina'] as const;
+      for(const [id,group] of this.remote.stations){
+        const belt=group.getObjectByName('PULSE belt'),crank=group.getObjectByName('PULSE crank'),stack=group.getObjectByName('PULSE stack');
+        if(!belt&&!crank&&!stack)continue;
+        const station=stationById('fitness',id)!;
+        const role=roles.find(r=>{const actor=this.actors[r],pos=approachFor(station,r);return actor.root.visible&&actor.audioMotion().activity?.startsWith('gym')&&Math.hypot(actor.root.position.x-pos.x,actor.root.position.z-pos.z)<.75;});
+        const t=role?this.actors[role].audioMotion().activityTime:0;
+        if(belt)belt.position.z=-(t*.52%.18);
+        if(crank)crank.rotation.x=t*5;
+        if(stack)stack.position.y=role?(.5+.5*Math.sin(t*2.8))*.20:0;
+      }
+    }
     if(this.place==='park'&&this.remote){
       const pivot=this.remote.stations.get('park-swing')?.getObjectByName('Leisure swing pivot');
       if(pivot)pivot.rotation.x=(['vlad','alina'] as const).some(r=>this.actors[r].root.visible&&this.actors[r].isParkSwing())?Math.sin(this.visualSeconds*1.7)*.15:0;

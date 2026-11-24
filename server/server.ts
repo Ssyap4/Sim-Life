@@ -27,7 +27,7 @@ import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
 import {dogBathPlan} from '../src/shared/dogBath';
 import {isTrainingAction} from '../src/shared/dogTraining';
-import { applyWorld, setDogParkPosition, worldMessages } from './locations';
+import { applyWorld, fitnessTogetherTrip, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -150,6 +150,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let pauseRequestedBy: CharacterId | null = null;
   let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
+  let fitnessTripOffer:{from:CharacterId;expires:number}|undefined;
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
@@ -1442,6 +1443,24 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         packet(socket, { type: 'error', reason: 'Персонаж сейчас занят — заверши или отмени действие' });
         return;
       }
+      if(message.type==='fitness_trip'){
+        const partner=otherRole(role),otherSocket=active.get(partner),now=pauseTimers.now();
+        const available=(r:CharacterId)=>state.world.places[r]==='home'&&!running.has(r)&&!homeTasks.busy(r)&&!sleepers.has(r)&&!(queuedTasks.get(r)?.length)&&!state.activeShifts[r]&&!state.careers.residents[r].shift&&state.world.dogWalker!==r;
+        if(!otherSocket||state.world.carDriver||!available(role)||!available(partner)){fitnessTripOffer=undefined;packet(socket,{type:'error',reason:'Для поездки вдвоём оба игрока должны быть дома, онлайн и свободны'});return;}
+        if(!fitnessTripOffer||fitnessTripOffer.expires<now||fitnessTripOffer.from===role){
+          fitnessTripOffer={from:role,expires:now+60000};
+          packet(socket,{type:'world_event',role,message:'Предложение отправлено. Второму игроку нужно нажать «Поехать вдвоём» в PULSE Fitness.'});
+          packet(otherSocket,{type:'world_event',role:partner,message:names[role]+' предлагает поехать в PULSE. Подтверди в телефоне: «Поехать вдвоём».'});
+          return;
+        }
+        const result=fitnessTogetherTrip(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить поездку'});return;}
+        for(const r of [role,partner]){walkingHome.delete(r);stopLeisure(r);closeStorage(r);clearQueue(r);lastIntent.set(r,now);}
+        state=result.state;all({type:'snapshot',state});
+        for(const r of [role,partner])all({type:'world_event',role:r,message:result.message});
+        return;
+      }
       if(message.type==='fitness_program'){
         const program=fitnessProgram(message.program);
         if(!program||state.world.places[role]!=='fitness'||!fitnessAccess(state,role)||state.activeShifts[role]||state.careers.residents[role].shift||sleepers.has(role)||(queuedTasks.get(role)?.length??0)>0){packet(socket,{type:'error',reason:'Для программы нужен оплаченный вход в клуб и свободный персонаж'});return;}
@@ -1585,6 +1604,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         stopTask(role, names[role] + ': действие отменено из-за отключения');
         homeTasks.closeInvite('Игрок отключился');
         if (active.size === 1) commitLife(); else accountTime();
+        fitnessTripOffer=undefined;
         active.delete(role);
         if (pauseRequestedBy === role) {clearPauseRequest();announceTime();}
         else if (pauseRequestedBy && active.size === 1) setPaused(true);

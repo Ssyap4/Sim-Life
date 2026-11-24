@@ -32,7 +32,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
-import {FITNESS_PASSES,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
+import {FITNESS_PASSES,FITNESS_BAR,fitnessCareAction,fitnessCareRole,type FitnessBarAction,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
   const node = element('button', 'action-button', label);
   node.type = 'button';
@@ -78,7 +78,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if(state?.world.carDriver===role&&destination!=='home')return false;
+    if((state?.world.carDriver===role||location==='fitness')&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -104,10 +104,10 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const id = key as PlaceId;
       if (isCareerPlace(id)||id==='fitness'&&location!=='fitness') continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || (state.world.carDriver===role&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||location==='fitness')&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : state.world.carDriver===role&&id==='home'?'Вернуться на машине':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||location==='fitness')&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -175,9 +175,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else {options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
-      }));
+      }));}
     } else if(station.action.kind==='fitness'){
       if(station.action.facility==='reception'){
         options.append(element('small','',fitnessAccess(place,role)?'Абонемент действует':'Выбери билет или абонемент'));
@@ -186,6 +186,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         for(const id of Object.keys(FITNESS_PROGRAMS) as FitnessProgramId[]){const p=FITNESS_PROGRAMS[id];options.append(button(p.name+' · '+p.stations.length+' упр.',()=>{if(send({type:'fitness_program',program:id}))close();},!fitnessAccess(place,role)));}
       }else if(station.action.facility==='sauna'){
         options.append(element('small','','20 игровых минут · восстановление и комфорт'),local('Посетить сауну · '+formatRub(SAUNA_PRICE),'fitnessSauna'));
+      }else if(station.action.facility==='bar'){
+        for(const [id,item] of Object.entries(FITNESS_BAR))options.append(local(item.name+' · '+formatRub(item.price),id as FitnessBarAction));
+      }else if(fitnessCareAction(station.action.facility)){
+        const a=fitnessCareAction(station.action.facility)!;
+        if(fitnessCareRole(station.action.facility)!==role)options.append(element('small','','Выбери свою санитарную зону'));
+        else options.append(local(a==='fitnessShower'?'Принять душ':a==='fitnessToilet'?'Воспользоваться туалетом':'Отдохнуть на скамье',a));
       }else{
         const exercise=fitnessExercise(station.action.facility);
         if(exercise)options.append(element('small','',exercise.minutes+' игровых минут · усталость +'+exercise.fatigue+' · текущая '+Math.round(fitnessProfile(place,role).fatigue)+'%'),local(exercise.name,'fitnessTrain'));

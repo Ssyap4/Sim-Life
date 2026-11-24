@@ -9,7 +9,7 @@ export const FITNESS_PASSES={
 export type FitnessPass=keyof typeof FITNESS_PASSES;
 export type FitnessProfile={until:number;booking?:number;ticket?:boolean;visit?:boolean;fatigue:number;saunaDay:number;stats?:FitnessStats;lastTrainingDay?:number;trainingDay?:number;dailyGain?:number;workouts?:number;history?:{day:number;facility:string}[]};
 export type FitnessState=Record<CharacterId,FitnessProfile>;
-export type FitnessCommand={type:'fitness_pass';pass:FitnessPass}|{type:'fitness_book';at:number}|{type:'fitness_cancel'}|{type:'fitness_program';program:FitnessProgramId};
+export type FitnessCommand={type:'fitness_pass';pass:FitnessPass}|{type:'fitness_book';at:number}|{type:'fitness_cancel'}|{type:'fitness_program';program:FitnessProgramId}|{type:'fitness_trip'};
 export const initialFitness=():FitnessState=>({vlad:{until:0,fatigue:0,saunaDay:0},alina:{until:0,fatigue:0,saunaDay:0}});
 export function fitnessProfile(s:GameState,r:CharacterId){return s.world.fitness?.[r]??initialFitness()[r]}
 export const fitnessAccess=(s:GameState,r:CharacterId)=>fitnessProfile(s,r).until>gameMinutes(s.clock)||!!fitnessProfile(s,r).visit&&s.world.places[r]==='fitness';
@@ -78,3 +78,16 @@ export const FITNESS_PROGRAMS={
 } as const;
 export type FitnessProgramId=keyof typeof FITNESS_PROGRAMS;
 export function fitnessProgram(id:unknown){return typeof id==='string'&&Object.hasOwn(FITNESS_PROGRAMS,id)?FITNESS_PROGRAMS[id as FitnessProgramId]:undefined}
+
+export const FITNESS_BAR={
+ fitnessWater:{name:'Вода',price:90,hunger:3,energy:3,fatigue:2},
+ fitnessIsotonic:{name:'Изотоник',price:190,hunger:5,energy:6,fatigue:5},
+ fitnessShake:{name:'Протеиновый коктейль',price:320,hunger:25,energy:4,fatigue:8},
+ fitnessSmoothie:{name:'Фруктовый смузи',price:290,hunger:22,energy:5,fatigue:4},
+ fitnessSnack:{name:'Протеиновый батончик',price:180,hunger:20,energy:2,fatigue:3},
+ fitnessMeal:{name:'Спортивный обед',price:690,hunger:75,energy:5,fatigue:6},
+} as const;
+export type FitnessBarAction=keyof typeof FITNESS_BAR;
+export function fitnessBarItem(action:unknown){return typeof action==='string'&&Object.hasOwn(FITNESS_BAR,action)?FITNESS_BAR[action as FitnessBarAction]:undefined}
+export function fitnessCareRole(facility:string){return facility.endsWith('-v')?'vlad':facility.endsWith('-a')?'alina':undefined}
+export function fitnessCareAction(facility:string){return facility.startsWith('locker-')?'fitnessLocker':facility.startsWith('shower-')?'fitnessShower':facility.startsWith('toilet-')?'fitnessToilet':undefined}

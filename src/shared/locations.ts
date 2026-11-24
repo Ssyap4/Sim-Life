@@ -28,7 +28,7 @@ export const PLACES = {
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
-export const FITNESS_FLOOR={minX:-8.62,maxX:8.62,minZ:-6.62,maxZ:6.62};
+export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
@@ -172,6 +172,12 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('fitness-sauna','Сауна',7.1,3.05,2.35,2.2,{kind:'fitness',facility:'sauna'}),
     site('fitness-reception','Ресепшен PULSE',-6.7,5.8,2.7,0.85,{kind:'fitness',facility:'reception'},{approach:{x:-6.7,z:4.8}}),
     site('fitness-bar','Спортивный бар',5.05,5.8,2.2,0.85,{kind:'fitness',facility:'bar'},{approach:{x:5.05,z:4.8}}),
+    site('fitness-locker-v','Мужская раздевалка',10.4,-4.7,2.1,1.8,{kind:'fitness',facility:'locker-v'}),
+    site('fitness-locker-a','Женская раздевалка',13.1,-4.7,2.1,1.8,{kind:'fitness',facility:'locker-a'}),
+    site('fitness-shower-v','Мужская душевая',10.4,-.7,2.1,1.8,{kind:'fitness',facility:'shower-v'}),
+    site('fitness-shower-a','Женская душевая',13.1,-.7,2.1,1.8,{kind:'fitness',facility:'shower-a'}),
+    site('fitness-toilet-v','Мужской туалет',10.4,3.05,2.1,1.8,{kind:'fitness',facility:'toilet-v'}),
+    site('fitness-toilet-a','Женский туалет',13.1,3.05,2.1,1.8,{kind:'fitness',facility:'toilet-a'}),
     door('fitness-exit','Выход к машине','district',0,6.6,true),
   ],
   petshop:[
@@ -255,6 +261,7 @@ export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find
 export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind === 'education' && station.action.room !== 'reception')
     return { x: station.approach.x + (role === 'vlad' ? -.63 : .63), z: station.approach.z + .35 };
+  if(station.action.kind==='fitness'&&['sauna','bar'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.42:.42),z:station.approach.z};
   if(station.action.kind==='badminton')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.85};
   if (station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
@@ -345,7 +352,7 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./fitness').FitnessCommand
   | { type:'camp_pack'; item:CampRecipe|'fuel' }

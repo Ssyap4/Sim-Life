@@ -106,12 +106,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
     if(app==='fitness'){
-      const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60),state.world.places[role]]);
+      const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60),state.world.places[role],state.world.carDriver]);
       if(key!==fitnessKey){
         fitnessKey=key;const scroll=info.scrollTop;
         const formatTime=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':'+String(c.minute%60).padStart(2,'0')};
         const card=block('PULSE Fitness',p.until>now?'Абонемент до: '+formatTime(p.until):p.visit?'Разовое посещение активно':p.ticket?'Разовый билет куплен':'Нет действующего абонемента');
         for(const pass of Object.keys(FITNESS_PASSES) as FitnessPass[]){const product=FITNESS_PASSES[pass],b=document.createElement('button');b.type='button';b.textContent=product.name+' · '+product.price.toLocaleString('ru-RU')+' ₽';b.disabled=state.money<product.price||pass==='single'&&(fitnessAccess(state,role)||!!p.ticket);b.onclick=()=>fitnessControl?.({type:'fitness_pass',pass});card.append(b);}
+        if(state.world.places[role]==='home'&&!state.world.carDriver){const b=document.createElement('button');b.type='button';b.textContent='Поехать вдвоём';b.onclick=()=>fitnessControl?.({type:'fitness_trip'});card.append(b);}
         const booking=block('Запись',p.booking!==undefined&&p.booking>=now?'Записан: '+formatTime(p.booking):'Выбери удобное время.');
         const select=document.createElement('select');select.setAttribute('aria-label','Время посещения');
         for(const at of fitnessBookingSlots(now)){const option=document.createElement('option');option.value=String(at);option.textContent=formatTime(at);select.append(option);}

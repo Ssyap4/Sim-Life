@@ -186,3 +186,66 @@ test('cancelling a running program removes its remaining queued steps',async()=>
 test('program cannot start without paid access',async()=>{
  await gymClient(async(send,take)=>{send({type:'fitness_program',program:'cardio'});await take('error');},false);
 });
+
+import {FITNESS_BAR} from '../../src/shared/fitness';
+test('locker rooms, showers and toilets validate membership and character; bar charges once on completion',()=>{
+ let s=initialState();s.money=10000;s.world.places.vlad='fitness';
+ s.world.fitness=initialFitness();s.world.fitness.vlad.until=clockMinutes(s.clock)+1440;
+ const perform=(station:string,action:import('../../src/shared/locations').LocalActivity)=>{
+  Object.assign(s.characters.vlad,approachFor(stationById('fitness',station)!,'vlad'));
+  return localActivity(s,'vlad',action,station);
+ };
+ s.characters.vlad.hygiene=20;s.characters.vlad.bladder=12;
+ assert.equal(perform('fitness-shower-a','fitnessShower').ok,false);
+ let r=perform('fitness-shower-v','fitnessShower');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.hygiene,100);
+ r=perform('fitness-toilet-v','fitnessToilet');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.bladder,100);
+ s.characters.vlad.hunger=20;s.world.fitness!.vlad.fatigue=50;
+ r=perform('fitness-bar','fitnessShake');assert.ok(r.ok);s=r.state;
+ assert.equal(s.money,10000-FITNESS_BAR.fitnessShake.price);assert.equal(s.characters.vlad.hunger,45);assert.equal(fitnessProfile(s,'vlad').fatigue,42);
+ assert.equal(perform('fitness-bar','fitnessShower').ok,false);
+ s.money=0;assert.equal(perform('fitness-bar','fitnessShake').ok,false);
+});
+test('both live players consent to a club trip, exercise concurrently and return independently',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'pulse-pair-')),files=openServerFiles(dir);
+ const s=initialState();s.money=100000;s.autonomy={vlad:'off',alina:'off'};
+ for(const r of ['vlad','alina'] as const)Object.assign(s.characters[r],{energy:100,hunger:100});
+ files.save(s);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.025,autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ const sockets:WebSocket[]=[];
+ async function connect(role:'vlad'|'alina'){
+  const ws=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');sockets.push(ws);
+  const inbox:ServerPacket[]=[];ws.on('message',m=>inbox.push(JSON.parse(m.toString())));
+  const send=(o:object)=>ws.send(JSON.stringify(o));
+  async function take<K extends ServerPacket['type']>(kind:K,where:(e:Extract<ServerPacket,{type:K}>)=>boolean=()=>true){
+   const end=Date.now()+8000;
+   while(Date.now()<end){const i=inbox.findIndex(e=>e.type===kind&&where(e as Extract<ServerPacket,{type:K}>));if(i>=0)return inbox.splice(i,1)[0] as Extract<ServerPacket,{type:K}>;await new Promise(r=>setTimeout(r,10));}
+   throw Error('Missing '+kind+'; '+inbox.map(e=>e.type).join(','));
+  }
+  await once(ws,'open');send({type:'auth',role,code:files.access[role]});await take('ready');return {send,take};
+ }
+ try{
+  const v=await connect('vlad'),a=await connect('alina');
+  v.send({type:'fitness_pass',pass:'family'});
+  await a.take('snapshot',p=>fitnessAccess(p.state,'vlad')&&fitnessAccess(p.state,'alina'));
+  v.send({type:'fitness_trip'});await a.take('world_event',p=>p.role==='alina');
+  const before=files.load();assert.equal(before.world.places.alina,'home');assert.equal(before.world.places.vlad,'home');
+  a.send({type:'fitness_trip'});
+  const arrived=await v.take('snapshot',p=>p.state.world.places.vlad==='fitness'&&p.state.world.places.alina==='fitness');
+  assert.equal(arrived.state.world.carDriver,'vlad');
+  v.send({type:'local_activity',action:'fitnessTrain',station:'fitness-treadmill-a'});
+  a.send({type:'local_activity',action:'fitnessTrain',station:'fitness-treadmill-b'});
+  const x=await v.take('task_started',p=>p.role==='vlad'),y=await v.take('task_started',p=>p.role==='alina');
+  await v.take('task_ended',p=>p.taskId===x.taskId&&p.outcome==='completed');
+  await v.take('task_ended',p=>p.taskId===y.taskId&&p.outcome==='completed');
+  await v.take('snapshot',p=>fitnessProfile(p.state,'vlad').workouts===1&&fitnessProfile(p.state,'alina').workouts===1);
+  a.send({type:'approach',place:'fitness',station:'fitness-exit'});
+  await a.take('world_path',p=>p.role==='alina'&&p.station==='fitness-exit');
+  a.send({type:'travel',place:'district',via:'fitness-exit'});
+  await v.take('snapshot',p=>p.state.world.places.alina==='home'&&p.state.world.places.vlad==='fitness');
+  v.send({type:'approach',place:'fitness',station:'fitness-exit'});
+  await v.take('world_path',p=>p.role==='vlad'&&p.station==='fitness-exit');
+  v.send({type:'travel',place:'district',via:'fitness-exit'});
+  const final=await a.take('snapshot',p=>p.state.world.places.vlad==='home'&&p.state.world.places.alina==='home');
+  assert.equal(final.state.world.carDriver,undefined);
+ }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});
