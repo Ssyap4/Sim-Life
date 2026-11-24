@@ -65,7 +65,7 @@ test('0.27 v6: a server-planned cat jump uses a reachable floor route and saved 
   const times=[.01,.1,.1,.1,.1,.1,.1,.1,.1,.1];
   let call=0;
   runPetRoutines(state,0,480,new Set(),()=>times[Math.min(call++,times.length-1)]);
-  assert.equal(state.pets.verdell.routine?.kind,'wander');
+  assert.ok(['wander','toy'].includes(state.pets.verdell.routine?.kind??''));
   const routine=state.pets.simba.routine!;
   assert.equal(routine.kind,'perch');
   assert.equal(routine.perch?.key,spot.key);

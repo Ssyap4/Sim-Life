@@ -85,3 +85,8 @@
 @media(prefers-reduced-motion:reduce) {
   .world-tap-pulse {animation:none;opacity:.55;transform:scale(1)}
 }
+
+/* Keep camera controls from obscuring compact pet and café action sheets. */
+@media(max-width:640px) and (orientation:portrait){
+  #app:has(#actions:not([hidden]),#location-panel:not([hidden])) .camera-dock{visibility:hidden;}
+}

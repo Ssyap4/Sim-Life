@@ -127,7 +127,6 @@ export function renderPetChoices(
       hint: 'Радость и дружба · немного энергии игрока',
       disabled: stats.satiety < 8,
     },
-    {action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0},
     { action: 'pet', icon: '❤️', hint: 'Ласка, настроение и доверие', disabled: false },
     { action: 'brush', icon: '🪮', hint: 'Уход за шерстью и привязанность', disabled: false },
 
@@ -154,6 +153,7 @@ export function renderPetChoices(
     action:'fetch',icon:'🎾',hint:'Пробежать к мячику и принести его обратно',
     disabled:stats.satiety<40||stats.bladder<35||stats.energy<42,
   });
+  actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
   for (const row of actions) {
     const button = document.createElement('button');
     button.type = 'button';

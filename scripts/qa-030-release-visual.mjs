@@ -26,7 +26,7 @@ async function scenario(s,fn){
   page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{
    const Native=window.WebSocket;
-   window.WebSocket=class extends Native{constructor(...args){super(...args);if(this.url.includes('/sync')){window.qaSocket=this;this.addEventListener('message',e=>{const p=JSON.parse(e.data);if(p.type==='snapshot'||p.type==='ready')window.qaState=p.state;});}}};
+   window.WebSocket=class extends Native{constructor(...args){super(...args);if(this.url.includes('/sync')){window.qaSocket=this;this.addEventListener('message',e=>{const p=JSON.parse(e.data);if(p.type==='snapshot'||p.type==='ready')window.qaState=p.state;if(p.type==='task_started')window.qaTask=p;if(p.type==='task_ended')window.qaEnded=p;});}}};
   });
   buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(buddy,'open');
   buddy.send(JSON.stringify({type:'auth',role:'alina',code:auth}));
@@ -63,6 +63,7 @@ try{
  await scenario(s,async(page,shot,send,files)=>{
   await shot('01-home-starter-items');
   await send({type:'eat',recipe:'omelette'});
+  await page.waitForFunction(()=>window.qaTask?.command.type==='eat',undefined,{timeout:10000});
   await page.waitForTimeout(3500);
   await shot('02-dining-begging');
   for(const id of ['verdell','simba']){
@@ -95,7 +96,7 @@ try{
   if(await seat.count()){await seat.click();await page.waitForFunction(()=>window.qaState?.characters.vlad.pose==='sit',undefined,{timeout:15000});}
   await shot('07-cafe-table-panel');
   const talk=page.getByRole('button',{name:/Поболтать за столиком/});
-  if(await talk.count()){await talk.click();await page.getByText('Как прошёл день?',{exact:true}).waitFor({timeout:10000});await shot('08-cafe-talk-menu');}
+  await talk.waitFor({timeout:10000});await talk.click();await page.getByText('Как прошёл день?',{exact:true}).waitFor({timeout:10000});await shot('08-cafe-talk-menu');
  });
  assert.deepEqual(errors,[]);
 }finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}
