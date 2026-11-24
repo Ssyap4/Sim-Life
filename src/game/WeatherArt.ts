@@ -109,7 +109,10 @@ export class WeatherArt {
     const outdoors=['home','district','park','industrial'].includes(place);
     if(fog instanceof THREE.Fog&&outdoors){
       fog.color.copy(sky);
-      fog.near=preset.near;fog.far=preset.far;
+      // The home overview camera is much farther away than the park camera.
+      // Weather must never erase the entire cutaway house at normal zoom.
+      fog.near=place==='home'?Math.max(110,preset.near):preset.near;
+      fog.far=place==='home'?Math.max(185,preset.far):preset.far;
     }
     sun.intensity*=preset.direct;
     this.stormLight=this.mode==='storm'&&!this.reducedMotion&&outdoors?sun:undefined;

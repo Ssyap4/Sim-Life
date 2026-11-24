@@ -166,6 +166,8 @@ function makeKitchen(): THREE.Group {
     part(kitchen, [x2 - x1, 0.126, z2 - z1], [(x1 + x2) / 2, 0.966, (z1 + z2) / 2],
       C.stone, cube, true, 'ceramic');
   }
+  // Brushed front edge highlights the worktop without obstructing appliances.
+  part(kitchen,[4.18,.025,.019],[0,1.012,.476],0xa6a89e,'square',false,'metal');
   // Thin plinth and continuous lower moulding improve depth without
   // changing the counter's footprint or any work target.
   part(kitchen,[4.09,.085,.043],[0,.16,.435],0x29463e,'soft',false,'wood');

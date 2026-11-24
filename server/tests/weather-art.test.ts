@@ -33,6 +33,14 @@ test('clear, reduced motion and recovery mode allocate no visible particle batch
   }
 });
 
+test('home overview remains readable in every weather preset',()=>{
+ for(const mode of ['rain','snow','storm','fog','overcast']){
+  const scene=new THREE.Scene();scene.background=new THREE.Color(0xffffff);scene.fog=new THREE.Fog(0xffffff,49,75);
+  new WeatherArt('?weather='+mode,false,false).light(scene,'home',new THREE.DirectionalLight(),new THREE.HemisphereLight());
+  assert.ok(scene.fog.near>=110&&scene.fog.far>=185);
+ }
+});
+
 test('distance fog affects outdoor views and keeps the shop interior depth range',()=>{
   const weather=new WeatherArt('?weather=fog',false,false);
   for(const place of ['district','cafe'] as const){

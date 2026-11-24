@@ -12,7 +12,7 @@ test('practicals are batched and add only one shadowless night light',()=>{
  assert.equal(lamps.bedroom.castShadow,false);
  assert.equal(lamps.bedroom.intensity,10);
  let meshes=0;lamps.group.traverse(p=>{if(p instanceof THREE.Mesh)meshes++});
- assert.ok(meshes<=3);
+ assert.ok(meshes<=7);
  lamps.setLevel(0);assert.equal(lamps.bedroom.visible,false);
  assert.equal(lamps.bedroom.intensity,0);
 });

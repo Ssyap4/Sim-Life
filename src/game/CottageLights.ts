@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {HOUSE} from '../shared/home';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {cube,softCube,finish,paintedMap,batchRigidParts} from './ArtKit';
+import {cube,softCube,drum,finish,paintedMap,batchRigidParts} from './ArtKit';
 /** Visible warm practicals with a single additional shadowless light.
  * The wall glow is a shared painted mask, not a post-processing pass. */
 export function buildCottageLights(scene:THREE.Scene){
@@ -22,16 +22,30 @@ export function buildCottageLights(scene:THREE.Scene){
   for(const side of [-1,1]){const rim=new THREE.Mesh(cube,metal);rim.scale.set(.25,.035,.19);rim.position.set(x,y+side*.14,z+.105);group.add(rim);}
   if(map){glowParts.push(new THREE.PlaneGeometry(1.4,1.55).translate(x,y,z-.026));}
  }
+ // Small ceiling-mounted fixtures leave the cutaway camera open.
+ const shadeMat=new THREE.MeshStandardMaterial({color:0x8b6b48,roughness:.68,metalness:.22});
+ for(const [x,y,z,wide] of [[2.39,2.75,-2.22,.44],[-2.36,2.76,1.0,.39],[7.1,2.72,-4.4,.26],[7.6,2.72,2.5,.29],[-7.3,2.72,3.35,.24]]){
+  const rod=new THREE.Mesh(drum,metal);rod.scale.set(.018,.25,.018);rod.position.set(x,y+.18,z);group.add(rod);
+  const shade=new THREE.Mesh(drum,shadeMat);shade.scale.set(wide,.11,wide);shade.position.set(x,y+.035,z);group.add(shade);
+  const lamp=new THREE.Mesh(drum,diffuser);lamp.scale.set(wide*.86,.035,wide*.86);lamp.position.set(x,y-.033,z);group.add(lamp);
+ }
+ // Soft reflected pools give the bathrooms, study and dining table a local
+ // evening glow without extra punctual lights or shadow-map passes.
+ if(map)for(const [x,z,w,d] of [[2.39,-2.22,3.5,3.0],[-2.36,1.0,3.7,3.2],[7.1,-4.4,3.0,3.0],[7.6,2.5,3.4,3.4],[-7.3,3.35,2.8,2.4]]){
+  const p=new THREE.PlaneGeometry(w,d);p.rotateX(-Math.PI/2);p.translate(x,.038,z);glowParts.push(p);
+ }
  batchRigidParts(group);
  if(glowParts.length){const geo=mergeGeometries(glowParts);for(const p of glowParts)p.dispose();if(geo){const mesh=new THREE.Mesh(geo,glowMat);mesh.raycast=()=>{};glows.add(mesh);}}
  group.add(glows);
+ // Decorative light fixtures must not intercept interaction rays.
+ group.traverse(p=>{if(p instanceof THREE.Mesh)p.raycast=()=>{};});
  const bedroom=new THREE.PointLight(0xffc48c,0,11,2);
  bedroom.position.set(-6.5,2.55,-3.95);bedroom.castShadow=false;bedroom.visible=false;group.add(bedroom);
  scene.add(group);
  return {group,bedroom,setLevel(level:number){
   const amount=THREE.MathUtils.clamp(level,0,1);
   diffuser.emissiveIntensity=amount*1.25;
-  glowMat.opacity=amount*.76;glows.visible=amount>.04;
+  glowMat.opacity=amount*.61;glows.visible=amount>.04;
   bedroom.intensity=amount*10;bedroom.visible=amount>.04;
  }};
 }

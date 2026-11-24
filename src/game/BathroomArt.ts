@@ -59,6 +59,7 @@ function shower(root: THREE.Group): void {
   part(root, [.043, .076, .076], [.596, 1.06, .16], C.pine, 'metal');
   part(root, [.18, .047, .34], [.59, 1.26, -.34], porcelain);
   part(root, [.085, .15, .085], [.57, 1.36, -.38], C.clay, 'ceramic', drum);
+  part(root,[.065,.12,.065],[.57,1.34,-.23],0x88a7a1,'ceramic',drum);
 }
 
 function roundedRectangle(path: THREE.Path, w: number, d: number, radius: number): void {
@@ -92,6 +93,7 @@ function bathtub(root: THREE.Group): void {
   tap(root, -.31, .66, -.87);
   part(root, [.31, .067, .25], [.54, .66, .80], 0xcba889, 'fabric');
   part(root, [.28, .059, .29], [.48, .72, .78], C.paper, 'fabric');
+  part(root,[.23,.008,.027],[.48,.752,.86],0xc3a78c,'fabric',cube);
 }
 
 function basin(root: THREE.Group): void {
@@ -117,6 +119,9 @@ function basin(root: THREE.Group): void {
   part(root, [1.00, .89, .053], [0, 1.662, -.277], C.walnut, 'wood');
   panel(root, [0, 1.662, -.247], [.91, .80], reflection, glaze, .18);
   part(root, [.52, .043, .052], [0, 2.16, -.21], C.paper);
+  // A slim brushed-metal mirror frame and folded towel on the existing vanity.
+  for(const side of [-1,1])part(root,[.026,.80,.022],[side*.455,1.662,-.224],chrome,'metal',cube);
+  part(root,[.20,.032,.15],[-.43,.85,.12],0xb4a191,'fabric');
   part(root, [.104, .154, .10], [.46, .906, -.12], C.clay);
 }
 

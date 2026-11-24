@@ -43,6 +43,11 @@ function rearWall(home: THREE.Group): void {
   for(const x of [left-.07,right+.07])shape(home,cube,[.055,1.77,.082],[x,2.03,z+.20],C.walnut,'wood');
   shape(home, softCube, [3.61, 0.105, 0.40], [center, bottom, z + .14], C.oat, 'wood');
   shape(home, softCube, [3.54, 0.092, 0.23], [center, top, z + .14], C.paper, 'wood');
+  // A restrained shelf lip and small planters on the existing sill.
+  for(const [x,color] of [[center-1.36,0xb87254],[center+1.36,0x718f75]]){
+    shape(home,drum,[.09,.15,.09],[x,bottom+.115,z+.21],color,'ceramic');
+    shape(home,softCube,[.19,.16,.16],[x,bottom+.255,z+.21],0x708e54);
+  }
   const rod = shape(home, drum, [0.036, 3.84, 0.036], [center, 2.97, z + .29], C.brass, 'metal');
   rod.rotation.z = Math.PI / 2;
 
@@ -84,6 +89,8 @@ function roomPartitions(home: THREE.Group): void {
     const height = z > HOUSE.maxZ - .10 ? .23 : .43;
     timberWall(home,[width,height,depth],[x,height/2,z]);
     shape(home, cube, [width + .028, .054, depth + .028], [x, height, z], C.walnut, 'wood');
+    // Skirting remains inside the original wall volume plus its existing trim.
+    shape(home,cube,[width+.018,.09,depth+.018],[x,.045,z],0x795638,'wood');
   }
   // Deep rear and far side walls establish the volume. The viewer-facing sides are cut away.
   for (const side of [-1, 1]) {
@@ -98,12 +105,14 @@ function roomPartitions(home: THREE.Group): void {
       const mid = (minZ + maxZ) / 2;
       timberWall(home,[.22,height,span],[x,height/2,mid]);
       shape(home, cube, [.27, .07, span], [x, height, mid], C.walnut, 'wood');
+      shape(home,cube,[.25,.10,span],[x,.05,mid],C.walnut,'wood');
     }
   }
   for (const [key, { x, z, width }] of Object.entries(HOME_DOORS)) {
     shape(home, cube, [.40, .024, width], [x, .018, z], C.oat, 'wood');
     for (const side of [-1, 1]) {
       shape(home, softCube, [.25, .96, .103], [x, .48, z + side * width / 2], C.walnut, 'wood');
+      shape(home,cube,[.265,.85,.026],[x,.48,z+side*(width/2+.048)],C.oat,'wood');
     }
     if (key === 'toilet') {
       // The open leaf is parked flush to the WC partition, beside the passage.
