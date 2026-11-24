@@ -1,3 +1,5 @@
+import { petFoodProduct } from '../src/shared/petShop';
+import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { ELECTRONICS,initialElectronics,validElectronics,isElectronicsId,installedElectronics } from '../src/shared/electronics';
 import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
@@ -45,7 +47,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','industrial'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial'].includes(w.places![w.carDriver]))) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
@@ -79,7 +81,7 @@ export function setDogParkPosition(state: GameState): void {
 }
 
 export const worldMessages = new Set([
-  'electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'pet_food_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -93,6 +95,15 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='pet_food_buy'){
+    if(place!=='petshop'||!at(source,role,stationById('petshop','pet-cash')))return fail('Подойди к кассе зоомагазина');
+    const product=petFoodProduct(command.product);if(!product)return fail('Неизвестный корм');
+    if(source.money<product.price)return fail('Недостаточно денег');
+    if(source.petFood[product.pet]+product.refills>PET_FOOD_MAX_REFILLS)return fail('Запас корма заполнен');
+    const next=structuredClone(source);next.money-=product.price;next.petFood[product.pet]+=product.refills;
+    const queue=next.pets[product.pet].foodQueue??=[];for(let i=0;i<product.refills;i++)queue.push(product.id);
+    addLedger(next,role,'expense','pets',product.price,product.name);return done(next,'Куплено: '+product.name);
+  }
   if(command.type==='electronics_buy'){
     if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');
     if(!isElectronicsId(command.model))return fail('Неизвестная модель');
@@ -129,7 +140,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='industrial')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial')return fail('Выбери доступное место');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;

@@ -23,6 +23,7 @@ import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
 import { validHomeQuests } from "../src/shared/homeJobQuests";
 import { JOBS, isJobId, isHomeJob, HOME_JOBS, validShiftPay } from '../src/shared/jobs';
+import { validPetFoodExtras } from "../src/shared/petShop";
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS } from '../src/shared/life';
@@ -144,7 +145,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&

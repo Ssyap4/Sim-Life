@@ -1,0 +1,29 @@
+name: Sim-Life 0.35 pet shop mobile visual
+on:
+  push:
+    branches: [feat/pet-life-035]
+    paths: ['src/**','server/**','scripts/qa-035-petshop.mjs','.github/workflows/simlife-035-petshop.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-petshop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-035-petshop.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simlife-035-petshop-frames
+          path: /tmp/simlife-035-petshop
+          retention-days: 7

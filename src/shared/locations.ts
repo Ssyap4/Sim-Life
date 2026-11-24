@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Сухой и влажный корм для Верделла и Симбы'},
   electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры и смартфоны'},
   clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
   market: { name: 'Супермаркет', icon: '🛒', detail: 'Отделы продуктов и касса' },
@@ -48,6 +49,8 @@ type SiteAction =
   | {kind:'warehouse';job:'ozon'|'wildberries'}
   | {kind:'electronics-display';category:import('./electronics').ElectronicsKind}
   | {kind:'electronics-checkout'}
+  | {kind:'pet-food-display';pet:import('./pets').PetId;form:'dry'|'wet'}
+  | {kind:'pet-checkout'}
   | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
   | { kind: 'door'; destination: PlaceId }
   | { kind: 'shelf'; categories: MarketCategory[] }
@@ -140,6 +143,14 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  petshop:[
+    site('pet-dog-dry','Сухой корм для собак',-3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'dry'}),
+    site('pet-cat-dry','Сухой корм для кошек',0,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'dry'}),
+    site('pet-cat-wet','Влажный корм для кошек',3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'wet'}),
+    site('pet-dog-wet','Влажный корм для собак',-3.75,.85,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'wet'}),
+    site('pet-cash','Касса',3.65,1.45,1.75,.8,{kind:'pet-checkout'}),
+    door('pet-exit','Выход на улицу','district',-2.75,4.60,true),
   ],
   electronics: [
     site('tech-desktop','Компьютеры',-3.75,-2.65,2.35,.95,{kind:'electronics-display',category:'desktop'}),
@@ -306,9 +317,10 @@ export type WorldCommand =
   | { type:'picnic_pack' | 'picnic_unpack'; kind:'meal'|'takeout'; item:string }
   | { type: 'close_storage' }
   | { type: 'travel'; place: PlaceId; via?: string; dog?: boolean }
+  | {type:'pet_food_buy';product:string}
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'industrial' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

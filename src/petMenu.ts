@@ -1,3 +1,4 @@
+import { nextPetFood,petFoodProduct,FOOD_REACTIONS } from './shared/petShop';
 import {
   PETS, PET_IDS, PET_ACTION_NAMES, PET_BOWL_CAPACITY, petHungerLevel,treatsRemaining, type PetId, type PetAction,
 } from './shared/pets';
@@ -55,9 +56,11 @@ export function renderPetChoices(
   description.textContent = pet.species + ' · запас: ' + state.petFood[selected] + ' насыпаний' +
     ' · миска: ' + state.petBowls[selected] + '/' + PET_BOWL_CAPACITY + ' порций';
   container.appendChild(description);
+  const food=nextPetFood(stats),bowl=petFoodProduct(stats.bowlFood);
+  if(food||bowl||stats.foodPreferences){const note=document.createElement('p');note.className='pet-note';note.textContent=[bowl?'В миске: '+bowl.name:'',food?'Следующее насыпание: '+food.name:'',...Object.entries(stats.foodPreferences??{}).map(([id,value])=>petFoodProduct(id)?.name+': '+FOOD_REACTIONS[value])].filter(Boolean).join(' · ');container.appendChild(note);}
   if(state.petFood[selected]===0){
     const note=document.createElement('p');note.className='pet-note';
-    note.textContent='Корм закончился. Купи его в супермаркете или закажи доставку продуктов.';
+    note.textContent='Корм закончился. Купи его в зоомагазине, супермаркете или закажи доставку продуктов.';
     container.appendChild(note);
   }
   const beds=petBeds(state.furnishing,selected);

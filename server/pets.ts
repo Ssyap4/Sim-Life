@@ -1,3 +1,4 @@
+import { petFoodProduct,discoverFoodPreference,nextPetFood } from "../src/shared/petShop";
 import { catOccupiedPerch } from '../src/shared/catOccupancy';
 import { HOME_FLOOR } from '../src/shared/home';
 import { catPerchCandidates, currentCatPerch, type CatPerch } from '../src/shared/CatPerches';
@@ -168,7 +169,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
   for (const id of PET_IDS) {
     const pet = state.pets[id];
     const drain = (value: number, rate: number) => Math.round(clamp(value - minutes * rate / 60) * 100) / 100;
-    pet.satiety = drain(pet.satiety, 4);
+    pet.satiety = drain(pet.satiety, pet.foodFullUntil && pet.foodFullUntil>now ? 2.6 : 4);
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
     const previous = pet.routine;
@@ -205,8 +206,14 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if (previous?.kind === 'eat' && state.petBowls[id] > 0) {
       // The bowl — not a packet in household storage — pays for each meal.
       state.petBowls[id]--;
-      pet.satiety = clamp(pet.satiety + PET_EAT_SATIETY_GAIN);
-      pet.happiness = clamp(pet.happiness + 3);
+      const food=petFoodProduct(pet.bowlFood);
+      if(food){
+        const preference=discoverFoodPreference(pet,food.id,random);
+        pet.satiety=clamp(pet.satiety+food.satiety);
+        pet.happiness=clamp(pet.happiness+food.happiness+[-5,0,3,7][preference]);
+        if(food.lasting)pet.foodFullUntil=Math.floor(now)+food.lasting;
+      }else{pet.satiety=clamp(pet.satiety+PET_EAT_SATIETY_GAIN);pet.happiness=clamp(pet.happiness+3);}
+      if(!state.petBowls[id])delete pet.bowlFood;
     } else if (previous?.kind === 'toilet') {
       pet.bladder = 100;
     } else if (previous?.kind === 'sleep' && !invalidEquipment) {
@@ -420,10 +427,12 @@ export function applyPetAction(
         return { ok: false, reason: 'В миске ' + spec.name + ' ещё есть корм. Дождись, пока питомец его съест' };
       if (next.petFood[id] <= 0)
         return { ok: false, reason: 'Корм для ' + spec.name + ' закончился — купи ещё одну пачку' };
+      const food=nextPetFood(data);
+      if(food){data.foodQueue!.shift();data.bowlFood=food.id;}else delete data.bowlFood;
       next.petFood[id]--;
       next.petBowls[id] += PET_BOWL_CAPACITY;
       message = names[role] + ': насыпано ' + PET_BOWL_CAPACITY + ' порции в миску ' + spec.name +
-        ' · осталось насыпаний в запасе: ' + next.petFood[id];
+        ' · осталось насыпаний в запасе: ' + next.petFood[id]+(food?' · '+food.name:'');
       break;
     case 'play':
       if (actor.energy < 5) return { ok: false, reason: 'Для игры с питомцем нужно немного отдохнуть' };
