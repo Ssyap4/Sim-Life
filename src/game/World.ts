@@ -1242,7 +1242,7 @@ export class World {
           role==='vlad'?'code':'hair';
         this.computerScreens.task(role,command.computer??'desktop',{mode,role,...(mode==='game'?{game:GAME_BY_ID.keys().next().value}: {})});
       }
-      if(command.actionId==='curtainsOpen'||command.actionId==='curtainsClose'){
+      if(command.actionId==='curtainsOpen'||command.actionId==='curtainsClose'||command.actionId==='windowOpen'||command.actionId==='windowClose'){
         return this.walkTo(role,points.kitchenWindow,()=>{if(!current())return;const target=new THREE.Vector3(-3.12,1.67,-7.28);this.actors[role].faceTowards(target);this.actors[role].playDomesticActivity('reach',target);});
       }
       if (command.actionId === 'kitchenServe') {
@@ -2201,7 +2201,10 @@ export class World {
     this.household = state;
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
     this.homeEffects.setTv(installedElectronics(state,role,'tv'));
-    for(const leaf of this.kitchenCurtains?.children??[])if(leaf.name.startsWith('Curtain'))leaf.scale.x=state.kitchenCurtainsClosed?1:.25;
+    for(const leaf of this.kitchenCurtains?.children??[]){
+      if(leaf.name.startsWith('Curtain'))leaf.scale.x=state.kitchenCurtainsClosed?1:.25;
+      if(leaf.name==='WindowSash')leaf.rotation.y=state.kitchenWindowOpen?1.05:0;
+    }
     const coffee=installedElectronics(state,role,'coffee');
     for(const model of this.coffeeModels?.children[0]?.children??[])model.visible=model.userData.electronicsId===coffee;
     const furnishingKey = JSON.stringify([state.furnishing?.placed ?? [],state.furnishing?.soldFixtures??[]]);

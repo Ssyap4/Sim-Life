@@ -32,6 +32,13 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
   const name = names[role];
   let message = '';
   switch (key) {
+    case 'windowOpen':case 'windowClose':{
+      const open=key==='windowOpen';
+      if(Boolean(state.kitchenWindowOpen)===open)return {ok:false,reason:open?'Окно уже открыто':'Окно уже закрыто'};
+      state.kitchenWindowOpen=open;
+      message=name+(open?': открыл(а) окно для проветривания':': закрыл(а) окно');
+      break;
+    }
     case 'curtainsOpen':case 'curtainsClose':{
       const closed=key==='curtainsClose';
       if(Boolean(state.kitchenCurtainsClosed)===closed)return {ok:false,reason:closed?'Шторы уже закрыты':'Шторы уже открыты'};

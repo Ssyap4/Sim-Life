@@ -1558,6 +1558,7 @@ function openActions(item: ItemId): void {
       actionId==='kitchenLeftovers' ? definition.label+' · '+freshTable+' на столе' :
       actionId==='kitchenServe' ? definition.label+' · '+freshFridge+' в холодильнике' : definition.label;
     if (actionId === 'kitchenDishes') button.disabled = !state || dishCount(state.dirtyDishes) === 0;
+    if(actionId==='windowOpen'||actionId==='windowClose')button.disabled=!state||Boolean(state.kitchenWindowOpen)===(actionId==='windowOpen');
     if(actionId==='curtainsOpen'||actionId==='curtainsClose')button.disabled=!state||Boolean(state.kitchenCurtainsClosed)===(actionId==='curtainsClose');
     if (actionId === 'kitchenLeftovers') button.disabled = !state||!freshTable||
       storageUsage(state).fridge>=FRIDGE_CAPACITY;

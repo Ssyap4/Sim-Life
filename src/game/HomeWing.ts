@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HOUSE_WING, HOUSE } from '../shared/home';
-import { batchRigidParts, colors as C, cube, finish } from './ArtKit';
+import { batchRigidParts, colors as C, cube, finish, panel } from './ArtKit';
+import {gardenView} from './ArtTextures';
 import {cottageFloor,timberWall} from './CottageArt';
 
 // A future-ready three-room wing. The established rooms, props, action anchors,
@@ -39,12 +40,24 @@ export function buildHomeWing(scene: THREE.Scene): void {
   }
   cottageFloor(wing,true);
   // Rear exterior behind the new rooms, with a tall window and a light sill.
-  timberWall(wing,[width,2.84,.19],[centerX,1.42,minZ]);
-  for (const x of [11.28, 13.72]) {
-    add(1.36, 1.13, .024, x, 1.85, minZ + .11, 0x8cabb0, 'ceramic');
-    add(1.48, .065, .20, x, 1.20, minZ + .23, C.oat);
-    add(.042, 1.14, .065, x, 1.85, minZ + .15, C.paper);
+  const windows=[11.28,13.72],half=.90,bottom=1.30,top=2.78,height=2.84;
+  let edge=minX;
+  for(const x of windows){
+    const left=x-half,right=x+half;
+    timberWall(wing,[left-edge,height,.19],[(edge+left)/2,height/2,minZ]);
+    timberWall(wing,[half*2,bottom,.19],[x,bottom/2,minZ]);
+    timberWall(wing,[half*2,height-top,.19],[x,(top+height)/2,minZ]);
+    panel(wing,[x,2.04,minZ-.12],[1.84,1.52],gardenView(),C.sky,.20);
+    for(const side of [-1,0,1])add(.09,1.53,.15,x+side*half,2.04,minZ+.10,C.paper);
+    add(1.88,.075,.15,x,2.13,minZ+.10,C.paper);
+    add(1.98,.10,.30,x,bottom,minZ+.14,C.oat);
+    add(1.95,.09,.20,x,top,minZ+.14,C.paper);
+    add(2.05,.035,.035,x,2.81,minZ+.23,C.brass,'metal');
+    for(const side of [-1,1])for(let i=0;i<3;i++)
+      add(.085,1.46,.075,x+side*(.86-i*.075),2.04,minZ+.27+.023*(i%2),i%2?0xe7c5a1:0xd7ab80,'fabric');
+    edge=right;
   }
+  timberWall(wing,[maxX-edge,height,.19],[(edge+maxX)/2,height/2,minZ]);
   // Exterior posts hint at future windows but don't enclose the cutaway camera.
   for (const z of [-6.75, -3.05, .50, 4.18]) {
     timberWall(wing,[.24,.95,.21],[maxX,.47,z]);

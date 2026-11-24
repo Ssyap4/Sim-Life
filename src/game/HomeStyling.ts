@@ -211,6 +211,14 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   }
   const rod=shape(curtains,drum,[.032,2.05,.032],[wx,2.84,wz+.23],C.brass,'metal');rod.rotation.z=Math.PI/2;
   // Wide but invisible selection surface makes the window tappable on phones.
+  // A hinged sash moves independently of the curtains. The garden view
+  // remains behind it, so opening the window actually changes the geometry.
+  const sash=new THREE.Group();sash.name='WindowSash';sash.position.set(wx+.90,2.04,wz+.16);
+  for(const x of [-.84,-.04])shape(sash,softCube,[.052,1.34,.075],[x,0,0],C.paper,'wood');
+  for(const y of [-.66,0,.66])shape(sash,softCube,[.84,.055,.075],[-.44,y,0],C.paper,'wood');
+  shape(sash,softCube,[.038,.15,.055],[-.79,-.04,.06],C.brass,'metal');
+  const glass=new THREE.Mesh(new THREE.PlaneGeometry(.78,1.27),new THREE.MeshBasicMaterial({color:0xb3cfc4,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide}));
+  glass.position.x=-.44;sash.add(glass);curtains.add(sash);
   const windowHit=new THREE.Mesh(new THREE.BoxGeometry(1.80,1.48,.025),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
   windowHit.position.set(wx,2.04,wz+.30);curtains.add(windowHit);
   home.add(curtains);

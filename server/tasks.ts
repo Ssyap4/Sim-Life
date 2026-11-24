@@ -40,7 +40,7 @@ export interface TaskPlan {
 export type EvaluatedTask = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 export const ACTION_SECONDS: Record<ActionId, number> = {
-  curtainsOpen:5,curtainsClose:5,
+  curtainsOpen:5,curtainsClose:5,windowOpen:5,windowClose:5,
   sofaRest: 9, sofaMovie: 13, sofaRead: 10, sofaMusic: 9, sofaCall: 8, sofaScroll: 20,
   officeChairSit: 12,
   bedSleep: 16, bedNap: 10, bedMake: 7, bedStretch: 8,

@@ -88,6 +88,7 @@ export interface GameState {
   characters: Record<CharacterId, CharacterState>;
   happiness: Record<CharacterId, HappinessState>;
   kitchenCurtainsClosed?:boolean;
+  kitchenWindowOpen?:boolean;
   emotionalEvents?: import('./emotions').EmotionalHistory;
 }
 
@@ -124,6 +125,8 @@ export interface ActionDefinition {
   role?: CharacterId;
 }
 export const ACTIONS = {
+  windowOpen:{label:'Открыть окно',item:'kitchenWindow',pose:'idle'},
+  windowClose:{label:'Закрыть окно',item:'kitchenWindow',pose:'idle'},
   curtainsOpen:{label:'Открыть шторы',item:'kitchenWindow',pose:'idle'},
   curtainsClose:{label:'Закрыть шторы',item:'kitchenWindow',pose:'idle'},
   sofaRest: { label: '🛋️ Отдохнуть', item: 'sofa', pose: 'sit' },
