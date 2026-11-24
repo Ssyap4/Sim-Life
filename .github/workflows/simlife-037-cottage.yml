@@ -1,0 +1,29 @@
+name: Sim-Life 0.37 cottage mobile visual
+on:
+  push:
+    branches: [feat/graphics-polish-037]
+    paths: ['src/**','scripts/qa-037-cottage.mjs','.github/workflows/simlife-037-cottage.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cottage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-037-cottage.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cottage-mobile-frames
+          path: /tmp/simlife-037-cottage
+          retention-days: 7

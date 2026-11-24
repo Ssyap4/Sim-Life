@@ -346,10 +346,13 @@ function makeTv(): THREE.Group {
 
 function makeDiningTable(): THREE.Group {
   const table = group(HOME_PLACEMENTS.table.x, HOME_PLACEMENTS.table.z);
-  part(table, [1.40, .10, 1.14], [0, DINING_TOP - .05, 0], C.woodLight, 'soft', true, 'wood');
-  part(table, [1.21, .11, .94], [0, .74, 0], C.woodDark, 'soft', false, 'wood');
+  // Smoked tempered glass: inexpensive glossy dark glass, no transmission pass.
+  const glass=part(table,[1.40,.075,1.14],[0,DINING_TOP-.0375,0],0x25383c,'soft',true,'ceramic');
+  glass.material=new THREE.MeshPhysicalMaterial({color:0x25383c,roughness:.19,metalness:.06,clearcoat:.78,clearcoatRoughness:.19,transparent:true,opacity:.89,depthWrite:true});
+  part(table,[1.18,.070,.91],[0,DINING_TOP-.109,0],0x343f40,'soft',false,'metal');
+  for(const side of [-1,1])part(table,[1.26,.012,.018],[0,DINING_TOP-.034,side*.555],0x607779,'square',false,'metal');
   for (const x of [-.55, .55]) for (const z of [-.41, .41]) {
-    part(table, [.10, .70, .10], [x, .36, z], C.woodDark, 'soft', true, 'wood');
+    part(table, [.085, .70, .085], [x, .36, z], 0x30383b, 'soft', true, 'metal');
   }
   for (const side of [-1, 1]) {
     const x = side * .99;
@@ -362,8 +365,7 @@ function makeDiningTable(): THREE.Group {
     }
     part(table, [.08, .23, .57], [back, .83, 0], C.wood, 'soft', true, 'wood');
   }
-  part(table, [.31, .012, 1.04], [0, DINING_TOP + .006, 0], C.moss);
-  for(const z of [-.45,.45])part(table,[.28,.003,.019],[0,DINING_TOP+.013,z],C.oat,'square');
+  // Bare glass surface keeps the existing plate and food anchors unobstructed.
   return table;
 }
 

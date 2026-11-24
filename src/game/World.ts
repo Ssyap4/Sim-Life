@@ -66,6 +66,7 @@ import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
+import { buildCottageLights } from './CottageLights';
 import { polishFurniture } from './FurnitureSurfaceArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
 import { dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
@@ -181,7 +182,8 @@ export class World {
   private graphicsStartedAt = performance.now();
   private smoothedFrameMs = 16.7;
   private lastQualityUpdate = performance.now();
-  private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 19, 2);
+  private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 14, 2);
+  private cottageLamps?:ReturnType<typeof buildCottageLights>;
   private socialSequence = 0;
   private badmintonStarted:number|null=null;
   private tennisStarted:number|null=null;
@@ -1576,7 +1578,10 @@ export class World {
     const sky=mixed(begin.sky,end.sky);
     (this.scene.background as THREE.Color).copy(sky);
     if(this.scene.fog)this.scene.fog.color.copy(sky);
-    this.roomGlow.intensity=this.place==='home'?mix(begin.glow,end.glow):0;
+    const lampLevel=this.place==='home'?THREE.MathUtils.clamp(mix(begin.glow,end.glow)/1.36,0,1):0;
+    this.roomGlow.intensity=lampLevel*12;
+    this.roomGlow.visible=lampLevel>.04;
+    this.cottageLamps?.setLevel(lampLevel);
     if(this.yard?.night)this.yard.night.visible=this.place==='home'&&(hour>=1135||hour<375);
     const solarAngle=(hour-360)/720*Math.PI;
     this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
@@ -1589,7 +1594,7 @@ export class World {
   private createLights(): void {
     this.scene.add(this.ambient);
     // One inexpensive shadowless practical light for evening interiors.
-    this.roomGlow.position.set(0, 2.55, -0.5);
+    this.roomGlow.position.set(1.2, 2.65, -2.0);
     this.roomGlow.castShadow = false;
     this.scene.add(this.roomGlow);
     // Broad daylight illuminates faces from the open side facing the home camera.
@@ -1620,6 +1625,7 @@ export class World {
 
   private createHome(): void {
     this.entryLeaf = decorateHome(this.scene);
+    this.cottageLamps=buildCottageLights(this.scene);
     buildHomeWing(this.scene);
     this.yard = buildYard(this.scene);
     this.familyCar=buildFamilyCar();
