@@ -1,3 +1,4 @@
+import { pendingHomeQuest, homeQuestContent } from "./shared/homeJobQuests";
 import { JOBS, homeJobsFor, shiftFullPay, shiftWage, stageForJob, type JobId } from './shared/jobs';
 import type { ComputerDevice } from './shared/computer';
 import { CAREERS, CAREER_IDS, CLINIC_MODULES, DETAIL_SERVICES, nextCareerShift, shiftWindow, dayOf,
@@ -92,14 +93,51 @@ function taskCard(state: GameState, role: CharacterId, send: Submit, device: Com
   return card;
 }
 
-export function createCareerHUD(root: HTMLElement, send: Submit, open: () => void) {
-  let previous = '';
+type HomeAnswer=(nonce:string,choice:number)=>boolean;
+function homeQuestCard(state:GameState,role:CharacterId,answer:HomeAnswer){
+  const shift=state.activeShifts[role],now=gameMinutes(state.clock);
+  const run=pendingHomeQuest(shift,now);
+  if(!shift||!run)return;
+  const spec=homeQuestContent(shift,run);
+  if(!spec)return;
+  const card=block('⚡ '+spec.title,spec.prompt);
+  card.classList.add('home-quest-card');
+  card.dataset.homeQuest=run.nonce;
+  const bonus=Math.max(0,Math.min(150,3500-shiftFullPay(shift)));
+  card.append(node('small','Осталось '+(run.until-now)+' игровых мин. · '+(bonus?'бонус '+formatRub(bonus):'бонус настроения')));
+  for(const [i,key] of run.order.entries()){
+    const choice=button(spec.options[key],()=>{if(answer(run.nonce,i))for(const b of card.querySelectorAll('button'))b.disabled=true;});
+    choice.dataset.homeQuestChoice=String(i);card.append(choice);
+  }
+  card.append(button('Пропустить',()=>{if(answer(run.nonce,-1))for(const b of card.querySelectorAll('button'))b.disabled=true;}));
+  return card;
+}
+export function createCareerHUD(root: HTMLElement, send: Submit, open: () => void,
+  home?:{answer:HomeAnswer;leave:()=>boolean}) {
+  let previous = '', leaveConfirm='';
   return {
     render(state: GameState | null, role: CharacterId | null) {
       const person = state && role && state.careers.residents[role];
       const shift = person && person.shift;
-      root.hidden = !shift;
-      if (!state || !role || !shift || !person) { previous = ''; root.replaceChildren(); return; }
+      const remote=state&&role&&state.activeShifts[role];
+      root.hidden = !shift && !remote?.homeDevice;
+      if(state&&role&&remote?.homeDevice&&home){
+        const now=gameMinutes(state.clock),signature=JSON.stringify([role,remote,now]);
+        if(signature===previous)return;
+        previous=signature;
+        const label=node('header');
+        const shiftKey=role+':'+remote.startedAt;
+        const leave=button(leaveConfirm===shiftKey?'Подтвердить':'Досрочно',()=>{if(leaveConfirm===shiftKey){if(home.leave())leaveConfirm='';}else{leaveConfirm=shiftKey;leave.textContent='Подтвердить';}});
+        label.append(node('strong','💻 '+JOBS[remote.job].name),leave);
+        const fraction=Math.max(0,Math.min(1,(now-remote.startedAt)/(remote.endsAt-remote.startedAt)));
+        const progress=node('progress');progress.max=1;progress.value=fraction;
+        const details=node('small',now<remote.startedAt?'Идёт к компьютеру':stageForJob(remote.job,fraction)+' · '+Math.round(fraction*100)+'% · '+formatRub(shiftFullPay(remote)));
+        root.replaceChildren(label,progress,details);
+        const quest=homeQuestCard(state,role,home.answer);
+        if(quest)root.append(quest);
+        return;
+      }
+      if (!state || !role || !shift || !person) { previous = ''; leaveConfirm=''; root.replaceChildren(); return; }
       const p = person.progress[shift.career]!;
       const signature = JSON.stringify([shift,gameMinutes(state.clock),p.history.at(-1)]);
       if (signature === previous) return;
@@ -117,8 +155,8 @@ export function createCareerHUD(root: HTMLElement, send: Submit, open: () => voi
 }
 
 export function createCareerUI(root: HTMLElement, send: Submit, education: (materialId: string) => void,
-  close: () => void, vote: (enabled: boolean) => boolean, device: () => ComputerDevice = () => 'laptop', homeOrders?: {start:(id:JobId)=>boolean;leave:()=>boolean}) {
-  const labels = { job:'Работа', vacancies:'Вакансии', inbox:'Письма', pay:'Зарплата' };
+  close: () => void, vote: (enabled: boolean) => boolean, device: () => ComputerDevice = () => 'laptop', homeOrders?: {start:(id:JobId)=>boolean;leave:()=>boolean;answer:HomeAnswer}) {
+  const labels = { job:'Работа', vacancies:homeOrders?'Работа из дома':'Вакансии', inbox:'Письма', pay:'Зарплата' };
   let page: keyof typeof labels = 'job';
   let prior = '', confirmed = '';
   let historyCareer: typeof CAREER_IDS[number] | undefined;
@@ -137,6 +175,7 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       tab.dataset.careerTab = value;
       tabs.append(tab);
     }
+    if(homeOrders)tabs.classList.add('home-career-tabs');
     section.append(tabs);
     if (Object.values(state.careers.residents).some(p=>p.shift)) {
       const enabled = time.shiftVotes.includes(role);
@@ -173,13 +212,14 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
         section.append(card);
       }
     } else if(page==='vacancies' && homeOrders) {
-      section.append(node('h2','Домашние заказы'),node('p','Разовые проекты · 2–3 игровых часа · 2 000–3 500 ₽ за заказ'));
+      section.append(node('h2','Работа из дома'),node('p','Разовые проекты · 2–3 игровых часа · 2 000–3 500 ₽. Во время заказа появляются мини-задания с бонусом за правильный ответ.'));
       const active=state.activeShifts[role];
       if(active?.homeDevice){
         const spec=JOBS[active.job],fraction=Math.max(0,Math.min(1,(now-active.startedAt)/(active.endsAt-active.startedAt)));
         const card=block('В работе · '+spec.name,now<active.startedAt?'Персонаж идёт к компьютеру':stageForJob(active.job,fraction));
         const progress=node('progress');progress.max=1;progress.value=fraction;
         card.append(progress,node('p',Math.round(fraction*100)+'% · осталось '+Math.max(0,active.endsAt-Math.max(now,active.startedAt))+' мин.'),node('small','Оплата: '+formatRub(shiftFullPay(active))),button('Завершить досрочно · '+formatRub(shiftWage(active,state.clock)),()=>homeOrders.leave()));section.append(card);
+        const quest=homeQuestCard(state,role,homeOrders.answer);if(quest)section.append(quest);
       }
       if(role==='vlad'&&device()!=='desktop')section.append(block('Заказы Влада доступны на ПК'));
       else for(const key of homeJobsFor(role)){

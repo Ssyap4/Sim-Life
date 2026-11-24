@@ -8,6 +8,7 @@ export interface ShiftAssignment {
   /** Rolled on the server at shift start; optional only for compatibility with older saves. */
   targetPay?: number;
   homeDevice?: import("./computer").ComputerDevice;
+  quests?: import("./homeJobQuests").HomeQuestRun[];
 }
 
 

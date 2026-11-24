@@ -2,7 +2,8 @@ import { computerDevice } from "../src/shared/computer";
 import { serviceAvailable } from "../src/shared/services";
 import { isHomeJob, HOME_JOBS } from "../src/shared/jobs";
 import { protectNeeds } from '../src/shared/happiness';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import { HOME_QUESTS, pendingHomeQuest, homeQuestContent, type HomeQuestRun } from '../src/shared/homeJobQuests';
 import { JOBS, isOfferedJob, totalGameMinutes, shiftFullPay, shiftWage, shiftWorkedMinutes,
   type JobId, type ShiftAssignment } from '../src/shared/jobs';
 import { addLedger, formatRub } from '../src/shared/economy';
@@ -29,8 +30,47 @@ export function beginShift(source:GameState,role:CharacterId,id:unknown,device?:
   const state=structuredClone(source);
   const startedAt=totalGameMinutes(state.clock)+(home?Math.max(0,Math.ceil(travelMinutes)):0);
   state.activeShifts[role]={job:id,hours,startedAt,endsAt:startedAt+hours*60,targetPay,...(home&&computerDevice(device)?{homeDevice:device}:{})};
+  if(isHomeJob(id)){
+    const pool=HOME_QUESTS[id], indices=pool.map((_,i)=>i);
+    const duration=hours*60;
+    const quests:HomeQuestRun[]=[];
+    for(let i=0;i<2;i++){
+      const index=indices.splice(randomInt(indices.length),1)[0];
+      const at=startedAt+Math.floor(duration*(i===0?.18:.57))+randomInt(0,9);
+      const order=[0,1,2];
+      for(let j=order.length-1;j>0;j--){const k=randomInt(j+1);[order[j],order[k]]=[order[k],order[j]];}
+      quests.push({nonce:randomUUID(),index,at,until:Math.min(at+32,startedAt+duration-5),order});
+    }
+    state.activeShifts[role]!.quests=quests;
+  }
   state.revision++;
   return {ok:true,state,message:names[role]+(home?' принял(а) домашний заказ: ':' отправился(-ась) на подработку: ')+spec.name+' · '+hours+' ч. игрового времени'};
+}
+
+/** A quest is optional; its nonce and single answer are validated by the server. */
+export function answerHomeQuest(source:GameState,role:CharacterId,nonce:unknown,choice:unknown):JobResult {
+  const shift=source.activeShifts[role],now=totalGameMinutes(source.clock);
+  const run=pendingHomeQuest(shift,now);
+  if(!shift?.homeDevice||!run||run.nonce!==nonce)return {ok:false,reason:'Это задание уже недоступно'};
+  if(choice!==-1&&(!Number.isInteger(choice)||Number(choice)<0||Number(choice)>=run.order.length))return {ok:false,reason:'Выбери вариант ответа'};
+  const spec=homeQuestContent(shift,run);
+  if(!spec)return {ok:false,reason:'Задание не найдено'};
+  const state=structuredClone(source),next=state.activeShifts[role]!,q=next.quests!.find(item=>item.nonce===nonce)!;
+  const correct=choice!==-1&&run.order[Number(choice)]===spec.answer;
+  q.result=choice===-1?'skipped':correct?'correct':'wrong';
+  let bonus=0;
+  if(correct){
+    const base=shiftFullPay(next);
+    bonus=Math.min(150,JOBS[next.job].payMax-base);
+    next.targetPay=base+bonus;
+    state.characters[role].mood=Math.min(100,state.characters[role].mood+2);
+  }
+  state.revision++;
+  return {ok:true,state,message:choice===-1?'Задание пропущено. Работа продолжается.':(correct?'Отлично! '+(bonus?'К оплате +'+formatRub(bonus)+'. ':''):'Не совсем. ')+spec.explanation};
+}
+export function expireHomeQuests(state:GameState):void {
+  const now=totalGameMinutes(state.clock);
+  for(const shift of Object.values(state.activeShifts))for(const run of shift?.quests??[])if(!run.result&&now>=run.until){run.result='skipped';state.revision++;}
 }
 
 /** The same settlement path pays complete and partial shifts. Client never supplies money or duration. */

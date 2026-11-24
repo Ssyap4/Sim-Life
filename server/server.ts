@@ -52,7 +52,7 @@ import { selectSleepBed } from '../src/shared/bedSleep';
 import { recoverSleep } from './timeControl';
 import { PausableTimers } from './pausableTimers';
 import type { PetId } from '../src/shared/pets';
-import { beginShift, leaveShiftEarly, settleCompletedShifts } from './jobs';
+import { beginShift, leaveShiftEarly, settleCompletedShifts, answerHomeQuest, expireHomeQuests } from './jobs';
 import { advanceCareers, applyCareer, careerCommands } from './careers';
 import { sampleWalk,planWalk, type WalkRoute } from '../src/game/navigation';
 
@@ -364,7 +364,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         Object.assign(state.characters[role], from, { pose });
       }
     }
-    const next = settleCompletedShifts(advanceLife(state, gameMinutes, online()));
+    const advanced=advanceLife(state, gameMinutes, online());
+    expireHomeQuests(advanced);
+    const next = settleCompletedShifts(advanced);
     for(const id of ["vlad","alina"] as const){const job=next.state.activeShifts[id];if(job?.homeDevice&&job.startedAt<=clockMinutes(next.state.clock))next.state.characters[id].pose="work";}
     advanceCareers(next.state, clockMinutes(state.clock), clockMinutes(next.state.clock), online());
     homeTasks.checkpoint(next.state);
@@ -1317,6 +1319,16 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       stopLeisure(role);
       if (running.get(role)?.automatic) stopTask(role, 'Управление возвращено игроку');
       if (homeTasks.automatic(role)) homeTasks.cancel(role, 'Управление возвращено игроку');
+      if(message.type==='home_job_answer'){
+        commitLife();
+        const result=answerHomeQuest(state,role,message.nonce,message.choice);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить ответ'});return;}
+        state=result.state;
+        all({type:'snapshot',state});
+        packet(socket,{type:'world_event',role,message:result.message});
+        return;
+      }
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
         // Legacy job_cancel messages are treated as early departure with fair partial pay.
         accountTime();

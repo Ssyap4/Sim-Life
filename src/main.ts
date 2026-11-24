@@ -801,7 +801,7 @@ const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skil
 skillsBtn.addEventListener('click',()=>{
   toggleNeeds(false); actionsEl.hidden=true; phone.close(); computer.close(); skillsPanel.open();
 });
-const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'));
+const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'),{answer:(nonce,choice)=>net.answerHomeJob(nonce,choice),leave:()=>net.leaveJobEarly()});
 const computer = createComputerUI(document.querySelector<HTMLElement>('#computer-overlay')!, {
   read: () => active && state ? { state, role:active, time:timeStatus } : null,
   act: (actionId,device) => {
@@ -834,6 +834,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   career: command => net.career(command),
   homeJob: (id,device)=>net.startJob(id,device),
   leaveJob: ()=>net.leaveJobEarly(),
+  answerHomeJob:(nonce,choice)=>net.answerHomeJob(nonce,choice),
   education: command => net.education(command),
   vote: enabled => net.setShiftSpeed(enabled),
   travel: () => locationUI.go('education'),

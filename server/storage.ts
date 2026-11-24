@@ -21,6 +21,7 @@ import { isReadyFoodBatch, reconcileReadyFood } from '../src/shared/readyFood';
 import { EMPTY_DIRTY_DISHES, validDirtyDishes } from '../src/shared/dirtyDishes';
 import { LEDGER_LIMIT } from '../src/shared/economy';
 import { validFamilyBudget, restoreFamilyBudget } from '../src/shared/familyBudget';
+import { validHomeQuests } from "../src/shared/homeJobQuests";
 import { JOBS, isJobId, isHomeJob, HOME_JOBS, validShiftPay } from '../src/shared/jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, PET_IDS, PET_ROAM, PET_ROUTINES,
   PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS, petDestination, type PetId, type PetState } from '../src/shared/pets';
@@ -118,6 +119,7 @@ const isValidState = (value: unknown): value is GameState => {
       if(isHomeJob(shift.job)){
         if(HOME_JOBS[shift.job].owner!==role||!["desktop","laptop"].includes(String(shift.homeDevice))||role==="vlad"&&shift.homeDevice!=="desktop")return false;
       }else if(shift.homeDevice!==undefined)return false;
+      if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
         Number(hours) >= JOBS[shift.job].hoursMin &&

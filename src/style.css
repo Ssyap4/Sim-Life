@@ -1467,3 +1467,8 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .happiness-actions button{font-size:11px;border:1px solid #c6b88d;border-radius:8px;padding:6px 8px;background:#f7edcf;color:#493c1d;flex:1}
 .happiness-actions button:disabled{opacity:.5}
 .need-track .need-protected{background:#9882c9}
+
+.career-tabs.home-career-tabs {grid-template-columns: .9fr 1.65fr .8fr 1fr;}
+.home-career-tabs .career-button {white-space:normal;line-height:1.15;min-width:0;}
+.home-quest-card {border-color:#b7c7e1;display:grid;gap:5px;}
+.home-quest-card .career-button {white-space:normal;text-align:left;line-height:1.25;min-height:36px;}

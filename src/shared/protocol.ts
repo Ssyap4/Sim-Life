@@ -186,6 +186,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'job_start'; job: import('./jobs').JobId; device?: import('./computer').ComputerDevice }
   | { type: 'job_cancel' } // compatibility with the first job-board prototype
   | { type: 'job_leave_early' }
+  | { type: 'home_job_answer'; nonce:string; choice:number }
   | { type: 'autonomy_mode'; mode: AutonomyMode }
   | { type: 'shift_speed'; enabled: boolean }
   | { type: 'sleep_start'; mode: import('./timeControl').SleepMode; furnitureId?: number }
