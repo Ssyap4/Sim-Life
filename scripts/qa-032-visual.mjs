@@ -50,7 +50,7 @@ async function scenario(s,fn){
 try{
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  const base=()=>{const s=initialState();s.autonomy.vlad=s.autonomy.alina='off';return s;};
- for(const [station,action] of [['park-chess','chess'],['park-picnic','picnic'],['park-swing','swing']]){
+ for(const [station,action] of [['park-badminton','badminton'],['park-picnic','picnic'],['park-swing','swing']]){
   const s=base();
   for(const role of ['vlad','alina']){s.world.places[role]='park';Object.assign(s.characters[role],approachFor(stationById('park',station),role),{pose:'sit',hunger:15});}
   s.world.picnic={portions:{vlad:[{kind:'meal',item:'omelette',expiresAt:clockMinutes(s.clock)+480}],alina:[{kind:'meal',item:'omelette',expiresAt:clockMinutes(s.clock)+480}]}};

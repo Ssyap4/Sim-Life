@@ -265,8 +265,8 @@ export function awardActivity(state: GameState, role: CharacterId, command: Time
   else if(command.type==='furniture_use'&&isLeisureAction(command.action)){
     const skill=LEISURE[command.action].skill;if(skill)practiceXP(state,role,'leisure:'+command.action,skill,label,12,8);
   }
-  else if (command.type === 'local_activity' && command.action === 'chess')
-    practiceXP(state, role, 'chess:' + command.station, 'logic', label, 12, 8);
+  else if (command.type === 'local_activity' && command.action === 'badminton')
+    practiceXP(state, role, 'badminton:' + command.station, 'fitness', label, 12, 8);
   else if (command.type === 'local_activity' && command.action === 'exercise')
     practiceXP(state, role, 'exercise:' + command.station, 'fitness', label, 9, 8);
   else if (command.type === 'act' && Object.hasOwn(routines, command.actionId)) {

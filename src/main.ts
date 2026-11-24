@@ -3,7 +3,7 @@ import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccup
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
-import { otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
+import { PARK_TALK_TOPICS, SOCIAL_BY_ID, contextAvailable, otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
 import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
@@ -1049,6 +1049,7 @@ const net = new LiveConnection({
   },
   onSocialClosed(id,message,reply){
     socialInvite.clear(id);
+    if(reply&&message==='Разговор во время отдыха')world.parkConversation();
     notify(reply?'«'+reply+'»':message);
     phone.refresh();
   },
@@ -1148,6 +1149,13 @@ function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:s
   if(target===active)return;
   locationUI.close();
   showActionMenu('♡ Вместе с '+names[target]);
+  const current=tasks.get(active),partner=tasks.get(target);
+  if(world.place==='park'&&current?.paired&&partner?.paired&&current.since!==null&&partner.since!==null&&['picnic','parkSwing'].includes(SOCIAL_BY_ID.get(current.paired.action)?.object??'')&&current.paired.action===partner.paired.action){
+    const me=active;
+    const note=document.createElement('p');note.textContent='Разговаривайте, не прерывая отдых.';actionsEl.append(note);
+    for(const topic of PARK_TALK_TOPICS.filter(t=>contextAvailable(t,state!,me))){const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=topic.title;b.onclick=()=>{if(net.social({type:'social_propose',action:topic.id}))actionsEl.hidden=true;};actionsEl.append(b);}
+    return;
+  }
   const busy=tasks.has(active)||tasks.has(target)?'Кто-то сейчас занят другим действием':undefined;
   if(online.includes(target)&&!tasks.has(active)&&tasks.get(target)?.isCooking){
     const join=document.createElement('button');

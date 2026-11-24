@@ -22,7 +22,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -66,6 +66,14 @@ export class Actor {
   private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; partner?:Actor; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
+  private mealSlow=false;
+  private parkChatUntil=0;
+  private swingBase:THREE.Vector3|null=null;
+  parkSwing(angle:number):void{if(this.swingBase){this.poseOffset.copy(this.swingBase);this.poseOffset.y+=1.4*(1-Math.cos(angle));this.poseOffset.z-=1.4*Math.sin(angle);}}
+  markParkSwing():void{this.swingBase=this.poseOffset.clone();}
+  isParkSwing():boolean{return this.swingBase!==null&&this.pose==='sit';}
+  parkConversation():void{this.parkChatUntil=this.clock+9;}
+  private readonly racket=new THREE.Group();
   private cookingRecipe: RecipeId | undefined;
   private diningDish: RecipeId | TakeoutId | undefined;
   private readonly props: ReturnType<typeof activityProps>;
@@ -184,6 +192,10 @@ export class Actor {
     });
 
     this.props = activityProps(this.figure,this.rig.wrists);
+    const handleR=new THREE.Mesh(drum,finish(0x765640,'wood'));handleR.scale.set(.019,.24,.019);handleR.position.y=.15;this.racket.add(handleR);
+    const headR=new THREE.Mesh(new THREE.TorusGeometry(.115,.010,6,24),finish(0x345d63,'metal'));headR.position.y=.37;headR.scale.y=1.35;this.racket.add(headR);
+    for(let i=-3;i<=3;i++){const bar=new THREE.Mesh(orb,finish(0xe9e2d1,'fabric'));bar.scale.set(.003,.125*Math.sqrt(1-(i/4.2)**2),.003);bar.position.set(i*.027,.37,0);this.racket.add(bar);const cross=new THREE.Mesh(orb,finish(0xe9e2d1,'fabric'));cross.scale.set(.10*Math.sqrt(1-(i/4.2)**2),.003,.003);cross.position.set(0,.37+i*.034,0);this.racket.add(cross);}
+    this.racket.visible=false;this.rig.wrists[1].add(this.racket);
     const utensil = finish(0xb68354, 'wood');
     const handle = new THREE.Mesh(orb, utensil);
     handle.scale.set(0.011, 0.014, 0.122);
@@ -227,7 +239,7 @@ export class Actor {
     }));
     this.heart.position.set(0, 2.17, 0.10);
     this.root.add(this.heart);
-    this.heart.visible = false;
+    this.heart.visible = false;this.racket.visible=false;
   }
 
   select(value: boolean): void { this.selectionRing.visible = value; }
@@ -251,7 +263,7 @@ export class Actor {
   setPose(pose: Pose): void {
     this.waypoints = [];
     this.callback = null;
-    this.pose = pose;
+    this.pose = pose;this.swingBase=null;
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
@@ -298,9 +310,9 @@ export class Actor {
   isWalking(): boolean { return this.waypoints.length > 0; }
   eatingElapsed(): number | null { return this.activity === 'eat' ? this.activityTime : null; }
 
-  playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3, recipe?: RecipeId|TakeoutId): void {
+  playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3, recipe?: RecipeId|TakeoutId, slow=false): void {
     // World has already placed the actor at the visual station.
-    this.activity = kind;
+    this.activity = kind;this.mealSlow=slow;
     this.pan = pan?.clone();
     this.cookingRecipe = kind === 'cook' ? recipe as RecipeId : undefined;
     this.diningDish = kind === 'eat' ? recipe : undefined;
@@ -630,7 +642,7 @@ export class Actor {
         case 'eat': {
           // Pick up a portion, bring it to the mouth, chew and rest between bites.
           // Each resident eats at a slightly different rhythm.
-          const meal = mealGesture(a, this.id);
+          const meal = mealGesture(this.mealSlow?a/2.8:a, this.id);
           bite = meal.lift;
           rightY = THREE.MathUtils.lerp(-0.40, 0.145, bite);
           rightZ = THREE.MathUtils.lerp(0.36, 0.12, bite);
@@ -639,6 +651,7 @@ export class Actor {
           gaze = .15 + .11 * bite - .035 * meal.chew + meal.glance;
           lean = .045 + .013 * meal.chew;
           expression = .065 + meal.chew * .095;
+          if(this.mealSlow&&this.parkChatUntil>this.clock&&bite<.15){leftY+=.11*Math.sin(a*2.8);leftZ+=.16;expression=.18+.10*Math.sin(a*5);gaze=.015;}
           break;
         }
         case 'dishes':
@@ -783,6 +796,9 @@ export class Actor {
           break;
         case 'darts': {
           const aim=(Math.sin(a*2.2)+1)/2;rightY=-.12+.28*aim;rightZ=.24+.35*aim;gaze=.04;expression=.20;break;
+        }
+        case 'badminton': {
+          const hit=Math.max(0,Math.sin(a*2.5+(this.id==='vlad'?0:Math.PI)));lean=.06+.12*hit;rightY=-.20+.72*hit;rightZ=.19+.25*hit;leftY=-.22;leftZ=.24;gaze=-.08;expression=.20;break;
         }
         case 'pingPong': {
           const hit=Math.sin(a*4.3);lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.45+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
@@ -1519,6 +1535,7 @@ export class Actor {
       }
     }
 
+    this.racket.visible=this.activity==='badminton';
     this.selectionRing.position.x = this.figureBase.x;
     this.selectionRing.position.z = this.figureBase.z;
     if (this.carryingBook || this.closingBook > 0) {

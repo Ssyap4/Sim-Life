@@ -14,7 +14,8 @@ import { isCareerPlace } from '../src/shared/careers';
 import { unoccupiedDestination } from '../src/game/residentCollision';
 import { checkout, grantCart, quoteCart } from './market';
 import { pausePetRoutine } from './pets';
-import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, validPicnicBasket, cleanPicnic } from '../src/shared/picnic';
+import { CAMP_RECIPES, campIngredients, isCampRecipe, isParkDogAction } from '../src/shared/park';
+import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, validPicnicBasket, cleanPicnic, picnicName } from '../src/shared/picnic';
 import { consumeReadyFood, readyFoodShelfDays, tableShelfMinutes, reconcileReadyFood, expireReadyFood } from '../src/shared/readyFood';
 import { RECIPES, TAKEOUT } from '../src/shared/food';
 import { MINUTES_PER_DAY } from '../src/shared/life';
@@ -43,6 +44,9 @@ export function validWorld(value: unknown): value is WorldState {
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
     (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park'].includes(w.places![w.carDriver]))) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
+    (w.campLitUntil===undefined||count(w.campLitUntil)) &&
+    (w.parkDog===undefined||!!w.parkDog&&count(w.parkDog.minutes)&&count(w.parkDog.toilets)&&w.parkDog.toilets<=2&&(w.parkDog.toiletUntil===undefined||count(w.parkDog.toiletUntil))) &&
+    (w.campKit===undefined||!!w.campKit&&Object.entries(w.campKit).every(([role,k])=>ROLES.includes(role as CharacterId)&&!!k&&count(k.fuel)&&k.fuel<=3&&!!k.recipes&&Object.entries(k.recipes).every(([id,n])=>isCampRecipe(id)&&count(n)&&n<=3))) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
     w.deliveries.every(d => d && typeof d.id === 'string' && /^D-(vlad|alina)-\d+$/.test(d.id) &&
@@ -71,7 +75,7 @@ export function setDogParkPosition(state: GameState): void {
 
 export const worldMessages = new Set([
   'travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -144,6 +148,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       : spawnPoint;
     if (!arrival) return fail('Вход занят вторым игроком');
     Object.assign(next.characters[role], arrival, { pose: 'idle' });
+    if(command.place==='park'&&next.world.dogWalker===role&&place!=='park')next.world.parkDog={minutes:0,toilets:0};
     if (next.world.dogWalker === role && command.place !== 'park' && command.place!=='district') next.world.dogWalker = null;
     if(command.place==='home'){next.world.bags[role]=0;next.world.tableBags=0;}
     if (command.dog === true || source.world.dogWalker === role) setDogParkPosition(next);
@@ -285,6 +290,17 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       (spoiled ? '. Испортившихся порций выброшено: ' + spoiled : ''));
   }
 
+  if(command.type==='camp_pack'){
+    if(place!=='home'||!at(source,role,stationById('home','fridge'))||!source.world.picnic)return fail('Нужна корзина и холодильник дома');
+    const item=command.item;if(item!=='fuel'&&!isCampRecipe(item))return fail('Неизвестный набор');
+    const next=structuredClone(source);next.world.campKit??={};const kit=next.world.campKit[role]??={fuel:0,recipes:{}};
+    const count=item==='fuel'?kit.fuel:kit.recipes[item]??0;if(count>=3)return fail('Больше трёх одинаковых наборов не поместится');
+    const ingredients=item==='fuel'?[['charcoal',1],['lighterFluid',1]] as const:campIngredients(item);
+    if(ingredients.some(([id,n])=>next.pantry[id]<n))return fail('Не хватает продуктов или топлива');
+    for(const [id,n] of ingredients)next.pantry[id]-=n;
+    if(item==='fuel')kit.fuel++;else kit.recipes[item]=count+1;
+    return done(next,'В корзину: '+(item==='fuel'?'уголь и розжиг':CAMP_RECIPES[item].name));
+  }
   if(command.type==='picnic_buy'){
     if(place!=='market'||!at(source,role,stationById('market','checkout')))return fail('Купи корзину у кассы супермаркета');
     if(source.world.picnic)return fail('Семейная корзина уже куплена');
@@ -316,7 +332,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(index<0)return fail('Нет такой порции в твоём отделении корзины');
     const portion=portions[index];
     if(kind==='meal')next.meals[item as keyof typeof RECIPES]++;else next.takeout[item as keyof typeof TAKEOUT]++;
-    next.readyFood.push({...portion,portions:1,storage:'fridge'});
+    next.readyFood.push({...portion,kind,portions:1,storage:'fridge'});
     const fit=storageCanFit(source,next);if(!fit.ok)return fail(fit.reason);
     portions.splice(index,1);
     return done(next,'В холодильник: '+readyFoodName(kind,item));
@@ -368,6 +384,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (source.world.dogWalker && source.world.dogWalker !== role) return fail('Верделл уже гуляет со вторым игроком');
     const next = structuredClone(source);
     next.world.dogWalker = source.world.dogWalker ? null : role;
+    if(next.world.dogWalker&&place==='park')next.world.parkDog={minutes:0,toilets:0};
     if (next.world.dogWalker) pausePetRoutine(next, 'verdell', clockMinutes(next.clock));
     setDogParkPosition(next);
     return done(next, next.world.dogWalker ? 'Верделл пришёл на прогулку' : 'Верделл вернулся домой');
@@ -377,7 +394,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
-  swing:'Покачаться на качелях', chess: 'Сыграть в шахматы', picnic: 'Поесть на пикнике',
+  swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
 };
@@ -385,15 +402,15 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
-  if (station?.action.kind !== action || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
-  if (action === 'dog' && !source.world.dogWalker) return fail('Сначала возьми Верделла на прогулку');
+  if (!station || (station.action.kind !== action && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
+  if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
   const next = structuredClone(source);
   const resident = next.characters[role];
   const bump = (key: 'mood' | 'comfort' | 'fun' | 'hunger' | 'energy', count: number) => {
     resident[key] = Math.max(0, Math.min(100, resident[key] + count));
   };
-  resident.pose = action === 'rest' || action === 'dine' || action === 'chess' || action === 'swing' || action === 'picnic' ? 'sit' : 'idle';
+  resident.pose = action === 'rest' || action === 'dine' || action === 'swing' || action === 'picnic' ? 'sit' : 'idle';
   if (action === 'dine') {
     const order = next.world.cafe[role];
     if(order?.table && (order.table!==id || order.readyAt>clockMinutes(source.clock) || source.characters[role].pose!=='sit'))
@@ -405,21 +422,40 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     } else { bump('comfort', 8); bump('mood', 3); }
   } else if (action === 'rest') {
     bump('comfort', 14); bump('energy', 5);
+  } else if(action==='campIgnite'||isCampRecipe(action)){
+    const now=clockMinutes(next.clock),kit=next.world.campKit?.[role];
+    if(!kit)return fail('Собери продукты и топливо дома');
+    if(action==='campIgnite'){
+      if((next.world.campLitUntil??0)>now)return fail('Костёр уже горит');
+      if(kit.fuel<1)return fail('Нет угля и розжига в корзине');kit.fuel--;next.world.campLitUntil=now+120;
+      return done(next,'Костёр разожжён');
+    }
+    if((next.world.campLitUntil??0)<=now)return fail('Сначала разожги костёр');
+    if(!kit.recipes[action])return fail('Нет подготовленных ингредиентов');
+    cleanPicnic(next);const basket=next.world.picnic;if(!basket||basket.portions.vlad.length+basket.portions.alina.length+2>PICNIC_CAPACITY)return fail('Нужно два свободных места в корзине');
+    kit.recipes[action]!--;const partner=role==='vlad'?'alina':'vlad';for(const owner of [role,partner] as const)basket.portions[owner].push({kind:'campfire',item:action,expiresAt:now+480});
+    bump('fun',10);bump('mood',10);return done(next,CAMP_RECIPES[action].name+' · 2 порции в корзине');
   } else if(action==='picnic'){
     cleanPicnic(next);const food=next.world.picnic?.portions[role].shift();
     if(!food)return fail('В твоём отделении корзины нет свежих порций');
-    const meal=food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
+    const meal=food.kind==='campfire'&&isCampRecipe(food.item)?CAMP_RECIPES[food.item]:food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
     bump('hunger',meal.hunger);bump('mood',meal.mood+8);bump('fun',18);bump('comfort',8);
-    return done(next,'Пикник: '+readyFoodName(food.kind,food.item));
+    return done(next,'Пикник: '+picnicName(food));
   } else if(action==='swing'){bump('comfort',24);bump('fun',24);bump('mood',15);bump('energy',5);
-  } else if (action === 'chess') {
+  } else if (action === 'badminton') {
     bump('fun', 25); bump('mood', 10); bump('comfort', 8); bump('energy', -3);
   } else if (action === 'exercise') {
     bump('fun', 13); bump('mood', 6); bump('energy', -4);
-  } else if (action === 'dog') {
+  } else if (isParkDogAction(action)) {
     const dog = next.pets.verdell;
-    dog.happiness = Math.min(100, dog.happiness + 7);
+    if(action==='dogToilet'){
+      const visit=next.world.parkDog??={minutes:0,toilets:0};if(visit.toilets>=2)return fail('Верделл уже справил нужду дважды');
+      dog.bladder=100;visit.toilets++;visit.toiletUntil=clockMinutes(next.clock)+3;
+      return done(next,'Верделл справил нужду');
+    }
+    dog.happiness = Math.min(100, dog.happiness + (action==='dog'?7:15));
     dog.bond = Math.min(100, dog.bond + 4);
+    if(action==='dogChase'||action==='dogFetch'){dog.energy=Math.max(0,dog.energy-5);bump('fun',15);}
     bump('mood', 4);
   } else {
     next.world.tableBags = 0;

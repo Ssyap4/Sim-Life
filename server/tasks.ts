@@ -11,6 +11,7 @@ import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import { clockMinutes } from '../src/shared/locations';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import { localActivity, localLabels } from './locations';
+import { PICNIC_SECONDS, isCampRecipe, isParkDogAction } from '../src/shared/park';
 import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
@@ -105,7 +106,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action === 'dine' || action === 'picnic' ? MEAL_EAT_SECONDS*1000 : action === 'chess' || action === 'swing' ? 24000 : 5800, resource: null };
+      durationMs: action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
   }
   if (command.type === 'act') {
     const id = command.actionId;
