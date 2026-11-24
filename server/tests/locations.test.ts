@@ -319,7 +319,7 @@ test('Both residents can save in the yard and walk back through the house thresh
     const floor = floorFor('home');
     const obstacles = placeObstacles('home');
     let state = initialState();
-    for (const [role, point] of [['vlad', { x: -3, z: 9.3 }], ['alina', { x: 3.9, z: 8.6 }]] as const) {
+    for (const [role, point] of [['vlad', { x: -3, z: 9.3 }], ['alina', { x: 1.9, z: 8.6 }]] as const) {
       const inside = state.characters[role];
       assert.equal(segmentIsClear({ x: point.x, z: 4.4 }, point, obstacles, floor), false);
       const result = applyWorld(state, role, { type: 'walk', place: 'home', ...point });

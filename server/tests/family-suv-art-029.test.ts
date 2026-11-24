@@ -1,3 +1,4 @@
+import {homeExtensions} from '../../src/game/LocationScene';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -25,4 +26,13 @@ test('SUV geometry fits parking collision, rests on four wheels, clean roof and 
   assert.ok(wheelRay.intersectObject(car,true).length,'wheel '+side+'/'+axle);
  }
  console.log('SUV dimensions',size.toArray().map(n=>n.toFixed(2)).join(' x '),'meshes',meshes,'triangles',triangles);
+});
+
+test('car station is exclusively rendered by World, never a floating cupboard',()=>{
+ const extensions=homeExtensions();
+ assert.equal(extensions.stations.has('family-car'),false);
+ assert.equal(extensions.doors.has('family-car'),false);
+ assert.equal(extensions.stock.has('family-car'),false);
+ assert.ok(extensions.stations.has('cupboard'));
+ assert.ok(extensions.stations.has('fridge'));
 });

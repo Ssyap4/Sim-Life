@@ -303,7 +303,8 @@ export function homeExtensions() {
   const parcel = new THREE.Group();
   let gateLeaf:THREE.Group|undefined;
   for (const station of HOME_STATIONS) {
-    if (station.action.kind === 'waypoint'||station.action.kind==='courier') continue;
+    // World owns car geometry; never create a generic wall cupboard for it.
+    if (station.action.kind === 'waypoint'||station.action.kind==='courier'||station.action.kind==='car') continue;
     if (station.action.kind === 'career') {
       const laptop = careerStation(station,'marketing');
       group.add(laptop); stations.set(station.id,laptop); continue;
