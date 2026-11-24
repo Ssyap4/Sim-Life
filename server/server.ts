@@ -1,3 +1,4 @@
+import { isPreviewLook } from '../src/shared/previewWardrobe';
 import { diningLocation } from '../src/shared/furnitureUse';
 import { PET_IDS, treatsRemaining } from '../src/shared/pets';
 import { grantStarterPetFurniture } from './starterPets';
@@ -967,7 +968,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
 
       if(message.type==='preview_outfit'){
-        if(!previewNoCodes||state.world.places[role]!=='home'||typeof message.look!=='string'||!['signature','home','denim','city','cozy','street'].includes(message.look)){
+        if(!previewNoCodes||state.world.places[role]!=='home'||typeof message.look!=='string'||!isPreviewLook(role,message.look)){
           packet(socket,{type:'error',reason:'Примерка недоступна'});return;
         }
         previewOutfits.set(role,message.look);

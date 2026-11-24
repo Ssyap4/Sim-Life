@@ -1,3 +1,4 @@
+import { PREVIEW_LOOKS } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { fitWardrobe, outfitChoices } from './game/Wardrobe';
@@ -1148,22 +1149,14 @@ function showActionMenu(title: string): void {
   actionsEl.scrollTop = 0;
 }
 
-const previewLooks=[
-  ['signature','Исходный комплект','Исходный комплект'],
-  ['home','Розовая футболка · короткие шорты','Зелёная футболка · длинные шорты'],
-  ['denim','Молочная футболка · голубые джинсы','Белая футболка · синие джинсы'],
-  ['city','Зелёная футболка · бежевые брюки','Чёрная футболка · бежевые брюки'],
-  ['cozy','Сиреневое худи · домашние штаны','Синее худи · спортивные штаны'],
-  ['street','Бежевое худи · джинсы','Серое худи · тёмные джинсы'],
-] as const;
 function openPreviewWardrobe():void{
   if(!localPreviewNoCodes||!active||world.place!=='home')return;
   const role=active;
   showActionMenu('👕 Гардероб · '+names[role]);
-  for(const [look,alina,vlad] of previewLooks){
+  for(const [look,label] of PREVIEW_LOOKS[role]){
     const button=document.createElement('button');
     button.type='button';button.className='action-button';
-    button.textContent=role==='alina'?alina:vlad;
+    button.textContent=label;
     button.addEventListener('click',()=>{
       if(!net.previewOutfit(look))return;
       actionsEl.hidden=true;

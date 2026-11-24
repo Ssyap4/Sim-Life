@@ -1,3 +1,4 @@
+import { PREVIEW_LOOKS, isPreviewLook, previewLongSleeves } from '../shared/previewWardrobe';
 import type { Object3D } from 'three';
 import type { CharacterId } from '../shared/protocol';
 
@@ -14,18 +15,22 @@ export interface Garment {
   covers?: readonly BodyRegion[];
 }
 
-export const WARDROBE_LOOKS = ['signature','home','denim','city','cozy','street'] as const;
+export const WARDROBE_LOOKS = [...new Set([...PREVIEW_LOOKS.alina,...PREVIEW_LOOKS.vlad].map(([id])=>id))];
 export type WardrobeLook = typeof WARDROBE_LOOKS[number];
 export function outfitChoices(look:string):readonly string[] {
-  if(!WARDROBE_LOOKS.includes(look as WardrobeLook)||look==='signature')return [];
-  return (['alina','vlad'] as const).flatMap(id=>['upper','lower'].map(slot=>id+'-'+look+'-'+slot));
+  if(look==='signature')return [];
+  return (['alina','vlad'] as const).filter(id=>isPreviewLook(id,look)).flatMap(id=>[
+    id+'-'+look+'-upper',id+'-'+look+'-lower',
+    ...(id==='alina'||look==='track'?[id+'-sneakers-footwear']:[])
+  ]);
 }
-const NEW_GARMENTS:Garment[]=(['alina','vlad'] as const).flatMap(id=>
-  WARDROBE_LOOKS.slice(1).flatMap(look=>[
+const NEW_GARMENTS:Garment[]=(['alina','vlad'] as const).flatMap(id=>[
+  {id:id+'-sneakers-footwear',name:'Кеды',slot:'footwear' as const,fit:id+'-021',layers:['footwear'] as const},
+  ...PREVIEW_LOOKS[id].slice(1).flatMap(([look])=>[
     {id:id+'-'+look+'-upper',name:look,slot:'upper' as const,fit:id+'-021',layers:['upper'] as const,
-     covers:look==='cozy'||look==='street'?['forearms'] as const:undefined},
+     covers:previewLongSleeves(look)?['forearms'] as const:undefined},
     {id:id+'-'+look+'-lower',name:look,slot:'lower' as const,fit:id+'-021',layers:['lower'] as const},
-  ]));
+  ])]);
 export const GARMENTS: readonly Garment[] = [
   ...NEW_GARMENTS,
   {id:'vlad-signature-upper', name:'Футболка Влада',slot:'upper',fit:'vlad-021',layers:['upper']},

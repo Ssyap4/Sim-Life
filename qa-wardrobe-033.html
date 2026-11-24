@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {Actor} from './src/game/Actor.ts';
 import {loadResidents} from './src/game/BlenderCharacter.ts';
 import {outfitChoices} from './src/game/Wardrobe.ts';
+import {isPreviewLook} from './src/shared/previewWardrobe.ts';
 const q=new URLSearchParams(location.search),look=q.get('look')||'home',pose=q.get('pose')||'idle';
 const models=await loadResidents(outfitChoices(look));
 if(!models.vlad||!models.alina)throw Error('Original rig failed to load');
@@ -15,7 +16,7 @@ for(const [i,id] of ['alina','vlad'].entries()){
  const actor=new Actor(id,[0,0],models[id]);scene.add(actor.root);
  const visible=[];
  actor.root.traverse(o=>{if(o.userData.garmentId&&o.visible)visible.push(o.userData.garmentId);});
- for(const slot of ['upper','lower'])if(!visible.includes(id+'-'+look+'-'+slot))throw Error('Missing selected '+id+' '+look+' '+slot);
+ for(const slot of ['upper','lower'])if(!visible.includes(id+'-'+(isPreviewLook(id,look)?look:'signature')+'-'+slot))throw Error('Missing selected '+id+' '+look+' '+slot);
  if(pose==='walk')actor.walkPath([new THREE.Vector3(0,0,2)],()=>{});
  else if(pose==='cook'||pose==='eat')actor.playActivity(pose);
  else actor.setPose(pose);
