@@ -133,9 +133,9 @@ test('Legacy two-hour home shift and original quiz indices remain readable',()=>
  const malformed=structuredClone(shift);malformed.quests![0].order=[0,1,1];assert.equal(validHomeQuests(malformed as unknown as Record<string,unknown>),false);
 });
 
-import {HOME_JOB_SKILLS,homeJobSkillXP} from '../../src/shared/homeJobSkills';
+import {HOME_JOB_SKILLS,homeJobSkillXP,homeJobSkillCap} from '../../src/shared/homeJobSkills';
 import {SKILL_IDS,skillRank,levelXP,maximumXP} from '../../src/shared/education';
-test('All home jobs train exactly their own relevant skill, with a strict two-percent per-order cap at every rank',()=>{
+test('All home jobs train exactly their own relevant skill, with a strict rank-dependent per-order cap at every rank',()=>{
  for(const role of ['vlad','alina'] as const)for(const job of homeJobsFor(role)){
   const result=beginShift(initialState(),role,job,'desktop');assert.ok(result.ok);
   const state=result.state,shift=state.activeShifts[role]!,skill=HOME_JOB_SKILLS[job];
@@ -148,11 +148,13 @@ test('All home jobs train exactly their own relevant skill, with a strict two-pe
    const perfect=homeJobSkillXP(profile,shift,1)!;
    assert.equal(perfect.skill,skill);
    assert.ok(basic.xp>=1&&perfect.xp>=basic.xp);
-   assert.ok(perfect.xp/skillRank(profile.xp[skill]).next<=.02);
+   assert.equal(homeJobSkillCap(level),level<10?5:3);
+   assert.equal(perfect.xp,Math.floor(skillRank(profile.xp[skill]).next*(level<10?.05:.03)));
+   assert.ok(perfect.xp/skillRank(profile.xp[skill]).next<=(level<10?.05:.03));
    assert.equal(homeJobSkillXP(profile,shift,0),undefined);
    assert.ok((homeJobSkillXP(profile,shift,.5)?.xp??0)<=perfect.xp/2);
   }
-  profile.xp[skill]=maximumXP;assert.equal(homeJobSkillXP(profile,shift,1),undefined);
+  profile.xp[skill]=maximumXP;assert.equal(homeJobSkillXP(profile,shift,1),undefined);assert.equal(homeJobSkillCap(20),0);
   profile.xp[skill]=levelXP(4);
   const expected=homeJobSkillXP(profile,shift,1)!;
   state.clock=clockAt(shift.endsAt);

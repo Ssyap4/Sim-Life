@@ -1,4 +1,4 @@
-import { homeJobSkillLabel, homeJobSkillXP } from "./shared/homeJobSkills";
+import { homeJobSkillLabel, homeJobSkillXP, homeJobSkillCap, HOME_JOB_SKILLS } from "./shared/homeJobSkills";
 import { SKILLS } from "./shared/education";
 import { pendingHomeQuest, homeQuestContent } from "./shared/homeJobQuests";
 import { JOBS, homeJobsFor, shiftFullPay, shiftWage, stageForJob, type JobId } from './shared/jobs';
@@ -247,7 +247,7 @@ export function createCareerUI(root: HTMLElement, send: Submit, education: (mate
       if(role==='vlad'&&device()!=='desktop')section.append(block('Заказы Влада доступны на ПК'));
       else for(const key of homeJobsFor(role)){
         const job=JOBS[key],card=block(job.emoji+' '+job.name,job.description);
-        card.append(node('small','3–4 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),node('small','Практика: '+homeJobSkillLabel(key)+' · до 2% уровня'),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
+        card.append(node('small','3–4 игровых часа · 2 000–3 500 ₽'),node('small',job.stages.join(' → ')),node('small','Практика: '+homeJobSkillLabel(key)+' · '+(homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)?'до '+homeJobSkillCap(skillRank(state.education.characters[role].xp[HOME_JOB_SKILLS[key]]).level)+'% уровня':'максимальный уровень')),button('Взять заказ',()=>{if(homeOrders.start(key))close();},Boolean(active||shift||state.world.places[role]!=='home')));section.append(card);
       }
     } else if (page === 'vacancies' || !id) {
       section.append(node('h2',homeOrders?'Основная работа':'Вакансии'));
