@@ -1,7 +1,9 @@
+import { leisureAction } from './leisure';
+import { furnitureUseLocation } from './furnitureUse';
 import { FURNITURE_BY_ID, furnitureFootprint,
   type PlacedFurniture } from './furniture';
 import { HOME_FLOOR, HOUSE, HOUSE_WING, HOME_DOORS, HOUSE_ENTRY,
-  HOME_WALLS, HOME_FURNITURE, HOME_DECOR, KITCHEN_WORK, homeSeat } from './home';
+  HOME_WALLS, HOME_FURNITURE, HOME_DECOR, HOME_STRUCTURE_OBSTACLES, KITCHEN_WORK, homeSeat } from './home';
 import { STATIONS, placeObstacles, spawn } from './locations';
 import { points, type GameState } from './protocol';
 import { PETS, PET_IDS } from './pets';
@@ -108,7 +110,9 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // A couple of centimetres of buffer avoid z-fighting without reserving
   // entire empty strips beside each wall.
   const physical=furnitureFootprint(candidate,.018);
-  if(!insideWalls(physical))return deny('Предмет выходит за стену или границу комнаты');
+  const outdoor=product.category==='leisure'&&physical.minZ>=HOUSE.maxZ+.55&&physical.maxZ<=HOME_FLOOR.maxZ-.25&&physical.minX>=HOME_FLOOR.minX+.25&&physical.maxX<=HOME_FLOOR.maxX-.25;
+  if(outdoor&&HOME_STRUCTURE_OBSTACLES.some(o=>intersects(physical,o)))return deny('Нельзя перекрывать забор, клумбу или проход');
+  if(!insideWalls(physical)&&!outdoor)return deny('Предмет выходит за стену или границу комнаты');
   if(reservedDoors.some(door=>intersects(physical,door)))
     return deny('Нельзя перекрывать дверь или проход между комнатами');
   if(fixedPhysical(state).some(obstacle=>intersects(physical,obstacle)))
@@ -132,6 +136,18 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   const changed=[...others,candidate];
   const obstacles=walkObstacles(state,changed);
   const dynamicBlocking=furnitureFootprint(candidate,.30);
+  // Verify leisure from a stable reference point, not transient actor locations.
+  // Standing sports need open play positions; seats need reachable access.
+  const leisureItems=changed.filter(i=>leisureAction(i.sku));
+  if(leisureItems.length){
+    const preview={...state,furnishing:{...state.furnishing,placed:changed},characters:{
+      vlad:{...state.characters.vlad,...center},alina:{...state.characters.alina,...center}}};
+    for(const item of leisureItems){
+      const action=leisureAction(item.sku)!;
+      if(!(['vlad','alina'] as const).every(role=>!!furnitureUseLocation(preview,role,item.id,action)))
+        return deny('Оставь свободное место для подхода и игры');
+    }
+  }
   // An existing route remains valid if the new object is nowhere along it.
   // A* is only needed for a route that actually crosses the new footprint.
   // This keeps the live preview responsive even with many targets.

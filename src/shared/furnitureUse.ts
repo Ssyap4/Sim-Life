@@ -104,10 +104,21 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
     const target=board||action==='pingPong'?[0,side*(info.depth/2+.64)]:
       action==='billiards'?[side*(info.width/2+.65),0]:action==='dartsGame'?[side*.42,info.depth/2+1.35]:
       [swing?side*.47:0,info.depth/2+.58];
-    const approach=rotate(item,target[0],target[1]);
     const obstacles=placeObstacles('home',state.furnishing);
-    if(!pointIsClear(approach,obstacles,HOME_WORLD_FLOOR))return null;
-    const route=planWalk(from,approach,obstacles,HOME_WORLD_FLOOR);if(!route)return null;
+    const alternatives=board?[target,[-info.width/2-.49,side*.64],[info.width/2+.49,side*.64]]:
+      hammock?[target,[0,-info.depth/2-.47],[-info.width/2-.48,0],[info.width/2+.48,0]]:
+      swing?[target,[side*.47,info.depth/2+.37]]:
+      action==='dartsGame'?[target,[side*.42,info.depth/2+1.0],[side*.30,info.depth/2+.78]]:
+      action==='pingPong'?[target,[0,side*(info.depth/2+.38)],[side*.30,side*(info.depth/2+.40)]]:
+      [target,[side*(info.width/2+.38),-.35],[side*(info.width/2+.38),.35]];
+    let route:WalkRoute|null=null;
+    for(const [x,z] of alternatives){
+      const approach=rotate(item,x,z);
+      if(!pointIsClear(approach,obstacles,HOME_WORLD_FLOOR))continue;
+      route=planWalk(from,approach,obstacles,HOME_WORLD_FLOOR);
+      if(route)break;
+    }
+    if(!route)return null;
     const center=rotate(item,board?0:swing?side*.47:0,board?side*.65:0);
     const yaw=item.rotation*Math.PI/2+(board&&side>0?Math.PI:0);
     const pose={...center,y:spec.seated?(role==='vlad'?-.26:-.21)+(hammock?.015:0):0,yaw};

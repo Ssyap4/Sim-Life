@@ -33,7 +33,8 @@ let validated=0,actionsVerified=0;
 const start=performance.now();
 const book=Object.keys(BOOKS)[0];
 const genre=Object.keys(GENRES)[0];
-for(const info of PURCHASABLE_FURNITURE){
+const scope=process.argv.includes("--leisure-only")?PURCHASABLE_FURNITURE.filter(i=>i.category==="leisure"):PURCHASABLE_FURNITURE;
+for(const info of scope){
  let state=initialState();
  state.money=500000;
  state.furnishing.soldFixtures=[...sold];
@@ -52,7 +53,7 @@ for(const info of PURCHASABLE_FURNITURE){
    if(!unbox.ok)throw Error('UNBOX '+unbox.reason);
    state=unbox.state;
    let placed=false;
-   for(const [x,z] of spots){
+   for(const [x,z] of (info.category==='leisure'?[...spots,[10,8.6],[16.5,8.6],[13,8.6]]:spots)){
      if(placed)break;
      for(const rotation of [0,1,2,3]as const){
        const sample={id:1,sku:info.id,finish:'sage' as const,x,z,rotation};
@@ -130,10 +131,10 @@ for(const info of PURCHASABLE_FURNITURE){
  }catch(e){failures.push({sku:info.id,shape:info.shape,message:String(e)});rows.push({sku:info.id,result:'fail'});}
 }
 const passed=rows.filter(x=>x.result==='ok').length;
-if(failures.length||passed!==PURCHASABLE_FURNITURE.length){
- console.error('FURNITURE_AUDIT_FAILURE: '+failures.length+' of '+PURCHASABLE_FURNITURE.length);
+if(failures.length||passed!==scope.length){
+ console.error('FURNITURE_AUDIT_FAILURE: '+failures.length+' of '+scope.length);
  process.exitCode=1;
 }
-console.log(JSON.stringify({total:PURCHASABLE_FURNITURE.length,passed,
+console.log(JSON.stringify({total:scope.length,passed,
  placementValidated:validated,actionsVerified,durationMs:Math.round(performance.now()-start),failures,
  breakdown:Object.fromEntries([...new Set(rows.map(r=>r.shape))].map(shape=>[shape,rows.filter(r=>r.shape===shape).length]))},null,2));

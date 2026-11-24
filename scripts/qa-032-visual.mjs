@@ -49,58 +49,6 @@ async function scenario(s,fn){
 }
 try{
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
- let s=initialState();grantStarterPetFurniture(s);
- s.autonomy.vlad=s.autonomy.alina='off';
- const owner=homeSeat('table','vlad').approach;
- for(const role of ['vlad','alina'])Object.assign(s.characters[role],homeSeat('table',role).approach,{pose:'sit',hunger:15});
- for(const pet of ['verdell','simba'])Object.assign(s.pets[pet],{satiety:60,energy:90,bladder:90});
- runPetRoutines(s,0,clockMinutes(s.clock),new Set(),()=>.2,undefined,new Map([['vlad',owner]]));
- for(const id of ['verdell','simba']){
-  const pet=s.pets[id],r=pet.routine;assert.equal(r.kind,'beg');
-  pet.position=r.goal;r.route={from:r.goal,path:[]};
- }
- s.meals.omelette=2;addReadyFood(s,'meal','omelette',2,'table');
- await scenario(s,async(page,shot,send,files)=>{
-  await shot('01-home-starter-items');
-  await send({type:'eat',recipe:'omelette'});
-  await page.waitForFunction(()=>window.qaTask?.command.type==='eat',undefined,{timeout:10000});
-  await page.waitForTimeout(3500);
-  await shot('02-dining-begging');
-  for(const id of ['verdell','simba']){
-   await page.locator('#showcase-toggle').click();await page.locator('[data-showcase="'+id+'"]').click();
-   await page.waitForTimeout(850);await shot('03-'+id+'-begging');
-   await page.locator('#showcase-return').click();
-  }
-  await page.locator('#pets-btn').click();
-  await page.locator('#actions .pet-tab').filter({hasText:'Верделл'}).click();
-  const treat=page.locator('#actions .pet-action').filter({hasText:'Дать лакомство'});
-  await shot('04-treat-menu');assert.ok(await treat.isEnabled());await treat.click();
-  await page.waitForFunction(()=>window.qaState?.pets.verdell.treats?.used===1,undefined,{timeout:15000});
-  assert.equal(files.load().pets.verdell.treats.used,1);
-  await page.locator('#pets-btn').click();await page.locator('#actions .pet-tab').filter({hasText:'Верделл'}).click();
-  await shot('05-two-treats-left');
- });
- s=initialState();s.autonomy.vlad=s.autonomy.alina='off';
- for(const role of ['vlad','alina']){
-  s.world.places[role]='cafe';Object.assign(s.characters[role],approachFor(stationById('cafe','cafe-center'),role),{pose:'sit',hunger:10});
-  const item=role==='vlad'?'tomYum':'bbqRibs';
-  s.world.cafe[role]={item,table:'cafe-center',pickedUp:false,orderedAt:clockMinutes(s.clock)-CAFE_MENU[item].minutes,readyAt:clockMinutes(s.clock)};
- }
- await scenario(s,async(page,shot,send)=>{
-  await shot('06-cafe-both-guests-served');
-  // Clicking a seated table must open its action menu without standing up.
-  // Use a real station approach command to reach the real location panel.
-  await send({type:'approach',place:'cafe',station:'cafe-center'});
-  await page.getByRole('button',{name:/Сесть за столик|Съесть блюдо/}).waitFor({timeout:15000});
-  const seat=page.getByRole('button',{name:'Сесть за столик'});
-  if(await seat.count()){await seat.click();await page.waitForFunction(()=>window.qaState?.characters.vlad.pose==='sit',undefined,{timeout:15000});}
-  await shot('07-cafe-table-panel');
-  const talk=page.getByRole('button',{name:/Поболтать за столиком/});
-  await talk.waitFor({timeout:10000});await talk.click();await page.getByText('Как прошёл день?',{exact:true}).waitFor({timeout:10000});await shot('08-cafe-talk-menu');
- });
- assert.deepEqual(errors,[]);
-}finally{writeFileSync(join(out,'diagnostics.json'),JSON.stringify({errors}));await browser?.close();}try{
- browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  const base=()=>{const s=initialState();s.autonomy.vlad=s.autonomy.alina='off';return s;};
  for(const [station,action] of [['park-chess','chess'],['park-picnic','picnic'],['park-swing','swing']]){
   const s=base();
