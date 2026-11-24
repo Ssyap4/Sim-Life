@@ -2784,6 +2784,17 @@ export class World {
     }
     try {
       this.renderer.render(this.scene, this.camera);
+      if(this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000){
+        const gl=this.renderer.getContext();
+        const actual=gl.getContextAttributes();
+        const css=this.canvas.getBoundingClientRect();
+        this.canvas.dataset.gpuReport=JSON.stringify({
+          browser:this.graphics.firefox?'Firefox':'Chromium',safe:this.graphics.safe,full:this.graphics.full,
+          dpr:window.devicePixelRatio,css:[Math.round(css.width),Math.round(css.height)],
+          canvas:[this.canvas.width,this.canvas.height],buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],
+          aa:actual?.antialias,ratio:this.renderer.getPixelRatio(),quality:this.quality
+        });
+      }
       if (this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000) {
         this.graphicsChecked = true;
         const gl = this.renderer.getContext();

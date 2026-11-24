@@ -6,8 +6,8 @@ test('Android Chrome defaults to sharper rendering while WebViews keep the emerg
  const chrome='Mozilla/5.0 (Linux; Android 13; Redmi Note 11) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36';
  const p=graphicsProfile(chrome,'');
  assert.equal(p.safe,false);
- assert.equal(p.antialias,false);
- assert.equal(p.powerPreference,'default');
+ assert.equal(p.antialias,true);
+ assert.equal(p.powerPreference,'low-power');
  assert.equal(p.maxPixelRatio,2.5);
  assert.equal(worldPixelRatio(true,3,1.25,true,'standard',p),2);
  assert.equal(worldPixelRatio(true,3,1.25,true,'low',p),1.5);

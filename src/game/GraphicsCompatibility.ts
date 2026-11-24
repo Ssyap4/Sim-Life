@@ -10,8 +10,8 @@ export function graphicsProfile(userAgent: string, query: string) {
   const full = mode === 'full';
   return {
     android, firefox, safe, full,
-    antialias: !safe && (!chromium || full),
-    powerPreference: (safe || chromium ? 'default' : 'low-power') as 'default' | 'low-power',
+    antialias: !safe,
+    powerPreference: (safe ? 'default' : 'low-power') as 'default' | 'low-power',
     maxPixelRatio: safe ? 1 : android ? (full ? 3 : 2.5) : 1.5,
   };
 }
