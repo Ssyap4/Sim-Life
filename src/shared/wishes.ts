@@ -1,4 +1,5 @@
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
+import { emotionFor,wishEmotionPriority } from './emotions';
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { COOKING_RECIPES, COOKING_ORDER } from './cookingProgression';
 import { SOCIAL_BY_ID, socialRestriction } from './socialLife';
@@ -138,7 +139,8 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const recipe=COOKING_ORDER.find(id=>!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
   const cycle=Math.floor(gameMinutes(state.clock)/180)+(role==='alina'?1:0);
-  const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]).sort((a,b)=>Number(b.id.startsWith('goal-'))-Number(a.id.startsWith('goal-')));
+  const emotion=emotionFor(person).id;
+  const ordered=plans.map((_,i)=>plans[(cycle+i)%plans.length]).sort((a,b)=>cycle%3===2?Number(b.id.startsWith('goal-'))-Number(a.id.startsWith('goal-')):wishEmotionPriority(b.id,role,emotion)-wishEmotionPriority(a.id,role,emotion));
   for(const plan of ordered){
     if(wishes.length>=3)break;
     if(!wishes.some(w=>JSON.stringify(w.command)===JSON.stringify(plan.command)))wishes.push(plan);

@@ -5,6 +5,7 @@ import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccup
 import { fitWardrobe, outfitChoices } from './game/Wardrobe';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
+import { emotionFor } from './shared/emotions';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import { PARK_TALK_TOPICS, SOCIAL_BY_ID, contextAvailable, otherPerson, type SocialGroup, type SocialIntent } from './shared/socialLife';
 import { taskAccessError } from './shared/serviceAccess';
@@ -459,7 +460,9 @@ function renderNeeds(): void {
     const group = document.createElement('div');
     group.className = 'needs-group';
     const heading = document.createElement('strong');
-    heading.textContent = names[role] + ' · настроение ' + Math.round(char.mood) + '%';
+    const emotion=emotionFor(char);
+    heading.textContent=names[role]+' · '+emotion.emoji+' '+emotion.label+' · '+Math.round(char.mood)+'%';
+    heading.title=emotion.reason;
     group.append(heading);
     const thought=thoughtFor(state,role);
     const thoughtNode=document.createElement('p');

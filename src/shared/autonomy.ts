@@ -1,3 +1,4 @@
+import { emotionFor, rankLeisure } from './emotions';
 import { isNotebookDesk } from './furniture';
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from './life';
@@ -158,7 +159,7 @@ export function fullLeisureCandidates(state:GameState,role:CharacterId,turn:numb
     {type:'act',actionId:'bathSoak'},
   ];
   const offset=turn%actions.length;
-  return [...actions.slice(offset),...actions.slice(0,offset)];
+  return rankLeisure([...actions.slice(offset),...actions.slice(0,offset)],role,state.characters[role],turn);
 }
 
 const expressions:Record<VitalNeed,Record<CharacterId,readonly string[]>>={
@@ -194,6 +195,9 @@ export function thoughtFor(state:GameState,role:CharacterId):{text:string;need?:
     return {need:lowest.need,emoji:NEED_INFO[lowest.need].emoji,
       text:phrases[cycle%phrases.length]};
   }
+  const emotion=emotionFor(person);
+  if(emotion.id==='sad')return {text:role==='vlad'?'Что-то день не задался. Хочется переключиться.':'Хочется немного тепла и спокойствия.',emoji:emotion.emoji};
+  if(emotion.id==='inspired')return {text:role==='vlad'?'Есть силы разобраться в чём-нибудь новом.':'Столько интересных идей, хочется попробовать!',emoji:emotion.emoji};
   const time=dayPhase(state.clock);
   const phrase=time==='night'
     ? role==='vlad'?'Тихий вечер. Хорошо бы отдохнуть перед новым днём.':

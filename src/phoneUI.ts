@@ -1,6 +1,7 @@
 import { electronicsModel } from './shared/electronics';
 import { renderRelationship } from './socialUI';
 import type { createThoughtUI, ThoughtPreferences } from './thoughtUI';
+import { emotionFor,PERSONALITIES } from './shared/emotions';
 import { AUTONOMY_LABELS, AUTONOMY_MODES, thoughtFor, type AutonomyMode } from './shared/autonomy';
 import type { SocialGroup } from './shared/socialLife';
 import type { FamilyMomentId } from './shared/familyMoments';
@@ -103,8 +104,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       const cards=(['vlad','alina'] as const).map(id=>{
         const current=block(names[id]+' · '+AUTONOMY_LABELS[state.autonomy[id]],'');
         current.classList.add('autonomy-phone-card');
-        const thought=thoughtFor(state,id);
-        current.querySelector('p')!.textContent=thought.emoji+' '+thought.text;
+        const thought=thoughtFor(state,id),emotion=emotionFor(state.characters[id]);
+        current.querySelector('p')!.textContent=emotion.emoji+' '+emotion.label+' · '+Math.round(state.characters[id].mood)+'% · '+emotion.reason;
+        const traits=document.createElement('small');traits.textContent=PERSONALITIES[id].traits.join(' · ');current.append(traits);
+        const reflection=document.createElement('p');reflection.textContent=thought.emoji+' '+thought.text;current.append(reflection);
         if(role===id){
           const select=document.createElement('select');
           select.dataset.autonomy=id;
