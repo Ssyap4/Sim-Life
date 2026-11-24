@@ -183,3 +183,5 @@
 
 ## Android graphics invariant (0.33)
 Confirmed by the player on physical Android Chrome: use the same antialias and WebGL context power preference as Firefox/iPhone. Normal Android Chrome must not enter the emergency low-resolution profile; gfx=safe is explicit recovery only (embedded WebViews may retain fallback). Do not silently restore Chromium-specific MSAA disabling or low-resolution rendering. Keep iPhone settings unchanged.
+
+Future feature decisions: see docs/ROADMAP.md, agreed plans after 0.33 (24.11.2026). Preserve veterinary clinic; pet illness only after sustained severe neglect of food/attention, never random illness under normal care. Move only WB/Ozon warehouses to industrial area; electronics is the next approved shop.
