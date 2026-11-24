@@ -1,3 +1,15 @@
+# Sim-Life — current release v0.33.0 (2026-11-24)
+- Owner approved, PR #63 merged: 5660632cd8780ce7366d2c7b4f1c2b2262bfa7e4, tag v0.33.0 pushed. Tested head ea378b734b809d94ba64dc180476f82b115110fb. Full cloud QA SUCCESS https://github.com/Ssyap4/Sim-Life/actions/runs/45350305216 : 573/573 tests, furniture audit (282 actions), build, isolation, mobile visual regression. User checked wardrobe/shop and Android on physical phones; latest fitting camera geometry test passed, final screenshots not personally inspected.
+- Production D:\Sim-Life, http://192.168.0.124:3111/ ; PID 4204 listening, health ok/testNoCodes=false, HTML/new bundle index-zd0hNhK9.js HTTP 200. Production reset explicitly approved: balance 10000, 2 free starter pet items, no purchased items, no sold static fixtures, no active shifts; access and trusted-devices files retained. Prior household backed up by reset script under server-data/release-backups. Never copy preview data into main.
+- Preview D:\Sim-Life-033-Wardrobe, branch feat/wardrobe-033, port 3165, data D:\Sim-Life-033-WardrobeData, no codes, 100k. Latest rule: per deployed test update reset progress, retain placed objects; on approved production updates start fresh with default furniture, no bought items, normal balance, unchanged access/device credentials. Use explicit server/reset-release.ts once per deployment, NOT every restart. This overrides older preservation rules.
+- 0.33: physical clothing shop, two starter wardrobes, 12 outfits per role including original, distinctive footwear, independent isolated fitting scene on existing renderer, checkout/owned outfits; no laundry. Android regular Chrome/Firefox AA and low-power context, high DPR, physical confirmation. Separate industrial scene with Ozon/WB, roof signs, walking/car travel, shifts via entrance or phone. Approved pay ladders/new jobs detailed in docs/RELEASE_033.md; barista/inventory retired. Office wardrobe moved to clear wing passage.
+- Next priority: electronics store; discuss design with owner first. Review prices/economy as needed, preserve approved wages. Other agreed future shops: furniture, pet supplies, cosmetics; not auto/building materials. Veterinary clinic later: only illness after sustained severe food/attention neglect, NPC reception/phone booking/diagnosis/treatment, use Alina's existing veterinary career. Main two deep professions still deferred. Read AGENTS.md, docs/RELEASE_033.md, docs/ROADMAP.md, README and actual git/health first.
+- ALINA-PC weak: no heavy local WebGL/Blender/full regressions; cloud heavy checks. iPhone 11 portrait primary. Main only after owner approves. Mobile visual changes inspect real frames, don't equate test logs with screenshots.
+
+---
+
+## Historical handoff (not current)
+
 # Sim-Life — current release v0.32.0 (2026-11-24)
 
 - Owner approved after real multiplayer badminton and table tennis. PR #62 merged: 24077ba347eee384aeef896ddc816f11f4f6efd3; tag v0.32.0. Tested head 173766afe2e83e397ba1dd79577ff6d734f3739f has identical release tree.
