@@ -96,7 +96,7 @@ export function usesHomeSession(command: TimedCommand): boolean {
   return command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
-      ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
+      ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit','yardLounge','yardHookahSolo'].includes(command.actionId));
 }
 
 export function createHomeSessions(hooks: Hooks) {

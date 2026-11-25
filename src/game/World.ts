@@ -777,6 +777,9 @@ export class World {
   private applyFurniturePose(id: CharacterId, itemId: string, pose: 'idle' | 'sit' | 'sleep' | 'work'): void {
     const actor = this.actors[id];
     const vlad = id === 'vlad';
+    if(itemId==='yardTable'&&pose==='sit'){
+      const seat=homeSeat('yardTable',id);actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);return;
+    }
     const anchors = {
       sofa: { x: vlad ? -.50 : .50, y: vlad ? .057 : .106, z: -.27, yaw: Math.PI },
       bed: { x: vlad ? -.55 : .55, y: 1.055, z: 1.01, yaw: 0 },
@@ -3140,7 +3143,8 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
-    if(this.cameraQA)this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});
+    if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,station:this.homeTasks.get(r)?.station}])),grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

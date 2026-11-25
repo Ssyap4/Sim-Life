@@ -1,16 +1,14 @@
 import * as THREE from 'three';
 import { GRILL_RECIPES, type RecipeId } from '../shared/food';
-import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, LOUNGE_HOOKAH_BASE, furniturePosition } from '../shared/home';
-import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
+import { DINING_TOP, HOME_YARD, HOME_FLOOR, LOUNGE_HOOKAH_BASE, furniturePosition } from '../shared/home';
+import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, plane, softCube, type XYZ } from './ArtKit';
 
 import {seasonalMaterial} from './SeasonalPalette';
 import { snowPreview } from './LandscapePalette';
 import { growFlowers, growShrub, PlantBatch } from './LandscapePlants';
-import { canopyShade, limestone, paintGround } from './LandscapeGround';
+import {buildYardLandscape} from './YardLandscape';
 
 const edging = 0xb29e83;
-const flagstone = 0xc8b59b;
-const lawn = snowPreview()?0xf2f6ff:0xffffff;
 
 function shape(parent: THREE.Object3D, size: XYZ, position: XYZ, color: number,
   geometry: THREE.BufferGeometry = softCube, shadow = false, surface: Parameters<typeof finish>[1] = 'fabric') {
@@ -21,37 +19,6 @@ function shape(parent: THREE.Object3D, size: XYZ, position: XYZ, color: number,
   mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
-}
-
-function turf() {
-  return paintedMap('home-yard-turf', 512, 320, ctx => {
-    paintGround(ctx, {x:0,z:8.73,w:12.18,d:6.80}, [
-      {x:-5.18,z:9.53,w:2.25,d:5.33,ink:[92,131,80],opacity:.47},
-      {x:-2.8,z:9.51,w:4.62,d:2.79,ink:[181,196,123],opacity:.63},
-      {x:3.5,z:10.5,w:2.8,d:3.6,ink:[165,185,116],opacity:.34},
-    ], 5371, 'lawn');
-    const area={x:0,z:8.73,w:12.18,d:6.8};
-    for(let n=0;n<7;n++)canopyShade(ctx,area,-5.58,7.4+n*.65,.81,733+n);
-    // Broad contact shade beneath the fixed fence, which follows the plot edge.
-    for(const side of [-1,1]){
-      const x=side<0?0:512;
-      const shade=ctx.createLinearGradient(x,0,x-side*30,0);
-      shade.addColorStop(0,'#38452f65');shade.addColorStop(1,'#38452f00');
-      ctx.fillStyle=shade;ctx.fillRect(side<0?0:482,0,30,320);
-    }
-  });
-}
-
-function paving() {
-  return paintedMap('home-yard-paving', 256, 384, ctx => {
-    limestone(ctx,0,0,256,384,88,34,2357);
-  });
-}
-
-function flat(parent: THREE.Group, x: number, y: number, z: number, width: number, depth: number,
-  map: THREE.Texture | null, color: number) {
-  const ground=panel(parent,[x,y,z],[width,depth],map,color);ground.rotation.x=-Math.PI/2;
-  seasonalMaterial(ground.material as THREE.Material,'lawn');
 }
 
 function skewerFood(recipe: RecipeId, food: THREE.Group) {
@@ -221,7 +188,7 @@ function fence(yard: THREE.Group): void {
   const drivewayEdge = 3.1;
   for (const [start, end] of [[-6, left], [right, drivewayEdge], [drivewayEdge, 6]]) {
     const center = (start + end) / 2;
-    const width = end - start - .04;
+    const width = end - start - .22;
     shape(yard, [width, .21, .23], [center, .105, gate.z], edging, cube);
     shape(yard, [width, .57, .09], [center, .495, gate.z], C.oak, cube, false, 'wood');
     shape(yard, [width, .075, .15], [center, .815, gate.z], C.oat, softCube, false, 'wood');
@@ -232,11 +199,11 @@ function fence(yard: THREE.Group): void {
   }
   shape(yard, [1.30, .025, .43], [gate.x, .016, gate.z - .14], C.oat);
   for(const [x,a,b] of [[-5.98,5.22,10.12],[5.98,5.22,sideOpening.minZ],[5.98,sideOpening.maxZ,10.12]]){
-    const d=b-a,z=(a+b)/2;
+    const d=b-a-.24,z=(a+b)/2;
     shape(yard,[.23,.21,d],[x,.105,z],edging,cube);
     shape(yard,[.115,.58,d],[x,.50,z],C.oak,cube,false,'wood');
     shape(yard,[.16,.075,d],[x,.82,z],C.oat,cube,false,'wood');
-    for(const at of [a+.10,b-.10]){shape(yard,[.19,.94,.20],[x,.47,at],C.walnut,softCube,false,'wood');shape(yard,[.25,.07,.25],[x,.95,at],C.oat,softCube);}
+    for(const at of [a+.02,b-.02]){shape(yard,[.19,.94,.20],[x,.47,at],C.walnut,softCube,false,'wood');shape(yard,[.25,.07,.25],[x,.95,at],C.oat,softCube);}
   }
 }
 
@@ -303,44 +270,19 @@ export function buildYard(scene: THREE.Scene) {
   for(const [a,b] of [[plot.minX-.24,-6],[6,plot.maxX+.24]]){
     shape(yard,[b-a,.82,.14],[(a+b)/2,.41,HOME_YARD.gate.z],C.oak,cube);
   }
-  shape(yard, [12.52, .50, 6.66], [0, -.36, 8.91], 0x94775e, cube);
-  const turfBase=shape(yard,[12.25,.11,6.92],[0,-.071,8.70],0x69764f,softCube);
-  turfBase.material=seasonalMaterial(turfBase.material.clone(),'lawn');
-  // Leave a depth gap above the deck for the wider home's overview camera.
-  flat(yard, 0, -.005, 8.73, 12.18, 6.80, turf(), lawn);
-
-  // Painted lawn extension covers the formerly empty parking-side reserve.
-  const extension=paintedMap('right-yard-v6',512,320,ctx=>paintGround(ctx,{x:12.05,z:8.63,w:12.1,d:6.35},[],9721,'lawn'));
-  flat(yard,12.05,-.009,8.63,12.1,6.35,extension,lawn);
-  const added=HOME_YARD.gate.z-12.06,newZ=12.06+added/2;
-  for(const [a,b,seed] of [[plot.minX-.12,HOUSE_ENTRY.x,5301],[HOUSE_ENTRY.x,plot.maxX+.12,5302]]){
-    const area={x:(a+b)/2,z:newZ,w:b-a,d:added};
-    flat(yard,area.x,-.008,area.z,area.w,area.d,paintedMap('oasis-lawn-'+seed,512,256,ctx=>paintGround(ctx,area,[],seed,'lawn')),lawn);
-  }
-  const { x } = HOUSE_ENTRY;
-  const { parking } = HOME_YARD;
-  const stones=paving();
-  const stoneFinish=new THREE.MeshStandardMaterial({map:stones,color:stones?0xffffff:flagstone,roughness:.93});
-  for(const [px,y,z,width,depth] of [[x,.006,(HOUSE_ENTRY.z+HOME_YARD.gate.z)/2,1.88,HOME_YARD.gate.z-HOUSE_ENTRY.z],[-3.51,.004,6.67,4.24,2.75],
-    [parking.x,.004,parking.z,2.84,5.98],[parking.x,.004,(parking.z+2.99+HOME_YARD.gate.z)/2,2.84,HOME_YARD.gate.z-parking.z-2.99],[1.96,.005,11.27,1.12,1.17],[7.40,.006,8.25,10.8,1.56]]){
-    const strip=new THREE.Mesh(plane,stoneFinish);
-    strip.rotation.x=-Math.PI/2;
-    strip.position.set(px,y,z);strip.scale.set(width,depth,1);
-    yard.add(strip);
-  }
-  for (const dx of [-2.37, -1.92, -1.47]) {
-    shape(yard, [.40, .045, .58], [x + dx, -.005, 7.16], flagstone, softCube);
-  }
+  const grounds=new THREE.Group();grounds.name="Yard landscape";yard.add(grounds);
+  const landscape=buildYardLandscape(grounds);
+  const {parking}=HOME_YARD;
   for (const dx of [-1.23, 1.23]) {
-    shape(yard, [.055, .012, 4.69], [parking.x + dx, .01, parking.z + .08], C.paper, cube);
+    shape(yard, [.055, .006, 4.69], [parking.x + dx, .017, parking.z + .08], C.paper, cube);
   }
-  shape(yard, [2.50, .012, .055], [parking.x, .01, parking.z+2.26], C.paper, cube);
+  shape(yard, [2.38, .006, .055], [parking.x, .017, parking.z+2.26], C.paper, cube);
   shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z + 2.52], 0x8a7e6d, softCube);
 
   // Built-in lounge: timber deck and slim transparent canopy.
   // No ground posts in the existing grill, seating or pet routes.
-  shape(yard,[4.78,.036,3.04],[-3.38,-.018,6.77],0xab8863,cube,false,'wood');
-  for(let i=0;i<24;i++)shape(yard,[.188,.009,3.0],[-5.62+i*.19,.003,6.77],i%3===0?0xc0a17b:0xb69a78,cube,false,'wood');
+  shape(yard,[4.78,.036,3.04],[-3.38,-.012,6.77],0xab8863,cube,false,'wood');
+  for(let i=0;i<24;i++)shape(yard,[.188,.009,3.0],[-5.62+i*.19,.012,6.77],i%3===0?0xc0a17b:0xb69a78,cube,false,'wood');
   const canopy=new THREE.Group();canopy.name='Lounge glass canopy';
   const graphite=0x42494b;
   for(const x of [-5.65,-1.11])shape(canopy,[.065,2.42,.065],[x,1.21,5.27],graphite,cube,false,'metal');
@@ -370,5 +312,5 @@ export function buildYard(scene: THREE.Scene) {
     scene.add(effect);
   }
   scene.add(furniture.platter,furniture.hookah);
-  return {...furniture,night};
+  return {...furniture,night,landscape};
 }
