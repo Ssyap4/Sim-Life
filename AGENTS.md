@@ -1,3 +1,6 @@
+# Current approved release 0.43.0 — Health and console gaming (25.11.2026)
+Owner explicitly approved main and deployment. Verify main/tag v0.43.0 and live port 3111; read docs/RELEASE_043.md. Release code eb3ba4aa00b58916201af7e48902c3ace3e6e154; full cloud regression and mobile QA passed at f2af797, version-only follow-up and build passed. Manual mobile screenshots reviewed; detailed finger contact/physical FPS/audio unverified. No next feature approved. Deep careers near full release, board games later, no new NPC interaction or development counter. Preserve existing reset/mobile-first/isolated test rules, no heavy QA on ALINA-PC. Older sections historical where superseded.
+
 # Current approved release 0.41.0 — PULSE Fitness (25.11.2026)
 Owner explicitly approved production and closing fitness scope. Verify main/tag v0.41.0 and port 3111, read docs/RELEASE_041.md. Release code bd76cf488579a6c44ad943b53f63db4b91a1d5f4; full cloud regression 732/732, mobile visual QA success, physical device FPS/contact/audio not verified. Next stage not selected; deep careers only near full release, no new NPC interaction, no excessive gym mechanics. No development-turn counter; weather v2 paused, no RGB/lights. Preserve existing mobile-first/isolated test/reset rules; no heavy QA on ALINA-PC. Older sections below historical where superseded.
 
