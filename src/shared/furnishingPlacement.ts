@@ -27,8 +27,8 @@ const walkObstacles=(state:GameState,placed:readonly PlacedFurniture[])=>placeOb
 const fixedPhysical=(state:GameState):FloorRect[]=>[
   ...HOME_WALLS,
   ...HOME_DECOR.filter((_,index)=>
-    !((index===1&&state.furnishing.soldFixtures?.includes('nightstandLeft'))||
-      (index===2&&state.furnishing.soldFixtures?.includes('nightstandRight')))),
+    !((index===0&&state.furnishing.soldFixtures?.includes('nightstandLeft'))||
+      (index===1&&state.furnishing.soldFixtures?.includes('nightstandRight')))),
   ...Object.entries(HOME_FURNITURE)
     .filter(([id])=>!state.furnishing.soldFixtures?.includes(id as import('./furniture').StaticFurnitureId))
     .map(([,bounds])=>bounds),

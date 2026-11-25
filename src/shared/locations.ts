@@ -289,8 +289,8 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
   }] : []);
   if (place === 'home') obstacles.push(...HOME_DECOR.filter((_,index)=>
-    !((index===1&&furnishing?.soldFixtures?.includes('nightstandLeft'))||
-      (index===2&&furnishing?.soldFixtures?.includes('nightstandRight')))),
+    !((index===0&&furnishing?.soldFixtures?.includes('nightstandLeft'))||
+      (index===1&&furnishing?.soldFixtures?.includes('nightstandRight')))),
     ...HOME_STRUCTURE_OBSTACLES,
     ...Object.entries(HOME_FURNITURE).filter(([id])=>!furnishing?.soldFixtures?.includes(id as import('./furniture').StaticFurnitureId)).map(([,bounds]) => ({
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
