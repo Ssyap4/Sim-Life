@@ -15,10 +15,10 @@ export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boole
  }
  const mosaic=painted(resources,256,256,ctx=>{
   ctx.fillStyle='#729fa6';ctx.fillRect(0,0,256,256);
-  const tones=['#3797a6','#55a9b5','#70b8bd','#428d9d','#65a5b1'];
-  for(let z=0;z<16;z++)for(let x=0;x<16;x++){ctx.fillStyle=tones[(x*17+z*13+x*z)%5];ctx.fillRect(x*16+1,z*16+1,14,14);}
+  const tones=['#428f9e','#52a0ad','#63aab2','#4a98a6','#59a4ad'];
+  for(let z=0;z<16;z++)for(let x=0;x<16;x++){ctx.fillStyle=tones[(x*17+z*13+x*z)%5];ctx.fillRect(x*16+1,z*16+1,14,14);ctx.fillStyle='rgba(232,250,242,.12)';ctx.fillRect(x*16+1,z*16+1,14,1);}
  });
- if(mosaic){mosaic.wrapS=mosaic.wrapT=THREE.RepeatWrapping;mosaic.repeat.set(iw/2,id/2);}
+ if(mosaic){mosaic.wrapS=mosaic.wrapT=THREE.RepeatWrapping;mosaic.repeat.set(iw/1.5,id/1.5);}
  const bottomMat=new THREE.MeshStandardMaterial({map:mosaic,color:mosaic?0xffffff:0x50a8b4,roughness:.72});resources.materials.push(bottomMat);
  const bottom=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),bottomMat);bottom.rotation.x=-Math.PI/2;bottom.position.y=.145;root.add(bottom);
  if(jacuzzi){for(const x of [-.70,.70]){box([.96,.14,.67],[x,.30,-.60],0xb8d9d8,softCube);box([.96,.34,.15],[x,.49,-.95],0xb8d9d8,softCube);}}
@@ -32,16 +32,38 @@ export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boole
   for(let k=0;k<15;k++){ctx.strokeStyle='rgba(215,251,245,.18)';ctx.beginPath();for(let x=0;x<=256;x+=4){const y=k*18+5*Math.sin(x/256*Math.PI*4+k*1.7)+3*Math.sin(x/256*Math.PI*8+k);if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();}
  });
  if(ripple){ripple.wrapS=ripple.wrapT=THREE.RepeatWrapping;ripple.repeat.set(iw/3,id/3);}
- const waterMat=new THREE.MeshStandardMaterial({color:0x7bcdd1,map:null,roughness:.25,metalness:.08,transparent:true,opacity:.43,depthWrite:false,emissive:0x286f79,emissiveIntensity:.17});resources.materials.push(waterMat);
+ const waterMat=new THREE.MeshStandardMaterial({color:0x5bbbc5,map:null,roughness:.25,metalness:.08,transparent:true,opacity:.52,depthWrite:false,emissive:0x286f79,emissiveIntensity:.17});resources.materials.push(waterMat);
  const water=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),waterMat);water.name='SPA water surface';water.rotation.x=-Math.PI/2;water.position.y=waterY;root.add(water);
  const ripMat=new THREE.MeshBasicMaterial({map:ripple,color:0xe1ffff,transparent:true,opacity:ripple?.75:.05,depthWrite:false});resources.materials.push(ripMat);
  const waves=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),ripMat);waves.rotation.x=-Math.PI/2;waves.position.y=waterY+.004;root.add(waves);
  const bubbleMat=new THREE.MeshBasicMaterial({color:0xd9ffff,transparent:true,opacity:.45,depthWrite:false});resources.materials.push(bubbleMat);
  const bubbles=jacuzzi?new THREE.InstancedMesh(new THREE.SphereGeometry(1,6,4),bubbleMat,56):null;
  if(bubbles){bubbles.name='SPA jacuzzi bubbles';bubbles.frustumCulled=false;root.add(bubbles);}
+ // Fixed small wave pool: three expanding surface ripples per resident.
+ const ringGeometry=new THREE.RingGeometry(.91,1,32);
+ const ripples=Array.from({length:6},()=>{
+  const material=new THREE.MeshBasicMaterial({color:0xe5ffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
+  resources.materials.push(material);
+  const ring=new THREE.Mesh(ringGeometry,material);ring.rotation.x=-Math.PI/2;ring.name='SPA swimmer ripple';ring.visible=false;ring.raycast=()=>{};ring.renderOrder=3;root.add(ring);return ring;
+ });
+ const local=new THREE.Vector3();
  const t=new THREE.Object3D();
  if(bubbles)bubbles.visible=false;
- root.userData.animate=(seconds:number,occupied:boolean)=>{
+ root.userData.animate=(seconds:number,occupied:boolean,guests:readonly {x:number;z:number;yaw:number;station:string}[]=[])=>{
+  const active=guests.filter(g=>g.station===parent.userData.spaStation);
+  for(let i=0;i<ripples.length;i++){
+   const ring=ripples[i],guest=active[Math.floor(i/3)];
+   ring.visible=!!guest;if(!guest)continue;
+   local.set(guest.x,0,guest.z);root.worldToLocal(local);
+   if(!jacuzzi){local.x-=.72*Math.sin(guest.yaw);local.z-=.72*Math.cos(guest.yaw);}
+   else local.z+=.25;
+   const age=(seconds*(jacuzzi?.7:.55)+(i%3)/3)%1;
+   const edge=Math.min(iw/2-Math.abs(local.x),id/2-Math.abs(local.z))-.025;
+   const radius=Math.min(edge,(jacuzzi?.14:.24)+age*(jacuzzi?.45:.74));
+   ring.visible=radius>.08;
+   ring.position.set(local.x,waterY+.011,local.z);ring.scale.set(radius,radius,1);
+   ring.material.opacity=.46*Math.sin(age*Math.PI);
+  }
   if(ripple){ripple.offset.set((seconds*.025)%1,(seconds*.018)%1);}
   if(bubbles){bubbles.visible=occupied; if(occupied){for(let i=0;i<bubbles.count;i++){const p=(seconds*.85+i*.173)%1;const a=i*2.399963;const r=.25+(i%9)*.055;t.position.set((i%2?-.72:.72)+Math.cos(a)*r,waterY-.10+p*.22,-.13+Math.sin(a)*r);t.scale.setScalar(.024+p*.032);t.updateMatrix();bubbles.setMatrixAt(i,t.matrix);}bubbles.instanceMatrix.needsUpdate=true;}}
  };

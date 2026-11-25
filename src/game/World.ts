@@ -3183,6 +3183,16 @@ export class World {
     }
     this.weather.frame(this.visualSeconds,this.controls.target,this.renderer.getPixelRatio());
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
+    if(this.place==='spa'&&this.remote){
+      const guests:{x:number;z:number;yaw:number;station:string}[]=[];
+      for(const id of ['vlad','alina'] as const){
+        const station=this.remote.root.userData.spaWaterUsers?.[id],actor=this.actors[id];
+        if(!station||!actor.root.visible)continue;
+        const body=actor.bodyPosition(this.framePartPosition);
+        guests.push({x:body.x,z:body.z,yaw:actor.root.rotation.y,station});
+      }
+      this.remote.root.userData.spaGuests=guests;
+    }
     this.remote?.animate?.(this.visualSeconds);
     if(this.place==='fitness'&&this.remote){
       const roles=['vlad','alina'] as const;
