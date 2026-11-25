@@ -91,7 +91,7 @@ import {CONSOLE_GAMES,newConsoleMatch,consoleMatchWinner} from '../src/shared/co
 const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv' || c.type==='console_play';
 
 export function usesHomeSession(command: TimedCommand): boolean {
-  return command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
+  return command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
       ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit'].includes(command.actionId));
@@ -118,7 +118,7 @@ export function createHomeSessions(hooks: Hooks) {
         const cmd=session.plan.command;
         // Contact, sports and private hygiene retain exclusive control of the rig.
         if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
-           cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
+           cmd.type==='vanity_care'||cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
            cmd.type==='furniture_use'&&Object.hasOwn(BATH_ACTIONS,cmd.action))return 'Сейчас разговор будет мешать занятию';
         const end=home.route.path.at(-1)??home.route.from;
         positions[r]=home.pair?.stroll?sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(now()-session.activeAt)/1000).from:end;
@@ -196,6 +196,7 @@ export function createHomeSessions(hooks: Hooks) {
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
+    if(command.type==='vanity_care'){if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);
@@ -353,7 +354,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (!result.ok) { end(session, 'failed', result.reason); return; }
       const route = packet.home!.route;
       const seat = packet.home!.station;
-      const seated = seat==='furniture' ? packet.home!.furnitureSeat===true:
+      const seated = seat==='furniture' ? packet.home!.furnitureSeat===true&&session.plan.command.type!=='vanity_care':
         seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
       Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from,
         { pose: seated ? 'sit' : 'idle' });

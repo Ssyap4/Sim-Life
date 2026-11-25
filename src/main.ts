@@ -1,3 +1,4 @@
+import {CARE,careScore,careEffects,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
 import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
@@ -467,6 +468,7 @@ function renderNeeds(): void {
     heading.textContent=names[role]+' · '+emotion.emoji+' '+emotion.label+' · '+Math.round(char.mood)+'%';
     heading.title=emotion.reason;
     group.append(heading);
+    if(role==='alina'){const row=document.createElement('div');row.className='need-row';const label=document.createElement('span');label.textContent='✨ Ухоженность';const track=document.createElement('div');track.className='need-track';const fill=document.createElement('i');fill.style.width=careScore(state)+'%';fill.style.background='#d58ab5';track.append(fill);const value=document.createElement('span');value.className='need-value';value.textContent=careScore(state)+'%';row.append(label,track,value);group.append(row);for(const e of careEffects(state)){const note=document.createElement('small');note.className='autonomy-note';note.textContent=CARE[e.id].label+' · ещё '+rewardTime(e.until-gameMinutes(state.clock));group.append(note);}}
     const thought=thoughtFor(state,role);
     const thoughtNode=document.createElement('p');
     thoughtNode.className='autonomy-thought';
@@ -779,6 +781,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
     if(command.type==='local_activity')return state.world.places[role]==='park'&&net.world({type:'approach',place:'park',station:command.station});
     if(state.world.places[role]!=='home')return false;
     if(command.type==='together')return net.social({type:'social_propose',action:command.action});
+    if(command.type==='vanity_care')return net.entertainment(command);
     if(command.type==='fridge'){
       const station=stationById('home','fridge');
       if(!station)return false;
@@ -1202,14 +1205,14 @@ function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:s
   }
   if(online.includes(target)&&state.world.places[active]===state.world.places[target]&&state.characters[active].pose!=='sleep'&&state.characters[target].pose!=='sleep'){
     const me=active;
-    const section=document.createElement('details');section.open=tasks.has(active)||tasks.has(target);
+    const section=document.createElement('details');section.open=tasks.has(active)||tasks.has(target)||NEARBY_TALK_TOPICS.some(t=>t.context==='vanity'&&contextAvailable(t,state!,me));
     const title=document.createElement('summary');title.textContent='💬 Поговорить, не отвлекаясь от дел';section.append(title);
     const topics=NEARBY_TALK_TOPICS.filter(t=>contextAvailable(t,state!,me));
     const groupNames={talk:'Общение',care:'Забота',romance:'Романтика',fun:'Шутки',home:'Быт'};
     for(const kind of ['talk','romance','care','fun','home'] as const){
       const relevant=topics.filter(t=>t.group===kind);
       if(!relevant.length)continue;
-      const groupPanel=document.createElement('details');groupPanel.open=kind==='talk';
+      const groupPanel=document.createElement('details');groupPanel.open=kind==='talk'||relevant.some(t=>t.context==='vanity');
       const groupLabel=document.createElement('summary');groupLabel.textContent=groupNames[kind];groupPanel.append(groupLabel);
       for(const topic of relevant){
       const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=topic.title;
@@ -1449,6 +1452,7 @@ function openActions(item: ItemId): void {
     phone.open('delivery');
     return;
   }
+  if(item==='vanity'){showActionMenu('✨ Туалетный столик');if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);for(const id of Object.keys(CARE) as CareId[]){const d=CARE[id],b=document.createElement('button');b.className='action-button';b.textContent=d.label+' · +'+d.points+'% · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}return;}
   if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));

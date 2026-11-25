@@ -1,3 +1,4 @@
+import {CARE_TOPICS,careTopicAvailable} from './vanity';
 import {sharedCoffeeOptions} from './coffee';
 import {GROCERIES} from './food';
 import { BADMINTON_SECONDS } from './badminton';
@@ -60,7 +61,7 @@ import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
 export type PairMotion = 'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
-type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
+type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'breakfastCare';
 export type SocialActivity = {
@@ -164,7 +165,8 @@ const greetings:SocialActivity[]=[
  {id:'nearTalk:goodMorning',title:'Пожелать доброго утра',group:'care',lines:['Доброе утро! Как спалось?'],replies:['Доброе утро!','Хорошо, а тебе?'],motion:'talk',seconds:20,context:'morningGreeting'},
  {id:'nearTalk:goodNight',title:'Пожелать спокойной ночи',group:'care',lines:['Спокойной ночи. Хорошо отдохни.'],replies:['И тебе сладких снов.','Спокойной ночи!'],motion:'talk',seconds:20,context:'nightGreeting'},
  ];
-export const NEARBY_TALK_TOPICS=[...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
+const careTalk:SocialActivity[]=CARE_TOPICS.map(t=>({id:t.id,title:t.title,group:'romance',lines:[t.line],replies:t.replies,motion:'talk',seconds:8,context:'vanity'}));
+export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
 export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
 export const SOCIAL_ACTIVITIES = [...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
@@ -205,6 +207,7 @@ function latestLesson(state:GameState,role:CharacterId){
 export function contextAvailable(a:SocialActivity,state:GameState,from:CharacterId):boolean {
   const partner=otherPerson(from);
   switch(a.context){
+    case 'vanity':return careTopicAvailable(state,from,a.id);
     case 'returnGreeting':return state.world.places[from]==='home'&&state.world.places[partner]==='home'&&!!recentCareer(state,partner,['Смена завершена','Досрочный уход'],150)&&!state.relationship.recent.some(e=>e.action===a.id&&gameMinutes(state.clock)-e.at<150);
     case 'morningGreeting':return state.clock.minute>=360&&state.clock.minute<660&&!state.relationship.recent.some(e=>e.action===a.id&&Math.floor(e.at/1440)===Math.floor(gameMinutes(state.clock)/1440));
     case 'nightGreeting':return state.clock.minute>=1260&&!state.relationship.recent.some(e=>e.action===a.id&&Math.floor(e.at/1440)===Math.floor(gameMinutes(state.clock)/1440));

@@ -1,3 +1,4 @@
+import {CARE,isCare,finishCare} from '../src/shared/vanity';
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
@@ -63,6 +64,7 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 import {CONSOLE_GAMES,isConsoleGame} from '../src/shared/consoleCatalog';
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if(command.type==='vanity_care'&&isCare(command.care)){const care=command.care;return {command:{type:'vanity_care',care},label:CARE[care].label,durationMs:CARE[care].seconds*1000,resource:'vanity'};}
   if(command.type==='console_play'&&isConsoleGame(command.game)){const game=command.game,g=CONSOLE_GAMES[game];if(g.mode==='coop')return null;return {command:{type:'console_play',game},label:'🎮 '+g.name,durationMs:g.seconds*1000,resource:'tv'};}
   if(command.type==='furniture_use'){
     if(!Number.isSafeInteger(command.furnitureId)||typeof command.action!=='string'||
@@ -197,6 +199,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 }
 
 export function entertainmentReward(command: Entertainment, together = false, bonus=0, comfort=0): NeedEffects {
+  if(command.type==='vanity_care')return {mood:CARE[command.care].mood};
   if(command.type==='console_play')return {fun:Math.min(100,65+bonus),mood:12,comfort:8+comfort,...(together?{social:35}:{})};
   if (command.type === 'read_book') return READING_REWARD;
   if (command.type === 'free_tv') return { fun: 5+bonus, ...(comfort?{comfort}:{}) };
@@ -205,6 +208,7 @@ export function entertainmentReward(command: Entertainment, together = false, bo
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+  if(command.type==='vanity_care'){if(role!=='alina'||state.world.places[role]!=='home'||!isCare(command.care))return {ok:false,reason:'Уход доступен Алине дома'};const next=structuredClone(state);finishCare(next,command.care);next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
     const pose=bedPose(state,role,'starter');
     const reason=pose&&catBedError(state,'starter:bed',pose);

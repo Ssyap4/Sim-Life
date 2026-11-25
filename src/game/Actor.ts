@@ -27,7 +27,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -76,6 +76,18 @@ export class Actor {
   private gymDumbbells?:THREE.Group[];
   private gamepads?:Record<string,THREE.Group>;
   private activePad?:THREE.Group;
+  private vanityKind?:import('../shared/vanity').CareId;
+  private vanityProp?:THREE.Group;
+  playVanity(id:import('../shared/vanity').CareId){
+    this.playDomesticActivity('vanity');this.vanityKind=id;
+    const g=new THREE.Group();const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
+    if(['brush','style','fancy'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
+    else if(id==='perfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
+    else if(id==='skin'){add(.055,.047,.055,0,-.03,0,0xf5e6d9);add(.06,.017,.06,0,.001,0,0xbc997a);}
+    else{add(.018,.09,.018,0,-.03,0,0x825561);add(.043,.045,.035,0,-.095,0,0xd9b3a4);}
+    g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
+  }
+  private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;}
   playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;}
   private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;}
   gamepadGripError(){if(!this.activePad)return null;const pad=this.activePad;return ([0,1] as const).map(i=>this.rig.wrists[i].getWorldPosition(new THREE.Vector3()).distanceTo(pad.localToWorld(new THREE.Vector3(i===0?-CONTROLLER_GRIP:CONTROLLER_GRIP,-.01,-.069))));}
@@ -380,6 +392,7 @@ export class Actor {
   }
 
   playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
+    this.clearVanity();
     if(kind!=='consolePlay')this.hideGamepad();
     this.activity = kind;
     if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
@@ -391,6 +404,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.clearVanity();
     this.hideGamepad();
     this.props.phone.visible=false;
     if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
@@ -745,6 +759,14 @@ export class Actor {
           leftZ = rightZ = 0.29;
           gaze = 0.10;
           break;
+        case 'vanity': {
+          const id=this.vanityKind,cycle=Math.sin(a*2.6),lift=.5+.5*Math.sin(a*1.7);
+          if(id==='brush'||id==='style'||id==='fancy'){rightY=.19+.15*cycle;rightZ=.10+.045*Math.cos(a*2.6);leftY=-.22+.13*lift;leftZ=.22;armSpread=.22;gaze=.04;}
+          else if(id==='perfume'){rightY=-.02+.13*lift;rightZ=.26;leftY=-.23;gaze=.06;}
+          else if(id==='skin'){rightY=.07+.08*cycle;rightZ=.18;leftY=.04-.08*cycle;leftZ=.18;gaze=.04;}
+          else {rightY=.10+.055*cycle;rightZ=.17+.015*Math.cos(a*3.4);leftY=-.24;gaze=.02;}
+          lean=.02;break;
+        }
         case 'teeth': {
           // Keep the brush near the mouth, not above the eye/temple. Tiny
           // strokes are enough; the head should not intersect the forearm.

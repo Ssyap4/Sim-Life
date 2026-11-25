@@ -27,7 +27,7 @@ export type { IngredientId, RecipeId } from './food';
 
 export type CharacterId = 'vlad' | 'alina';
 export type Pose = 'idle' | 'sit' | 'sleep' | 'work';
-export type ItemId = 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker' | 'kettle' | 'kitchenWindow';
+export type ItemId = 'vanity' | 'sofa' | 'bed' | 'desk' | 'kitchen' | 'tv' | 'table' | BathFixture | 'delivery' | 'bookcase' | 'officeChair' | 'grill' | 'yardTable' | 'coffeeMaker' | 'kettle' | 'kitchenWindow';
 export type SocialKind = 'hug' | 'highFive';
 export const SOCIAL_LABELS: Record<SocialKind, string> = {
   hug: 'Обняться', highFive: 'Дать пять',
@@ -62,6 +62,7 @@ import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
   consoleLibrary?: import('./consoleCatalog').ConsoleGameId[];
   health?: import('./health').HealthState;
+  vanity?: import('./vanity').VanityState;
   homeDust?: HomeDust;
   vacuum?: import('./vacuum').VacuumState;
   speakers?: import('./speaker').SpeakerState;
@@ -101,6 +102,7 @@ export interface GameState {
 export const names: Record<CharacterId, string> = { vlad: 'Влад', alina: 'Алина' };
 export const itemNames: Record<ItemId, string> = {
   kitchenWindow:'Кухонное окно',
+  vanity:'Туалетный столик',
   bookcase: '📚 Домашняя библиотека',
   officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
@@ -110,6 +112,7 @@ export const itemNames: Record<ItemId, string> = {
   toilet: 'Туалет', shower: 'Душевая', bathtub: 'Ванна', basin: 'Раковина в ванной',
 };
 export const points: Record<Exclude<ItemId, 'delivery'>, { x: number; z: number }> = {
+  vanity:{x:HOME_PLACEMENTS.vanity.x+1.55,z:HOME_PLACEMENTS.vanity.z},
   bookcase: LIBRARY_APPROACH,
   officeChair: homeSeat('officeChair', 'vlad').approach,
   sofa: { x: HOME_PLACEMENTS.sofa.x, z: HOME_PLACEMENTS.sofa.z - 1.10 },

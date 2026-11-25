@@ -908,6 +908,7 @@ export class World {
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
           actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
+        if(command.type==='vanity_care'){actor.playVanity(command.care);return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
           if(command.action==='read_book')actor.playDomesticActivity('read');
@@ -1704,7 +1705,7 @@ export class World {
     this.register('yardTable', this.yard.table, points.yardTable);
     buildPersonalFurniture(this.scene, model => this.register('bookcase',model,
       new THREE.Vector3(points.bookcase.x,0,points.bookcase.z)),
-      (id,model)=>this.staticFixtureModels.set(id,model));
+      (id,model)=>this.staticFixtureModels.set(id,model),model=>this.register('vanity',model,points.vanity));
     buildSoftRugs(this.scene,(id,model)=>this.staticFixtureModels.set(id,model));
     let desktop:THREE.Group|undefined;
     buildFurniture((id, furniture, point) => {

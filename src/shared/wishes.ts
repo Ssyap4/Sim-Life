@@ -10,12 +10,14 @@ import { isSleepBed } from './bedSleep';
 import type { CharacterId, GameState, ActionId } from './protocol';
 import { wishAvailable } from './happiness';
 import type { PetId } from './pets';
+import {careEffects,careTopicAvailable,type CareId} from './vanity';
 
 export type WishCommand =
   | {type:'act';actionId:ActionId}
   | {type:'sleep_start';mode:'half'|'full'}
+  | {type:'vanity_care';care:CareId}
   | {type:'fridge'}
-  | {type:'together';action:'sofaTalk'|'yardRest'|'musicTogether'}
+  | {type:'together';action:'sofaTalk'|'yardRest'|'musicTogether'|'nearTalk:careLook'}
   | {type:'local_activity';action:'dog';station:'park-dog'}
   | {type:'cook'|'eat';recipe:RecipeId}
   | {type:'eat_takeout';item:TakeoutId}
@@ -135,6 +137,12 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     add('game-break','🎮','Вечер за игрой','Хочется отвлечься от дел и поиграть.','Поиграть',furniture(state,'desk','deskGames'));
     add('favorite-music','🎵','Включить любимую музыку','Немного музыки для хорошего настроения.','Послушать',furniture(state,'sofa','sofaMusic'));
   }else{
+    if(state.world.places.alina==='home'){
+      const effects=careEffects(state);
+      if(!effects.some(e=>e.id==='style'||e.id==='fancy'))add('vanity-style','✨','Сделать красивую укладку','Хочется уделить немного времени себе.','Сделать укладку',{type:'vanity_care',care:'style'});
+      if(!effects.some(e=>e.id==='skin'))add('vanity-skin','🌸','Уделить время себе','Небольшая процедура ухода.','Уход за кожей',{type:'vanity_care',care:'skin'});
+      if(careTopicAvailable(state,role,'nearTalk:careLook'))add('vanity-compliment','♡','Поделиться своим образом','Хочется услышать мнение Влада.','Спросить Влада',{type:'together',action:'nearTalk:careLook'});
+    }
     add('learn-hair','📚','Изучить новую технику ухода','Хочется разобраться в восстановлении волос.','Учиться',!state.furnishing.soldFixtures?.includes('desk')?{type:'act',actionId:'alinaStudy'}:undefined);
     add('music-evening','🎵','Музыка для настроения','Хочется устроить небольшой музыкальный перерыв.','Послушать',furniture(state,'sofa','sofaMusic'));
     add('quiet-call','💬','Позвонить близким','Приятно узнать, как прошёл день у близких.','Позвонить',furniture(state,'sofa','sofaCall'));

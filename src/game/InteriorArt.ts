@@ -413,7 +413,7 @@ export function buildFurniture(register: Register): void {
 
 export function buildPersonalFurniture(scene: THREE.Scene,
   registerLibrary: (model: THREE.Group) => void,
-  registerFixture?: (id:'nightstandLeft'|'nightstandRight',model:THREE.Group)=>void): void {
+  registerFixture?: (id:'nightstandLeft'|'nightstandRight',model:THREE.Group)=>void,registerVanity?: (model:THREE.Group)=>void): void {
   const vanity = group(HOME_PLACEMENTS.vanity.x, HOME_PLACEMENTS.vanity.z);
   vanity.rotation.y = Math.PI / 2;
   part(vanity, [1.33, .11, .63], [0, .86, 0], C.woodLight, 'soft', true, 'wood');
@@ -428,6 +428,10 @@ export function buildPersonalFurniture(scene: THREE.Scene,
   oval(vanity, [.216, .285, .014], [-.09, 1.55, -.11], 0xcdd9c9);
   round(vanity, .078, .142, [-.44, .986, .015], C.terracotta, 'ceramic');
   round(vanity, .052, .08, [-.44, 1.08, .015], C.brass, 'metal');
+  round(vanity,.042,.12,[.42,.98,.06],0xd9a8b4,'ceramic');
+  round(vanity,.026,.045,[.42,1.065,.06],C.brass,'metal');
+  part(vanity,[.23,.045,.14],[.24,.94,.08],0x8a555e);
+  part(vanity,[.15,.025,.065],[-.21,.94,.10],C.woodDark);
   part(vanity, [.50, .40, .44], [0, .20, .67], C.wood, 'soft', false, 'wood');
   part(vanity, [.55, .13, .49], [0, .46, .67], C.blush, cushionGeometry);
   const bookcase = group(HOME_PLACEMENTS.bookcase.x, HOME_PLACEMENTS.bookcase.z);
@@ -471,7 +475,7 @@ export function buildPersonalFurniture(scene: THREE.Scene,
   for (const furniture of [vanity, bookcase]) {
     batchRigidParts(furniture, true);
     polishFurniture(furniture,false);
-    if (furniture === bookcase) registerLibrary(bookcase); else scene.add(furniture);
+    if (furniture === bookcase) registerLibrary(bookcase); else if(registerVanity)registerVanity(vanity);else scene.add(furniture);
   }
 }
 

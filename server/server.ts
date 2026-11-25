@@ -547,6 +547,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const partner=otherRole(role);
           const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
+          if(role==='alina'&&!sharedWindow&&turn%3===1&&state.clock.minute>=360&&state.clock.minute<720&&(!state.vanity?.hair||state.vanity.hair.until<=clockMinutes(state.clock))&&mostCritical>50){
+            const plan=planTask({type:'vanity_care',care:'brush'})!;beginTask(role,socket,plan,true);if(homeTasks.busy(role)){lastAutoCare.set(role,now);started=true;continue;}
+          }
           if(turn%3===2&&!sharedWindow){
             for(const command of fullLeisureCandidates(state,role,Math.floor(turn/3))){
               const plan=planTask(command);
@@ -1398,7 +1401,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',
-        'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book','console_play',
+        'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book','console_play','vanity_care',
         'pet_action',
       ].includes(message.type)&&!(message.type==='pet_action'&&
         (['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)));
@@ -1555,7 +1558,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'clean_room' || message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'console_play' || message.type === 'read_book' ||
+      if (message.type === 'clean_room' || message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'vanity_care' || message.type === 'console_play' || message.type === 'read_book' ||
           (message.type === 'pet_action' && !(['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

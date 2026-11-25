@@ -153,6 +153,7 @@ const defaultFurnitureBounds = Object.fromEntries(
 
 export const HOME_FURNITURE = {
   ...defaultFurnitureBounds,
+  vanity:homeFootprint(HOME_PLACEMENTS.vanity,-.51,1.14,-.90,.90),
   kitchen: homeFootprint(COUNTER, -2.70, 2.21, -.575, .49),
   kettle: homeFootprint(HOME_PLACEMENTS.kettle, -.31, .31, -.29, .29),
   coffeeMaker: homeFootprint(HOME_PLACEMENTS.coffeeMaker, -.21, .21, -.20, .19),
@@ -164,7 +165,6 @@ export const HOME_FURNITURE = {
 
 const shower = BATH_FIXTURES.shower.center;
 export const HOME_DECOR = [
-  homeFootprint(HOME_PLACEMENTS.vanity, -.51, 1.14, -.90, .90),
   homeFootprint(HOME_PLACEMENTS.bedroomLampLeft, -.34, .34, -.38, .38),
   homeFootprint(HOME_PLACEMENTS.bedroomLampRight, -.35, .35, -.38, .38),
   // The shower tray is walkable. Its glazing forms a U with the entrance facing west.

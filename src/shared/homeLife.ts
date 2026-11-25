@@ -38,6 +38,7 @@ export type NeedKey = Exclude<keyof Needs, 'skill'>;
 export type NeedEffects = Partial<Record<NeedKey, number>>;
 
 export type Entertainment =
+  | {type:'vanity_care';care:import('./vanity').CareId}
   | {type:'console_play';game:import('./consoleCatalog').ConsoleGameId}
   | { type: 'youtube' }
   | { type: 'free_tv' }

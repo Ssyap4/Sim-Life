@@ -1,3 +1,4 @@
+import {careTopic,rewardCareTopic,careBonuses} from '../src/shared/vanity';
 import {sharedCoffeeOptions} from '../src/shared/coffee';
 import {brewCoffee} from './coffee';
 import { badmintonWinner } from '../src/shared/badminton';
@@ -302,8 +303,10 @@ const socialEffects:Record<SocialActivity['group'],NeedEffects>={
 };
 
 export function parkConversation(source:GameState,from:CharacterId,topic:SocialActivity,choice:number):GameState{
-  const next=structuredClone(source);const {strength}=addRelationship(next,topic,choice);
-  for(const role of [from,otherPerson(from)])change(next,role,socialEffects[topic.group],strength);
+  const next=structuredClone(source);
+  if(careTopic(topic.id)){if(rewardCareTopic(next,from,topic.id)){addRelationship(next,topic,choice);next.revision++;}return next;}
+  const {strength}=addRelationship(next,topic,choice);
+  for(const role of [from,otherPerson(from)]){const e=socialEffects[topic.group];change(next,role,{...e,social:(e.social??0)*careBonuses(next,role).social},strength);}
   next.revision++;return next;
 }
 
@@ -507,7 +510,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       const response=role===to&&a.group==='care'?
         choice===1?{social:5,mood:2,comfort:5}:choice===2?{social:2,comfort:3}:socialEffects.care:
         socialEffects[a.group];
-      change(state,role,response,strength);
+      change(state,role,{...response,social:(response.social??0)*careBonuses(state,role).social},strength);
     }
     if(quiz){for(const role of roles)change(state,role,{fun:3},strength);message='Угадали! '+a.replies[choice];}
     else if(a.id==='riddle'||a.id==='homelyQuiz')message='Ответ · '+a.replies[a.id==='riddle'?0:1];

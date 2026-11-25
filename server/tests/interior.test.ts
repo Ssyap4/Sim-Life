@@ -20,7 +20,7 @@ test('both players can reach every interaction around the assembled interior', (
   const register: Parameters<typeof buildFurniture>[0] = (id, root, point) => {
     assert.deepEqual(point, points[id], id + ' approach must match server coordinates');
     furnished.set(id, point);
-    if (id !== 'bookcase' && id !== 'grill' && id !== 'yardTable') root.traverseVisible((object) => {
+    if (id !== 'vanity' && id !== 'bookcase' && id !== 'grill' && id !== 'yardTable') root.traverseVisible((object) => {
       if (object instanceof THREE.Mesh) {
         // Fully static ornamentation can be merged into one tinted geometry.
         // Such batches are deliberately unique, not failed reusable primitives.
@@ -44,7 +44,7 @@ test('both players can reach every interaction around the assembled interior', (
     });
   };
   buildFurniture(register);
-  buildPersonalFurniture(new THREE.Scene(), library => register('bookcase',library,points.bookcase));
+  buildPersonalFurniture(new THREE.Scene(), library => register('bookcase',library,points.bookcase),undefined,vanity=>register('vanity',vanity,points.vanity));
   const yard = buildYard(new THREE.Scene());
   register('grill', yard.grill, points.grill);
   register('yardTable', yard.table, points.yardTable);

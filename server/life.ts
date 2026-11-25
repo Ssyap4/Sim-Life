@@ -1,3 +1,4 @@
+import {careBonuses} from '../src/shared/vanity';
 import {
   type GameState, type CharacterId,
 } from '../src/shared/protocol';
@@ -35,6 +36,7 @@ export function advanceLife(source: GameState, gameMinutes: number,
     advanceFitness(state,role,gameMinutes,source.clock.day);
     const bonuses=fitnessBonuses(state,role);
     const character = state.characters[role];
+    const beforeMood=character.mood;
     for (const need of VITAL_NEEDS) {
       const until=activeReward(source,role,need);
       const unlocked=until?Math.max(0,Math.min(gameMinutes,(state.clock.day-1)*1440+state.clock.minute-until)):gameMinutes;
@@ -46,6 +48,7 @@ export function advanceLife(source: GameState, gameMinutes: number,
     advanceHumanHealth(state,source,role,gameMinutes);
     const urgent = VITAL_NEEDS.filter(need => need !== 'bladder' && character[need] < 20).length;
     if (urgent) character.mood = clamp(character.mood - urgent * gameMinutes / 60 * 0.8 * bonuses.moodDrain);
+    if(character.mood<beforeMood)character.mood=clamp(beforeMood-(beforeMood-character.mood)*careBonuses(source,role).mood);
   }
   const walker=state.world.dogWalker;
   if(walker&&online.includes(walker)&&state.world.places[walker]==='park'){

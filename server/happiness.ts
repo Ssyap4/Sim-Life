@@ -33,6 +33,8 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
     if(w.id==='reading'&&(command.type==='read_book'||action==='read_book'||action==='sofaRead'))return true;
     const c=w.command;
     if(!c)return false;
+    if(c.type==='vanity_care')return command.type==='vanity_care'&&command.care===c.care;
+    if(w.id==='vanity-compliment')return command.type==='together'&&command.action==='nearTalk:careLook';
     if(c.type==='act'||c.type==='furniture_use')return (c.type==='act'?c.actionId:c.action)===action;
     if(c.type==='cook'||c.type==='eat')return command.type===c.type&&'recipe' in command&&command.recipe===c.recipe;
     if(c.type==='pet_action')return command.type==='pet_action'&&command.pet===c.pet&&command.action===c.action;
