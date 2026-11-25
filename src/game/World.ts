@@ -530,6 +530,7 @@ export class World {
     return true;
   }
 
+  focusSoloLounge():boolean{if(this.place!=='home'||this.homeTasks.get(this.localRole)?.station!=='yardTable')return false;this.showcase(this.localRole);return true;}
   focusSpaActivity(id:string):boolean{const station=stationById('spa',id);return this.place==='spa'&&!!station&&this.focusVenueStation(station);}
   focusVenueStation(station:Station):boolean{
     this.manualCameraHeight=false;
@@ -602,7 +603,8 @@ export class World {
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
     const vanityAngle=person&&this.homeTasks.get(subject)?.vanityCare?new THREE.Vector3(-.19,.32,.98):null;
-    const angle = vanityAngle??bedAngle??(perch
+    const loungeAngle=person&&this.homeTasks.get(subject)?.station==='yardTable'?new THREE.Vector3(.65,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
+    const angle = loungeAngle??vanityAngle??bedAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)

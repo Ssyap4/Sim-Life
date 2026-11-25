@@ -113,6 +113,7 @@ interface TaskView {
   spaStation?:string;
   isCooking?:boolean;
   freeRest?:boolean;
+  soloLounge?:boolean;
   pool?:boolean;
   answer?: { correct: boolean; message: string };
 }
@@ -386,12 +387,13 @@ function drawTaskPanel(): void {
       box.append(form);
     }
     if (role === active) {
-      if(task.paired&&(world?.place==='home'||world?.place==='venue')||task.spaStation&&world?.place==='spa'){
+      if(task.soloLounge&&task.since!==null&&world?.place==='home'||task.paired&&(world?.place==='home'||world?.place==='venue')||task.spaStation&&world?.place==='spa'){
         const focus=document.createElement('button');
         focus.type='button';focus.className='task-focus';focus.dataset.focusShared='';
         focus.textContent='🎥 К действию';
         focus.setAttribute('aria-label','Приблизить камеру к совместному занятию');
         focus.addEventListener('click',()=>{
+          if(task.soloLounge){world?.focusSoloLounge();return;}
           if(task.spaStation){world?.focusSpaActivity(task.spaStation);return;}
           if(!world?.focusSharedActivity())notify('Сначала подойдите к совместному занятию');
         });
@@ -1054,7 +1056,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();

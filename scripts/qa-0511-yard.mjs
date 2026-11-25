@@ -38,8 +38,13 @@ try{
  const finish=async p=>{await page.locator('[data-social-finish]').tap();await take('task_ended',x=>x.taskId===p.taskId&&x.outcome==='completed');};
  let p=await start('yardLounge');await take('snapshot',x=>x.state.characters[role].comfort>20);await shot('02-solo-lounge');await finish(p);
  p=await start('yardHookahSolo');assert.equal(p.effects.fun,15);assert.equal(p.effects.comfort,15);
+ await page.locator('[data-focus-shared]').tap();
+ await page.waitForFunction(()=>{const p=JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose);return Math.hypot(...p.eye.map((x,i)=>x-p.target[i]))<5;},undefined,{timeout:20000});
+ await page.waitForFunction(r=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r].hookah.raise>.98,role,{timeout:35000});
+ console.log('HOOKAH TIP',role,(await telemetry()).actors[role].hookah);await shot('03a-grip-close');
  await page.waitForFunction(r=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r].hookah.puffs>=3,role,{timeout:35000});
- await shot('03-solo-hookah-smoke');await finish(p);
+ await shot('03b-exhale-close');await finish(p);
+ await page.locator('#camera-reset').tap();
  await page.waitForFunction(r=>{const h=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r].hookah;return !h.visible&&!h.puffs;},role,{timeout:10000});
  peer=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(peer,'open');peer.send(JSON.stringify({type:'auth',role:other,code:files.access[other]}));
  await take('online',p=>p.online?.includes(other));await page.waitForTimeout(1000);

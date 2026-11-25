@@ -73,7 +73,7 @@ export class Actor {
   private readonly loungeGrip=new THREE.Vector3();
   private readonly loungeAxis=new THREE.Vector3();
   private readonly loungeRotation=new THREE.Quaternion();
-  hookahQA(){return {visible:this.loungeMouthpiece.visible,puffs:this.loungeSmoke.activePuffs};}
+  hookahQA(){const visible=this.loungeMouthpiece.visible,phase=this.partnerGesture?.motion==='yardHookah'?hookahPhase(this.partnerGesture.time,this.partnerGesture.leads):null;return {visible,puffs:this.loungeSmoke.activePuffs,raise:phase?.raise??0,tipGap:visible?this.loungeMouthpiece.localToWorld(new THREE.Vector3(0,0,.1395)).distanceTo(this.loungeMouth):null};}
   private readonly hoseLowA=new THREE.Vector3();
   private readonly hoseLowB=new THREE.Vector3();
   private readonly hoseStart=new THREE.Vector3();
