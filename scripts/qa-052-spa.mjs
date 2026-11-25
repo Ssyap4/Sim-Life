@@ -15,7 +15,7 @@ try{
  const visit=spaTogetherTrip(initial,'vlad','package');assert.ok(visit.ok);const s=visit.state;
  for(const r of ['vlad','alina'])Object.assign(s.characters[r],approachFor(stationById('spa','spa-pool'),r),{energy:65,hunger:100,hygiene:25,comfort:20,mood:20,fun:20});
  openServerFiles(dir).save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.6,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  const errors=[];
  async function player(role){
@@ -36,8 +36,8 @@ try{
   await p.waitForFunction(({role,action})=>window.__qaMessages.some(m=>m.type==='task_started'&&m.role===role&&m.command?.action===action),{role,action},{timeout:20000});
   return p.evaluate(({role,action})=>window.__qaMessages.findLast(m=>m.type==='task_started'&&m.role===role&&m.command?.action===action).taskId,{role,action});
  }
- const end=(p,id)=>p.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='completed'),id,{timeout:65000});
- const visual=async(p,predicate)=>p.waitForFunction(predicate,undefined,{timeout:45000});
+ const end=(p,id)=>p.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='completed'),id,{timeout:100000});
+ const visual=async(p,predicate)=>{try{await p.waitForFunction(predicate,undefined,{timeout:65000});}catch(e){console.error('Visual timeout',await p.evaluate(()=>({qa:document.querySelector('#game-canvas')?.dataset.yardQA,packets:window.__qaMessages.filter(m=>['task_started','task_ended','error'].includes(m.type)).slice(-8)})));await shot(p,'failure-diagnostic');throw e;}};
  const both=await Promise.all([task(v,'vlad','spaPool','spa-pool'),task(a,'alina','spaPool','spa-pool')]);
  await v.locator('[data-focus-shared]').click();await v.waitForFunction(()=>window.__qaMessages.some(m=>m.type==='snapshot'&&m.state.world.spa?.vlad?.progress?.spaPool),undefined,{timeout:30000});await visual(v,()=>Object.values(JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors).every(a=>a.activity==='spaSwim'&&a.spaWater==='spa-pool'));await v.waitForTimeout(1000);await shot(v,'03-pool');await a.locator('[data-focus-shared]').click();await a.waitForTimeout(1200);await shot(a,'03-pool-alina');await Promise.all([end(v,both[0]),end(a,both[1])]);
  const jacuzzi=await Promise.all([task(v,'vlad','spaJacuzzi','spa-jacuzzi'),task(a,'alina','spaJacuzzi','spa-jacuzzi')]);
