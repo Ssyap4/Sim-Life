@@ -30,6 +30,7 @@ import { tennisPlayer,tennisBall } from '../shared/tableTennis';
 import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
+import {floatBob,poolSwimFrame} from '../shared/oasisPool';
 import { picnicPortions } from '../shared/picnic';
 import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
@@ -224,6 +225,7 @@ export class World {
   private activeGrillRecipe: RecipeId | undefined;
   private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
+  private readonly poolMotions=new Map<CharacterId,{mode:'poolFloat'|'poolSwim';started:number}>();
   private readonly dishTasks = new Set<CharacterId>();
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
@@ -937,6 +939,9 @@ export class World {
       if(station==='furniture'){
         const pose=home.furniturePose;
         if(!pose)return;
+        if(command.type==='furniture_use'&&(command.action==='poolFloat'||command.action==='poolSwim')){
+          this.startPoolMotion(role,command.action,home);return;
+        }
         if(home.furnitureSeat){
           actor.setFurniturePose('sit',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw);
         }else if(command.type==='furniture_use'&&
@@ -1098,6 +1103,7 @@ export class World {
         break;
       }
       case 'leisure':{
+        if(pair.item==='poolFloat'||pair.item==='poolSwim'){this.startPoolMotion(role,pair.item,home);break;}
         if(pair.item==='boardGame'||pair.item==='chessGame')actor.playDomesticActivity('chess');
         else if(pair.item==='dartsGame')actor.playDomesticActivity('darts');
         else if(pair.item==='pingPong'){
@@ -1201,10 +1207,18 @@ export class World {
     }
   }
 
+  private startPoolMotion(role:CharacterId,mode:'poolFloat'|'poolSwim',home:HomePresentation):void{
+    const p=home.furniturePose;if(!p)return;
+    const actor=this.actors[role];
+    actor.setFurniturePose('idle',new THREE.Vector3(p.x,p.y,p.z),p.yaw);
+    actor.playDomesticActivity(mode==='poolFloat'?'spaRecline':'spaSwim');
+    this.poolMotions.set(role,{mode,started:this.visualSeconds});
+  }
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
     this.homeTasks.delete(role);
+    this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
     if(![...this.homeTasks.values()].some(h=>h.pair?.item==='pingPong'))this.tennisStarted=null;
@@ -1497,6 +1511,7 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
+    if(home?.furnitureId!==undefined&&this.household?.furnishing.placed.some(i=>i.id===home.furnitureId&&['oasis-pool','oasis-terrace'].includes(i.sku)))this.actors[role].setPose('idle');
     if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest'||home?.pair?.motion==='breakfastReceive')this.actors[role].setPose('idle');
     if (dishes||home?.vanityCare) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
@@ -2267,7 +2282,7 @@ export class World {
     this.grillCooking = false;
     this.kitchenCooking=false;
     this.kitchenEffects.root.visible=false;
-    this.homeTasks.clear();
+    this.homeTasks.clear();this.poolMotions.clear();
     this.neighborhoodView=false;
     this.frameDistrictResident();
     this.neighborBodies=[];
@@ -2813,7 +2828,9 @@ export class World {
       const center = actor.root.position;
       const partnerId = id === 'vlad' ? 'alina' : 'vlad';
       const partner = this.actors[partnerId];
-      const partnerYaw = partner.root.visible && !this.sleepingOffline.has(partnerId) &&
+      const floatSelf=this.poolMotions.get(id)?.mode==='poolFloat'?this.homeTasks.get(id)?.furniturePose:undefined;
+      const floatPartner=this.poolMotions.get(partnerId)?.mode==='poolFloat'?this.homeTasks.get(partnerId)?.furniturePose:undefined;
+      const partnerYaw = floatSelf&&floatPartner?THREE.MathUtils.euclideanModulo(Math.atan2(floatPartner.x-floatSelf.x,floatPartner.z-floatSelf.z)-actor.root.rotation.y+Math.PI,Math.PI*2)-Math.PI:partner.root.visible && !this.sleepingOffline.has(partnerId) &&
         Math.hypot(partner.root.position.x - center.x, partner.root.position.z - center.z) < 2.6
         ? relativeLookYaw(actor.root, partner.root.position) : null;
       let petYaw: number | null = null;
@@ -2845,6 +2862,17 @@ export class World {
           if(!pointIsClear(p,this.currentObstacles(),floorFor('home')))p=new THREE.Vector3(end.x,0,end.z);
           const target=f.strike?model.localToWorld(new THREE.Vector3(f.strike.x,f.strike.y,f.strike.z)):undefined;
           actor.setTennisFrame(p.x,p.z,f.hit,target);
+        }
+      }
+      const pool=this.poolMotions.get(id),poolHome=this.homeTasks.get(id);
+      if(this.place==='home'&&pool&&poolHome?.furniturePose){
+        const p=poolHome.furniturePose;
+        if(pool.mode==='poolFloat')actor.updateWaterAnchor(this.framePartPosition.set(p.x,p.y+floatBob(this.visualSeconds,id),p.z),p.yaw);
+        else if(poolHome.furnitureId!==undefined){
+          const model=this.furnishingModels.get(poolHome.furnitureId);
+          if(model){const f=poolSwimFrame(this.visualSeconds-pool.started,id);
+            const anchor=model.localToWorld(this.framePartPosition.set(f.x,f.y,f.z));
+            actor.updateWaterAnchor(anchor,model.rotation.y+f.yaw);}
         }
       }
       actor.update(dt, this.steering[id]);
@@ -3063,7 +3091,11 @@ export class World {
           else if(v.mode==='docked')body.rotation.y=0;
         }
       }
-      for(const [id,model] of this.furnishingModels){const ball=this.stableParts.get(model,'Table tennis live ball');if(!ball)continue;
+      for(const [id,model] of this.furnishingModels){
+        const raftV=this.stableParts.get(model,'Oasis float vlad');
+        if(raftV){const swim=[...this.poolMotions.entries()].some(([r,p])=>p.mode==='poolSwim'&&this.homeTasks.get(r)?.furnitureId===id);
+          for(const r of ['vlad','alina'] as const){const raft=this.stableParts.get(model,'Oasis float '+r);if(raft){raft.position.y=floatBob(this.visualSeconds,r);raft.visible=!swim;}}}
+        const ball=this.stableParts.get(model,'Table tennis live ball');if(!ball)continue;
         const h=[...this.homeTasks.values()].find(h=>h.furnitureId===id&&h.pair?.item==='pingPong');
         const playing=this.tennisStarted!==null&&!!h&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='leisureTogether');
         ball.visible=playing;const resting=this.stableParts.get(model,'Table tennis resting equipment');if(resting)resting.visible=!playing;

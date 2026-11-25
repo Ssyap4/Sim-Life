@@ -109,6 +109,7 @@ interface TaskView {
   spaStation?:string;
   isCooking?:boolean;
   freeRest?:boolean;
+  pool?:boolean;
   answer?: { correct: boolean; message: string };
 }
 const tasks = new Map<CharacterId, TaskView>();
@@ -399,7 +400,7 @@ function drawTaskPanel(): void {
       });
       if(!task.freeRest||task.since===null)box.append(cancel);
       if(task.freeRest){
-        const finish=document.createElement('button');finish.type='button';finish.className='social-button';finish.dataset.socialFinish='';finish.textContent='Встать';
+        const finish=document.createElement('button');finish.type='button';finish.className='social-button';finish.dataset.socialFinish='';finish.textContent=task.pool?'Выйти из воды':'Встать';
         finish.addEventListener('click',()=>net.social({type:'social_finish',taskId:task.taskId}));box.append(finish);
       }
       if(task.paired&&['eat','takeout','cafeMeal'].includes(task.paired.action)){
@@ -646,6 +647,13 @@ function renderClock(): void {
   phone.refreshClock(clock);
 }
 
+function syncResidentLook(role:CharacterId):void{
+  if(!state||!world)return;
+  const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool;
+  const worn=water?'spa-visit':(state.world.wardrobe??defaultWardrobe())[role].worn;
+  const actor=world.actors[role];
+  if(actor.root.userData.wornLook!==worn){if(water)fitSpaWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+}
 function render(reset = false): void {
   if (!state) return;
   if (active && world) {
@@ -663,12 +671,7 @@ function render(reset = false): void {
       statusEl.textContent = PLACES[place].name;
     }
     world.syncHousehold(state, active, reset, online);
-    for(const role of ['vlad','alina'] as const){
-      const inSpa=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false;
-      const worn=inSpa?'spa-visit':(state.world.wardrobe??defaultWardrobe())[role].worn;
-      const actor=world.actors[role];
-      if(actor.root.userData.wornLook!==worn){if(inSpa)fitSpaWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
-    }
+    for(const role of ['vlad','alina'] as const)syncResidentLook(role);
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);
     petsBtn.disabled = place !== 'home';
@@ -1038,10 +1041,11 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      freeRest:!automatic&&isFreeLeisureRest(command.type==='furniture_use'?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='furniture_use'?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
+    syncResidentLook(role);
     const animated = world.startTimedAction(role, command, home);
     statusEl.textContent = names[role] + ': ' + label;
     if (!animated && role === active) notify('Действие началось на сервере, путь анимации пока недоступен');
@@ -1085,6 +1089,7 @@ const net = new LiveConnection({
         if(role===active&&message.includes('✨ Желание исполнено'))notify(message.slice(message.indexOf('✨ Желание исполнено')));
       }
       tasks.delete(role);
+      syncResidentLook(role);
       drawTaskPanel();
       if(role===active&&previous.paired)phone.refreshRelationship();
     }

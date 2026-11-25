@@ -1,6 +1,8 @@
-import { LEISURE, isLeisureAction, leisureAction } from './leisure';
+import { LEISURE, isLeisureAction } from './leisure';
+import {floatX,FLOAT_Z,FLOAT_TOP,poolSwimFrame} from './oasisPool';
 import { FURNITURE_BY_ID, workstationLayout,isNotebookDesk,diningSeatTop, type FurnitureShape, type PlacedFurniture } from './furniture';
 import { HOME_WORLD_FLOOR } from './district';
+import { HOME_FLOOR } from './home';
 import { placeObstacles,stationById,HOME_LAPTOP } from './locations';
 import type { CharacterId, GameState } from './protocol';
 import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
@@ -8,7 +10,7 @@ import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 /** Only meaningful activities for the purchased item's actual 3D shape. */
 export const FURNITURE_ACTIONS = {
   boardGame:LEISURE.boardGame.label,chessGame:LEISURE.chessGame.label,dartsGame:LEISURE.dartsGame.label,
-  pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,terraceRest:LEISURE.terraceRest.label,
+  pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,terraceRest:LEISURE.terraceRest.label,poolFloat:LEISURE.poolFloat.label,poolSwim:LEISURE.poolSwim.label,
   sofaRest:'Отдохнуть',
   sofaMusic:'Послушать музыку',
   sofaCall:'Позвонить с дивана',
@@ -47,7 +49,7 @@ export function canFurniturePerform(item:PlacedFurniture,action:FurnitureUseActi
   const info=FURNITURE_BY_ID.get(item.sku);
   if(!info)return false;
   const shape=info.shape;
-  if(shape==='leisure')return leisureAction(item.sku)===action;
+  if(shape==='leisure')return isLeisureAction(action)&&LEISURE[action].sku===item.sku;
   if(isLeisureAction(action))return false;
   if(action==='officeChairSit')return seats.has(shape);
   if(['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action))
@@ -100,6 +102,14 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const side=role==='vlad'?-1:1;
   if(isLeisureAction(action)){
     const spec=LEISURE[action];
+    if(action==='poolFloat'||action==='poolSwim'){
+      const obstacles=placeObstacles('home',state.furnishing);
+      const approaches=[[1.75+side*.35,info.depth/2+.38],[1.75+side*.35,info.depth/2+.65]];
+      for(const [x,z] of approaches){const p=rotate(item,x,z);if(!pointIsClear(p,obstacles,HOME_FLOOR))continue;const route=planWalk(from,p,obstacles,HOME_FLOOR);if(!route)continue;
+        const swim=poolSwimFrame(0,role);const center=action==='poolFloat'?rotate(item,floatX(role),FLOAT_Z+.88):rotate(item,swim.x,swim.z);
+        return {item,action,route,pose:{...center,y:action==='poolFloat'?FLOAT_TOP+.12:swim.y,yaw:item.rotation*Math.PI/2+(action==='poolFloat'?0:swim.yaw)}};
+      }return null;
+    }
     const board=action==='boardGame'||action==='chessGame';
     const terrace=action==='terraceRest';const swing=action==='swingRest'||terrace;const hammock=action==='hammockRest';
     const target=board||action==='pingPong'?[0,side*(info.depth/2+.64)]:

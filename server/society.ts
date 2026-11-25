@@ -91,7 +91,7 @@ export function socialResource(a:SocialActivity,item?:string) { return a.object=
 import {CONSOLE_GAMES,isConsoleGame,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
 export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
   if(a.object==='console'&&isConsoleGame(command.item))return CONSOLE_GAMES[command.item].seconds*1000;
-  if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku);if(action)return LEISURE[action].seconds*1000;}
+  if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku,a.id);if(action)return LEISURE[action].seconds*1000;}
   return 1000*(a.object==='lesson'?Math.max(10,(MATERIAL_BY_ID.get(command.item!)?.minutes??10)*2):a.seconds);
 }
 export const socialPet=(command:SocialIntent)=>petActions[command.action]&&command.action!=='petFeed'?command.item as PetId:undefined;
@@ -138,7 +138,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     }return homes;
   }
   if(a.object==='leisure'){
-    const item=state.furnishing.placed.find(i=>String(i.id)===p),action=item&&leisureAction(item.sku);
+    const item=state.furnishing.placed.find(i=>String(i.id)===p),action=item&&leisureAction(item.sku,a.id);
     if(!item||!action||!LEISURE[action].paired)return null;
     const v=furnitureUseLocation(state,'vlad',item.id,action),al=furnitureUseLocation(state,'alina',item.id,action);
     if(!v||!al)return null;
@@ -456,7 +456,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       }
       break;
     case 'leisure': {
-      const item=state.furnishing.placed.find(i=>String(i.id)===id),action=item&&leisureAction(item.sku);
+      const item=state.furnishing.placed.find(i=>String(i.id)===id),action=item&&leisureAction(item.sku,a.id);
       if(!item||!action||!LEISURE[action].paired)return fail('Предмет для досуга недоступен');
       rejected=each({type:'furniture_use',furnitureId:item.id,action});
       const skill=LEISURE[action].skill;

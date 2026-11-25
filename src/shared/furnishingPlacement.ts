@@ -117,8 +117,8 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
   // entire empty strips beside each wall.
   const physical=furnitureFootprint(candidate,.018);
   const outdoor=product.category==='leisure'&&physical.minZ>=HOUSE.maxZ+.55&&physical.maxZ<=HOME_FLOOR.maxZ-.25&&physical.minX>=HOME_FLOOR.minX+.25&&physical.maxX<=HOME_FLOOR.maxX-.25;
-  if(candidate.sku==='oasis-terrace'){
-    if(!outdoor)return deny('Террасу можно поставить только во дворе');
+  if(candidate.sku==='oasis-terrace'||candidate.sku==='oasis-pool'){
+    if(!outdoor)return deny('Этот предмет можно поставить только во дворе');
     const parking={minX:HOME_YARD.parking.x-1.42,maxX:HOME_YARD.parking.x+1.42,minZ:HOME_YARD.parking.z-2.99,maxZ:HOME_YARD.parking.z+2.99};
     const passage={minX:2,maxX:12.8,minZ:7.47,maxZ:9.03};
     if(intersects(physical,parking)||intersects(physical,passage))return deny('Оставь свободными парковку и дорожку');

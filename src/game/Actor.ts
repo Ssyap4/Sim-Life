@@ -395,6 +395,9 @@ export class Actor {
     } else this.keys = keys;
   }
 
+  updateWaterAnchor(worldAnchor:THREE.Vector3,yaw:number):void{
+    this.root.rotation.y=yaw;this.poseOffset.copy(worldAnchor).sub(this.root.position).applyAxisAngle(up,-yaw);
+  }
   snapFurnitureOffset():void { this.figureBase.copy(this.poseOffset); this.figure.position.copy(this.poseOffset); }
   isSleeping(): boolean { return this.pose==='sleep'; }
   audioMotion(){return {activity:this.activity,pose:this.pose,walking:this.gaitBlend>.18,activityTime:this.activityTime,gesture:this.gesture,gestureTime:this.gestureTime,partner:this.partnerGesture?{motion:this.partnerGesture.motion,leads:this.partnerGesture.leads,time:this.partnerGesture.time}:null};}
@@ -1509,7 +1512,7 @@ export class Actor {
     }
 
     // Speech overlay only on the face/head: preserve utensils, hands, legs, route and furniture pose.
-    const chatActive=!resting&&this.activity!=='spaSwim'&&this.conversationYaw!==null&&!this.partnerGesture;
+    const chatActive=(!resting||this.activity==='spaRecline')&&this.activity!=='spaSwim'&&this.conversationYaw!==null&&!this.partnerGesture;
     const chatYaw=chatActive?THREE.MathUtils.clamp(this.conversationYaw!,-.55,.55)*(this.activity||this.pose==='work'?.48:.85):0;
     const chatNod=chatActive?Math.sin(t*(this.conversationSpeaking?3.5:1.6))*.035:0;
     if(chatActive)expression=Math.max(expression,this.conversationSpeaking?.28:.18);
@@ -1528,7 +1531,7 @@ export class Actor {
       const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
-    const look = rest?rest.headYaw+(reclining?partnerYaw:0):0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
+    const look = rest?rest.headYaw+(reclining?partnerYaw:0)+chatYaw:0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, (rest?rest.headPitch:gaze + 0.022 * breath - lean * 0.55 + chatNod), alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,

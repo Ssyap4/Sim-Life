@@ -64,13 +64,13 @@ test('new furniture stays physical while player pathfinding gets independent mar
   const model=FURNITURE_BY_ID.get(chosen.sku)!;
   assert.ok(chosen.x+model.width/2<15.65);
 });
-test('all catalog products fit in a valid room somewhere (all four rotations tried)',()=>{
+test('all catalog products fit in a valid room or yard somewhere (all four rotations tried)',()=>{
   const home=state();
   const spots=[] as Array<{x:number;z:number}>;
   for(let x=10.4;x<15;x+=.58)for(let z=-6.95;z<4.65;z+=.6)spots.push({x,z});
   for(const product of FURNITURE_CATALOG){
     let possible=false;
-    for(const {x,z} of spots){
+    for(const {x,z} of (product.id.startsWith('oasis-')?[{x:-9.95,z:8.1},{x:9.5,z:10.2},...spots]:spots)){
       if(possible)break;
       for(const rotation of [0,1,2,3] as const){
         const placement={id:1,sku:product.id,finish:'oak' as const,x,z,rotation};

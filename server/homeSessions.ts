@@ -185,7 +185,7 @@ export function createHomeSessions(hooks: Hooks) {
     invite = null;
   };
   const reserved = (resource: string | null) => resource !== null &&
-    [...sessions.values()].some(session => session.plan.resource === resource);
+    [...sessions.values()].some(session => session.plan.resource === resource||session.plan.resource?.startsWith(resource+':float:'));
   const cookFor=(role:CharacterId)=>{
     const session=sessions.get(role);
     const command=session?.plan.command;
@@ -416,8 +416,9 @@ export function createHomeSessions(hooks: Hooks) {
     const material = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
     const denial = command.type==='together'&&cooperation?cooperationDenial(hooks.state(),cooperation.from,command):taskAccessError(hooks.state(), command);
     if (denial) { if (!automatic) error(initiator, denial); return; }
-    const resource = plan.resource;
-    const occupant = [...sessions.values()].find(session => resource && session.plan.resource === resource);
+    const soloFloat=roles.length===1&&command.type==='furniture_use'&&command.action==='poolFloat';
+    const resource = soloFloat?plan.resource+':float:'+roles[0]:plan.resource;
+    const occupant = [...sessions.values()].find(session => resource&&(session.plan.resource===resource||(!soloFloat&&session.plan.resource?.startsWith(resource+':float:'))||(soloFloat&&session.plan.resource===plan.resource&&session.participants.some(p=>p.packet.home?.pair?.item!=='poolFloat'||p.role===roles[0]))));
     if ((occupant && (automatic || !occupant.participants[0].packet.automatic)) ||
         (resource !== null && hooks.resourceBusy(resource))) {
       if (!automatic) error(initiator, 'Это место сейчас занято вторым игроком');
@@ -600,7 +601,9 @@ export function createHomeSessions(hooks: Hooks) {
       if(id===undefined)return error(socket,'Место отдыха недоступно');
       // Credit a bounded fraction of the existing reward for actual seated time.
       const strength=Math.min(1,Math.max(0,(now()-s.activeAt)/s.duration));
-      const result=evaluateTask(before,role,{type:'furniture_use',furnitureId:id,action:'terraceRest'});
+      const action=command?.type==='furniture_use'?command.action:home.pair?.item;
+      if(action!=='terraceRest'&&action!=='poolFloat')return error(socket,'Место отдыха недоступно');
+      const result=evaluateTask(before,role,{type:'furniture_use',furnitureId:id,action});
       if(!result.ok){cancel(role,result.reason,member.packet.taskId);return;}
       const next=result.state;
       for(const need of ['fun','mood','comfort','energy'] as const){
@@ -610,7 +613,7 @@ export function createHomeSessions(hooks: Hooks) {
       Object.assign(next.characters[role],home.route.path.at(-1)??home.route.from,{pose:'idle'});
       const remember=!!s.cooperation&&!s.finishedTogether&&s.participants.length===2&&strength>=1;
       if(strength>=1){
-        recordCompletedActivity(next,role,{type:'furniture_use',furnitureId:id,action:'terraceRest'});
+        recordCompletedActivity(next,role,{type:'furniture_use',furnitureId:id,action});
         if(remember)addRelationship(next,SOCIAL_BY_ID.get('leisureTogether')!,s.cooperation!.choice);
       }
       try{hooks.save(next);}catch{return error(socket,'Не удалось сохранить отдых');}
@@ -744,7 +747,7 @@ export function createHomeSessions(hooks: Hooks) {
       if(session.freeRest&&session.activeAt!==null){
         for(const participant of [...session.participants]){
           const id=participant.packet.home?.furnitureId;
-          if(hooks.state().world.places[participant.role]!=='home'||id===undefined||!hooks.state().furnishing.placed.some(i=>i.id===id&&i.sku==='oasis-terrace'))
+          if(hooks.state().world.places[participant.role]!=='home'||id===undefined||!hooks.state().furnishing.placed.some(i=>i.id===id&&(i.sku==='oasis-terrace'||i.sku==='oasis-pool')))
             cancel(participant.role,'Место отдыха недоступно');
         }
         continue;

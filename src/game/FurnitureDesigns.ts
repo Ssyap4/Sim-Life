@@ -1,3 +1,4 @@
+import {POOL_SIZE,floatX,FLOAT_Z} from '../shared/oasisPool';
 import {feederModel} from '../shared/petFeeders';
 import * as THREE from 'three';
 import { FURNITURE_BY_ID,FURNITURE_FINISHES,workstationLayout,isNotebookDesk,type FurnitureFinish } from '../shared/furniture';
@@ -139,6 +140,42 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     ball(.030,.030,.030,0,.87,.50,0xf8f4e5,'ceramic');
     line(-w*.34,.892,-.90,-w*.34,.892,.91,.012,0xd0a471,'wood');
     line(-w*.28,.892,-.92,-w*.28,.892,.85,.012,0xa4754d,'wood');
+    return root;
+  }
+  if(s==='oasis-pool'){
+    const water=POOL_SIZE,cz=water.waterZ;
+    box(6.32,.12,3.8,0,.06,cz,0x337f92,'ceramic',true);
+    for(const x of [-3.12,3.12])box(.24,.91,3.8,x,.455,cz,0xe5e5dc,'ceramic',true);
+    box(6.3,.91,.20,0,.455,-2.14,0xe7ede6,'ceramic');
+    // Clear acrylic front with a pale rim, no opaque lid or lane dividers.
+    const glass=box(6.08,.76,.11,0,.43,1.50,0x51b9ce,'ceramic');
+    glass.material=new THREE.MeshStandardMaterial({color:0x53b8cc,transparent:true,opacity:.32,roughness:.19,depthWrite:false});
+    box(6.32,.11,.20,0,.89,1.50,0xf5f2e7,'ceramic',true);
+    for(const x of [-3.12,3.12])box(.26,.10,3.85,x,.89,cz,0xf5f2e7,'ceramic',true);
+    box(6.32,.10,.24,0,.89,-2.14,0xf5f2e7,'ceramic',true);
+    const surface=new THREE.Mesh(new THREE.PlaneGeometry(water.waterWidth,water.waterDepth),new THREE.MeshStandardMaterial({color:0x39b6c8,transparent:true,opacity:.66,roughness:.24,metalness:.08,depthWrite:false,side:THREE.DoubleSide}));
+    surface.name='Oasis water surface';surface.rotation.x=-Math.PI/2;surface.position.set(0,water.waterY,cz);root.add(surface);
+    // Subtle ripples on the basin floor, not lines separating swimmers.
+    for(let i=0;i<18;i++){const x=-2.75+(i%6)*1.08,z=-1.87+Math.floor(i/6)*1.13;
+      const ripple=box(.64,.006,.035,x,.136,z,0x6bbbc7,'ceramic');ripple.rotation.y=Math.sin(i*2.7)*.8;}
+    // Warm deck with wide exterior steps across the front.
+    box(3.05,.80,.63,1.55,.4,1.93,M,'wood');
+    for(let i=0;i<3;i++){const y=.15+i*.24;box(1.48,y,.23,1.75,y/2,2.22-i*.23,L,'wood',true);}
+    for(let i=0;i<11;i++)box(.245,.035,.61,.25+i*.26,.815,1.93,L,'wood');
+    // In-water entry steps on the front right; fixed handrails.
+    for(let i=0;i<3;i++){const top=.21+i*.25;box(.93,top,.26,2.36,top/2,.67+i*.27,0xd8e7e2,'ceramic',true);}
+    for(const x of [1.84,2.88]){line(x,.85,1.65,x,1.42,1.65,.025,0xdce9e8,'metal');line(x,1.42,1.65,x,1.30,1.10,.025,0xdce9e8,'metal');line(x,1.30,1.10,x,.68,1.10,.025,0xdce9e8,'metal');}
+    // Separate floating groups retain their pivots for matching occupant bob.
+    for(const role of ['vlad','alina'] as const){
+      const raft=new THREE.Group();raft.name='Oasis float '+role;raft.position.set(floatX(role),0,FLOAT_Z);
+      const color=role==='vlad'?0x71b7bd:0xefb3a5;
+      const add=(m:THREE.Mesh)=>{root.remove(m);raft.add(m);};
+      add(box(.99,.16,2.12,0,.87,0,color,'metal',true));
+      for(const x of [-.43,.43])add(box(.17,.18,2.06,x,.91,0,color,'metal',true));
+      for(let i=0;i<5;i++)add(box(.70,.025,.32,0,.956,-.73+i*.35,0xf5ece0,'metal',true));
+      add(box(.72,.19,.38,0,1.005,-.79,color,'metal',true));
+      batchRigidParts(raft,true);root.add(raft);
+    }
     return root;
   }
   if(s==='oasis-terrace'){

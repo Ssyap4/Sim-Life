@@ -77,6 +77,7 @@ const objects: readonly SocialActivity[] = [
   {id:'sofaMassage',title:'Сделать массаж плеч',group:'care',lines:['Давай посидим рядом, я немного разомну тебе плечи.'],replies:['Да, хочется расслабиться.','Спасибо, мне это сейчас нужно.'],motion:'sofaMassage',seconds:40,object:'sofa',memorable:true},
   {id:'breakfastBed',title:'Принести завтрак в постель',group:'care',lines:['Оставайся в кровати, я приготовлю и принесу тебе завтрак.'],replies:['Как приятно, спасибо!','С удовольствием!'],motion:'breakfastReceive',seconds:32,object:'breakfastBed',resource:'kitchen',memorable:true},
   {id:'breakfastCare',title:'Приготовить завтрак для любимого человека',group:'care',lines:['Хочешь, приготовлю тебе свежий завтрак? Посиди за столом, я всё сделаю.'],replies:['Да, спасибо!','С удовольствием, очень приятно.'],motion:'cook',seconds:25,object:'breakfastCare',resource:'kitchen',memorable:true},
+  {id:'poolSwimTogether',title:'Поплавать вместе',group:'home',lines:['Пойдём поплаваем в нашем бассейне?'],replies:['Давай!','С удовольствием!'],motion:'leisure',seconds:60,object:'leisure',memorable:true},
   {id:'leisureTogether',title:'Провести досуг вдвоём',group:'home',lines:['Давай поиграем или отдохнём вместе!'],replies:['С удовольствием!','Давай!'],motion:'leisure',seconds:28,object:'leisure',memorable:true},
   {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
     lines:['Давай устроим домашний вечер: можем приготовить вдвоём, доесть готовое или разделить доставку.',
@@ -275,7 +276,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
   if(a.object==='console')return consoleLibrary(state).filter(id=>CONSOLE_GAMES[id].mode!=='solo'&&!consolePlayError(state,id)).map(id=>({id,label:CONSOLE_GAMES[id].name}));
   if(a.object==='breakfastCare'||a.object==='breakfastBed')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'}));
   if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
-  if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
+  if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku,a.id);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
   if(a.id==='eveningPlan') {
     const cooked=recipeIds.filter(id=>!isGrillRecipe(id)&&

@@ -1,0 +1,57 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import {once} from 'node:events';
+import assert from 'node:assert/strict';
+import WebSocket from 'ws';
+import {initialState} from '../src/shared/protocol.ts';
+import {pairScenes} from '../server/society.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const action=process.argv[2]==='swim'?'poolSwimTogether':'leisureTogether',item='2',out='/tmp/simlife-050-pool';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'couple-'));let server,browser,page,peer;
+try{
+ const s=initialState();s.clock.minute=750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
+ s.money=100000;s.furnishing.placed=[{id:1,sku:'oasis-terrace',finish:'sage',x:9.5,z:10.2,rotation:2}];s.furnishing.placed.push({id:2,sku:'oasis-pool',finish:'oak',x:-9.95,z:8.1,rotation:0});s.furnishing.nextId=3;
+ const homes=pairScenes(s,'alina',{type:'together',action,item});assert.ok(homes);
+ for(const role of ['vlad','alina']){
+  const home=homes[role],end=home.route.path.at(-1)??home.route.from;
+  Object.assign(s.characters[role],{x:end.x,z:end.z,pose:home.pair?.seat?'sit':'idle',energy:90,bladder:90,hunger:90});
+ }
+ const files=openServerFiles(dir);files.save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.5,lifeClock:{now:()=>0,tickMs:600000}});
+ peer=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');const packets=[];
+ peer.on('message',raw=>packets.push(JSON.parse(raw.toString())));
+ await once(peer,'open');
+ const send=x=>peer.send(JSON.stringify(x));
+ const take=async(type,predicate=()=>true)=>{for(let i=0;i<900;i++){const index=packets.findIndex(p=>p.type===type&&predicate(p));if(index>=0)return packets.splice(index,1)[0];await new Promise(r=>setTimeout(r,30));}throw Error('Missing '+type+' '+packets.map(p=>p.type).join(','));};
+ send({type:'auth',role:'alina',code:files.access.alina});await take('ready');
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});
+ await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(1100);
+ send({type:'social_propose',action,item});
+ await take('social_pending');
+ await page.locator('[data-social-reply="0"]').click({timeout:15000});
+ const start=await take('task_started',p=>p.role==='vlad'&&p.command?.action===action);
+ await take('task_active',p=>p.taskId===start.taskId);
+ await page.locator('[data-focus-shared]').click();
+ await page.waitForTimeout(3500);
+ await page.screenshot({path:join(out,action+'-initial.jpg'),type:'jpeg',quality:90});
+ if(action==='poolSwimTogether'){await page.waitForTimeout(6000);await page.screenshot({path:join(out,action+'-moving.jpg'),type:'jpeg',quality:90});assert.deepEqual(errors,[]);process.exitCode=0;}else{
+ assert.equal(await page.locator('[data-social-finish]').innerText(),'Выйти из воды');
+ assert.ok(await page.locator('[data-social-finish]').isEnabled());
+ assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);
+ await page.waitForTimeout(24000);
+ assert.ok(await page.locator('[data-social-finish]').isEnabled());
+ await page.screenshot({path:join(out,action+'.jpg'),type:'jpeg',quality:90});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
+ await page.locator('[data-social-finish]').click();
+ await take('task_ended',p=>p.role==='vlad'&&p.taskId===start.taskId&&p.outcome==='completed');
+ assert.deepEqual(errors,[]);}
+}finally{peer?.close();await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
