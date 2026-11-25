@@ -30,10 +30,11 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
+export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='fitness'?FITNESS_FLOOR:WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -54,6 +55,7 @@ type SiteAction =
   | {kind:'clinic'; facility:string}
   | {kind:'fitness'; facility:string}
   | {kind:'warehouse';job:'ozon'|'wildberries'}
+  | {kind:'console-display';sku:import('./consoleCatalog').ConsoleSku}
   | {kind:'speaker-display'}
   | {kind:'vacuum-display'}
   | {kind:'electronics-display';category:import('./electronics').ElectronicsKind}
@@ -210,8 +212,10 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('tech-coffee','Кофемашины',0,.85,2.35,.95,{kind:'electronics-display',category:'coffee'}),
     site('tech-speaker','Умные колонки',-4.15,3.65,2.15,.78,{kind:'speaker-display'},{approach:{x:-4.15,z:2.55}}),
     site('tech-vacuum','Роботы-пылесосы',4.05,3.65,2.15,.78,{kind:'vacuum-display'},{approach:{x:4.05,z:2.55}}),
+    site('tech-ps5','PlayStation 5',8.15,-2.65,2.6,1.02,{kind:'console-display',sku:'console-ps5'}),
+    site('tech-switch','Nintendo Switch 2',8.15,1.75,2.6,1.02,{kind:'console-display',sku:'console-switch2'},{approach:{x:8.15,z:.65}}),
     site('tech-cash','Касса',3.65,1.45,1.75,.8,{kind:'electronics-checkout'}),
-    door('tech-exit','Выход на улицу','district',-2.75,4.60,true),
+    door('tech-exit','Выход на улицу','district',-1.80,4.60,true),
   ],
   clothing: [
     site('clothes-alina','Женская одежда',-3.75,-2.55,2.25,.84,{kind:'clothes-rack'}),
@@ -368,6 +372,7 @@ export function initialWorld(): WorldState {
 }
 export type LocalActivity = import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | import('./consoleCatalog').ConsoleCommand
   | import('./health').HealthCommand
   | import('./fitness').FitnessCommand
   | { type:'camp_pack'; item:CampRecipe|'fuel' }

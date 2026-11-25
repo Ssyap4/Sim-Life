@@ -33,9 +33,11 @@ import {roomAt} from './shared/homeDust';
 import {humanHealth,petHealth,healthStatus,healthBookingSlots,PET_CONDITIONS,type HealthCommand} from './shared/health';
 import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
-type App = 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
+type App = 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  consoles:['🎮','Игровые консоли'],
   health:['🏥','Добрый доктор'],
   fitness:['🏋️','PULSE Fitness'],
   speakers:['🔊','Умные колонки'],
@@ -59,7 +61,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -83,7 +85,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let speakerKey='',fitnessKey='',healthKey='';
+  let speakerKey='',fitnessKey='',healthKey='',consoleKey='';
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
@@ -107,6 +109,16 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='consoles'){
+      const key=JSON.stringify([role,state.money,state.consoleLibrary,state.furnishing.placed,state.furnishing.stored,state.world.places[role]]);
+      if(key!==consoleKey){consoleKey=key;const scroll=info.scrollTop;const cards=[];
+        for(const sku of Object.keys(CONSOLES) as ConsoleSku[]){
+          const installed=consoleInstalled(state,sku),card=block(CONSOLES[sku].name,installed?'Установлена':consoleOwned(state,sku)?'На складе · размести дома':'Купить в «Импульсе»');
+          for(const id of consoleGames(sku)){const game=CONSOLE_GAMES[id],owned=consoleLibrary(state).includes(id),b=document.createElement('button');b.type='button';b.textContent=game.name+' · '+(owned?'В библиотеке':formatRub(game.price));b.disabled=owned||!installed||state.money<game.price||state.world.places[role]!=='home';b.onclick=()=>consoleControl?.({type:'console_game_buy',game:id});card.append(b);}
+          cards.push(card);
+        }info.replaceChildren(...cards);info.scrollTop=scroll;
+      }
+    }
     if(app==='health'){
       const h=humanHealth(state,role),now=gameMinutes(state.clock);
       const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],state.world.vetVisit,h.careAt,state.world.carDriver,online,state.pantry.tea,Math.round(state.characters[role].x),Math.round(state.characters[role].z),humanHealth(state,role==='vlad'?'alina':'vlad').illness?.id,...PET_IDS.map(p=>{const q=petHealth(state,p),i=q.illness;return [q.booking,i?.id,i?.diagnosed,i?.medicine,i?.medicated,Math.ceil((i?.remaining??0)/60)];})]);
@@ -384,13 +396,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;speakerKey='';fitnessKey='';healthKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health');
+    app=next;speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

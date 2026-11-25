@@ -1,5 +1,6 @@
 import type {SpeakerMount} from './speakerPlacement';
-import {SPEAKER_MODELS,isSpeakerSku} from './speakerCatalog';
+import {SPEAKER_MODELS} from './speakerCatalog';
+import {CONSOLES,isSurfaceDevice} from './consoleCatalog';
 import {VACUUM_MODELS} from './vacuumCatalog';
 import {FEEDING_MODELS} from './petFeeders';
 import type { FloorRect } from '../game/navigation';
@@ -217,7 +218,8 @@ export const RETIRED_DINING:readonly FurnitureProduct[]=[
 export const diningSeatTop=(sku:string)=>["chair-lino","chair-mellow","chair-mono","chair-windsor","chair-frame","chair-lounge","chair-velour","stool-cube","stool-petal"].includes(sku)? .45:undefined;
 export const VACUUM_FURNITURE=Object.entries(VACUUM_MODELS).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🧹',m.spec));
 export const SPEAKER_FURNITURE=Object.entries(SPEAKER_MODELS).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🔊',m.assistant));
-export const FURNITURE_BY_ID = new Map([...SPEAKER_FURNITURE,...VACUUM_FURNITURE,...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
+export const CONSOLE_FURNITURE=Object.entries(CONSOLES).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🎮',m.description));
+export const FURNITURE_BY_ID = new Map([...CONSOLE_FURNITURE,...SPEAKER_FURNITURE,...VACUUM_FURNITURE,...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.
@@ -331,7 +333,7 @@ export function furnitureFootprint(item:PlacedFurniture,clearance=0):FloorRect {
   return {minX:item.x-w,maxX:item.x+w,minZ:item.z-d,maxZ:item.z+d};
 }
 export function furnishingObstacles(state:Pick<FurnishingState,'placed'>):FloorRect[] {
-  return state.placed.filter(item=>!isSpeakerSku(item.sku)&&!FURNITURE_BY_ID.get(item.sku)?.walkable)
+  return state.placed.filter(item=>!isSurfaceDevice(item.sku)&&!FURNITURE_BY_ID.get(item.sku)?.walkable)
     .map(item=>furnitureFootprint(item,.30));
 }
 export function isValidFurnishing(raw:unknown):raw is FurnishingState {
@@ -361,7 +363,7 @@ export function isValidFurnishing(raw:unknown):raw is FurnishingState {
       const placed=item as PlacedFurniture;
       return Number.isFinite(placed.x)&&Math.abs(placed.x)<=100&&
         Number.isFinite(placed.z)&&Math.abs(placed.z)<=100&&
-        [0,1,2,3].includes(placed.rotation)&&(!placed.mount||(isSpeakerSku(placed.sku)&&typeof placed.mount.support==='string'&&placed.mount.support.length<80&&Number.isFinite(placed.mount.u)&&Number.isFinite(placed.mount.v)));
+        [0,1,2,3].includes(placed.rotation)&&(!placed.mount||(isSurfaceDevice(placed.sku)&&typeof placed.mount.support==='string'&&placed.mount.support.length<80&&Number.isFinite(placed.mount.u)&&Number.isFinite(placed.mount.v)));
     }
     return true;
   });

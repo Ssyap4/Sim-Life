@@ -346,9 +346,13 @@ function makeDesk(): THREE.Group {
 
 function makeTv(): THREE.Group {
   const tv = group(HOME_PLACEMENTS.tv.x, HOME_PLACEMENTS.tv.z);
-  part(tv, [1.92, 0.36, 0.50], [0, 0.37, 0], C.woodLight, 'soft', true, 'wood');
+  // Open bays beside the central storage drawer.
+  part(tv,[.61,.36,.50],[0,.37,0],C.woodLight,'soft',true,'wood');
+  for(const x of [-.90,.90])part(tv,[.10,.36,.50],[x,.37,0],C.woodLight,'soft',true,'wood');
+  part(tv,[1.84,.05,.50],[0,.222,0],C.woodLight,'soft',true,'wood');
+  part(tv,[1.84,.31,.045],[0,.391,-.235],C.woodDark,'soft',true,'wood');
   part(tv, [1.79, 0.12, 0.39], [0, 0.147, -0.01], C.woodDark, 'soft', true, 'wood');
-  for (const x of [-0.60, 0, 0.60]) {
+  for (const x of [0]) {
     part(tv, [0.575, 0.28, 0.027], [x, 0.367, 0.248], C.wood, 'soft', false, 'wood');
     part(tv,[.48,.016,.010],[x,.27,.265],C.woodDark,'square',false,'wood');
     part(tv, [0.15, 0.018, 0.021], [x, 0.442, 0.271], C.brass, 'soft', false, 'metal');

@@ -1,4 +1,4 @@
-import {isSpeakerSku} from '../src/shared/speakerCatalog';
+import {isSurfaceDevice} from '../src/shared/consoleCatalog';
 import {speakerMountAt,supportOccupied} from '../src/shared/speakerPlacement';
 import {feedingStation} from '../src/shared/petFeeders';
 import { HOME_FLOOR } from '../src/shared/home';
@@ -22,7 +22,7 @@ export type FurnishingResult =
 
 const fail=(reason:string):FurnishingResult=>({ok:false,reason});
 export function layoutBlock(item:PlacedFurniture|undefined,extra=.30):FloorRect|undefined{
-  return item&&!isSpeakerSku(item.sku)&&!FURNITURE_BY_ID.get(item.sku)?.walkable?furnitureFootprint(item,extra):undefined;
+  return item&&!isSurfaceDevice(item.sku)&&!FURNITURE_BY_ID.get(item.sku)?.walkable?furnitureFootprint(item,extra):undefined;
 }
 export function routeHitsLayout(route:WalkRoute,block:FloorRect|undefined):boolean{
   if(!block)return false;
@@ -76,7 +76,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   if(next.speakers&&'id' in command&&['furniture_store','furniture_sell'].includes(command.type))delete next.speakers[command.id];
   if(next.vacuum&&'id' in command&&command.id===next.vacuum.id&&['furniture_move','furniture_store','furniture_sell'].includes(command.type))delete next.vacuum;
   const home=next.furnishing;
-  if(command.type==='furniture_sell_static'&&supportOccupied(home,'static:'+command.fixture)||['furniture_move','furniture_store','furniture_sell'].includes(command.type)&&'id' in command&&supportOccupied(home,'item:'+command.id))return fail('Сначала сними колонку с этой мебели');
+  if(command.type==='furniture_sell_static'&&supportOccupied(home,'static:'+command.fixture)||['furniture_move','furniture_store','furniture_sell'].includes(command.type)&&'id' in command&&supportOccupied(home,'item:'+command.id))return fail('Сначала сними технику с этой мебели');
   const dog=next.pets.verdell.routine;
   if(dog?.kind==='bedTogether'&&dog.dogBed&&(
     command.type==='furniture_sell_static'&&command.fixture==='bed'&&dog.dogBed.bed==='starter'||
@@ -136,8 +136,8 @@ export function applyFurnishing(source:GameState,role:CharacterId,
     const destination:PlacedFurniture={...current,
       x:Math.round(command.x*100)/100,z:Math.round(command.z*100)/100,
       rotation:command.rotation as Rotation};
-    if(isSpeakerSku(current.sku)){const surface=speakerMountAt(home,destination);if(!surface)return fail('Выбери свободную поверхность мебели');destination.mount=surface.mount;}
-    if(!isSpeakerSku(current.sku)&&next.vacuum&&next.vacuum.id!==current.id&&next.vacuum.mode!=='docked'&&!FURNITURE_BY_ID.get(current.sku)?.walkable&&!pointIsClear(next.vacuum.position,[furnitureFootprint(destination,.30)],HOME_FLOOR))return fail('На этом месте находится робот-пылесос');
+    if(isSurfaceDevice(current.sku)){const surface=speakerMountAt(home,destination);if(!surface)return fail('Выбери свободную поверхность мебели');destination.mount=surface.mount;}
+    if(!isSurfaceDevice(current.sku)&&next.vacuum&&next.vacuum.id!==current.id&&next.vacuum.mode!=='docked'&&!FURNITURE_BY_ID.get(current.sku)?.walkable&&!pointIsClear(next.vacuum.position,[furnitureFootprint(destination,.30)],HOME_FLOOR))return fail('На этом месте находится робот-пылесос');
     const others=home.placed.filter(item=>item.id!==current.id);
     const validation=checkFurniturePlacement(next,destination,others);
     if(!validation.valid)return fail(validation.reason);

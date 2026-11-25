@@ -3,6 +3,8 @@ import { createShopToy } from './PetToys';
 import { PET_TOYS } from '../shared/petToys';
 import {FEEDING_MODELS} from '../shared/petFeeders';
 import { PET_SHOP_FOOD } from '../shared/petShop';
+import {buildConsoleModel} from './ConsoleArt';
+import {CONSOLES} from '../shared/consoleCatalog';
 import {buildSpeakerModel} from './SpeakerArt';
 import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {buildVacuumModel} from './VacuumArt';
@@ -231,6 +233,14 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     PET_TOYS.forEach((p,i)=>{const m=createShopToy(p.kind);m.scale.setScalar(.67);m.position.set((i-2.5)*.35,.57,.40);root.add(m);});
     for(const [i,p] of FEEDING_MODELS.filter(m=>m.pet==='verdell').entries()){const m=buildFurnishingModel(p.id,'ivory');m.scale.setScalar(.48);m.position.set((i-1.5)*.46,.57,-.42);root.add(m);}
     sign(root,'ДЛЯ ЖИВОТНЫХ',1.75,.36,2.06,C.paper,textures,materials);
+  } else if(station.action.kind==='console-display'){
+    const sku=station.action.sku,ps=sku==='console-ps5',accent=ps?0x305895:0xc65d58;
+    shape(root,[2.6,.78,1.02],[0,.39,0],0x394a5a);shape(root,[2.66,.08,1.07],[0,.82,0],0xe7edf1);
+    const model=buildConsoleModel(sku);model.scale.setScalar(1.6);model.position.set(-.63,.865,.06);root.add(model);
+    shape(root,[1.11,.69,.09],[.56,1.235,-.27],0x202b35);shape(root,[1.02,.60,.018],[.56,1.235,-.216],accent);
+    for(let i=0;i<4;i++){shape(root,[.15,.25,.06],[.13+i*.25,.99,.31],0x26394c);shape(root,[.13,.19,.013],[.13+i*.25,1.01,.346],i%2?accent:0xe2cead);}
+    sign(root,ps?'UFC 6 · PLAYSTATION':'NINTENDO SWITCH 2',1.94,-.14,2.37,C.paper,textures,materials);
+    sign(root,CONSOLES[sku].name,.60,.55,1.75,C.paper,textures,materials);
   } else if(station.action.kind==='speaker-display'){
     shape(root,[2.15,.78,.78],[0,.39,0],0x405766);shape(root,[2.22,.08,.85],[0,.82,0],0xe6edf1);
     (Object.keys(SPEAKER_MODELS) as SpeakerSku[]).forEach((sku,i)=>{
@@ -542,6 +552,15 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
       shape(floor,[.07,1.2,.07],[x,.60,-5.85],0x626e70,cube);
       if(i<10)shape(floor,[1.72,.75,.035],[x+.88,.65,-5.85],0xa5ada7,cube);
     }
+  } else if(place==='electronics'){
+    shape(floor,[17.3,.40,10.3],[2.5,-.23,0],0x526774,softCube,true);
+    shape(floor,[17,.06,10],[2.5,-.031,0],0xc6d3d9,cube);
+    for(let x=-5.5;x<11;x++)for(let z=-4.5;z<5;z++)shape(floor,[.98,.012,.98],[x,.003,z],Math.round(x+z)%2?0xc0cdd4:0xd7e1e5,cube);
+    shape(floor,[17.2,2.91,.19],[2.5,1.46,-5.01],0xbbcec3,cube);
+    shape(floor,[.19,2.91,10.1],[-6.05,1.46,0],0xa4b8b1,cube);
+    shape(floor,[16.9,.49,.025],[2.5,.51,-4.895],0x536e80,cube);
+    shape(floor,[4.15,.02,7.6],[8.2,.017,-.5],0xaebfce,cube);
+    sign(floor,'ИГРОВОЙ ОТДЕЛ',2.5,-4.88,3.4,C.paper,textures,materials);floor.children.at(-1)!.position.x=8.15;
   } else if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
@@ -550,12 +569,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor, [outdoor?21.3:12.3, .40, outdoor?14.3:10.3], [outdoor?2.5:0, -.23, 0], outdoor ? 0x536649 : C.walnut, softCube, true);
     shape(floor, [outdoor?21:12, .06, outdoor?14:10], [outdoor?2.5:0, -.031, 0], outdoor ? 0xa7b586 : 0xc69b6c, cube);
     if (!outdoor) {
-      const map=painted(resources,512,512,ctx=>{const colors=place==='cafe'?['#ad8259','#c39b70','#d0af87','#b88d60']:place==='electronics'?['#b6c5cc','#d1dbe0','#a5b7c2','#c5d1d7']:place==='petshop'?['#b5c7b1','#d3decd','#c2d0bf','#a9bda7']:['#c9b7b9','#e2d4cf','#d1c0c1','#bca6aa'];ctx.fillStyle='#8d8a80';ctx.fillRect(0,0,512,512);const tw=place==='cafe'?32:64,th=place==='cafe'?112:64;for(let j=0;j*th<512;j++)for(let i=-1;i*tw<512;i++){const x=i*tw+(j%2)*tw*.5,y=j*th;ctx.fillStyle=colors[((i+4)*3+j*5)%4];ctx.fillRect(x+1,y+1,tw-2,th-2);ctx.fillStyle='#ffffff36';ctx.fillRect(x+2,y+2,tw-4,1);if(place==='cafe')for(let k=0;k<4;k++){ctx.fillStyle='#714e3030';ctx.fillRect(x+4+k*6,y+3,1,th-6);}}});
+      const map=painted(resources,512,512,ctx=>{const colors=place==='cafe'?['#ad8259','#c39b70','#d0af87','#b88d60']:place==='petshop'?['#b5c7b1','#d3decd','#c2d0bf','#a9bda7']:['#c9b7b9','#e2d4cf','#d1c0c1','#bca6aa'];ctx.fillStyle='#8d8a80';ctx.fillRect(0,0,512,512);const tw=place==='cafe'?32:64,th=place==='cafe'?112:64;for(let j=0;j*th<512;j++)for(let i=-1;i*tw<512;i++){const x=i*tw+(j%2)*tw*.5,y=j*th;ctx.fillStyle=colors[((i+4)*3+j*5)%4];ctx.fillRect(x+1,y+1,tw-2,th-2);ctx.fillStyle='#ffffff36';ctx.fillRect(x+2,y+2,tw-4,1);if(place==='cafe')for(let k=0;k<4;k++){ctx.fillStyle='#714e3030';ctx.fillRect(x+4+k*6,y+3,1,th-6);}}});
       const surface=new THREE.MeshStandardMaterial({map,color:map?0xffffff:0xc5ae91,roughness:.88});materials.push(surface);const tile=new THREE.Mesh(plane,surface);tile.rotation.x=-Math.PI/2;tile.scale.set(12,10,1);tile.position.y=.003;floor.add(tile);
       shape(floor, [12.2, 2.91, .19], [0, 1.46, -5.01], place === 'cafe' ? 0xd3b89b : 0xbbcec3, cube);
       shape(floor, [.19, 2.91, 10.1], [-6.05, 1.46, 0], place === 'cafe' ? 0x9fac88 : 0xa4b8b1, cube);
       // Store-specific wall cladding in the existing rear wall footprint.
-      const accent=place==='cafe'?0x627d68:place==='electronics'?0x536e80:place==='petshop'?0x82a28a:0xa88992;
+      const accent=place==='cafe'?0x627d68:place==='petshop'?0x82a28a:0xa88992;
       shape(floor,[11.9,.49,.025],[0,.51,-4.895],accent,cube);
       for (const y of [.25, .78, 2.86]) {
         shape(floor, [12.2, .13, .23], [0, y, -4.95], C.paper);
@@ -640,7 +659,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='fitness'||place==='clinic')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='fitness'||place==='clinic'||place==='electronics')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {

@@ -15,6 +15,7 @@ import { cafeSeatAt } from './shared/locations';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
 import { districtStation } from './shared/district';
+import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleGames} from './shared/consoleCatalog';
 import { CAREERS, isCareerPlace, type CareerId } from './shared/careers';
 import { MARKET_PRODUCTS, basketPrice, marketProduct, type BasketLine } from './shared/market';
 import { GROCERIES, RECIPES, ingredientList, type IngredientId, type RecipeId } from './shared/food';
@@ -153,6 +154,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
 
   let electronicsCart:ElectronicsId|undefined;
   let vacuumCart:VacuumSku|undefined;
+  let consoleCart:import('./shared/consoleCatalog').ConsoleSku|undefined;
   let speakerCart:SpeakerSku|undefined;
   let petCart:string|undefined;
   function draw() {
@@ -234,21 +236,26 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       else if(f)options.append(element('strong','',f.name),element('small','','После покупки предмет будет в домашнем инвентаре.'),button('Купить · '+formatRub(f.price),()=>{if(send({type:'pet_furniture_buy',sku:f.id})){petCart=undefined;close();}},place.money<f.price),button('Отмена',()=>{petCart=undefined;draw();}));
       else if(!p)options.append(element('small','','Выбери товар на витрине.'));
       else options.append(element('strong','',p.name),element('small','',petFoodBenefit(p)),button('Купить · '+formatRub(p.price),()=>{if(send({type:'pet_food_buy',product:p.id})){petCart=undefined;close();}},place.money<p.price||place.petFood[p.pet]+p.refills>50),button('Отмена',()=>{petCart=undefined;draw();}));
+    } else if(station.action.kind==='console-display'){
+      const sku=station.action.sku,m=CONSOLES[sku],owned=consoleOwned(place,sku);
+      options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.description),button(owned?'Уже есть':consoleCart===sku?'В корзине ✓':'Выбрать',()=>{consoleCart=consoleCart===sku?undefined:sku;electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined;draw();},owned));
+      for(const id of consoleGames(sku))options.append(element('small','',CONSOLE_GAMES[id].name+' · '+formatRub(CONSOLE_GAMES[id].price)));
     } else if(station.action.kind==='speaker-display'){
       for(const sku of Object.keys(SPEAKER_MODELS) as SpeakerSku[]){
-        const m=SPEAKER_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.assistant+' · Музыка и домашние команды'),button(speakerCart===sku?'В корзине ✓':'Выбрать',()=>{speakerCart=speakerCart===sku?undefined:sku;electronicsCart=undefined;vacuumCart=undefined;draw();}));
+        const m=SPEAKER_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.assistant+' · Музыка и домашние команды'),button(speakerCart===sku?'В корзине ✓':'Выбрать',()=>{speakerCart=speakerCart===sku?undefined:sku;consoleCart=undefined;electronicsCart=undefined;vacuumCart=undefined;draw();}));
       }
     } else if(station.action.kind==='vacuum-display'){
       const owned=[...place.furnishing.placed,...place.furnishing.stored,...place.furnishing.orders].some(p=>isVacuumSku(p.sku));
       for(const sku of Object.keys(VACUUM_MODELS) as VacuumSku[]){
-        const m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · чистота до '+m.clean+'%'),button(owned?'Уже есть робот':vacuumCart===sku?'В корзине ✓':'Выбрать',()=>{vacuumCart=vacuumCart===sku?undefined:sku;electronicsCart=undefined;speakerCart=undefined;draw();},owned));
+        const m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · чистота до '+m.clean+'%'),button(owned?'Уже есть робот':vacuumCart===sku?'В корзине ✓':'Выбрать',()=>{vacuumCart=vacuumCart===sku?undefined:sku;consoleCart=undefined;electronicsCart=undefined;speakerCart=undefined;draw();},owned));
       }
     } else if(station.action.kind==='electronics-display'){
       const category=station.action.category;const current=installedElectronics(place,role,category);
       options.append(element('small','','Сейчас: '+ELECTRONICS[current].name),element('small','','Выбери модель, затем оплати на кассе. Новая техника заменяет старую без возврата денег.'));
-      for(const id of electronicsFor(category)){const m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button(current===id?'Установлено':electronicsCart===id?'В корзине ✓':'Выбрать',()=>{electronicsCart=electronicsCart===id?undefined:id;vacuumCart=undefined;speakerCart=undefined;draw();},current===id));}
+      for(const id of electronicsFor(category)){const m=ELECTRONICS[id];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','',m.spec+' · '+electronicsBenefit(m)),button(current===id?'Установлено':electronicsCart===id?'В корзине ✓':'Выбрать',()=>{electronicsCart=electronicsCart===id?undefined:id;consoleCart=undefined;vacuumCart=undefined;speakerCart=undefined;draw();},current===id));}
     } else if(kind==='electronics-checkout'){
-      if(speakerCart){
+      if(consoleCart){const sku=consoleCart,m=CONSOLES[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','','После покупки установи на свободную полку ТВ-тумбы или другую подходящую мебель.'),button('Купить · '+formatRub(m.price),()=>{if(send({type:'console_buy',sku})){consoleCart=undefined;close();}},place.money<m.price||consoleOwned(place,sku)),button('Отмена',()=>{consoleCart=undefined;draw();}));
+      } else if(speakerCart){
         const sku=speakerCart,m=SPEAKER_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','','После покупки размести колонку из склада мебели.'),button('Купить · '+formatRub(m.price),()=>{if(send({type:'speaker_buy',sku})){speakerCart=undefined;close();}},place.money<m.price),button('Отмена',()=>{speakerCart=undefined;draw();}));
       } else if(vacuumCart){
         const sku=vacuumCart,m=VACUUM_MODELS[sku];options.append(element('strong','',m.name+' · '+formatRub(m.price)),element('small','','После покупки установи станцию из склада мебели.'),button('Купить · '+formatRub(m.price),()=>{if(send({type:'vacuum_buy',sku})){vacuumCart=undefined;close();}},place.money<m.price),button('Отмена',()=>{vacuumCart=undefined;draw();}));
@@ -529,7 +536,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if (location !== next.world.places[nextRole] || role !== nextRole) {
         const onward=role===nextRole&&next.world.places[nextRole]==='district'?entrance?.onward:undefined;
         entrance=null;
-        if(location==='clothing')clothesCart.clear();if(location==='electronics'){electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined;}if(location==='petshop')petCart=undefined;
+        if(location==='clothing')clothesCart.clear();if(location==='electronics'){consoleCart=undefined;electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined;}if(location==='petshop')petCart=undefined;
         if (location === 'market') { cart.clear(); showCart(); }
         location = next.world.places[nextRole];
         role = nextRole;
@@ -544,6 +551,6 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },
-    reset() { entrance=null; petCart=undefined; electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
+    reset() { entrance=null; consoleCart=undefined;petCart=undefined; electronicsCart=undefined;vacuumCart=undefined;speakerCart=undefined; clothesCart.clear(); cart.clear(); pending = null; showCart(); close(); closeMap(); },
   };
 }

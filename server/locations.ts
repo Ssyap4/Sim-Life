@@ -102,7 +102,8 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
  for(const r of ROLES){next.world.places[r]='clinic';Object.assign(next.characters[r],doorwayArrival('clinic','district',r),{pose:'idle'});}
  return done(next,'Приехали вместе в «Добрый доктор»');
 }
-export const worldMessages = new Set(['vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
+import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
+export const worldMessages = new Set(['console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -200,6 +201,25 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(!['start','stop','return','auto'].includes(String(command.action)))return fail('Неизвестное действие');
     const next=structuredClone(source),error=controlVacuum(next,command as import('../src/shared/vacuum').VacuumCommand);
     return error?fail(error):done(next,'Настройки робота-пылесоса обновлены');
+  }
+  if(command.type==='console_buy'){
+    if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');
+    if(!isConsoleSku(command.sku))return fail('Неизвестная консоль');
+    const sku=command.sku,m=CONSOLES[sku],f=source.furnishing;
+    if(consoleOwned(source,sku))return fail('Такая консоль уже есть');
+    if(source.money<m.price)return fail('Недостаточно денег');
+    if(f.nextId>=1000000||f.placed.length+f.stored.length+f.orders.length>=10000)return fail('Склад заполнен');
+    const next=structuredClone(source);next.money-=m.price;next.furnishing.stored.push({id:next.furnishing.nextId++,sku,finish:'ivory'});
+    addLedger(next,role,'expense','electronics',m.price,m.name);return done(next,'Куплено: '+m.name+' · размести из склада мебели');
+  }
+  if(command.type==='console_game_buy'){
+    if(place!=='home'||!isConsoleGame(command.game))return fail('Выбери игру дома');
+    const id=command.game,m=CONSOLE_GAMES[id];
+    if(!consoleInstalled(source,m.console))return fail('Сначала установи нужную консоль');
+    if(consoleLibrary(source).includes(id))return fail('Игра уже в библиотеке');
+    if(source.money<m.price)return fail('Недостаточно денег');
+    const next=structuredClone(source);next.money-=m.price;(next.consoleLibrary??=[]).push(id);
+    addLedger(next,role,'expense','electronics',m.price,m.name);return done(next,'Игра добавлена: '+m.name);
   }
   if(command.type==='speaker_buy'){
     if(place!=='electronics'||!at(source,role,stationById('electronics','tech-cash')))return fail('Подойди к кассе магазина техники');

@@ -1,6 +1,6 @@
 import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
-import {isSpeakerSku} from '../shared/speakerCatalog';
+import {isSurfaceDevice} from '../shared/consoleCatalog';
 import {speakerItems,speakerDevice} from '../shared/speaker';
 import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
@@ -1762,7 +1762,7 @@ export class World {
     this.furnishingModels.clear();
     for(const item of placed){
       const model=buildFurnishingModel(item.sku,item.finish);
-      model.position.set(item.x,isSpeakerSku(item.sku)&&this.household?(speakerHeight(this.household.furnishing,item)??.01):.01,item.z);
+      model.position.set(item.x,isSurfaceDevice(item.sku)&&this.household?(speakerHeight(this.household.furnishing,item)??.01):.01,item.z);
       model.rotation.y=item.rotation*Math.PI/2;
       if(item.sku==='pet-bed-stairs'&&this.household){
         const site=dogBedSites(this.household,item)[0];if(site)model.scale.y=site.height/.76;
@@ -1801,7 +1801,7 @@ export class World {
 
   beginFurnishingPlacement(sku:string,finish:FurnitureFinish,rotation:Rotation):void {
     this.endFurnishingPlacement();
-    this.speakerGhost=isSpeakerSku(sku);
+    this.speakerGhost=isSurfaceDevice(sku);
     this.furnishingGhost=createPlacementGhost(sku,finish);
     this.furnishingGhost.rotation.y=rotation*Math.PI/2;
     const info=FURNITURE_BY_ID.get(sku)!;

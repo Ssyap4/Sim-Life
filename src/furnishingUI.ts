@@ -6,7 +6,7 @@ import { FURNITURE_BY_ID, PURCHASABLE_FURNITURE, FURNITURE_CATEGORIES,
   FURNITURE_FINISHES, FINISH_IDS, FURNITURE_DELIVERY, type FurnitureCategory,
   type FurnitureFinish, type FurnitureInstance, type PlacedFurniture, type Rotation,
   type FurnishingCommand } from './shared/furniture';
-import {isSpeakerSku} from './shared/speakerCatalog';
+import {isSurfaceDevice} from './shared/consoleCatalog';
 import {speakerMountAt} from './shared/speakerPlacement';
 import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
@@ -381,8 +381,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       ' · '+candidate.x.toFixed(2)+' / '+candidate.z.toFixed(2)+
       ' · '+draft.rotation*90+'°';
     apply.disabled=!result.valid;
-    const surface=isSpeakerSku(candidate.sku)&&speakerMountAt(state.furnishing,candidate);
-    if(isSpeakerSku(candidate.sku))placeHint.textContent=surface?'Можно поставить: '+surface.label:'Выбери свободное место на столе, тумбе или комоде';
+    const surface=isSurfaceDevice(candidate.sku)&&speakerMountAt(state.furnishing,candidate);
+    if(isSurfaceDevice(candidate.sku))placeHint.textContent=surface?'Можно поставить: '+surface.label:'Выбери свободное место на столе, тумбе или комоде';
     return {...draft.target,y:surface?surface.y:undefined};
   }
   function turn(amount:number){

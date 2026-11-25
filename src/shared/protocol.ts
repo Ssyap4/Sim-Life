@@ -60,6 +60,7 @@ export interface CharacterState extends Needs {
 }
 import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
+  consoleLibrary?: import('./consoleCatalog').ConsoleGameId[];
   health?: import('./health').HealthState;
   homeDust?: HomeDust;
   vacuum?: import('./vacuum').VacuumState;
