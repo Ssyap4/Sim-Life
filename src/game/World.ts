@@ -545,7 +545,7 @@ export class World {
     const romanticSeat=pairMotion&&['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle','musicTogether'].includes(pairMotion);
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
-    const vanityAngle=person&&this.homeTasks.get(subject)?.furnitureSeat&&this.homeTasks.get(subject)?.furniturePose?.x===points.vanity.x-.88?new THREE.Vector3(.87,.28,.65):null;
+    const vanityAngle=person&&this.homeTasks.get(subject)?.vanityCare?new THREE.Vector3(-.19,.32,.98):null;
     const angle = vanityAngle??bedAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
@@ -1435,7 +1435,7 @@ export class World {
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
     if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest')this.actors[role].setPose('idle');
-    if (dishes) this.actors[role].setPose('idle');
+    if (dishes||home?.vanityCare) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
       this.actors[role].setPose('idle');
   }

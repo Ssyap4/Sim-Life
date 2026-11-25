@@ -52,6 +52,7 @@ export type HomePresentation = {
   pickupMs?: number;
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  vanityCare?:import('./vanity').CareId;
   consoleGame?:import('./consoleCatalog').ConsoleGameId;
   consoleMatch?:import('./consoleCatalog').ConsoleMatch;
   furnitureId?:number;

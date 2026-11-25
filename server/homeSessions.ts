@@ -196,7 +196,7 @@ export function createHomeSessions(hooks: Hooks) {
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
-    if(command.type==='vanity_care'){if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
+    if(command.type==='vanity_care'){if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);
