@@ -196,6 +196,22 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       shape(root,[.12,.56,.12],[x,.28,d/2+.19],0xe0b757,drum);
       shape(root,[.12,.10,.12],[x,.36,d/2+.19],0x55514e,drum);
     }
+  } else if(station.action.kind==='clinic'){
+    const f=station.action.facility,w=station.width,d=station.depth;
+    const white=0xf4f4ec,teal=0x438f91,metal=0xa5b7ba;
+    if(f==='reception'||f==='pharmacy'){
+      shape(root,[w,.92,d],[0,.46,0],teal,softCube);shape(root,[w+.06,.09,d+.06],[0,.96,0],white);
+      if(f==='reception'){shape(root,[.46,.32,.09],[-.48,1.17,-.14],0x364f59);shape(root,[.35,.20,.02],[-.48,1.17,-.08],0xa0cad0);}
+      else for(let i=0;i<8;i++){const x=(i%4-1.5)*.44,z=i<4?-.19:.16;shape(root,[.24,.27,.15],[x,1.15,z],i%2?white:0xd6e5e6);shape(root,[.22,.055,.015],[x,1.17,z+.085],i%2?teal:0xcf976e);}
+    }else{
+      for(const x of [-w*.37,w*.37])for(const z of [-d*.31,d*.31])shape(root,[.10,.68,.10],[x,.34,z],metal);
+      shape(root,[w*.77,.13,d*.67],[0,.73,0],white,softCube);
+      shape(root,[w*.72,.13,d*.61],[0,.84,0],f==='diagnostics'?0xc5d9df:0x9cc5c1,softCube);
+      shape(root,[w*.22,.13,d*.53],[-w*.24,.96,0],white,softCube);
+      if(f==='diagnostics'){shape(root,[.32,1.24,.30],[w*.39,.62,-d*.30],metal);shape(root,[.53,.35,.11],[w*.39,1.34,-d*.30],0x354952);shape(root,[.44,.26,.018],[w*.39,1.34,-d*.22],0x72b8b4);}
+      if(f==='procedure'){shape(root,[.09,1.62,.09],[w*.40,.81,-d*.31],metal);shape(root,[.40,.10,.35],[w*.40,1.66,-d*.31],white);}
+    }
+    sign(root,station.name,1.75,-d*.48,w,white,textures,materials);
   } else if (kind === 'door') {
     if (station.center.z > 4) root.rotation.y = Math.PI;
     facade(root, C.pine);
@@ -478,7 +494,19 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='fitness'){
+  if(place==='clinic'){
+    shape(floor,[12.3,.36,10.3],[0,-.20,0],0x829b98,cube);
+    shape(floor,[12,.06,10],[0,-.031,0],0xe4ece8,cube);
+    for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0xdde8e5:0xf2f3ed,cube);
+    shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0xc5ded9,cube);
+    shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xe5eee7,cube);
+    shape(floor,[11.9,.29,.025],[0,.48,-4.94],0x579a98,cube);
+    sign(floor,'ДОБРЫЙ ДОКТОР',2.52,-4.90,4.4,C.paper,textures,materials);
+    for(const x of [-3.7,0,3.7]){shape(floor,[2.3,1.25,.05],[x,1.14,-4.91],0x9fc6cb,cube);shape(floor,[.08,1.28,.065],[x,1.14,-4.87],0xf2f3ed,cube);}
+    for(const [x,z,title] of [[-3.8,1.75,'Администратор'],[-3.7,-4.1,'Терапевт'],[0,-4.1,'Диагност'],[3.7,-4.1,'Медсестра'],[3.7,-.57,'Фармацевт']] as const){
+      const npc=marketCashier(resources,{title,color:0x65a5a2,shirt:0xf3f4ee,animated:true});npc.position.set(x,0,z);root.add(npc);
+    }
+  } else if(place==='fitness'){
     shape(floor,[24.3,.36,14.3],[3,-.20,0],0x414e53,cube);
     shape(floor,[24,.06,14],[3,-.031,0],0xd5c4ab,cube);
     for(const z of [-4.7,-.7,3.05])shape(floor,[17.4,.025,z===3.05?2.65:2.7],[0,.012,z],z===3.05?0x718b85:0x56636a,cube);
@@ -612,7 +640,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = place==='fitness'?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='fitness'||place==='clinic')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {

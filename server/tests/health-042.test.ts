@@ -30,3 +30,56 @@ test('Invalid persisted illnesses are rejected',()=>{
  const s=initialState();foodIllness(s,'vlad','bad',()=>0);assert.ok(validHealth(s.health));
  (s.health!.people.vlad.illness as any).id='not-a-condition';assert.equal(validHealth(s.health),false);
 });
+
+import {STATIONS,approachFor,placeObstacles,floorFor,doorwayArrival,stationById,clockMinutes} from '../../src/shared/locations';
+import {findRoute,pointIsClear} from '../../src/game/navigation';
+import {createLocation} from '../../src/game/LocationScene';
+import {applyWorld,validWorld,localActivity} from '../locations';
+import {planTask} from '../tasks';
+import {healthBookingSlots,clinicAvailable} from '../../src/shared/health';
+import {openServerFiles} from '../storage';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+test('Clinic station approaches, arrival and return are navigable for both residents',()=>{
+ const floor=floorFor('clinic'),obstacles=placeObstacles('clinic');
+ for(const role of ['vlad','alina'] as const){
+  const origin=doorwayArrival('clinic','district',role);assert.ok(pointIsClear(origin,obstacles,floor));
+  for(const station of STATIONS.clinic){
+   const target=approachFor(station,role);
+   assert.ok(pointIsClear(target,obstacles,floor),station.id);
+   assert.ok(findRoute(origin,target,obstacles,floor),station.id+' outbound');
+   assert.ok(findRoute(target,origin,obstacles,floor),station.id+' return');
+  }
+ }
+ const scene=createLocation('clinic');try{assert.equal(scene.stations.size,STATIONS.clinic.length);}finally{scene.dispose();}
+});
+test('Clinic services require correct location and approach; prescription and funds are server controlled',()=>{
+ let s=initialState();s.money=100000;foodIllness(s,'vlad','bad',()=>0);
+ const send=(cmd:Record<string,unknown>)=>{const result=applyWorld(s,'vlad',cmd);if(!result.ok)assert.fail(result.reason);s=result.state;};
+ assert.equal(applyWorld(s,'vlad',{type:'health_book',at:-1}).ok,false);
+ const at=healthBookingSlots(clockMinutes(s.clock))[0];send({type:'health_book',at});assert.equal(humanHealth(s,'vlad').booking,at);
+ assert.equal(localActivity(s,'vlad','clinicExam','clinic-doctor').ok,false);
+ assert.equal(applyWorld(s,'vlad',{type:'travel',place:'clinic'}).ok,false);
+ Object.assign(s.characters.vlad,approachFor(stationById('home','family-car')!,'vlad'));
+ send({type:'car_travel',place:'clinic'});assert.equal(s.world.places.vlad,'clinic');assert.ok(validWorld(s.world));
+ assert.equal(localActivity(s,'vlad','clinicExam','clinic-doctor').ok,false);
+ const perform=(action:import('../../src/shared/health').ClinicAction,station:string)=>{send({type:'approach',place:'clinic',station});const result=localActivity(s,'vlad',action,station);if(!result.ok)assert.fail(result.reason);s=result.state;};
+ perform('clinicExam','clinic-doctor');assert.equal(s.money,98500);assert.equal(humanHealth(s,'vlad').illness?.diagnosed,true);assert.equal(humanHealth(s,'vlad').booking,undefined);
+ assert.equal(localActivity(s,'vlad','clinicExam','clinic-doctor').ok,false);
+ assert.equal(planTask({type:'local_activity',action:'clinicMedicine',station:'clinic-doctor'}),null);
+ assert.equal(planTask({type:'local_activity',action:'clinicMedicine',station:'clinic-pharmacy'})?.durationMs,8000);
+ perform('clinicDiagnosis','clinic-diagnostics');assert.equal(s.money,96000);
+ perform('clinicProcedure','clinic-procedure');assert.equal(s.money,91500);
+ perform('clinicMedicine','clinic-pharmacy');assert.equal(s.money,90850);
+ assert.equal(clinicAvailable(s,'vlad','clinicMedicine'),false);assert.equal(applyWorld(s,'alina',{type:'health_medicine'}).ok,false);
+ send({type:'approach',place:'clinic',station:'clinic-exit'});send({type:'travel',place:'district',via:'clinic-exit'});assert.equal(s.world.places.vlad,'home');assert.equal(s.world.carDriver,undefined);
+ const before=humanHealth(s,'vlad').illness!.remaining;send({type:'health_medicine'});assert.ok(humanHealth(s,'vlad').illness!.remaining<before);assert.equal(applyWorld(s,'vlad',{type:'health_medicine'}).ok,false);
+ assert.equal(s.ledger.filter(x=>x.label.startsWith('Добрый доктор')).length,4);
+ const dir=mkdtempSync(join(tmpdir(),'simlife-health-'));
+ try{const files=openServerFiles(dir);files.save(s);assert.deepEqual(files.load().health,s.health);}finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('Unaffordable service never charges or diagnoses',()=>{
+ let s=initialState();s.money=1499;foodIllness(s,'alina','bad',()=>0);s.world.places.alina='clinic';Object.assign(s.characters.alina,approachFor(stationById('clinic','clinic-doctor')!,'alina'));
+ assert.equal(localActivity(s,'alina','clinicExam','clinic-doctor').ok,false);assert.equal(s.money,1499);assert.equal(humanHealth(s,'alina').illness?.diagnosed,false);
+});

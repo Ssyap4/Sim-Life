@@ -10,6 +10,7 @@ import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import {isClinicAction,CLINIC_SERVICES} from '../src/shared/health';
 import {fitnessExercise,fitnessBarItem} from '../src/shared/fitness';
 import {stationById} from '../src/shared/locations';
 import { clockMinutes } from '../src/shared/locations';
@@ -115,6 +116,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
+    if(isClinicAction(action)){const s=CLINIC_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'clinic:'+command.station};}
     if(action==='fitnessTrain'){
       const station=stationById('fitness',command.station),exercise=station?.action.kind==='fitness'?fitnessExercise(station.action.facility):undefined;
       if(!exercise)return null;

@@ -30,11 +30,13 @@ import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './sh
 import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
 import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
 import {roomAt} from './shared/homeDust';
+import {humanHealth,petHealth,healthStatus,healthBookingSlots,PET_CONDITIONS,type HealthCommand} from './shared/health';
 import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
-type App = 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  health:['🏥','Добрый доктор'],
   fitness:['🏋️','PULSE Fitness'],
   speakers:['🔊','Умные колонки'],
   home:['🏠','Чистота дома'],
@@ -57,7 +59,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -81,7 +83,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let speakerKey='',fitnessKey='';
+  let speakerKey='',fitnessKey='',healthKey='';
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
@@ -105,6 +107,25 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
+    if(app==='health'){
+      const h=humanHealth(state,role),now=gameMinutes(state.clock);
+      const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],...PET_IDS.map(p=>petHealth(state,p).illness?.id)]);
+      if(key!==healthKey){
+        healthKey=key;const scroll=info.scrollTop;
+        const card=block('Моё здоровье',healthStatus(state,role)+(h.illness?' · восстановление около '+Math.ceil(h.illness.remaining/60)+' игр. ч.':''));
+        const b=(label:string,fn:()=>void)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=fn;return button;};
+        if(h.illness?.medicine&&!h.illness.medicated)card.append(b('Принять назначенное лекарство',()=>{healthControl?.({type:'health_medicine'});}));
+        const format=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':00';};
+        const booking=block('Приём терапевта',h.booking!==undefined&&h.booking>=now?'Записан: '+format(h.booking):'Выбери время или приезжай без записи.');
+        const select=document.createElement('select');select.setAttribute('aria-label','Время приёма');
+        for(const at of healthBookingSlots(now)){const opt=document.createElement('option');opt.value=String(at);opt.textContent=format(at);select.append(opt);}
+        booking.append(select,b('Записаться',()=>{healthControl?.({type:'health_book',at:Number(select.value)});}));
+        if(h.booking!==undefined)booking.append(b('Отменить запись',()=>{healthControl?.({type:'health_cancel'});}));
+        const pets=block('Питомцы','Состояние Верделла и Симбы');
+        for(const p of PET_IDS){const x=petHealth(state,p).illness;pets.append(block(PETS[p].name,x?(x.diagnosed?PET_CONDITIONS[x.id].name:'Недомогание'):'Здоров'));}
+        info.replaceChildren(card,booking,pets);info.scrollTop=scroll;
+      }
+    }
     if(app==='fitness'){
       const p=fitnessProfile(state,role),now=gameMinutes(state.clock),key=JSON.stringify([role,p,state.money,Math.floor(now/60),state.world.places[role],state.world.carDriver]);
       if(key!==fitnessKey){
@@ -350,13 +371,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;speakerKey='';fitnessKey='';info.classList.toggle('fitness-phone',next==='fitness');
+    app=next;speakerKey='';fitnessKey='';healthKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

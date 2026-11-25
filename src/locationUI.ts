@@ -32,6 +32,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
+import {CLINIC_SERVICES,clinicAvailable,humanHealth,healthStatus,medicinePrice,type ClinicAction} from './shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessCareAction,fitnessCareRole,type FitnessBarAction,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
   const node = element('button', 'action-button', label);
@@ -102,7 +103,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)||id==='fitness'&&location!=='fitness') continue;
+      if (isCareerPlace(id)||(id==='fitness'||id==='clinic')&&location!==id) continue;
       const here=location===id;
       const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||location==='fitness')&&id!=='home'));
       entry.dataset.place = id;
@@ -175,9 +176,20 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else {options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else {options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));}
+    } else if(station.action.kind==='clinic'){
+      options.append(element('small','',healthStatus(place,role)));
+      if(station.action.facility==='reception'){
+        const booking=humanHealth(place,role).booking;
+        options.append(element('small','',booking!==undefined&&booking>=now?'Запись сохранена. Пройдите к терапевту.':'Приём доступен без записи. Запись — в телефоне.'));
+      }
+      for(const [key,service] of Object.entries(CLINIC_SERVICES)){
+        const a=key as ClinicAction;if(service.station!==station.id)continue;
+        const price=a==='clinicMedicine'?medicinePrice(place,role):service.price;
+        options.append(button(service.name+' · '+formatRub(price),()=>{if(send({type:'local_activity',station:station.id,action:a}))close();},!clinicAvailable(place,role,a)||place.money<price));
+      }
     } else if(station.action.kind==='fitness'){
       if(station.action.facility==='reception'){
         options.append(element('small','',fitnessAccess(place,role)?'Абонемент действует':'Выбери билет или абонемент'));

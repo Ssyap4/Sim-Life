@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  clinic:{name:'Добрый доктор',icon:'🏥',detail:'Терапевт, диагностика и аптека'},
   fitness:{name:'PULSE Fitness',icon:'🏋️',detail:'Кардио, силовые тренировки и сауна'},
   petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Корм, лежанки, домики и когтеточки'},
   electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры, смартфоны и кофемашины'},
@@ -50,6 +51,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'clinic'; facility:string}
   | {kind:'fitness'; facility:string}
   | {kind:'warehouse';job:'ozon'|'wildberries'}
   | {kind:'speaker-display'}
@@ -151,6 +153,15 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  clinic:[
+    site('clinic-reception','Ресепшен',-3.8,2.5,2.1,.85,{kind:'clinic',facility:'reception'}),
+    site('clinic-wait','Зона ожидания',3.75,2.5,2.2,.85,{kind:'rest'}),
+    site('clinic-doctor','Кабинет терапевта',-3.7,-2.9,2.35,1.4,{kind:'clinic',facility:'doctor'}),
+    site('clinic-diagnostics','Диагностика',0,-2.9,2.0,1.4,{kind:'clinic',facility:'diagnostics'}),
+    site('clinic-procedure','Процедурный кабинет',3.7,-2.9,2.25,1.4,{kind:'clinic',facility:'procedure'}),
+    site('clinic-pharmacy','Аптека',3.7,.15,2.2,.85,{kind:'clinic',facility:'pharmacy'}),
+    door('clinic-exit','Выход на улицу','district',0,4.6,true),
   ],
   fitness:[
     site('fitness-treadmill-a','Беговая дорожка',-7,-4.7,1.25,2.1,{kind:'fitness',facility:'treadmill'}),
@@ -354,8 +365,9 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | import('./health').HealthCommand
   | import('./fitness').FitnessCommand
   | { type:'camp_pack'; item:CampRecipe|'fuel' }
   | { type:'picnic_buy' }
@@ -371,7 +383,7 @@ export type WorldCommand =
   | import('./vacuum').VacuumCommand
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic' }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

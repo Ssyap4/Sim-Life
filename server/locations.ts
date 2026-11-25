@@ -1,3 +1,4 @@
+import {CLINIC_SERVICES,isClinicAction,clinicAvailable,completeClinicService,medicinePrice,healthBookingSlots,setHealthBooking,takeGameMedicine} from '../src/shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessBarItem,fitnessCareRole,fitnessCareAction,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
 import {skillRank} from '../src/shared/education';
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
@@ -51,7 +52,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'].includes(w.places![w.carDriver]))) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
@@ -94,7 +95,7 @@ export function fitnessTogetherTrip(source:GameState,driver:CharacterId):Result{
   for(const r of ROLES){next.world.places[r]='fitness';Object.assign(next.characters[r],doorwayArrival('fitness','district',r),{pose:'idle'});const p=(next.world.fitness??=initialFitness())[r],now=clockMinutes(next.clock);if(p.ticket&&p.until<=now){delete p.ticket;p.visit=true;}if(p.booking!==undefined&&Math.abs(p.booking-now)<=60)delete p.booking;}
   return done(next,'Приехали вместе в PULSE Fitness');
 }
-export const worldMessages = new Set(['fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
+export const worldMessages = new Set(['health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -109,6 +110,20 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='health_book'||command.type==='health_cancel'){
+    const next=structuredClone(source);
+    if(command.type==='health_book'){
+      if(typeof command.at!=='number'||!healthBookingSlots(clockMinutes(source.clock)).includes(command.at))return fail('Выбери доступное время приёма');
+      setHealthBooking(next,role,command.at);
+    }else setHealthBooking(next,role);
+    return done(next,command.type==='health_book'?'Запись к терапевту сохранена':'Запись отменена');
+  }
+  if(command.type==='health_medicine'){
+    if(place!=='home'&&place!=='clinic')return fail('Прими лекарство дома или в клинике');
+    const next=structuredClone(source);
+    if(!takeGameMedicine(next,role))return fail('Нет назначенного лекарства');
+    return done(next,'Лекарство принято · восстановление ускорено');
+  }
   if(command.type==='fitness_pass'){
     if(typeof command.pass!=='string'||!Object.hasOwn(FITNESS_PASSES,command.pass))return fail('Неизвестный абонемент');
     const pass=command.pass as FitnessPass,product=FITNESS_PASSES[pass],now=clockMinutes(source.clock);
@@ -215,7 +230,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic')return fail('Выбери доступное место');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
@@ -271,6 +286,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
+    if(command.place==='clinic')return fail('До клиники можно доехать на машине');
     if(command.place==='fitness')return fail('До PULSE Fitness можно доехать на машине');
     next.world.places[role] = command.place;
     if (command.dog === true) {
@@ -531,6 +547,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
+  clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
@@ -541,6 +558,17 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isClinicAction(action)){
+    const service=CLINIC_SERVICES[action];
+    if(place!=='clinic'||id!==service.station||!station||!at(source,role,station))return fail('Подойди к нужному кабинету');
+    if(!clinicAvailable(source,role,action))return fail('Эта услуга сейчас не нужна или уже выполнена');
+    const price=action==='clinicMedicine'?medicinePrice(source,role):service.price;
+    if(source.money<price)return fail('Недостаточно денег');
+    const next=structuredClone(source);next.money-=price;
+    addLedger(next,role,'expense','services',price,'Добрый доктор · '+service.name);
+    completeClinicService(next,role,action);next.characters[role].pose='idle';
+    return done(next,service.name+' · выполнено');
+  }
   if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='fitness'&&!!fitnessExercise(station.action.facility)&&action==='fitnessTrain') && !(station.action.kind==='fitness'&&(fitnessCareAction(station.action.facility)===action||station.action.facility==='bar'&&!!fitnessBarItem(action))) && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
