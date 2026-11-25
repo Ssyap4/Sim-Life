@@ -1,0 +1,39 @@
+name: Sim-Life 0.49 motion mobile QA
+on:
+  push:
+    branches: [feat/world-polish-049]
+    paths: ['src/game/**', 'scripts/**', '.github/workflows/simlife-049-motion.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: sleep
+            script: qa-038-sleep.mjs
+            output: /tmp/simlife-038-sleep
+          - scenario: venue
+            script: qa-048-venue.mjs
+            output: /tmp/simlife-048-venue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion-${{ matrix.scenario }}-mobile
+          path: ${{ matrix.output }}
+          retention-days: 7

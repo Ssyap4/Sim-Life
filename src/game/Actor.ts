@@ -15,7 +15,7 @@ import { HOME_WALK_SPEED } from '../shared/home';
 import { activityProps } from './ActivityProps';
 import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
-import { walkStrideLength, walkPelvisDrop, walkFootTarget } from './WalkingGait';
+import { walkStrideLength, walkPelvisDrop, walkFootTarget, walkMotionTarget } from './WalkingGait';
 import { mealGesture } from './MealGesture';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
@@ -371,6 +371,7 @@ export class Actor {
     this.props.tongs.visible = false;
     this.props.knife.visible = false;
     this.props.fork.visible = false;
+    this.props.phone.visible = false;
   }
 
   /** Pose the visible character on the furniture while the navigation root
@@ -401,6 +402,8 @@ export class Actor {
 
   playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3, recipe?: RecipeId|TakeoutId, slow=false): void {
     // World has already placed the actor at the visual station.
+    this.clearVenueProp();this.clearVanity();this.hideGamepad();
+    this.props.phone.visible=false;
     this.activity = kind;this.mealSlow=slow;
     this.pan = pan?.clone();
     this.cookingRecipe = kind === 'cook' ? recipe as RecipeId : undefined;
@@ -411,9 +414,11 @@ export class Actor {
   playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
     this.clearVanity();
     if(kind!=='consolePlay')this.hideGamepad();
+    this.clearVenueProp();
+    this.props.phone.visible=false;
     this.activity = kind;
-    if(kind==='venueBowl'||kind==='venueCards'){this.clearVenueProp();const g=new THREE.Group(),prop=new THREE.Mesh(kind==='venueBowl'?orb:new THREE.BoxGeometry(1,1,1),finish(kind==='venueBowl'?(this.id==='vlad'?0x386f9c:0xc55354):0xd74c47));prop.scale.set(...(kind==='venueBowl'?[.12,.12,.12]:[.105,.014,.16]) as [number,number,number]);prop.position.set(0,-.045,.025);g.add(prop);g.visible=false;this.rig.wrists[1].add(g);this.venueProp=g;}
-    if(kind==='venueCue'){this.clearVenueProp();const g=new THREE.Group();const cue=new THREE.Mesh(drum,finish(0xb78b50,'wood'));cue.scale.set(.012,1.02,.012);cue.rotation.x=Math.PI/2;cue.position.z=.29;g.add(cue);const tip=new THREE.Mesh(drum,finish(0x385d82,'fabric'));tip.scale.set(.012,.035,.012);tip.rotation.x=Math.PI/2;tip.position.z=.805;g.add(tip);this.rig.wrists[1].add(g);this.venueProp=g;}
+    if(kind==='venueBowl'||kind==='venueCards'){const g=new THREE.Group(),prop=new THREE.Mesh(kind==='venueBowl'?orb:new THREE.BoxGeometry(1,1,1),finish(kind==='venueBowl'?(this.id==='vlad'?0x386f9c:0xc55354):0xd74c47));prop.scale.set(...(kind==='venueBowl'?[.12,.12,.12]:[.105,.014,.16]) as [number,number,number]);prop.position.set(0,-.045,.025);g.add(prop);g.visible=false;this.rig.wrists[1].add(g);this.venueProp=g;}
+    if(kind==='venueCue'){const g=new THREE.Group();const cue=new THREE.Mesh(drum,finish(0xb78b50,'wood'));cue.scale.set(.012,1.02,.012);cue.rotation.x=Math.PI/2;cue.position.z=.29;g.add(cue);const tip=new THREE.Mesh(drum,finish(0x385d82,'fabric'));tip.scale.set(.012,.035,.012);tip.rotation.x=Math.PI/2;tip.position.z=.805;g.add(tip);this.rig.wrists[1].add(g);this.venueProp=g;}
     if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=kind==='gymCurl';
     this.pan = target?.clone();
@@ -461,7 +466,7 @@ export class Actor {
   faceTowards(point: THREE.Vector3): void {
     const dx = point.x - this.root.position.x;
     const dz = point.z - this.root.position.z;
-    this.root.rotation.y = Math.atan2(dx, dz);
+    if(Math.hypot(dx,dz)>.001)this.root.rotation.y = Math.atan2(dx, dz);
   }
 
   playGesture(kind: SocialKind, target?: THREE.Vector3): void {
@@ -577,9 +582,12 @@ export class Actor {
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;
     const traveled = this.advance(dt, steer)+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
-    const walking = (this.waypoints.length > 0 || this.activity==='badminton'||this.activity==='pingPong') && traveled > .001;
+    const sport=this.activity==='badminton'||this.activity==='pingPong';
+    const walking = (this.waypoints.length > 0 || sport) && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
-    this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend, walking ? 1 : 0, alpha);
+    const targetMotion=walking?(sport?1:walkMotionTarget(traveled,dt,HOME_WALK_SPEED)):0;
+    this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend,targetMotion,
+      1-Math.exp(-dt*(targetMotion<this.gaitBlend?14:11)));
     const strideLength = walkStrideLength(this.id);
     this.gait = (this.gait + traveled / strideLength) % 1;
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
@@ -598,7 +606,7 @@ export class Actor {
     if (this.pose === 'sit' && !this.activity) lean = -0.08;
     let gaze = asleep ? 0.04 : this.pose === 'work' ? 0.16 : this.activity === 'cook' ? 0.22 : care ? 0.33 : 0;
     const stridePhase = this.gait * Math.PI * 2;
-    const motion = this.gaitBlend;
+    const motion = resting?0:this.gaitBlend*(1-this.seatBlend);
     // Idle-only, cosmetic reactions. Never steal control, stop a route or move
     // the navigation root. Reset immediately for every gameplay animation.
     const canReact = this.pose === 'idle' && !this.activity && !this.gesture && !this.partnerGesture &&

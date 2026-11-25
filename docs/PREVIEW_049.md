@@ -6,3 +6,8 @@ Owner approved direction 5 (quality pass), then own yard expansion (2), then fam
 - Private soundtrack installed locally; never commit recordings.
 - 21 focused tests passed (gesture, Android graphics, performance and new polish tests), typecheck passed; 3 version/copy tests passed after bump. No full regression or physical phone FPS/visual QA in this pass yet.
 - Next: inspect actual mobile renders, actor transitions/prop contact, pet locomotion and furniture. No new mechanics or production deployment without approval.
+
+## v2 — movement and prop lifecycle
+- Walking animation amplitude follows actual visual displacement relative to unchanged movement budget; sports retain their existing choreography. Faster gait decay on stopping, suppress walk blend in resting and seated poses.
+- Coincident focus targets preserve yaw; direct activity changes remove old venue/vanity/controller props and hide stale phone.
+- 23/23 focused tests passed including walk/pose, old Blender skeleton, current SPA skin geometry, console grips and live console sessions. TypeScript check passed. Cloud mobile QA workflow for sleep and venue added; screenshots/results not yet inspected. No physical phone FPS claim.

@@ -9,6 +9,13 @@ import type { CharacterId } from '../shared/protocol';
  * The pelvis now shifts by at most 0.039 m, with a subtle twice-per-stride
  * weight transfer. The swing foot still clears the floor.
  */
+/** Match the visual stride to actual navigation displacement, including yielding
+ * and slow side-steps. This never changes the movement budget or the route. */
+export function walkMotionTarget(traveled:number,dt:number,normalSpeed:number):number {
+  if(!(traveled>.0001)||!(dt>0)||!(normalSpeed>0))return 0;
+  const ratio=Math.min(1,traveled/(dt*normalSpeed));
+  return Math.sqrt(ratio);
+}
 export const WALK_STANCE_FRACTION = 0.60;
 export const WALK_MAX_HIP_DROP = 0.039;
 
