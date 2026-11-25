@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {cube,softCube,drum,orb,plane,finish,batchRigidParts,type XYZ} from './ArtKit';
 import {buildConsoleModel} from './ConsoleArt';
 import {drawConsoleFrame} from './ConsoleFrames';
-import {VENUE_GAMES,venueWinner,venueScoreAt,bowlingHit,type VenueGame} from '../shared/venue';
+import {VENUE_GAMES,venueWinner,venueScoreAt,bowlingHit,hockeyPad,type VenueGame} from '../shared/venue';
 import type {ConsoleMatch} from '../shared/consoleCatalog';
 import type {Station} from '../shared/locations';
 export type VenuePlay={game:VenueGame;match:ConsoleMatch;started:number};
@@ -39,7 +39,7 @@ export function buildVenueStation(station:Station,textures:THREE.Texture[],mater
   const ball=part(moving,[.12,.12,.12],[0,.24,d/2-.16],0x386f9c,orb);
   const pins:THREE.Group[]=[];for(let row=0;row<4;row++)for(let i=0;i<=row;i++){const pin=new THREE.Group();pin.position.set((i-row/2)*.24,.11,-d/2+.47+row*.23);part(pin,[.080,.24,.080],[0,.12,0],cream,drum);part(pin,[.052,.07,.052],[0,.24,0],0xd35d54,drum);part(pin,[.062,.07,.062],[0,.30,0],cream,orb);moving.add(pin);pins.push(pin);}
   render=(t,play)=>{const active=!!play,cycle=t%7,turn=Math.floor(t/7)%2,roll=Math.max(0,Math.min(1,(cycle-1.6)/2.0)),hit=play?bowlingHit(play.match,Math.min(9,Math.floor(t/7))):0;
-   ball.position.set((turn?1:-1)*.52*(1-roll)+Math.sin(roll*Math.PI)*.20,.24, d/2-.16-roll*(d-.72));ball.rotation.x=-roll*24;ball.visible=active&&t<70&&cycle<4.2;
+   ball.position.set((turn?1:-1)*.52*(1-roll)+Math.sin(roll*Math.PI)*.20,.24, d/2-.16-roll*(d-.72));ball.rotation.x=-roll*24;ball.visible=active&&t<70&&cycle>=1.6&&cycle<4.2;
    pins.forEach((pin,i)=>{const fallen=active&&t<70&&cycle>3.4&&cycle<6.4&&i<hit;pin.rotation.x=fallen?1.40:0;pin.rotation.z=fallen?(i%2?.54:-.54):0;});};
  }else if(game==='venueHockey'){
   table(fixed,w,d,.76,0xe4e9e9);
@@ -48,7 +48,7 @@ export function buildVenueStation(station:Station,textures:THREE.Texture[],mater
   part(fixed,[w,.01,.025],[0,.83,0],0xcf5858);
   const puck=part(moving,[.095,.035,.095],[0,.85,0],0x212b36,drum);
   const pads=[-1,1].map(side=>part(moving,[.13,.07,.13],[0,.88,side*.92],side<0?0xc64f4d:0x5084c4,drum));
-  render=(t,play)=>{const phase=play?t*1.65:0;puck.position.set(Math.sin(phase*1.73)*.57,.85,Math.sin(phase)*1.09);pads.forEach((m,i)=>{m.position.x=Math.sin(phase*1.73+i*.6)*.42;m.position.z=(i?1:-1)*(.87-.16*Math.max(0,Math.sin(phase+(i?0:Math.PI))));});};
+  render=(t,play)=>{const phase=play?t*1.65:0;puck.position.set(Math.sin(phase*1.73)*.57,.85,Math.sin(phase)*1.09);pads.forEach((m,i)=>{const p=hockeyPad(i?'alina':'vlad',play?t:0);m.position.x=p.x;m.position.z=p.z;});};
  }else if(game==='venueBilliards'){
   table(fixed,w,d,.83,0x468d68);
   for(const x of [-w/2,w/2])part(fixed,[.11,.15,d],[x,.91,0],wood);
@@ -64,7 +64,7 @@ export function buildVenueStation(station:Station,textures:THREE.Texture[],mater
    const origins=blocks.map(b=>b.position.clone()),angles=blocks.map(b=>b.rotation.y);
    render=(t,play)=>{const cycle=Math.floor(t/4.5),p=t%4.5/4.5,collapse=!!play&&t>VENUE_GAMES.venueJenga.seconds-4;
     blocks.forEach((b,i)=>{b.position.copy(origins[i]);b.rotation.set(0,angles[i],0);if(!play)return;
-     const moved=(play.match.seed+cycle*5)%21;if(i===moved){b.position.x+=Math.sin(Math.PI*Math.min(1,p*2))*.28;b.position.y+=Math.max(0,(p-.5)*.8);}
+     const moved=(play.match.seed+cycle*5)%21;const removed=Array.from({length:Math.min(cycle,12)},(_,j)=>(play.match.seed+j*5)%21);const slot=removed.indexOf(i);if(slot>=0){b.position.set((slot%3-1)*.112,1.53+Math.floor(slot/3)*.075,0);b.rotation.y=Math.PI/2;}else if(i===moved){const phase=Math.min(1,p*1.8);b.position.x+=Math.sin(Math.PI*phase)*.36;b.position.y=THREE.MathUtils.lerp(origins[i].y,1.53+Math.floor(cycle/3)*.075,phase);}
      if(collapse){const fall=Math.min(1,(t-(VENUE_GAMES.venueJenga.seconds-4))/1.3);b.position.x+=fall*Math.sin(i*2.4)*.52;b.position.z+=fall*Math.cos(i*1.8)*.35;b.position.y=.85+(1-fall)*(origins[i].y-.85);b.rotation.z=fall*Math.sin(i*2.2)*1.4;}
     });};
   }else{

@@ -105,6 +105,7 @@ interface TaskView {
   studyProgress?: { elapsed: number; total: number };
   question?: string;
   paired?: SocialIntent;
+  spaStation?:string;
   isCooking?:boolean;
   answer?: { correct: boolean; message: string };
 }
@@ -375,13 +376,14 @@ function drawTaskPanel(): void {
       box.append(form);
     }
     if (role === active) {
-      if(task.paired&&world?.place==='home'){
+      if(task.paired&&(world?.place==='home'||world?.place==='venue')||task.spaStation&&world?.place==='spa'){
         const focus=document.createElement('button');
         focus.type='button';focus.className='task-focus';focus.dataset.focusShared='';
         focus.textContent='🎥 К действию';
         focus.setAttribute('aria-label','Приблизить камеру к совместному занятию');
         focus.addEventListener('click',()=>{
-          if(!world?.focusSharedActivity())notify('Сначала вернитесь домой к занятию');
+          if(task.spaStation){world?.focusSpaActivity(task.spaStation);return;}
+          if(!world?.focusSharedActivity())notify('Сначала подойдите к совместному занятию');
         });
         box.append(focus);
       }
@@ -1028,7 +1030,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      paired: command.type==='together'?command:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();

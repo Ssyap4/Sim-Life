@@ -1,4 +1,4 @@
-import {isVenueGame} from '../shared/venue';
+import {isVenueGame,venueStation} from '../shared/venue';
 import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
 import {isSurfaceDevice} from '../shared/consoleCatalog';
@@ -471,6 +471,12 @@ export class World {
 
   /** Explicit, one-tap close-up for shared actions. Never steals the free camera automatically. */
   focusSharedActivity(): boolean {
+    if(this.place==='venue'){
+      const p=this.homeTasks.get(this.localRole)?.pair;
+      if(!p||!isVenueGame(p.item))return false;
+      const station=stationById('venue',venueStation(p.item))!;
+      return this.focusVenueStation(station);
+    }
     if(this.place!=='home'||!this.actors.vlad.root.visible||!this.actors.alina.root.visible)return false;
     if(this.followingPlayer)this.setFollowPlayer(false);
     this.inspected=null;
@@ -490,6 +496,18 @@ export class World {
     return true;
   }
 
+  focusSpaActivity(id:string):boolean{const station=stationById('spa',id);return this.place==='spa'&&!!station&&this.focusVenueStation(station);}
+  focusVenueStation(station:Station):boolean{
+    if(this.place!=='venue'&&this.place!=='spa')return false;
+    this.setFollowPlayer(false);this.inspected=null;this.neighborhoodView=false;
+    const target=new THREE.Vector3(station.center.x,.85,station.center.z);
+    const ufc=station.id==='venue-ufc',bowling=station.id==='venue-bowling';
+    const direction=new THREE.Vector3(ufc?.16:.75,ufc?.62:1.04,1).normalize();
+    const distance=ufc?12.4:bowling?14.0:station.id==='spa-pool'?14.2:station.id==='spa-jacuzzi'?10.5:9.6;
+    this.controls.minDistance=3.4;this.controls.maxDistance=88;this.controls.maxPolarAngle=1.4;
+    this.cameraMove={target,position:target.clone().addScaledVector(direction,distance)};
+    return true;
+  }
   setActive(id: CharacterId): void {
     for (const actor of Object.values(this.actors)) actor.select(actor.id === id);
   }
@@ -1059,8 +1077,8 @@ export class World {
       case 'venue':{
         if(pair.item==='venueUfc')actor.playConsole('ufc6');
         else if(pair.item==='venueBowling')actor.playDomesticActivity('venueBowl');
-        else if(pair.item==='venueHockey')actor.playDomesticActivity('venueHockey');
-        else if(pair.item==='venueBilliards')actor.playDomesticActivity('billiards');
+        else if(pair.item==='venueHockey'){const s=stationById('venue','venue-hockey')!,side=role==='vlad'?-1:1;actor.setFurniturePose('idle',new THREE.Vector3(s.center.x,0,s.center.z+side*1.57),side<0?0:Math.PI);actor.playDomesticActivity('venueHockey');}
+        else if(pair.item==='venueBilliards'){const s=stationById('venue','venue-billiards')!,side=role==='vlad'?-1:1;actor.setFurniturePose('idle',new THREE.Vector3(s.center.x,0,s.center.z+side*1.15),side<0?0:Math.PI);actor.playDomesticActivity('venueCue');}
         else if(pair.item==='venueJenga')actor.playDomesticActivity('venueJenga');
         else if(pair.item==='venueUno')actor.playDomesticActivity('venueCards');
         break;
@@ -1689,6 +1707,11 @@ export class World {
       1.8+Math.max(0,Math.sin(solarAngle))*11,
       4.2+Math.cos(solarAngle)*3);
     this.weather.light(this.scene,this.place,this.sun,this.ambient);
+    if(this.place==='venue'||this.place==='spa'){
+      (this.scene.background as THREE.Color).setHex(this.place==='venue'?0x899aa4:0xb8cdc8);
+      this.sun.color.setHex(0xfff1de);this.sun.intensity=1.7;this.sun.position.set(-5,11,7);
+      this.ambient.color.setHex(0xe4f0ff);this.ambient.groundColor.setHex(0x9ba9a6);this.ambient.intensity=1.45;
+    }
     this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze,current.snow);
   }
 
@@ -2210,7 +2233,7 @@ export class World {
     else this.neighbors.group.removeFromParent();
     this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='fitness'?85:49, place==='fitness'?115:75);
+    this.scene.fog = place==='venue'||place==='spa'?null:place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='fitness'?85:49, place==='fitness'?115:75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -2239,7 +2262,7 @@ export class World {
     this.camera.far=place==='district'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
-    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || isCareerPlace(place);
+    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || place==='venue'||place==='spa'|| isCareerPlace(place);
     this.frameSun(place === 'home');
     this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.minDistance = 10;
@@ -2763,6 +2786,8 @@ export class World {
     for (const id of ['vlad', 'alina'] as const) {
       const actor = this.actors[id];
       if (!actor.root.visible) continue;
+      const venuePlay=this.place==='venue'?this.remote?.root.userData.venuePlay:undefined;
+      if(venuePlay&&this.pairStages.get(id)?.playing){const game=venuePlay.game;const station=stationById('venue',venueStation(game))!;actor.setVenueFrame(game,station.center,Math.max(0,this.visualSeconds-venuePlay.started),venuePlay.match);}
       // Local, visual-only awareness for spontaneous glances. Never steer
       // people toward a pet/partner or change server gameplay state.
       const center = actor.root.position;

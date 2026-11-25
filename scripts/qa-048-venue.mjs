@@ -37,12 +37,13 @@ try{
   const invite=await a.evaluate(g=>window.__qaMessages.findLast(m=>m.type==='social_pending'&&m.offer.action===g).offer.id,game);
   await send(a,{type:'social_reply',inviteId:invite,choice:0});
   await v.waitForFunction(g=>window.__qaMessages.some(m=>m.type==='task_started'&&m.role==='vlad'&&m.command?.action===g),game,{timeout:15000});
+  await v.locator('[data-focus-shared]').click();
   const id=await v.evaluate(g=>window.__qaMessages.findLast(m=>m.type==='task_started'&&m.role==='vlad'&&m.command?.action===g).taskId,game);
   await v.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),id,{timeout:40000});
-  await v.waitForTimeout(3500);await shot(v,game);
+  await v.waitForTimeout(3500);await shot(v,game);await v.waitForTimeout(3300);await shot(v,game+'-mid');
   await send(v,{type:'cancel_task',taskId:id});
   await v.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id),id,{timeout:20000});
-  await v.waitForTimeout(900);
+  await v.locator('#camera-reset').click();await v.waitForTimeout(900);
  }
  assert.deepEqual(errors,[]);
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

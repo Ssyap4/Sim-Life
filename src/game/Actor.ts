@@ -1,3 +1,5 @@
+import {venueHandFrame,type VenueGame} from '../shared/venue';
+import type {ConsoleMatch} from '../shared/consoleCatalog';
 import {buildGamepad,CONTROLLER_GRIP} from './GamepadArt';
 import {CONSOLE_GAMES,type ConsoleGameId} from '../shared/consoleCatalog';
 import { HOME_JOBS } from "../shared/jobs";
@@ -27,7 +29,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -73,6 +75,10 @@ export class Actor {
   private partnerGesture: { motion:PairMotion; leads:boolean; target?:THREE.Vector3; partner?:Actor; time:number }|null=null;
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
+  private venueFrame?:{game:VenueGame;center:FloorPoint;t:number;match:ConsoleMatch};
+  private venueProp?:THREE.Group;
+  private clearVenueProp(){this.venueFrame=undefined;if(this.venueProp){this.venueProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.venueProp.removeFromParent();this.venueProp=undefined;}}
+  setVenueFrame(game:VenueGame,center:FloorPoint,t:number,match:ConsoleMatch){this.venueFrame={game,center,t,match};}
   private gymDumbbells?:THREE.Group[];
   private gamepads?:Record<string,THREE.Group>;
   private activePad?:THREE.Group;
@@ -346,6 +352,7 @@ export class Actor {
     this.gesture = null;
     this.partnerGesture = null;
     this.activity = null;
+    this.clearVenueProp();
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
@@ -405,6 +412,8 @@ export class Actor {
     this.clearVanity();
     if(kind!=='consolePlay')this.hideGamepad();
     this.activity = kind;
+    if(kind==='venueBowl'||kind==='venueCards'){this.clearVenueProp();const g=new THREE.Group(),prop=new THREE.Mesh(kind==='venueBowl'?orb:new THREE.BoxGeometry(1,1,1),finish(kind==='venueBowl'?(this.id==='vlad'?0x386f9c:0xc55354):0xd74c47));prop.scale.set(...(kind==='venueBowl'?[.12,.12,.12]:[.105,.014,.16]) as [number,number,number]);prop.position.set(0,-.045,.025);g.add(prop);g.visible=false;this.rig.wrists[1].add(g);this.venueProp=g;}
+    if(kind==='venueCue'){this.clearVenueProp();const g=new THREE.Group();const cue=new THREE.Mesh(drum,finish(0xb78b50,'wood'));cue.scale.set(.012,1.02,.012);cue.rotation.x=Math.PI/2;cue.position.z=.29;g.add(cue);const tip=new THREE.Mesh(drum,finish(0x385d82,'fabric'));tip.scale.set(.012,.035,.012);tip.rotation.x=Math.PI/2;tip.position.z=.805;g.add(tip);this.rig.wrists[1].add(g);this.venueProp=g;}
     if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=kind==='gymCurl';
     this.pan = target?.clone();
@@ -414,6 +423,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.clearVenueProp();
     this.clearVanity();
     this.hideGamepad();
     this.props.phone.visible=false;
@@ -959,6 +969,7 @@ export class Actor {
         case 'pingPong': {
           const hit=this.tennisTarget?this.tennisHit:Math.max(0,Math.sin(a*3));lean=.18+.08*hit;rightY=-.32+.13*hit;rightZ=.35+.13*hit;leftY=-.30;leftZ=.26;gaze=.18;break;
         }
+        case 'venueCue':
         case 'billiards': {
           lean=.38+.10*Math.sin(a*1.5);gaze=.32;leftY=-.39;leftZ=.53;rightY=-.42+.08*Math.sin(a*3);rightZ=.30;break;
         }
@@ -1538,6 +1549,12 @@ export class Actor {
       const center=data.chest.localToWorld(this.target.set(0,shoulderY-.35+.013*Math.sin(a*3.1),.31+.018*Math.sin(a*2.0)));
       pad.position.copy(this.figure.worldToLocal(center));pad.rotation.set(-.10+.07*Math.sin(a*2.8),.035*Math.sin(a*1.9),.055*Math.sin(a*3.2));pad.updateWorldMatrix(true,false);
       for(const i of [0,1] as const){const side=i===0?-1:1;this.reach(i,pad.localToWorld(this.target.set(side*CONTROLLER_GRIP,-.01,-.069)),1,.63);this.aimHand(i,this.handDirection.set(-side*.30,-.12,1).applyAxisAngle(up,this.root.rotation.y),1);}
+    } else if(this.venueFrame&&this.activity&&['venueCue','venueHockey','venueCards','venueJenga','venueBowl'].includes(this.activity)){
+      const f=this.venueFrame,frame=venueHandFrame(f.game,this.id,f.t,f.match);
+      const target=new THREE.Vector3(f.center.x+frame.x,frame.y,f.center.z+frame.z);
+      if(frame.reach){this.reach(1,target,alpha);this.aimHand(1,this.handDirection.set(0,-.22,1).applyAxisAngle(up,this.root.rotation.y),alpha);}
+      if(this.venueProp&&(this.activity==='venueCards'||this.activity==='venueBowl'))this.venueProp.visible=frame.reach;
+      if(this.activity==='venueCue'&&this.venueProp){this.venueProp.visible=frame.reach;const toward=new THREE.Vector3(f.center.x,.94,f.center.z).sub(target).normalize();this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();this.venueProp.quaternion.setFromUnitVectors(forwardAxis,toward.applyQuaternion(this.parentRotation));}
     } else if (typing) {
       const spec=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]:undefined;
       const variant=spec?.animation??0;
