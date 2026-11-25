@@ -70,7 +70,7 @@ class Sculpt:
         self.base=rgb('e6a685' if self.woman else 'd7997a')
         self.eye_width=.038 if self.woman else .033
         self.eye_radius=.0398 if self.woman else .0360
-        self.eye_center=.088 if self.woman else .085
+        self.eye_center=.090 if self.woman else .087
         self.mouth=-.103 if self.woman else -.110
         self.mouth_width=.042 if self.woman else .047
 
@@ -225,7 +225,9 @@ class Sculpt:
             return x,baseline+arch*((.0214 if f else .0128) if upper else (-.0121 if f else -.0087))
 
         def globe(x,y):
-            return self.eye_center+sqrt(max(.00006,radius*radius-(x-cx)**2-y*y))
+            # The eye surface follows the curvature of the face: the nasal
+            # canthus lies forward of the temporal canthus in bind pose.
+            return self.eye_center+sqrt(max(.00006,radius*radius-(x-cx)**2-y*y))-.48*side*(x-cx)
 
         # Only the part of the sphere between the eyelids is sclera. Keeping
         # the aperture in the topology avoids exposed white on the cheek.
@@ -252,7 +254,7 @@ class Sculpt:
             for u in steps(64):
                 a=u*2*pi
                 x=iris*t*sin(a); y=iris*t*cos(a)
-                depth=self.eye_center+sqrt(radius*radius-x*x-y*y)+.0007
+                depth=globe(cx+x,y)+.0007
                 streak=.20+.41*(.5+.5*sin(a*29+t*16)*cos(a*9-t*3))
                 iris_color=rgbmix(iris_col,iris_light,streak)
                 inner=ramp(.31,.39,t)
@@ -396,20 +398,21 @@ class Sculpt:
 
     def male_ear(self,skin,side):
         """A compact lateral pinna, with a bowl, rim and rounded back."""
-        cx,cy,cz=.124,-.042,-.007
+        cx,cy,cz=.123,-.042,-.007
         height,width=.038,.023
         def surface(p,a,back=False):
             # A rear-leaning oval in the actual sagittal plane.
             y=cy+height*cos(a)*p
             z=cz+width*sin(a)*p-.008*cos(a)*p
-            outer=.010*(p**.72)+.004*p*(-sin(a))-.003*p*cos(a)
+            # Round the frontal silhouette at both the top and the lobe.
+            outer=(.009*(p**.72)+.003*p*(-sin(a)))*(1-.38*(p*cos(a))**2)
             x=cx+outer
             if back:
                 x-=.023*(1-p)**.72
             else:
-                x+=.006*bell((p-.77)/.21)-.0025*bell((p-.30)/.25)
+                x+=.0045*bell((p-.77)/.21)-.0025*bell((p-.30)/.25)
                 # Meet the back surface at the rim without a gap.
-                x-=.006*bell((1-.77)/.21)*p**8
+                x-=.0045*bell((1-.77)/.21)*p**8
                 x+=.0025*bell((1-.30)/.25)*p**8
             return self.xyz(side*x,y,z)
         for back in (False,True):
@@ -427,7 +430,7 @@ class Sculpt:
         for t in steps(30):
             a=-.32+t*5.55
             x,y,z=surface(.88,a)
-            path.append(((x+side*.0014,y,z),.0017+.0018*sin(pi*t)**.7))
+            path.append(((x+side*.0012,y,z),.0015+.0015*sin(pi*t)**.7))
         skin.cord(path,rgbmix(self.base,rgb('d9987f'),.17),HEAD,sides=8)
         tragus=[]
         for t in steps(9):
