@@ -110,7 +110,7 @@ export const itemNames: Record<ItemId, string> = {
   officeChair: 'Кресло в кабинете',
   sofa: 'Уютный диван', bed: 'Двуспальная кровать', desk: 'Рабочее место',
   kitchen: 'Кухня', kettle: '🍵 Чайник', coffeeMaker: '☕ Кофеварка', tv: 'Телевизор', table: 'Обеденный стол',
-  grill: 'Дворовый гриль', yardTable: 'Стол во дворе', wcBasin: 'Раковина в туалете',
+  grill: 'Дворовый гриль', yardTable: 'Лаунж-зона', wcBasin: 'Раковина в туалете',
   delivery: 'Магазин и доставка',
   toilet: 'Туалет', shower: 'Душевая', bathtub: 'Ванна', basin: 'Раковина в ванной',
 };
@@ -166,6 +166,8 @@ export const ACTIONS = {
   kitchenTea: { label: '🍵 Заварить чай', item: 'kitchen', pose: 'idle' },
   watchTv: { label: '📺 Смотреть передачу', item: 'tv', pose: 'sit' },
   tvMusic: { label: '🎶 Послушать концерт', item: 'tv', pose: 'sit' },
+  yardHookahSolo:{label:'Посидеть с кальяном',item:'yardTable',pose:'sit'},
+  yardLounge: {label:'Отдохнуть в лаунж-зоне',item:'yardTable',pose:'sit'},
   tableRest: { label: '☕ Посидеть за столом', item: 'table', pose: 'sit' },
   tableTalk: { label: '💬 Пообщаться в переписке', item: 'table', pose: 'sit' },
   tablePlan: { label: '📒 Спланировать день', item: 'table', pose: 'sit' },

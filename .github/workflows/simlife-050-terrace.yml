@@ -22,6 +22,7 @@ jobs:
       - run: npx tsx --test server/tests/oasis-050.test.ts server/tests/terrace-free-rest-050.test.ts server/tests/oasis-pool-050.test.ts server/tests/pool-contact-050.test.ts
       - run: npm run build
       - run: node --import tsx scripts/qa-050-terrace.mjs
+      - run: node --import tsx scripts/qa-050-terrace.mjs hookah
       - run: node --import tsx scripts/qa-050-pool.mjs
       - run: node --import tsx scripts/qa-050-pool.mjs swim
       - uses: actions/upload-artifact@v4

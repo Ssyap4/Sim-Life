@@ -2,10 +2,10 @@ import { NEIGHBOR_HOMES, REAR_WALK_Z, yardFeatures } from './neighborHomes';
 import type { PlaceId, Point } from './locations';
 import type { CharacterId } from './protocol';
 import type { FloorRect } from '../game/navigation';
-import { HOME_FLOOR, HOME_YARD, HOUSE } from './home';
+import { HOME_FLOOR, HOME_YARD, HOUSE, YARD_EXPANSION } from './home';
 
 export const DISTRICT_FLOOR: FloorRect = { minX: -28.4, maxX: 28.4, minZ: -30.7, maxZ: 32.0 };
-export const DISTRICT_OFFSET_Z = 41.5;
+export const DISTRICT_OFFSET_Z = 41.5+YARD_EXPANSION;
 export const HOME_WORLD_FLOOR: FloorRect = { ...DISTRICT_FLOOR,
   minZ: HOME_FLOOR.minZ, maxZ: DISTRICT_FLOOR.maxZ + DISTRICT_OFFSET_Z };
 export const inHomeGrounds = ({x,z}:Point) => x>=HOME_FLOOR.minX && x<=HOME_FLOOR.maxX &&

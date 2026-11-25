@@ -2,20 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import WebSocket from 'ws';
 import {initialState,type ServerPacket} from '../../src/shared/protocol';
+import {homeSeat,HOME_FLOOR,HOME_YARD} from '../../src/shared/home';
 import {gameMinutes} from '../../src/shared/life';
 import {furnitureUseLocation} from '../../src/shared/furnitureUse';
 import {createHomeSessions} from '../homeSessions';
 import {planTask} from '../tasks';
 
-function rig(){
+function rig(fixed=false){
  let state=initialState(),now=1000,id=0;
  const packets:ServerPacket[]=[];
  const timers=new Map<ReturnType<typeof setTimeout>,{at:number;cb:()=>void}>();
  const sockets={vlad:{readyState:WebSocket.OPEN} as WebSocket,alina:{readyState:WebSocket.OPEN} as WebSocket};
- state.furnishing.placed=[{id:1,sku:'oasis-terrace',finish:'sage',x:9.5,z:10.2,rotation:2}];state.furnishing.nextId=2;
+ if(!fixed)state.furnishing.placed=[{id:1,sku:'oasis-terrace',finish:'sage',x:9.5,z:10.2,rotation:2}];state.furnishing.nextId=2;
  for(const role of ['vlad','alina'] as const){
-  const route=furnitureUseLocation(state,role,1,'terraceRest')!.route;
-  Object.assign(state.characters[role],route.path.at(-1)??route.from,{energy:40,fun:20,mood:20,comfort:20,social:20});
+  const route=fixed?null:furnitureUseLocation(state,role,1,'terraceRest')!.route;
+  Object.assign(state.characters[role],route?(route.path.at(-1)??route.from):homeSeat('yardTable',role).approach,{energy:40,fun:20,mood:20,comfort:20,social:20});
  }
  const s=createHomeSessions({state:()=>state,save:next=>{state=next;},all:p=>packets.push(p),send:(_,p)=>packets.push(p),socket:r=>sockets[r],busy:()=>false,prepare:()=>{},nextId:()=>++id,timeScale:1,gameTime:()=>gameMinutes(state.clock),now:()=>now,resourceBusy:()=>false,conversationPosition:r=>state.characters[r],
  schedule:(cb,ms)=>{const h=++id as unknown as ReturnType<typeof setTimeout>;timers.set(h,{at:now+ms,cb});return h;},clearTimer:h=>{timers.delete(h);}});
@@ -62,5 +63,33 @@ test('moving an occupied terrace releases both participants without granting rew
   r.s.interruptLayout(undefined,1,undefined);
   assert.ok(!r.s.busy('vlad')&&!r.s.busy('alina'));
   assert.equal(r.state().characters.vlad.comfort,before);
+ }finally{r.s.dispose();}
+});
+test('built-in lounge is free and permits independent solo or shared unlimited rest',()=>{
+ const r=rig(true);try{
+  assert.equal(r.state().furnishing.placed.length,0);
+  assert.equal(HOME_FLOOR.maxZ,16.7);assert.equal(HOME_YARD.gate.z,17.06);
+  const money=r.state().money;
+  assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardLounge'})!,r.sockets.vlad));
+  r.advance(600000);assert.ok(r.s.busy('vlad'));r.finish('vlad');assert.ok(!r.s.busy('vlad'));assert.equal(r.state().characters.vlad.pose,'idle');
+  r.invite('yardRest');r.advance(600000);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
+  r.invite('nearTalk:day');r.advance(45000);assert.ok(r.state().relationship.recent.some(e=>e.action==='nearTalk:day'));
+  r.finish('vlad');assert.ok(!r.s.busy('vlad')&&r.s.busy('alina'));
+  r.s.recheckAccess();assert.ok(r.s.busy('alina'));
+  r.finish('alina');assert.ok(!r.s.busy('alina'));assert.equal(r.state().money,money);
+ }finally{r.s.dispose();}
+});
+
+test('optional hookah uses the fixed lounge, has no need reward, and permits conversation and independent exit',()=>{
+ const r=rig(true);try{
+  const before=structuredClone(r.state().characters),money=r.state().money;
+  assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardHookahSolo'})!,r.sockets.vlad));
+  r.advance(600000);assert.ok(r.s.busy('vlad'));r.finish('vlad');
+  for(const key of ['fun','energy','comfort','mood'] as const)assert.equal(r.state().characters.vlad[key],before.vlad[key]);
+  r.invite('yardHookah');r.advance(3000);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
+  r.invite('nearTalk:day');r.advance(600000);assert.ok(r.state().relationship.recent.some(e=>e.action==='nearTalk:day'));
+  const afterTalk=structuredClone(r.state().characters);r.finish('vlad');assert.ok(!r.s.busy('vlad')&&r.s.busy('alina'));
+  r.finish('alina');for(const role of ['vlad','alina'] as const)for(const key of ['fun','energy','comfort','mood'] as const)assert.equal(r.state().characters[role][key],afterTalk[role][key]);
+  assert.equal(r.state().money,money);
  }finally{r.s.dispose();}
 });

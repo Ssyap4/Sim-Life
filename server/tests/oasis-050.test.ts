@@ -26,18 +26,11 @@ test('terrace respects the yard, parking and existing paths',()=>{
  assert.equal(v.pose.yaw,Math.PI);
  assert.ok(v.route.path.length&&a.route.path.length);
 });
-test('terrace purchase, shared delivery and legal installation use existing household funds once',()=>{
+test('retired terrace cannot be purchased again',()=>{
  const s=initialState();s.money=100000;
  const price=FURNITURE_BY_ID.get(terrace.sku)!.price;
  const bought=applyFurnishing(s,'vlad',{type:'furniture_order',sku:terrace.sku,finish:'sage',shipping:'express',quantity:1},100);
- assert.ok(bought.ok);
- assert.equal(bought.state.money,100000-price-990);
- const unpacked=applyFurnishing(bought.state,'alina',{type:'furniture_unbox',id:1},115);
- assert.ok(unpacked.ok);
- const placed=applyFurnishing(unpacked.state,'alina',{type:'furniture_place',id:1,x:terrace.x,z:terrace.z,rotation:terrace.rotation},125);
- assert.ok(placed.ok);
- assert.equal(placed.state.money,bought.state.money);
- assert.equal(placed.state.furnishing.placed[0].sku,terrace.sku);
+ assert.equal(bought.ok,false);assert.equal(s.money,100000);assert.ok(price>0);
 });
 test('solo and paired terrace sessions have real routes, timed completion and no extra charge',()=>{
  const s=initialState();s.furnishing.placed=[terrace];s.furnishing.nextId=2;

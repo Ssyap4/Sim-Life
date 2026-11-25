@@ -61,10 +61,10 @@ import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
 import {VENUE_GAMES,isVenueGame,venueDenial} from './venue';
 export type PairMotion = 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
-  'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
+  'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'yardHookah'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'venue' | 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'breakfastCare'|'breakfastBed';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'yardHookah'|'breakfastCare'|'breakfastBed';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
@@ -138,6 +138,7 @@ const objects: readonly SocialActivity[] = [
   {id:'teaTogether',title:'Выпить чай вместе',group:'home',lines:['Заварим по кружке чая и посидим за столом?'],replies:['Давай.','С удовольствием.'],motion:'teaTogether',seconds:35,object:'teaTogether',resource:'shared-tea'},
   {id:'yardTea',title:'Попить чай во дворе',group:'home',lines:['Возьмём чай и посидим на свежем воздухе?'],replies:['Хорошая идея.','Давай выйдем.'],motion:'teaTogether',seconds:40,object:'yardTea',resource:'shared-tea'},
   {id:'yardCoffee',title:'Выпить кофе вместе на веранде',group:'home',lines:['Давай выпьем кофе за столиком на свежем воздухе и поболтаем?'],replies:['Давай, с удовольствием.','Отличная идея.'],motion:'teaTogether',seconds:45,object:'yardCoffee',resource:'kitchen'},
+  {id:'yardHookah',title:'Посидеть с кальяном вдвоём',group:'fun',lines:['Посидим вместе на террасе?'],replies:['Давай.','Хорошо.'],motion:'yardHookah',seconds:45,object:'yardHookah'},
   {id:'yardRest',title:'Посидеть вместе во дворе',group:'fun',lines:['Давай немного отдохнём за столиком во дворе.'],replies:['Давай.','Хочется немного тишины.'],motion:'sitTalk',seconds:35,object:'yardRest'},
   {id:'musicTogether',title:'Послушать музыку вместе',group:'fun',lines:['Включим музыку и посидим рядом?'],replies:['Да, хочется расслабиться.','Давай послушаем.'],motion:'musicTogether',seconds:60,object:'sofa'},
   {id:'cuddle',title:'Прижаться на диване',group:'romance',lines:['Хочешь сесть рядом и немного прижаться друг к другу?'],replies:['Хочу. Побудем так немного.','Да, мне нравится, когда мы рядом.'],motion:'cuddle',seconds:15,object:'sofa',memorable:true},

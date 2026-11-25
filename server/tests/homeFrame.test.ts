@@ -17,7 +17,7 @@ test('portrait framing fits the play area across the screen and the cutaway betw
       const aspect = width / height;
       const fov = 46;
       const frame = portraitHomeFrame(fov, aspect, band);
-      const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 90);
+      const camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 180);
       camera.position.copy(frame.position);
       camera.lookAt(frame.target);
       camera.updateMatrixWorld();

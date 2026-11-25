@@ -1041,7 +1041,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='furniture_use'?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
@@ -1516,11 +1516,12 @@ function openActions(item: ItemId): void {
     together.textContent='♡ Предложить сделать вместе';
     together.addEventListener('click',()=>{
       if(!active)return;
-      const id=item==='kitchen'?'cook':item==='grill'?'grill':item==='table'||item==='yardTable'?'eat':item==='sofa'?'sofaTalk':item==='tv'?'tv':'read';
+      const id=item==='kitchen'?'cook':item==='grill'?'grill':item==='yardTable'?'yardRest':item==='table'?'eat':item==='sofa'?'sofaTalk':item==='tv'?'tv':'read';
       openSocialActions(otherPerson(active),item==='sofa'?'care':item==='tv'?'fun':'home',id);
     });
     actionsEl.append(together);
   }
+  if(state&&active&&item==='yardTable'){for(const [id,label] of [['yardTea','Чай вдвоём'],['yardCoffee','Кофе вдвоём'],['yardRest','Отдых вдвоём'],['yardHookah','Кальян вдвоём']]){const b=document.createElement('button');b.className='action-button';b.textContent=label;b.onclick=()=>{if(active)openSocialActions(otherPerson(active),['yardRest','yardHookah'].includes(id)?'fun':'home',id);};actionsEl.append(b);}}
   if (state && (item === 'delivery' || item === 'table' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = type==='store'

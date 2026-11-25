@@ -158,7 +158,6 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('leisure-darts','Напольный дартс','leisure','leisure',2500,.85,.55,1.83,'🎯','Мишень на устойчивой стойке. Оставь свободное место для бросков.'),
   product('leisure-chess','Шахматный столик','leisure','leisure',3500,1.16,1.80,1.09,'♟️','Шахматная доска и два места напротив друг друга.'),
   product('oasis-pool','Бассейн «Лагуна дома»','leisure','leisure',89500,6.5,4.7,1.55,'🏊','Просторный бассейн 6 × 3,5 м, настил, ступени и две надувные лежанки. Только для двора.'),
-  product('oasis-terrace','Терраса «Оазис»','leisure','leisure',32900,3.20,2.0,2.20,'🌿','Деревянная площадка с диванчиком на двоих, мягкими подушками и перголой. Только для двора.'),
   product('leisure-hammock','Гамак на стойке','leisure','leisure',5900,2.60,1.08,1.30,'🌴','Тканевый гамак для спокойного отдыха во дворе.'),
   product('leisure-swing','Садовые качели','leisure','leisure',18900,2.35,1.38,2.10,'🌿','Двухместное подвесное сиденье под навесом.'),
   product('leisure-tennis','Стол для настольного тенниса','leisure','leisure',24900,1.55,2.40,.95,'🏓','Стол, сетка, ракетки и место для игры с двух сторон.'),
@@ -178,6 +177,9 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product("pet-house-sky","Комплекс «Небоскрёб»","pets","plant",15900,1.92,1.18,1.34,"🐾","Два уровня отдыха и отдельный сизалевый столбик."),
 ] as const;
 // Keep the old models for already-owned furniture, but no new decorative purchases.
+const RETIRED_OASIS:readonly FurnitureProduct[]=[
+  product('oasis-terrace','Терраса «Оазис»','leisure','leisure',32900,3.20,2.0,2.20,'🌿','Деревянная площадка с диванчиком на двоих, мягкими подушками и перголой. Только для двора.'),
+];
 export const PURCHASABLE_FURNITURE=FURNITURE_CATALOG.filter(item=>item.category!=='decor');
 export const RETIRED_PET_PRODUCTS:readonly FurnitureProduct[]=[
   product('pet-bed-verdell','Лежанка Верделла «Облачко»','pets','rug',4900,1.08,.94,.15,'🐕','Уютная низкая лежанка с мягкими бортиками; Верделл может на ней спать.',true),
@@ -221,7 +223,7 @@ export const diningSeatTop=(sku:string)=>["chair-lino","chair-mellow","chair-mon
 export const VACUUM_FURNITURE=Object.entries(VACUUM_MODELS).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🧹',m.spec));
 export const SPEAKER_FURNITURE=Object.entries(SPEAKER_MODELS).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🔊',m.assistant));
 export const CONSOLE_FURNITURE=Object.entries(CONSOLES).map(([id,m])=>product(id,m.name,'decor','plant',m.price,m.width,m.depth,m.height,'🎮',m.description));
-export const FURNITURE_BY_ID = new Map([...CONSOLE_FURNITURE,...SPEAKER_FURNITURE,...VACUUM_FURNITURE,...FURNITURE_CATALOG,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
+export const FURNITURE_BY_ID = new Map([...CONSOLE_FURNITURE,...SPEAKER_FURNITURE,...VACUUM_FURNITURE,...FURNITURE_CATALOG,...RETIRED_OASIS,...RETIRED_DESKS,...RETIRED_DINING,...RETIRED_PET_PRODUCTS,...STARTER_PET_PRODUCTS].map(item=>[item.id,item]));
 
 // Display order only. Never reorder the persisted catalogue IDs or household data.
 // All old and newly introduced products share one intuitive furniture-type grouping.

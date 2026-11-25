@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HOUSE, HOUSE_WING, HOME_YARD } from '../shared/home';
+import { HOUSE, HOUSE_WING, HOME_YARD, HOME_FLOOR } from '../shared/home';
 import type { ViewBand } from './InspectionFrame';
 
 type Vertex = readonly [number, number, number];
@@ -11,13 +11,13 @@ const yardFront = HOME_YARD.gate.z + .18;
 export const houseOutline: readonly Vertex[] = [-1, 1].flatMap(side => {
   const edge = side < 0 ? -wing : HOUSE_WING.maxX + .25;
   return [
-    [edge, -.63, rear], [edge, -.63, front], [side * 6.26, -.63, yardFront],
-    [edge, 3.22, rear], [edge, 1.24, front], [side * 6.26, .66, yardFront],
+    [edge, -.63, rear], [edge, -.63, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, -.63, yardFront],
+    [edge, 3.22, rear], [edge, 1.24, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, .96, yardFront],
   ];
 });
 export const playOutline: readonly Vertex[] = [-1, 1].flatMap(side => {
   const edge = side < 0 ? HOUSE.minX : HOUSE_WING.maxX;
-  return [[edge, 3.20, rear], [edge, 0, front], [side * 6.05, .66, yardFront]];
+  return [[edge, 3.20, rear], [edge, 0, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, .96, yardFront]];
 });
 
 /** Extended desktop overview: reserve land and all three public walkways
@@ -29,7 +29,7 @@ export const neighborhoodOutline: readonly Vertex[] = [
 
 export function portraitHomeFrame(fov: number, aspect: number, band: ViewBand,
   horizontal: readonly Vertex[] = playOutline, vertical: readonly Vertex[] = houseOutline,
-  direction: Vertex = [0.13, 1.42, 1.08], maxDistance = 88) {
+  direction: Vertex = [0.13, 1.42, 1.08], maxDistance = 120) {
   // An elevated, front-facing view keeps the house threshold and yard readable.
   const axis = new THREE.Vector3(...direction).normalize();
   const right = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, axis).normalize();

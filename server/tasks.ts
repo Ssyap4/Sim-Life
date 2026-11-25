@@ -58,7 +58,7 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8, kitchenDishes: 10, kitchenLeftovers: 12, kitchenServe: 16,
   toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
   bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath, wcWash: 6,
-  watchTv: 10, tvMusic: 10, tableRest: 7, tableTalk: 9, tablePlan: 8,
+  watchTv: 10, tvMusic: 10, yardHookahSolo:45, yardLounge:45, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
 
 const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProperty.call(obj, key);

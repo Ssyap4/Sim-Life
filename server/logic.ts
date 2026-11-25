@@ -217,6 +217,9 @@ export function applyAction(source: GameState, role: CharacterId, actionId: stri
     case 'tvMusic':
       change(state, role, 'fun', 14); change(state, role, 'mood', 7);
       message = name + ': концерт по телевизору'; break;
+    case 'yardHookahSolo':break;
+    case 'yardLounge':
+      change(state,role,'energy',8);change(state,role,'comfort',30);change(state,role,'fun',20);change(state,role,'mood',14);break;
     case 'tableRest':
       change(state, role, 'energy', 6); change(state, role, 'mood', 3);
       change(state, role, 'comfort', 5);

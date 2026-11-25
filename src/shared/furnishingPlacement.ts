@@ -121,7 +121,8 @@ export function checkFurniturePlacement(state:GameState,candidate:PlacedFurnitur
     if(!outdoor)return deny('Этот предмет можно поставить только во дворе');
     const parking={minX:HOME_YARD.parking.x-1.42,maxX:HOME_YARD.parking.x+1.42,minZ:HOME_YARD.parking.z-2.99,maxZ:HOME_YARD.parking.z+2.99};
     const passage={minX:2,maxX:12.8,minZ:7.47,maxZ:9.03};
-    if(intersects(physical,parking)||intersects(physical,passage))return deny('Оставь свободными парковку и дорожку');
+    const gateWalk={minX:HOUSE_ENTRY.x-.98,maxX:HOUSE_ENTRY.x+.98,minZ:HOUSE_ENTRY.z,maxZ:HOME_YARD.gate.z};
+    if(intersects(physical,parking)||intersects(physical,passage)||intersects(physical,gateWalk))return deny('Оставь свободными парковку и дорожку');
   }
   if(outdoor&&HOME_STRUCTURE_OBSTACLES.some(o=>intersects(physical,o)))return deny('Нельзя перекрывать забор, клумбу или проход');
   if(!insideWalls(physical)&&!outdoor)return deny('Предмет выходит за стену или границу комнаты');

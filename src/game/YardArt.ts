@@ -157,8 +157,14 @@ function grillAndTable() {
     for (const dz of [-.25, .30])
       shape(table, [.104, .74, .115], [dx, .391, dz], C.walnut, softCube, true, 'wood');
   }
-  for (const dz of [.591, .718, .845])
-    shape(table, [1.89, .087, .12], [0, .477, dz], C.oak, softCube, true, 'wood');
+  // Two broad upholstered seats, keeping the original seat height/food anchors.
+  shape(table,[1.94,.14,.53],[0,.415,.72],C.walnut,softCube,true,'wood');
+  for(const dx of [-.47,.47]){
+    shape(table,[.91,.09,.49],[dx,.476,.72],0x81978a,softCube,true,'fabric');
+    shape(table,[.90,.42,.13],[dx,.73,.975],0x9caf9b,softCube,true,'fabric');
+    shape(table,[.23,.25,.13],[dx+(dx<0?-.29:.29),.72,.88],0xd8b18d,softCube,false,'fabric');
+  }
+  for(const dx of [-.95,.95])shape(table,[.11,.16,.47],[dx,.64,.72],C.walnut,softCube,true,'wood');
   for (const dx of [-.71, .71])
     shape(table, [.102, .433, .18], [dx, .225, .80], C.walnut, softCube, true, 'wood');
   // The woven runner folds over both lips of the fixed picnic tabletop.
@@ -170,6 +176,13 @@ function grillAndTable() {
       if(dz>0)shape(table,[.022,.008,.82],[-.53+stripe,DINING_TOP+.004,0],C.oat,cube);
     }
   }
+  // A small decorative hookah at the outer edge, clear of the meal plates.
+  const hx=.80,hz=-.16;
+  shape(table,[.20,.025,.20],[hx,DINING_TOP+.013,hz],C.ink,drum,false,'metal');
+  shape(table,[.16,.22,.16],[hx,DINING_TOP+.12,hz],0x527f89,orb,false,'ceramic');
+  shape(table,[.048,.25,.048],[hx,DINING_TOP+.31,hz],C.brass,drum,false,'metal');
+  shape(table,[.14,.026,.14],[hx,DINING_TOP+.41,hz],C.ink,drum,false,'metal');
+  shape(table,[.075,.065,.075],[hx,DINING_TOP+.455,hz],0x967c69,drum,false,'ceramic');
   batchRigidParts(table, true);
 
   const shadeMap=paintedMap('picnic-contact',64,48,ctx=>{
@@ -298,12 +311,17 @@ export function buildYard(scene: THREE.Scene) {
   // Painted lawn extension covers the formerly empty parking-side reserve.
   const extension=paintedMap('right-yard-v6',512,320,ctx=>paintGround(ctx,{x:12.05,z:8.63,w:12.1,d:6.35},[],9721,'lawn'));
   flat(yard,12.05,-.009,8.63,12.1,6.35,extension,lawn);
+  const added=HOME_YARD.gate.z-12.06,newZ=12.06+added/2;
+  for(const [a,b,seed] of [[plot.minX-.12,HOUSE_ENTRY.x,5301],[HOUSE_ENTRY.x,plot.maxX+.12,5302]]){
+    const area={x:(a+b)/2,z:newZ,w:b-a,d:added};
+    flat(yard,area.x,-.008,area.z,area.w,area.d,paintedMap('oasis-lawn-'+seed,512,256,ctx=>paintGround(ctx,area,[],seed,'lawn')),lawn);
+  }
   const { x } = HOUSE_ENTRY;
   const { parking } = HOME_YARD;
   const stones=paving();
   const stoneFinish=new THREE.MeshStandardMaterial({map:stones,color:stones?0xffffff:flagstone,roughness:.93});
-  for(const [px,y,z,width,depth] of [[x,.006,8.58,1.88,6.83],[-3.51,.004,6.67,4.24,2.75],
-    [parking.x,.004,parking.z,2.84,5.98],[1.96,.005,11.27,1.12,1.17],[7.40,.006,8.25,10.8,1.56]]){
+  for(const [px,y,z,width,depth] of [[x,.006,(HOUSE_ENTRY.z+HOME_YARD.gate.z)/2,1.88,HOME_YARD.gate.z-HOUSE_ENTRY.z],[-3.51,.004,6.67,4.24,2.75],
+    [parking.x,.004,parking.z,2.84,5.98],[parking.x,.004,(parking.z+2.99+HOME_YARD.gate.z)/2,2.84,HOME_YARD.gate.z-parking.z-2.99],[1.96,.005,11.27,1.12,1.17],[7.40,.006,8.25,10.8,1.56]]){
     const strip=new THREE.Mesh(plane,stoneFinish);
     strip.rotation.x=-Math.PI/2;
     strip.position.set(px,y,z);strip.scale.set(width,depth,1);
@@ -318,6 +336,18 @@ export function buildYard(scene: THREE.Scene) {
   shape(yard, [2.50, .012, .055], [parking.x, .01, parking.z+2.26], C.paper, cube);
   shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z + 2.52], 0x8a7e6d, softCube);
 
+  // Built-in lounge: level timber deck and wall-mounted open pergola.
+  // No ground posts in the existing grill, seating or pet routes.
+  shape(yard,[4.78,.036,3.04],[-3.38,-.018,6.77],0xab8863,cube,false,'wood');
+  for(let i=0;i<24;i++)shape(yard,[.188,.009,3.0],[-5.62+i*.19,.003,6.77],i%3===0?0xc0a17b:0xb69a78,cube,false,'wood');
+  for(const x of [-5.62,-3.38,-1.14]){
+    shape(yard,[.11,2.35,.10],[x,1.18,5.27],C.walnut,cube,false,'wood');
+    shape(yard,[.10,.14,1.12],[x,2.31,5.79],C.oak,cube,false,'wood');
+  }
+  for(let i=0;i<5;i++)shape(yard,[4.62,.085,.075],[-3.38,2.38,5.3+i*.25],C.oak,cube,false,'wood');
+  const lanterns=new THREE.Group();lanterns.name='Lounge warm lanterns';
+  for(const x of [-5.35,-4.40,-3.38,-2.36,-1.41]){const bulb=new THREE.Mesh(orb,new THREE.MeshStandardMaterial({color:0xffe6b3,emissive:0xffb76b,emissiveIntensity:.75}));bulb.position.set(x,2.24,6.3);bulb.scale.set(.055,.078,.055);lanterns.add(bulb);}
+  yard.add(lanterns);
   // Two compact planters beside the barbecue pad, outside the walking lane.
   const shrubs=new PlantBatch();
   for(const [x,z,i] of [[-5.65,7.85,0],[-5.82,5.58,1]]){growShrub(shrubs,x,0,z,.42,.34,.38,i,622+i);growFlowers(shrubs,x,0,z,.38,.36,i,5,999+i);}

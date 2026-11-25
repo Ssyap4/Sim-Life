@@ -15,7 +15,8 @@ export const HOUSE_WING = {
   crossWalls: [-3.60, .88] as const,
   crossDoor: { x: 12.62, width: 1.86 },
 };
-export const HOME_FLOOR = { minX: -13.5, maxX: 20.0, minZ: -11.5, maxZ: 11.70 };
+export const YARD_EXPANSION=5;
+export const HOME_FLOOR = { minX: -13.5, maxX: 20.0, minZ: -11.5, maxZ: 11.70+YARD_EXPANSION };
 
 const WALL_THICKNESS = .19;
 const ACTOR_CLEARANCE = .26;
@@ -116,6 +117,7 @@ export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./prot
 }
 
 export const DINING_TOP = .86;
+export const LOUNGE_HOOKAH={x:HOME_PLACEMENTS.yardTable.x+.80,y:DINING_TOP+.21,z:HOME_PLACEMENTS.yardTable.z-.16};
 
 export function homeFootprint(center: { x: number; z: number },
   minX: number, maxX: number, minZ: number, maxZ: number): FloorRect {
@@ -174,7 +176,7 @@ export const HOME_DECOR = [
 ];
 
 export const HOME_YARD = {
-  gate: { x: HOUSE_ENTRY.x, z: 12.06, width: 1.46 },
+  gate: { x: HOUSE_ENTRY.x, z: HOME_FLOOR.maxZ+.36, width: 1.46 },
   parking: { x: 14.2, z: 8.63 },
   sideOpening: { minZ: 6.85, maxZ: 9.65 },
   planter: { x: -5.73, z: 8.15 },

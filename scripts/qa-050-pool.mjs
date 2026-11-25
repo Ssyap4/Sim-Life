@@ -13,7 +13,7 @@ const action=process.argv[2]==='swim'?'poolSwimTogether':'leisureTogether',item=
 const dir=mkdtempSync(join(tmpdir(),'couple-'));let server,browser,page,peer;
 try{
  const s=initialState();s.clock.minute=750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
- s.money=100000;s.furnishing.placed=[{id:1,sku:'oasis-terrace',finish:'sage',x:9.5,z:10.2,rotation:2}];s.furnishing.placed.push({id:2,sku:'oasis-pool',finish:'oak',x:-9.95,z:8.1,rotation:0});s.furnishing.nextId=3;
+ s.money=100000;s.furnishing.placed=[];s.furnishing.placed.push({id:2,sku:'oasis-pool',finish:'oak',x:-9.95,z:8.1,rotation:0});s.furnishing.nextId=3;
  const homes=pairScenes(s,'alina',{type:'together',action,item});assert.ok(homes);
  for(const role of ['vlad','alina']){
   const home=homes[role],end=home.route.path.at(-1)??home.route.from;

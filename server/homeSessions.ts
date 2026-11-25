@@ -318,7 +318,7 @@ export function createHomeSessions(hooks: Hooks) {
         program:command.type==='movie'?command.genre:
           command.type==='youtube'?'vlog':'broadcast'};
     }
-    const station = command.type === 'act' && command.actionId === 'officeChairSit' ? 'officeChair'
+    const station = command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId)?'yardTable':command.type === 'act' && command.actionId === 'officeChairSit' ? 'officeChair'
       : command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
     const route = walk(from, homeSeat(station, role).approach);
     if (!route) return null;
@@ -481,7 +481,7 @@ export function createHomeSessions(hooks: Hooks) {
     const travel = Math.max(0,...participants.map(p => p.arriveMs));
     const story=command.type==='together'&&cooperation&&command.moment
       ?familyMoments(hooks.state(),cooperation.from).find(m=>m.id===command.moment):undefined;
-    const freeRest=!automatic&&participants.every(p=>isFreeLeisureRest(command.type==='furniture_use'?command.action:p.packet.home?.pair?.item));
+    const freeRest=!automatic&&participants.every(p=>isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:p.packet.home?.pair?.item));
     const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,freeRest,
       cooperation:cooperation?{...cooperation,moment:story}:undefined,
       duration, timer: schedule(() => {
@@ -598,12 +598,15 @@ export function createHomeSessions(hooks: Hooks) {
     if(s?.freeRest&&member&&s.activeAt!==null){
       const before=hooks.state(),home=member.packet.home!;
       const id=home.furnitureId;
-      if(id===undefined)return error(socket,'Место отдыха недоступно');
+      const fixed=command?.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId)||command?.type==='together'&&['yardRest','yardHookah'].includes(command.action);
+      const hookah=command?.type==='act'&&command.actionId==='yardHookahSolo'||command?.type==='together'&&command.action==='yardHookah';
+      if(!fixed&&id===undefined)return error(socket,'Место отдыха недоступно');
       // Credit a bounded fraction of the existing reward for actual seated time.
       const strength=Math.min(1,Math.max(0,(now()-s.activeAt)/s.duration));
       const action=command?.type==='furniture_use'?command.action:home.pair?.item;
-      if(action!=='terraceRest'&&action!=='poolFloat')return error(socket,'Место отдыха недоступно');
-      const result=evaluateTask(before,role,{type:'furniture_use',furnitureId:id,action});
+      if(!fixed&&action!=='terraceRest'&&action!=='poolFloat')return error(socket,'Место отдыха недоступно');
+      const restCommand:TimedCommand=fixed?{type:'act',actionId:hookah?'yardHookahSolo':'yardLounge'}:{type:'furniture_use',furnitureId:id!,action:action as 'terraceRest'|'poolFloat'};
+      const result=evaluateTask(before,role,restCommand);
       if(!result.ok){cancel(role,result.reason,member.packet.taskId);return;}
       const next=result.state;
       for(const need of ['fun','mood','comfort','energy'] as const){
@@ -613,8 +616,8 @@ export function createHomeSessions(hooks: Hooks) {
       Object.assign(next.characters[role],home.route.path.at(-1)??home.route.from,{pose:'idle'});
       const remember=!!s.cooperation&&!s.finishedTogether&&s.participants.length===2&&strength>=1;
       if(strength>=1){
-        recordCompletedActivity(next,role,{type:'furniture_use',furnitureId:id,action});
-        if(remember)addRelationship(next,SOCIAL_BY_ID.get('leisureTogether')!,s.cooperation!.choice);
+        recordCompletedActivity(next,role,restCommand);
+        if(remember&&!hookah)addRelationship(next,SOCIAL_BY_ID.get(fixed?'yardRest':'leisureTogether')!,s.cooperation!.choice);
       }
       try{hooks.save(next);}catch{return error(socket,'Не удалось сохранить отдых');}
       if(remember)s.finishedTogether=true;
@@ -747,7 +750,8 @@ export function createHomeSessions(hooks: Hooks) {
       if(session.freeRest&&session.activeAt!==null){
         for(const participant of [...session.participants]){
           const id=participant.packet.home?.furnitureId;
-          if(hooks.state().world.places[participant.role]!=='home'||id===undefined||!hooks.state().furnishing.placed.some(i=>i.id===id&&(i.sku==='oasis-terrace'||i.sku==='oasis-pool')))
+          const fixed=command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId)||command.type==='together'&&['yardRest','yardHookah'].includes(command.action);
+          if(hooks.state().world.places[participant.role]!=='home'||!fixed&&(id===undefined||!hooks.state().furnishing.placed.some(i=>i.id===id&&(i.sku==='oasis-terrace'||i.sku==='oasis-pool'))))
             cancel(participant.role,'Место отдыха недоступно');
         }
         continue;

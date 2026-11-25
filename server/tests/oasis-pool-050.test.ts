@@ -82,3 +82,10 @@ test('independent float ownership, indefinite rest and talking; swimming cannot 
   assert.ok(!r.start('alina','poolFloat'));r.advance(65000);assert.ok(!r.h.busy('vlad'));
  }finally{r.h.dispose();}
 });
+test('expanded front lawn accepts pool without a new purchaseable terrace or obstructing the gate',()=>{
+ const s=initialState(),front={...pool,z:13.0};
+ assert.ok(checkFurniturePlacement(s,front).valid);
+ assert.equal(checkFurniturePlacement(s,{...front,x:.48}).valid,false);
+ s.furnishing.placed=[front];
+ for(const role of roles)assert.ok(furnitureUseLocation(s,role,front.id,'poolFloat'));
+});

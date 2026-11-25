@@ -42,7 +42,7 @@ import { floorFor, approachFor, clockMinutes, HOME_LAPTOP, meeting, placeObstacl
 import { GROCERY_DETAILS } from '../shared/storageSpace';
 import {feedingStation,feedingOwnerPoint} from '../shared/petFeeders';
 import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBath';
-import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
+import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, LOUNGE_HOOKAH, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
 import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
@@ -322,7 +322,7 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -550,7 +550,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -680,7 +680,7 @@ export class World {
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?120:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -981,6 +981,7 @@ export class World {
         actor.playActivity('eat',point,command.recipe);
       }
       else if (command.type === 'act') {
+        if(command.actionId==='yardHookahSolo'){actor.playPartnerGesture('yardHookah',true,new THREE.Vector3().copy(LOUNGE_HOOKAH));return;}
         const motion = DOMESTIC_MOTIONS[command.actionId];
         if (motion) actor.playDomesticActivity(motion);
       }
@@ -1199,6 +1200,7 @@ export class World {
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.82).setY(pair.motion==='hair'?1.61:1.27));break;
+      case 'yardHookah':actor.playPartnerGesture('yardHookah',leads,new THREE.Vector3().copy(LOUNGE_HOOKAH),partner);break;
       case 'teaTogether':case 'sofaLean':case 'sofaHands':case 'sofaKiss':case 'sofaHug':case 'bedRest':case 'cuddle':
         actor.playPartnerGesture(pair.motion,leads,undefined,partner);break;
       case 'hug':case 'closeHug':
@@ -1511,6 +1513,7 @@ export class World {
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
     if(home?.furnitureId!==undefined&&this.household?.furnishing.placed.some(i=>i.id===home.furnitureId&&['oasis-pool','oasis-terrace'].includes(i.sku)))this.actors[role].setPose('idle');
+    if(home?.station==='yardTable'&&this.household?.characters[role].pose==='idle')this.actors[role].setPose('idle');
     if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest'||home?.pair?.motion==='breakfastReceive')this.actors[role].setPose('idle');
     if (dishes||home?.vanityCare) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
@@ -2293,12 +2296,12 @@ export class World {
     this.place = place;
     this.weather.enter(this.scene,place);
     this.horizon.enter(this.scene,place);
-    this.camera.far=place==='district'?180:110;
+    this.camera.far=place==='district'||place==='home'?180:110;
     this.camera.updateProjectionMatrix();
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
     this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || place==='venue'||place==='spa'|| isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -2724,9 +2727,9 @@ export class World {
     }
     if(this.remote&&(this.place==='fitness'||this.place==='venue'))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
     if (this.remote && this.place === 'market')
-      return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.14,1.09,1.0]);
+      return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.14,1.09,1.0],88);
     if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
-      this.remote.horizontal, this.remote.vertical, [.24, .98, 1.10]);
+      this.remote.horizontal, this.remote.vertical, [.24, .98, 1.10],88);
     const fit = THREE.MathUtils.clamp((0.69 - this.camera.aspect) / (0.69 - portraitAspect), 0, 1);
     return { position: homePosition.clone().multiplyScalar(1 + fit * .35).add(locationTarget), target: locationTarget.clone() };
   }

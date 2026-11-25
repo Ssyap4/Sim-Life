@@ -133,7 +133,7 @@ export const HOME_OBJECT_DETAILS = {
   basin:'Короткое умывание для гигиены.',
   wcBasin:'Компактная раковина для мытья рук.',
   grill:'Для любого блюда на мангале нужны продукты, 1 закладка древесного угля и 1 порция жидкости для розжига. Их можно купить в супермаркете или заказать с доставкой.',
-  yardTable:'Здесь подаются готовые блюда с гриля.',
+  yardTable:'Домашняя лаунж-зона: блюда с гриля, чай, кофе и отдых.',
   delivery:'Магазин продуктов, готовых блюд и корма для питомцев. Покупки проверяются общим семейным бюджетом.',
 } as const;
 export function storageUsage(s:{pantry:Pantry;meals:CookedMeals;takeout:TakeoutStock;readyFood?:ReadyFoodBatch[]}):{fridge:number;cupboard:number} {

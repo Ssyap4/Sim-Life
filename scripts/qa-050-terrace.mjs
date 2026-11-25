@@ -9,11 +9,11 @@ import {initialState} from '../src/shared/protocol.ts';
 import {pairScenes} from '../server/society.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
-const action='leisureTogether',item='1',out='/tmp/simlife-050-terrace';mkdirSync(out,{recursive:true});
+const action=process.argv[2]==='hookah'?'yardHookah':'yardRest',item=undefined,out='/tmp/simlife-050-terrace';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'couple-'));let server,browser,page,peer;
 try{
  const s=initialState();s.clock.minute=750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
- s.money=100000;s.furnishing.placed=[{id:1,sku:'oasis-terrace',finish:'sage',x:9.5,z:10.2,rotation:2}];s.furnishing.nextId=2;
+ s.money=100000;
  const homes=pairScenes(s,'alina',{type:'together',action,item});assert.ok(homes);
  for(const role of ['vlad','alina']){
   const home=homes[role],end=home.route.path.at(-1)??home.route.from;

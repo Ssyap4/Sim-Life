@@ -63,6 +63,10 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly teaCup = new THREE.Group();
+  private readonly loungeMouthpiece=new THREE.Group();
+  private readonly loungeHose=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(36),3)),new THREE.LineBasicMaterial({color:0x39464b}));
+  private readonly hoseStart=new THREE.Vector3();
+  private readonly hoseEnd=new THREE.Vector3();
   private readonly dirtyPlate: THREE.Mesh;
   private readonly foodContainer = new THREE.Group();
   private readonly selectionRing: THREE.Mesh;
@@ -211,6 +215,7 @@ export class Actor {
   hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
+    this.loungeMouthpiece.visible=this.loungeHose.visible=false;
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
@@ -263,6 +268,8 @@ export class Actor {
     const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic'));liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
     const cupHandle=new THREE.Mesh(new THREE.TorusGeometry(.026,.006,6,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));cupHandle.position.x=.051;
     this.teaCup.add(cup,liquid,cupHandle);this.teaCup.visible=false;this.rig.wrists[1].add(this.teaCup);
+    const mouthpiece=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.16,8),finish(0x536e75,'metal'));mouthpiece.rotation.x=Math.PI/2;mouthpiece.position.z=.04;this.loungeMouthpiece.add(mouthpiece);this.loungeMouthpiece.visible=false;this.rig.wrists[1].add(this.loungeMouthpiece);
+    this.loungeHose.frustumCulled=false;this.loungeHose.visible=false;this.root.add(this.loungeHose);
     const frameMat=finish(id==='vlad'?0x31495e:0x8b425e,'metal'),gripMat=finish(0x25282b,'fabric'),stringMat=finish(0xe8e7db,'fabric');
     const rod=(radius:number,length:number,z:number,mat:THREE.Material)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,10),mat);m.rotation.x=Math.PI/2;m.position.z=z;this.racket.add(m);};
     rod(.017,.155,0,gripMat);rod(.019,.012,-.079,frameMat);rod(.0065,.255,.205,frameMat);
@@ -1846,6 +1853,22 @@ export class Actor {
       }
     }
 
+    const hookah=pair?.motion==='yardHookah'&&!!pair.target;
+    this.loungeMouthpiece.visible=this.loungeHose.visible=hookah;
+    if(hookah&&pair?.target){
+      const phase=(pair.time+(pair.leads?0:3))%12;
+      const raise=THREE.MathUtils.smoothstep(phase,2,3.8)*(1-THREE.MathUtils.smoothstep(phase,5.2,6.8));
+      const head=this.rig.head.getWorldPosition(this.hoseEnd);
+      const rest=this.bodyPosition(this.hoseStart).add(this.handDirection.set(.20,.80,.25).applyAxisAngle(up,this.root.rotation.y));
+      const mouth=head.add(this.handDirection.set(.035,-.14,.19).applyAxisAngle(up,this.root.rotation.y));
+      this.reach(1,rest.lerp(mouth,raise),alpha*.85);
+      this.aimHand(1,this.handDirection.set(0,-.12,.98).applyAxisAngle(up,this.root.rotation.y),alpha);
+      this.root.updateMatrixWorld(true);
+      this.root.worldToLocal(this.hoseStart.copy(pair.target));
+      this.root.worldToLocal(this.loungeMouthpiece.getWorldPosition(this.hoseEnd));
+      const pos=this.loungeHose.geometry.attributes.position;
+      for(let j=0;j<12;j++){const u=j/11;pos.setXYZ(j,THREE.MathUtils.lerp(this.hoseStart.x,this.hoseEnd.x,u),THREE.MathUtils.lerp(this.hoseStart.y,this.hoseEnd.y,u)-.26*Math.sin(Math.PI*u),THREE.MathUtils.lerp(this.hoseStart.z,this.hoseEnd.z,u));}pos.needsUpdate=true;
+    }
     this.teaCup.visible=pair?.motion==='teaTogether';
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;
