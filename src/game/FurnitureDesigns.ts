@@ -141,6 +141,30 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     line(-w*.28,.892,-.92,-w*.28,.892,.85,.012,0xa4754d,'wood');
     return root;
   }
+  if(s==='oasis-terrace'){
+    // Open front and rear-half pergola: visible occupants at the overview angle.
+    box(w-.04,.085,d-.04,0,.052,0,D,'wood',true);
+    for(let i=0;i<16;i++)box(.18,.028,d-.10,(i-7.5)*.19,.108,0,M,'wood');
+    for(const x of [-1.46,1.46])for(const z of [-.85,.72]){
+      box(.12,2.02,.12,x,1.13,z,D,'wood',true);
+      box(.18,.11,.18,x,.18,z,L,'metal');
+    }
+    for(const x of [-1.46,1.46])box(.13,.12,1.73,x,2.12,-.065,D,'wood');
+    for(const z of [-.85,-.56,-.27,.02,.31,.60])box(w-.10,.075,.075,0,2.16,z,M,'wood');
+    // Seat top .65m; the two exact pose anchors are ±.47, -.27.
+    for(const x of [-.94,.94])for(const z of [-.57,.02])box(.09,.39,.09,x,.32,z,D,'wood');
+    box(2.12,.15,.78,0,.49,-.27,M,'wood',true);
+    for(const x of [-.52,.52]){
+      box(1.00,.10,.73,x,.595,-.27,F,'fabric',true);
+      box(.99,.48,.16,x,.88,-.61,F,'fabric',true);
+    }
+    for(const x of [-1.08,1.08]){
+      box(.13,.17,.77,x,.75,-.27,M,'wood',true);
+      box(.25,.32,.27,x*.77,.80,-.48,L,'fabric',true).rotation.z=x<0?.12:-.12;
+    }
+    box(2.25,.12,.12,0,.92,-.72,D,'wood',true);
+    return root;
+  }
   if(s==='leisure-swing'){
     for(const x of [-w*.44,w*.44]){
       for(const z of [-d*.43,d*.43])line(x,.03,z,x,h-.14,0,.047,D,'metal');

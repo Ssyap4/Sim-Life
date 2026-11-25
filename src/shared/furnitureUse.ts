@@ -8,7 +8,7 @@ import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 /** Only meaningful activities for the purchased item's actual 3D shape. */
 export const FURNITURE_ACTIONS = {
   boardGame:LEISURE.boardGame.label,chessGame:LEISURE.chessGame.label,dartsGame:LEISURE.dartsGame.label,
-  pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,
+  pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,terraceRest:LEISURE.terraceRest.label,
   sofaRest:'Отдохнуть',
   sofaMusic:'Послушать музыку',
   sofaCall:'Позвонить с дивана',
@@ -101,7 +101,7 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   if(isLeisureAction(action)){
     const spec=LEISURE[action];
     const board=action==='boardGame'||action==='chessGame';
-    const swing=action==='swingRest';const hammock=action==='hammockRest';
+    const terrace=action==='terraceRest';const swing=action==='swingRest'||terrace;const hammock=action==='hammockRest';
     const target=board||action==='pingPong'?[0,side*(info.depth/2+.64)]:
       action==='billiards'?[side*(info.width/2+.65),0]:action==='dartsGame'?[side*.42,info.depth/2+1.35]:
       [swing?side*.47:0,info.depth/2+.58];
@@ -120,9 +120,9 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
       if(route)break;
     }
     if(!route)return null;
-    const center=rotate(item,board?0:swing?side*.47:0,board?side*.65:0);
+    const center=rotate(item,board?0:swing?side*.47:0,board?side*.65:terrace?-.27:0);
     const yaw=item.rotation*Math.PI/2+(board&&side>0?Math.PI:0);
-    const pose={...center,y:spec.seated?(role==='vlad'?-.26:-.21)+(hammock?.015:0):0,yaw};
+    const pose={...center,y:spec.seated?(role==='vlad'?-.26:-.21)+(hammock?.015:0)+(terrace?.005:0):0,yaw};
     return {item,action,route,pose};
   }
   const actorSeats=softSeats.has(shape);

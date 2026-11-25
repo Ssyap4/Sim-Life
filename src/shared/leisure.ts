@@ -6,6 +6,7 @@ export const LEISURE = {
   pingPong:{sku:'leisure-tennis',label:'Играть в настольный теннис',seconds:TABLE_TENNIS_SECONDS,seated:false,paired:true,skill:'fitness',fun:42,mood:12,comfort:0,energy:-9},
   billiards:{sku:'leisure-billiards',label:'Играть в бильярд',seconds:30,seated:false,paired:true,skill:'attention',fun:38,mood:12,comfort:0,energy:-4},
   hammockRest:{sku:'leisure-hammock',label:'Отдохнуть в гамаке',seconds:25,seated:true,paired:false,skill:null,fun:12,mood:10,comfort:35,energy:12},
+  terraceRest:{sku:'oasis-terrace',label:'Отдохнуть на террасе',seconds:45,seated:true,paired:true,skill:null,fun:20,mood:14,comfort:30,energy:8},
   swingRest:{sku:'leisure-swing',label:'Отдохнуть на садовых качелях',seconds:24,seated:true,paired:true,skill:null,fun:24,mood:15,comfort:24,energy:5},
 } as const;
 export type LeisureAction=keyof typeof LEISURE;
