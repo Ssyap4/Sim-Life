@@ -85,7 +85,10 @@ export function buildVenueStation(station:Station,textures:THREE.Texture[],mater
   render=(t,play)=>{const n=play?Math.floor(t*15):-1;if(!screen||n===frame)return;frame=n;if(play)drawConsoleFrame(screen.c,'ufc6',t,play.match);else{screen.c.fillStyle='#192532';screen.c.fillRect(0,0,256,144);screen.c.fillStyle='#f5e9d8';screen.c.textAlign='center';screen.c.font='bold 28px sans-serif';screen.c.fillText('UFC 6',128,70);screen.c.font='12px sans-serif';screen.c.fillText('PS5 · LOCAL VERSUS',128,93);}screen.tex.needsUpdate=true;};
  }
  if(game!=='reception'&&game!=='venueUfc'){
-  const scoreScreen=display(fixed,textures,materials,1.30,.58,1.63,-d/2+.08),old=render;let previous='';
+  const scoreMount=new THREE.Group();fixed.add(scoreMount);
+  const bowling=game==='venueBowling';
+  if(!bowling){scoreMount.position.set(-w/2-.26,0,-.12);scoreMount.rotation.y=.35;part(scoreMount,[.25,.04,.24],[0,.02,0],ink,softCube);part(scoreMount,[.055,.90,.055],[0,.46,0],ink);}
+  const scoreScreen=display(scoreMount,textures,materials,bowling?1.30:.78,bowling?.58:.36,bowling?1.63:1.04,bowling?-d/2+.08:0),old=render;let previous='';
   render=(t,play)=>{old?.(t,play);if(!scoreScreen)return;
    const score=play?venueScoreAt(game,play.match,t):undefined,done=!!play&&t>=VENUE_GAMES[game].seconds-3;
    const label=done?(venueWinner(play!.match)==='vlad'?'VLAD WINS':'ALINA WINS'):score?score.join(' : '):game==='venueJenga'?'JENGA':VENUE_GAMES[game].name;

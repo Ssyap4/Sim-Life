@@ -29,7 +29,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -585,10 +585,11 @@ export class Actor {
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
     const asleep = this.pose === 'sleep';
-    const reclining=this.partnerGesture?.motion==='bedRest'||this.activity==='spaRecline';
+    const reclining=this.partnerGesture?.motion==='bedRest'||this.activity==='spaRecline'||this.activity==='spaMassage';
     const resting=asleep||reclining;
     this.restTime=resting?this.restTime+dt:0;
     const rest=resting?sleepPosture(this.id,this.restTime,reclining):null;
+    if(rest&&(this.activity==='spaMassage'||this.activity==='spaRecline')){rest.roll=0;rest.lift=0;rest.headYaw=this.activity==='spaMassage'?.34:.08;rest.headRoll=0;rest.headPitch=0;rest.chestPitch=0;for(const arm of rest.arms)Object.assign(arm,{x:-.10,y:0,z:0,bend:-.20,end:0});for(const leg of rest.legs)Object.assign(leg,{x:0,y:0,z:0,bend:.06,end:0});}
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
     const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat'||this.activity==='bathe';
@@ -1469,7 +1470,8 @@ export class Actor {
         foot.z+=this.seatBlend*(data.thighLength*.84-i*.027)-weightTransfer*.036;
         foot.toePitch*=1-this.seatBlend;
       }
-      if(this.activity==='gymRun'||this.activity==='gymStep'||this.activity==='gymCycle'){
+      if(this.activity==='spaSwim'){foot.z+=Math.sin(a*4.8+i*Math.PI)*.11;foot.y+=.04*Math.sin(a*4.8+i*Math.PI);}
+      else if(this.activity==='gymRun'||this.activity==='gymStep'||this.activity==='gymCycle'){
         const phase=a*(this.activity==='gymRun'?8:5)+i*Math.PI;
         const cycling=this.activity==='gymCycle';
         foot.y+=Math.max(0,Math.sin(phase))*(cycling?.13:.17);
@@ -1541,7 +1543,7 @@ export class Actor {
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
     if(this.activity==='spaSwim'){this.figure.position.y+=.045*Math.sin(a*2.7);this.figure.position.z+=.36*Math.sin(a*.42);}
-    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, resting||this.activity==='spaSwim' ? -Math.PI / 2 : 0, alpha);
+    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, this.activity==='spaMassage'?Math.PI/2:resting||this.activity==='spaSwim' ? -Math.PI / 2 : 0, alpha);
     this.figure.rotation.y = THREE.MathUtils.lerp(this.figure.rotation.y,rest?.roll??0,alpha);
     if(rest)this.figure.position.y+=rest.lift+.004*breath;
     if(this.activity==='consolePlay'&&this.activePad){

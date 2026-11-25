@@ -205,7 +205,7 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     if(f==='spaPool'||f==='spaJacuzzi'){
       const h=f==='spaPool'?.34:.60;
       shape(root,[w-.15,.17,d-.15],[0,.12,0],0x246e80,cube);
-      shape(root,[w-.35,.035,d-.35],[0,h-.12,0],teal,cube);
+      const water=shape(root,[w-.35,.035,d-.35],[0,h-.12,0],teal,cube);const waterMat=(water.material as THREE.MeshStandardMaterial).clone();waterMat.transparent=true;waterMat.opacity=.72;waterMat.depthWrite=false;water.material=waterMat;materials.push(waterMat);
       for(const x of [-1,1])shape(root,[.17,h,d],[x*(w/2-.085),h/2,0],stone,cube);
       for(const z of [-1,1])shape(root,[w,h,.17],[0,h/2,z*(d/2-.085)],stone,cube);
       for(let i=0;i<5;i++){const wave=shape(root,[w*.70,.008,.035],[0,h-.095,-d*.32+i*d*.16],0xa7dddc,cube);wave.name='spa-wave';}
@@ -236,7 +236,7 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       shape(root,[w-.07,.13,d-.08],[0,h+.10,0],linen,softCube);
       const pillow=shape(root,[w*.78,.13,.37],[0,h+.21,-d*.32],0xe9f1e8,softCube);
       if(!massage)pillow.rotation.x=-.30;
-      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.68:.68,0,-.25);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
+      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.59:.59,0,-.25);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
       shape(root,[w*.80,.045,.32],[0,h+.19,d*.24],massage?0x9dbab0:0x9dd4d1,softCube);
     }else{
       shape(root,[w,.93,d],[0,.46,0],wood,softCube);shape(root,[w+.07,.08,d+.08],[0,.96,0],stone,cube);shape(root,[.43,.30,.10],[-.35,1.16,-.1],0x344c50,cube);
@@ -569,7 +569,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor,[4.0,.018,9.7],[8,.017,0],0xc4d6cf,cube);sign(floor,'ДУШ · РАЗДЕВАЛКИ',2.45,-4.88,3.5,0xf5ebda,textures,materials);floor.children.at(-1)!.position.x=7.6;
     sign(floor,'L A G U N A · SPA',2.52,-4.88,4.0,0xf5ebda,textures,materials);
     const clerk=marketCashier(resources,{title:'Администратор',color:0x52847c,shirt:0xf5ebda,animated:true});clerk.position.set(-4,0,1.7);root.add(clerk);
-    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-drop'){w.visible=Object.values(root.userData.spaShowers??{}).includes(id);w.position.y=1.05+((seconds*1.9+w.position.x*5+w.position.z*2)%1+1)%1*.76;}if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.78+.12*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
+    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-drop'){w.visible=Object.values(root.userData.spaShowers??{}).includes(id);w.position.y=1.05+((seconds*1.9+w.position.x*5+w.position.z*2)%1+1)%1*.76;}if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.36+.10*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
   } else if(place==='barber'){
     shape(floor,[12.3,.36,10.3],[0,-.20,0],0x514637,cube);shape(floor,[12,.06,10],[0,-.03,0],0x7e6550,cube);
     for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0x8b6e55:0x9b8065,cube);
