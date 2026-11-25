@@ -69,9 +69,9 @@ export type SocialActivity = {
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
 export const BREAKFAST_RECIPES:readonly RecipeId[]=['omelette','toast','porridge','sandwich','pancakes','fruitSalad'];
-export const FAMILY_GIFTS = {giftFlowers:{price:850,label:'Букет цветов'},giftSweets:{price:450,label:'Коробка сладостей'}} as const;
-export const familyGift=(id:string)=>Object.hasOwn(FAMILY_GIFTS,id)?FAMILY_GIFTS[id as keyof typeof FAMILY_GIFTS]:undefined;
-const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:'Подарить '+g.label.toLowerCase()+' · '+g.price+' ₽',group:'romance',lines:['Хочу порадовать тебя: '+g.label+'. Подарок стоит '+g.price+' ₽ из семейного бюджета.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
+import {FAMILY_GIFTS,familyGift,isGift,giftCount} from './gifts';
+export {familyGift} from './gifts';
+const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:'Подарить '+g.label.toLowerCase(),group:'romance',lines:['Хочу порадовать тебя: '+g.label+'. Подарок уже куплен и получен.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
 const objects: readonly SocialActivity[] = [
   {id:'sofaMassage',title:'Сделать массаж плеч',group:'care',lines:['Давай посидим рядом, я немного разомну тебе плечи.'],replies:['Да, хочется расслабиться.','Спасибо, мне это сейчас нужно.'],motion:'sofaMassage',seconds:40,object:'sofa',memorable:true},
   {id:'breakfastCare',title:'Приготовить завтрак для любимого человека',group:'care',lines:['Хочешь, приготовлю тебе свежий завтрак? Посиди за столом, я всё сделаю.'],replies:['Да, спасибо!','С удовольствием, очень приятно.'],motion:'cook',seconds:25,object:'breakfastCare',resource:'kitchen',memorable:true},
@@ -316,7 +316,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (!contextAvailable(a,state,from)) return 'Этот разговор пока не подходит к ситуации';
   if(a.id==='sofaMassage'){const last=state.relationship.lastMassageAt?.[to];if(individual||last!==undefined&&gameMinutes(state.clock)-last<240)return 'Партнёру пока достаточно массажа';}
   const gift=familyGift(a.id);
-  if(gift){const last=state.relationship.lastGiftAt?.[from];if(individual||place!=='home')return 'Подарок можно вручить вдвоём дома';if(last!==undefined&&gameMinutes(state.clock)-last<1440)return 'Следующий подарок можно вручить через игровые сутки';if(state.money<gift.price)return 'Недостаточно денег на подарок';}
+  if(gift){const last=state.relationship.lastGiftAt?.[from];if(individual||place!=='home')return 'Подарок можно вручить вдвоём дома';if(last!==undefined&&gameMinutes(state.clock)-last<1440)return 'Следующий подарок можно вручить через игровые сутки';if(!isGift(a.id)||giftCount(state,a.id)<1)return 'Сначала закажи подарок в телефоне → Доставка → Подарки и забери у двери';}
   const name=a.object;
   if (name==='walk'&&place!=='home'&&place!=='park') return 'Для прогулки нужен двор или парк';
   if((name==='parkBadminton'||name==='parkSwing'||name==='parkTalk'||name==='picnic')&&place!=='park')return 'Это занятие доступно в парке';

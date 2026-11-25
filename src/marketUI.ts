@@ -1,3 +1,4 @@
+import {isGift,giftCount,pendingGifts,GIFT_LIMIT,FAMILY_GIFTS} from './shared/gifts';
 import { serviceAvailable, SERVICE_MESSAGES } from './shared/services';
 import { findMarketProducts } from './marketSearch';
 import { clockMinutes } from './shared/locations';
@@ -30,9 +31,10 @@ function button(text: string, action: () => void, className = '', disabled = fal
 function owned(state: GameState, p: MarketProduct): number {
   if (p.kind === 'grocery') return state.pantry[p.stockKey as keyof GameState['pantry']];
   if (p.kind === 'takeout') return state.takeout[p.stockKey as keyof GameState['takeout']];
+  if(p.kind==='gift'&&isGift(p.stockKey))return giftCount(state,p.stockKey)+pendingGifts(state,p.stockKey);
   return state.petFood[p.stockKey as keyof GameState['petFood']];
 }
-function limit(p: MarketProduct): number { return p.kind === 'grocery' ? 99 : p.kind === 'takeout' ? 40 : PET_FOOD_MAX_REFILLS; }
+function limit(p: MarketProduct): number { return p.kind === 'grocery' ? 99 : p.kind === 'takeout' ? 40 : p.kind==='gift'?GIFT_LIMIT:PET_FOOD_MAX_REFILLS; }
 
 export function createMarketUI(
   root: HTMLElement,
@@ -51,7 +53,7 @@ export function createMarketUI(
   // someone is tapping +, scrolling, or typing into the mobile catalogue.
   const householdView=(household:GameState)=>JSON.stringify([
     household.money,household.pantry,household.meals,household.takeout,
-    household.petFood,household.petBowls,household.readyFood,household.ledger,
+    household.petFood,household.petBowls,household.readyFood,household.ledger,household.gifts,household.world.deliveries,
     household.billing,Math.floor(clockMinutes(household.clock)/30),
   ]);
   function cartFit(id?:string,delta=0):boolean {
@@ -147,16 +149,16 @@ export function createMarketUI(
         line.append(el('div','market-product-icon',p.emoji));
         const description=el('div','market-description');
         description.append(el('strong','',p.name),
-          el('small','', '+'+p.quantity+' '+p.unit+' · дома: '+owned(state!,p)));
+          el('small','', p.kind==='gift'&&isGift(p.stockKey)?'Получено: '+giftCount(state!,p.stockKey)+' · в доставке: '+pendingGifts(state!,p.stockKey):'+'+p.quantity+' '+p.unit+' · дома: '+owned(state!,p)));
         const about=p.kind==='grocery' ? GROCERY_DETAILS[p.stockKey as keyof typeof GROCERY_DETAILS]
           : p.kind==='takeout' ? null : null;
         const detail=p.kind==='grocery' ? about?.description
-          : p.kind==='takeout' ? TAKEOUT_DESCRIPTIONS[p.stockKey as keyof typeof TAKEOUT_DESCRIPTIONS]
+          : p.kind==='gift' ? 'Подарок для любимого человека. После доставки забери у двери.' : p.kind==='takeout' ? TAKEOUT_DESCRIPTIONS[p.stockKey as keyof typeof TAKEOUT_DESCRIPTIONS]
           : 'Пачка корма: '+p.quantity+' насыпаний по 3 порции — всего '+(p.quantity*PET_BOWL_CAPACITY)+' кормлений.';
         description.append(el('small','market-product-about',detail??''),
           el('small','market-shelf',p.kind==='grocery'
             ? about?.area==='fridge'?'🧊 Холодильник':'🗄️ Кухонные полки'
-            : p.kind==='takeout'?'🧊 Готовое блюдо':'🐾 Запасы питомца'));
+            : p.kind==='gift'?'🎁 Подарки':p.kind==='takeout'?'🧊 Готовое блюдо':'🐾 Запасы питомца'));
         const pricing=el('div','market-price',formatRub(p.price));
         description.append(pricing);
         const stepper=el('div','market-stepper');
@@ -251,6 +253,8 @@ export function createMarketUI(
     } else if (currentTab==='stock') {
       const used=storageUsage(state);
       scroll.append(el('div','market-capacity','🧊 Холодильник '+used.fridge+'/'+FRIDGE_CAPACITY+' мест · 🗄️ Кухонные полки '+used.cupboard+'/'+CUPBOARD_CAPACITY+' мест'));
+      scroll.append(el('h3','market-subtitle','🎁 Подарки'));
+      for(const [id,g] of Object.entries(FAMILY_GIFTS)){if(isGift(id))scroll.append(el('div','market-stock-row',g.emoji+' '+g.label+' · получено: '+giftCount(state,id)+' · в доставке: '+pendingGifts(state,id)));}
       const pantry=Object.entries(GROCERIES).filter(([id])=>state!.pantry[id as keyof GameState['pantry']]>0);
       scroll.append(el('h3','market-subtitle','🥛 Продукты дома'));
       if (!pantry.length) scroll.append(el('p','market-empty','Запасы пока пусты. Купи продукты в каталоге.'));

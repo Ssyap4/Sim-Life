@@ -11,7 +11,7 @@ const searchable = (product: MarketProduct): string => {
     ? GROCERY_DETAILS[product.stockKey as keyof typeof GROCERY_DETAILS]?.description ?? ''
     : product.kind === 'takeout'
       ? TAKEOUT_DESCRIPTIONS[product.stockKey as keyof typeof TAKEOUT_DESCRIPTIONS] ?? ''
-      : 'корм для питомцев собака кот кошка';
+      : product.kind==='gift'?'подарок сюрприз цветы сладости': 'корм для питомцев собака кот кошка';
   return normalizeMarketSearch([product.name, product.unit, MARKET_CATEGORIES[product.category], details].join(' '));
 };
 

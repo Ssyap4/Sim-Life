@@ -31,6 +31,7 @@ import { RECIPES, TAKEOUT } from '../src/shared/food';
 import { MINUTES_PER_DAY } from '../src/shared/life';
 import { discardReadyFood, moveReadyFoodToFridge, moveReadyFoodToTable, readyFoodName } from '../src/shared/readyFood';
 import { storageCanFit } from '../src/shared/storageSpace';
+import {isGift,giftCount,pendingGifts,GIFT_LIMIT} from '../src/shared/gifts';
 import { marketProduct } from '../src/shared/market';
 
 type Result = { ok: false; reason: string } |
@@ -425,6 +426,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       if (source.world.deliveries.length >= 12) return fail('Сначала забери заказы у двери');
       const quote = quoteCart(command.lines);
       if (!quote.ok) return quote;
+      for(const line of quote.lines){const product=marketProduct(line.id)!;if(product.kind==='gift'&&isGift(product.stockKey)&&giftCount(source,product.stockKey)+pendingGifts(source,product.stockKey)+line.quantity>GIFT_LIMIT)return fail('Слишком много подарков с учётом доставки');}
       const cost = quote.cost + DELIVERY_FEE;
       if (source.money < cost) return fail('Недостаточно денег с учётом доставки');
       // The buyer can decide at the door whether takeaway goes in the fridge
@@ -435,7 +437,9 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const id = 'D-' + role + '-' + next.world.sequence[role]++;
       next.money -= cost;
       next.world.deliveries.push({ id, role, lines: quote.lines, cost, readyAt: now + DELIVERY_MINUTES });
-      addLedger(next, role, 'expense', 'groceries', cost,
+      const giftCost=quote.lines.reduce((n,l)=>{const p=marketProduct(l.id)!;return n+(p.kind==='gift'?p.price*l.quantity:0);},0);
+      if(giftCost)addLedger(next,role,'expense','gifts',giftCost+(giftCost===quote.cost?DELIVERY_FEE:0),'Подарки · '+id);
+      if(giftCost!==quote.cost)addLedger(next, role, 'expense', 'groceries', cost-giftCost,
         'Доставка ' + id + ' · ' + quote.units + ' уп. · товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE + ' ₽');
       return done(next, 'Заказ оплачен: товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE +
         ' ₽ = ' + cost + ' ₽. Курьер будет через ' + DELIVERY_MINUTES + ' игровых мин.');
@@ -489,6 +493,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (!grant.ok) return fail(grant.reason + '. Оплаченный заказ подождёт у двери');
     grant.state.world.deliveries = grant.state.world.deliveries.filter(d => d.id !== order.id);
     grant.state.world.tableBags = 0; // Goods were placed in fridge/cupboard by grantCart.
+    if(freshLines.length&&freshLines.every(line=>marketProduct(line.id)?.kind==='gift'))return done(grant.state,'Подарки получены. Теперь их можно вручить через меню отношений.');
     return done(grant.state, 'Заказ получен. Продукты убраны в холодильник и кухонные шкафчики' +
       (freshLines.some(line => marketProduct(line.id)?.kind === 'takeout')
         ? storage === 'fridge' ? ', готовая еда убрана в холодильник' : ', готовая еда оставлена на столе' : '') +

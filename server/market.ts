@@ -1,3 +1,4 @@
+import {isGift,giftCount,GIFT_LIMIT} from '../src/shared/gifts';
 import { type CharacterId, type GameState, names } from '../src/shared/protocol';
 import { type BasketLine, marketProduct } from '../src/shared/market';
 import { addLedger, formatRub } from '../src/shared/economy';
@@ -55,6 +56,9 @@ export function grantCart(source: GameState, lines: BasketLine[], readyStorage: 
       if (next.takeout[key]+delta>40) return {ok:false,reason:'Слишком много готовой еды: '+product.name};
       next.takeout[key]+=delta;
       addReadyFood(next,'takeout',key,delta,readyStorage,readyAt);
+    } else if(product.kind==='gift'){
+      const key=product.stockKey;if(!isGift(key)||giftCount(next,key)+delta>GIFT_LIMIT)return {ok:false,reason:'Слишком много подарков'};
+      (next.gifts??={})[key]=giftCount(next,key)+delta;
     } else {
       const key=product.stockKey as keyof GameState['petFood'];
       if (next.petFood[key]+delta>PET_FOOD_MAX_REFILLS) return {ok:false,reason:'Запас корма заполнен: '+product.name};
@@ -70,6 +74,7 @@ export function checkout(source: GameState, actor: CharacterId, unknownLines: un
   const quote = quoteCart(unknownLines);
   if (!quote.ok) return quote;
   const { lines, cost, units } = quote;
+  if(lines.some(line=>marketProduct(line.id)?.kind==='gift'))return {ok:false,reason:'Подарки доступны только через доставку'};
   if (source.money < cost) return { ok: false, reason: 'Недостаточно денег: нужно ' + formatRub(cost) };
   const grant = grantCart(source, lines);
   if (!grant.ok) return grant;

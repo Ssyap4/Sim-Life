@@ -1,4 +1,4 @@
-import {addLedger} from '../src/shared/economy';
+import {isGift,giftCount} from '../src/shared/gifts';
 import {familyGift} from '../src/shared/socialLife';
 import {careTopic,rewardCareTopic,careBonuses} from '../src/shared/vanity';
 import {sharedCoffeeOptions} from '../src/shared/coffee';
@@ -457,7 +457,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   }
   if(rejected&&!rejected.ok) return rejected;
   const gift=familyGift(a.id);
-  if(gift){if(roles.length!==2||!remember)return fail('Подарок требует завершения совместного действия');state.money-=gift.price;addLedger(state,from,'expense','gifts',gift.price,gift.label);(state.relationship.lastGiftAt??={})[from]=gameMinutes(state.clock);change(state,to,{mood:20,social:15});change(state,from,{mood:8});message=gift.label+' · подарок вручён';}
+  if(gift){if(roles.length!==2||!remember)return fail('Подарок требует завершения совместного действия');if(!isGift(a.id)||giftCount(state,a.id)<1)return fail('Подарок ещё не получен');(state.gifts??={})[a.id]=giftCount(state,a.id)-1;(state.relationship.lastGiftAt??={})[from]=gameMinutes(state.clock);change(state,to,{mood:20,social:15});change(state,from,{mood:8});message=gift.label+' · подарок вручён';}
   if(roles.length===2&&['kiss','cheek','hug','closeHug','sofaKiss','sofaHug','cuddle'].includes(a.motion))healthContact(state);
   if(remember&&roles.length===2){
     const {strength,quiz}=addRelationship(state,a,choice,!!moment);

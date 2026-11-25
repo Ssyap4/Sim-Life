@@ -1,3 +1,4 @@
+import {validGifts} from '../src/shared/gifts';
 import {validVanity} from '../src/shared/vanity';
 import {validFurniturePreferences,validEvent} from '../src/shared/petPreferences';
 import {validFeeder,feedingStation} from '../src/shared/petFeeders';
@@ -65,6 +66,7 @@ const isValidState = (value: unknown): value is GameState => {
   if(state.speakers!==undefined&&!validSpeakers(state.speakers))return false;
   if(state.vacuum!==undefined&&!validVacuum(state.vacuum))return false;
   if(state.vanity!==undefined&&!validVanity(state.vanity))return false;
+  if(state.gifts!==undefined&&!validGifts(state.gifts))return false;
   if(state.vladCare!==undefined&&!validVanity(state.vladCare,'vlad'))return false;
   if(state.health!==undefined&&!validHealth(state.health))return false;
   if(state.consoleLibrary!==undefined&&!validConsoleLibrary(state.consoleLibrary))return false;
