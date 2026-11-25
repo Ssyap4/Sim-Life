@@ -4,7 +4,7 @@ import {initialState} from '../../src/shared/protocol';
 import {venueTogetherTrip,applyWorld,validWorld} from '../locations';
 import {STATIONS,doorwayArrival,approachFor,placeObstacles,floorFor} from '../../src/shared/locations';
 import {findRoute} from '../../src/game/navigation';
-import {VENUE_GAMES,venueWinner,type VenueGame} from '../../src/shared/venue';
+import {VENUE_GAMES,venueWinner,venueScoreAt,venueHandFrame,hockeyPad,type VenueGame} from '../../src/shared/venue';
 import {cooperationDenial,pairScenes,completeTogether} from '../society';
 import {createLocation} from '../../src/game/LocationScene';
 const roles=['vlad','alina'] as const;
@@ -63,5 +63,24 @@ test('real two-player visit and UFC 6 consent, no household console purchase, no
   a.send({type:'social_reply',inviteId:pending.offer.id,choice:0});const x=await v.take('task_started',p=>p.role==='vlad'),y=await a.take('task_started',p=>p.role==='alina');assert.equal(x.home?.consoleGame,'ufc6');assert.deepEqual(x.home?.consoleMatch,y.home?.consoleMatch);
   await v.take('task_ended',p=>p.taskId===x.taskId&&p.outcome==='completed');await a.take('task_ended',p=>p.taskId===y.taskId&&p.outcome==='completed');
   assert.equal(files.load().money,9000);assert.deepEqual(files.load().consoleLibrary,s.consoleLibrary);
+  const memories=files.load().relationship.memories.length;
+  v.send({type:'social_propose',action:'venueJenga'});const rejected=await a.take('social_pending',p=>p.offer.action==='venueJenga');a.send({type:'social_reply',inviteId:rejected.offer.id,choice:null});await v.take('social_closed',p=>p.phase==='declined');assert.equal(files.load().money,9000);
+  a.send({type:'social_propose',action:'venueHockey'});const accepted=await v.take('social_pending',p=>p.offer.action==='venueHockey');v.send({type:'social_reply',inviteId:accepted.offer.id,choice:0});const cx=await v.take('task_started',p=>p.role==='vlad'&&p.command.type==='together'&&p.command.action==='venueHockey'),cy=await a.take('task_started',p=>p.role==='alina'&&p.command.type==='together'&&p.command.action==='venueHockey');
+  v.send({type:'cancel_task',taskId:cx.taskId});await v.take('task_ended',p=>p.taskId===cx.taskId&&p.outcome==='cancelled');await a.take('task_ended',p=>p.taskId===cy.taskId&&p.outcome==='cancelled');assert.equal(files.load().money,9000);assert.equal(files.load().relationship.memories.length,memories);
  }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('venue shared visual scores and hand targets stay bounded and agree with the match winner',()=>{
+ for(const seed of [0,1,7,33,999999])for(const winner of ['red','blue'] as const){
+  const match={seed,winner,redLabel:'VLAD',blueLabel:'ALINA'};
+  for(const game of ['venueBowling','venueHockey','venueBilliards','venueUno'] as const){
+   const score=venueScoreAt(game,match,VENUE_GAMES[game].seconds)!;
+   assert.equal((game==='venueUno'?score[0]<score[1]:score[0]>score[1]),winner==='red');
+  }
+  for(const t of [0,1.5,4.5,16.3,53,75])for(const role of roles){
+   const pad=hockeyPad(role,t),hand=venueHandFrame('venueHockey',role,t,match);
+   assert.equal(hand.x,pad.x);assert.equal(hand.z,pad.z);assert.ok(Math.abs(pad.x)<=.32&&Math.abs(pad.z)<=.99);
+   for(const game of Object.keys(VENUE_GAMES) as VenueGame[]){const h=venueHandFrame(game,role,t,match);assert.ok([h.x,h.y,h.z].every(Number.isFinite));}
+  }
+ }
 });
