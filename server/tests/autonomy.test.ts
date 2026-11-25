@@ -32,13 +32,13 @@ async function enter(port:number,role:CharacterId,code:string):Promise<WebSocket
   assert.equal((await promise).type,'ready');
   return ws;
 }
-async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400,holdClockUntilJoined=false){
+async function setup(seed?:GameState,fast=false,idleMs=60,clockStepMs=2400,holdClockUntilJoined=false,taskScale=.08){
   const dir=mkdtempSync(join(tmpdir(),'sim-life-017-autonomy-'));
   if(seed)openServerFiles(dir).save(seed);
   const clock={now:0};
   let clockEnabled=!holdClockUntilJoined;
   const ticking=fast?setInterval(()=>{if(clockEnabled)clock.now+=clockStepMs;},20):undefined;
-  const server=await startServer({port:0,dataDir:dir,taskTimeScale:.08,
+  const server=await startServer({port:0,dataDir:dir,taskTimeScale:taskScale,
     ...(fast?{lifeClock:{now:()=>clock.now,tickMs:20},
       autonomyTiming:{idleMs,careCooldownMs:120,leisureCooldownMs:200}}:{})});
   const keys=JSON.parse(readFileSync(join(dir,'access.json'),'utf-8')) as Record<CharacterId,string>;
@@ -420,3 +420,29 @@ test('A completed manual walk no longer freezes needs autonomy forever',async()=
  assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
  }finally{await ctx.close();}
  });
+
+
+test('Full resident independently uses the other sofa seat while manually controlled partner watches TV',async()=>{
+  const seed=initialState();
+  seed.clock.minute=780;
+  for(const r of ['vlad','alina'] as const)Object.assign(seed.characters[r],{hunger:95,energy:95,hygiene:95,bladder:95,fun:95,comfort:95,social:95,pose:'idle'});
+  const ctx=await setup(seed,true,60,10,false,.65);
+  try{
+    const vlad=await ctx.join('vlad'),alina=await ctx.join('alina');
+    const start=waitFor(vlad,p=>p.type==='task_started'&&p.role==='vlad'&&p.command.type==='free_tv');
+    send(vlad,{type:'free_tv'});const tv=await start;
+    assert.equal(tv.type,'task_started');
+    if(tv.type!=='task_started')return;
+    const active=waitFor(vlad,p=>p.type==='task_active'&&p.taskId===tv.taskId,12000);
+    await active;
+    const companion=waitFor(alina,p=>p.type==='task_started'&&p.role==='alina'&&p.automatic===true&&p.command.type==='act'&&['sofaRest','sofaScroll'].includes(p.command.actionId),12000);
+    send(alina,{type:'autonomy_mode',mode:'full'});
+    const next=await companion;
+    assert.equal(next.type,'task_started');
+    if(next.type==='task_started'){
+      assert.equal(next.home?.station,'sofa');
+      assert.notDeepEqual(next.home?.route.path.at(-1),tv.home?.route.path.at(-1));
+    }
+    assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+  }finally{await ctx.close();}
+});

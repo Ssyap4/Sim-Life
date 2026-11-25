@@ -49,6 +49,7 @@ import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from '.
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, fullLeisureCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { homeHabitCommands } from '../src/shared/personalityHabits';
+import {dailyRoutineChoices,companionChoices} from '../src/shared/dailyRoutine';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
   type HomeLeisure } from '../src/shared/home';
 import { otherRole } from './social';
@@ -166,6 +167,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   // Keep full autonomy from repeating the same entertainment at every idle tick.
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const fullRoutineTurn=new Map<CharacterId,number>();
+  const dailyRoutineUsed=new Map<CharacterId,{day:number;keys:Set<string>}>();
+  const companionUsed=new Map<CharacterId,number>();
   // Ephemeral habit memory: never alter saved household state or manual queues.
   const recentHomeHabits=new Map<CharacterId,import('../src/shared/protocol').ActionId[]>();
 
@@ -548,10 +551,36 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // Keep a short natural chat window from being consumed by a new
           // solo chore. Critical needs still execute before this block.
           const partner=otherRole(role);
-          const sharedWindow=active.has(partner)&&state.autonomy[partner]==='full'&&
+          const sharedWindow=active.has(partner)&&familyAutonomyReady(state)&&!running.has(partner)&&!homeTasks.busy(partner)&&!leisure.has(partner)&&!storageOpen.has(partner)&&!walkingHome.has(partner)&&(queuedTasks.get(partner)?.length??0)===0&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
-          if(role==='alina'&&!sharedWindow&&turn%3===1&&state.clock.minute>=360&&state.clock.minute<720&&(!state.vanity?.hair||state.vanity.hair.until<=clockMinutes(state.clock))&&mostCritical>50){
-            const plan=planTask({type:'vanity_care',care:'brush'})!;beginTask(role,socket,plan,true);if(homeTasks.busy(role)){lastAutoCare.set(role,now);started=true;continue;}
+          // The first idle turn preserves the established spontaneous leisure.
+          // Later turns prefer bounded useful routines and independent company.
+          const peerTask=homeTasks.soloEntertainment(partner);
+          let daily=dailyRoutineUsed.get(role);
+          if(!daily||daily.day!==state.clock.day){daily={day:state.clock.day,keys:new Set()};dailyRoutineUsed.set(role,daily);}
+          const tryEveryday=(command:import('../src/shared/protocol').TimedCommand)=>{
+            const plan=planTask(command);
+            if(!plan||taskAccessError(state,plan.command)||
+               plan.resource&&(homeTasks.reserved(plan.resource)||[...running.values()].some(t=>t.plan.resource===plan.resource))||
+               !evaluateTask(state,role,plan.command).ok)return false;
+            beginTask(role,socket,plan,true);
+            if(!running.has(role)&&!homeTasks.busy(role))return false;
+            lastAutoCare.set(role,now);return true;
+          };
+          if(peerTask&&companionUsed.get(role)!==peerTask.id){
+            for(const command of companionChoices(state,role,peerTask.command)){
+              if(tryEveryday(command)){companionUsed.set(role,peerTask.id);started=true;break;}
+            }
+          }
+          if(started)continue;
+          if(turn>0&&!sharedWindow){
+            for(const choice of dailyRoutineChoices(state,role,daily.keys)){
+              if(tryEveryday(choice.command)){daily.keys.add(choice.key);started=true;break;}
+            }
+          }
+          if(started)continue;
+          if(role==='alina'&&!sharedWindow&&!daily.keys.has('morningHair')&&turn%3===1&&state.clock.minute>=360&&state.clock.minute<720&&(!state.vanity?.hair||state.vanity.hair.until<=clockMinutes(state.clock))&&mostCritical>50){
+            const plan=planTask({type:'vanity_care',care:'brush'})!;beginTask(role,socket,plan,true);if(homeTasks.busy(role)){daily.keys.add('morningHair');lastAutoCare.set(role,now);started=true;continue;}
           }
           if(turn%3===2&&!sharedWindow){
             for(const command of fullLeisureCandidates(state,role,Math.floor(turn/3))){
@@ -566,7 +595,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           }
           if(turn%3===1&&!sharedWindow){
             const recent=recentHomeHabits.get(role)??[];
-            const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent);
+            const chores=homeHabitCommands(state,role,Math.floor(turn/3),recent).filter(({habit})=>
+              habit!=='bedMake'||!daily.keys.has('makeBed')).filter(({habit})=>
+              habit!=='bathTeeth'||!(state.clock.minute<660?daily.keys.has('morningTeeth'):state.clock.minute>=1200?daily.keys.has('eveningTeeth'):false));
             for(const {habit,command} of chores){
               const plan=planTask(command);
               if(!plan || taskAccessError(state,plan.command) ||
@@ -578,6 +609,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
               lastAutoCare.set(role,now);
               // Remember *started* work, not an unavailable suggestion.
               recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
+              if(habit==='bedMake'&&state.clock.minute>=360&&state.clock.minute<660)daily.keys.add('makeBed');
+              if(habit==='bathTeeth'&&state.clock.minute>=360&&state.clock.minute<660)daily.keys.add('morningTeeth');
+              if(habit==='bathTeeth'&&state.clock.minute>=1200)daily.keys.add('eveningTeeth');
               started=true;
               break;
             }
