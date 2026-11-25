@@ -1,50 +1,58 @@
 [
   {
-    "id": "quiet-morning",
-    "title": "Тихое утро",
-    "file": "quiet-morning.mp3",
-    "seconds": 220.33
+    "id": "edge-of-town",
+    "title": "Edge of Town",
+    "artist": "Ian Stocker",
+    "file": "edge-of-town.mp3",
+    "seconds": 276.77
   },
   {
-    "id": "window-light",
-    "title": "Свет из окна",
-    "file": "window-light.mp3",
-    "seconds": 239.73
+    "id": "the-simple-life",
+    "title": "The Simple Life",
+    "artist": "Jerry Martin",
+    "file": "the-simple-life.mp3",
+    "seconds": 348.93
   },
   {
-    "id": "slow-sunday",
-    "title": "Неспешное воскресенье",
-    "file": "slow-sunday.mp3",
-    "seconds": 226.43
+    "id": "smooth",
+    "title": "Smooth",
+    "artist": "Jerry Martin",
+    "file": "smooth.mp3",
+    "seconds": 388.29
   },
   {
-    "id": "garden-path",
-    "title": "Садовая тропинка",
-    "file": "garden-path.mp3",
-    "seconds": 209.11
+    "id": "track-four",
+    "title": "Композиция 4",
+    "artist": "",
+    "file": "track-four.mp3",
+    "seconds": 259.6
   },
   {
-    "id": "warm-tea",
-    "title": "Тёплый чай",
-    "file": "warm-tea.mp3",
-    "seconds": 247.0
+    "id": "the-club",
+    "title": "The Club",
+    "artist": "Jerry Martin",
+    "file": "the-club.mp3",
+    "seconds": 333.04
   },
   {
-    "id": "ordinary-miracle",
-    "title": "Маленькие радости",
-    "file": "ordinary-miracle.mp3",
-    "seconds": 214.57
+    "id": "martinis-for-two",
+    "title": "Martinis For Two",
+    "artist": "Jerry Martin",
+    "file": "martinis-for-two.mp3",
+    "seconds": 389.2
   },
   {
-    "id": "blue-hour",
-    "title": "Синий час",
-    "file": "blue-hour.mp3",
-    "seconds": 254.74
+    "id": "cocktails-anyone",
+    "title": "Cocktails Anyone?",
+    "artist": "Jerry Martin",
+    "file": "cocktails-anyone.mp3",
+    "seconds": 330.48
   },
   {
-    "id": "home-again",
-    "title": "Снова дома",
-    "file": "home-again.mp3",
-    "seconds": 232.88
+    "id": "lounge-lizard",
+    "title": "Lounge Lizard",
+    "artist": "Kirk Casey",
+    "file": "lounge-lizard.mp3",
+    "seconds": 308.81
   }
 ]

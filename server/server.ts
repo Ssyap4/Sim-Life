@@ -32,7 +32,7 @@ import { applyWorld, clinicTogetherTrip, fitnessTogetherTrip, setDogParkPosition
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
 import { createServer, type Server as HttpServer } from 'node:http';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
@@ -91,7 +91,7 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 const types: Record<string, string> = {
-  '.wav':'audio/wav',
+  '.wav':'audio/wav', '.mp3':'audio/mpeg',
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
@@ -967,6 +967,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (!existsSync(requested) || !statSync(requested).isFile()) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('Not found. Run npm run build first.'); return;
+    }
+    // Stream MP3 byte ranges for mobile Safari instead of blocking the game server.
+    if(extname(requested)==='.mp3'){
+      const size=statSync(requested).size,range=req.headers.range;let start=0,end=size-1,status=200;
+      const headers:Record<string,string|number>={'content-type':'audio/mpeg','accept-ranges':'bytes','cache-control':'private, max-age=3600','x-content-type-options':'nosniff'};
+      if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m||(!m[1]&&!m[2])){res.writeHead(416,{...headers,'content-range':'bytes */'+size});res.end();return;}
+        if(!m[1]){const suffix=Number(m[2]);start=Math.max(0,size-suffix);}else{start=Number(m[1]);if(m[2])end=Math.min(end,Number(m[2]));}
+        if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||start>end||start>=size){res.writeHead(416,{...headers,'content-range':'bytes */'+size});res.end();return;}
+        status=206;headers['content-range']='bytes '+start+'-'+end+'/'+size;
+      }
+      headers['content-length']=Math.max(0,end-start+1);res.writeHead(status,headers);if(req.method==='HEAD'||!size){res.end();return;}
+      const stream=createReadStream(requested,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;
     }
     const content = readFileSync(requested);
     res.writeHead(200, {

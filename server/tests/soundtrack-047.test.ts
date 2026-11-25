@@ -3,12 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {GameAudio,TrackQueue,shuffleTracks,musicVolume,DEFAULT_MUSIC_VOLUME} from '../../src/game/GameAudio';
 import {SOUNDTRACK} from '../../src/game/Soundtrack';
-test('eight long original compositions, no old sound assets',()=>{
- assert.equal(SOUNDTRACK.length,8);assert.ok(SOUNDTRACK.reduce((n,t)=>n+t.seconds,0)>1800);
- const directory='public/audio/soundtrack';
+test('eight full-length household tracks and no legacy audio',()=>{
+ assert.equal(SOUNDTRACK.length,8);assert.ok(SOUNDTRACK.reduce((n,t)=>n+t.seconds,0)>2500);
+ assert.equal(new Set(SOUNDTRACK.map(t=>t.id)).size,8);
  assert.deepEqual(readdirSync('public/audio'),['soundtrack']);
- assert.equal(readdirSync(directory).filter(f=>f.endsWith('.mp3')).length,8);
- for(const t of SOUNDTRACK){assert.ok(t.seconds>200&&t.seconds<300);const b=readFileSync(directory+'/'+t.file);assert.ok(b.length>500000&&b.length<2000000);assert.ok(b.toString('ascii',0,3)==='ID3'||b[0]===255&&((b[1]&224)===224));}
+ for(const t of SOUNDTRACK){assert.ok(t.seconds>240&&t.seconds<420);assert.match(t.file,/^[a-z0-9-]+[.]mp3$/);}
+ const manifest=JSON.parse(readFileSync('public/audio/soundtrack/manifest.json','utf8'));assert.deepEqual(manifest,SOUNDTRACK);
+});
+const directory='public/audio/soundtrack',present=readdirSync(directory).filter(f=>f.endsWith('.mp3'));
+test('installed private soundtrack contains the eight valid MP3s',{skip:present.length===0?'Private recordings intentionally absent from public checkout':false},()=>{
+ assert.equal(present.length,8);
+ for(const t of SOUNDTRACK){const b=readFileSync(directory+'/'+t.file);assert.ok(b.length>500000&&b.length<20000000);assert.ok(b.toString('ascii',0,3)==='ID3'||b[0]===255&&((b[1]&224)===224));}
 });
 test('shuffle cycles cover all songs without immediate repetitions',()=>{
  const q=new TrackQueue(8,()=>.32);let previous=-1;

@@ -16,3 +16,6 @@ Thumbs.db
 coverage/
 *.local
 .ui-test/
+
+# User-supplied music: local household only; do not publish audio
+/public/audio/soundtrack/*.mp3
