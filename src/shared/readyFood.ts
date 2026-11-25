@@ -122,12 +122,12 @@ export function consumeReadyFood(state: ReadyFoodState, kind: ReadyFoodKind, ite
   location?:ReadyFoodStorage): boolean {
   return !!consumeReadyPortion(state,kind,item,location);
 }
-export function consumeReadyPortion(state: ReadyFoodState, kind:ReadyFoodKind,item:string,location?:ReadyFoodStorage):ReadyFoodBatch|undefined {
+export function consumeReadyPortion(state: ReadyFoodState, kind:ReadyFoodKind,item:string,location?:ReadyFoodStorage,newest=false):ReadyFoodBatch|undefined {
   reconcileReadyFood(state);
   expireReadyFood(state);
-  const batch = state.readyFood.filter(b => b.kind === kind && b.item === item &&
-      (location===undefined||b.storage===location))
-    .sort((a,b) => a.expiresAt - b.expiresAt)[0];
+  const matching=state.readyFood.filter(b => b.kind === kind && b.item === item &&
+      (location===undefined||b.storage===location));
+  const batch = newest?matching.at(-1):matching.sort((a,b) => a.expiresAt - b.expiresAt)[0];
   if (!batch) return undefined;
   const portion={...batch,portions:1};
   batch.portions--;

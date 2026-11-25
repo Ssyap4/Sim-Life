@@ -10,3 +10,7 @@ Owner asked for purchased gifts delivered by courier. Phone Delivery has Gifts c
 
 ## Preview v3: BRO barbershop
 Separate car-travel location, waiting seat, reception, mirror wall, barber chair, animated NPC and clipper/scissors/razor/face pad props. Phone booking is optional and records chosen service/time; walk-ins allowed. Five approved prices and temporary professional effects, server-side payment on successful completion, blocked free home use. No hair geometry change. 20/20 targeted tests passed. Booking has no exclusive slot enforcement yet; hand contact and actual mobile scene unverified. Breakfast in bed still pending. Main and production untouched.
+
+## Preview v4: breakfast in bed
+Separate care invitation for either partner, uses real breakfast recipe and two clear routes. Cook walks to stove, prepares for 25 seconds, carries food container to bedside. Recipient waits seated on a usable double bed, then eats a real fresh portion from a small wooden tray. Remaining servings on dining table. One atomic completion, cooking XP only for cook, recipient hunger/comfort, memories, normal quality effects. Existing breakfast at table remains. Gift wording fixed. No main deployment.
+39 targeted tests passed; typecheck/build successful. Mobile contact visuals and physical device FPS are not verified; full cloud regression required before main release.

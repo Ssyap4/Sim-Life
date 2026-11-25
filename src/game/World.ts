@@ -363,7 +363,10 @@ export class World {
       const grilled = grilledFood();
       grilled.position.y = .016;
       grilled.visible = false;
-      plate.add(dish, food, grilled);
+      const tray=new THREE.Group();tray.name='Breakfast tray';tray.visible=false;const wood=new THREE.MeshStandardMaterial({color:0xb68b5b,roughness:.72}),edge=new THREE.MeshStandardMaterial({color:0x725336,roughness:.72});
+      const part=(x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material)=>{const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x,y,z);tray.add(mesh);};
+      part(0,-.035,0,.62,.045,.44,wood);for(const x of [-.30,.30]){part(x,-.002,0,.025,.035,.44,edge);for(const z of [-.15,.15])part(x,-.115,z,.035,.14,.035,edge);}for(const z of [-.21,.21])part(0,-.002,z,.60,.035,.025,edge);
+      plate.add(dish, food, grilled,tray);
       plate.visible = false;
       this.scene.add(plate);
       this.meals.set(id, plate);
@@ -1009,6 +1012,7 @@ export class World {
     const arrived=()=>{
       if(this.pairStages.get(role)!==stage)return;
       stage.arrived=true;
+      if(pair.motion==='breakfastReceive'&&home.furniturePose){const p=home.furniturePose;actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);}
       this.playPair(role);
       this.playPair(role==='vlad'?'alina':'vlad');
     };
@@ -1016,6 +1020,7 @@ export class World {
       if(home.pickup!==undefined) {
         actor.walkPath(route.slice(0,home.pickup),()=>{
           if(this.pairStages.get(role)!==stage)return;
+          if(pair.motion==='breakfastServe'){actor.faceTowards(cookingPan);actor.playActivity('cook',cookingPan,pair.item as RecipeId);this.kitchenEffects.recipe(pair.item as RecipeId);this.kitchenCooking=true;this.cookingClock=0;this.preparations.set(role,{remaining:(home.pickupMs??0)/1000,next:()=>{if(this.pairStages.get(role)!==stage)return;actor.finishActivity();this.kitchenCooking=false;actor.carryFoodContainer();actor.walkPath(route.slice(home.pickup),arrived);}});return;}
           if(pair.carry==='book')actor.carryBook(BOOKS[pair.item as keyof typeof BOOKS]?.[4]??'#688e7c');
           if(pair.carry==='plate')actor.carryDirtyPlate();
           this.preparations.set(role,{remaining:(home.pickupMs??0)/1000,next:()=>actor.walkPath(route.slice(home.pickup),arrived)});
@@ -1050,6 +1055,8 @@ export class World {
     }else if(focus)actor.faceTowards(focus);
     const leads=pair.from===role;
     switch(pair.motion){
+      case 'breakfastServe':actor.hideFoodContainer();actor.playPartnerGesture('talk',true);break;
+      case 'breakfastReceive':{if(!home.furniturePose)break;const p=home.furniturePose;const tray=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),p.yaw);const plate=this.showMeal(role,p.x+tray.x,p.y+.83,p.z+tray.z,pair.item as RecipeId);const serving=this.meals.get(role)!;serving.rotation.y=p.yaw;serving.getObjectByName('Breakfast tray')!.visible=true;actor.playActivity('eat',plate,pair.item as RecipeId);break;}
       case 'leisure':{
         if(pair.item==='boardGame'||pair.item==='chessGame')actor.playDomesticActivity('chess');
         else if(pair.item==='dartsGame')actor.playDomesticActivity('darts');
@@ -1167,7 +1174,7 @@ export class World {
     if (home.station === 'shower' || home.station === 'bathtub' || home.station === 'wcBasin')
       this.homeEffects.water(home.station,false);
     if (home.station === 'grill'||home.pair?.motion==='grill') this.grillCooking = false;
-    if (home.station === 'kitchenCook'||home.pair?.motion==='cook'||home.pair?.motion==='prep')
+    if (home.station === 'kitchenCook'||home.pair?.motion==='cook'||home.pair?.motion==='prep'||home.pair?.motion==='breakfastServe')
       this.kitchenCooking = false;
     return true;
   }
@@ -1439,7 +1446,7 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
-    if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest')this.actors[role].setPose('idle');
+    if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest'||home?.pair?.motion==='breakfastReceive')this.actors[role].setPose('idle');
     if (dishes||home?.vanityCare) this.actors[role].setPose('idle');
     if (home && ['basin','wcBasin','bathtub','shower','toilet','officeChair','grill'].includes(home.station))
       this.actors[role].setPose('idle');
@@ -2051,7 +2058,7 @@ export class World {
   private showMeal(role: CharacterId, x: number, y: number, z: number,
     dish?:RecipeId|TakeoutId|CafeItem|CampRecipe): THREE.Vector3 {
     const meal = this.meals.get(role)!;
-    meal.position.set(x, y, z);
+    meal.position.set(x, y, z);meal.rotation.y=0;const tray=meal.getObjectByName('Breakfast tray');if(tray)tray.visible=false;
     const grilled = dish!==undefined && isGrillRecipe(dish as RecipeId);
     // Give each ordered/selected dish its own recognizable light 3D serving.
     // Reinitialize on task START only, never regenerate meshes every frame.

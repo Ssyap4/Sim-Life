@@ -117,7 +117,7 @@ export function createHomeSessions(hooks: Hooks) {
         const home=session.participants.find(p=>p.role===r)?.packet.home;
         const cmd=session.plan.command;
         // Contact, sports and private hygiene retain exclusive control of the rig.
-        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['gift','sofaMassage','kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
+        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['breakfastServe','breakfastReceive','gift','sofaMassage','kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
            cmd.type==='vanity_care'||cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
            cmd.type==='furniture_use'&&Object.hasOwn(BATH_ACTIONS,cmd.action))return 'Сейчас разговор будет мешать занятию';
         const end=home.route.path.at(-1)??home.route.from;

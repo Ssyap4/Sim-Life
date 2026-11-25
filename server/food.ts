@@ -19,7 +19,7 @@ export type FoodResult = { ok: true; state: GameState; message: string } | { ok:
 const owns = <T extends object>(record: T, key: string): key is Extract<keyof T, string> =>
   Object.prototype.hasOwnProperty.call(record, key);
 
-export function applyFoodAction(source: GameState, role: CharacterId, command: FoodCommand, random:()=>number=Math.random): FoodResult {
+export function applyFoodAction(source: GameState, role: CharacterId, command: FoodCommand, random:()=>number=Math.random,freshlyCooked=false): FoodResult {
   const state = structuredClone(source);
   reconcileReadyFood(state);
   expireReadyFood(state);
@@ -63,7 +63,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     const id: RecipeId = command.recipe;
     const meal = RECIPES[id];
     if (state.meals[id] < 1) return { ok: false, reason: 'Готовых порций нет — сначала приготовь' };
-    const portion=consumeReadyPortion(state,'meal',id,'table');
+    const portion=consumeReadyPortion(state,'meal',id,'table',freshlyCooked);
     if (!portion) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     const effect=foodQualityEffect(portion.quality,meal.mood);

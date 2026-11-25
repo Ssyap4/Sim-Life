@@ -20,6 +20,7 @@ import { PETS, type PetId, type PetAction } from '../src/shared/pets';
 import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId } from '../src/shared/food';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { awardCooking, completeStudy, practiceXP, studyDenial } from './education';
+import {applyFoodAction} from './food';
 import { evaluateTask, type EvaluatedTask } from './tasks';
 import { dishCount, dirtyDishStops } from '../src/shared/dirtyDishes';
 import { expireReadyFood, moveReadyFoodToTable, readyFoodTableUsage, TABLE_READY_CAPACITY } from '../src/shared/readyFood';
@@ -131,6 +132,18 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const tennisWinner=action==='pingPong'?badmintonWinner():undefined;
     const build=(l:typeof v):HomePresentation=>({route:l.route,station:'furniture',furnitureId:item.id,furniturePose:l.pose,furnitureSeat:LEISURE[action].seated,pair:{motion:'leisure',place,from,item:action,target:{x:item.x,z:item.z},tennisWinner}});
     return {vlad:build(v),alina:build(al)};
+  }
+  if(a.object==='breakfastBed'){
+    if(place!=='home')return null;
+    const candidates=[...(state.furnishing.soldFixtures?.includes('bed')?[]:[undefined]),...state.furnishing.placed.filter(i=>bedCapacity(i)===2).map(i=>i.id)];
+    const kitchen=planWalk(state.characters[from],KITCHEN_WORK.stove.position,obstacles,floor);if(!kitchen)return null;
+    for(const id of candidates){const chosen=selectSleepBed(state,to,id);if(!chosen.ok||chosen.bed.capacity!==2)continue;const bed=chosen.bed,yaw=bed.pose.yaw;
+      const shift=(x:number,z:number)=>({x:bed.pose.x+x*Math.cos(yaw)+z*Math.sin(yaw),z:bed.pose.z-x*Math.sin(yaw)+z*Math.cos(yaw)});
+      const spots=[bed.approach,...[[-1.45,-.5],[1.45,-.5],[-1.45,.2],[1.45,.2],[-.65,1.05],[.65,1.05],[0,1.05]].map(([x,z])=>shift(x,z))].filter(p=>pointIsClear(p,obstacles,floor));
+      for(const wait of spots){const receiver=planWalk(state.characters[to],wait,obstacles,floor);if(!receiver)continue;for(const serve of spots){if(Math.hypot(wait.x-serve.x,wait.z-serve.z)<RESIDENT_CLEARANCE)continue;const delivery=planWalk(kitchen.path.at(-1)??kitchen.from,serve,obstacles,floor);if(!delivery)continue;
+      const seat={...shift(0,-.65),y:bed.pose.y-.75,yaw};
+      return {[from]:{route:{from:kitchen.from,path:[...kitchen.path,...delivery.path]},station:'kitchenCook',pickup:kitchen.path.length,pickupMs:25000,pair:{motion:'breakfastServe',place,from,item:p,target:seat}},[to]:{route:receiver,station:'furniture',furnitureId:typeof bed.id==='number'?bed.id:undefined,furniturePose:seat,furnitureSeat:true,pair:{motion:'breakfastReceive',place,from,item:p,bed:bed.id}}} as Record<CharacterId,HomePresentation>;}}
+    }return null;
   }
   if(a.object==='bedRest'){
     if(place!=='home')return null;
@@ -337,6 +350,13 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   };
   let rejected:EvaluatedTask|undefined;
   switch(a.object){
+    case 'breakfastBed':{
+      if(roles.length!==2||!remember)return fail('Завтрак в постели требует согласия и завершения обоих');
+      rejected=run(from,{type:'cook',recipe:id as RecipeId});if(!rejected.ok)break;
+      awardCooking(state,from,id as RecipeId);
+      rejected=applyFoodAction(state,to,{type:'eat',recipe:id},Math.random,true);if(!rejected.ok)break;state=rejected.state;
+      change(state,to,{comfort:8});message='Завтрак в постели · '+RECIPES[id as RecipeId].name+' · '+rejected.message;break;
+    }
     case 'breakfastCare':{
       if(roles.length!==2)return fail('Для заботы нужен второй участник');
       rejected=run(from,{type:'cook',recipe:id as RecipeId});
@@ -530,7 +550,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   }
   for(const role of roles){
     const home=homes[role], end=home.pair?.stroll?.at(-1)??home.route.path.at(-1)??home.route.from;
-    Object.assign(state.characters[role],end,{pose:home.pair?.motion==='badminton'?'idle':home.furnitureSeat||home.pair?.seat||home.pair?.station?'sit':'idle'});
+    Object.assign(state.characters[role],end,{pose:home.pair?.motion==='badminton'||home.pair?.motion==='breakfastReceive'?'idle':home.furnitureSeat||home.pair?.seat||home.pair?.station?'sit':'idle'});
   }
   state.revision++;
   return {ok:true,state,message};
