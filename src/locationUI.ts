@@ -79,7 +79,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if((state?.world.carDriver===role||location==='fitness')&&destination!=='home')return false;
+    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'))&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -105,10 +105,10 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const id = key as PlaceId;
       if (isCareerPlace(id)||(id==='fitness'||id==='clinic')&&location!==id) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||location==='fitness')&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'))&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||location==='fitness')&&id==='home'?'Вернуться домой':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'))&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -176,7 +176,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else {options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else {options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапу и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));}
     } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){

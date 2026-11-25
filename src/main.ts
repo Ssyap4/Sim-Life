@@ -305,6 +305,7 @@ showcaseChoices.addEventListener('click', (event) => {
   else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') focusModel(id);
 });
 
+import {humanHealth,petHealth,healthStatus} from './shared/health';
 function notify(message: string): void {
   messageEl.textContent = message;
   messageEl.classList.add('show');
@@ -657,12 +658,13 @@ function render(reset = false): void {
     petsBtn.disabled = place !== 'home';
     const criticalPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'critical');
     const hungryPets = PET_IDS.filter(id => petHungerLevel(state!.pets[id].satiety) === 'warning');
-    const concern = criticalPets.length ? criticalPets.length : hungryPets.length;
+    const illPets=PET_IDS.filter(id=>!!petHealth(state!,id).illness);
+    const concern = new Set([...criticalPets,...hungryPets,...illPets]).size;
     const alert = petsBtn.querySelector<HTMLElement>('.pet-alert')!;
     alert.textContent = String(concern);
     alert.hidden = concern === 0;
-    petsBtn.classList.toggle('pets-urgent', criticalPets.length > 0);
-    petsBtn.title = criticalPets.length ? 'Сильно голодны: ' + criticalPets.map(id => PETS[id].name).join(', ')
+    petsBtn.classList.toggle('pets-urgent', criticalPets.length > 0||illPets.length>0);
+    petsBtn.title = illPets.length?'Недомогание: '+illPets.map(id=>PETS[id].name).join(', '):criticalPets.length ? 'Сильно голодны: ' + criticalPets.map(id => PETS[id].name).join(', ')
       : hungryPets.length ? 'Проголодались: ' + hungryPets.map(id => PETS[id].name).join(', ')
       : 'Уход за Верделлом и Симбой';
     petsBtn.setAttribute('aria-label', petsBtn.title);
@@ -679,7 +681,10 @@ function render(reset = false): void {
   const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
   needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
-  needsToggleEl.title = lowBladder ? NEED_INFO.bladder.hint : '';
+  const sick=!!active&&!!humanHealth(state,active).illness;
+  needsToggleEl.classList.toggle('health-alert',sick);
+  needsToggleEl.title = sick&&active?healthStatus(state,active):lowBladder ? NEED_INFO.bladder.hint : '';
+  if(sick)needsToggleEl.setAttribute('aria-label','Потребности · недомогание');
   world?.setTimeOfDay(gameMinutes(state.clock));
   phone.refresh();
   skillsPanel.refresh();
@@ -910,9 +915,12 @@ const net = new LiveConnection({
       const last = milestones.at(-1);
       const known = active && state?.education.characters[active].events.some(event =>
         event.milestone && event.at === last?.at && event.title === last?.title);
+      const healthMessages:string[]=[];
+      if(state&&active){const before=humanHealth(state,active).illness,after=humanHealth(household,active).illness;if(!before&&after)healthMessages.push('Недомогание · открой «Добрый доктор»');else if(before&&!after)healthMessages.push('Ты выздоровел(а)!');for(const id of PET_IDS){const old=petHealth(state,id).illness,next=petHealth(household,id).illness;if(!old&&next)healthMessages.push(PETS[id].name+' плохо себя чувствует');else if(old&&!next)healthMessages.push(PETS[id].name+' выздоровел');}}
       state = household;
       render();
       if (last && !known) notify(last.title);
+      if(healthMessages.length)notify('🏥 '+healthMessages.join(' · '));
       marketUI.refresh(household);
       jobsUI.refresh(household);
     }

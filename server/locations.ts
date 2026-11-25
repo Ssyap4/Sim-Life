@@ -96,6 +96,12 @@ export function fitnessTogetherTrip(source:GameState,driver:CharacterId):Result{
   for(const r of ROLES){next.world.places[r]='fitness';Object.assign(next.characters[r],doorwayArrival('fitness','district',r),{pose:'idle'});const p=(next.world.fitness??=initialFitness())[r],now=clockMinutes(next.clock);if(p.ticket&&p.until<=now){delete p.ticket;p.visit=true;}if(p.booking!==undefined&&Math.abs(p.booking-now)<=60)delete p.booking;}
   return done(next,'Приехали вместе в PULSE Fitness');
 }
+export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
+ if(source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Оба должны быть дома и свободны');
+ const next=structuredClone(source);next.world.carDriver=driver;
+ for(const r of ROLES){next.world.places[r]='clinic';Object.assign(next.characters[r],doorwayArrival('clinic','district',r),{pose:'idle'});}
+ return done(next,'Приехали вместе в «Добрый доктор»');
+}
 export const worldMessages = new Set(['vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
@@ -291,11 +297,11 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       Object.assign(next.characters[role],arrival,{pose:'idle'});
       return done(next,'Вернулись домой на машине');
     }
-    if(place==='fitness'){
-      const exit=stationById('fitness',command.via);if(command.place!=='district'||exit?.id!=='fitness-exit'||!at(source,role,exit))return fail('Подойди к выходу из клуба');
+    if(place==='fitness'||place==='clinic'){
+      const exit=stationById(place,command.via);if(command.place!=='district'||exit?.id!==place+'-exit'||!at(source,role,exit))return fail('Подойди к выходу');
       const next=structuredClone(source),parking=approachFor(stationById('home','family-car')!,role),other=neighborAt('home');
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
-      if(!arrival)return fail('Парковка занята');if(next.world.fitness)delete next.world.fitness[role].visit;next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
+      if(!arrival)return fail('Парковка занята');if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
     }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');

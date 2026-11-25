@@ -109,12 +109,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app === 'career') career.render(state,role,time);
     if(app==='health'){
       const h=humanHealth(state,role),now=gameMinutes(state.clock);
-      const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],state.world.vetVisit,h.careAt,state.pantry.tea,Math.round(state.characters[role].x),Math.round(state.characters[role].z),humanHealth(state,role==='vlad'?'alina':'vlad').illness?.id,...PET_IDS.map(p=>{const q=petHealth(state,p),i=q.illness;return [q.booking,i?.id,i?.diagnosed,i?.medicine,i?.medicated,Math.ceil((i?.remaining??0)/60)];})]);
+      const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],state.world.vetVisit,h.careAt,state.world.carDriver,online,state.pantry.tea,Math.round(state.characters[role].x),Math.round(state.characters[role].z),humanHealth(state,role==='vlad'?'alina':'vlad').illness?.id,...PET_IDS.map(p=>{const q=petHealth(state,p),i=q.illness;return [q.booking,i?.id,i?.diagnosed,i?.medicine,i?.medicated,Math.ceil((i?.remaining??0)/60)];})]);
       if(key!==healthKey){
         healthKey=key;const scroll=info.scrollTop;
         const card=block('Моё здоровье',healthStatus(state,role)+(h.illness?' · восстановление около '+Math.ceil(h.illness.remaining/60)+' игр. ч.':''));
         const b=(label:string,fn:()=>void)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=fn;return button;};
         if(h.illness?.medicine&&!h.illness.medicated)card.append(b('Принять назначенное лекарство',()=>{healthControl?.({type:'health_medicine'});}));
+        if(state.world.places[role]==='home'&&!state.world.carDriver&&online.length===2)card.append(b('Поехать вдвоём',()=>{healthControl?.({type:'clinic_trip'});}));
         const format=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':00';};
         const booking=block('Приём терапевта',h.booking!==undefined&&h.booking>=now?'Записан: '+format(h.booking):'Выбери время или приезжай без записи.');
         const select=document.createElement('select');select.setAttribute('aria-label','Время приёма');

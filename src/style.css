@@ -1481,3 +1481,5 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 #app .fitness-phone button:disabled{opacity:.48}
 #app .fitness-phone button:active:not(:disabled){background:#d8e6d9}
 #app .fitness-phone article{margin-bottom:9px}
+
+#needs-toggle.health-alert{color:#a64343;outline:1px solid #ca7770} #needs-toggle.health-alert::after{content:'+';position:absolute;right:2px;top:1px;font-weight:800;color:#a64343;background:#fff1ea;border-radius:50%;width:14px;height:14px;line-height:14px;font-size:12px}

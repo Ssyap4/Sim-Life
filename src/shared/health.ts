@@ -95,7 +95,7 @@ export const CLINIC_SERVICES={
  clinicMedicine:{name:'Купить назначенное лекарство',price:0,station:'clinic-pharmacy',seconds:8},
 } as const;
 export type ClinicAction=keyof typeof CLINIC_SERVICES;
-export type HealthCommand={type:'health_book';at:number}|{type:'health_cancel'}|{type:'health_medicine'}|{type:'health_care';care:'tea'|'support'}|{type:'vet_book';pet:PetId;at:number}|{type:'vet_cancel'|'vet_medicine';pet:PetId};
+export type HealthCommand={type:'health_book';at:number}|{type:'clinic_trip'}|{type:'health_cancel'}|{type:'health_medicine'}|{type:'health_care';care:'tea'|'support'}|{type:'vet_book';pet:PetId;at:number}|{type:'vet_cancel'|'vet_medicine';pet:PetId};
 export const isClinicAction=(a:unknown):a is ClinicAction=>typeof a==='string'&&Object.hasOwn(CLINIC_SERVICES,a);
 export const healthBookingSlots=(now:number)=>Array.from({length:48},(_,i)=>Math.floor(now/60)*60+60+i*60).filter(t=>t%1440>=8*60&&t%1440<=20*60);
 export const MEDICINE_PRICE:Record<ConditionId,number>={cold:450,flu:1800,poisoning:650,gastritis:950,insomnia:750,exhaustion:250};

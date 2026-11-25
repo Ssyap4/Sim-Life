@@ -1,0 +1,29 @@
+name: Sim-Life 0.42 health mobile QA
+on:
+  push:
+    branches: [feat/health-care-042]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: npx tsx --test server/tests/health-042.test.ts server/tests/fitness-041.test.ts
+      - run: node --import tsx scripts/qa-042-health.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: health-mobile
+          path: /tmp/simlife-042-health
+          retention-days: 7

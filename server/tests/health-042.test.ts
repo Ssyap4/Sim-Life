@@ -119,3 +119,39 @@ test('Family care consumes tea and has a shared cooldown; only a nearby online p
  const r=applyWorld(s,'vlad',{type:'health_care',care:'tea'},true);if(!r.ok)assert.fail(r.reason);s=r.state;assert.equal(s.pantry.tea,1);assert.equal(humanHealth(s,'alina').illness!.remaining,1350);
  assert.equal(applyWorld(s,'vlad',{type:'health_care',care:'support'},true).ok,false);
 });
+
+import WebSocket from 'ws';
+import {once} from 'node:events';
+import {startServer} from '../server';
+import type {ServerPacket} from '../../src/shared/protocol';
+test('Clinic travel requires matched consent and both players return independently',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'clinic-pair-')),files=openServerFiles(dir),s=initialState();
+ s.autonomy={vlad:'off',alina:'off'};files.save(s);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.025,autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ const sockets:WebSocket[]=[];
+ async function connect(role:'vlad'|'alina'){
+  const ws=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');sockets.push(ws);
+  const inbox:ServerPacket[]=[];ws.on('message',m=>inbox.push(JSON.parse(m.toString())));
+  const send=(o:object)=>ws.send(JSON.stringify(o));
+  async function take<K extends ServerPacket['type']>(kind:K,where:(e:Extract<ServerPacket,{type:K}>)=>boolean=()=>true){
+   const end=Date.now()+8000;
+   while(Date.now()<end){const i=inbox.findIndex(e=>e.type===kind&&where(e as Extract<ServerPacket,{type:K}>));if(i>=0)return inbox.splice(i,1)[0] as Extract<ServerPacket,{type:K}>;await new Promise(r=>setTimeout(r,10));}
+   throw Error('Missing '+kind);
+  }
+  await once(ws,'open');send({type:'auth',role,code:files.access[role]});await take('ready');return {send,take};
+ }
+ try{
+  const v=await connect('vlad'),a=await connect('alina');
+  v.send({type:'clinic_trip'});await a.take('world_event',p=>p.role==='alina'&&p.message.includes('Добрый доктор'));
+  assert.equal(files.load().world.places.vlad,'home');
+  a.send({type:'fitness_trip'});await v.take('world_event',p=>p.role==='vlad'&&p.message.includes('PULSE'));
+  assert.equal(files.load().world.places.alina,'home');
+  v.send({type:'clinic_trip'});await a.take('world_event',p=>p.role==='alina'&&p.message.includes('Добрый доктор'));
+  a.send({type:'clinic_trip'});const arrived=await v.take('snapshot',p=>p.state.world.places.vlad==='clinic'&&p.state.world.places.alina==='clinic');assert.equal(arrived.state.world.carDriver,'vlad');
+  for(const [role,client] of [['vlad',v],['alina',a]] as const){
+   client.send({type:'approach',place:'clinic',station:'clinic-exit'});await client.take('world_path',p=>p.role===role&&p.station==='clinic-exit');
+   client.send({type:'travel',place:'district',via:'clinic-exit'});await client.take('snapshot',p=>p.state.world.places[role]==='home');
+  }
+  assert.equal(files.load().world.carDriver,undefined);
+ }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});
