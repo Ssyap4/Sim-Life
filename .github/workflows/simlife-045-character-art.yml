@@ -1,0 +1,33 @@
+name: Sim-Life 0.45 character art experiment
+on:
+  push:
+    branches: [feat/character-art-045]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-portraits:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: npx tsx --test server/tests/blender.test.ts server/tests/blenderWalkingGait.test.ts server/tests/consoles-043.test.ts server/tests/vanity-044.test.ts
+      - name: Render original game rig with identical lighting and cameras
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/portrait-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-characters-045.html >/dev/null && break; sleep 1; done
+          node scripts/qa-045-characters.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: character-comparison
+          path: /tmp/simlife-045-characters
+          retention-days: 7

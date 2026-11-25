@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import type { CharacterId } from '../shared/protocol';
 import { fitWardrobe } from './Wardrobe';
+import {refineResidentGeometry} from './ResidentRefinement';
 import type { CharacterModel } from './CharacterArt';
 
 const assets: Record<CharacterId, string> = {
@@ -47,7 +48,7 @@ function collectBones(object: THREE.Object3D): Record<BoneName, THREE.Bone> {
   return bones;
 }
 
-export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:readonly string[]=[]): CharacterModel {
+export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:readonly string[]=[],refined=true): CharacterModel {
   const rigRoot = gltf.scene.getObjectByName('Resident');
   const waistY: unknown = rigRoot?.userData.waistY;
   const blink = THREE.AnimationClip.findByName(gltf.animations, 'Blink');
@@ -109,6 +110,8 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         finishes.set(material,tailored);
       }
       child.material=tailored;
+      if(refined){const region=material.name==='Complexion'?'face':material.name==='Eyes'?'eyes':material.name==='Hair pigment'?'hair':material.name==='Skin and trim'?'trim':null;if(region)child.geometry=refineResidentGeometry(child.geometry,id,region);
+        if(region==='hair')tailored.roughness=.49;else if(region==='face')tailored.roughness=.76;else if(region==='eyes')tailored.roughness=.19;}
       // Hair and clothing carry the shadow silhouette. The dense eyelids,
       // lips and finger surfaces still receive light and shadow in the main pass.
       child.castShadow = material.name === 'Hair pigment' || material.name === 'Cloth pigment';

@@ -1,0 +1,29 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resident art 045 QA</title><style>body{margin:0;background:#e9dfd1}canvas{display:block;width:390px;height:844px}</style><canvas></canvas><script type="module">
+import * as THREE from 'three';
+import {Actor} from './src/game/Actor.ts';
+import {createBlenderCharacter,readAsset} from './src/game/BlenderCharacter.ts';
+const id=new URLSearchParams(location.search).get('id')==='vlad'?'vlad':'alina';
+const variant=new URLSearchParams(location.search).get('variant')||'after';
+const assets={alina:new URL('./src/assets/characters/alina.glb',import.meta.url).href,vlad:new URL('./src/assets/characters/vlad.glb',import.meta.url).href};
+const actor=new Actor(id,[0,0],createBlenderCharacter(await readAsset(assets[id]),id,[],variant!=='before'));
+actor.setNeeds({hunger:85,energy:85,bladder:85,hygiene:85,mood:85});
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9dfd1);scene.add(actor.root);
+scene.add(new THREE.HemisphereLight(0xfff8ee,0xaab3bd,2.0));
+const key=new THREE.DirectionalLight(0xfff7ed,2.2);key.position.set(-2,4,3);scene.add(key);
+const fill=new THREE.DirectionalLight(0xcbdfff,.8);fill.position.set(2,2,2);scene.add(fill);
+const renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true,preserveDrawingBuffer:true});renderer.setSize(390,844,false);renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;
+const camera=new THREE.PerspectiveCamera(35,390/844,.05,30);
+const h=id==='alina'?1.724:1.778;
+window.renderPortrait=(view,care='')=>{
+ actor.setCareAppearance(care==='evening'?'fancy':care==='light'?'style':'',care);
+ actor.root.rotation.y=0;actor.root.updateMatrixWorld(true);
+ if(view==='full'){camera.position.set(.15,1.05,3.6);camera.lookAt(0,1.04,0);}
+ else if(view==='quarter'){camera.position.set(.78,h-.035,1.14);camera.lookAt(0,h-.09,0);}
+ else{camera.position.set(0,h-.035,1.10);camera.lookAt(0,h-.09,0);}
+ renderer.render(scene,camera);
+ return renderer.info.render.triangles;
+};
+for(let i=0;i<15;i++)actor.update(1/60);
+window.renderPortrait('front');
+document.body.dataset.ready='true';
+</script></html>
