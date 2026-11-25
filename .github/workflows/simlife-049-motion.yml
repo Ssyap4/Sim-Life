@@ -17,6 +17,9 @@ jobs:
           - scenario: sleep
             script: qa-038-sleep.mjs
             output: /tmp/simlife-038-sleep
+          - scenario: pets
+            script: qa-028-simba-authored.mjs
+            output: /tmp/simlife-028-simba-authored
           - scenario: venue
             script: qa-048-venue.mjs
             output: /tmp/simlife-048-venue

@@ -49,6 +49,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
 import { frameTiming } from './FrameTiming';
+import { petStepPace } from './PetMotion';
 import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
@@ -2927,11 +2928,16 @@ export class World {
       const distance = Math.hypot(dx, dz);
       if (distance > .07) {
         const step = Math.min(1, dt * (this.dogTrail.length > 3 ? 10 : 5));
-        dog.root.rotation.y = Math.atan2(dx, dz);
         const next = {x: dog.root.position.x + dx * step, z: dog.root.position.z + dz * step};
-        if (pointIsClear(next, this.currentObstacles(), floorFor(this.place))) dog.root.position.set(next.x, 0, next.z);
-        this.dogTravel += distance * step;
-        pace = Math.min(1, distance * 2.3);
+        if (pointIsClear(next, this.currentObstacles(), floorFor(this.place))) {
+          const moved=Math.hypot(next.x-dog.root.position.x,next.z-dog.root.position.z);
+          const yaw=Math.atan2(dx,dz);
+          const turn=Math.atan2(Math.sin(yaw-dog.root.rotation.y),Math.cos(yaw-dog.root.rotation.y));
+          dog.root.rotation.y+=turn*(1-Math.exp(-dt*13));
+          dog.root.position.set(next.x, 0, next.z);
+          this.dogTravel += moved;
+          pace=petStepPace(moved,dt,1.8,1);
+        }
       }
     }
     const vet=this.household?.world.vetVisit;

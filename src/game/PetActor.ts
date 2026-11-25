@@ -9,6 +9,7 @@ import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
+import { petStepPace, petPaceBlend, perchBodyYaw } from './PetMotion';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
@@ -35,6 +36,7 @@ export class PetActor {
   private readonly body = new THREE.Group();
   private perch:CatPerch|null=null;
   private leavingPerch:CatPerch|null=null;
+  private leavingPerchWasSettled=false;
   private perchRestPose:CatRestPoseId='sofa_loaf';
   private leavingRestPose:CatRestPoseId='sofa_loaf';
   private perchProgress=0;
@@ -59,6 +61,8 @@ export class PetActor {
   private routine: PetRoutine['kind'] | null = null;
   private facing: number | undefined;
   private distance = 0;
+  private externalTravel = 0;
+  private gaitPace = 0;
   private settled = 0;
   private stuckFor = 0;
   private lastProgressGap = Infinity;
@@ -256,7 +260,7 @@ export class PetActor {
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
     this.idleTime = 0;
-    this.distance=0;
+    // Keep foot phase continuous through route replacement and fetch return.
     this.route = route;
     this.routine = routine;
     this.facing = facing;
@@ -270,6 +274,7 @@ export class PetActor {
   private releasePerch(): void {
     if(this.perch && !this.leavingPerch && this.perchProgress>0){
       this.leavingPerch=this.perch;
+      this.leavingPerchWasSettled=this.perchProgress>=.99;
       this.leavingRestPose=this.perchRestPose;
       this.leavingPerchHeight=this.perchHeight;
     }
@@ -300,6 +305,10 @@ export class PetActor {
 
   update(dt: number, travel = 0, pace = 0,
     traffic?: { blockers: readonly FloorPoint[]; otherPet?: FloorPoint; obstacles: readonly FloorRect[]; floor: FloorRect }): void {
+    const externalStep=Math.max(0,travel-this.externalTravel);
+    this.externalTravel=travel;
+    if(this.routine||this.route.length||traffic)pace=0;
+    else if(pace>0)this.distance+=externalStep;
     this.parkRollTime=Math.max(0,this.parkRollTime-dt);
     this.rerouteCooldown = Math.max(0, this.rerouteCooldown - dt);
     // A person can physically close the courtyard doorway. Waiting without
@@ -392,7 +401,7 @@ export class PetActor {
           this.root.rotation.y += delta * (1 - Math.exp(-dt * 13));
           this.root.position.set(next.x, 0, next.z);
           this.distance += traveled;
-          pace = this.routine==='fetch'?.95:.76;
+          pace = petStepPace(traveled,dt,PET_SPEED[this.id],this.routine==='fetch'?.95:.76);
         }
       }
       const remaining = Math.hypot(target.x - this.root.position.x,
@@ -446,7 +455,9 @@ export class PetActor {
         this.root.rotation.y += Math.atan2(Math.sin(delta), Math.cos(delta)) * (1 - Math.exp(-dt * 8));
       }
     }
-    if (this.routine) travel = this.distance;
+    travel = this.distance;
+    this.gaitPace=petPaceBlend(this.gaitPace,pace,dt);
+    pace=this.gaitPace;
     if(this.id==='simba' && this.perch && !this.route.length && !this.reaction && !descending){
       this.perchProgress=Math.min(1,this.perchProgress+dt/(this.perch.entry==='inside'?1.65:.95));
       const targetYaw=this.perch.yaw;
@@ -458,7 +469,7 @@ export class PetActor {
       const yaw=this.dogBed.climbYaw;
       this.root.rotation.y+=Math.atan2(Math.sin(yaw-this.root.rotation.y),Math.cos(yaw-this.root.rotation.y))*(1-Math.exp(-dt*9));
     }
-    if(this.dogBedProgress>0&&this.dogBedProgress<1){pace=.7;travel+=this.dogBedProgress*2;}
+    if(this.dogBedProgress>0&&this.dogBedProgress<1){pace=.7*THREE.MathUtils.smoothstep(this.dogBedProgress,0,.10)*(1-THREE.MathUtils.smoothstep(this.dogBedProgress,.78,1));travel+=this.dogBedProgress*2;}
     this.clock += dt;
     if (this.hungerMarker?.visible) {
       this.hungerMarker.position.y = (this.id === 'verdell' ? 1.43 : 1.44) + Math.sin(this.clock * 3.1) * 0.045;
@@ -804,11 +815,8 @@ export class PetActor {
         this.body.position.x=this.perchLocal.x*horizontal;
         this.body.position.z=this.perchLocal.z*horizontal;
         this.body.position.y+=this.perchLocal.y*vertical+airborne*.31;
-        const turn=THREE.MathUtils.smootherstep(phase,.78,1);
         const forward=surface.yaw-this.root.rotation.y;
-        const runUp=descending?forward:forward+Math.PI;
-        const final=forward+(restPreset?.yaw??(surface.kind==='curl'?Math.PI/2:0));
-        this.body.rotation.y=THREE.MathUtils.lerp(runUp,final,turn);
+        this.body.rotation.y=perchBodyYaw(phase,forward,restPreset?.yaw??(surface.kind==='curl'?Math.PI/2:0),descending&&this.leavingPerchWasSettled);
         this.body.rotation.x+=airborne*(.12-phase*.26);
       }
       const contact=post?this.body.worldToLocal(this.perchLocal.set(
