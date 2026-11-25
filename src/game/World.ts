@@ -2187,7 +2187,15 @@ export class World {
     const obstacles = this.currentObstacles();
     const from = nearestClearPoint(actor.root.position, obstacles, floorFor(this.place));
     const to = nearestClearPoint(target, obstacles, floorFor(this.place));
-    const path = from && to ? findRoute(from, to, obstacles, floorFor(this.place)) : null;
+    let path = from && to ? findRoute(from, to, obstacles, floorFor(this.place)) : null;
+    if(this.place==='spa'&&from&&to){
+      const peer=this.actors[role==='vlad'?'alina':'vlad'];
+      if(peer.root.visible&&!peer.isWalking()){
+        const body=peer.bodyPosition(this.otherBody),r=RESIDENT_CLEARANCE+.04;
+        const occupied=[...obstacles,{minX:body.x-r,maxX:body.x+r,minZ:body.z-r,maxZ:body.z+r}];
+        path=findRoute(from,to,occupied,floorFor(this.place))??path;
+      }
+    }
     if (!path) return false;
     actor.walkPath(path.map(p => new THREE.Vector3(p.x, 0, p.z)), onArrive);
     return true;

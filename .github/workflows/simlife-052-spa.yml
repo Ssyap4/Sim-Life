@@ -18,6 +18,26 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+  shower-route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-052-spa.mjs shower
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spa-shower-route
+          path: /tmp/simlife-052-spa
+          retention-days: 7
   mobile:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

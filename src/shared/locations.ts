@@ -33,7 +33,7 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const VENUE_FLOOR={minX:-9.62,maxX:9.62,minZ:-6.62,maxZ:6.62};
-export const SPA_FLOOR={minX:-8.62,maxX:9.62,minZ:-6.62,maxZ:4.62};
+export const SPA_FLOOR={minX:-8.62,maxX:9.62,minZ:-6.62,maxZ:5.82};
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
 export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
@@ -188,7 +188,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('spa-locker-a','Раздевалка Алины',7.4,1.0,1.8,1.2,{kind:'spa',facility:'spaLocker'}),
     site('spa-shower-v','Душ Влада',5.9,-1.7,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:5.9,z:-.65}}),
     site('spa-shower-a','Душ Алины',7.8,3.0,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:7.8,z:4.07}}),
-    door('spa-exit','Выход','district',0,4.6,true),
+    door('spa-exit','Выход','district',0,5.8,true),
   ],
   barber:[
     site('barber-reception','Ресепшен BRO',-3.8,2.5,2.1,.85,{kind:'barber',facility:'reception'}),
