@@ -23,6 +23,7 @@ export type CharacterRig = {
   shinLength: number;
   upperArm: number;
   lowerArm: number;
+  setCareAppearance?: (hair: string, makeup: string) => void;
   animateFace?: (dt: number, asleep: boolean, smile: number, eyeYaw: number, eyePitch: number, lidBias?: number) => void;
 };
 

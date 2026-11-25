@@ -147,6 +147,7 @@ export class Actor {
   private conversationYaw:number|null=null;
   private conversationSpeaking=false;
   setConversation(yaw:number|null,speaking:boolean):void{this.conversationYaw=yaw;this.conversationSpeaking=speaking;}
+  setCareAppearance(hair:string,makeup:string){this.rig.setCareAppearance?.(hair,makeup);}
   setNeeds(needs: ReactionNeeds,emotion:EmotionId|null=null): void { this.needs = needs; this.emotion=emotion; }
   /** Local visual awareness only: no game state or social actions are changed. */
   setIdleSurroundings(petYaw: number | null, partnerYaw: number | null): void {
@@ -327,6 +328,7 @@ export class Actor {
   private homeWorkStyle:import("../shared/jobs").JobId|undefined;
   setHomeWorkStyle(style:import("../shared/jobs").JobId){this.homeWorkStyle=style;}
   setPose(pose: Pose): void {
+    this.clearVanity();
     this.hideGamepad();
     this.homeWorkStyle=undefined;
     this.waypoints = [];

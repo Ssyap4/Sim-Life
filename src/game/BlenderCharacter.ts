@@ -137,6 +137,25 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         joints.Head.add(earring);
       }
     }
+    // Clone only the hair geometry; the original bind pose is never mutated.
+    const hairMesh=parts.find(m=>(m.material as THREE.Material).name==='Hair pigment');
+    const faceMesh=parts.find(m=>(m.material as THREE.Material).name==='Complexion');
+    const makeupLevel={value:0};
+    const fm=faceMesh?.material as THREE.MeshStandardMaterial|undefined;
+    if(id==='alina'&&fm?.map){fm.onBeforeCompile=shader=>{shader.uniforms.careMakeup=makeupLevel;shader.fragmentShader='uniform float careMakeup;\n'+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      #ifdef USE_MAP
+      float a=(vMapUv.x-.5)*6.2831853;
+      float y=-.209+.422*clamp((1.-vMapUv.y-.27)/.71,0.,1.);
+      float front=max(0.,cos(a));
+      float lips=exp(-pow(abs(a/.34),4.)-pow(abs((y+.112)/.012),4.))*front;
+      float cheek=exp(-pow(abs((abs(a)-.72)/.27),2.)-pow(abs((y+.049)/.028),2.))*front;
+      float shadow=exp(-pow(abs((abs(a)-.44)/.22),2.)-pow(abs((y-.019)/.014),2.))*front;
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.39,.075,.13),lips*careMakeup*.37);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.58,.19,.23),cheek*careMakeup*.15);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.25,.13,.16),shadow*careMakeup*.12);
+      #endif`);};fm.customProgramCacheKey=()=> 'care-makeup-v1';}
+    let hairMode='',base:Float32Array|undefined;
+    if(id==='alina'&&hairMesh){hairMesh.geometry=hairMesh.geometry.clone();base=Float32Array.from(hairMesh.geometry.attributes.position.array);}
     figure.add(model);
     const weights = (model.getObjectByName(faceName) as THREE.SkinnedMesh).morphTargetInfluences!;
     const sampleBlink = new THREE.LinearInterpolant(blinkTrack.times, blinkTrack.values, blinkTrack.getValueSize());
@@ -153,6 +172,16 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         knees: [joints.KneeL, joints.KneeR], ankles: [joints.AnkleL, joints.AnkleR],
         waistY, thighLength: -joints.KneeL.position.y, shinLength: -joints.AnkleL.position.y,
         upperArm: -joints.ElbowL.position.y, lowerArm: -joints.WristL.position.y,
+        setCareAppearance(hair,makeup){
+          if(id!=='alina')return;makeupLevel.value=makeup==='evening'?1:makeup==='light'?.48:0;
+          if(hair===hairMode||!hairMesh||!base)return;hairMode=hair;
+          const p=hairMesh.geometry.attributes.position,uv=hairMesh.geometry.attributes.uv;
+          for(let i=0;i<p.count;i++){const x=base[i*3],y=base[i*3+1],z=base[i*3+2];const tip=THREE.MathUtils.smoothstep(uv.getY(i),.33,.97);
+            if(hair==='fancy')p.setXYZ(i,x*(1-.26*tip),y+.075*tip,z-.035*tip);
+            else if(hair==='style')p.setXYZ(i,x*(1+.055*tip),y+.018*tip*Math.cos(x*33),z+.012*tip*Math.sin(x*28));
+            else p.setXYZ(i,x,y,z);}
+          p.needsUpdate=true;hairMesh.geometry.computeVertexNormals();
+        },
         animateFace(dt, asleep, expression, eyeYaw, eyePitch, lidBias=0) {
           const blend = 1 - Math.exp(-dt * 8);
           time = (time + dt) % blink.duration;

@@ -17,7 +17,7 @@ try{
  const errors=[];
  async function player(role){
   const p=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
-  p.on('pageerror',e=>errors.push(e.message));
+  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
   await p.addInitScript(()=>{const Original=window.WebSocket;window.__qaMessages=[];window.WebSocket=class extends Original{constructor(...args){super(...args);window.__qaSocket=this;this.addEventListener('message',e=>{try{window.__qaMessages.push(JSON.parse(e.data));}catch{}});}};});
   await p.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
   await p.locator('.enter-button').waitFor({timeout:60000});await p.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
@@ -28,13 +28,13 @@ try{
  const shot=(p,name)=>p.screenshot({path:join(out,name+'.jpg'),type:'jpeg',quality:94});
  await a.waitForTimeout(2000);
  await a.locator('#showcase-toggle').evaluate(el=>el.click());await a.locator('[data-showcase=alina]').evaluate(el=>el.click());await a.waitForTimeout(1500);await shot(a,'alina-before');
- for(const care of ['style','light','perfume']){
+ for(const care of ['style','light','perfume','fancy','evening']){
   await send(a,{type:'vanity_care',care});await a.waitForFunction(c=>window.__qaMessages.some(m=>m.type==='task_started'&&m.command.type==='vanity_care'&&m.command.care===c),care,{timeout:15000});
   const id=await a.evaluate(c=>window.__qaMessages.find(m=>m.type==='task_started'&&m.command.care===c).taskId,care);
   await a.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),id,{timeout:15000});await a.waitForTimeout(900);await shot(a,care+'-active');
   await a.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='completed'),id,{timeout:40000});
  }
- await a.locator('#showcase-return').evaluate(el=>el.click());await a.locator('#needs-toggle').click();assert.ok(await a.getByText('✨ Ухоженность',{exact:true}).isVisible());await shot(a,'needs');await a.locator('#needs-close').click();
+ await a.locator('#showcase-return').evaluate(el=>el.click());await a.locator('#showcase-toggle').evaluate(el=>el.click());await a.locator('[data-showcase=alina]').evaluate(el=>el.click());await a.waitForTimeout(1800);await shot(a,'alina-after');await a.locator('#showcase-return').evaluate(el=>el.click());await a.locator('#needs-toggle').click();assert.ok(await a.getByText('✨ Ухоженность',{exact:true}).isVisible());await shot(a,'needs');await a.locator('.care-effects summary').click();await shot(a,'needs-effects');await a.locator('#needs-close').click();
  await send(a,{type:'social_propose',action:'nearTalk:careMakeup'});
  await v.waitForFunction(()=>window.__qaMessages.some(m=>m.type==='social_pending'),undefined,{timeout:20000});await shot(v,'vlad-question');
  const invite=await v.evaluate(()=>window.__qaMessages.find(m=>m.type==='social_pending').offer.id);

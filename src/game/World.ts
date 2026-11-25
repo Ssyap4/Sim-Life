@@ -545,7 +545,8 @@ export class World {
     const romanticSeat=pairMotion&&['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle','musicTogether'].includes(pairMotion);
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
-    const angle = bedAngle??(perch
+    const vanityAngle=person&&this.homeTasks.get(subject)?.furnitureSeat&&this.homeTasks.get(subject)?.furniturePose?.x===points.vanity.x-.88?new THREE.Vector3(.87,.28,.65):null;
+    const angle = vanityAngle??bedAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)
@@ -908,7 +909,7 @@ export class World {
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
           actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
-        if(command.type==='vanity_care'){actor.playVanity(command.care);return;}
+        if(command.type==='vanity_care'){actor.playVanity(command.care);if(this.inspected===role)this.showcase(role);return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
           if(command.action==='read_book')actor.playDomesticActivity('read');
@@ -2293,6 +2294,7 @@ export class World {
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
       this.actors[id].setNeeds(state.characters[id],residentEmotion(state,id).id);
+      if(id==='alina'){const v=state.vanity;this.actors[id].setCareAppearance(v?.hair&&v.hair.until>minute?v.hair.id:'',v?.makeup&&v.makeup.until>minute?v.makeup.id:'');}
       this.actors[id].setPhoneModel(installedElectronics(state,id,'phone'));
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);

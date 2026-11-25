@@ -456,6 +456,7 @@ window.setInterval(() => {
   renderClock();
 }, 150);
 
+let careDetailsOpen=false;
 function renderNeeds(): void {
   if (!state || needsPanelEl.hidden) return;
   needsContentEl.replaceChildren();
@@ -468,7 +469,7 @@ function renderNeeds(): void {
     heading.textContent=names[role]+' · '+emotion.emoji+' '+emotion.label+' · '+Math.round(char.mood)+'%';
     heading.title=emotion.reason;
     group.append(heading);
-    if(role==='alina'){const row=document.createElement('div');row.className='need-row';const label=document.createElement('span');label.textContent='✨ Ухоженность';const track=document.createElement('div');track.className='need-track';const fill=document.createElement('i');fill.style.width=careScore(state)+'%';fill.style.background='#d58ab5';track.append(fill);const value=document.createElement('span');value.className='need-value';value.textContent=careScore(state)+'%';row.append(label,track,value);group.append(row);for(const e of careEffects(state)){const note=document.createElement('small');note.className='autonomy-note';note.textContent=CARE[e.id].label+' · ещё '+rewardTime(e.until-gameMinutes(state.clock));group.append(note);}}
+    if(role==='alina'){const row=document.createElement('div');row.className='need-row';const label=document.createElement('span');label.textContent='✨ Ухоженность';const track=document.createElement('div');track.className='need-track';const fill=document.createElement('i');fill.style.width=careScore(state)+'%';fill.style.background='#d58ab5';track.append(fill);const value=document.createElement('span');value.className='need-value';value.textContent=careScore(state)+'%';row.append(label,track,value);group.append(row);const effects=careEffects(state);if(effects.length){const detail=document.createElement('details');detail.className='care-effects';detail.open=careDetailsOpen;detail.ontoggle=()=>{if(detail.isConnected)careDetailsOpen=detail.open;};const summary=document.createElement('summary');summary.textContent='Эффекты · '+effects.length;detail.append(summary);for(const e of effects){const note=document.createElement('small');note.textContent=CARE[e.id].label+' · '+rewardTime(e.until-gameMinutes(state.clock));detail.append(note);}group.append(detail);}}
     const thought=thoughtFor(state,role);
     const thoughtNode=document.createElement('p');
     thoughtNode.className='autonomy-thought';
