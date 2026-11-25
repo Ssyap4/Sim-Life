@@ -208,10 +208,10 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
           // The eyes make occasional tiny, synchronized focus shifts; their
           // original player/pet look direction retains priority.
           glance += dt;
-          const fineYaw = Math.sin(glance*.91+(id==='vlad'?0:1.7))*.008;
+          const fineYaw = Math.sin(glance*.91+(id==='vlad'?0:1.7))*.008*(1-rest);
           for (const eye of eyes) {
-            eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, eyeYaw+fineYaw, blend);
-            eye.rotation.x = THREE.MathUtils.lerp(eye.rotation.x, eyePitch, blend);
+            eye.rotation.y = THREE.MathUtils.lerp(eye.rotation.y, (eyeYaw+fineYaw)*(1-rest), blend);
+            eye.rotation.x = THREE.MathUtils.lerp(eye.rotation.x, eyePitch*(1-rest), blend);
           }
         },
       },

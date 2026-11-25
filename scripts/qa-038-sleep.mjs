@@ -31,6 +31,16 @@ try{
    for(const role of ['vlad','alina']){
     await page.locator('#showcase-toggle').click();await page.locator('[data-showcase='+role+']').click();await page.waitForTimeout(1700);
     await page.screenshot({path:join(out,scenario+'-'+role+'.jpg'),type:'jpeg',quality:80});
+    const layout=await page.evaluate(()=>{
+      const r=document.querySelector('#time-panel').getBoundingClientRect();
+      const dock=document.querySelector('.camera-dock').getBoundingClientRect();
+      const tools=document.querySelector('.showcase-ui').getBoundingClientRect();
+      return {panel:[r.left,r.right,r.top,r.bottom],dock:[dock.left,dock.right,dock.top,dock.bottom],tools:[tools.left,tools.right],width:innerWidth,appScroll:document.querySelector('#app').scrollLeft};
+    });
+    console.log('sleep layout',scenario,role,JSON.stringify(layout));
+    assert.ok(layout.panel[0]>=0&&layout.panel[1]<=layout.width+.5,'sleep panel outside portrait viewport');
+    assert.ok(layout.dock[3]<=layout.panel[2]||layout.dock[1]<=layout.panel[0],'camera overlaps sleep controls');
+    assert.ok(layout.tools[0]>=0&&layout.tools[1]<=layout.width+.5&&layout.appScroll===0,'inspection controls overflow root');
    }
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
    console.log(scenario,await page.locator('.performance-probe').innerText());assert.deepEqual(errors,[]);

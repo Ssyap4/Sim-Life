@@ -17,6 +17,7 @@ import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget, walkMotionTarget } from './WalkingGait';
 import { mealGesture } from './MealGesture';
+import { stableElbowPlane, conversationEyeLead } from './ContactMotion';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
 import { expressiveDemeanor } from './CharacterDemeanor';
@@ -540,7 +541,7 @@ export class Actor {
     const distance = THREE.MathUtils.clamp(extent, Math.abs(upperArm - lowerArm) + 0.003, upperArm + lowerArm - 0.002);
     const direction = offset.divideScalar(extent);
     const bend = this.elbowAxis.set(index === 0 ? -lateralElbow : lateralElbow, -1, -0.16);
-    bend.addScaledVector(direction, -bend.dot(direction)).normalize();
+    stableElbowPlane(bend,direction);
     const along = (upperArm * upperArm + distance * distance - lowerArm * lowerArm) / (2 * distance);
     const lift = Math.sqrt(Math.max(0, upperArm * upperArm - along * along));
     const joint = this.upperAxis.copy(direction).multiplyScalar(along).addScaledVector(bend, lift);
@@ -558,6 +559,7 @@ export class Actor {
   private aimHand(index: 0 | 1, direction: THREE.Vector3, alpha: number): void {
     const { elbows, wrists } = this.rig;
     elbows[index].getWorldQuaternion(this.parentRotation).invert();
+    if(direction.lengthSq()<1e-10)return;
     direction.applyQuaternion(this.parentRotation).normalize();
     wrists[index].quaternion.slerp(this.aimRotation.setFromUnitVectors(handAxis, direction), alpha);
   }
@@ -1507,15 +1509,16 @@ export class Actor {
     }
 
     // Speech overlay only on the face/head: preserve utensils, hands, legs, route and furniture pose.
-    const chatYaw=!asleep&&this.conversationYaw!==null&&!this.partnerGesture?THREE.MathUtils.clamp(this.conversationYaw,-.55,.55)*(this.activity||this.pose==='work'?.48:.85):0;
-    const chatActive=!asleep&&this.conversationYaw!==null&&!this.partnerGesture;
+    const chatActive=!resting&&this.activity!=='spaSwim'&&this.conversationYaw!==null&&!this.partnerGesture;
+    const chatYaw=chatActive?THREE.MathUtils.clamp(this.conversationYaw!,-.55,.55)*(this.activity||this.pose==='work'?.48:.85):0;
     const chatNod=chatActive?Math.sin(t*(this.conversationSpeaking?3.5:1.6))*.035:0;
     if(chatActive)expression=Math.max(expression,this.conversationSpeaking?.28:.18);
-    const idleLook = seated || asleep || this.activity || this.gesture || this.idleGesture || pair ? 0 : Math.sin(t * 0.53) ** 7;
+    const idleLook = seated || resting || this.activity || this.gesture || this.idleGesture || pair ? 0 : Math.sin(t * 0.53) ** 7;
     if (data.animateFace) {
-      const eyeYaw = asleep ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53) :
-        (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion) + idleEyeYaw;
-      const eyePitch = asleep ? 0 : this.activity === 'cook' ? 0.07 :
+      const chatEye=conversationEyeLead(chatYaw,!!this.activity||this.pose==='work');
+      const eyeYaw = resting ? 0 : this.pose === 'work' ? 0.046 * Math.sin(t * 1.53)+chatEye :
+        (0.10 * idleLook + lead * 0.44) * (1 - 0.4 * motion) + idleEyeYaw+chatEye;
+      const eyePitch = resting ? 0 : this.activity === 'cook' ? 0.07 :
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) :
         0.025 * Math.sin(t * 0.67) + idleEyePitch;
       data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),

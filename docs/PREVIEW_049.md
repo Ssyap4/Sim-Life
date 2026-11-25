@@ -11,3 +11,8 @@ Owner approved direction 5 (quality pass), then own yard expansion (2), then fam
 - Walking animation amplitude follows actual visual displacement relative to unchanged movement budget; sports retain their existing choreography. Faster gait decay on stopping, suppress walk blend in resting and seated poses.
 - Coincident focus targets preserve yaw; direct activity changes remove old venue/vanity/controller props and hide stale phone.
 - 23/23 focused tests passed including walk/pose, old Blender skeleton, current SPA skin geometry, console grips and live console sessions. TypeScript check passed. Cloud mobile QA workflow for sleep and venue added; screenshots/results not yet inspected. No physical phone FPS claim.
+
+## v3 — contact stability and portrait HUD
+- Stable elbow plane for collinear reach directions, zero-length hand direction guard, eye lead during conversations, suppress chat face overlay during reclining/swimming; no new model assets or gameplay changes.
+- Reviewed all 17 actual v2 cloud captures, 4 sleep + 13 venue, both jobs passed at caff5d5 (run 45672080694). Found clipped sleep panel and overlapping camera dock; corrected portrait inspection grid and camera spacing, added browser bounding-box assertions to sleep QA. v3 layout verification pending cloud rerun, not yet visually confirmed.
+- 31/31 focused tests passed; typecheck and Vite build passed. Existing bundle warnings remain. Physical FPS unmeasured.
