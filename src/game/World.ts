@@ -48,6 +48,7 @@ import * as THREE from 'three';
 import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
+import { adjustHeight, protectCameraFloor, HEIGHT_MAX_POLAR } from './CameraHeight';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
 import { frameTiming } from './FrameTiming';
 import { StableModelParts } from './StableModelParts';
@@ -246,6 +247,8 @@ export class World {
   private followSubject: THREE.Object3D | null = null;
   private followingPlayer = false;
   private followingPair = false;
+  private manualCameraHeight = false;
+  private readonly manualPairAnchor = new THREE.Vector3();
   private readonly pairCameraTarget = new THREE.Vector3();
   private readonly pairCameraEye = new THREE.Vector3();
   private readonly pairCameraDirection = new THREE.Vector3(.46,.76,1).normalize();
@@ -466,7 +469,20 @@ export class World {
     });
   }
 
+  adjustCameraHeight(direction: 1|-1, seconds: number): void {
+    if(this.fittingStage)return;
+    if(!this.manualCameraHeight && this.followingPair)this.manualPairAnchor.copy(this.pairCameraTarget);
+    this.manualCameraHeight=true;
+    this.cameraMove=null;
+    this.neighborhoodView=false;
+    this.controls.maxPolarAngle=HEIGHT_MAX_POLAR;
+    adjustHeight(this.camera.position,this.controls.target,direction,seconds,this.controls.minPolarAngle);
+    this.controls.update();
+    protectCameraFloor(this.camera.position,this.controls.target);
+  }
+
   setFollowPlayer(enabled: boolean): void {
+    if(enabled)this.manualCameraHeight=false;
     this.followingPair = false;
     this.followingPlayer = enabled;
     const button = document.querySelector<HTMLButtonElement>('#camera-follow');
@@ -506,6 +522,8 @@ export class World {
     this.controls.minDistance=3.4;
     this.controls.maxDistance=96;
     this.controls.maxPolarAngle=1.4;
+    this.manualCameraHeight=false;
+    this.pairCameraTarget.copy(target);
     this.followingPair=true;
     this.cameraMove={target,position:target.clone().addScaledVector(this.pairCameraDirection,distance)};
     return true;
@@ -513,6 +531,7 @@ export class World {
 
   focusSpaActivity(id:string):boolean{const station=stationById('spa',id);return this.place==='spa'&&!!station&&this.focusVenueStation(station);}
   focusVenueStation(station:Station):boolean{
+    this.manualCameraHeight=false;
     if(this.place!=='venue'&&this.place!=='spa')return false;
     this.setFollowPlayer(false);this.inspected=null;this.neighborhoodView=false;
     const target=new THREE.Vector3(station.center.x,.85,station.center.z);
@@ -543,6 +562,7 @@ export class World {
     this.fittingStage.rotate(angle);
   }
   showcase(subject: CharacterId | PetId | null): void {
+    this.manualCameraHeight=false;
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.neighborhoodView=false;
@@ -672,6 +692,7 @@ export class World {
 
   /** One deliberate, predictable camera reset at any location. */
   resetCamera():void {
+    this.manualCameraHeight=false;
     this.followingPair=false;
     if (this.followingPlayer) this.setFollowPlayer(false);
     this.savedCameras.delete(this.place);
@@ -2231,6 +2252,8 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    this.manualCameraHeight=false;
+    this.followingPair=false;
     this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
       this.savedCameras.set(this.place,{
@@ -2307,6 +2330,8 @@ export class World {
     this.refreshViewport();
     const remembered=place==='district'?undefined:this.savedCameras.get(place);
     if(remembered){
+      this.manualCameraHeight=true;
+      this.controls.maxPolarAngle=HEIGHT_MAX_POLAR;
       this.camera.position.copy(remembered.position);
       this.controls.target.copy(remembered.target);
       this.controls.update();
@@ -2769,6 +2794,7 @@ export class World {
     }
     if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
     if (sizeChanged) this.renderer.setSize(width, height, false);
+    if(this.manualCameraHeight)return;
     if (this.inspected) {
       this.showcase(this.inspected);
       return;
@@ -3087,8 +3113,16 @@ export class World {
           this.pairCameraEye.set(.95,.83,-.85).normalize().multiplyScalar(this.compactPortrait.matches?12.4:10.4).add(this.pairCameraTarget);
         }
         const fraction=1-Math.exp(-dt*5.5);
-        this.controls.target.lerp(this.pairCameraTarget,fraction);
-        this.camera.position.lerp(this.pairCameraEye,fraction);
+        if(this.manualCameraHeight){
+          this.followDelta.copy(this.manualPairAnchor);
+          this.manualPairAnchor.lerp(this.pairCameraTarget,fraction);
+          this.followDelta.subVectors(this.manualPairAnchor,this.followDelta);
+          this.controls.target.add(this.followDelta);
+          this.camera.position.add(this.followDelta);
+        }else{
+          this.controls.target.lerp(this.pairCameraTarget,fraction);
+          this.camera.position.lerp(this.pairCameraEye,fraction);
+        }
         this.cameraMove=null;
       }
     }
@@ -3104,6 +3138,7 @@ export class World {
     }
     this.updatePanFeel();
     this.controls.update();
+    if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

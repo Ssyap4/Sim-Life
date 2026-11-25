@@ -53,6 +53,8 @@ import { installMobileBack } from './mobileBack';
 import { subtleHaptic, installTouchFeedback } from './mobileHaptics';
 import './touch-feedback.css';
 import { gameAudio } from './game/GameAudio';
+import { bindCameraHeightButtons } from './cameraHeightUI';
+import './camera-height.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -159,6 +161,7 @@ app.innerHTML = `
     </div>
   </header>
   <div class="camera-dock"><button id="camera-reset" class="camera-reset" type="button" aria-label="Сбросить камеру к общему виду" title="Вернуть общий вид">⌂</button><button id="camera-follow" class="camera-reset camera-follow" type="button" aria-label="Следовать за персонажем" aria-pressed="false" title="Следовать за персонажем">◎</button></div>
+  <div class="camera-dock camera-height-dock" role="group" aria-label="Высота камеры"><button id="camera-height-up" class="camera-reset" type="button" aria-label="Поднять камеру" title="Поднять камеру"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button><button id="camera-height-down" class="camera-reset" type="button" aria-label="Опустить камеру" title="Опустить камеру"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-6-6 6 6 6-6"/></svg></button></div>
   <section id="pause-sheet" class="pause-sheet" aria-live="polite" hidden><div class="pause-card"><span class="pause-emblem">⏸</span><strong id="pause-title">Пауза</strong><p id="pause-description"></p><div id="pause-actions"></div></div></section>
   <section id="skills-overlay" class="skills-overlay" aria-label="Навыки персонажа" hidden></section>
   <section id="needs-panel" class="needs-panel" aria-label="Потребности семьи" hidden>
@@ -294,6 +297,7 @@ document.querySelector<HTMLButtonElement>('#camera-reset')!.addEventListener('cl
   world.resetCamera();
 });
 document.querySelector<HTMLButtonElement>('#camera-follow')!.addEventListener('click',()=>world?.toggleFollowPlayer());
+bindCameraHeightButtons((direction,seconds)=>world?.adjustCameraHeight(direction,seconds));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !showcaseReturn.hidden) focusModel(null);
   if (event.key === 'Escape') {

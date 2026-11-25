@@ -1,0 +1,32 @@
+name: Sim-Life 0.50.1 camera mobile QA
+on:
+  push:
+    branches: [feat/camera-height-0501]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  camera:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npx tsx --test server/tests/camera-height-0501.test.ts server/tests/camera-detail-021.test.ts server/tests/player-copy-020.test.ts
+      - run: npm run build
+      - run: node --import tsx scripts/qa-050-terrace.mjs camera
+      - run: node --import tsx scripts/qa-050-pool.mjs camera
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: camera-mobile
+          path: |
+            /tmp/simlife-050-terrace
+            /tmp/simlife-050-pool
+          retention-days: 7

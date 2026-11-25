@@ -1,0 +1,7 @@
+#app .camera-height-dock{left:auto;right:max(11px,env(safe-area-inset-right));}
+#app .camera-height-dock .camera-reset{width:44px;height:44px;min-width:44px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+.camera-height-dock svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+#app .camera-height-dock .height-held{background:#355c4e;color:#fff;}
+#app:has(#phone-overlay:not([hidden]),#computer-overlay:not([hidden]),#furnishing-overlay:not([hidden]),#furnishing-placement:not([hidden]),#market-overlay:not([hidden]),#jobs-overlay:not([hidden]),#skills-overlay:not([hidden]),#needs-panel:not([hidden]),#map-panel:not([hidden]),#pause-sheet:not([hidden]),#actions:not([hidden]),#location-panel:not([hidden]),#career-hud:not([hidden]),.auth-screen:not([hidden])) .camera-height-dock{visibility:hidden}
+
+#app:has(.thought-trigger[aria-expanded="true"],#showcase-choices:not([hidden]),#social-invite:not([hidden]),#movie-invite:not([hidden])) .camera-height-dock{visibility:hidden}

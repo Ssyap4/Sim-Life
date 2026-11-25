@@ -41,6 +41,30 @@ try{
  const start=await take('task_started',p=>p.role==='vlad'&&p.command?.action===action);
  await take('task_active',p=>p.taskId===start.taskId);
  await page.locator('[data-focus-shared]').click();
+ if(process.argv.includes('camera')){await page.waitForTimeout(3500);
+ const arrows=page.locator('.camera-height-dock');
+ const up=page.locator('#camera-height-up'),down=page.locator('#camera-height-down');
+ assert.ok(await up.isVisible()&&await down.isVisible());
+ const bounds=await arrows.boundingBox(),task=await page.locator('#task-panel').boundingBox();
+ assert.ok(bounds.x>300&&bounds.x+bounds.width<=390);
+ if(task)assert.ok(bounds.y+bounds.height<=task.y||bounds.x>=task.x+task.width);
+ const hold=async(button,ms)=>{
+   const b=await button.boundingBox();
+   await page.mouse.move(b.x+b.width/2,b.y+b.height/2);
+   await page.mouse.down();await page.waitForTimeout(ms);await page.mouse.up();
+   assert.ok(!(await button.getAttribute('class')).includes('height-held'));
+ };
+ await page.screenshot({path:join(out,action+'-camera-start.jpg'),type:'jpeg',quality:90});
+ await hold(down,1800);
+ await page.waitForTimeout(600);
+ await page.screenshot({path:join(out,action+'-camera-low.jpg'),type:'jpeg',quality:90});
+ await hold(up,2400);
+ await page.waitForTimeout(600);
+ await page.screenshot({path:join(out,action+'-camera-high.jpg'),type:'jpeg',quality:90});
+ const b=await down.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();
+ await down.dispatchEvent('pointercancel',{pointerId:1,pointerType:'mouse'});
+ await page.mouse.up();assert.ok(!(await down.getAttribute('class')).includes('height-held'));
+}
  await page.waitForTimeout(11000);
  assert.equal(await page.locator('[data-social-finish]').innerText(),'Встать');
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
