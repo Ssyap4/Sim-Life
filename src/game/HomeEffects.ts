@@ -46,7 +46,7 @@ export class HomeEffects {
   console(id:string,game?:ConsoleGameId,start=0,match?:ConsoleMatch){if(game)this.games.set(id,{game,start,match});else this.games.delete(id);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
   private lesson?: string;
 
-  audioProgram():Program|undefined{return this.media.values().next().value;}
+  audioProgram():Program|ConsoleGameId|undefined{return this.games.values().next().value?.game??this.media.values().next().value;}
   audioPosition():THREE.Vector3{return this.tvHardware.group.getWorldPosition(new THREE.Vector3());}
   constructor(scene: THREE.Scene) {
     this.canvas.width = 256;

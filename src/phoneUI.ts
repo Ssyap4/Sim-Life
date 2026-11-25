@@ -21,7 +21,7 @@ import { PETS, PET_IDS } from './shared/pets';
 import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
-import { gameAudio,AUDIO_LABELS,type AudioChannel } from './game/GameAudio';
+import { gameAudio,AUDIO_LABELS,type AudioChannel,type Sound } from './game/GameAudio';
 import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
 import {vacuumItem,vacuumState,type VacuumCommand} from './shared/vacuum';
@@ -417,7 +417,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         slider.addEventListener('input',()=>{gameAudio.setVolume(key,Number(slider.value)/100);value.textContent=slider.value+'%';});
         row.append(name,value,slider);card.append(row);
       }
-      const demo=document.createElement('button');demo.type='button';demo.textContent='Проверить звук';demo.addEventListener('click',()=>{void gameAudio.unlock().then(()=>gameAudio.play('confirm','ui',.65));});card.append(demo);info.replaceChildren(card);
+      const demos=document.createElement('div');demos.className='audio-demos';const label=document.createElement('strong');label.textContent='Проверить отдельно';demos.append(label);
+      const samples:readonly [string,Sound,Exclude<AudioChannel,'master'>][]=[['Интерфейс','confirm','ui'],['Голос Влада','voiceVlad','voices'],['Голос Алины','voiceAlina','voices'],['Верделл','bark','pets'],['Симба','meow','pets'],['Мурлыканье','purr','pets'],['Готовка','cook','effects'],['Душ','shower','effects'],['Телевизор','mediaTalk','effects'],['UFC 6','mediaFight','effects'],['Forza','mediaRace','effects'],['Дождь','rain','ambient'],['Музыка','scoreMorning','music']];
+      for(const [name,sound,bus] of samples){const button=document.createElement('button');button.type='button';button.textContent=name;button.onclick=()=>{void gameAudio.preview(sound,bus);};demos.append(button);}card.append(demos);info.replaceChildren(card);
     }
     if(next==='delivery') openDelivery(view.state);
     if(next==='jobs') openJobs(view.state,view.role);

@@ -1,13 +1,17 @@
 // Procedural sounds plus local CC0 recordings; no third-party requests at runtime.
+import {AUDIO_BANK} from './AudioBank';
+import {audioSpatial} from './AudioSpace';
 import {isSpeakerTrack,type SpeakerTrackId} from '../shared/speakerCatalog';
 export type AudioChannel = 'master'|'ambient'|'effects'|'pets'|'ui'|'music'|'voices';
-export const AUDIO_DEFAULTS:Record<AudioChannel,number>={master:.75,ambient:.42,effects:.65,pets:.65,ui:.38,music:.25,voices:.55};
+export const AUDIO_DEFAULTS:Record<AudioChannel,number>={master:.75,ambient:.42,effects:.65,pets:.65,ui:.38,music:.32,voices:.68};
 export const AUDIO_LABELS:Record<AudioChannel,string>={master:'Общая громкость',ambient:'Окружение',effects:'Действия и предметы',pets:'Питомцы',ui:'Интерфейс',music:'Музыка',voices:'Голоса персонажей'};
 type Point={x:number;z:number};
 type Bus=Exclude<AudioChannel,'master'>;
-export type Sound=SpeakerTrackId|'stepWood'|'stepGrass'|'stepTile'|'paw'|'click'|'confirm'|'error'|'door'|'flush'|'water'|'cook'|'eat'|'keyboard'|'paper'|'dish'|'squeak'|'spring'|'scratch'|'bark'|'meow'|'purr'|'bird'|'cricket'|'wind'|'room'|'street'|'cafe'|'fire'|'ring'|'hit'|'feeder'|'music'|'mediaCozy'|'mediaDrama'|'mediaSuspense'|'mediaAction'|'mediaComedy'|'mediaTalk'|'mediaTech'|'voiceVlad'|'voiceAlina'|'laughVlad'|'laughAlina'|'clap'|'kiss'|'cloth'|'toothbrush'|'swing'|'bounce'|'scoreMorning'|'scoreEvening'|'scorePark'|'scoreDance';
+export type Sound=SpeakerTrackId|'stepWood'|'stepGrass'|'stepTile'|'paw'|'click'|'confirm'|'error'|'door'|'flush'|'water'|'cook'|'eat'|'keyboard'|'paper'|'dish'|'squeak'|'spring'|'scratch'|'bark'|'meow'|'purr'|'bird'|'cricket'|'wind'|'room'|'street'|'cafe'|'fire'|'ring'|'hit'|'feeder'|'music'|'mediaCozy'|'mediaDrama'|'mediaSuspense'|'mediaAction'|'mediaComedy'|'mediaTalk'|'mediaTech'|'voiceVlad'|'voiceAlina'|'laughVlad'|'laughAlina'|'clap'|'kiss'|'cloth'|'toothbrush'|'swing'|'bounce'|'scoreMorning'|'scoreEvening'|'scorePark'|'scoreDance'|'shower'|'drink'|'rain'|'thunder'|'vacuum'|'mediaFight'|'mediaRace'|'clipper'|'crowd'|'engine';
 type Spec={length:number;noise?:number;freq?:number;end?:number;harmonics?:number;filter?:number;pulses?:number;loop?:boolean};
 const specs:Record<Exclude<Sound,SpeakerTrackId>,Spec>={
+ clipper:{length:1.6,noise:.18,freq:118,harmonics:.85,loop:true},crowd:{length:4,noise:.35,filter:.18,loop:true},engine:{length:1.4,freq:84,end:165,noise:.18,harmonics:.6},
+ shower:{length:2,noise:.85,filter:.43,loop:true},drink:{length:.52,noise:.4,filter:.24,pulses:2},rain:{length:4,noise:.85,filter:.38,loop:true},thunder:{length:2.4,noise:.8,filter:.025},vacuum:{length:2.5,noise:.42,freq:180,filter:.25,loop:true},mediaFight:{length:8,loop:true},mediaRace:{length:8,loop:true},
  stepWood:{length:.19,noise:.7,freq:95,end:45,filter:.2},stepGrass:{length:.22,noise:.9,filter:.48,pulses:2},stepTile:{length:.14,noise:.55,freq:250,end:90,filter:.7},paw:{length:.085,noise:.75,filter:.48},
  click:{length:.065,freq:640,end:410,noise:.16},confirm:{length:.26,freq:620,end:950,harmonics:.2},error:{length:.16,freq:260,end:155},door:{length:.37,noise:.65,freq:105,end:45,filter:.24,pulses:2},
  flush:{length:2,noise:1,filter:.23,pulses:1},water:{length:2,noise:1,filter:.55,loop:true},cook:{length:1.6,noise:.94,filter:.73,loop:true},eat:{length:.19,noise:.85,filter:.35,pulses:2},
@@ -35,6 +39,8 @@ export function scoreSample(sound:keyof typeof scores,t:number):number{
  return .29*pluck*note(f,age)+.14*chordEnv*note(hz(root),chordAge)+.09*chordEnv*note(hz(root+7),chordAge)+(sound==='scoreDance'?.12*Math.sin(2*Math.PI*65*age)*Math.exp(-age*13):0);
 }
 export function mediaSound(content:string):Sound{
+ if(['ufc6','mk1','smash','switchSports'].includes(content))return 'mediaFight';
+ if(['forza6','marioKart'].includes(content))return 'mediaRace';
  if(content==='concert'||content==='music')return 'scoreDance';
  if(['horror','thriller','crime'].includes(content))return 'mediaSuspense';
  if(['drama','romance'].includes(content))return 'mediaDrama';
@@ -54,12 +60,13 @@ export function readAudioSettings(raw:string|null):Record<AudioChannel,number>{
 export function spatialGain(distance:number):number{return 1/(1+(Math.max(0,distance)/4)**2);}
 export function ambientFor(place:string,outside:boolean):Sound{return place==='park'||(place==='home'&&outside)?'wind':place==='district'||place==='industrial'?'street':place==='cafe'||['market','clothing','petshop','electronics'].includes(place)?'cafe':'room';}
 export function activitySound(activity:string|null,pose:string):{sound:Sound;interval:number;loop?:boolean}|undefined{
- if(activity&&['shower','wash','washHands','bath','dishes'].includes(activity))return {sound:'water',interval:0,loop:true};
+ if(activity==='shower')return {sound:'shower',interval:0,loop:true};
+ if(activity&&['wash','washHands','bath','dishes'].includes(activity))return {sound:'water',interval:0,loop:true};
  if(activity&&['cook','grill','prep'].includes(activity))return {sound:'cook',interval:0,loop:true};
- if(activity==='teeth')return {sound:'toothbrush',interval:.48};
+ if(activity==='teeth')return {sound:'toothbrush',interval:0,loop:true};
  if(activity==='eat')return {sound:'eat',interval:1.4};
  if(activity==='music')return {sound:'music',interval:0,loop:true};
- if(activity==='coffee'||activity==='tea')return {sound:'water',interval:0,loop:true};
+ if(activity==='coffee'||activity==='tea')return {sound:'drink',interval:5};
  if(activity&&['read','journal','tidy'].includes(activity))return {sound:'paper',interval:2.6};
  if(activity==='toilet')return {sound:'flush',interval:1000};
  if(pose==='work'&&activity!=='games')return {sound:'keyboard',interval:1.15};
@@ -67,13 +74,23 @@ export function activitySound(activity:string|null,pose:string):{sound:Sound;int
 }
 const storageKey='simlife.audio.v1';
 function initial(){try{return readAudioSettings(localStorage.getItem(storageKey));}catch{return {...AUDIO_DEFAULTS};}}
-type Voice={source:AudioBufferSourceNode;gain:GainNode;pan?:StereoPannerNode;sound:Sound;bus:Bus};
+type Voice={source:AudioBufferSourceNode;gain:GainNode;pan?:StereoPannerNode;filter?:BiquadFilterNode;sound:Sound;bus:Bus;recorded:boolean;volume:number;point?:Point;range:number};
+type AudioWeather={kind:string;season:string;wind:number};
+const bank=AUDIO_BANK as Partial<Record<Sound,readonly string[]>>;
 export class GameAudio {
  private context:AudioContext|undefined;
  private master:GainNode|undefined;
  private buses=new Map<Bus,GainNode>();
  private buffers=new Map<Sound,AudioBuffer>();
  private loading=false;
+ private recordings=new Map<Sound,AudioBuffer[]>();
+ private recordingLoads=new Map<Sound,Promise<void>>();
+ private recordingFailed=new Set<Sound>();
+ private lastVariant=new Map<Sound,number>();
+ private right:Point={x:1,z:0};
+ private nextThunder=0;
+ private previewSerial=0;
+ private previewVoice?:Voice;
  private trackLoads=new Set<SpeakerTrackId>();
  private failedTracks=new Set<SpeakerTrackId>();
  private speaking=false;
@@ -88,7 +105,6 @@ export class GameAudio {
  private background:Sound|undefined;
  private keyedVoices=new Map<string,Set<Voice>>();
  private listener:Point={x:0,z:0};
- private lastAmbient=0;
  private sceneKeys=new Set<string>();
  private lastUI=0;
  private cueTimes=new Map<string,number>();
@@ -100,10 +116,15 @@ export class GameAudio {
   root.addEventListener('click',event=>{const target=event.target;if(target instanceof Element&&target.closest('button:not(:disabled)')&&!target.closest('[data-audio-setting]')){const now=performance.now();if(now-this.lastUI>85){this.lastUI=now;this.play('click','ui',.18);}}},{capture:true});
   document.addEventListener('visibilitychange',()=>{this.hidden=document.hidden;this.mix();if(this.hidden){this.clearScene();void this.context?.suspend().catch(()=>{});}else{void this.context?.resume().catch(()=>{});}});
  }
- async unlock(){if(this.hidden)return;try{if(!this.context){const C=window.AudioContext??(window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)return;const c=this.context=new C();this.master=c.createGain();this.master.gain.value=0;this.master.connect(c.destination);for(const key of ['ambient','effects','pets','ui','music','voices'] as const){const g=c.createGain();g.gain.value=0;g.connect(this.master);this.buses.set(key,g);}this.mix();}if(!this.loading){this.loading=true;void this.loadRecordings();}if(this.context.state==='suspended')await this.context.resume();}catch{/* audio must never block gameplay */}}
+ async unlock(){if(this.hidden)return;try{if(!this.context){const C=window.AudioContext??(window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;if(!C)return;const c=this.context=new C();this.master=c.createGain();this.master.gain.value=0;if(typeof c.createDynamicsCompressor==='function'){const limiter=c.createDynamicsCompressor();limiter.threshold.value=-16;limiter.knee.value=12;limiter.ratio.value=3;limiter.attack.value=.008;limiter.release.value=.24;this.master.connect(limiter).connect(c.destination);}else this.master.connect(c.destination);for(const key of ['ambient','effects','pets','ui','music','voices'] as const){const g=c.createGain();g.gain.value=0;g.connect(this.master);this.buses.set(key,g);}this.mix();}if(!this.loading){this.loading=true;void this.loadRecordings();}if(this.context.state==='suspended')await this.context.resume();}catch{/* audio must never block gameplay */}}
  setPlaying(value:boolean){if(this.playing===value)return;this.playing=value;if(!value)this.clearScene();this.mix();}
  setPaused(value:boolean){if(this.paused===value)return;this.paused=value;if(value)this.clearScene();this.mix();}
- private async loadRecordings(){const c=this.context!;for(const sound of ["meow","bark"] as Sound[]){try{const response=await fetch('/audio/'+sound+'.mp3');if(!response.ok)continue;const decoded=await c.decodeAudioData(await response.arrayBuffer());if(decoded.duration>0){const count=Math.min(decoded.length,Math.round(decoded.sampleRate*(sound==='meow'?1.6:.85)));const short=c.createBuffer(1,count,decoded.sampleRate),out=short.getChannelData(0),input=decoded.getChannelData(0);for(let i=0;i<count;i++)out[i]=input[i]*Math.min(1,i/80,(count-i)/(decoded.sampleRate*.035));this.buffers.set(sound,short);}}catch{/* procedural fallback */}}}
+ private async loadRecordings(){for(const batch of [['click','confirm','error'],['meow','bark','room'],['voiceVlad','voiceAlina','laughVlad','laughAlina'],['door','dish','water','cook'],['shower','keyboard','purr','scoreMorning']] as Sound[][])await Promise.all(batch.map(s=>this.loadRecorded(s)));}
+ private loadRecorded(sound:Sound):Promise<void>{
+  const files=bank[sound],c=this.context;if(!files||!c||this.recordings.has(sound)||this.recordingFailed.has(sound))return Promise.resolve();const existing=this.recordingLoads.get(sound);if(existing)return existing;
+  const task=Promise.allSettled(files.map(async file=>{const r=await fetch('/audio/v2/'+file);if(!r.ok)throw Error('Missing local sound');return c.decodeAudioData(await r.arrayBuffer());})).then(results=>{const clips=results.flatMap(r=>r.status==='fulfilled'&&r.value.duration>0?[r.value]:[]);if(clips.length)this.recordings.set(sound,clips);else this.recordingFailed.add(sound);}).finally(()=>this.recordingLoads.delete(sound));this.recordingLoads.set(sound,task);return task;
+ }
+ private chooseRecording(sound:Sound):AudioBuffer|undefined{const clips=this.recordings.get(sound);if(!clips?.length){void this.loadRecorded(sound);return;}const old=this.lastVariant.get(sound)??-1;const next=clips.length===1?0:(old+1+Math.floor(Math.random()*(clips.length-1)))%clips.length;this.lastVariant.set(sound,next);return clips[next];}
  private ready(bus:Bus){return !!this.context&&this.context.state==='running'&&!this.hidden&&this.values.master>0&&this.values[bus]>0&&(bus==='ui'||(this.playing&&!this.paused));}
  private buffer(sound:Sound):AudioBuffer{
   const cached=this.buffers.get(sound);if(cached)return cached;if(isSpeakerTrack(sound))throw new Error('Music not loaded');const c=this.context!,s=specs[sound],rate=22050,n=Math.ceil(rate*s.length),b=c.createBuffer(1,n,rate),data=b.getChannelData(0);
@@ -146,15 +167,16 @@ export class GameAudio {
    data[i]=Math.tanh((tone*.38+noise*.78)*pulse*edge);
   }this.buffers.set(sound,b);return b;
  }
- private voice(sound:Sound,bus:Bus,volume:number,position?:Point,loop=false,offset=0):Voice|undefined{
-  if(['stepWood','stepGrass','stepTile','paw'].includes(sound)||!this.ready(bus)||this.voices.size>=24)return;const c=this.context!,source=c.createBufferSource(),gain=c.createGain();gain.gain.value=0;source.buffer=this.buffer(sound);source.loop=loop;source.playbackRate.value=loop?1:petPlaybackRate(sound,Math.random());
-  let pan:StereoPannerNode|undefined;if(position&&typeof c.createStereoPanner==='function'){pan=c.createStereoPanner();source.connect(gain).connect(pan).connect(this.buses.get(bus)!);}else source.connect(gain).connect(this.buses.get(bus)!);
-  const v={source,gain,pan,sound,bus};this.voices.add(v);this.position(v,volume,position);source.onended=()=>{this.voices.delete(v);source.disconnect();gain.disconnect();pan?.disconnect();};source.start(0,Math.max(0,offset)%(source.buffer?.duration||1));return v;
+ private voice(sound:Sound,bus:Bus,volume:number,position?:Point,loop=false,offset=0,range=4):Voice|undefined{
+  if(['stepWood','stepGrass','stepTile','paw'].includes(sound)||!this.ready(bus)||this.voices.size>=24)return;const c=this.context!,recording=this.chooseRecording(sound);if(bank[sound]&&!recording&&!this.recordingFailed.has(sound)&&typeof c.decodeAudioData==='function')return;const source=c.createBufferSource(),gain=c.createGain();gain.gain.value=0;source.buffer=recording??this.buffer(sound);source.loop=loop;source.playbackRate.value=loop?1:sound==='meow'||sound==='bark'?petPlaybackRate(sound,Math.random()):.94+Math.random()*.12;
+  let filter:BiquadFilterNode|undefined,pan:StereoPannerNode|undefined;let output:AudioNode=gain;source.connect(gain);if(position&&typeof c.createBiquadFilter==='function'){filter=c.createBiquadFilter();filter.type='lowpass';filter.frequency.value=15000;output.connect(filter);output=filter;}if(position&&typeof c.createStereoPanner==='function'){pan=c.createStereoPanner();output.connect(pan);output=pan;}output.connect(this.buses.get(bus)!);
+  const v:Voice={source,gain,pan,filter,sound,bus,recorded:!!recording,volume,range,point:position?{...position}:undefined};this.voices.add(v);this.position(v,volume,position);source.onended=()=>{this.voices.delete(v);source.disconnect();gain.disconnect();pan?.disconnect();filter?.disconnect();};source.start(0,Math.max(0,offset)%(source.buffer?.duration||1));return v;
  }
- private position(v:Voice,volume:number,point?:Point){const c=this.context!;const dx=point?point.x-this.listener.x:0,dz=point?point.z-this.listener.z:0;v.gain.gain.setTargetAtTime(volume*(point?spatialGain(Math.hypot(dx,dz)):1),c.currentTime,.025);v.pan?.pan.setTargetAtTime(Math.max(-.8,Math.min(.8,dx/8)),c.currentTime,.025);}
+ private position(v:Voice,volume:number,point?:Point){const c=this.context!,profile=point?audioSpatial(this.listener,point,this.scene,this.right,v.range):{gain:1,cutoff:15000,pan:0};v.volume=volume;v.point=point?{x:point.x,z:point.z}:undefined;v.gain.gain.setTargetAtTime(Math.max(0,volume)*profile.gain,c.currentTime,.055);v.filter?.frequency.setTargetAtTime(Math.min(profile.cutoff,v.sound.startsWith('media')?5700:15000),c.currentTime,.07);v.pan?.pan.setTargetAtTime(profile.pan,c.currentTime,.05);}
  play(sound:Sound,bus:Bus='effects',volume=.5,point?:Point){try{this.voice(sound,bus,volume,point);}catch{/* unavailable audio is harmless */}}
+ async preview(sound:Sound,bus:Bus,volume=.72){const serial=++this.previewSerial;try{this.previewVoice?.source.stop();}catch{}await this.unlock();await this.loadRecorded(sound);if(serial!==this.previewSerial||!this.ready(bus))return;try{const v=this.voice(sound,bus,volume);this.previewVoice=v;if(v)v.source.stop(this.context!.currentTime+Math.min(3,v.source.buffer?.duration??3));}catch{}}
  media(key:string,device:MediaDevice,content:string,point:Point){const sound=mediaSound(content);this.loop('media-'+key,sound,sound==='music'||sound.startsWith('score')?'music':'effects',MEDIA_DEVICE_GAIN[device],point);}
- speakerMusic(key:string,track:SpeakerTrackId,volume:number,point:Point,offset:number){
+ speakerMusic(key:string,track:SpeakerTrackId,volume:number,point:Point,offset:number,range=4){
   const id='media-speaker-'+key;this.sceneKeys.add(id);
   if(!this.ready('music')){this.stop(id);return;}
   if(!this.buffers.has(track)){
@@ -164,26 +186,26 @@ export class GameAudio {
     void fetch('/audio/speakers/'+track+'.wav').then(r=>{if(!r.ok)throw Error('Music unavailable');return r.arrayBuffer();}).then(b=>c.decodeAudioData(b)).then(buffer=>{this.buffers.set(track,buffer);const active=new Set([...this.loops.values()].map(v=>v.sound));for(const name of this.buffers.keys())if(isSpeakerTrack(name)&&this.buffers.size>18&&name!==track&&!active.has(name))this.buffers.delete(name);}).catch(()=>this.failedTracks.add(track)).finally(()=>this.trackLoads.delete(track));
    }return;
   }
-  this.loop(id,track,'music',volume,point,offset);
+  this.loop(id,track,'music',volume,point,offset,range);
  }
  saySpeaker(message:string,assistant:string,volume:number,point:Point){
   if(!this.ready('voices')||!('speechSynthesis' in window))return;
   try{const synth=window.speechSynthesis,voices=synth.getVoices().filter(v=>v.localService&&v.lang.toLowerCase().startsWith('ru'));
    const preferred=voices.find(v=>/milena|katya|alena|irina|tatiana|female|юлия|ирина|милена|екатерина/i.test(v.name))??voices[0];if(!preferred)return;
    const u=new SpeechSynthesisUtterance(message);u.lang='ru-RU';u.voice=preferred;u.rate=assistant==='Siri'?.96:1;u.pitch=assistant==='Google Assistant'?.95:1.08;
-   u.volume=Math.max(0,Math.min(1,volume*this.values.master*this.values.voices*spatialGain(Math.hypot(point.x-this.listener.x,point.z-this.listener.z))));
+   u.volume=Math.max(0,Math.min(1,volume*this.values.master*this.values.voices*audioSpatial(this.listener,point,this.scene,this.right).gain));
    if(this.speaking)synth.cancel();this.speaking=true;u.onend=u.onerror=()=>{this.speaking=false;};synth.speak(u);
   }catch{/* local voice may be unavailable */}
  }
  private stop(key:string){const v=this.loops.get(key);if(!v)return;this.loops.delete(key);try{v.gain.gain.setTargetAtTime(0,this.context!.currentTime,.025);v.source.stop(this.context!.currentTime+.12);}catch{}}
- private clearScene(){if(this.speaking&&typeof window!=='undefined'&&'speechSynthesis' in window){window.speechSynthesis.cancel();this.speaking=false;}for(const key of this.loops.keys())this.stop(key);for(const v of this.voices)if(v.bus!=='ui'){try{v.source.stop();}catch{}}this.keyedVoices.clear();this.beats.clear();this.cueTimes.clear();this.sceneKeys.clear();this.scene='';}
- beginFrame(place:string,listener:Point,night:boolean,outside:boolean){if(!this.playing||this.paused||this.hidden||!this.context||this.context.state!=='running'||this.values.master===0)return false;if(this.scene!==place){this.clearScene();this.scene=place;this.lastAmbient=0;}this.listener=listener;this.background=musicFor(place,night);this.sceneKeys.clear();const sound=ambientFor(place,outside);this.loop('ambient',sound,'ambient',sound==='room'?.12:.26);const now=performance.now();if(now>this.lastAmbient&&sound!=='room'&&sound!=='cafe'){this.lastAmbient=now+3500+Math.random()*6500;this.play(night?'cricket':'bird','ambient',night?.14:.17);}return true;}
- loop(key:string,sound:Sound,bus:Bus,volume:number,point?:Point,offset=0){this.sceneKeys.add(key);if(!this.ready(bus)){this.stop(key);return;}let v=this.loops.get(key);if(v?.sound!==sound){this.stop(key);v=this.voice(sound,bus,volume,point,true,offset);if(v)this.loops.set(key,v);}else if(v)this.position(v,volume,point);}
+ private clearScene(){this.previewSerial++;if(this.speaking&&typeof window!=='undefined'&&'speechSynthesis' in window){window.speechSynthesis.cancel();this.speaking=false;}for(const key of this.loops.keys())this.stop(key);for(const v of this.voices)if(v.bus!=='ui'){try{v.source.stop();}catch{}}this.keyedVoices.clear();this.beats.clear();this.cueTimes.clear();this.sceneKeys.clear();this.scene='';}
+ beginFrame(place:string,listener:Point,night:boolean,outside:boolean,weather?:AudioWeather,right:Point={x:1,z:0}){if(!this.playing||this.paused||this.hidden||!this.context||this.context.state!=='running'||this.values.master===0)return false;if(this.scene!==place){this.clearScene();this.scene=place;this.nextThunder=performance.now()+9000;}this.listener={x:listener.x,z:listener.z};this.right=right;this.background=musicFor(place,night);this.sceneKeys.clear();const sound=ambientFor(place,outside);const outdoor=place==='park'||place==='district'||place==='industrial'||place==='home'&&outside;this.loop('ambient',sound,'ambient',sound==='room'?.10:sound==='wind'?.16:.23);const natural=place==='park'||place==='home';const wet=weather?.kind==='rain'||weather?.kind==='storm';if(natural&&outdoor&&!wet&&weather?.season!=='winter'){if(!night)this.loop('nature','bird','ambient',.21);else if(weather?.season==='summer'||weather?.season==='spring')this.loop('nature','cricket','ambient',.17);}if(wet&&(place==='home'||outdoor)){this.loop('weather','rain','ambient',outdoor?.38:.095);if(weather?.kind==='storm'&&performance.now()>this.nextThunder){this.nextThunder=performance.now()+13000+Math.random()*19000;this.play('thunder','ambient',outdoor?.28:.12);}}return true;}
+ loop(key:string,sound:Sound,bus:Bus,volume:number,point?:Point,offset=0,range=4){this.sceneKeys.add(key);if(!this.ready(bus)){this.stop(key);return;}let v=this.loops.get(key);if(v?.sound!==sound||v&&!v.recorded&&this.recordings.has(sound)){this.stop(key);v=this.voice(sound,bus,volume,point,true,offset,range);if(v)this.loops.set(key,v);}else if(v){v.range=range;this.position(v,volume,point);}}
  private keyedPlay(key:string,sound:Sound,bus:Bus,volume:number,point?:Point){try{const v=this.voice(sound,bus,volume,point);if(!v)return;let set=this.keyedVoices.get(key);if(!set){set=new Set();this.keyedVoices.set(key,set);}set.add(v);const onended=v.source.onended;v.source.onended=e=>{onended?.call(v.source,e);set!.delete(v);if(!set!.size&&this.keyedVoices.get(key)===set)this.keyedVoices.delete(key);};}catch{}}
- beat(key:string,sound:Sound,bus:Bus,interval:number,volume:number,point?:Point){this.sceneKeys.add(key);const now=performance.now(),old=this.beats.get(key);if(!old||old.sound!==sound||now>=old.next){this.beats.set(key,{sound,next:now+interval*1000});this.keyedPlay(key,sound,bus,volume,point);}}
+ beat(key:string,sound:Sound,bus:Bus,interval:number,volume:number,point?:Point){this.sceneKeys.add(key);for(const v of this.keyedVoices.get(key)??[])this.position(v,volume,point);const now=performance.now(),old=this.beats.get(key);if(!old||old.sound!==sound||now>=old.next){if(bank[sound]&&!this.recordings.has(sound)&&!this.recordingFailed.has(sound)&&typeof this.context?.decodeAudioData==='function'){void this.loadRecorded(sound);return;}this.beats.set(key,{sound,next:now+interval*1000});this.keyedPlay(key,sound,bus,volume,point);}}
 
- cue(key:string,time:number,events:readonly {at:number;sound:Sound}[],bus:Bus,volume:number,point?:Point){this.sceneKeys.add(key);const prev=this.cueTimes.get(key);this.cueTimes.set(key,time);if(prev===undefined||time<prev)return;for(const e of events)if(crossedCue(prev,time,e.at))this.keyedPlay(key,e.sound,bus,volume,point);}
+ cue(key:string,time:number,events:readonly {at:number;sound:Sound}[],bus:Bus,volume:number,point?:Point){this.sceneKeys.add(key);for(const v of this.keyedVoices.get(key)??[])this.position(v,volume,point);const prev=this.cueTimes.get(key);this.cueTimes.set(key,time);if(time<0)return;const previous=prev===undefined||time<prev?Math.max(0,time-.10):prev;for(const e of events)if(crossedCue(previous,time,e.at))this.keyedPlay(key,e.sound,bus,volume,point);}
  clearWorld(){this.clearScene();}
- endFrame(){if(this.background&&![...this.sceneKeys].some(k=>k.startsWith('media-')||k==='dance'||this.loops.get(k)?.bus==='music'&&k!=='score'))this.loop('score',this.background,'music',.16);for(const [key,voices] of this.keyedVoices)if(!this.sceneKeys.has(key)){for(const v of voices)try{v.source.stop();}catch{}this.keyedVoices.delete(key);}for(const key of this.cueTimes.keys())if(!this.sceneKeys.has(key))this.cueTimes.delete(key);for(const key of this.loops.keys())if(!this.sceneKeys.has(key))this.stop(key);for(const key of this.beats.keys())if(!this.sceneKeys.has(key))this.beats.delete(key);}
+ endFrame(){if(this.background&&![...this.sceneKeys].some(k=>k.startsWith('media-')||k==='dance'||this.loops.get(k)?.bus==='music'&&k!=='score'))this.loop('score',this.background,'music',.39);for(const [key,voices] of this.keyedVoices)if(!this.sceneKeys.has(key)){for(const v of voices)try{v.source.stop();}catch{}this.keyedVoices.delete(key);}for(const key of this.cueTimes.keys())if(!this.sceneKeys.has(key))this.cueTimes.delete(key);for(const key of this.loops.keys())if(!this.sceneKeys.has(key))this.stop(key);for(const key of this.beats.keys())if(!this.sceneKeys.has(key))this.beats.delete(key);}
 }
 export const gameAudio=new GameAudio();

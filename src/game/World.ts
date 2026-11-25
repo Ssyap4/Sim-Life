@@ -14,8 +14,8 @@ import {applySeason} from './SeasonalPalette';
 import { WeatherArt } from './WeatherArt';
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
+import {insideHome,conversationCueTimes} from './AudioSpace';
 import { gameAudio, activitySound } from './GameAudio';
-import { HOUSE as AUDIO_HOUSE } from '../shared/home';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
@@ -2715,18 +2715,21 @@ export class World {
   }
 
   private lastAudioFrame=0;
+  private audioWeather:ReturnType<typeof weatherAt>|undefined;
+  private audioWeatherMinute=-1;
   private speakerReplies=new Map<number,number>();
   private audioFrame():void {
     const now=performance.now();if(now-this.lastAudioFrame<80)return;this.lastAudioFrame=now;
     if(!this.household)return;
     const listener=this.actors[this.localRole].root.position;
-    const outside=(p:Point)=>p.x<AUDIO_HOUSE.minX||p.x>AUDIO_HOUSE.maxX||p.z<AUDIO_HOUSE.minZ||p.z>AUDIO_HOUSE.maxZ;
+    const outside=(p:Point)=>!insideHome(p);
     const minute=this.household.clock.minute,night=minute<360||minute>=1200;
-    if(!gameAudio.beginFrame(this.place,listener,night,outside(listener)))return;
+    const stamp=gameMinutes(this.household.clock);if(this.audioWeatherMinute!==stamp){this.audioWeatherMinute=stamp;this.audioWeather=weatherAt(this.household.clock);}
+    const right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion);if(!gameAudio.beginFrame(this.place,listener,night,outside(listener),this.audioWeather,{x:right.x,z:right.z}))return;
     if(this.place==='home')for(const item of speakerItems(this.household)){
       const d=speakerDevice(this.household,item.id),m=SPEAKER_MODELS[item.sku as SpeakerSku],now=gameMinutes(this.household.clock);
-      const p={x:listener.x+(item.x-listener.x)*4/m.range,z:listener.z+(item.z-listener.z)*4/m.range};
-      if(d.track&&d.volume>0)gameAudio.speakerMusic(String(item.id),d.track,m.gain*d.volume/100,p,(now-d.startedAt)*2);
+      const p={x:item.x,z:item.z};
+      if(d.track&&d.volume>0)gameAudio.speakerMusic(String(item.id),d.track,m.gain*d.volume/100,p,(now-d.startedAt)*2,m.range);
       if(d.reply&&this.speakerReplies.get(item.id)!==d.reply.seq){this.speakerReplies.set(item.id,d.reply.seq);if(now-d.reply.at<=3&&(d.reply.to==='all'||d.reply.to===this.localRole)&&Math.hypot(item.x-listener.x,item.z-listener.z)<12){if(d.reply.to==='all')gameAudio.play('ring','ui',.65,p);gameAudio.saySpeaker(d.reply.text,m.assistant,d.volume/100,p);}}
     }
     for(const role of ['vlad','alina'] as const){
@@ -2734,15 +2737,16 @@ export class World {
       const m=actor.audioMotion();
       const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
       const cue=mediaTask||m.activity==='eat'||m.activity==='toilet'||m.activity==='music'?undefined:activitySound(m.activity,m.pose);
-      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.34,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,cue.sound==='keyboard'?.12:.30,p);}
+      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.50,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,cue.sound==='keyboard'?.30:.38,p);}
+      if(!m.walking&&['cook','grill','prep','dishes','wash'].includes(m.activity??''))gameAudio.beat(role+'-kitchen-contact','dish','effects',3.3,.27,p);
       if(!m.walking&&m.activity==='music')gameAudio.loop(role+'-act','scoreMorning','music',.34,p);
-      if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.27,p);}
+      if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.17,p);}
       if(!m.walking&&m.activity==='toilet')gameAudio.cue(role+'-flush',m.activityTime,[{at:2.5,sound:'flush'}],'effects',.28,p);
       const pair=m.partner;
       if(pair&&!m.walking){
         const voice=role==='vlad'?'voiceVlad':'voiceAlina',laugh=role==='vlad'?'laughVlad':'laughAlina';
-        if(['talk','listen','explain'].includes(pair.motion))gameAudio.cue(role+'-speech',pair.time,[{at:pair.leads?.45:3.75,sound:voice}],'voices',.30,p);
-        if(pair.motion==='laugh')gameAudio.beat(role+'-laugh',laugh,'voices',2.9,.36,p);
+        if(['talk','listen','explain','sitTalk','teaTogether','sofaLean','sofaMassage','gift','cuddle'].includes(pair.motion))gameAudio.cue(role+'-speech',pair.time,conversationCueTimes(pair.leads,pair.time).map(at=>({at,sound:voice})),'voices',.63,p);
+        if(pair.motion==='laugh')gameAudio.cue(role+'-laugh',pair.time,[{at:pair.leads?.40:1.55,sound:laugh},{at:pair.leads?5.4:6.5,sound:laugh}],'voices',.58,p);
         if(pair.leads&&pair.motion==='highFive')gameAudio.cue(role+'-contact',pair.time,[{at:.78,sound:'clap'}],'effects',.60,p);
         if(pair.leads&&['kiss','cheek'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.8,sound:'kiss'}],'effects',.30,p);
         if(pair.leads&&['hug','closeHug','cuddle'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.65,sound:'cloth'}],'effects',.25,p);
@@ -2752,7 +2756,9 @@ export class World {
       if(role==='vlad'&&m.gesture==='highFive')gameAudio.cue(role+'-gesture',m.gestureTime,[{at:.28,sound:'clap'}],'effects',.60,p);
       if(actor.isParkSwing())gameAudio.beat(role+'-swing','swing','effects',1.85,.19,p);
     }
+    if(this.place==='barber'&&this.remote?.root.userData.barberAction){const a=this.remote.root.userData.barberAction;if(a==='barberFade'||a==='barberFull')gameAudio.loop('barber-machine','clipper','effects',.34,{x:0,z:-1.8});else gameAudio.beat('barber-care','cloth','effects',3.3,.24,{x:0,z:-1.8});}
     if(this.place==='home'){
+      const cleaner=vacuumItem(this.household),v=cleaner&&vacuumState(this.household,cleaner);if(v&&(v.mode==='cleaning'||v.mode==='returning'))gameAudio.loop('vacuum','vacuum','effects',.27,v.position);
       const tv=this.homeEffects.audioProgram();if(tv)gameAudio.media('tv','tv',tv,this.homeEffects.audioPosition());
       for(const device of ['desktop','laptop'] as const){
         const scene=this.computerScreens.audioTask(device);if(!scene)continue;
@@ -2767,11 +2773,11 @@ export class World {
       const m=pet.audioMotion();
       if(m.settled>.18&&!m.walking){
         if(m.routine==='train'&&m.training?.success&&m.training.command==='bark')gameAudio.beat(id+'-bark','bark','pets',.79,.65,p);
-        if(m.routine==='eat'||m.reaction==='feed'||m.reaction==='treat')gameAudio.beat(id+'-eat','eat','pets',.9,.24,p);
+        if(m.routine==='eat'||m.reaction==='feed'||m.reaction==='treat')gameAudio.beat(id+'-eat','eat','pets',1.7,.12,p);
         if(m.routine==='scratch')gameAudio.beat(id+'-scratch','scratch','pets',.65,.38,p);
         if(m.routine==='toy'&&m.toy)gameAudio.beat(id+'-toy',m.toy==='bone'||m.toy==='marfa'?'squeak':m.toy==='spring'?'spring':m.toy==='feather'?'paper':'hit','pets',1.35,.36,p);
-        if(id==='simba'&&(m.reaction==='pet'||m.reaction==='brush'))gameAudio.loop(id+'-purr','purr','pets',.40,p);
-        if(m.routine==='beg')gameAudio.beat(id+'-beg',id==='simba'?'meow':'bark','pets',8,.28,p);
+        if(id==='simba'&&(m.reaction==='pet'||m.reaction==='brush'))gameAudio.loop(id+'-purr','purr','pets',.54,p);
+        if(m.routine==='beg')gameAudio.beat(id+'-beg',id==='simba'?'meow':'bark','pets',10,.48,p);
       }
       if(this.place==='home'&&this.feederVisual[id]?.started!==undefined)gameAudio.beat(id+'-feeder','feeder','pets',4,.38,p);
     }
