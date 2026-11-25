@@ -7,7 +7,7 @@ import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy
 import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
-import { LEISURE, isLeisureAction } from '../src/shared/leisure';
+import { LEISURE, isLeisureAction, isFreeLeisureRest } from '../src/shared/leisure';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
@@ -47,6 +47,7 @@ type Session = {
   timer: ReturnType<typeof setTimeout>;
   cooperation?: Cooperation;
   finishedTogether?: boolean;
+  freeRest?: boolean;
   study?: { material: StudyMaterial; start: number; previous: number; minutes: number;
     questions: string[]; correct: number; lastAnswer: number };
 };
@@ -117,11 +118,11 @@ export function createHomeSessions(hooks: Hooks) {
         const home=session.participants.find(p=>p.role===r)?.packet.home;
         const cmd=session.plan.command;
         // Contact, sports and private hygiene retain exclusive control of the rig.
-        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['breakfastServe','breakfastReceive','gift','sofaMassage','kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
+        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&!(session.freeRest&&home.pair.motion==='leisure')&&['breakfastServe','breakfastReceive','gift','sofaMassage','kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
            cmd.type==='vanity_care'||cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
            cmd.type==='furniture_use'&&Object.hasOwn(BATH_ACTIONS,cmd.action))return 'Сейчас разговор будет мешать занятию';
         const end=home.route.path.at(-1)??home.route.from;
-        positions[r]=home.pair?.stroll?sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(now()-session.activeAt)/1000).from:end;
+        positions[r]=session.freeRest&&home.furniturePose?home.furniturePose:home.pair?.stroll?sampleWalk({from:end,path:home.pair.stroll},HOME_WALK_SPEED*(now()-session.activeAt)/1000).from:end;
       }else positions[r]=hooks.conversationPosition?hooks.conversationPosition(r):hooks.busy(r)?undefined:s.characters[r];
     }
     return nearbyTalkDenial(s,from,positions);
@@ -479,7 +480,8 @@ export function createHomeSessions(hooks: Hooks) {
     const travel = Math.max(0,...participants.map(p => p.arriveMs));
     const story=command.type==='together'&&cooperation&&command.moment
       ?familyMoments(hooks.state(),cooperation.from).find(m=>m.id===command.moment):undefined;
-    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,
+    const freeRest=!automatic&&participants.every(p=>isFreeLeisureRest(command.type==='furniture_use'?command.action:p.packet.home?.pair?.item));
+    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,freeRest,
       cooperation:cooperation?{...cooperation,moment:story}:undefined,
       duration, timer: schedule(() => {
         if(cooperation&&command.type==='together'){
@@ -500,7 +502,7 @@ export function createHomeSessions(hooks: Hooks) {
             else session.timer = schedule(tick, 500);
           };
           tick();
-        } else session.timer = schedule(() => complete(session), session.duration);
+        } else if(!session.freeRest)session.timer = schedule(() => complete(session), session.duration);
       }, Math.round(travel * hooks.timeScale)) };
     for (const participant of participants) {
       sessions.set(participant.role, session);
@@ -550,8 +552,8 @@ export function createHomeSessions(hooks: Hooks) {
   function cancel(role: CharacterId, message: string, taskId?: number): boolean {
     const session = sessions.get(role);
     if (!session || (taskId !== undefined && !session.participants.some(p => p.role === role && p.packet.taskId === taskId))) return false;
-    const independent=session.cooperation&&session.plan.command.type==='together'&&
-      SOCIAL_BY_ID.get(session.plan.command.action)?.independent&&session.activeAt!==null&&session.participants.length===2;
+    const independent=(session.freeRest||session.cooperation&&session.plan.command.type==='together'&&
+      SOCIAL_BY_ID.get(session.plan.command.action)?.independent)&&session.activeAt!==null&&session.participants.length===2;
     const members=independent?session.participants.filter(p=>p.role===role):session.participants;
     const next = structuredClone(hooks.state());
     checkpoint(next, session);
@@ -592,6 +594,33 @@ export function createHomeSessions(hooks: Hooks) {
     const s=sessions.get(role);
     const command=s?.plan.command;
     const member=s?.participants.find(p=>p.role===role&&p.packet.taskId===taskId);
+    if(s?.freeRest&&member&&s.activeAt!==null){
+      const before=hooks.state(),home=member.packet.home!;
+      const id=home.furnitureId;
+      if(id===undefined)return error(socket,'Место отдыха недоступно');
+      // Credit a bounded fraction of the existing reward for actual seated time.
+      const strength=Math.min(1,Math.max(0,(now()-s.activeAt)/s.duration));
+      const result=evaluateTask(before,role,{type:'furniture_use',furnitureId:id,action:'terraceRest'});
+      if(!result.ok){cancel(role,result.reason,member.packet.taskId);return;}
+      const next=result.state;
+      for(const need of ['fun','mood','comfort','energy'] as const){
+        const base=before.characters[role][need],gain=next.characters[role][need]-base;
+        next.characters[role][need]=base+Math.round(gain*strength);
+      }
+      Object.assign(next.characters[role],home.route.path.at(-1)??home.route.from,{pose:'idle'});
+      const remember=!!s.cooperation&&!s.finishedTogether&&s.participants.length===2&&strength>=1;
+      if(strength>=1){
+        recordCompletedActivity(next,role,{type:'furniture_use',furnitureId:id,action:'terraceRest'});
+        if(remember)addRelationship(next,SOCIAL_BY_ID.get('leisureTogether')!,s.cooperation!.choice);
+      }
+      try{hooks.save(next);}catch{return error(socket,'Не удалось сохранить отдых');}
+      if(remember)s.finishedTogether=true;
+      s.participants=s.participants.filter(p=>p!==member);sessions.delete(role);
+      if(!s.participants.length)clearTimer(s.timer);
+      broadcastSnapshot();
+      hooks.all({type:'task_ended',role,taskId:member.packet.taskId,outcome:'completed',message:'Отдых завершён',effects:gains(before,next,role)});
+      return;
+    }
     if(!s?.cooperation||command?.type!=='together'||!member||s.activeAt===null||s.participants.length!==2||
       !['eat','takeout','cafeMeal'].includes(command.action)||now()-s.activeAt<s.duration*.72)
       return error(socket,'Дайте персонажу время закончить свою порцию');
@@ -712,6 +741,14 @@ export function createHomeSessions(hooks: Hooks) {
     for (const session of new Set(sessions.values())) {
       const member = session.participants[0].role;
       const command=session.plan.command;
+      if(session.freeRest&&session.activeAt!==null){
+        for(const participant of [...session.participants]){
+          const id=participant.packet.home?.furnitureId;
+          if(hooks.state().world.places[participant.role]!=='home'||id===undefined||!hooks.state().furnishing.placed.some(i=>i.id===id&&i.sku==='oasis-terrace'))
+            cancel(participant.role,'Место отдыха недоступно');
+        }
+        continue;
+      }
       if(command.type==='together'&&session.cooperation){
         if(session.participants[0].packet.automatic&&!familyAutonomyReady(hooks.state())){cancel(member,'Нужен отдых или управление игрока');continue;}
         const individual=session.participants.length===1;

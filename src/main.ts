@@ -5,6 +5,7 @@ import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
 import { fitWardrobe, fitSpaWardrobe, outfitChoices } from './game/Wardrobe';
 import { NEARBY_TALK_TOPICS } from './shared/socialLife';
+import { isFreeLeisureRest } from './shared/leisure';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
 import { residentEmotion } from './shared/emotions';
@@ -107,6 +108,7 @@ interface TaskView {
   paired?: SocialIntent;
   spaStation?:string;
   isCooking?:boolean;
+  freeRest?:boolean;
   answer?: { correct: boolean; message: string };
 }
 const tasks = new Map<CharacterId, TaskView>();
@@ -350,6 +352,7 @@ function drawTaskPanel(): void {
     const fill = document.createElement('i');
     track.appendChild(fill);
     box.append(top, track);
+    if(task.freeRest)track.hidden=true;
     if (task.effects) box.append(needChips(task.effects,false));
     const question = task.question ? studyQuestion(task.question) : undefined;
     if ((question || task.answer) && role === active && task.since !== null) {
@@ -394,7 +397,11 @@ function drawTaskPanel(): void {
       cancel.addEventListener('click', () => {
         if (net.cancelTask(task.taskId)) cancel.disabled = true;
       });
-      box.append(cancel);
+      if(!task.freeRest||task.since===null)box.append(cancel);
+      if(task.freeRest){
+        const finish=document.createElement('button');finish.type='button';finish.className='social-button';finish.dataset.socialFinish='';finish.textContent='Встать';
+        finish.addEventListener('click',()=>net.social({type:'social_finish',taskId:task.taskId}));box.append(finish);
+      }
       if(task.paired&&['eat','takeout','cafeMeal'].includes(task.paired.action)){
         const finish=document.createElement('button');
         finish.type='button';finish.className='social-button';finish.dataset.socialFinish='';
@@ -445,7 +452,8 @@ function updateTaskProgress(): void {
     if (!card) continue;
     const elapsed = task.since === null ? 0 : Math.min(taskNow() - task.since, task.durationMs);
     const finish=card.querySelector<HTMLButtonElement>('[data-social-finish]');
-    if(finish)finish.disabled=elapsed/task.durationMs<.72;
+    if(finish)finish.disabled=task.freeRest?task.since===null:elapsed/task.durationMs<.72;
+    if(task.freeRest){card.querySelector<HTMLElement>('.task-seconds')!.textContent=task.since===null?'В пути':'Свободный отдых';continue;}
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
       (task.material ? (task.studyProgress ? task.studyProgress.elapsed / task.studyProgress.total * 100 : 0)
         : Math.min(100, elapsed / task.durationMs * 100)) + '%';
@@ -1030,7 +1038,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      freeRest:!automatic&&isFreeLeisureRest(command.type==='furniture_use'?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
@@ -1048,7 +1056,7 @@ const net = new LiveConnection({
     task.since=taskNow()-elapsedMs;
     world.activateHomeTask(role,elapsedMs);
     if(role===active&&task.paired)phone.refreshRelationship();
-    if (task.material) drawTaskPanel(); else updateTaskProgress();
+    if (task.material||task.freeRest) drawTaskPanel(); else updateTaskProgress();
   },
   onStudyProgress(role, taskId, elapsed, total) {
     const task = tasks.get(role);

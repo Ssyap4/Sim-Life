@@ -9,6 +9,8 @@ export const LEISURE = {
   terraceRest:{sku:'oasis-terrace',label:'Отдохнуть на террасе',seconds:45,seated:true,paired:true,skill:null,fun:20,mood:14,comfort:30,energy:8},
   swingRest:{sku:'leisure-swing',label:'Отдохнуть на садовых качелях',seconds:24,seated:true,paired:true,skill:null,fun:24,mood:15,comfort:24,energy:5},
 } as const;
+// The seconds value is a reward reference, never a seating deadline.
+export function isFreeLeisureRest(action:unknown):boolean{return action==='terraceRest';}
 export type LeisureAction=keyof typeof LEISURE;
 export function isLeisureAction(a:unknown):a is LeisureAction{return typeof a==='string'&&Object.hasOwn(LEISURE,a);}
 export function leisureAction(sku:string):LeisureAction|undefined{return (Object.keys(LEISURE) as LeisureAction[]).find(a=>LEISURE[a].sku===sku);}

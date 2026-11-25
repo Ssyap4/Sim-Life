@@ -20,7 +20,7 @@ try{
   Object.assign(s.characters[role],{x:end.x,z:end.z,pose:home.pair?.seat?'sit':'idle',energy:90,bladder:90,hunger:90});
  }
  const files=openServerFiles(dir);files.save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.2,lifeClock:{now:()=>0,tickMs:600000}});
  peer=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');const packets=[];
  peer.on('message',raw=>packets.push(JSON.parse(raw.toString())));
  await once(peer,'open');
@@ -41,8 +41,13 @@ try{
  const start=await take('task_started',p=>p.role==='vlad'&&p.command?.action===action);
  await take('task_active',p=>p.taskId===start.taskId);
  await page.locator('[data-focus-shared]').click();
- await page.waitForTimeout(3000);
+ await page.waitForTimeout(11000);
+ assert.equal(await page.locator('[data-social-finish]').innerText(),'Встать');
+ assert.ok(await page.locator('[data-social-finish]').isEnabled());
+ assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);
  await page.screenshot({path:join(out,action+'.jpg'),type:'jpeg',quality:84});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
+ await page.locator('[data-social-finish]').click();
+ await take('task_ended',p=>p.role==='vlad'&&p.taskId===start.taskId&&p.outcome==='completed');
  assert.deepEqual(errors,[]);
 }finally{peer?.close();await page?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
