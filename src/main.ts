@@ -821,7 +821,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{

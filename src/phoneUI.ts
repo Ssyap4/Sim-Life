@@ -35,10 +35,12 @@ import {humanHealth,petHealth,healthStatus,healthBookingSlots,PET_CONDITIONS,typ
 import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
-type App = 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
+type App = 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   consoles:['🎮','Игровые консоли'],
+  spa:['♨️','SPA Лагуна'],
   barber:['💈','BRO'],
   health:['🏥','Добрый доктор'],
   fitness:['🏋️','PULSE Fitness'],
@@ -63,7 +65,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -87,7 +89,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
+  let spaKey='',speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   let audioUnsubscribe:(()=>void)|undefined;
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
@@ -121,6 +123,15 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
           cards.push(card);
         }info.replaceChildren(...cards);info.scrollTop=scroll;
       }
+    }
+    if(app==='spa'){
+      const visit=state.world.spa?.[role],key=JSON.stringify([visit,state.money,state.world.places,state.world.carDriver,online]);
+      if(key!==spaKey){spaKey=key;const card=block('SPA «Лагуна»',visit?'Посещение оплачено · '+SPA_PASSES[visit.pass].name:'Бассейн, джакузи, сауна и зона отдыха. Одиночный вход — у машины.');
+      if(visit){for(const [id,a] of Object.entries(SPA_ACTIVITIES)){const p=document.createElement('p');p.textContent=a.name+' · '+(visit.used.includes(id as keyof typeof SPA_ACTIVITIES)?'выполнено':'доступно');card.append(p);}}
+      else {card.append(block('Один гость',formatRub(SPA_PASSES.single.price)+' · поездка через семейную машину'));
+      for(const pass of ['pair','package'] as const){const b=document.createElement('button');b.type='button';b.textContent=SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price);b.disabled=state.money<SPA_PASSES[pass].price||online.length!==2||!!state.world.carDriver||Object.values(state.world.places).some(p=>p!=='home');b.onclick=()=>spaControl?.({type:'spa_trip',pass});card.append(b);}
+      card.append(block('Вместе','Оба игрока выбирают один и тот же тариф. Оплата только после согласия. Пакет включает массаж для каждого.'));}
+      info.replaceChildren(card);}
     }
     if(app==='barber'){const now=gameMinutes(state.clock),key=JSON.stringify([role,state.barberBooking,Math.floor(now/60)]);if(key!==barberKey){barberKey=key;const card=block('💈 BRO',role==='vlad'?'Запись бесплатная. Оплата после процедуры. Доехать можно на семейной машине.':'Услуги предназначены для Влада.');if(role==='vlad'){const service=document.createElement('select');service.setAttribute('aria-label','Услуга BRO');for(const [id,d] of Object.entries(BARBER_SERVICES)){const o=document.createElement('option');o.value=id;o.textContent=d.name+' · '+formatRub(d.price);service.append(o);}const slot=document.createElement('select');slot.setAttribute('aria-label','Время записи');const format=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':00';};for(const at of barberSlots(now)){const o=document.createElement('option');o.value=String(at);o.textContent=format(at);slot.append(o);}const book=document.createElement('button');book.textContent='Записаться';book.onclick=()=>barberControl?.({type:'barber_book',at:Number(slot.value),service:service.value as BarberAction});card.append(service,slot,book);if(state.barberBooking){const b=state.barberBooking;card.append(block('Твоя запись',BARBER_SERVICES[b.service].name+' · '+format(b.at)));const cancel=document.createElement('button');cancel.textContent='Отменить';cancel.onclick=()=>barberControl?.({type:'barber_cancel'});card.append(cancel);}}info.replaceChildren(card);}}
     if(app==='health'){
@@ -400,13 +411,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

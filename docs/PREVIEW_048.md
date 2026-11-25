@@ -1,0 +1,9 @@
+# Sim-Life 0.48 — SPA and entertainment, preview v1
+
+Owner approved SPA (solo and shared visit/package) and entertainment center. No rental house, arcade machines or chess. Later entertainment: bowling, air hockey, billiards, Jenga, UNO (faster replacement for chess), PS5 with venue-owned UFC 6 on a large screen. Use the existing stylized game presentation, no purchase of the game by household required. No SFX. Entertainment is not implemented in this preview.
+
+SPA «Лагуна»: separate scene via car. Solo ticket 1800 RUB, pair 3200 RUB, package 4900 RUB includes one massage per guest (otherwise 1100 RUB each). Both online players must select the same pair tariff from phone or car within 60 seconds; the server charges once after agreement. Access/used activities persisted, once per activity per visit, rewards applied only on completion. Independent return home, reserved car until last guest leaves. No new needs bars. Five activity zones with basic animated water, swim pose/strokes, seated jacuzzi and sauna, reclining loungers/massage tables and basic therapist motions. Detailed hand contacts, clothing, swimming and scene polish still require visual QA. No separate booking calendar or shower/locker mechanics yet.
+
+Preview: D:\Sim-Life-048-Spa, branch feat/spa-leisure-048, port 3197, separate D:\Sim-Life-048-PreviewData, no codes, initial 100000 RUB. All eight private soundtrack files installed locally and ignored. Production 0.47 remains untouched.
+
+QA: 6 SPA tests incl. actual two-WebSocket matching consent, exactly one charge, concurrent included massages, individual return, route and scene creation; 2 existing BRO tests passed. TypeScript + Vite build passed, historical chunk and wardrobe import warnings. Preview health OK, bundle index-B2UixJll.js, music Range 206, eight tracks in dist. No physical device FPS or rendered screenshot inspected. No heavy visual tests on ALINA-PC. Do not mark the preview as a complete release.

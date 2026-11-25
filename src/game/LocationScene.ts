@@ -198,6 +198,37 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       shape(root,[.12,.56,.12],[x,.28,d/2+.19],0xe0b757,drum);
       shape(root,[.12,.10,.12],[x,.36,d/2+.19],0x55514e,drum);
     }
+  } else if(station.action.kind==='spa'){
+    const f=station.action.facility,w=station.width,d=station.depth;
+    const stone=0xe0d5bf,wood=0xb48b62,teal=0x65b3b7,linen=0xf5ebda;
+    if(f==='spaPool'||f==='spaJacuzzi'){
+      const h=f==='spaPool'?.34:.60;
+      shape(root,[w-.15,.17,d-.15],[0,.12,0],0x246e80,cube);
+      shape(root,[w-.35,.035,d-.35],[0,h-.12,0],teal,cube);
+      for(const x of [-1,1])shape(root,[.17,h,d],[x*(w/2-.085),h/2,0],stone,cube);
+      for(const z of [-1,1])shape(root,[w,h,.17],[0,h/2,z*(d/2-.085)],stone,cube);
+      for(let i=0;i<5;i++){const wave=shape(root,[w*.70,.008,.035],[0,h-.095,-d*.32+i*d*.16],0xa7dddc,cube);wave.name='spa-wave';}
+      if(f==='spaPool')for(const x of [-.22,.22]){shape(root,[.035,.85,.035],[x,.52,d/2-.14],0xc6d4d7,drum);shape(root,[.035,.035,.28],[x,.95,d/2-.03],0xc6d4d7,cube);}
+      else for(const x of [-.55,.55])shape(root,[.75,.12,.43],[x,.30,-.45],0xadcfcf,softCube);
+    }else if(f==='spaSauna'){
+      shape(root,[w,.12,d],[0,.06,0],wood,cube);
+      shape(root,[w,1.9,.13],[0,.95,-d/2+.065],wood,cube);
+      for(let i=0;i<9;i++)shape(root,[w-.10,.025,.02],[0,.16+i*.18,-d/2+.14],0x795b43,cube);
+      shape(root,[w-.16,.16,.55],[0,.47,-.28],wood,cube);
+      for(const x of [-.65,.65])shape(root,[.12,.43,.45],[x,.22,-.28],wood,cube);
+    }else if(f==='spaLounge'||f==='spaMassage'){
+      const massage=f==='spaMassage',h=massage?.66:.32;
+      for(const x of [-w*.37,w*.37])for(const z of [-d*.37,d*.37])shape(root,[.09,h,.09],[x,h/2,z],wood,cube);
+      shape(root,[w,.13,d],[0,h,0],wood,softCube);
+      shape(root,[w-.07,.13,d-.08],[0,h+.10,0],linen,softCube);
+      const pillow=shape(root,[w*.78,.13,.37],[0,h+.21,-d*.32],0xe9f1e8,softCube);
+      if(!massage)pillow.rotation.x=-.30;
+      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.68:.68,0,-.25);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
+      shape(root,[w*.80,.045,.32],[0,h+.19,d*.24],massage?0x9dbab0:0x9dd4d1,softCube);
+    }else{
+      shape(root,[w,.93,d],[0,.46,0],wood,softCube);shape(root,[w+.07,.08,d+.08],[0,.96,0],stone,cube);shape(root,[.43,.30,.10],[-.35,1.16,-.1],0x344c50,cube);
+    }
+    sign(root,station.name,1.58,-d*.48,w,linen,textures,materials);
   } else if(station.action.kind==='barber'){
     const f=station.action.facility;if(f==='reception'){shape(root,[2.1,.94,.85],[0,.47,0],0x302d2a,softCube);shape(root,[2.16,.09,.91],[0,.97,0],0xa47c4f);shape(root,[.45,.32,.10],[-.48,1.19,-.12],0x242e35);sign(root,'BRO',1.24,.43,1.4,C.paper,textures,materials);}else{shape(root,[.82,.10,.82],[0,.07,0],0xadb3b4,drum);shape(root,[.20,.49,.20],[0,.30,0],0xadb3b4,drum);shape(root,[.73,.16,.65],[0,.62,0],0x332d29,softCube);shape(root,[.72,.71,.14],[0,1.01,.30],0x332d29,softCube);shape(root,[.38,.19,.16],[0,1.44,.30],0x332d29,softCube);for(const x of [-.42,.42]){shape(root,[.14,.10,.55],[x,.91,0],0x332d29,softCube);shape(root,[.065,.30,.065],[x,.78,0],0xb5bbbd);}shape(root,[.47,.09,.31],[0,.32,-.48],0xaeb5b5);}
   } else if(station.action.kind==='clinic'){
@@ -506,7 +537,17 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='barber'){
+  if(place==='spa'){
+    shape(floor,[12.3,.36,10.3],[0,-.20,0],0x6a8c8a,cube);
+    shape(floor,[12,.06,10],[0,-.03,0],0xe2d7c3,cube);
+    for(let i=-5;i<=5;i++)shape(floor,[.024,.012,10],[i,.007,0],0xbeb9a8,cube);
+    for(let i=-4;i<=4;i++)shape(floor,[12,.012,.024],[0,.008,i],0xbeb9a8,cube);
+    shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0xb0c8bb,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc4d8c8,cube);
+    for(const x of [-4,-2,2,4]){shape(floor,[1.45,1.35,.04],[x,1.45,-4.93],0x6a9ca0,cube);shape(floor,[1.32,1.20,.04],[x,1.45,-4.90],0xb6d9d4,cube);}
+    sign(floor,'L A G U N A · SPA',2.52,-4.88,4.0,0xf5ebda,textures,materials);
+    const clerk=marketCashier(resources,{title:'Администратор',color:0x52847c,shirt:0xf5ebda,animated:true});clerk.position.set(-4,0,1.7);root.add(clerk);
+    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.78+.12*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
+  } else if(place==='barber'){
     shape(floor,[12.3,.36,10.3],[0,-.20,0],0x514637,cube);shape(floor,[12,.06,10],[0,-.03,0],0x7e6550,cube);
     for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0x8b6e55:0x9b8065,cube);
     shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0x343535,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0x5c4f43,cube);sign(floor,'B R O · BARBERSHOP',2.52,-4.90,5.0,C.paper,textures,materials);
@@ -673,7 +714,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {

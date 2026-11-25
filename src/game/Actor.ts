@@ -27,7 +27,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -575,7 +575,7 @@ export class Actor {
     const t = this.clock + (this.id === 'vlad' ? 0 : 1.9);
     const seated = this.pose === 'sit' || this.pose === 'work';
     const asleep = this.pose === 'sleep';
-    const reclining=this.partnerGesture?.motion==='bedRest';
+    const reclining=this.partnerGesture?.motion==='bedRest'||this.activity==='spaRecline';
     const resting=asleep||reclining;
     this.restTime=resting?this.restTime+dt:0;
     const rest=resting?sleepPosture(this.id,this.restTime,reclining):null;
@@ -821,6 +821,9 @@ export class Actor {
           armSpread = .15;
           gaze = .10 + Math.sin(a * 2.1) * .08;
           break;
+        case 'spaSwim': {
+ const stroke=Math.sin(a*2.7);leftY=.05+.26*stroke;rightY=.05-.26*stroke;leftZ=.30+.12*stroke;rightZ=.30-.12*stroke;armSpread=.33;lean=.08;gaze=.04;break;
+ }
         case 'bath':
           leftY = rightY = -.37;
           leftZ = .19;
@@ -1514,7 +1517,8 @@ export class Actor {
     this.figure.position.y -= stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
-    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, resting ? -Math.PI / 2 : 0, alpha);
+    if(this.activity==='spaSwim'){this.figure.position.y+=.045*Math.sin(a*2.7);this.figure.position.z+=.36*Math.sin(a*.42);}
+    this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, resting||this.activity==='spaSwim' ? -Math.PI / 2 : 0, alpha);
     this.figure.rotation.y = THREE.MathUtils.lerp(this.figure.rotation.y,rest?.roll??0,alpha);
     if(rest)this.figure.position.y+=rest.lift+.004*breath;
     if(this.activity==='consolePlay'&&this.activePad){

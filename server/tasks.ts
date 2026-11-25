@@ -11,6 +11,7 @@ import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import {isSpaAction,SPA_ACTIVITIES} from '../src/shared/spa';
 import {isBarberAction,BARBER_SERVICES} from '../src/shared/barber';
 import {isVetAction,VET_SERVICES,isClinicAction,CLINIC_SERVICES} from '../src/shared/health';
 import {fitnessExercise,fitnessBarItem} from '../src/shared/fitness';
@@ -122,6 +123,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     if(isVetAction(action)){const s=VET_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'vet:'+command.station};}
+    if(isSpaAction(action)){const station=stationById('spa',command.station);if(station?.action.kind!=='spa'||station.action.facility!==action)return null;return {command:{type:'local_activity',station:command.station,action},label:SPA_ACTIVITIES[action].name,durationMs:SPA_ACTIVITIES[action].seconds*1000,resource:['spaPool','spaJacuzzi','spaSauna'].includes(action)?null:'spa:'+command.station};}
     if(isBarberAction(action)){if(command.station!=='barber-chair')return null;const d=BARBER_SERVICES[action];return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:'barber-chair'};}
     if(isClinicAction(action)){const s=CLINIC_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'clinic:'+command.station};}
     if(action==='fitnessTrain'){
