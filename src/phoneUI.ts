@@ -109,7 +109,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if (app === 'career') career.render(state,role,time);
     if(app==='health'){
       const h=humanHealth(state,role),now=gameMinutes(state.clock);
-      const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],...PET_IDS.map(p=>petHealth(state,p).illness?.id)]);
+      const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],state.world.vetVisit,h.careAt,state.pantry.tea,Math.round(state.characters[role].x),Math.round(state.characters[role].z),humanHealth(state,role==='vlad'?'alina':'vlad').illness?.id,...PET_IDS.map(p=>{const q=petHealth(state,p),i=q.illness;return [q.booking,i?.id,i?.diagnosed,i?.medicine,i?.medicated,Math.ceil((i?.remaining??0)/60)];})]);
       if(key!==healthKey){
         healthKey=key;const scroll=info.scrollTop;
         const card=block('Моё здоровье',healthStatus(state,role)+(h.illness?' · восстановление около '+Math.ceil(h.illness.remaining/60)+' игр. ч.':''));
@@ -122,8 +122,20 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         booking.append(select,b('Записаться',()=>{healthControl?.({type:'health_book',at:Number(select.value)});}));
         if(h.booking!==undefined)booking.append(b('Отменить запись',()=>{healthControl?.({type:'health_cancel'});}));
         const pets=block('Питомцы','Состояние Верделла и Симбы');
-        for(const p of PET_IDS){const x=petHealth(state,p).illness;pets.append(block(PETS[p].name,x?(x.diagnosed?PET_CONDITIONS[x.id].name:'Недомогание'):'Здоров'));}
-        info.replaceChildren(card,booking,pets);info.scrollTop=scroll;
+        for(const p of PET_IDS){
+          const ph=petHealth(state,p),x=ph.illness,pc=block(PETS[p].name,x?(x.diagnosed?PET_CONDITIONS[x.id].name:'Недомогание')+' · '+Math.ceil(x.remaining/60)+' игр. ч.':'Здоров');
+          const slot=document.createElement('select');slot.setAttribute('aria-label','Время ветеринара · '+PETS[p].name);
+          for(const at of healthBookingSlots(now)){const opt=document.createElement('option');opt.value=String(at);opt.textContent=format(at);slot.append(opt);}
+          pc.append(slot,b('Записать к ветеринару',()=>{healthControl?.({type:'vet_book',pet:p,at:Number(slot.value)});}));
+          if(ph.booking!==undefined){pc.append(block('Запись',format(ph.booking)),b('Отменить запись',()=>{healthControl?.({type:'vet_cancel',pet:p});}));}
+          if(x?.medicine&&!x.medicated)pc.append(b('Дать назначенное лекарство',()=>{healthControl?.({type:'vet_medicine',pet:p});}));
+          pets.append(pc);
+        }
+        const partner=role==='vlad'?'alina':'vlad',care=block('Забота друг о друге',healthStatus(state,partner));
+        if(humanHealth(state,partner).illness&&online.includes(partner)){
+          care.append(b('Принести чай (1 порция)',()=>{healthControl?.({type:'health_care',care:'tea'});}),b('Поддержать',()=>{healthControl?.({type:'health_care',care:'support'});}));
+        }
+        info.replaceChildren(card,booking,pets,care);info.scrollTop=scroll;
       }
     }
     if(app==='fitness'){

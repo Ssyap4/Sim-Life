@@ -15,13 +15,13 @@ export const CONDITIONS = {
 export type ConditionId=keyof typeof CONDITIONS;
 export type HumanRisk='cold'|'hunger'|'sleep'|'work';
 type Illness<K extends string>={id:K;remaining:number;diagnosed:boolean;tested?:boolean;treated?:boolean;medicine?:boolean;medicated?:boolean;followup?:boolean};
-type HumanHealth={risk:Record<HumanRisk,number>;illness?:Illness<ConditionId>;cooldown:number;booking?:number};
+type HumanHealth={risk:Record<HumanRisk,number>;illness?:Illness<ConditionId>;cooldown:number;booking?:number;careAt?:number};
 export const PET_CONDITIONS={
  digestive:{name:'Расстройство пищеварения',minutes:2880},
  stress:{name:'Сильный стресс',minutes:2880}
 } as const;
 export type PetConditionId=keyof typeof PET_CONDITIONS;
-type PetHealth={hunger:number;attention:number;illness?:Illness<PetConditionId>;cooldown:number};
+type PetHealth={hunger:number;attention:number;illness?:Illness<PetConditionId>;cooldown:number;booking?:number};
 export type HealthState={people:Record<CharacterId,HumanHealth>;pets:Record<PetId,PetHealth>};
 const newHuman=():HumanHealth=>({risk:{cold:0,hunger:0,sleep:0,work:0},cooldown:0});
 const newPet=():PetHealth=>({hunger:0,attention:0,cooldown:0});
@@ -37,8 +37,8 @@ export function validHealth(value:unknown):value is HealthState {
  const s=value as HealthState;
  const num=(n:unknown,max=10080)=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=0&&n<=max;
  const illness=(v:unknown,ids:object)=>{if(v===undefined)return true;if(!v||typeof v!=='object')return false;const x=v as Illness<string>;return typeof x.id==='string'&&Object.hasOwn(ids,x.id)&&num(x.remaining)&&x.remaining>0&&typeof x.diagnosed==='boolean'&&(['tested','treated','medicine','medicated','followup'] as const).every(k=>x[k]===undefined||typeof x[k]==='boolean');};
- return !!s.people&&!!s.pets&&(['vlad','alina'] as const).every(r=>{const h=s.people[r];return !!h&&!!h.risk&&(['cold','hunger','sleep','work'] as const).every(k=>num(h.risk[k]))&&num(h.cooldown)&&(h.booking===undefined||num(h.booking,Number.MAX_SAFE_INTEGER))&&illness(h.illness,CONDITIONS);})&&
- (['verdell','simba'] as const).every(p=>{const h=s.pets[p];return !!h&&num(h.hunger)&&num(h.attention)&&num(h.cooldown)&&illness(h.illness,PET_CONDITIONS);});
+ return !!s.people&&!!s.pets&&(['vlad','alina'] as const).every(r=>{const h=s.people[r];return !!h&&!!h.risk&&(['cold','hunger','sleep','work'] as const).every(k=>num(h.risk[k]))&&num(h.cooldown)&&(h.booking===undefined||num(h.booking,Number.MAX_SAFE_INTEGER))&&(h.careAt===undefined||num(h.careAt,Number.MAX_SAFE_INTEGER))&&illness(h.illness,CONDITIONS);})&&
+ (['verdell','simba'] as const).every(p=>{const h=s.pets[p];return !!h&&num(h.hunger)&&num(h.attention)&&num(h.cooldown)&&(h.booking===undefined||num(h.booking,Number.MAX_SAFE_INTEGER))&&illness(h.illness,PET_CONDITIONS);});
 }
 /** Mutates only the new clock state, never the source or offline residents. */
 export function advanceHumanHealth(s:GameState,before:GameState,r:CharacterId,minutes:number){
@@ -57,7 +57,7 @@ export function advanceHumanHealth(s:GameState,before:GameState,r:CharacterId,mi
  h.risk.hunger=exposure(h.risk.hunger,old.hunger<12,minutes,720);
  h.risk.sleep=exposure(h.risk.sleep,old.energy<12&&old.pose!=='sleep',minutes,1080);
  h.risk.work=exposure(h.risk.work,old.energy<20&&!!(before.activeShifts[r]||before.careers.residents[r].shift),minutes,360);
- if(h.risk.cold>=180)startHuman(h,'cold');
+ if(h.risk.cold>=180)startHuman(h,old.energy<20&&old.hygiene<25?'flu':'cold');
  else if(h.risk.hunger>=720)startHuman(h,'gastritis');
  else if(h.risk.work>=360)startHuman(h,'exhaustion');
  else if(h.risk.sleep>=1080)startHuman(h,'insomnia');
@@ -95,7 +95,7 @@ export const CLINIC_SERVICES={
  clinicMedicine:{name:'Купить назначенное лекарство',price:0,station:'clinic-pharmacy',seconds:8},
 } as const;
 export type ClinicAction=keyof typeof CLINIC_SERVICES;
-export type HealthCommand={type:'health_book';at:number}|{type:'health_cancel'}|{type:'health_medicine'};
+export type HealthCommand={type:'health_book';at:number}|{type:'health_cancel'}|{type:'health_medicine'}|{type:'health_care';care:'tea'|'support'}|{type:'vet_book';pet:PetId;at:number}|{type:'vet_cancel'|'vet_medicine';pet:PetId};
 export const isClinicAction=(a:unknown):a is ClinicAction=>typeof a==='string'&&Object.hasOwn(CLINIC_SERVICES,a);
 export const healthBookingSlots=(now:number)=>Array.from({length:48},(_,i)=>Math.floor(now/60)*60+60+i*60).filter(t=>t%1440>=8*60&&t%1440<=20*60);
 export const MEDICINE_PRICE:Record<ConditionId,number>={cold:450,flu:1800,poisoning:650,gastritis:950,insomnia:750,exhaustion:250};
@@ -111,14 +111,58 @@ export function clinicAvailable(s:GameState,r:CharacterId,a:ClinicAction):boolea
 export function completeClinicService(s:GameState,r:CharacterId,a:ClinicAction){
  const h=mutable(s).people[r],x=h.illness!;
  if(a==='clinicExam'){x.diagnosed=true;delete h.booking;}
- else if(a==='clinicDiagnosis'){x.tested=true;x.remaining=Math.max(60,x.remaining-180);}
- else if(a==='clinicProcedure'){x.treated=true;x.remaining=Math.max(60,Math.ceil(x.remaining*.65));}
- else if(a==='clinicFollowup'){x.followup=true;x.remaining=Math.max(60,x.remaining-120);}
+ else if(a==='clinicDiagnosis'){x.tested=true;x.remaining=Math.max(1,x.remaining-180);}
+ else if(a==='clinicProcedure'){x.treated=true;x.remaining=Math.max(1,Math.ceil(x.remaining*.65));}
+ else if(a==='clinicFollowup'){x.followup=true;x.remaining=Math.max(1,x.remaining-120);}
  else x.medicine=true;
 }
 export function takeGameMedicine(s:GameState,r:CharacterId){
  const x=mutable(s).people[r].illness;
  if(!x?.medicine||x.medicated)return false;
- x.medicine=false;x.medicated=true;x.remaining=Math.max(60,Math.ceil(x.remaining*.5));return true;
+ x.medicine=false;x.medicated=true;x.remaining=Math.max(1,Math.ceil(x.remaining*.5));return true;
 }
 export function setHealthBooking(s:GameState,r:CharacterId,at?:number){const h=mutable(s).people[r];if(at===undefined)delete h.booking;else h.booking=at;}
+export const VET_SERVICES={
+ vetExam:{name:'Осмотр ветеринара',station:'service',price:1200,seconds:24},
+ vetTreatment:{name:'Лечение и процедуры',station:'service',price:2300,seconds:30},
+ vetMedicine:{name:'Купить назначенное лекарство',station:'records',price:650,seconds:8},
+} as const;
+export type VetAction=keyof typeof VET_SERVICES;
+export const isVetAction=(v:unknown):v is VetAction=>typeof v==='string'&&Object.hasOwn(VET_SERVICES,v);
+export const isHealthPet=(p:unknown):p is PetId=>p==='verdell'||p==='simba';
+export function vetAvailable(s:GameState,p:PetId,a:VetAction){
+ const x=petHealth(s,p).illness;
+ return !!x&&(a==='vetExam'?!x.diagnosed:a==='vetTreatment'?x.diagnosed&&!x.treated:x.diagnosed&&!x.medicine&&!x.medicated);
+}
+export function completeVetService(s:GameState,p:PetId,a:VetAction){
+ const h=mutable(s).pets[p],x=h.illness!;
+ if(a==='vetExam'){x.diagnosed=true;delete h.booking;}
+ else if(a==='vetTreatment'){x.treated=true;x.remaining=Math.min(x.remaining,Math.max(1,Math.ceil(x.remaining*.6)));}
+ else x.medicine=true;
+}
+export function takeVetMedicine(s:GameState,p:PetId){
+ const x=mutable(s).pets[p].illness;
+ if(!x?.medicine||x.medicated)return false;
+ x.medicine=false;x.medicated=true;x.remaining=Math.max(1,Math.ceil(x.remaining*.5));return true;
+}
+export function setVetBooking(s:GameState,p:PetId,at?:number){const h=mutable(s).pets[p];if(at===undefined)delete h.booking;else h.booking=at;}
+export const sleepHealthMultiplier=(s:GameState,r:CharacterId)=>humanHealth(s,r).illness?.id==='insomnia'?.75:1;
+// Fictional infection chance only on completed close contact; no passive random illness.
+export function healthContact(s:GameState,random:()=>number=Math.random){
+ for(const r of ['vlad','alina'] as const){
+  const other=r==='vlad'?'alina':'vlad',x=humanHealth(s,r).illness;
+  if((x?.id==='cold'||x?.id==='flu')&&!humanHealth(s,other).illness&&!humanHealth(s,other).cooldown){
+   if(random()<(x.id==='flu'?.12:.06))return startHuman(mutable(s).people[other],x.id);
+  }
+ }
+ return false;
+}
+export function familyCare(s:GameState,from:CharacterId,care:'tea'|'support'){
+ const to=from==='vlad'?'alina':'vlad',h=mutable(s).people[to],x=h.illness;
+ const now=(s.clock.day-1)*1440+s.clock.minute;
+ if(!x||h.careAt!==undefined&&now-h.careAt<240||care==='tea'&&s.pantry.tea<1)return false;
+ if(care==='tea')s.pantry.tea--;
+ h.careAt=now;x.remaining=Math.max(1,x.remaining-(care==='tea'?90:45));
+ const c=s.characters[to];c.comfort=limit(c.comfort+8);c.mood=limit(c.mood+8);c.social=limit(c.social+5);
+ return true;
+}

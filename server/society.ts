@@ -439,6 +439,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'walk':for(const role of roles) change(state,role,{energy:-1,fun:4});break;
   }
   if(rejected&&!rejected.ok) return rejected;
+  if(roles.length===2&&['kiss','cheek','hug','closeHug','sofaKiss','sofaHug','cuddle'].includes(a.motion))healthContact(state);
   if(remember&&roles.length===2){
     const {strength,quiz}=addRelationship(state,a,choice,!!moment);
     const now=gameMinutes(state.clock);
@@ -515,3 +516,5 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   state.revision++;
   return {ok:true,state,message};
 }
+
+import {healthContact} from '../src/shared/health';

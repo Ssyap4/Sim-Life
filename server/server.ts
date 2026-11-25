@@ -1474,6 +1474,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
+      if(message.type==='car_travel'&&message.place==='work-clinic'&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         if(message.type==='travel'||message.type==='car_travel'||message.type==='walk')clearQueue(role);
         const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;
@@ -1506,6 +1507,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'job_start') {
+        if(state.world.vetVisit?.owner===role){packet(socket,{type:'error',reason:'Сначала вернись домой с питомцем'});return;}
         clearQueue(role);
         commitLife();
         const home=isHomeJob(message.job), device=message.device;

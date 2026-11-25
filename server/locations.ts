@@ -1,4 +1,4 @@
-import {CLINIC_SERVICES,isClinicAction,clinicAvailable,completeClinicService,medicinePrice,healthBookingSlots,setHealthBooking,takeGameMedicine} from '../src/shared/health';
+import {VET_SERVICES,isVetAction,vetAvailable,completeVetService,isHealthPet,setVetBooking,takeVetMedicine,familyCare,CLINIC_SERVICES,isClinicAction,clinicAvailable,completeClinicService,medicinePrice,healthBookingSlots,setHealthBooking,takeGameMedicine} from '../src/shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessBarItem,fitnessCareRole,fitnessCareAction,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
 import {skillRank} from '../src/shared/education';
 import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
@@ -52,7 +52,8 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','work-clinic'].includes(w.places![w.carDriver]))) &&
+    (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
@@ -95,7 +96,7 @@ export function fitnessTogetherTrip(source:GameState,driver:CharacterId):Result{
   for(const r of ROLES){next.world.places[r]='fitness';Object.assign(next.characters[r],doorwayArrival('fitness','district',r),{pose:'idle'});const p=(next.world.fitness??=initialFitness())[r],now=clockMinutes(next.clock);if(p.ticket&&p.until<=now){delete p.ticket;p.visit=true;}if(p.booking!==undefined&&Math.abs(p.booking-now)<=60)delete p.booking;}
   return done(next,'Приехали вместе в PULSE Fitness');
 }
-export const worldMessages = new Set(['health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
+export const worldMessages = new Set(['vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -110,6 +111,26 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='vet_book'||command.type==='vet_cancel'||command.type==='vet_medicine'){
+    if(!isHealthPet(command.pet))return fail('Выбери питомца');
+    const pet=command.pet,next=structuredClone(source);
+    if(command.type==='vet_book'){
+      if(typeof command.at!=='number'||!healthBookingSlots(clockMinutes(source.clock)).includes(command.at))return fail('Выбери время приёма');
+      setVetBooking(next,pet,command.at);
+    }else if(command.type==='vet_cancel')setVetBooking(next,pet);
+    else {
+      if(place!=='home'||source.world.vetVisit?.pet===pet||pet==='verdell'&&source.world.dogWalker)return fail('Лечение питомца доступно дома');
+      if(!takeVetMedicine(next,pet))return fail('Нет назначенного лекарства');
+    }
+    return done(next,command.type==='vet_book'?'Запись в ветеринарку сохранена':command.type==='vet_cancel'?'Запись отменена':'Лекарство дано питомцу');
+  }
+  if(command.type==='health_care'){
+    if(command.care!=='tea'&&command.care!=='support')return fail('Неизвестная забота');
+    if(place!=='home'||!neighborOnline||source.world.places[neighbor]!=='home'||source.activeShifts[neighbor]||source.careers.residents[neighbor].shift||Math.hypot(source.characters[role].x-source.characters[neighbor].x,source.characters[role].z-source.characters[neighbor].z)>2)return fail('Подойди к заболевшему партнёру дома');
+    const next=structuredClone(source);
+    if(!familyCare(next,role,command.care))return fail('Забота уже оказана недавно, нет чая или партнёр здоров');
+    return done(next,command.care==='tea'?'Принесли чай заболевшему партнёру':'Поддержали заболевшего партнёра');
+  }
   if(command.type==='health_book'||command.type==='health_cancel'){
     const next=structuredClone(source);
     if(command.type==='health_book'){
@@ -230,7 +251,9 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='work-clinic')return fail('Выбери доступное место');
+    if(command.place==='work-clinic'&&(!isHealthPet(command.pet)||command.pet==='verdell'&&source.world.dogWalker))return fail('Выбери свободного питомца для поездки');
+    if(command.place!=='work-clinic'&&command.pet!==undefined)return fail('Питомца можно взять только в ветеринарку');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
@@ -240,6 +263,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(!arrival)return fail('Вход занят вторым игроком');
     next.world.carDriver=role;
     next.world.places[role]=destination;
+    if(destination==='work-clinic'&&isHealthPet(command.pet)){pausePetRoutine(next,command.pet,clockMinutes(next.clock));next.world.vetVisit={owner:role,pet:command.pet};}
     if(destination==='fitness'){
       const profile=(next.world.fitness??=initialFitness())[role],now=clockMinutes(next.clock);
       if(profile.ticket&&profile.until<=now){delete profile.ticket;profile.visit=true;}
@@ -259,6 +283,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
       if(!arrival)return fail('Парковка занята');
       delete next.world.carDriver;
+      if(next.world.vetVisit?.owner===role)delete next.world.vetVisit;
       if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
       next.world.places[role]='home';
       next.world.bags[role]=0;
@@ -283,6 +308,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       if (door?.action.kind !== 'door' || door.action.destination !== command.place || !at(source, role, door))
         return fail('Сначала подойди к выходу');
     }
+    if(command.dog===true&&source.world.vetVisit?.pet==='verdell')return fail('Верделл сейчас в ветеринарке');
     if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
@@ -533,6 +559,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   }
 
   if (command.type === 'dog_leash') {
+    if(source.world.vetVisit?.pet==='verdell')return fail('Верделл сейчас в ветеринарке');
     if (place !== 'park' || !at(source, role, stationById('park', 'park-dog'))) return fail('Подойди к площадке в парке');
     if (source.world.dogWalker && source.world.dogWalker !== role) return fail('Верделл уже гуляет со вторым игроком');
     const next = structuredClone(source);
@@ -547,6 +574,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
+  vetExam:VET_SERVICES.vetExam.name,vetTreatment:VET_SERVICES.vetTreatment.name,vetMedicine:VET_SERVICES.vetMedicine.name,
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
@@ -558,6 +586,16 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isVetAction(action)){
+    const visit=source.world.vetVisit,service=VET_SERVICES[action];
+    if(place!=='work-clinic'||visit?.owner!==role||id!==service.station||!station||!at(source,role,station))return fail('Привези питомца и подойди к нужному месту');
+    if(source.careers.residents[role].shift||!vetAvailable(source,visit.pet,action))return fail('Услуга сейчас недоступна');
+    if(source.money<service.price)return fail('Недостаточно денег');
+    const next=structuredClone(source);next.money-=service.price;
+    addLedger(next,role,'expense','pets',service.price,'Лапа и хвост · '+service.name);
+    completeVetService(next,visit.pet,action);next.characters[role].pose='idle';
+    return done(next,service.name+' · выполнено');
+  }
   if(isClinicAction(action)){
     const service=CLINIC_SERVICES[action];
     if(place!=='clinic'||id!==service.station||!station||!at(source,role,station))return fail('Подойди к нужному кабинету');

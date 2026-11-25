@@ -32,7 +32,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
-import {CLINIC_SERVICES,clinicAvailable,humanHealth,healthStatus,medicinePrice,type ClinicAction} from './shared/health';
+import {VET_SERVICES,vetAvailable,petHealth,PET_CONDITIONS,CLINIC_SERVICES,clinicAvailable,humanHealth,healthStatus,medicinePrice,type ClinicAction} from './shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessCareAction,fitnessCareRole,type FitnessBarAction,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
   const node = element('button', 'action-button', label);
@@ -178,7 +178,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
       else {options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
-      }));}
+      }));for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапу и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));}
+    } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){
+      const pet=place.world.vetVisit.pet,h=petHealth(place,pet);
+      options.append(element('small','',(pet==='verdell'?'Верделл':'Симба')+' · '+(h.illness?h.illness.diagnosed?PET_CONDITIONS[h.illness.id].name:'Недомогание':'Здоров')));
+      for(const a of ['vetExam','vetTreatment','vetMedicine'] as const){const s=VET_SERVICES[a];if(s.station===station.id)options.append(button(s.name+' · '+formatRub(s.price),()=>{if(send({type:'local_activity',action:a,station:station.id}))close();},!vetAvailable(place,pet,a)||place.money<s.price));}
+      if(station.id!=='service'&&station.id!=='records')options.append(element('small','','Осмотр и лечение — у смотрового стола, лекарства — у стойки записей.'));
     } else if(station.action.kind==='clinic'){
       options.append(element('small','',healthStatus(place,role)));
       if(station.action.facility==='reception'){

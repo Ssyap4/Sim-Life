@@ -2368,6 +2368,8 @@ export class World {
     const walker = state.world.dogWalker;
     dog.visible = walker ? (place === 'park'||place==='district') && state.world.places[walker] === place && !state.activeShifts[walker] : place === 'home';
     this.pets.simba.root.visible = place === 'home';
+    const vet=state.world.vetVisit;
+    if(vet){const pet=this.pets[vet.pet];pet.root.visible=place==='work-clinic';if(place==='work-clinic'&&(changed||previous?.world.vetVisit?.pet!==vet.pet)){const c=state.characters[vet.owner],p=nearestClearPoint({x:c.x+.65,z:c.z-.3},this.currentObstacles(),floorFor(place));if(p){pet.stop();pet.syncGround(p.x,p.z);}}}
     // Signals come from authoritative shared stats, so both players see the
     // same warnings as the pet roams, sleeps or accompanies a dog walker.
     for (const id of PET_IDS) this.pets[id].setHungerLevel(petHungerLevel(state.pets[id].satiety));
@@ -2927,6 +2929,12 @@ export class World {
         this.dogTravel += distance * step;
         pace = Math.min(1, distance * 2.3);
       }
+    }
+    const vet=this.household?.world.vetVisit;
+    if(vet&&this.place==='work-clinic'){
+      const pet=this.pets[vet.pet],c=this.actors[vet.owner].root.position,p=pet.root.position;
+      const target={x:c.x+.55,z:c.z-.22};const distance=Math.hypot(target.x-p.x,target.z-p.z);
+      if(distance>.18){const step=Math.min(1,dt*2.5),next={x:p.x+(target.x-p.x)*step,z:p.z+(target.z-p.z)*step};if(pointIsClear(next,this.currentObstacles(),floorFor(this.place))){pet.root.rotation.y=Math.atan2(target.x-p.x,target.z-p.z);pet.root.position.set(next.x,0,next.z);}}
     }
     if (this.household) {
       for (const id of PET_IDS) {

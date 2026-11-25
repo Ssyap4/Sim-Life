@@ -187,13 +187,13 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.bladder = drain(pet.bladder, 7);
     if(id==='verdell')pet.cleanliness=drain(pet.cleanliness??100,state.world.dogWalker?5:pet.routine?.kind==='toy'?3:1.8);
     const station=feedingStation(state.furnishing,id);
-    if(!occupied.has(id))dispenseFeeder(state,id);
+    if(!occupied.has(id)&&state.world.vetVisit?.pet!==id)dispenseFeeder(state,id);
     const previous = pet.routine;
     if(pet.furnitureYield && (now>=pet.furnitureYield.cooldownUntil||!currentCatPerch(state.furnishing,pet.furnitureYield.perch)))delete pet.furnitureYield;
     if(pet.favoriteBedId!==undefined && !petBeds(state.furnishing,id)
       .some(item=>item.id===pet.favoriteBedId))delete pet.favoriteBedId;
     if (previous) pet.position = sampleWalk(previous.route, (now - previous.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND).from;
-    if ((id === 'verdell' && state.world.dogWalker) || occupied.has(id)) {
+    if ((id === 'verdell' && state.world.dogWalker) || occupied.has(id)||state.world.vetVisit?.pet===id) {
       if(!(id==='verdell'&&occupied.has(id)&&pet.routine?.kind==='bath'))delete pet.routine;
       continue;
     }
@@ -281,7 +281,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     if(id==='simba'&&previous?.kind==='perch'&&!invalidPerch&&previous.perch){
       pet.furnitureYield={perch:previous.perch,clearAt:now+2,cooldownUntil:now+14};
     }
-    if(!occupied.has(id))dispenseFeeder(state,id);
+    if(!occupied.has(id)&&state.world.vetVisit?.pet!==id)dispenseFeeder(state,id);
     let kind: PetRoutine['kind'] = 'wander';
     if (pet.satiety <= PET_AUTO_EAT_BELOW && state.petBowls[id] > 0) kind = 'eat';
     else if (pet.bladder <= 63) kind = 'toilet';
@@ -406,6 +406,7 @@ export function applyPetAction(
   if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe','loadFeeder','bedTogether','leaveBed'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
+  if(source.world.vetVisit?.pet===id&&action!=='buyFood')return {ok:false,reason:'Питомец сейчас в ветеринарке'};
   const kind = action as PetAction;
   const next = structuredClone(source);
   const data = next.pets[id];

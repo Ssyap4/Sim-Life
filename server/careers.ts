@@ -291,6 +291,7 @@ export function applyCareer(source: GameState, role: CharacterId, command: Recor
     return done('Повышение утверждено');
   }
   if (command.type === 'career_start') {
+    if (state.world.vetVisit?.owner===role)return fail('Сначала вернись домой с питомцем');
     if (shift || occupied || state.activeShifts[role]) return fail('Заверши текущее действие или смену');
     const window = shiftWindow(id,dayOf(now));
     if (command.via !== undefined) {
@@ -418,7 +419,7 @@ export function recoverCareers(state: GameState): boolean {
     if (shift && (state.activeShifts[role] || (shift.mode === 'office' ? place !== CAREERS[shift.career].place : place !== 'home'))) {
       actor.shift = null; changed = true;
     }
-    if (isCareerPlace(place) && !actor.shift) {
+    if (isCareerPlace(place) && !actor.shift && !(place==='work-clinic'&&state.world.vetVisit?.owner===role)) {
       state.world.places[role] = 'district';
       Object.assign(state.characters[role],districtArrival(place,role),{pose:'idle'}); changed = true;
     }

@@ -1630,7 +1630,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           openComputer('laptop');
           return;
         }
-        if (stationById(world.place,id)?.action.kind==='career') {
+        if (stationById(world.place,id)?.action.kind==='career'&&state?.world.vetVisit?.owner!==active) {
           const shift=state?.careers.residents[active].shift;
           const task=shift?.task;
           if (shift&&task?.phase==='new') {

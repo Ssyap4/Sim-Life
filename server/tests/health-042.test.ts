@@ -83,3 +83,39 @@ test('Unaffordable service never charges or diagnoses',()=>{
  let s=initialState();s.money=1499;foodIllness(s,'alina','bad',()=>0);s.world.places.alina='clinic';Object.assign(s.characters.alina,approachFor(stationById('clinic','clinic-doctor')!,'alina'));
  assert.equal(localActivity(s,'alina','clinicExam','clinic-doctor').ok,false);assert.equal(s.money,1499);assert.equal(humanHealth(s,'alina').illness?.diagnosed,false);
 });
+import {healthContact,sleepHealthMultiplier,initialHealth} from '../../src/shared/health';
+import {recoverSleep} from '../timeControl';
+test('Both pets can visit the existing vet clinic, persist and return with medicine',()=>{
+ for(const pet of ['verdell','simba'] as const){
+  let s=initialState();s.money=100000;s.pets[pet].satiety=0;advancePetHealth(s,1440);
+  const role=pet==='verdell'?'vlad':'alina';
+  const send=(cmd:Record<string,unknown>)=>{const r=applyWorld(s,role,cmd);if(!r.ok)assert.fail(r.reason);s=r.state;};
+  send({type:'vet_book',pet,at:healthBookingSlots(clockMinutes(s.clock))[0]});
+  Object.assign(s.characters[role],approachFor(stationById('home','family-car')!,role));
+  send({type:'car_travel',place:'work-clinic',pet});assert.ok(validWorld(s.world));assert.equal(s.world.vetVisit?.pet,pet);
+  const dir=mkdtempSync(join(tmpdir(),'simlife-vet-'));
+  try{const f=openServerFiles(dir);f.save(s);s=f.load();assert.equal(s.world.places[role],'work-clinic');assert.equal(s.world.vetVisit?.pet,pet);}finally{rmSync(dir,{recursive:true,force:true});}
+  const floor=floorFor('work-clinic'),obs=placeObstacles('work-clinic');assert.ok(pointIsClear(s.characters[role],obs,floor));
+  for(const [action,station,price] of [['vetExam','service',1200],['vetTreatment','service',2300],['vetMedicine','records',650]] as const){
+   send({type:'approach',place:'work-clinic',station});const before=s.money;const r=localActivity(s,role,action,station);if(!r.ok)assert.fail(r.reason);s=r.state;
+   assert.equal(s.money,before-price);assert.equal(localActivity(s,role,action,station).ok,false);
+  }
+  assert.equal(petHealth(s,pet).illness?.diagnosed,true);
+  assert.equal(applyWorld(s,role,{type:'vet_medicine',pet}).ok,false);
+  send({type:'approach',place:'work-clinic',station:'vet-exit'});send({type:'travel',place:'district',via:'vet-exit'});assert.equal(s.world.places[role],'home');assert.equal(s.world.vetVisit,undefined);
+  const before=petHealth(s,pet).illness!.remaining;send({type:'vet_medicine',pet});assert.ok(petHealth(s,pet).illness!.remaining<before);assert.equal(applyWorld(s,role,{type:'vet_medicine',pet}).ok,false);
+ }
+});
+test('Close contact only spreads respiratory illness with bounded chance; insomnia slows sleep',()=>{
+ const s=initialState();s.health=initialHealth();s.health.people.vlad.illness={id:'flu',remaining:4320,diagnosed:false};
+ assert.equal(healthContact(s,()=>.13),false);assert.equal(healthContact(s,()=>.01),true);assert.equal(humanHealth(s,'alina').illness?.id,'flu');
+ const a=initialState(),b=initialState();b.health=initialHealth();b.health.people.vlad.illness={id:'insomnia',remaining:1000,diagnosed:false};
+ a.characters.vlad.energy=b.characters.vlad.energy=20;recoverSleep(a,30,new Map([['vlad','full']]));recoverSleep(b,30,new Map([['vlad','full']]));assert.ok(b.characters.vlad.energy<a.characters.vlad.energy);assert.equal(sleepHealthMultiplier(b,'vlad'),.75);
+});
+test('Family care consumes tea and has a shared cooldown; only a nearby online partner may help',()=>{
+ let s=initialState();foodIllness(s,'alina','bad',()=>0);s.pantry.tea=2;
+ assert.equal(applyWorld(s,'vlad',{type:'health_care',care:'tea'},false).ok,false);
+ Object.assign(s.characters.alina,{x:s.characters.vlad.x+.3,z:s.characters.vlad.z});
+ const r=applyWorld(s,'vlad',{type:'health_care',care:'tea'},true);if(!r.ok)assert.fail(r.reason);s=r.state;assert.equal(s.pantry.tea,1);assert.equal(humanHealth(s,'alina').illness!.remaining,1350);
+ assert.equal(applyWorld(s,'vlad',{type:'health_care',care:'support'},true).ok,false);
+});

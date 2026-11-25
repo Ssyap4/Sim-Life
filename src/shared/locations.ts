@@ -261,7 +261,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   'work-it': workStations('it'),
   'work-detail': workStations('detail'),
   'work-marketing': workStations('marketing'),
-  'work-clinic': workStations('clinic'),
+  'work-clinic': [...workStations('clinic'),door('vet-exit','Выход на улицу','district',0,4.6,true)],
 };
 export function doorwayArrival(destination:PlaceId, from:PlaceId, role:CharacterId):Point {
   if(destination==='home')return {x:HOME_GATE_INSIDE.x+(role==='vlad'?-.27:.27),z:HOME_GATE_INSIDE.z};
@@ -355,6 +355,7 @@ export interface WorldState {
   wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
+  vetVisit?:{owner:CharacterId;pet:import('./pets').PetId};
   picnic?: PicnicBasket;
   campKit?: Partial<Record<CharacterId,CampKit>>;
   campLitUntil?:number;
@@ -365,7 +366,7 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./health').HealthCommand
   | import('./fitness').FitnessCommand
@@ -383,7 +384,7 @@ export type WorldCommand =
   | import('./vacuum').VacuumCommand
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic' }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic'|'work-clinic';pet?:import('./pets').PetId }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

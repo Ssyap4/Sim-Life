@@ -629,7 +629,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   for (const station of STATIONS[place]) {
     const custom = place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
-          : isCareerPlace(place) ? careerStation(station,careerAt(place),resources) : null;
+          : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
     stations.set(station.id, group);
     root.add(group);
