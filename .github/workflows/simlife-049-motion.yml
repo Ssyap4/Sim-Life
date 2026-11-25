@@ -7,6 +7,18 @@ on:
 permissions:
   contents: read
 jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
   mobile:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
@@ -17,6 +29,9 @@ jobs:
           - scenario: sleep
             script: qa-038-sleep.mjs
             output: /tmp/simlife-038-sleep
+          - scenario: home-light
+            script: qa-049-home-light.mjs
+            output: /tmp/simlife-049-home-light
           - scenario: pets
             script: qa-028-simba-authored.mjs
             output: /tmp/simlife-028-simba-authored

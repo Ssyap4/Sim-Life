@@ -8,7 +8,12 @@ import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {initialState} from '../src/shared/protocol.ts';
+import {SOUNDTRACK} from '../src/game/Soundtrack.ts';
 import {gameMinutes} from '../src/shared/life.ts';
+import {placeObstacles} from '../src/shared/locations.ts';
+import {HOME_FLOOR} from '../src/shared/home.ts';
+import {petNavigationGeometry} from '../src/game/PetNavigation.ts';
+import {pointIsClear} from '../src/game/navigation.ts';
 import {catPerchCandidates} from '../src/shared/CatPerches.ts';
 import {chooseCatRestPose} from '../src/shared/CatRestPoses.ts';
 import {startServer} from '../server/server.ts';
@@ -40,11 +45,13 @@ try{
       state.furnishing.nextId=43;
       state.furnishing.placed=[
         {id:41,sku:'chair-cloud',finish:'sage',x:2.45,z:2.1,rotation:1},
-        {id:42,sku:'sofa-luna',finish:'oak',x:2.45,z:-.2,rotation:2},
+        {id:42,sku:'sofa-luna',finish:'oak',x:2.45,z:.05,rotation:2},
       ];
       if(scenario.sku){state.furnishing.nextId=44;state.furnishing.placed=[{id:43,sku:scenario.sku,finish:'oak',x:2.45,z:2.1,rotation:1}];}
       const perch=catPerchCandidates(state.furnishing).find(p=>p.key===scenario.key);
       if(!perch||!perch.catAnchor)throw Error('Missing physical furniture socket '+scenario.key);
+      const nav=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
+      if(!pointIsClear(perch.approach,nav.obstacles,nav.floor))throw Error('Blocked perch approach: '+scenario.name);
       const now=gameMinutes(state.clock);
       const startedAt=now-scenario.minute;
       state.pets.simba.position={...perch.approach};
@@ -70,15 +77,25 @@ try{
               window.__simbaQA=this;
               this.addEventListener('message',event=>{
                 const packet=JSON.parse(event.data);
-                if(packet.type==='snapshot')window.__simbaSnapshot=packet.state;
+                if(packet.type==='snapshot'||packet.type==='ready')window.__simbaSnapshot=packet.state;
               });
             }
           }
         };
       });
       page.on('pageerror',err=>errors.push(scenario.name+': '+err.message));
-      page.on('console',msg=>{if(msg.type()==='error')
-        errors.push(scenario.name+': browser console '+msg.text().slice(0,220));});
+      // Private soundtrack files are deliberately absent in public cloud builds.
+      // Only their exact 404s are expected; every other resource failure stays fatal.
+      const privateAudio=url=>SOUNDTRACK.some(track=>url==='http://127.0.0.1:'+server.port+'/audio/soundtrack/'+track.file);
+      page.on('response',response=>{
+        if(response.status()>=400&&!(response.status()===404&&privateAudio(response.url())))
+          errors.push(scenario.name+': HTTP '+response.status()+' '+response.url());
+      });
+      page.on('console',msg=>{
+        if(msg.type()!=='error')return;
+        if(privateAudio(msg.location().url)&&/404/.test(msg.text()))return;
+        errors.push(scenario.name+': browser console '+msg.text().slice(0,220)+' '+msg.location().url);
+      });
       await page.goto('http://127.0.0.1:'+server.port+'/?gfx=full',
         {waitUntil:'domcontentloaded',timeout:45000});
       await page.locator('.enter-button').waitFor({state:'visible',timeout:60000});
@@ -87,6 +104,7 @@ try{
       await page.locator('.enter-button').click();
       await page.waitForFunction(()=>document.querySelector('#auth')?.hidden===true,
         {timeout:15000});
+      await page.waitForFunction(key=>window.__simbaSnapshot?.pets.simba.routine?.perch?.key===key,scenario.key,{timeout:15000});
       // Enough time to finish the same jump / crouch blend used on phones.
       await page.waitForTimeout(2200);
       const shot=async suffix=>{

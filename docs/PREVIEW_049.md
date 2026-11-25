@@ -22,3 +22,10 @@ Owner approved direction 5 (quality pass), then own yard expansion (2), then fam
 - Smooth cat body yaw on perch ascent/descent, preserving authored rest yaw; partial cancelled ascent reverses its own yaw path. Fade dog stair gait near ends. No server routine, collision or save changes.
 - 31/31 focused pet tests passed, then 8/8 rerun after final cancellation fix; TypeScript passed. v3 cloud sleep layout assertions passed, venue still running at time of verification. Added authored Simba cloud captures to next workflow; visual review pending.
 - Owner requests no interim test links; provide a test build only after all 0.49 polish is complete.
+
+## v5 — surface polish and render-loop efficiency
+- Added deterministic fine wood pores and fabric threads to shared diffuse maps; same dimensions, meshes, material batching and texture resolutions. Slight daytime key/fill contrast adjustment at home; no extra lights or shadow passes.
+- Cache fixed animation pivots per model root (including absent parts) and reuse scratch vectors for vacuum and shuttle. Replacement roots remain independent. No measured phone FPS gain claimed.
+- 16/16 focused tests passed, TypeScript clean. Test proved 1200 repeated named lookups require only 2 tree searches. All furniture footprint/finish tests passed.
+- v4 cloud sleep and venue passed. Reviewed 18 actual Simba frames; rotated sofa case incorrectly used a floor approach 9cm inside an obstacle. Server correctly discarded that route. Moved only the QA fixture 25cm and verified all four approach points clear, added assertion for authoritative perch in browser. Cloud pet job failed on 40 generic 404 resource errors; likely private audio absent (eight per scenario), not yet confirmed by URL. Added exact allowlist only for private audio 404s and log URLs of all other failures. Music remains private and unchanged.
+- Added morning/day/night mobile captures and full regression job to cloud workflow. Latest visual and regression results pending. No new preview build served or main changed; owner wants no interim test links.

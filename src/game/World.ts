@@ -49,6 +49,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
 import { frameTiming } from './FrameTiming';
+import { StableModelParts } from './StableModelParts';
 import { petStepPace } from './PetMotion';
 import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
@@ -178,6 +179,10 @@ export class World {
   private petGeometry = petNavigationGeometry(this.obstacles, HOME_FLOOR);
   private furnishedGeometryKey = '';
   private furnishingModels=new Map<number,THREE.Group>();
+  private readonly stableParts=new StableModelParts();
+  private readonly framePartPosition=new THREE.Vector3();
+  private readonly frameShuttleDirection=new THREE.Vector3();
+  private readonly frameDown=new THREE.Vector3(0,-1,0);
   private staticFixtureModels=new Map<StaticFurnitureId,THREE.Group>();
   private furnishingVisualKey='';
   private furnishingGhost:THREE.Group|null=null;
@@ -1698,6 +1703,12 @@ export class World {
     this.sun.intensity=mix(begin.sun,end.sun)*1.07;
     this.sun.color.copy(mixed(begin.warm,end.warm));
     this.ambient.intensity=mix(begin.ambient,end.ambient)*.90;
+    if(this.place==='home'){
+      // Slightly stronger key/fill separation in daylight; no extra lights.
+      const daylight=THREE.MathUtils.smoothstep(this.sun.intensity,.8,2.1);
+      this.ambient.intensity*=1-.065*daylight;
+      this.sun.intensity*=1+.035*daylight;
+    }
     this.ambient.color.copy(mixed(0xbdcee4,0xeef2fb))
       .lerpColors(new THREE.Color(0xbdcee4),new THREE.Color(0xeef2fb),
         THREE.MathUtils.smoothstep(this.sun.intensity,.33,1.7));
@@ -3042,20 +3053,20 @@ export class World {
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);
-        const model=item&&this.furnishingModels.get(item.id),body=model?.getObjectByName('Vacuum moving body');
+        const model=item&&this.furnishingModels.get(item.id),body=this.stableParts.get(model,'Vacuum moving body');
         if(v&&body&&model){
           const active=v.mode==='cleaning'||v.mode==='returning';
           const sampled=active?sampleWalk({from:v.position,path:v.route},Math.min(4,Math.max(0,this.visualSeconds-this.vacuumStamp))*GAME_MINUTES_PER_REAL_SECOND*VACUUM_MODELS[item.sku as VacuumSku].speed):{from:v.position,path:[]};
-          const target=model.worldToLocal(new THREE.Vector3(sampled.from.x,.01,sampled.from.z));
+          const target=model.worldToLocal(this.framePartPosition.set(sampled.from.x,.01,sampled.from.z));
           target.y=0;body.position.copy(target);
           if(sampled.path.length){const next=sampled.path[0];body.rotation.y=Math.atan2(next.x-sampled.from.x,next.z-sampled.from.z)-model.rotation.y;}
           else if(v.mode==='docked')body.rotation.y=0;
         }
       }
-      for(const [id,model] of this.furnishingModels){const ball=model.getObjectByName('Table tennis live ball');if(!ball)continue;
+      for(const [id,model] of this.furnishingModels){const ball=this.stableParts.get(model,'Table tennis live ball');if(!ball)continue;
         const h=[...this.homeTasks.values()].find(h=>h.furnitureId===id&&h.pair?.item==='pingPong');
         const playing=this.tennisStarted!==null&&!!h&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='leisureTogether');
-        ball.visible=playing;const resting=model.getObjectByName('Table tennis resting equipment');if(resting)resting.visible=!playing;
+        ball.visible=playing;const resting=this.stableParts.get(model,'Table tennis resting equipment');if(resting)resting.visible=!playing;
         if(playing){const f=tennisBall(this.visualSeconds-this.tennisStarted!,h!.pair!.tennisWinner);ball.position.set(f.x,f.y,f.z);}
       }
       for(const id of PET_IDS){const visual=this.feederVisual[id];if(visual?.started===undefined||!this.household)continue;const station=feedingStation(this.household.furnishing,id);const elapsed=this.visualSeconds-visual.started;if(elapsed>=.8||visual.id!==station.item?.id)delete visual.started;
@@ -3070,7 +3081,7 @@ export class World {
     if(this.place==='fitness'&&this.remote){
       const roles=['vlad','alina'] as const;
       for(const [id,group] of this.remote.stations){
-        const belt=group.getObjectByName('PULSE belt'),crank=group.getObjectByName('PULSE crank'),stack=group.getObjectByName('PULSE stack');
+        const belt=this.stableParts.get(group,'PULSE belt'),crank=this.stableParts.get(group,'PULSE crank'),stack=this.stableParts.get(group,'PULSE stack');
         if(!belt&&!crank&&!stack)continue;
         const station=stationById('fitness',id)!;
         const role=roles.find(r=>{const actor=this.actors[r],pos=approachFor(station,r);return actor.root.visible&&actor.audioMotion().activity?.startsWith('gym')&&Math.hypot(actor.root.position.x-pos.x,actor.root.position.z-pos.z)<.75;});
@@ -3081,12 +3092,12 @@ export class World {
       }
     }
     if(this.place==='park'&&this.remote){
-      const pivot=this.remote.stations.get('park-swing')?.getObjectByName('Leisure swing pivot');
+      const pivot=this.stableParts.get(this.remote.stations.get('park-swing'),'Leisure swing pivot');
       if(pivot)pivot.rotation.x=(['vlad','alina'] as const).some(r=>this.actors[r].root.visible&&this.actors[r].isParkSwing())?Math.sin(this.visualSeconds*1.7)*.15:0;
-      const flames=this.remote.stations.get('park-fire')?.getObjectByName('Park campfire flames');
+      const flames=this.stableParts.get(this.remote.stations.get('park-fire'),'Park campfire flames');
       if(flames){flames.visible=!!this.household&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock);flames.scale.set(1+.07*Math.sin(this.visualSeconds*7),.87+.16*Math.sin(this.visualSeconds*11),1);}
-      const shuttle=this.remote.stations.get('park-badminton')?.getObjectByName('Park shuttlecock');
-      if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(new THREE.Vector3(0,-1,0),new THREE.Vector3(f.dx,f.dy,f.dz).normalize());}}
+      const shuttle=this.stableParts.get(this.remote.stations.get('park-badminton'),'Park shuttlecock');
+      if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(this.frameDown,this.frameShuttleDirection.set(f.dx,f.dy,f.dz).normalize());}}
     }
     try {
       if(this.fittingStage){
