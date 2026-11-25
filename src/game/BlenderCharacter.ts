@@ -48,7 +48,7 @@ function collectBones(object: THREE.Object3D): Record<BoneName, THREE.Bone> {
   return bones;
 }
 
-export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:readonly string[]=[],refined=true): CharacterModel {
+export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:readonly string[]=[],refined=false): CharacterModel {
   const rigRoot = gltf.scene.getObjectByName('Resident');
   const waistY: unknown = rigRoot?.userData.waistY;
   const blink = THREE.AnimationClip.findByName(gltf.animations, 'Blink');

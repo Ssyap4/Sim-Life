@@ -19,6 +19,6 @@ try{
    await page.screenshot({path:out+'/alina-'+care+'.png'});
   }
  }
- for(const id of ['alina','vlad'])assert.equal(results[id+'-before-front'],results[id+'-after-front'],'triangle budget');
+ for(const id of ['alina','vlad'])assert.ok(results[id+'-after-front']>results[id+'-before-front'],'high-detail mesh exported');
  writeFileSync(out+'/results.json',JSON.stringify({results,errors},null,2));assert.deepEqual(errors,[]);
 }finally{await browser.close();}

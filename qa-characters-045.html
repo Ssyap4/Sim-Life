@@ -5,7 +5,7 @@ import {createBlenderCharacter,readAsset} from './src/game/BlenderCharacter.ts';
 const id=new URLSearchParams(location.search).get('id')==='vlad'?'vlad':'alina';
 const variant=new URLSearchParams(location.search).get('variant')||'after';
 const assets={alina:new URL('./src/assets/characters/alina.glb',import.meta.url).href,vlad:new URL('./src/assets/characters/vlad.glb',import.meta.url).href};
-const actor=new Actor(id,[0,0],createBlenderCharacter(await readAsset(assets[id]),id,[],variant!=='before'));
+const actor=new Actor(id,[0,0],createBlenderCharacter(await readAsset(variant==='before'?'/qa-baseline/'+id+'.glb':assets[id]),id,[],false));
 actor.setNeeds({hunger:85,energy:85,bladder:85,hygiene:85,mood:85});
 const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9dfd1);scene.add(actor.root);
 scene.add(new THREE.HemisphereLight(0xfff8ee,0xaab3bd,2.0));
@@ -18,8 +18,8 @@ window.renderPortrait=(view,care='')=>{
  actor.setCareAppearance(care==='evening'?'fancy':care==='light'?'style':'',care);
  actor.root.rotation.y=0;actor.root.updateMatrixWorld(true);
  if(view==='full'){camera.position.set(.15,1.05,3.6);camera.lookAt(0,1.04,0);}
- else if(view==='quarter'){camera.position.set(.78,h-.035,1.14);camera.lookAt(0,h-.09,0);}
- else{camera.position.set(0,h-.035,1.10);camera.lookAt(0,h-.09,0);}
+ else if(view==='quarter'){camera.position.set(.98,h-.035,1.48);camera.lookAt(0,h-.09,0);}
+ else{camera.position.set(0,h-.035,1.48);camera.lookAt(0,h-.09,0);}
  renderer.render(scene,camera);
  return renderer.info.render.triangles;
 };

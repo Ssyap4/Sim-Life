@@ -20,18 +20,18 @@ class Portrait:
         self.brow = rgb('695044' if woman else '4b332b')
         self.iris = rgb('6491ab' if woman else '746849')
         self.mouth_y = -.112 if woman else -.121
-        self.mouth_w = .047 if woman else .048
+        self.mouth_w = .051 if woman else .050
         self.eye_x = .060 if woman else .059
-        self.nose_projection = .61 if woman else 1.0
+        self.nose_projection = .77 if woman else .90
         self.nose_width = 1.02 if woman else 1.0
         self.face_relief = True
         self.widths = (
-            [(LOW,.009,.010,.062),(-.192,.049,.057,.037),(-.163,.082,.089,.021),
-             (-.128,.106,.112,.008),(-.077,.130,.134,-.004),(-.031,.144,.145,-.009),
+            [(LOW,.009,.010,.062),(-.192,.062,.063,.036),(-.163,.090,.091,.021),
+             (-.128,.114,.114,.008),(-.077,.137,.138,-.004),(-.031,.144,.145,-.009),
              (.028,.145,.151,-.016),(.080,.140,.145,-.019),(.132,.127,.128,-.025),
              (.176,.098,.091,-.028),(.202,.050,.053,-.031),(HIGH,.003,.006,-.031)]
             if woman else
-            [(LOW,.014,.014,.055),(-.190,.060,.062,.036),(-.161,.094,.088,.017),
+            [(LOW,.014,.014,.055),(-.190,.067,.065,.036),(-.161,.099,.091,.017),
              (-.120,.114,.115,.002),(-.073,.127,.128,-.007),(-.022,.139,.145,-.016),
              (.031,.142,.148,-.022),(.079,.139,.145,-.026),(.129,.124,.125,-.030),
              (.176,.095,.090,-.032),(.204,.042,.044,-.031),(HIGH,.002,.004,-.030)]
@@ -42,8 +42,8 @@ class Portrait:
         full = np.maximum(0,1-a*a)**.68
         middle = self.mouth_y + .0038*a*a + .0014*a + .0016*np.exp(-(a/.19)**2)
         cupid = .0035*np.exp(-((np.abs(a)-.27)/.19)**2)
-        upper = (.0084 if self.woman else .0061)+cupid
-        lower = .0124 if self.woman else .0094
+        upper = (.0108 if self.woman else .0072)+cupid
+        lower = .0148 if self.woman else .0108
         return middle, full, upper, lower
 
     def face_depth(self, x, y, cosine):
@@ -54,13 +54,13 @@ class Portrait:
         nose_side = abs(nose_x)
         brow = bell((y-.035)/.022)*bell((a-.059)/.047)
         brow_shape = (.009 if w else .019)*brow
-        socket = -.026*bell(y/.023)*bell((a-self.eye_x)/.034)
+        socket = -.014*bell(y/.031)*bell((a-self.eye_x)/.042)
         cheek = (.018 if w else .023)*bell((a-.099)/.046)*bell((y+.035)/.045)
         jaw = (.003 if w else -.010)*bell((a-.100)/.038)*bell((y+.106)/.037)
         ridge = (.038 if w else .046)*bell((y+.028)/.052)*bell(nose_x/(.020 if w else .024))
         tip = (.031 if w else .041)*bell((y-tip_y)/(.019 if w else .016))*bell((nose_x+.0018)/.022)
         wing = .015*bell((y-tip_y+.006)/.013)*bell((nose_side-.018)/.010)
-        nostril = -.012*bell((nose_side-.016)/.0055)*bell((y-tip_y+.014)/.005)
+        nostril = -.0068*bell((nose_side-.016)/.0055)*bell((y-tip_y+.014)/.005)
         nose = self.nose_projection*(ridge+tip) + (.65+.35*self.nose_projection)*(wing+nostril)
         muzzle = .017*bell(x/.063)*bell((y-self.mouth_y)/.043)
         chin = .018*bell(x/(.050 if w else .059))*bell((y+.174)/.034)
@@ -72,7 +72,7 @@ class Portrait:
         relief=0
         if self.face_relief:
             lid_slope=.0049*bell((y-.016)/.010)*bell((a-self.eye_x)/.035)
-            cheek_line=.0075*bell((a-.099)/.027)*bell((y+.047+.25*(a-.10))/.025)
+            cheek_line=.0042*bell((a-.099)/.027)*bell((y+.047+.25*(a-.10))/.025)
             lower_jaw=(.0045 if w else .0082)*bell((y+.124)/.023)*bell((a-.088)/.034)
             philtrum=-.0031*bell(x/.007)*bell((y+.091)/.012)
             relief=lid_slope+cheek_line+lower_jaw+philtrum
@@ -90,8 +90,8 @@ class Portrait:
         return a/(2*pi)+.5, .27+.71*(y-LOW)/(HIGH-LOW)
 
     def paint(self):
-        """Bake a 512px atlas. The lower rows are reserved for the eyelid islands."""
-        size = 512
+        """Bake a 1024px atlas. The lower rows are reserved for the eyelid islands."""
+        size = 1024
         axis = (np.arange(size)+.5)/size
         u,v = np.meshgrid(axis,axis)
         a = (u-.5)*2*pi
@@ -111,10 +111,10 @@ class Portrait:
             return np.exp(-k*k)
 
         warm = g((side-.101)/.048)*g((y+.056)/.038)
-        shade('d98482' if self.woman else 'bd7c6d', warm*mask*(.47 if self.woman else .27))
+        shade('d98482' if self.woman else 'bd7c6d', warm*mask*(.32 if self.woman else .17))
         shade('dca28b', g((y+.060)/.030)*g(x/.035)*mask*.46)
-        shade('915d56', g((y+.068)/.006)*g((side-.017)/.0056)*mask*.61)
-        shade('c58c79', g((side-.056)/.056)*g((y+.016)/.028)*mask*.30)
+        shade('915d56', g((y+.068)/.006)*g((side-.017)/.0056)*mask*.29)
+        shade('c58c79', g((side-.056)/.056)*g((y+.016)/.028)*mask*.16)
         shade('a68174', (.30 if self.woman else .40)*(1-front)**1.50*g((y+.131)/.079))
         shade('f6d9bd', g((y-.078)/.073)*g((x+.02)/.084)*mask*.20)
         shade('f5d0b3',g((y+.163)/.023)*g(x/.055)*mask*.24)
@@ -128,8 +128,8 @@ class Portrait:
         limit = np.maximum(np.where(d >= 0,top,bottom)*full,.0001)
         amount = np.clip((1-np.abs(d)/limit)*5,0,1)*mask
         amount *= np.clip((1-np.abs(x/self.mouth_w))*15,0,1)
-        shade('c17a82' if self.woman else 'b27b70', amount*.96)
-        shade('743d41' if self.woman else '69423e',g(d/.00165)*amount*.92)
+        shade('c47b83' if self.woman else 'b68173', amount*.88)
+        shade('743d41' if self.woman else '69423e',g(d/.00135)*amount*.64)
         shade('f3afaa' if self.woman else 'dfad97',g((d+.0051)/.0031)*amount*(.30+.08*np.cos(x*2500))*g(x/.032))
         shade('e8a99f',g((d+.0036)/.0016)*amount*.23*g((x+.013)/.015))
         grain = np.sin(u*941+np.sin(v*913)*1.7)*np.cos(v*719-u*211)
@@ -145,9 +145,9 @@ class Portrait:
             def eyelid(color, opacity):
                 eye_paint[:] += (np.array(rgb(color))-eye_paint)*np.clip(opacity,0,1)[...,None]
 
-            eyelid('b77b77' if self.woman else 'ad7864',arch*g((t-.19)/.25)*(.5 if upper else .28))
+            eyelid('b77b77' if self.woman else 'ad7864',arch*g((t-.19)/.25)*(.36 if upper else .13))
             if upper:
-                eyelid('392428' if self.woman else '62463d',(g(t/.14)*.96+g((t-.44)/.078)*.23)*arch)
+                eyelid('392428' if self.woman else '62463d',(g(t/.14)*.86+g((t-.44)/.078)*.12)*arch)
             else:
                 eyelid('c18d7e',arch*g(t/.14)*.64)
             pigment[islands] = eye_paint[islands]
@@ -165,7 +165,9 @@ class Portrait:
                     -.071,-.064,-.057,-.050,-.041,-.030,-.019,-.008,0,.011,.024,
                     .046,.069,.094,.119,.143,.166,.186,.201,HIGH]
         facial_y.sort()
-        front = [-1.45+2.9*t for t in steps(43)]
+        # Dense, analytic surface sampling preserves the sculpted lip, nose and eye relief.
+        facial_y = sorted(set(facial_y + [(a+b)*.5 for a,b in zip(facial_y,facial_y[1:])]))
+        front = [-1.45+2.9*t for t in steps(85)]
         angles = [-pi+(pi-1.45)*t for t in steps(8)][:-1]+front
         angles += [1.45+(pi-1.45)*t for t in steps(8)][1:]
         rows = []
@@ -192,45 +194,45 @@ class Portrait:
         return face
 
     def eye(self, face, eye_mesh, trim, side, suffix):
-        outer = .040 if self.woman else .037
+        outer = .046 if self.woman else .041
         cx = side*self.eye_x
-        center = self.depth(cx,0)+(.019 if self.woman else .020)
-        radius = .058
+        center = self.depth(cx,0)+(.016 if self.woman else .017)
+        radius = .071
         # The eyeball wraps toward the temple. Alina's outer corners lift slightly.
         def globe(x,y):
             dx = x-cx
             return center-radius+sqrt(max(.0001,radius**2-dx**2-y**2))-side*dx*.27
 
         def edges(a):
-            lift = side*a*(.0060 if self.woman else .0040)
+            lift = side*a*(.0050 if self.woman else .0035)
             shape = max(0,1-a*a)**.66
-            return (lift-.0106*shape, lift+(.0136 if self.woman else .0118)*shape)
+            return (lift-(.0160 if self.woman else .0128)*shape, lift+(.0210 if self.woman else .0168)*shape)
 
         whites = []
-        for v in steps(5):
+        for v in steps(11):
             row = []
-            for u in steps(23):
+            for u in steps(45):
                 a = 2*u-1
                 lo,hi = edges(a)
                 x,y = cx+outer*a,lo+(hi-lo)*v
-                color = blend(rgb('f7eeea'),rgb('a78983'),.38*v**2+.33*abs(a)**4)
+                color = blend(rgb('f7eeea'),rgb('bcaaa5'),.22*v**2+.20*abs(a)**4)
                 row.append((self.point(x,y,globe(x,y)),color,HEAD,(0,0)))
             whites.append(row)
         eye_mesh.grid(whites)
 
         iris = []
-        for r in (.012,.39,.47,.66,.83,.95,1):
+        for r in (.012,.21,.38,.46,.51,.59,.68,.77,.86,.93,.97,1):
             row = []
-            for j in range(24):
-                a = 2*pi*j/24
+            for j in range(48):
+                a = 2*pi*j/48
                 pupil = rgb('211d22')
                 dye = .19+.27*max(0,-sin(a))+.13*cos(a*11+.7)**2
                 color = blend(self.iris,rgb('cfc5a2' if self.woman else 'c5a776'),dye)
                 if r >= .95:
                     color = blend(color,rgb('28353b'),.78 if r == 1 else .51)
-                if r < .48:
+                if r < .52:
                     color = blend(color,pupil,.97 if r < .41 else .59)
-                rx,ry = (.0158,.0173) if self.woman else (.0146,.0165)
+                rx,ry = (.0220,.0230) if self.woman else (.0178,.0195)
                 x = cx + r*rx*cos(a)
                 lo,hi = edges((x-cx)/outer)
                 y = max(lo-.0001,min(hi+.0002,.001+r*ry*sin(a)))
@@ -248,15 +250,15 @@ class Portrait:
         for upper in (False,True):
             direction = 1 if upper else -1
             patch, closed = [], []
-            for t in (0,.11,.23,.40,.63,1):
+            for t in (0,.055,.11,.17,.23,.315,.40,.515,.63,.815,1):
                 row, shut = [], []
-                for u in steps(25):
+                for u in steps(49):
                     a = 2*u-1
                     shell = max(0,1-a*a)**.70
                     x = cx+a*(outer+.010*t)
                     lo,hi = edges(a)
                     rim = hi if upper else lo
-                    y = rim + t*direction*(.007+(.022 if upper else .016)*shell)
+                    y = rim + t*direction*(.007+(.020 if upper else .012)*shell)
                     def lid_z(at,closing):
                         feather = ramp(.30,.99,t) if closing else smooth(t/(.76 if upper else .62))
                         blend_depth = max(feather,ramp(.84,1.16,abs(x-cx)/outer))
@@ -273,8 +275,8 @@ class Portrait:
 
         # Fine taper at the corner. Bind the strokes to the blinking mesh.
         if self.woman:
-            for i in range(6):
-                a = side*(.29+i*.105)
+            for i in range(9):
+                a = side*(.12+i*.093)
                 x = cx+outer*a
                 _, y = edges(a)
                 tip = side*(.0027+.00027*i)
@@ -282,7 +284,7 @@ class Portrait:
                 shut = []
                 for t in (0,.42,.72,1):
                     xx = x+tip*t
-                    yy = y+(.0033+.00044*i)*t*t
+                    yy = y+(.0040+.00046*i)*t*t
                     zz = globe(xx,yy)+.0035
                     close_y = yy + (-.0030*max(0,1-a*a)**.7-y)*(1-.5*t)
                     breadth = (.0011*(1-t)+.00011)
@@ -292,9 +294,9 @@ class Portrait:
                 start = face.grid(rows)
                 face.deformation('CloseLids',start,shut)
 
-        brow = ((-.037,.028),(-.027,.034),(-.014,.037),(0,.039),
-                (.014,.042 if self.woman else .038),(.026,.039 if self.woman else .034),(.040,.027))
-        radii = (.00065,.0034,.0041,.0038,.0031,.0021,.00045)
+        brow = ((-.037,.036),(-.027,.041),(-.014,.045),(0,.047),
+                (.014,.048 if self.woman else .045),(.026,.044 if self.woman else .040),(.040,.033))
+        radii = (.0012,.0042,.0045,.0041,.0033,.0024,.0005)
         path = []
         for t in steps(19):
             i = min(int(t*6),5)
@@ -330,7 +332,7 @@ class Portrait:
         return hair
 
     def hair_paint(self):
-        width, height = 512, 256
+        width, height = 1024, 512
         u,v = np.meshgrid((np.arange(width)+.5)/width,(np.arange(height)+.5)/height)
         a = (u-.5)*2*pi
         def fade(left,right,value):
@@ -346,7 +348,7 @@ class Portrait:
             lit = mix(np.array(rgb('977450')),np.array(rgb('e3c79b')),
                       .33+.30*section+.12*strand+.045*thread+.16*(1-fade(.1,.69,v)))
             part = np.exp(-(np.minimum(u,1-u)/.035)**2)*np.exp(-((v-.91)/.13)**2)
-            roots = .68*fade(.58,.98,v)+.24*part
+            roots = .51*fade(.58,.98,v)+.16*part
             painted = mix(lit,np.array(rgb('69503d')),roots)
         else:
             front = np.maximum(0,np.cos(a))
@@ -368,13 +370,13 @@ class Portrait:
     def crop(self, hair):
         dark, warm, fade = map(rgb,('2b201e','654638','816052'))
         rows = []
-        for t in steps(22):
+        for t in steps(42):
             row = []
-            for u in steps(59):
+            for u in steps(115):
                 a = (u-.5)*2*pi
                 front, side = cos(a),sin(a)
                 f = max(0,front)
-                edge = .046 + .090*f**.84 - .123*max(0,-front)**.94
+                edge = .035 + .071*f**.84 - .123*max(0,-front)**.94
                 edge += .014*f*sin(a+.68)+.006*f*cos(a*3+.14)
                 h = edge+(HIGH-edge)*(1-(1-t)**1.17)
                 rx,rz,z0 = profile(self.widths,h)
@@ -404,13 +406,13 @@ class Portrait:
                  (.132,.48),(.157,.22),(.180,.033),(.208,.012),(.236,.009)]
         root, base, sand = map(rgb,('584439','997956','d6b784'))
         shoulder = -.411
-        heights = [shoulder + .59*t for t in steps(27)]+[.191,.204,.215,.223,.230,.234,.236]
+        heights = [shoulder + .59*t for t in steps(51)]+[.191,.204,.215,.223,.230,.234,.236]
         rows = []
         for y0 in heights:
             t = (y0-shoulder)/(.236-shoulder)
             row = []
-            for u in steps(58):
-                hem = sin(u*4*pi+.7)*.029+cos(u*9*pi+1.24)*.018 + .012*sin(u*13*pi+.4)
+            for u in steps(112):
+                hem = sin(u*4*pi+.7)*.022+cos(u*9*pi+1.24)*.014 + .008*sin(u*13*pi+.4)
                 y = y0+hem*(1-ramp(0,.27,t))
                 opening, = profile(split,y)
                 part = -.105-.095*bell((y-.133)/.052)
@@ -419,18 +421,18 @@ class Portrait:
                 if -.08 < y < HIGH:
                     # Maintain room for the skull as the two drapes meet at the crown.
                     head_x,head_z,head_center = profile(self.widths,y)
-                    clearance = .012 + .006*bell((y-.122)/.065)
+                    clearance = .018 + .014*bell((y-.122)/.065)
                     rx = max(rx,head_x+clearance)
                     rz = max(rz,head_z+clearance+abs(z0-head_center))
                 flow = u*2*pi*12 + .92*sin(t*8+u*5) + .44*sin(t*19-u*12)
                 strand = (.5+.5*cos(flow))**2.5
                 thread = (.5+.5*cos(flow*2.13+.48))**2
-                texture = (.0068*strand+.0044*cos(u*2*pi*5+t*5))*sin(pi*t)**.73
+                texture = (.0092*strand+.0072*cos(u*2*pi*5+t*5))*sin(pi*t)**.73
                 side = min(u,1-u)
                 face_lock = bell(side/.047)
-                curve = .011*sin(y*14+u*5)*bell((y+.17)/.28)
+                curve = .019*sin(y*13+u*5)*bell((y+.17)/.28)
                 x = sin(a)*(rx+texture)+curve
-                z = z0+cos(a)*(rz+texture)+face_lock*.018*bell((y+.09)/.145)
+                z = z0+cos(a)*(rz+texture)+face_lock*.035*bell((y+.09)/.175)
                 root_tint = ramp(.028,.194,y)*.74
                 warm = blend(base,sand,.22+.29*strand+.095*thread+.22*(1-ramp(-.32,.024,y)))
                 groove = bell(side/.025)*bell((y-.177)/.045)*.24
@@ -455,3 +457,28 @@ class Portrait:
                              ((x-side*.003*thickness,y-.002*thickness,z-.009*thickness),c,w,uv),
                              ((x-side*.009*thickness,y-.004*thickness,z-.017*thickness),blend(c,root,.37),w,uv)])
             hair.grid(roll,flip=side<0)
+
+        # Sculpt layered, tapered front locks over the existing continuous shell.
+        # Same material, same skin weights, no extra draw calls.
+        for side in (-1,1):
+            for lock in range(3):
+                ribbon=[]
+                for k in range(3,len(rows)-8):
+                    row=rows[k];h=heights[k];t=(h-shoulder)/(.236-shoulder)
+                    envelope=sin(pi*max(0,min(1,(t-.04)/.88)))**.85
+                    center=.037+.055*lock+.027*sin(t*6+lock*.9)
+                    width=.021+.010*envelope
+                    section=[]
+                    for u in steps(13):
+                        q=center+(u-.5)*width*2
+                        if side<0:q=1-q
+                        f=max(0,min(len(row)-1.001,q*(len(row)-1)))
+                        idx=int(f);mix=f-idx
+                        p0,c,w,uv=row[idx];p1,_,_,uv1=row[idx+1]
+                        x,y,z=tuple(a+(b-a)*mix for a,b in zip(p0,p1))
+                        uv=tuple(a+(b-a)*mix for a,b in zip(uv,uv1))
+                        lift=.012*envelope*sin(pi*u)**.7
+                        # Push outward, leaving the face and the armature intact.
+                        section.append(((x+side*lift*.65,y,z+lift),c,w,uv))
+                    ribbon.append(section)
+                hair.grid(ribbon,flip=side<0)

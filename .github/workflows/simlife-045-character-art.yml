@@ -1,4 +1,4 @@
-name: Sim-Life 0.45 character art experiment
+name: Sim-Life 0.45 HD character art export
 on:
   push:
     branches: [feat/character-art-045]
@@ -8,23 +8,43 @@ permissions:
 jobs:
   mobile-portraits:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
+      - name: Install Blender in cloud
+        run: |
+          curl --fail --location --retry 3 'https://download.blender.org/release/Blender4.3/blender-4.3.2-linux-x64.tar.xz' -o /tmp/blender.tar.xz
+          tar -xJf /tmp/blender.tar.xz -C /tmp
+          /tmp/blender-4.3.2-linux-x64/blender --version
+      - name: Rebuild both original residents with higher-detail surfaces
+        id: export
+        run: |
+          mkdir -p public/qa-baseline /tmp/simlife-045-export
+          cp src/assets/characters/{alina,vlad}.glb public/qa-baseline/
+          for id in alina vlad; do
+            /tmp/blender-4.3.2-linux-x64/blender --background --factory-startup --python-exit-code 1 --python art/characters/generate.py -- "$id" --source-dir /tmp/simlife-045-export --output-dir src/assets/characters
+            cp "src/assets/characters/$id.glb" /tmp/simlife-045-export/
+          done
+      - uses: actions/upload-artifact@v4
+        if: steps.export.outcome == 'success'
+        with:
+          name: hd-character-assets
+          path: /tmp/simlife-045-export
+          retention-days: 7
       - run: npm ci
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install chromium
       - run: npm run build
-      - run: npx tsx --test server/tests/blender.test.ts server/tests/blenderWalkingGait.test.ts server/tests/consoles-043.test.ts server/tests/vanity-044.test.ts
-      - name: Render original game rig with identical lighting and cameras
+      - name: Render actual game rig with identical lighting and cameras
         run: |
           npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/portrait-server.log" 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-characters-045.html >/dev/null && break; sleep 1; done
           node scripts/qa-045-characters.mjs
+      - run: npx tsx --test server/tests/blender.test.ts server/tests/blenderWalkingGait.test.ts server/tests/consoles-043.test.ts server/tests/vanity-044.test.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
