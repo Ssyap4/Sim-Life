@@ -44,6 +44,12 @@ try{
  for(const surface of glass)assert.match(surface.background,/rgba\(/,surface.id+' must be translucent');
  assert.equal(await page.locator('#app').getAttribute('data-hud-light'),process.argv.includes('night')?'night':'day');
  console.log('HUD surfaces',JSON.stringify(glass));
+ const notice=page.locator('.life-pop:not([hidden])');
+ if(await notice.isVisible()){
+   assert.match(await notice.evaluate(el=>getComputedStyle(el).backgroundImage),/rgba\(/);
+   const msg=page.locator('.message.show');
+   if(await msg.isVisible()){const a=await notice.boundingBox(),b=await msg.boundingBox();assert.ok(b.y>=a.y+a.height||b.y+b.height<=a.y,'notices overlap');}
+ }
  await shot('overview');
  const first=await pose();await touch(down,1700);const low=await pose();assert.ok(low.eye[1]<first.eye[1]-.3);
  await shot('free-low');

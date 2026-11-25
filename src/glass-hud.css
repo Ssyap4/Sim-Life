@@ -88,3 +88,23 @@
 @media(prefers-reduced-transparency:reduce){
   #app,#app[data-hud-light="night"]{--glass-fill:#243a36;--glass-active:#35634f}
 }
+
+/* Compact life notices belong to the HUD, not to the full wishes sheet. */
+#app .thought-dock .life-pop{
+  background:var(--glass-fill);color:var(--glass-ink);
+  border-color:var(--glass-edge);box-shadow:var(--glass-shadow);
+  text-shadow:0 1px 2px rgba(0,0,0,.68);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+}
+#app .thought-dock .life-pop small{color:var(--glass-muted)}
+#app .thought-dock .life-pop-urgent{border-color:#f1ce9a;color:#fff4db}
+#app .thought-dock .life-pop button{
+  background:rgba(255,255,255,.13);color:var(--glass-ink);
+  border:1px solid var(--glass-edge);
+}
+#app .thought-dock .life-pop-meter{background:rgba(236,255,245,.25)}
+#app .thought-dock .life-pop-meter i{background:#a4e2bc}
+#app .thought-dock .life-pop-urgent .life-pop-meter i{background:#efba86}
+@media(max-width:640px) and (orientation:portrait){
+  #app:has(.life-pop:not([hidden])) .message{top:calc(var(--hud-top,114px) + 140px)}
+}
