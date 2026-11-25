@@ -43,7 +43,7 @@ try{
  await page.locator('[data-focus-shared]').click();
  await page.waitForTimeout(3500);
  await page.screenshot({path:join(out,action+'-initial.jpg'),type:'jpeg',quality:90});
- if(action==='poolSwimTogether'){await page.waitForTimeout(6000);await page.screenshot({path:join(out,action+'-moving.jpg'),type:'jpeg',quality:90});assert.deepEqual(errors,[]);process.exitCode=0;}else{
+ if(action==='poolSwimTogether'){await page.waitForTimeout(9000);await page.screenshot({path:join(out,action+'-moving.jpg'),type:'jpeg',quality:90});assert.deepEqual(errors,[]);process.exitCode=0;}else{
  assert.equal(await page.locator('[data-social-finish]').innerText(),'Выйти из воды');
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
  assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);

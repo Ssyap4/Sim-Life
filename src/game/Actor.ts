@@ -349,6 +349,7 @@ export class Actor {
     this.waypoints = [];
     this.callback = null;
     if(this.pose!==pose)this.restTime=0;
+    this.authoredWaterAnchor=false;this.poolStepTravel=0;
     this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;
     this.gesture = null;
     this.partnerGesture = null;
@@ -395,8 +396,13 @@ export class Actor {
     } else this.keys = keys;
   }
 
-  updateWaterAnchor(worldAnchor:THREE.Vector3,yaw:number):void{
-    this.root.rotation.y=yaw;this.poseOffset.copy(worldAnchor).sub(this.root.position).applyAxisAngle(up,-yaw);
+  private authoredWaterAnchor=false;
+  private poolStepTravel=0;
+  updateWaterAnchor(worldAnchor:THREE.Vector3,yaw:number,stepping=false):void{
+    if(stepping){this.target.copy(this.figureBase).applyAxisAngle(up,this.root.rotation.y).add(this.root.position);this.poolStepTravel=Math.hypot(worldAnchor.x-this.target.x,worldAnchor.z-this.target.z);}
+    else this.poolStepTravel=0;
+    this.authoredWaterAnchor=true;this.root.rotation.y=yaw;this.poseOffset.copy(worldAnchor).sub(this.root.position).applyAxisAngle(up,-yaw);
+    this.figureBase.copy(this.poseOffset);
   }
   snapFurnitureOffset():void { this.figureBase.copy(this.poseOffset); this.figure.position.copy(this.poseOffset); }
   isSleeping(): boolean { return this.pose==='sleep'; }
@@ -586,9 +592,10 @@ export class Actor {
     this.gestureTime += dt;
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;
-    const traveled = this.advance(dt, steer)+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
+    const poolStep=this.poolStepTravel;this.poolStepTravel=0;
+    const traveled = this.advance(dt, steer)+poolStep+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
     const sport=this.activity==='badminton'||this.activity==='pingPong';
-    const walking = (this.waypoints.length > 0 || sport) && traveled > .001;
+    const walking = (this.waypoints.length > 0 || sport || poolStep>0) && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
     const targetMotion=walking?(sport?1:walkMotionTarget(traveled,dt,HOME_WALK_SPEED)):0;
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend,targetMotion,
@@ -1556,7 +1563,7 @@ export class Actor {
     this.figure.position.y -= this.activity==='spaMassage'||this.activity==='spaRecline'?0:stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
-    if(this.activity==='spaSwim'){this.figure.position.y+=.045*Math.sin(a*2.7);this.figure.position.z+=.36*Math.sin(a*.42);}
+    if(this.activity==='spaSwim'){this.figure.position.y+=.045*Math.sin(a*2.7);if(!this.authoredWaterAnchor)this.figure.position.z+=.36*Math.sin(a*.42);}
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, this.activity==='spaMassage'?Math.PI/2:resting||this.activity==='spaSwim' ? -Math.PI / 2 : 0, alpha);
     this.figure.rotation.y = THREE.MathUtils.lerp(this.figure.rotation.y,rest?.roll??0,alpha);
     if(rest)this.figure.position.y+=rest.lift+.004*breath;

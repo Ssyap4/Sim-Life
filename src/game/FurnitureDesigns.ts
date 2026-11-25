@@ -2,7 +2,7 @@ import {POOL_SIZE,floatX,FLOAT_Z} from '../shared/oasisPool';
 import {feederModel} from '../shared/petFeeders';
 import * as THREE from 'three';
 import { FURNITURE_BY_ID,FURNITURE_FINISHES,workstationLayout,isNotebookDesk,type FurnitureFinish } from '../shared/furniture';
-import { cube,softCube,orb,drum,finish,batchRigidParts } from './ArtKit';
+import { cube,softCube,orb,drum,finish,batchRigidParts,paintedMap } from './ArtKit';
 
 // Deliberately authored visual identities, shared by product photos and world.
 // Components are simple reusable low-poly geometry, not textures or extra draw loops.
@@ -153,15 +153,31 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     box(6.32,.11,.20,0,.89,1.50,0xf5f2e7,'ceramic',true);
     for(const x of [-3.12,3.12])box(.26,.10,3.85,x,.89,cz,0xf5f2e7,'ceramic',true);
     box(6.32,.10,.24,0,.89,-2.14,0xf5f2e7,'ceramic',true);
-    const surface=new THREE.Mesh(new THREE.PlaneGeometry(water.waterWidth,water.waterDepth),new THREE.MeshStandardMaterial({color:0x39b6c8,transparent:true,opacity:.66,roughness:.24,metalness:.08,depthWrite:false,side:THREE.DoubleSide}));
+    const map=paintedMap('oasis-water-v2',256,256,ctx=>{
+      ctx.fillStyle='#78bdcb';ctx.fillRect(0,0,256,256);
+      // Soft interlocking caustic arcs; no lane markings or expensive reflection pass.
+      for(let j=-1;j<7;j++)for(let i=-1;i<7;i++){
+        const x=i*47+Math.sin(j*2.7+i)*13,y=j*43+Math.cos(i*1.7+j)*10;
+        ctx.beginPath();ctx.moveTo(x-23,y);
+        ctx.bezierCurveTo(x-16,y-18,x+8,y-22,x+24,y);
+        ctx.bezierCurveTo(x+14,y+20,x-8,y+18,x-23,y);
+        ctx.strokeStyle='rgba(231,251,249,0.22)';ctx.lineWidth=2.2;ctx.stroke();
+        ctx.strokeStyle='rgba(241,255,255,0.38)';ctx.lineWidth=.65;ctx.stroke();
+      }
+    });
+    const surface=new THREE.Mesh(new THREE.PlaneGeometry(water.waterWidth,water.waterDepth),new THREE.MeshStandardMaterial({color:map?0xb8e6e9:0x39b6c8,map,transparent:true,opacity:.60,roughness:.19,metalness:.12,depthWrite:false,side:THREE.DoubleSide}));
     surface.name='Oasis water surface';surface.rotation.x=-Math.PI/2;surface.position.set(0,water.waterY,cz);root.add(surface);
     // Subtle ripples on the basin floor, not lines separating swimmers.
     for(let i=0;i<18;i++){const x=-2.75+(i%6)*1.08,z=-1.87+Math.floor(i/6)*1.13;
-      const ripple=box(.64,.006,.035,x,.136,z,0x6bbbc7,'ceramic');ripple.rotation.y=Math.sin(i*2.7)*.8;}
+      const ripple=box(.32,.006,.025,x,.136,z,0x6bbbc7,'ceramic');ripple.rotation.y=Math.sin(i*2.7)*.8;}
     // Warm deck with wide exterior steps across the front.
-    box(3.05,.80,.63,1.55,.4,1.93,M,'wood');
-    for(let i=0;i<3;i++){const y=.15+i*.24;box(1.48,y,.23,1.75,y/2,2.22-i*.23,L,'wood',true);}
-    for(let i=0;i<11;i++)box(.245,.035,.61,.25+i*.26,.815,1.93,L,'wood');
+    box(2.55,.80,.78,1.80,.4,1.93,M,'wood');
+    // Three exposed side treads, entirely outside the deck's solid volume.
+    for(let i=0;i<3;i++){const y=.20+i*.20,x=-.60+i*.40;
+      box(.40,y,.78,x,y/2,1.93,0xe7e2d4,'ceramic');
+      box(.40,.035,.78,x,y+.0175,1.93,L,'wood');
+    }
+    for(let i=0;i<10;i++)box(.245,.035,.76,.66+i*.25,.815,1.93,L,'wood');
     // In-water entry steps on the front right; fixed handrails.
     for(let i=0;i<3;i++){const top=.21+i*.25;box(.93,top,.26,2.36,top/2,.67+i*.27,0xd8e7e2,'ceramic',true);}
     for(const x of [1.84,2.88]){line(x,.85,1.65,x,1.42,1.65,.025,0xdce9e8,'metal');line(x,1.42,1.65,x,1.30,1.10,.025,0xdce9e8,'metal');line(x,1.30,1.10,x,.68,1.10,.025,0xdce9e8,'metal');}

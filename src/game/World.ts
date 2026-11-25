@@ -30,7 +30,7 @@ import { tennisPlayer,tennisBall } from '../shared/tableTennis';
 import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
-import {floatBob,poolSwimFrame} from '../shared/oasisPool';
+import {floatBob,poolSwimFrame,poolEntryFrame,POOL_ENTRY_SECONDS,POOL_MOUNT_SECONDS} from '../shared/oasisPool';
 import { picnicPortions } from '../shared/picnic';
 import { isContact } from '../shared/socialLife';
 import { BOOKS, HOME_SEATS, type HomePresentation } from '../shared/homeLife';
@@ -225,7 +225,7 @@ export class World {
   private activeGrillRecipe: RecipeId | undefined;
   private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
-  private readonly poolMotions=new Map<CharacterId,{mode:'poolFloat'|'poolSwim';started:number}>();
+  private readonly poolMotions=new Map<CharacterId,{mode:'poolFloat'|'poolSwim';started:number;wet:boolean}>();
   private readonly dishTasks = new Set<CharacterId>();
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
@@ -1210,9 +1210,8 @@ export class World {
   private startPoolMotion(role:CharacterId,mode:'poolFloat'|'poolSwim',home:HomePresentation):void{
     const p=home.furniturePose;if(!p)return;
     const actor=this.actors[role];
-    actor.setFurniturePose('idle',new THREE.Vector3(p.x,p.y,p.z),p.yaw);
-    actor.playDomesticActivity(mode==='poolFloat'?'spaRecline':'spaSwim');
-    this.poolMotions.set(role,{mode,started:this.visualSeconds});
+    actor.setPose('idle');
+    this.poolMotions.set(role,{mode,started:this.visualSeconds+(role==='alina'&&home.pair?1.6:0),wet:false});
   }
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
@@ -2867,12 +2866,25 @@ export class World {
       const pool=this.poolMotions.get(id),poolHome=this.homeTasks.get(id);
       if(this.place==='home'&&pool&&poolHome?.furniturePose){
         const p=poolHome.furniturePose;
-        if(pool.mode==='poolFloat')actor.updateWaterAnchor(this.framePartPosition.set(p.x,p.y+floatBob(this.visualSeconds,id),p.z),p.yaw);
-        else if(poolHome.furnitureId!==undefined){
-          const model=this.furnishingModels.get(poolHome.furnitureId);
-          if(model){const f=poolSwimFrame(this.visualSeconds-pool.started,id);
-            const anchor=model.localToWorld(this.framePartPosition.set(f.x,f.y,f.z));
-            actor.updateWaterAnchor(anchor,model.rotation.y+f.yaw);}
+        const model=poolHome.furnitureId!==undefined?this.furnishingModels.get(poolHome.furnitureId):undefined;
+        const t=this.visualSeconds-pool.started;
+        if(t<0){actor.update(dt,this.steering[id]);continue;}
+        if(model&&t<POOL_ENTRY_SECONDS){
+          const f=poolEntryFrame(t,id),n=poolEntryFrame(t+.04,id);
+          const yaw=Math.atan2(n.x-f.x,n.z-f.z)+model.rotation.y;
+          const anchor=model.localToWorld(this.framePartPosition.set(f.x,f.y,f.z));
+          actor.updateWaterAnchor(anchor,yaw,true);
+        }else{
+          if(!pool.wet){pool.wet=true;actor.playDomesticActivity(pool.mode==='poolFloat'?'spaRecline':'spaSwim');}
+          let yaw=p.yaw;
+          const elapsed=Math.max(0,t-POOL_ENTRY_SECONDS-POOL_MOUNT_SECONDS);
+          const anchor=this.framePartPosition.set(p.x,p.y+floatBob(this.visualSeconds,id),p.z);
+          if(pool.mode==='poolSwim'&&model){const f=poolSwimFrame(elapsed,id);model.localToWorld(anchor.set(f.x,f.y,f.z));yaw=model.rotation.y+f.yaw;}
+          if(model&&t<POOL_ENTRY_SECONDS+POOL_MOUNT_SECONDS){
+            const entry=poolEntryFrame(POOL_ENTRY_SECONDS,id),start=model.localToWorld(this.frameShuttleDirection.set(entry.x,entry.y,entry.z));
+            anchor.lerpVectors(start,anchor,THREE.MathUtils.smoothstep(t,POOL_ENTRY_SECONDS,POOL_ENTRY_SECONDS+POOL_MOUNT_SECONDS));
+          }
+          actor.updateWaterAnchor(anchor,yaw);
         }
       }
       actor.update(dt, this.steering[id]);
@@ -3060,6 +3072,13 @@ export class World {
         this.pairCameraTarget.set((v.x+a.x)/2,1.06,(v.z+a.z)/2);
         this.pairCameraEye.copy(this.pairCameraTarget).addScaledVector(
           this.pairCameraDirection,THREE.MathUtils.clamp(8.3+gap*1.3,9.1,17.5));
+        const poolHome=this.homeTasks.get(this.localRole),poolModel=poolHome?.furnitureId!==undefined?this.furnishingModels.get(poolHome.furnitureId):undefined;
+        if(poolModel&&this.stableParts.get(poolModel,'Oasis water surface')){
+          // Frame the entire pool, not the two invisible floor approach roots.
+          this.pairCameraTarget.copy(poolModel.position);this.pairCameraTarget.y=.72;
+          this.pairCameraEye.set(.24,1.10,1).normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP,poolModel.rotation.y)
+            .multiplyScalar(this.compactPortrait.matches?20:14).add(this.pairCameraTarget);
+        }
         const fraction=1-Math.exp(-dt*5.5);
         this.controls.target.lerp(this.pairCameraTarget,fraction);
         this.camera.position.lerp(this.pairCameraEye,fraction);

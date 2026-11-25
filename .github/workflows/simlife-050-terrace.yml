@@ -2,7 +2,7 @@ name: Sim-Life 0.50 terrace mobile QA
 on:
   push:
     branches: [feat/yard-oasis-050]
-    paths: ['src/**','server/tests/oasis-050.test.ts','server/tests/oasis-pool-050.test.ts','scripts/qa-050-pool.mjs','server/tests/terrace-free-rest-050.test.ts','scripts/qa-050-terrace.mjs','.github/workflows/simlife-050-terrace.yml']
+    paths: ['src/**','server/tests/oasis-050.test.ts','server/tests/oasis-pool-050.test.ts','server/tests/pool-contact-050.test.ts','scripts/qa-050-pool.mjs','server/tests/terrace-free-rest-050.test.ts','scripts/qa-050-terrace.mjs','.github/workflows/simlife-050-terrace.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install chromium
-      - run: npx tsx --test server/tests/oasis-050.test.ts server/tests/terrace-free-rest-050.test.ts server/tests/oasis-pool-050.test.ts
+      - run: npx tsx --test server/tests/oasis-050.test.ts server/tests/terrace-free-rest-050.test.ts server/tests/oasis-pool-050.test.ts server/tests/pool-contact-050.test.ts
       - run: npm run build
       - run: node --import tsx scripts/qa-050-terrace.mjs
       - run: node --import tsx scripts/qa-050-pool.mjs
