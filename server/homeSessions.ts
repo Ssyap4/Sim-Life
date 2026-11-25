@@ -24,6 +24,7 @@ import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
+import {creditWeekendTogether,creditWeekend} from '../src/shared/weekends';
 import {recordCompletedActivity} from '../src/shared/emotions';
 import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
@@ -401,6 +402,7 @@ export function createHomeSessions(hooks: Hooks) {
       addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice,!!completedMoment);
       if(completedMoment)result.message+=momentReward(result.state,from,completedMoment);
     }
+    if(!session.participants[0]?.packet.automatic&&(roles.length===2||session.finishedTogether))creditWeekendTogether(result.state,command.action,command.item);
     for(const {role,wish} of session.participants){recordCompletedActivity(result.state,role,command);result.message+=fulfillWish(result.state,role,wish,before);}
     try{hooks.save(result.state);}
     catch{end(session,'failed','Не удалось сохранить совместное занятие');return;}
@@ -617,6 +619,8 @@ export function createHomeSessions(hooks: Hooks) {
       const remember=!!s.cooperation&&!s.finishedTogether&&s.participants.length===2&&strength>=1;
       if(strength>=1){
         recordCompletedActivity(next,role,restCommand);
+        if(remember&&hookah)creditWeekend(next,'hookah');
+        if(remember&&action==='poolFloat')creditWeekend(next,'pool');
         if(remember&&!hookah)addRelationship(next,SOCIAL_BY_ID.get(fixed?'yardRest':'leisureTogether')!,s.cooperation!.choice);
       }
       try{hooks.save(next);}catch{return error(socket,'Не удалось сохранить отдых');}

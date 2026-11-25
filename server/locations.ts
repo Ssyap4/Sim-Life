@@ -1,3 +1,4 @@
+import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
 import {VET_SERVICES,isVetAction,vetAvailable,completeVetService,isHealthPet,setVetBooking,takeVetMedicine,familyCare,CLINIC_SERVICES,isClinicAction,clinicAvailable,completeClinicService,medicinePrice,healthBookingSlots,setHealthBooking,takeGameMedicine} from '../src/shared/health';
@@ -648,7 +649,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
  if((action==='spaLocker'||action==='spaShower')&&!id.endsWith('-'+role[0]))return fail('Выбери свою раздевалку или душ');
  const denial=spaDenial(source,role,action);if(denial)return fail(denial);const next=structuredClone(source);
  if(action==='spaMassage'&&next.world.spa![role]!.pass!=='package'){next.money-=SPA_MASSAGE_PRICE;addLedger(next,role,'expense','services',SPA_MASSAGE_PRICE,'SPA · Массаж');}
- finishSpa(next,role,action);return done(next,SPA_ACTIVITIES[action].name+' · готово');
+ finishSpa(next,role,action);creditWeekendSpa(next);return done(next,SPA_ACTIVITIES[action].name+' · готово');
  }
   if(isVetAction(action)){
     const visit=source.world.vetVisit,service=VET_SERVICES[action];

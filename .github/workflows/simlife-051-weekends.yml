@@ -1,0 +1,44 @@
+name: Sim-Life 0.51 family weekends QA
+on:
+  push:
+    branches: [feat/family-weekends-051]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test server/tests/weekends-051.test.ts server/tests/terrace-free-rest-050.test.ts server/tests/spa-048.test.ts server/tests/venue-048.test.ts server/tests/player-copy-020.test.ts
+      - run: npm run build
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-051-weekends.mjs ${{ matrix.device }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekends-${{ matrix.device }}
+          path: /tmp/simlife-051-weekends
+          retention-days: 7

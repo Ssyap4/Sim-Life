@@ -93,3 +93,13 @@ test('optional hookah uses the fixed lounge, has no need reward, and permits con
   assert.equal(r.state().money,money);
  }finally{r.s.dispose();}
 });
+
+test('weekend hookah step is credited by actual paired rest, not solo or premature exit',()=>{
+ const r=rig(true);try{
+  r.state().weekends={version:1,plan:{version:1,author:'vlad',preset:'custom',items:['hookah'],done:[],approved:['vlad','alina'],finishVotes:[],createdAt:gameMinutes(r.state().clock)}};
+  assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardHookahSolo'})!,r.sockets.vlad));
+  r.advance(600000);r.finish('vlad');assert.deepEqual(r.state().weekends?.plan?.done,[]);
+  r.invite('yardHookah');r.advance(3000);r.finish('vlad');r.finish('alina');assert.deepEqual(r.state().weekends?.plan?.done,[]);
+  r.invite('yardHookah');r.advance(600000);r.finish('vlad');assert.deepEqual(r.state().weekends?.plan?.done,['hookah']);r.finish('alina');
+ }finally{r.s.dispose();}
+});

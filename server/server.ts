@@ -15,6 +15,7 @@ import { catSeatOverlap } from '../src/shared/catOccupancy';
 import type { CatPerch } from '../src/shared/CatPerches';
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
+import {applyWeekend} from '../src/shared/weekends';
 import { applyBudgetCommand } from './familyBudget';
 import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
@@ -1258,6 +1259,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'snapshot', state });
         packet(socket, { type: 'education_notice', role, message: result.message });
         return;
+      }
+      if(typeof message.type==='string'&&['weekend_propose','weekend_accept','weekend_cancel','weekend_finish'].includes(message.type)){
+        const result=applyWeekend(state,role,message);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить семейный план'});return;}
+        state=result.state;lastIntent.set(role,pauseTimers.now());all({type:'snapshot',state});all({type:'billing_event',messages:[result.message]});return;
       }
       if (message.type==='budget_deposit'||message.type==='budget_withdraw'||
           message.type==='budget_goal'||message.type==='budget_limit'){
