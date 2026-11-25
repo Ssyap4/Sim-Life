@@ -61,7 +61,9 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
 const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProperty.call(obj, key);
 
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
+import {CONSOLE_GAMES,isConsoleGame} from '../src/shared/consoleCatalog';
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
+  if(command.type==='console_play'&&isConsoleGame(command.game)){const game=command.game,g=CONSOLE_GAMES[game];if(g.mode==='coop')return null;return {command:{type:'console_play',game},label:'🎮 '+g.name,durationMs:g.seconds*1000,resource:'tv'};}
   if(command.type==='furniture_use'){
     if(!Number.isSafeInteger(command.furnitureId)||typeof command.action!=='string'||
       !Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
@@ -195,6 +197,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 }
 
 export function entertainmentReward(command: Entertainment, together = false, bonus=0, comfort=0): NeedEffects {
+  if(command.type==='console_play')return {fun:Math.min(100,65+bonus),mood:12,comfort:8+comfort,...(together?{social:35}:{})};
   if (command.type === 'read_book') return READING_REWARD;
   if (command.type === 'free_tv') return { fun: 5+bonus, ...(comfort?{comfort}:{}) };
   if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10+comfort };
@@ -295,6 +298,10 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   if (state.world.places[role] !== 'home') return { ok: false, reason: 'Это действие доступно дома' };
   if (command.type === 'pet_action' && command.pet === 'verdell' && state.world.dogWalker)
     return { ok: false, reason: 'Верделл сейчас в парке' };
+  if(command.type==='console_play'){
+    if(CONSOLE_GAMES[command.game].mode==='coop'&&!together)return {ok:false,reason:'Эта игра требует двух игроков'};
+    const next=structuredClone(state),needs=next.characters[role];for(const [key,amount] of Object.entries(entertainmentReward(command,together,electronicsModel(state,role,'tv').bonus,electronicsModel(state,role,'tv').comfort)))needs[key as keyof NeedEffects]=Math.min(100,needs[key as keyof NeedEffects]+amount);next.revision++;return {ok:true,state:next,message:CONSOLE_GAMES[command.game].name+' · сеанс завершён'};
+  }
   if (command.type === 'youtube' || command.type === 'movie' || command.type === 'read_book' || command.type === 'free_tv') {
     const next = structuredClone(state);
     const needs = next.characters[role];

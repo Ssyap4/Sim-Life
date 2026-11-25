@@ -28,4 +28,5 @@ export const consoleInstalled=(s:GameState,sku:ConsoleSku)=>s.furnishing.placed.
 export const consoleLibrary=(s:GameState)=>s.consoleLibrary??[];
 export const validConsoleLibrary=(v:unknown):v is ConsoleGameId[]=>Array.isArray(v)&&v.length<=Object.keys(CONSOLE_GAMES).length&&v.every(isConsoleGame)&&new Set(v).size===v.length;
 export const consoleGames=(sku:ConsoleSku)=>(Object.keys(CONSOLE_GAMES) as ConsoleGameId[]).filter(id=>CONSOLE_GAMES[id].console===sku);
+export function consolePlayError(s:GameState,id:unknown){if(!isConsoleGame(id))return 'Неизвестная игра';if(!consoleInstalled(s,CONSOLE_GAMES[id].console))return 'Установи нужную консоль';if(!consoleLibrary(s).includes(id))return 'Сначала купи игру';if(s.furnishing.soldFixtures?.includes('sofa'))return 'Для игры пока нужен штатный диван';}
 export type ConsoleCommand={type:'console_buy';sku:ConsoleSku}|{type:'console_game_buy';game:ConsoleGameId};

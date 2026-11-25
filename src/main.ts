@@ -874,7 +874,7 @@ paymentNotice.querySelector('button')!.addEventListener('click', () => {
   phone.open('finance');
 });
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.social({type:'social_propose',action:'film',item:genre}),
-  () => state, () => active, where => phone.open(where), openEducation);
+  () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'));
 const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));

@@ -21,6 +21,7 @@ jobs:
       - run: npm run build
       - run: npx tsx --test server/tests/consoles-043.test.ts server/tests/electronics-034.test.ts server/tests/electronics-art-034.test.ts server/tests/speaker-mount-040.test.ts server/tests/speakers-040.test.ts
       - run: node --import tsx scripts/qa-043-consoles.mjs
+      - run: node --import tsx scripts/qa-043-match.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

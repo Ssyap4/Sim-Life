@@ -6,10 +6,12 @@ import { furnitureSource } from './furnitureUse';
 import { FURNITURE_BY_ID } from './furniture';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from './services';
 
+import {consolePlayError} from './consoleCatalog';
 const onlineComputer = new Set<ActionId>(['vladOrder', 'vladStudy', 'alinaStudy', 'alinaConsult', 'deskGames']);
 const mobileCommunication = new Set<ActionId>(['sofaCall', 'sofaScroll', 'tableTalk']);
 
 export function taskAccessError(state: GameState, command: TimedCommand): string | undefined {
+  if(command.type==='console_play')return consolePlayError(state,command.game);
   const now = clockMinutes(state.clock);
   if(command.type==='furniture_use'){
     const selected=furnitureSource(state,command.furnitureId,command.action);

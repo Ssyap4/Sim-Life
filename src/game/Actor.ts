@@ -1,3 +1,5 @@
+import {buildGamepad,CONTROLLER_GRIP} from './GamepadArt';
+import {CONSOLE_GAMES,type ConsoleGameId} from '../shared/consoleCatalog';
 import { HOME_JOBS } from "../shared/jobs";
 import * as THREE from 'three';
 import {sleepPosture} from './SleepPosture';
@@ -25,7 +27,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -72,6 +74,11 @@ export class Actor {
   private activity: 'cook' | 'eat' | Exclude<PetAction, 'buyFood'> | DomesticMotion | null = null;
   private activityTime = 0;
   private gymDumbbells?:THREE.Group[];
+  private gamepads?:Record<string,THREE.Group>;
+  private activePad?:THREE.Group;
+  playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;}
+  private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;}
+  gamepadGripError(){if(!this.activePad)return null;const pad=this.activePad;return ([0,1] as const).map(i=>this.rig.wrists[i].getWorldPosition(new THREE.Vector3()).distanceTo(pad.localToWorld(new THREE.Vector3(i===0?-CONTROLLER_GRIP:CONTROLLER_GRIP,-.01,-.069))));}
   private mealSlow=false;
   private parkChatUntil=0;
   private swingHinge:THREE.Vector3|null=null;
@@ -308,6 +315,7 @@ export class Actor {
   private homeWorkStyle:import("../shared/jobs").JobId|undefined;
   setHomeWorkStyle(style:import("../shared/jobs").JobId){this.homeWorkStyle=style;}
   setPose(pose: Pose): void {
+    this.hideGamepad();
     this.homeWorkStyle=undefined;
     this.waypoints = [];
     this.callback = null;
@@ -372,6 +380,7 @@ export class Actor {
   }
 
   playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
+    if(kind!=='consolePlay')this.hideGamepad();
     this.activity = kind;
     if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=kind==='gymCurl';
@@ -382,6 +391,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.hideGamepad();
     this.props.phone.visible=false;
     if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
     this.partnerGesture=null;
@@ -909,6 +919,7 @@ export class Actor {
           lean=.13+.13*reach;gaze=.28;leftY=-.42;leftZ=.26;
           rightY=-.36+.13*reach;rightZ=.28+.24*reach;expression=.14;break;
         }
+        case 'consolePlay':lean=.13+.035*Math.sin(a*1.7);gaze=.015;expression=.24+.12*Math.sin(a*2.2);break;
         case 'games':
           // The existing reusable keyboard IK animates both hands.
           expression = 0.20;
@@ -1465,7 +1476,12 @@ export class Actor {
     this.figure.rotation.x = THREE.MathUtils.lerp(this.figure.rotation.x, resting ? -Math.PI / 2 : 0, alpha);
     this.figure.rotation.y = THREE.MathUtils.lerp(this.figure.rotation.y,rest?.roll??0,alpha);
     if(rest)this.figure.position.y+=rest.lift+.004*breath;
-    if (typing) {
+    if(this.activity==='consolePlay'&&this.activePad){
+      const pad=this.activePad,shoulderY=(this.leftArm.position.y+this.rightArm.position.y)/2;
+      const center=data.chest.localToWorld(this.target.set(0,shoulderY-.35+.013*Math.sin(a*3.1),.31+.018*Math.sin(a*2.0)));
+      pad.position.copy(this.figure.worldToLocal(center));pad.rotation.set(-.10+.07*Math.sin(a*2.8),.035*Math.sin(a*1.9),.055*Math.sin(a*3.2));pad.updateWorldMatrix(true,false);
+      for(const i of [0,1] as const){const side=i===0?-1:1;this.reach(i,pad.localToWorld(this.target.set(side*CONTROLLER_GRIP,-.01,-.069)),1,.63);this.aimHand(i,this.handDirection.set(-side*.30,-.12,1).applyAxisAngle(up,this.root.rotation.y),1);}
+    } else if (typing) {
       const spec=this.homeWorkStyle?HOME_JOBS[this.homeWorkStyle as keyof typeof HOME_JOBS]:undefined;
       const variant=spec?.animation??0;
       const period=spec?14+variant*1.2:11.6;

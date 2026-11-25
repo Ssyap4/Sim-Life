@@ -5,6 +5,7 @@ import type { BookId, Entertainment, Genre } from './shared/homeLife';
 import type { CharacterId, GameState } from './shared/protocol';
 import { BOOKS, GENRES, HOME_SECONDS } from './shared/homeLife';
 
+import {CONSOLE_GAMES,consoleLibrary,consolePlayError,type ConsoleGameId} from './shared/consoleCatalog';
 function button(label: string, click: () => void, className = 'action-button') {
   const element = document.createElement('button');
   element.type = 'button';
@@ -17,7 +18,7 @@ function button(label: string, click: () => void, className = 'action-button') {
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean,
   read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void,
-  education: (view: 'book' | 'tv') => void) {
+  education: (view: 'book' | 'tv') => void,inviteGame:(id:ConsoleGameId)=>boolean,shopGames:()=>void) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
   const permitted = (command: Entertainment) => {
     const state = read();
@@ -56,8 +57,10 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     for(const [genre,name] of Object.entries(GENRES)) grid.append(button(name,() => movie(genre as Genre)));
     root.append(grid);
   };
+  const games=()=>{heading('🎮 Игровая библиотека');const state=read();if(!state)return;for(const id of consoleLibrary(state)){const g=CONSOLE_GAMES[id],error=consolePlayError(state,id);const detail=document.createElement('p');detail.textContent=g.name+' · '+g.seconds+' с'+(error?' · '+error:'');root.append(detail);if(!error){if(g.mode!=='coop')root.append(button('Играть одному',()=>send(submit({type:'console_play',game:id}))));if(g.mode!=='solo')root.append(button('Играть вместе',()=>send(inviteGame(id))));}}root.append(button('Магазин игр',()=>{root.hidden=true;shopGames();}));};
   return {
     television() {
+      root.append(button('🎮 Игровые консоли',games));
       root.append(button('🎓 Образовательные передачи и курсы', () => education('tv')));
       root.append(button('📺 Смотреть обычные телеканалы · ' + HOME_SECONDS.freeTv + ' с',
         () => send(submit({type:'free_tv'}))),button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',

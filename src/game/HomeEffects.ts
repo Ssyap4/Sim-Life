@@ -1,3 +1,5 @@
+import {drawConsoleFrame} from './ConsoleFrames';
+import type {ConsoleGameId} from '../shared/consoleCatalog';
 import * as THREE from 'three';
 import { electronicsDisplay,electronicsVariants } from './ElectronicsArt';
 import type { ElectronicsId } from '../shared/electronics';
@@ -40,6 +42,8 @@ export class HomeEffects {
   private readonly dogFoam:THREE.InstancedMesh;
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
+  private readonly games=new Map<string,{game:ConsoleGameId;start:number}>();
+  console(id:string,game?:ConsoleGameId,start=0){if(game)this.games.set(id,{game,start});else this.games.delete(id);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
   private lesson?: string;
 
   audioProgram():Program|undefined{return this.media.values().next().value;}
@@ -108,7 +112,7 @@ export class HomeEffects {
   television(id: string, program?: Program, lesson?: string) {
     if (lesson) this.lesson = lesson;
     if(program) this.media.set(id,program); else this.media.delete(id);
-    this.screen.visible = this.media.size > 0;
+    this.screen.visible = this.media.size > 0||this.games.size>0;
     this.lastScreen = -1;
   }
 
@@ -120,7 +124,7 @@ export class HomeEffects {
 
   dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}
   reset() {
-    this.media.clear();
+    this.media.clear();this.games.clear();
     this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
     this.dogBath(null);
   }
@@ -131,11 +135,12 @@ export class HomeEffects {
     if(this.shower.visible) this.shower.rotation.y = seconds*1.2;
     if(this.foam.visible) this.foam.position.y = .016*Math.sin(seconds*2.8);
     if(!this.screen.visible) return;
-    const frame = Math.floor(seconds*8);
+    const game=this.games.values().next().value;
+    const frame = Math.floor(seconds*(game?15:8));
     if(frame === this.lastScreen) return;
     this.lastScreen = frame;
     const program = this.media.values().next().value!;
-    this.draw(program,seconds);
+    if(game)drawConsoleFrame(this.context,game.game,Math.max(0,seconds-game.start));else this.draw(program,seconds);
     this.texture.needsUpdate = true;
   }
 

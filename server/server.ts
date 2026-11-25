@@ -1398,7 +1398,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       const queueable=typeof message.type==='string'&&[
         'play_game','computer_video','study','local_activity','act','furniture_use',
-        'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book',
+        'brew_coffee','cook','eat','eat_takeout','movie','youtube','free_tv','read_book','console_play',
         'pet_action',
       ].includes(message.type)&&!(message.type==='pet_action'&&
         (['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)));
@@ -1555,7 +1555,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
-      if (message.type === 'clean_room' || message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'read_book' ||
+      if (message.type === 'clean_room' || message.type === 'play_game' || message.type === 'computer_video' || message.type === 'study' || message.type === 'local_activity' || message.type === 'act' || message.type === 'furniture_use' || message.type === 'brew_coffee' || message.type === 'cook' || message.type === 'eat' || message.type === 'eat_takeout' || message.type === 'movie' || message.type === 'youtube' || message.type === 'free_tv' || message.type === 'console_play' || message.type === 'read_book' ||
           (message.type === 'pet_action' && !(['buyFood','call','perch','fetch','mat','scratch','toy'].includes(String(message.action))||isTrainingAction(message.action)))) {
         const plan = planTask(message);
         if (!plan) { packet(socket, { type: 'error', reason: 'Неизвестное действие' }); return; }

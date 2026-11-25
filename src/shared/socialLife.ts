@@ -57,10 +57,11 @@ import { LEISURE, leisureAction } from './leisure';
 import { FURNITURE_BY_ID } from './furniture';
 import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
-export type PairMotion = 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
+import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
+export type PairMotion = 'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
-export type ObjectActivity = 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
+export type ObjectActivity = 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'breakfastCare';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
@@ -89,6 +90,7 @@ const objects: readonly SocialActivity[] = [
   {id:'dishes',title:'Убрать посуду вдвоём',group:'home',lines:['Я у раковины, а ты соберёшь тарелки? Управимся вместе.'],replies:['Соберу тарелки с обоих столов.','Давай сложу посуду у раковины.'],motion:'wash',seconds:9,object:'dishes',resource:'kitchen',memorable:true},
   {id:'unpack',title:'Разобрать покупки вместе',group:'home',lines:['На столе остались пакеты. Разложим всё по местам?'],replies:['Разберу пакеты с этой стороны.','Давай сначала освободим стол.'],motion:'unpack',seconds:7,object:'unpack',resource:'shopping'},
   {id:'tv',title:'Посмотреть обычное ТВ',group:'fun',lines:['Включим обычный канал и посидим рядом?'],replies:['Да, только сделаем потише.','Давай, мне хочется обычного тихого вечера.'],motion:'watch',seconds:HOME_SECONDS.freeTv,object:'tv',resource:'tv',independent:true,memorable:true},
+  {id:'consoleTogether',title:'Играть на консоли вдвоём',group:'fun',lines:['Сыграем вместе на телевизоре?'],replies:['Давай, бери геймпад!','Готов(а) играть!'],motion:'console',seconds:120,object:'console',resource:'tv',memorable:true},
   {id:'film',title:'Посмотреть фильм вместе',group:'fun',lines:['Займём диван и посмотрим фильм?'],replies:['Да, я готов смотреть.','Хочу, потом обсудим, что понравилось.'],motion:'watch',seconds:HOME_SECONDS.movie,object:'film',resource:'tv',independent:true,memorable:true},
   {id:'youtube',title:'Посмотреть YouTube вместе',group:'fun',lines:['Есть время на один ролик? Устроимся рядом.'],replies:['Можно короткий ролик и немного тишины.','Давай посмотрим и обсудим.'],motion:'watch',seconds:HOME_SECONDS.youtube,object:'youtube',resource:'tv',independent:true,memorable:true},
   {id:'lesson',title:'Изучить передачу вместе',group:'home',lines:['Посмотрим урок вместе, а потом сравним, что запомнили?'],replies:['Да, попробую запомнить подход из примера.','После урока расскажу, что было новым.'],motion:'watch',seconds:20,object:'lesson',resource:'tv',memorable:true},
@@ -255,9 +257,10 @@ const freshPortions=(state:GameState,kind:'meal'|'takeout',item:string,storage:'
   state.readyFood.reduce((total,batch)=>total+
     (batch.kind===kind&&batch.item===item&&batch.storage===storage&&batch.expiresAt>gameMinutes(state.clock)
       ? batch.portions:0),0);
-const pairItems = new Set<ObjectActivity>(['breakfastCare','yardCoffee','cook','grill','eat','takeout','bring','serve','film','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
+const pairItems = new Set<ObjectActivity>(['breakfastCare','yardCoffee','cook','grill','eat','takeout','bring','serve','film','console','lesson','read','petPlay','petFeed','petPet','petBrush','leisure']);
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
+  if(a.object==='console')return consoleLibrary(state).filter(id=>CONSOLE_GAMES[id].mode!=='solo'&&!consolePlayError(state,id)).map(id=>({id,label:CONSOLE_GAMES[id].name}));
   if(a.object==='breakfastCare')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'}));
   if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
   if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});

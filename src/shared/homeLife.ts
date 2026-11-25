@@ -38,6 +38,7 @@ export type NeedKey = Exclude<keyof Needs, 'skill'>;
 export type NeedEffects = Partial<Record<NeedKey, number>>;
 
 export type Entertainment =
+  | {type:'console_play';game:import('./consoleCatalog').ConsoleGameId}
   | { type: 'youtube' }
   | { type: 'free_tv' }
   | { type: 'movie'; genre: Genre }
@@ -50,6 +51,7 @@ export type HomePresentation = {
   pickupMs?: number;
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  consoleGame?:import('./consoleCatalog').ConsoleGameId;
   furnitureId?:number;
   furniturePose?:{x:number;y:number;z:number;yaw:number};
   furnitureSeat?:boolean;

@@ -930,7 +930,8 @@ export class World {
       }
       const seat = homeSeat(station,role);
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
-      if (program) {
+      if(home.consoleGame)actor.playConsole(home.consoleGame);
+      else if (program) {
         actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
       } else if (command.type === 'read_book' || study?.channel === 'book') actor.playDomesticActivity('read');
       else if (study?.channel === 'practice') actor.playDomesticActivity('journal');
@@ -980,12 +981,14 @@ export class World {
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
+      if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000);
       if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
       if(pair.action==='parkBadminton'&&this.badmintonStarted===null)this.badmintonStarted=this.visualSeconds-elapsedMs/1000;
       this.playPair(role);
       this.playPair(role==='vlad'?'alina':'vlad');
       return;
     }
+    if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000);
     if (home?.program) this.homeEffects.television(role,home.program,home.lesson);
   }
 
@@ -1028,7 +1031,7 @@ export class World {
     const stage=this.pairStages.get(role), home=this.homeTasks.get(role), pair=home?.pair;
     if(!stage?.active||!stage.arrived||stage.playing||!pair)return;
     const other=role==='vlad'?'alina':'vlad', opposite=this.pairStages.get(other);
-    if((isContact(pair.motion)||pair.motion==='badminton'||pair.item==='pingPong')&&opposite&&(!opposite.active||!opposite.arrived))return;
+    if((isContact(pair.motion)||pair.motion==='console'||pair.motion==='badminton'||pair.item==='pingPong')&&opposite&&(!opposite.active||!opposite.arrived))return;
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
@@ -1059,6 +1062,7 @@ export class World {
       case 'chess':actor.playDomesticActivity('chess');break;
       case 'stroll':
         actor.walkPath((pair.stroll??[]).map(p=>new THREE.Vector3(p.x,0,p.z)),()=>actor.playPartnerGesture('talk',leads));break;
+      case 'console':if(home.consoleGame)actor.playConsole(home.consoleGame);break;
       case 'watch':
         actor.watch(home?.program==='comedy'?1:home?.program==='horror'?-1:0);
         this.homeEffects.television(role,home?.program,home?.lesson);break;
@@ -1154,7 +1158,7 @@ export class World {
     if(![...this.pairStages.values()].some(p=>p.action==='parkBadminton'))this.badmintonStarted=null;
     // Hold the last framing when the shared action ends, then return to free camera.
     if(this.pairStages.size===0)this.followingPair=false;
-    this.homeEffects.television(role);
+    this.homeEffects.television(role);this.homeEffects.console(role);
     if (home.station === 'shower' || home.station === 'bathtub' || home.station === 'wcBasin')
       this.homeEffects.water(home.station,false);
     if (home.station === 'grill'||home.pair?.motion==='grill') this.grillCooking = false;
