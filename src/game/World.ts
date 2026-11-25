@@ -248,6 +248,7 @@ export class World {
   private followingPlayer = false;
   private followingPair = false;
   private manualCameraHeight = false;
+  private readonly cameraQA = new URLSearchParams(location.search).get('cameraQA')==='1';
   private readonly manualPairAnchor = new THREE.Vector3();
   private readonly pairCameraTarget = new THREE.Vector3();
   private readonly pairCameraEye = new THREE.Vector3();
@@ -259,7 +260,7 @@ export class World {
   private districtWide=false;
   private districtFocus: Point | null=null;
   private neighborBodies:TrafficBody[]=[];
-  private readonly savedCameras=new Map<PlaceId,Frame>();
+  private readonly savedCameras=new Map<PlaceId,Frame & {manualHeight:boolean}>();
   private readonly tapLayer=document.createElement('div');
   private defaultFrame: Frame | null = null;
   private viewport: { width: number; height: number; pixelRatio: number; compact: boolean; band: ViewBand } | null = null;
@@ -2252,14 +2253,14 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
-    this.manualCameraHeight=false;
     this.followingPair=false;
     this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
       this.savedCameras.set(this.place,{
-        position:this.camera.position.clone(),target:this.controls.target.clone(),
+        position:this.camera.position.clone(),target:this.controls.target.clone(),manualHeight:this.manualCameraHeight,
       });
     }
+    this.manualCameraHeight=false;
     this.openDoors.clear();
     this.cameraMove = null;
     this.followSubject = null;
@@ -2330,8 +2331,8 @@ export class World {
     this.refreshViewport();
     const remembered=place==='district'?undefined:this.savedCameras.get(place);
     if(remembered){
-      this.manualCameraHeight=true;
-      this.controls.maxPolarAngle=HEIGHT_MAX_POLAR;
+      this.manualCameraHeight=remembered.manualHeight;
+      if(remembered.manualHeight)this.controls.maxPolarAngle=HEIGHT_MAX_POLAR;
       this.camera.position.copy(remembered.position);
       this.controls.target.copy(remembered.target);
       this.controls.update();
@@ -3139,6 +3140,7 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA)this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

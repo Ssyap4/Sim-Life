@@ -5,3 +5,6 @@
 #app:has(#phone-overlay:not([hidden]),#computer-overlay:not([hidden]),#furnishing-overlay:not([hidden]),#furnishing-placement:not([hidden]),#market-overlay:not([hidden]),#jobs-overlay:not([hidden]),#skills-overlay:not([hidden]),#needs-panel:not([hidden]),#map-panel:not([hidden]),#pause-sheet:not([hidden]),#actions:not([hidden]),#location-panel:not([hidden]),#career-hud:not([hidden]),.auth-screen:not([hidden])) .camera-height-dock{visibility:hidden}
 
 #app:has(.thought-trigger[aria-expanded="true"],#showcase-choices:not([hidden]),#social-invite:not([hidden]),#movie-invite:not([hidden])) .camera-height-dock{visibility:hidden}
+
+#app .camera-height-dock,#app:has(#task-panel:not([hidden]),#time-panel:not([hidden])) .camera-height-dock{bottom:max(111px,calc(env(safe-area-inset-bottom) + 105px),var(--camera-height-bottom,111px));}
+#app.camera-height-no-room .camera-height-dock{visibility:hidden}

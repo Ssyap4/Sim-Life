@@ -1710,7 +1710,11 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,
       useBlender ? `${Object.keys(characters).length}/2 GLB` : 'процедурные');
     const layoutObserver = new ResizeObserver(() => {
-      app.style.setProperty('--hud-top', topHud.getBoundingClientRect().bottom + 'px');
+      const topEdge=topHud.getBoundingClientRect().bottom;
+      const bottomEdge=bottomHud.getBoundingClientRect().top;
+      app.style.setProperty('--hud-top', topEdge + 'px');
+      app.style.setProperty('--camera-height-bottom', Math.max(111,Math.ceil(app.getBoundingClientRect().bottom-bottomEdge+10))+'px');
+      app.classList.toggle('camera-height-no-room',bottomEdge-topEdge<112);
       world.refreshViewport();
     });
     for (const area of [canvas, topHud, bottomHud, bottomBar]) layoutObserver.observe(area);

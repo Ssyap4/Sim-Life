@@ -21,7 +21,8 @@ export function bindCameraHeightButtons(adjust:(direction:1|-1,seconds:number)=>
       if(event.button!==0||active)return;
       event.preventDefault();event.stopPropagation();
       active={button,pointer:event.pointerId,direction};
-      button.setPointerCapture(event.pointerId);button.classList.add('height-held');
+      try{button.setPointerCapture(event.pointerId);}catch{/* Window release is the fallback. */}
+      button.classList.add('height-held');
       adjust(direction,.085);last=performance.now();frame=requestAnimationFrame(tick);
     });
     for(const type of ['pointerup','pointercancel','lostpointercapture'] as const)
@@ -29,6 +30,9 @@ export function bindCameraHeightButtons(adjust:(direction:1|-1,seconds:number)=>
     button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(event.detail===0)adjust(direction,.12);});
     button.addEventListener('contextmenu',event=>event.preventDefault());
   }
+  const release=(event:PointerEvent)=>{if(active?.pointer===event.pointerId)stop();};
+  window.addEventListener('pointerup',release,true);
+  window.addEventListener('pointercancel',release,true);
   window.addEventListener('blur',stop);
   window.addEventListener('pagehide',stop);
   document.addEventListener('visibilitychange',stop);

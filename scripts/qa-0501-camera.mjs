@@ -1,0 +1,57 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState} from '../src/shared/protocol.ts';
+import {venueTogetherTrip} from '../server/locations.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const venue=process.argv.includes('venue'),out='/tmp/simlife-0501-camera';
+mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'camera-mobile-'));let browser,server;
+try{
+ let s=initialState();s.autonomy={vlad:'off',alina:'off'};s.money=100000;s.clock.minute=750;
+ if(venue){const visit=venueTogetherTrip(s,'vlad');assert.ok(visit.ok);s=visit.state;}
+ openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ const errors=[];
+ const page=await browser.newPage({viewport:venue?{width:412,height:915}:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true,...(venue?{userAgent:'Mozilla/5.0 (Linux; Android 13; Redmi Note 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'}:{})});
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});
+ await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForTimeout(3000);
+ const pose=()=>page.locator('#game-canvas').evaluate(el=>JSON.parse(el.dataset.cameraPose));
+ const shot=name=>page.screenshot({path:join(out,(venue?'android-venue-':'home-')+name+'.jpg'),type:'jpeg',quality:90});
+ const down=page.locator('#camera-height-down'),up=page.locator('#camera-height-up');
+ const session=await page.context().newCDPSession(page);
+ const touch=async(button,ms,cancel=false)=>{
+   const b=await button.boundingBox();assert.ok(b);
+   await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:b.x+b.width/2,y:b.y+b.height/2,id:0}]});
+   await page.waitForTimeout(ms);
+   await session.send('Input.dispatchTouchEvent',{type:cancel?'touchCancel':'touchEnd',touchPoints:[]});
+   await page.waitForTimeout(500);
+   assert.ok(!(await button.getAttribute('class')).includes('height-held'));
+ };
+ assert.equal((await pose()).place,venue?'venue':'home');
+ await shot('overview');
+ const first=await pose();await touch(down,1700);const low=await pose();assert.ok(low.eye[1]<first.eye[1]-.3);
+ await shot('free-low');
+ await touch(up,1800);const high=await pose();assert.ok(high.eye[1]>low.eye[1]+.3);
+ await shot('free-high');
+ await touch(down,700,true);const cancelled=await pose();await page.waitForTimeout(1000);const stable=await pose();
+ assert.ok(Math.abs(stable.eye[1]-cancelled.eye[1])<.08);
+ await page.locator('#camera-follow').tap();await page.waitForTimeout(3000);
+ assert.ok((await pose()).follow);
+ const tracked=await pose();await touch(down,1700);const trackedLow=await pose();
+ assert.ok(trackedLow.follow&&trackedLow.eye[1]<tracked.eye[1]-.3);
+ await page.waitForTimeout(1200);const after=await pose();assert.ok(after.follow&&Math.abs(after.eye[1]-trackedLow.eye[1])<.12);
+ await shot('follow-low');
+ await page.locator('#phone-btn').tap();assert.ok(!(await down.isVisible()));await page.keyboard.press('Escape');
+ await page.locator('#camera-reset').tap();await page.waitForTimeout(2500);assert.ok(!(await pose()).follow);
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!document.querySelector('#graphics-recovery')));
+ assert.deepEqual(errors,[]);
+}finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

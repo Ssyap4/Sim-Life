@@ -30,7 +30,7 @@ try{
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});
  await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
@@ -48,6 +48,8 @@ try{
  const bounds=await arrows.boundingBox(),task=await page.locator('#task-panel').boundingBox();
  assert.ok(bounds.x>300&&bounds.x+bounds.width<=390);
  if(task)assert.ok(bounds.y+bounds.height<=task.y||bounds.x>=task.x+task.width);
+ const pose=()=>page.locator('#game-canvas').evaluate(el=>JSON.parse(el.dataset.cameraPose));
+ const startPose=await pose();
  const hold=async(button,ms)=>{
    const b=await button.boundingBox();
    await page.mouse.move(b.x+b.width/2,b.y+b.height/2);
@@ -57,9 +59,11 @@ try{
  await page.screenshot({path:join(out,action+'-camera-start.jpg'),type:'jpeg',quality:90});
  await hold(down,1800);
  await page.waitForTimeout(600);
+ const lowPose=await pose();assert.ok(lowPose.eye[1]<startPose.eye[1]-0.3);assert.ok(lowPose.pair);
  await page.screenshot({path:join(out,action+'-camera-low.jpg'),type:'jpeg',quality:90});
  await hold(up,2400);
  await page.waitForTimeout(600);
+ const highPose=await pose();assert.ok(highPose.eye[1]>lowPose.eye[1]+0.3);assert.ok(highPose.pair);
  await page.screenshot({path:join(out,action+'-camera-high.jpg'),type:'jpeg',quality:90});
  const b=await down.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();
  await down.dispatchEvent('pointercancel',{pointerId:1,pointerType:'mouse'});
