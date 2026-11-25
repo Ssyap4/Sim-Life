@@ -38,9 +38,9 @@ try{
  }
  const end=(p,id)=>p.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='completed'),id,{timeout:65000});
  const both=await Promise.all([task(v,'vlad','spaPool','spa-pool'),task(a,'alina','spaPool','spa-pool')]);
- await v.waitForTimeout(3500);await shot(v,'03-pool');await Promise.all([end(v,both[0]),end(a,both[1])]);
+ await v.locator('[data-focus-shared]').click();await v.waitForTimeout(3500);await shot(v,'03-pool');await Promise.all([end(v,both[0]),end(a,both[1])]);
  const massages=await Promise.all([task(v,'vlad','spaMassage','spa-massage-v'),task(a,'alina','spaMassage','spa-massage-a')]);
- await v.waitForTimeout(10500);await shot(v,'04-massage');await Promise.all([end(v,massages[0]),end(a,massages[1])]);
- const shower=await task(v,'vlad','spaShower','spa-shower-v');await v.waitForTimeout(9000);await shot(v,'05-shower');await end(v,shower);
+ await v.locator('[data-focus-shared]').click();await v.waitForTimeout(10500);await shot(v,'04-massage');await Promise.all([end(v,massages[0]),end(a,massages[1])]);
+ const shower=await task(v,'vlad','spaShower','spa-shower-v');await v.locator('[data-focus-shared]').click();await v.waitForTimeout(9000);await shot(v,'05-shower');await end(v,shower);
  assert.deepEqual(errors,[]);
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
