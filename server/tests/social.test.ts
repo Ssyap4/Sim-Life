@@ -299,10 +299,10 @@ test('Context prompts use actual milestones and have enough independently author
   assert.ok(new Set(lines).size>=230);
 });
 
-test('Routes stay walkable for both partners in the home, cafe and park',()=>{
+test('Routes stay walkable for both partners in the home, cafe, park and PLAY ARENA',()=>{
   const state=sample();state.dirtyDishes.table=2;state.world.tableBags=1;
   for(const a of SOCIAL_ACTIVITIES.filter(a=>a.object)){
-    const candidates=['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
+    const candidates=a.object==='venue'?['venue'] as const:['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
     for(const place of candidates){
       for(const role of residents){state.world.places[role]=place;Object.assign(state.characters[role],spawn(place,role));}
       if(a.object==='leisure'){state.furnishing.placed=[{id:1,sku:'leisure-chess',finish:'sage',rotation:0,x:10,z:8.6}];state.furnishing.nextId=2;}

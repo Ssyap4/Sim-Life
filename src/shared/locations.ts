@@ -51,6 +51,7 @@ export function spawn(place: PlaceId, role: CharacterId): Point {
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
+  if(place==='spa')return {x:role==='vlad'?-.44:.44,z:4.04};
   if(place==='fitness')return {x:role==='vlad'?-.44:.44,z:5.00};
   if(place==='district')return districtPoint({x:role==='vlad'?-9.02:-8.18,z:-8.8});
   return { x: role === 'vlad' ? -0.42 : 0.42, z: place === 'home' ? 2.38 : 3.35 };
