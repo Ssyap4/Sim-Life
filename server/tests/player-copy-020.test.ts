@@ -17,6 +17,6 @@ test('phone and thought lessons explain current autonomy rather than old version
     assert.doesNotMatch(content(filename),/(?:как в|поведение) 0\.\d+/);
 });
 test('package and lockfile versions mark the current 0.41 release',()=>{
-  assert.equal(JSON.parse(content('package.json')).version,'0.41.0');
-  assert.equal(JSON.parse(content('package-lock.json')).version,'0.41.0');
+  assert.equal(JSON.parse(content('package.json')).version,'0.43.0');
+  assert.equal(JSON.parse(content('package-lock.json')).version,'0.43.0');
 });
