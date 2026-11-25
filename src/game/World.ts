@@ -898,6 +898,7 @@ export class World {
       }
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
+        if(command.type==='vanity_care')actor.playVanity(command.care);
         return;
       }
       if(station==='furniture'){
@@ -1139,6 +1140,8 @@ export class World {
       }
       case 'highFive':
         actor.playGesture('highFive',actor.root.position.clone().lerp(partner.root.position,.5).setY(1.59));break;
+      case 'gift':actor.playGift(stage.action,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(1.06));break;
+      case 'sofaMassage':actor.playPartnerGesture('sofaMassage',leads,undefined,partner);break;
       case 'hands':case 'slowDance':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
       case 'hair':case 'shoulder':

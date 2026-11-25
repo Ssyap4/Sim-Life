@@ -63,6 +63,7 @@ export interface GameState {
   consoleLibrary?: import('./consoleCatalog').ConsoleGameId[];
   health?: import('./health').HealthState;
   vanity?: import('./vanity').VanityState;
+  vladCare?: import('./vanity').VanityState;
   homeDust?: HomeDust;
   vacuum?: import('./vacuum').VacuumState;
   speakers?: import('./speaker').SpeakerState;

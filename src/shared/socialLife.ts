@@ -59,7 +59,7 @@ import { FURNITURE_BY_ID } from './furniture';
 import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
-export type PairMotion = 'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
+export type PairMotion = 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
@@ -69,7 +69,11 @@ export type SocialActivity = {
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
 };
 export const BREAKFAST_RECIPES:readonly RecipeId[]=['omelette','toast','porridge','sandwich','pancakes','fruitSalad'];
+export const FAMILY_GIFTS = {giftFlowers:{price:850,label:'Букет цветов'},giftSweets:{price:450,label:'Коробка сладостей'}} as const;
+export const familyGift=(id:string)=>Object.hasOwn(FAMILY_GIFTS,id)?FAMILY_GIFTS[id as keyof typeof FAMILY_GIFTS]:undefined;
+const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:'Подарить '+g.label.toLowerCase()+' · '+g.price+' ₽',group:'romance',lines:['Хочу порадовать тебя: '+g.label+'. Подарок стоит '+g.price+' ₽ из семейного бюджета.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
 const objects: readonly SocialActivity[] = [
+  {id:'sofaMassage',title:'Сделать массаж плеч',group:'care',lines:['Давай посидим рядом, я немного разомну тебе плечи.'],replies:['Да, хочется расслабиться.','Спасибо, мне это сейчас нужно.'],motion:'sofaMassage',seconds:40,object:'sofa',memorable:true},
   {id:'breakfastCare',title:'Приготовить завтрак для любимого человека',group:'care',lines:['Хочешь, приготовлю тебе свежий завтрак? Посиди за столом, я всё сделаю.'],replies:['Да, спасибо!','С удовольствием, очень приятно.'],motion:'cook',seconds:25,object:'breakfastCare',resource:'kitchen',memorable:true},
   {id:'leisureTogether',title:'Провести досуг вдвоём',group:'home',lines:['Давай поиграем или отдохнём вместе!'],replies:['С удовольствием!','Давай!'],motion:'leisure',seconds:28,object:'leisure',memorable:true},
   {id:'eveningPlan',title:'Устроить домашний вечер',group:'home',
@@ -168,7 +172,7 @@ const greetings:SocialActivity[]=[
 const careTalk:SocialActivity[]=CARE_TOPICS.map(t=>({id:t.id,title:t.title,group:'romance',lines:[t.line],replies:t.replies,motion:'talk',seconds:20,context:'vanity'}));
 export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
 export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
-export const SOCIAL_ACTIVITIES = [...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
+export const SOCIAL_ACTIVITIES = [...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
@@ -182,6 +186,8 @@ export interface SocialOffer { id:number; from:CharacterId; action:string; title
 export type SocialPhase = 'accepted'|'declined'|'expired'|'cancelled'|'interrupted';
 export interface SocialMemory { at:number; action:string; title:string; description:string; group:SocialGroup }
 export interface Relationship {
+  lastGiftAt?:Partial<Record<CharacterId,number>>;
+  lastMassageAt?:Partial<Record<CharacterId,number>>;
   memories:SocialMemory[]; recent: {action:string;at:number}[]; lastTogether?:number; evening?:HomeEvening;
 }
 export const initialRelationship=():Relationship=>({memories:[],recent:[]});
@@ -192,7 +198,7 @@ export interface PairPresentation {
 }
 
 export function otherPerson(role:CharacterId):CharacterId { return role==='vlad'?'alina':'vlad'; }
-const contacts=new Set<PairMotion>(['hug','closeHug','kiss','cheek','hands','hair','shoulder','slowDance','highFive','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest','cuddle']);
+const contacts=new Set<PairMotion>(['gift','sofaMassage','hug','closeHug','kiss','cheek','hands','hair','shoulder','slowDance','highFive','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest','cuddle']);
 export const isContact=(motion:PairMotion)=>contacts.has(motion);
 
 function recentCareer(state:GameState,role:CharacterId,titles:string[],minutes:number){
@@ -308,6 +314,9 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if ((individual?[from]:[from,to]).some(role=>state.activeShifts[role]||state.careers.residents[role].shift||state.characters[role].pose==='sleep'))
     return 'Оба игрока должны быть свободны от работы и сна';
   if (!contextAvailable(a,state,from)) return 'Этот разговор пока не подходит к ситуации';
+  if(a.id==='sofaMassage'){const last=state.relationship.lastMassageAt?.[to];if(individual||last!==undefined&&gameMinutes(state.clock)-last<240)return 'Партнёру пока достаточно массажа';}
+  const gift=familyGift(a.id);
+  if(gift){const last=state.relationship.lastGiftAt?.[from];if(individual||place!=='home')return 'Подарок можно вручить вдвоём дома';if(last!==undefined&&gameMinutes(state.clock)-last<1440)return 'Следующий подарок можно вручить через игровые сутки';if(state.money<gift.price)return 'Недостаточно денег на подарок';}
   const name=a.object;
   if (name==='walk'&&place!=='home'&&place!=='park') return 'Для прогулки нужен двор или парк';
   if((name==='parkBadminton'||name==='parkSwing'||name==='parkTalk'||name==='picnic')&&place!=='park')return 'Это занятие доступно в парке';

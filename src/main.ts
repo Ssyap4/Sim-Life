@@ -1,4 +1,4 @@
-import {CARE,careScore,careEffects,type CareId} from './shared/vanity';
+import {CARE,careScore,careEffects,careRole,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
 import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
@@ -1453,7 +1453,7 @@ function openActions(item: ItemId): void {
     phone.open('delivery');
     return;
   }
-  if(item==='vanity'){showActionMenu('✨ Туалетный столик');if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);for(const id of Object.keys(CARE) as CareId[]){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state).find(e=>CARE[e.id].group===d.group);const delta=Math.max(0,Math.min(100-careScore(state),d.points-(old?CARE[old.id].points:0)));b.textContent=d.label+' · '+(delta?'+'+delta+'%':old?.id===id?'Обновить':'Без прибавки')+' · '+d.hours+' ч.';b.disabled=!!old&&CARE[old.id].points>d.points;b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}return;}
+  if(item==='vanity'){showActionMenu('✨ Туалетный столик');if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='alina')){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state).find(e=>CARE[e.id].group===d.group);const delta=Math.max(0,Math.min(100-careScore(state),d.points-(old?CARE[old.id].points:0)));b.textContent=d.label+' · '+(delta?'+'+delta+'%':old?.id===id?'Обновить':'Без прибавки')+' · '+d.hours+' ч.';b.disabled=!!old&&CARE[old.id].points>d.points;b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}return;}
   if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
@@ -1467,6 +1467,7 @@ function openActions(item: ItemId): void {
       return sent;
     },active);
   }
+  if(item==='basin'&&state&&active==='vlad'){const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state,'vlad')+'% · необязательные процедуры';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='vlad')){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state,'vlad').find(e=>CARE[e.id].group===d.group);b.textContent=d.label+' · '+(old?'Обновить':'+'+d.points+'%')+' · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}}
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];

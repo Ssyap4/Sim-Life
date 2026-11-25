@@ -81,11 +81,19 @@ export class Actor {
   playVanity(id:import('../shared/vanity').CareId){
     this.playDomesticActivity('vanity');this.vanityKind=id;
     const g=new THREE.Group();const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
-    if(['brush','style','fancy'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
-    else if(id==='perfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
+    if(['brush','style','fancy','vladStyle'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
+    else if(id==='vladShave'){add(.022,.105,.026,0,-.035,0,0x34404b);add(.052,.02,.027,0,-.094,0,0xb9c6cf);}
+    else if(id==='perfume'||id==='vladPerfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
     else if(id==='skin'){add(.055,.047,.055,0,-.03,0,0xf5e6d9);add(.06,.017,.06,0,.001,0,0xbc997a);}
     else{add(.018,.09,.018,0,-.03,0,0x825561);add(.043,.045,.035,0,-.095,0,0xd9b3a4);}
     g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
+  }
+  playGift(id:string,leads:boolean,target:THREE.Vector3){
+    this.clearVanity();this.playPartnerGesture('gift',leads,target);const g=new THREE.Group();
+    const part=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
+    if(id==='giftFlowers'){part(.10,.19,.09,0,-.055,0,0xd7bd9d);for(let i=0;i<5;i++){const x=(i-2)*.037;part(.013,.16,.013,x,.03,0,0x527b47);part(.05,.047,.05,x,.12+Math.abs(i-2)*.012,0,0xd56d8c);}}
+    else{part(.16,.085,.13,0,-.055,0,0x954a42);part(.025,.089,.136,0,-.055,0,0xe8c37c);part(.164,.089,.025,0,-.055,0,0xe8c37c);}
+    g.visible=leads;g.position.set(0,-.045,.025);this.rig.wrists[this.id==='vlad'?1:0].add(g);this.vanityProp=g;
   }
   private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;}
   playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;}
@@ -763,8 +771,9 @@ export class Actor {
           break;
         case 'vanity': {
           const id=this.vanityKind,cycle=Math.sin(a*2.6),lift=.5+.5*Math.sin(a*1.7);
-          if(id==='brush'||id==='style'||id==='fancy'){rightY=.19+.15*cycle;rightZ=.10+.045*Math.cos(a*2.6);leftY=-.22+.13*lift;leftZ=.22;armSpread=.22;gaze=.04;}
-          else if(id==='perfume'){rightY=-.02+.13*lift;rightZ=.26;leftY=-.23;gaze=.06;}
+          if(id==='brush'||id==='style'||id==='fancy'||id==='vladStyle'){rightY=.19+.15*cycle;rightZ=.10+.045*Math.cos(a*2.6);leftY=-.22+.13*lift;leftZ=.22;armSpread=.22;gaze=.04;}
+          else if(id==='perfume'||id==='vladPerfume'){rightY=-.02+.13*lift;rightZ=.26;leftY=-.23;gaze=.06;}
+          else if(id==='vladShave'){rightY=.065+.07*cycle;rightZ=.18+.015*Math.cos(a*3);leftY=-.28;gaze=.04;}
           else if(id==='skin'){rightY=.07+.08*cycle;rightZ=.18;leftY=.04-.08*cycle;leftZ=.18;gaze=.04;}
           else {rightY=.10+.055*cycle;rightZ=.17+.015*Math.cos(a*3.4);leftY=-.24;gaze=.02;}
           lean=.02;break;
@@ -1026,7 +1035,7 @@ export class Actor {
       const longDance = pair.motion==='slowDance'||pair.motion==='dance';
       const shortContact = pair.motion==='hug'||pair.motion==='closeHug'||
         pair.motion==='kiss'||pair.motion==='cheek'||pair.motion==='highFive';
-      const duration = pair.motion==='bedRest'?35:pair.motion==='sofaLean'||pair.motion==='sofaHug'?20:pair.motion==='sofaHands'?18:pair.motion==='cuddle'?15:longDance ? 13 : shortContact ? 5 : 8;
+      const duration = pair.motion==='gift'?20:pair.motion==='sofaMassage'?40:pair.motion==='bedRest'?35:pair.motion==='sofaLean'||pair.motion==='sofaHug'?20:pair.motion==='sofaHands'?18:pair.motion==='cuddle'?15:longDance ? 13 : shortContact ? 5 : 8;
       const contact=rise*(1-THREE.MathUtils.smoothstep(sec,duration-1.45,duration-.40));
       switch(pair.motion){
         case 'hug':case 'closeHug': {
@@ -1048,6 +1057,14 @@ export class Actor {
           gaze+=(pair.leads?-.075:.055)*contact; expression+=.28*rise;
           leftY+=.07*contact; rightY+=.11*contact;
           break;
+        case 'gift':
+          partnerReach=contact;rightY+=.15*contact;leftY+=.15*contact;expression+=.30*rise;
+          if(this.vanityProp)this.vanityProp.visible=pair.leads?sec<10:sec>=10;break;
+        case 'sofaMassage':{
+          const side=pair.partner?Math.sign(this.root.worldToLocal(pair.partner.bodyPosition(new THREE.Vector3())).x-this.figure.position.x):1;
+          if(pair.leads){partnerReach=contact;partnerYaw=(side||1)*.30*contact;partnerRoll=-(side||1)*.12*contact;if(side>0)rightY+=.25*contact;else leftY+=.25*contact;}
+          else {gaze+=.10*contact;partnerHead=.045*Math.sin(sec*1.8)*contact;}expression+=.23*rise;break;
+        }
         case 'hands':case 'slowDance':
           partnerReach=contact; rightY+=.18*contact; leftY+=.12*contact; expression+=.24*contact;
           partnerRoll=pair.motion==='slowDance'?Math.sin(sec*1.6)*.095*contact:.03*contact; gaze-=.025*contact;
@@ -1613,6 +1630,12 @@ export class Actor {
         this.aimHand(hand,this.handDirection.set(hand===0?.8:-.8,-.33,.40)
           .applyAxisAngle(up,this.root.rotation.y),blend);
       }
+    } else if(pair?.partner&&partnerReach>0.002&&pair.motion==='sofaMassage'&&pair.leads){
+      const other=pair.partner,own=this.bodyPosition(new THREE.Vector3()),local=this.root.worldToLocal(other.bodyPosition(new THREE.Vector3()));
+      const hand=local.x-this.figure.position.x>0?1:0;
+      const shoulder=other.root.worldToLocal(own.clone()).x-other.figure.position.x>0?other.rightArm:other.leftArm;
+      this.target.copy(shoulder.position);this.target.y+=.015+.025*Math.sin(pair.time*5);this.target.z+=.025;other.rig.chest.localToWorld(this.target);
+      const blend=Math.min(1,alpha*3*partnerReach);this.reach(hand,this.target,blend);this.aimHand(hand,this.handDirection.set(0,-1,.2).applyAxisAngle(up,this.root.rotation.y),blend);
     } else if(pair?.partner&&partnerReach>0.002&&(pair.motion==='sofaHands'||pair.motion==='sofaHug')){
       const other=pair.partner;
       const own=this.bodyPosition(new THREE.Vector3()),theirs=other.bodyPosition(new THREE.Vector3());
@@ -1631,7 +1654,7 @@ export class Actor {
       this.reach(hand,this.target,blend);
       this.aimHand(hand,this.handDirection.set(0,-.8,.2).applyAxisAngle(up,this.root.rotation.y),blend);
     } else if(pair?.target&&partnerReach>0.002) {
-      const hand=pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
+      const hand=pair.motion==='gift'||pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
       this.reach(hand,this.target.copy(pair.target),Math.min(1,alpha*4*partnerReach));
       this.aimHand(hand,this.handDirection.set(0,-.55,-.3)
         .applyAxisAngle(up,this.root.rotation.y),alpha*partnerReach);

@@ -1,3 +1,5 @@
+import {addLedger} from '../src/shared/economy';
+import {familyGift} from '../src/shared/socialLife';
 import {careTopic,rewardCareTopic,careBonuses} from '../src/shared/vanity';
 import {sharedCoffeeOptions} from '../src/shared/coffee';
 import {brewCoffee} from './coffee';
@@ -48,7 +50,9 @@ export function validRelationship(value:unknown):value is Relationship {
     stamp(evening.startedAt)&&
     (evening.phase==='complete' ? stamp(evening.completedAt)&&evening.completedAt!==undefined&&evening.completedAt>=evening.startedAt :
       evening.completedAt===undefined));
-  return validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
+  const validStamps=(v:unknown)=>v===undefined||!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.entries(v).every(([k,value])=>['vlad','alina'].includes(k)&&stamp(value));
+  const validGifts=validStamps(r.lastGiftAt)&&validStamps(r.lastMassageAt);
+  return validGifts&&validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
     r.memories.every(m=>m&&stamp(m.at)&&typeof m.action==='string'&&['talk','care','home','romance','fun'].includes(m.group)&&
       typeof m.title==='string'&&m.title.length<=120&&typeof m.description==='string'&&m.description.length<=240)&&
     Array.isArray(r.recent)&&r.recent.length<=RECENT_LIMIT&&r.recent.every(e=>e&&stamp(e.at)&&typeof e.action==='string');
@@ -147,7 +151,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     }
     return null;
   }
-  const intimateSeat=['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle'].includes(a.motion);
+  const intimateSeat=['sofaMassage','sofaLean','sofaHands','sofaKiss','sofaHug','cuddle'].includes(a.motion);
   const compactSeat=(own:{x:number;y:number;z:number;yaw:number},other:{x:number;z:number})=>{
     const gap=Math.hypot(other.x-own.x,other.z-own.z);
     const ratio=gap>.58?(gap-.58)/(2*gap):0;
@@ -230,7 +234,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   }
   const pet=petActions[a.id]?p as PetId:undefined;
   const petTarget=pet?(a.object==='petFeed'?PETS[pet].bowl:state.pets[pet].position):undefined;
-  const contact=['kiss','cheek','hug','closeHug','hands','hair','shoulder','highFive','slowDance'].includes(a.motion);
+  const contact=['gift','kiss','cheek','hug','closeHug','hands','hair','shoulder','highFive','slowDance'].includes(a.motion);
   const spot=petTarget||(!a.object&&!seated)?twoSpots(state,place,origins,
     contact?RESIDENT_CLEARANCE+.05:1.10,petTarget):undefined;
   const result:Partial<Record<CharacterId,HomePresentation>>={};
@@ -446,10 +450,14 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       break;
     }
     case 'yardRest':for(const role of roles)change(state,role,{comfort:9,fun:4});break;
-    case 'sofa':if(a.id==='musicTogether')for(const role of roles)change(state,role,{fun:14,comfort:6});break;
+    case 'sofa':if(a.id==='musicTogether')for(const role of roles)change(state,role,{fun:14,comfort:6});
+      if(a.id==='sofaMassage'){if(roles.length!==2||!remember)return fail('Нужно совместное завершение массажа');change(state,to,{comfort:20,energy:8,mood:12});change(state,from,{mood:5});(state.relationship.lastMassageAt??={})[to]=gameMinutes(state.clock);}
+      break;
     case 'walk':for(const role of roles) change(state,role,{energy:-1,fun:4});break;
   }
   if(rejected&&!rejected.ok) return rejected;
+  const gift=familyGift(a.id);
+  if(gift){if(roles.length!==2||!remember)return fail('Подарок требует завершения совместного действия');state.money-=gift.price;addLedger(state,from,'expense','gifts',gift.price,gift.label);(state.relationship.lastGiftAt??={})[from]=gameMinutes(state.clock);change(state,to,{mood:20,social:15});change(state,from,{mood:8});message=gift.label+' · подарок вручён';}
   if(roles.length===2&&['kiss','cheek','hug','closeHug','sofaKiss','sofaHug','cuddle'].includes(a.motion))healthContact(state);
   if(remember&&roles.length===2){
     const {strength,quiz}=addRelationship(state,a,choice,!!moment);
@@ -473,7 +481,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
         evening.phase='unwind';
         message+=' · ✨ Теперь можно отдохнуть вдвоём';
       } else if(evening?.phase==='unwind'&&[
-        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet',
+        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet','sofaMassage',
       ].includes(a.id)){
         evening.phase='complete';
         evening.completedAt=now;
@@ -483,7 +491,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
         const ending=a.id==='film'?'посмотрели фильм':a.id==='tv'?'посмотрели телевизор':
           a.id==='youtube'?'посмотрели видео':a.id==='slowDance'?'потанцевали':
           a.id==='cuddle'?'посидели в обнимку':
-          a.id==='eveningHeartTalk'?'поговорили по душам':
+          a.id==='eveningHeartTalk'?'поговорили по душам':a.id==='sofaMassage'?'расслабились за массажем':
           a.id==='read'?'почитали рядом':
           a.id==='petPlay'||a.id==='petPet'?'провели время с '+(PETS[id as PetId]?.name??'питомцем'):
           'поговорили на диване';

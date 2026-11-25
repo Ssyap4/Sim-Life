@@ -117,7 +117,7 @@ export function createHomeSessions(hooks: Hooks) {
         const home=session.participants.find(p=>p.role===r)?.packet.home;
         const cmd=session.plan.command;
         // Contact, sports and private hygiene retain exclusive control of the rig.
-        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
+        if(!home||session.activeAt===null||session.study?.questions.length||home.pair&&['gift','sofaMassage','kiss','cheek','hug','closeHug','hands','hair','shoulder','slowDance','highFive','badminton','leisure','cuddle','sofaLean','sofaHands','sofaKiss','sofaHug','bedRest'].includes(home.pair.motion)||
            cmd.type==='vanity_care'||cmd.type==='act'&&Object.hasOwn(BATH_ACTIONS,cmd.actionId)||
            cmd.type==='furniture_use'&&Object.hasOwn(BATH_ACTIONS,cmd.action))return 'Сейчас разговор будет мешать занятию';
         const end=home.route.path.at(-1)??home.route.from;
@@ -196,7 +196,7 @@ export function createHomeSessions(hooks: Hooks) {
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
-    if(command.type==='vanity_care'){if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
+    if(command.type==='vanity_care'){if(role==='vlad'){const route=walk(from,BATH_FIXTURES.basin.approach);return route&&{route,station:'basin'};}if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);

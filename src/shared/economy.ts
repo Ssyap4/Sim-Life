@@ -6,7 +6,7 @@ export interface LedgerEntry {
   minute: number;
   actor: CharacterId | 'family';
   kind: 'expense' | 'income';
-  category: 'groceries' | 'takeout' | 'pets' | 'work' | 'services' | 'education' | 'furniture' | 'clothing' | 'electronics';
+  category: 'groceries' | 'takeout' | 'pets' | 'work' | 'services' | 'education' | 'furniture' | 'clothing' | 'electronics' | 'gifts';
   amount: number;
   label: string;
 }
