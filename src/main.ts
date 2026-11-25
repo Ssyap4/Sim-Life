@@ -654,7 +654,8 @@ function render(reset = false): void {
     }
     world.syncHousehold(state, active, reset, online);
     for(const role of ['vlad','alina'] as const){
-      const worn=(state.world.wardrobe??defaultWardrobe())[role].worn;
+      const inSpa=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false;
+      const worn=inSpa?(role==='vlad'?'home':'pink'):(state.world.wardrobe??defaultWardrobe())[role].worn;
       const actor=world.actors[role];
       if(actor.root.userData.wornLook!==worn){fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
     }

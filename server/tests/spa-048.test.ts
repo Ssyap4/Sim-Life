@@ -84,3 +84,17 @@ test('SPA paired package requires matching consent over real WebSockets and is c
   assert.equal(end.state.money,5100);
  }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('changing rooms are private, temporary and cannot farm rewards; showers restore hygiene once',()=>{
+ const trip=spaTogetherTrip(initialState(),'vlad','pair');assert.ok(trip.ok);let s=trip.state;
+ const use=(r:'vlad'|'alina',id:string,a:'spaLocker'|'spaShower'|'spaPool')=>{const route=applyWorld(s,r,{type:'approach',place:'spa',station:id});assert.ok(route.ok);return localActivity(route.state,r,a,id);};
+ assert.equal(use('vlad','spa-locker-a','spaLocker').ok,false);
+ const original=structuredClone(s.world.wardrobe);
+ let r=use('vlad','spa-locker-v','spaLocker');assert.ok(r.ok);s=r.state;assert.equal(s.world.spa!.vlad!.changed,false);
+ assert.equal(use('vlad','spa-pool','spaPool').ok,false);
+ r=use('vlad','spa-locker-v','spaLocker');assert.ok(r.ok);s=r.state;assert.equal(s.world.spa!.vlad!.changed,true);assert.deepEqual(s.world.wardrobe,original);
+ assert.equal(s.world.spa!.vlad!.used.length,0);
+ s.characters.vlad.hygiene=15;r=use('vlad','spa-shower-v','spaShower');assert.ok(r.ok);s=r.state;
+ assert.equal(s.characters.vlad.hygiene,100);assert.equal(use('vlad','spa-shower-v','spaShower').ok,false);
+ assert.equal(use('alina','spa-shower-v','spaShower').ok,false);assert.ok(validWorld(s.world));assert.equal(s.money,6800);
+});

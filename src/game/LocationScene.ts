@@ -210,6 +210,18 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       for(let i=0;i<5;i++){const wave=shape(root,[w*.70,.008,.035],[0,h-.095,-d*.32+i*d*.16],0xa7dddc,cube);wave.name='spa-wave';}
       if(f==='spaPool')for(const x of [-.22,.22]){shape(root,[.035,.85,.035],[x,.52,d/2-.14],0xc6d4d7,drum);shape(root,[.035,.035,.28],[x,.95,d/2-.03],0xc6d4d7,cube);}
       else for(const x of [-.55,.55])shape(root,[.75,.12,.43],[x,.30,-.45],0xadcfcf,softCube);
+    }else if(f==='spaLocker'){
+      for(let i=0;i<3;i++){const x=(i-1)*.52;shape(root,[.49,1.62,.49],[x,.81,-.31],wood,softCube);shape(root,[.46,1.54,.035],[x,.81,-.05],0x7d9b91,cube);shape(root,[.03,.22,.06],[x+.16,.85,-.016],0xe9e5d8,cube);}
+      shape(root,[w-.16,.12,.43],[0,.43,.30],wood,softCube);
+      for(const x of [-.65,.65])shape(root,[.10,.40,.34],[x,.20,.30],wood,cube);
+      shape(root,[.10,1.65,d],[w/2-.05,.82,0],0xb8c9bc,cube);
+    }else if(f==='spaShower'){
+      shape(root,[w,.12,d],[0,.06,0],0xd4e3df,softCube);
+      shape(root,[w,1.85,.10],[0,.93,-d/2+.05],0xc1d4d0,cube);
+      shape(root,[.09,1.85,d],[-w/2+.04,.93,0],0xa7beb8,cube);
+      shape(root,[.035,1.1,.035],[0,1.1,-.38],0xc7d7d7,drum);
+      shape(root,[.23,.045,.23],[0,1.94,-.20],0xaac4c3,drum);
+      for(let i=0;i<9;i++){const q=shape(root,[.012,.29,.012],[(i%3-1)*.07,1.62-Math.floor(i/3)*.35,-.20+(Math.floor(i/3)-1)*.08],0xa4dce4,cube);q.name='spa-drop';q.visible=false;}
     }else if(f==='spaSauna'){
       shape(root,[w,.12,d],[0,.06,0],wood,cube);
       shape(root,[w,1.9,.13],[0,.95,-d/2+.065],wood,cube);
@@ -538,15 +550,16 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
   if(place==='spa'){
-    shape(floor,[12.3,.36,10.3],[0,-.20,0],0x6a8c8a,cube);
-    shape(floor,[12,.06,10],[0,-.03,0],0xe2d7c3,cube);
-    for(let i=-5;i<=5;i++)shape(floor,[.024,.012,10],[i,.007,0],0xbeb9a8,cube);
-    for(let i=-4;i<=4;i++)shape(floor,[12,.012,.024],[0,.008,i],0xbeb9a8,cube);
-    shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0xb0c8bb,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc4d8c8,cube);
+    shape(floor,[16.3,.36,10.3],[2,-.20,0],0x6a8c8a,cube);
+    shape(floor,[16,.06,10],[2,-.03,0],0xe2d7c3,cube);
+    for(let i=-5;i<=9;i++)shape(floor,[.024,.012,10],[i,.007,0],0xbeb9a8,cube);
+    for(let i=-4;i<=4;i++)shape(floor,[16,.012,.024],[2,.008,i],0xbeb9a8,cube);
+    shape(floor,[16.15,2.85,.18],[2,1.42,-5.05],0xb0c8bb,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc4d8c8,cube);
     for(const x of [-4,-2,2,4]){shape(floor,[1.45,1.35,.04],[x,1.45,-4.93],0x6a9ca0,cube);shape(floor,[1.32,1.20,.04],[x,1.45,-4.90],0xb6d9d4,cube);}
+    shape(floor,[4.0,.018,9.7],[8,.017,0],0xc4d6cf,cube);sign(floor,'ДУШ · РАЗДЕВАЛКИ',2.45,-4.88,3.5,0xf5ebda,textures,materials);floor.children.at(-1)!.position.x=7.6;
     sign(floor,'L A G U N A · SPA',2.52,-4.88,4.0,0xf5ebda,textures,materials);
     const clerk=marketCashier(resources,{title:'Администратор',color:0x52847c,shirt:0xf5ebda,animated:true});clerk.position.set(-4,0,1.7);root.add(clerk);
-    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.78+.12*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
+    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-drop'){w.visible=Object.values(root.userData.spaShowers??{}).includes(id);w.position.y=1.05+((seconds*1.9+w.position.x*5+w.position.z*2)%1+1)%1*.76;}if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.78+.12*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
   } else if(place==='barber'){
     shape(floor,[12.3,.36,10.3],[0,-.20,0],0x514637,cube);shape(floor,[12,.06,10],[0,-.03,0],0x7e6550,cube);
     for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0x8b6e55:0x9b8065,cube);

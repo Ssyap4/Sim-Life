@@ -622,7 +622,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
- spaPool:SPA_ACTIVITIES.spaPool.name,spaJacuzzi:SPA_ACTIVITIES.spaJacuzzi.name,spaSauna:SPA_ACTIVITIES.spaSauna.name,spaLounge:SPA_ACTIVITIES.spaLounge.name,spaMassage:SPA_ACTIVITIES.spaMassage.name,
+ spaLocker:SPA_ACTIVITIES.spaLocker.name,spaShower:SPA_ACTIVITIES.spaShower.name,spaPool:SPA_ACTIVITIES.spaPool.name,spaJacuzzi:SPA_ACTIVITIES.spaJacuzzi.name,spaSauna:SPA_ACTIVITIES.spaSauna.name,spaLounge:SPA_ACTIVITIES.spaLounge.name,spaMassage:SPA_ACTIVITIES.spaMassage.name,
   vetExam:VET_SERVICES.vetExam.name,vetTreatment:VET_SERVICES.vetTreatment.name,vetMedicine:VET_SERVICES.vetMedicine.name,
   barberFade:BARBER_SERVICES.barberFade.name,barberShave:BARBER_SERVICES.barberShave.name,barberStyle:BARBER_SERVICES.barberStyle.name,barberFace:BARBER_SERVICES.barberFace.name,barberFull:BARBER_SERVICES.barberFull.name,
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
@@ -638,6 +638,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   const station = stationById(place, id);
   if(isSpaAction(action)){
  if(place!=='spa'||station?.action.kind!=='spa'||station.action.facility!==action||!at(source,role,station))return fail('Подойди к нужной зоне SPA');
+ if((action==='spaLocker'||action==='spaShower')&&!id.endsWith('-'+role[0]))return fail('Выбери свою раздевалку или душ');
  const denial=spaDenial(source,role,action);if(denial)return fail(denial);const next=structuredClone(source);
  if(action==='spaMassage'&&next.world.spa![role]!.pass!=='package'){next.money-=SPA_MASSAGE_PRICE;addLedger(next,role,'expense','services',SPA_MASSAGE_PRICE,'SPA · Массаж');}
  finishSpa(next,role,action);return done(next,SPA_ACTIVITIES[action].name+' · готово');

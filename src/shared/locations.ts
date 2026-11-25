@@ -31,12 +31,13 @@ export const PLACES = {
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
+export const SPA_FLOOR={minX:-5.62,maxX:9.62,minZ:-4.62,maxZ:4.62};
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
 export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='spa'?SPA_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -169,6 +170,10 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('spa-lounge-a','Лежак',-.8,2.5,.85,1.45,{kind:'spa',facility:'spaLounge'}),
     site('spa-massage-v','Массаж',2.0,2.6,.9,1.55,{kind:'spa',facility:'spaMassage'}),
     site('spa-massage-a','Массаж',3.4,2.6,.9,1.55,{kind:'spa',facility:'spaMassage'}),
+    site('spa-locker-v','Раздевалка Влада',7.4,-3.3,1.8,1.2,{kind:'spa',facility:'spaLocker'}),
+    site('spa-locker-a','Раздевалка Алины',7.4,1.0,1.8,1.2,{kind:'spa',facility:'spaLocker'}),
+    site('spa-shower-v','Душ Влада',5.9,-1.7,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:5.9,z:-.65}}),
+    site('spa-shower-a','Душ Алины',7.8,3.0,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:7.8,z:4.07}}),
     door('spa-exit','Выход','district',0,4.6,true),
   ],
   barber:[

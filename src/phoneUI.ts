@@ -127,7 +127,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if(app==='spa'){
       const visit=state.world.spa?.[role],key=JSON.stringify([visit,state.money,state.world.places,state.world.carDriver,online]);
       if(key!==spaKey){spaKey=key;const card=block('SPA «Лагуна»',visit?'Посещение оплачено · '+SPA_PASSES[visit.pass].name:'Бассейн, джакузи, сауна и зона отдыха. Одиночный вход — у машины.');
-      if(visit){for(const [id,a] of Object.entries(SPA_ACTIVITIES)){const p=document.createElement('p');p.textContent=a.name+' · '+(visit.used.includes(id as keyof typeof SPA_ACTIVITIES)?'выполнено':'доступно');card.append(p);}}
+      if(visit){for(const [id,a] of Object.entries(SPA_ACTIVITIES)){if(id==='spaLocker')continue;const p=document.createElement('p');p.textContent=a.name+' · '+(visit.used.includes(id as keyof typeof SPA_ACTIVITIES)?'выполнено':'доступно');card.append(p);}}
       else {card.append(block('Один гость',formatRub(SPA_PASSES.single.price)+' · поездка через семейную машину'));
       for(const pass of ['pair','package'] as const){const b=document.createElement('button');b.type='button';b.textContent=SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price);b.disabled=state.money<SPA_PASSES[pass].price||online.length!==2||!!state.world.carDriver||Object.values(state.world.places).some(p=>p!=='home');b.onclick=()=>spaControl?.({type:'spa_trip',pass});card.append(b);}
       card.append(block('Вместе','Оба игрока выбирают один и тот же тариф. Оплата только после согласия. Пакет включает массаж для каждого.'));}

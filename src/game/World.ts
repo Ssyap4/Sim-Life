@@ -1200,9 +1200,11 @@ export class World {
       const start = () => {
         if(station.action.kind==='spa'){
  const a=station.action.facility,x=station.center.x,z=station.center.z,offset=role==='vlad'?-.44:.44;
- if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+offset,.23,z+.62),0);actor.playDomesticActivity('spaSwim');}
- else if(a==='spaJacuzzi')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.36,z-.38),0);
- else if(a==='spaSauna')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.22,z-.28),0);
+ if(a==='spaLocker'){actor.faceTowards(new THREE.Vector3(x,0,z));actor.playDomesticActivity('tidy');}
+ else if(a==='spaShower'){actor.setFurniturePose('idle',new THREE.Vector3(x,.12,z),Math.PI);actor.playDomesticActivity('shower');if(this.remote)(this.remote.root.userData.spaShowers??={})[role]=station.id;}
+ else if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+offset,.23,z+.62),0);actor.playDomesticActivity('spaSwim');}
+ else if(a==='spaJacuzzi')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,.01,z-.38),0);
+ else if(a==='spaSauna')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.10,z-.28),0);
  else if(a==='spaLounge'||a==='spaMassage'){actor.setFurniturePose('idle',new THREE.Vector3(x,a==='spaMassage'?.82:.48,z+.48),0);actor.playDomesticActivity('spaRecline');if(a==='spaMassage'&&this.remote)(this.remote.root.userData.spaMassages??={})[role]=station.id;}
  }
         if(station.action.kind==='barber'&&station.action.facility==='chair'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.15,station.center.z),Math.PI);if(this.remote)this.remote.root.userData.barberAction=command.action;}
@@ -1438,7 +1440,7 @@ export class World {
   }
 
   finishTimedAction(role: CharacterId): void {
-    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];}
+    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
@@ -1458,7 +1460,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
-    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];}
+    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);

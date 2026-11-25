@@ -191,7 +191,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if(station.action.kind==='spa'){
  const a=station.action.facility,visit=place.world.spa?.[role];
  if(a==='reception')options.append(element('small','',visit?SPA_PASSES[visit.pass].name+' · оплачено':'Посещение не оплачено'));
- else options.append(button(SPA_ACTIVITIES[a].name+(a==='spaMassage'&&visit?.pass!=='package'?' · '+formatRub(SPA_MASSAGE_PRICE):''),()=>{if(send({type:'local_activity',station:station.id,action:a}))close();},!!spaDenial(place,role,a)));
+ else if((a==='spaLocker'||a==='spaShower')&&!station.id.endsWith('-'+role[0]))options.append(element('small','','Выбери свою раздевалку или душ'));
+ else options.append(button((a==='spaLocker'?(visit?.changed===false?'Надеть одежду для SPA':'Надеть свою одежду'):SPA_ACTIVITIES[a].name)+(a==='spaMassage'&&visit?.pass!=='package'?' · '+formatRub(SPA_MASSAGE_PRICE):''),()=>{if(send({type:'local_activity',station:station.id,action:a}))close();},!!spaDenial(place,role,a)));
     } else if(station.action.kind==='barber'){
       if(station.action.facility==='reception')options.append(element('small','','BRO · услуги у кресла. Можно без записи.'));
       else for(const [id,d] of Object.entries(BARBER_SERVICES)){const action=id as BarberAction;options.append(button(d.name+' · '+formatRub(d.price)+' · '+d.hours+' ч.',()=>{if(send({type:'local_activity',station:station.id,action}))close();},!!barberDenial(place,role,action)));}
