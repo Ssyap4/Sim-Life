@@ -20,7 +20,7 @@ test('lawn covers every side of house and excludes deck, driveway, interior and 
  const sectors=yard.landscape.sectors;assert.ok(sectors.length>=12&&sectors.length<=36);
  let count=0;const m=new THREE.Matrix4(),v=new THREE.Vector3();
  for(const sector of sectors){assert.ok(sector.parent?.parent&&sector instanceof THREE.InstancedMesh);assert.equal(sector.castShadow,false);for(let i=0;i<sector.count;i++){sector.getMatrixAt(i,m);v.setFromMatrixPosition(m);assert.ok(lawnAt(v.x,v.z));}count+=sector.count;}
- assert.ok(count>=3000&&count<=7000,'clumps '+count);assert.ok(count*9<=63000);
+ assert.ok(count>=6000&&count<=11000,'clumps '+count);assert.ok(count*6<=66000);
  const camera=new THREE.PerspectiveCamera();camera.position.set(0,100,0);yard.landscape.detail(camera,false);assert.ok(sectors.every(m=>!m.visible));camera.position.set(0,8,7);yard.landscape.detail(camera,false);assert.ok(sectors.some(m=>m.visible));
 });
 test('paving quads share no surface area and cover the connecting lane',()=>{

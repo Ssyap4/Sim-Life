@@ -48,7 +48,9 @@ try{
  await page.locator('#camera-reset').tap();await page.waitForTimeout(1500);await shot('05-overview-after');
  await send({type:'approach',place:'home',station:'family-car'});
  await page.locator('#camera-follow').tap();await page.waitForFunction(({r,x,z})=>{const t=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r];return Math.hypot(t.body[0]-x,t.body[2]-z)<.25;},{r:role,...CAR_APPROACH},{timeout:65000});
- await page.waitForTimeout(1800);await shot('06-parking-and-path');
+ await page.waitForTimeout(1800);
+ const close=page.getByRole('button',{name:'×',exact:true});if(await close.count()===1&&await close.isVisible())await close.tap();
+ await page.waitForTimeout(500);await shot('06-parking-and-path');
  assert.ok((await telemetry()).grass>0);assert.deepEqual(errors,[]);
  console.log('YARD_QA',role,HOME_PLACEMENTS.yardTable,await telemetry());
 }finally{peer?.close();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

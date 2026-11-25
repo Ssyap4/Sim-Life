@@ -73,19 +73,19 @@ export function buildYardLandscape(parent:THREE.Group){
  const turfMesh=new THREE.Mesh(surface([YARD_SURFACE],-.008,5),seasonalMaterial(new THREE.MeshStandardMaterial({map:turf,color:turf?0xffffff:0x779b50,roughness:.98}),'lawn'));
  turfMesh.name='Continuous lawn surface';turfMesh.receiveShadow=true;turfMesh.raycast=()=>{};parent.add(turfMesh);
  const path=new THREE.Mesh(surface(pavingCells(),.012,2.4),new THREE.MeshStandardMaterial({map:stone,color:stone?0xffffff:0xb8b0a2,roughness:.87}));path.name='Continuous nonoverlapping stone paths';path.receiveShadow=true;path.raycast=()=>{};parent.add(path);
- // Three short tapered blades per instance; no alpha texture, no shadow pass.
+ // Two short tapered blades per instance; no alpha texture, no shadow pass.
  const positions:number[]=[],indices:number[]=[];
- for(let k=0;k<3;k++){const a=k*Math.PI*2/3,c=Math.cos(a),s=Math.sin(a),i=positions.length/3;positions.push(-s*.024,0,c*.024,s*.024,0,-c*.024,c*.035-s*.012,.065,s*.035+c*.012,c*.035+s*.012,.065,s*.035-c*.012,c*.065,.102,s*.065);indices.push(i,i+1,i+2,i+1,i+3,i+2,i+2,i+3,i+4);}
+ for(let k=0;k<2;k++){const a=k*Math.PI/2,c=Math.cos(a),s=Math.sin(a),i=positions.length/3;positions.push(-s*.024,0,c*.024,s*.024,0,-c*.024,c*.035-s*.012,.065,s*.035+c*.012,c*.035+s*.012,.065,s*.035-c*.012,c*.065,.102,s*.065);indices.push(i,i+1,i+2,i+1,i+3,i+2,i+2,i+3,i+4);}
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setIndex(indices);geo.computeVertexNormals();
- const material=seasonalMaterial(new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide}),'grass');
+ const material=seasonalMaterial(new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,emissive:0x344c20,emissiveIntensity:.42}),'grass');
  const rng=landscapeRandom(5171),sectors:THREE.InstancedMesh[]=[];
- const palette=[0x658b42,0x789d4e,0x90ae61,0x597c3c,0x9cb46c],t=new THREE.Object3D(),color=new THREE.Color();
+ const palette=[0x8eab59,0x98b268,0xa2bc70,0x83a44f,0xa6be73],t=new THREE.Object3D(),color=new THREE.Color();
  for(let x=YARD_SURFACE.minX;x<YARD_SURFACE.maxX;x+=6)for(let z=YARD_SURFACE.minZ;z<YARD_SURFACE.maxZ;z+=6){
   const points:{x:number;z:number}[]=[];
-  for(let a=x+.14;a<Math.min(x+6,YARD_SURFACE.maxX);a+=.32)for(let b=z+.14;b<Math.min(z+6,YARD_SURFACE.maxZ);b+=.32){const px=a+(rng()-.5)*.24,pz=b+(rng()-.5)*.24;if(lawnAt(px,pz))points.push({x:px,z:pz});}
+  for(let a=x+.14;a<Math.min(x+6,YARD_SURFACE.maxX);a+=.25)for(let b=z+.14;b<Math.min(z+6,YARD_SURFACE.maxZ);b+=.25){const px=a+(rng()-.5)*.19,pz=b+(rng()-.5)*.19;if(lawnAt(px,pz))points.push({x:px,z:pz});}
   if(!points.length)continue;
   const mesh=new THREE.InstancedMesh(geo,material,points.length);mesh.name='Short 3D lawn blades';mesh.raycast=()=>{};
-  for(const [i,p] of points.entries()){t.position.set(p.x,-.008,p.z);t.rotation.y=rng()*Math.PI*2;t.scale.set(.65+rng()*.8,snowPreview()?.25:.5+rng()*.7,.65+rng()*.8);t.updateMatrix();mesh.setMatrixAt(i,t.matrix);mesh.setColorAt(i,color.setHex(palette[i%palette.length]));}
+  for(const [i,p] of points.entries()){t.position.set(p.x,-.008,p.z);t.rotation.y=rng()*Math.PI*2;t.scale.set(.72+rng()*.5,snowPreview()?.19:.38+rng()*.52,.72+rng()*.5);t.updateMatrix();mesh.setMatrixAt(i,t.matrix);mesh.setColorAt(i,color.setHex(palette[i%palette.length]));}
   mesh.computeBoundingSphere();sectors.push(mesh);parent.add(mesh);
  }
  return {sectors,turfMesh,path,detail(camera:THREE.Camera,low:boolean){for(const m of sectors){const distance=camera.position.distanceTo(m.boundingSphere!.center);m.visible=distance<(low?20:32);}}};
