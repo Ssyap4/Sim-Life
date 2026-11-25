@@ -72,7 +72,7 @@ try{
  await page.waitForTimeout(11000);
  assert.equal(await page.locator('[data-social-finish]').innerText(),'Встать');
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
- assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);
+ assert.match(await page.locator('.running-task').first().innerText(),/Бонус/);
  await page.screenshot({path:join(out,action+(process.argv.includes('night')?'-night':'')+'.jpg'),type:'jpeg',quality:84});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
  await page.locator('[data-social-finish]').click();

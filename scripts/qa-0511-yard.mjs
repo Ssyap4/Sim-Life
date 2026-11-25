@@ -15,7 +15,7 @@ mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'yard-0511-'));let server,browser,peer;
 try{
  const s=initialState();s.clock.minute=750;s.autonomy={vlad:'off',alina:'off'};s.money=100000;
- Object.assign(s.characters[role],{x:.48,z:6.25,pose:'idle',energy:90,hunger:90});
+ Object.assign(s.characters[role],{x:.48,z:6.25,pose:'idle',energy:40,hunger:90,fun:20,mood:20,comfort:20});
  Object.assign(s.characters[other],homeSeat('yardTable',other).approach,{pose:'idle',energy:90,hunger:90});
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000}});
@@ -36,8 +36,11 @@ try{
  await page.locator('#camera-follow').tap();await page.waitForTimeout(1200);
  const start=async actionId=>{await send({type:'act',actionId});const p=await take('task_started',p=>p.role===role&&p.command?.actionId===actionId);assert.equal(p.home.station,'yardTable');await take('task_active',x=>x.taskId===p.taskId);await page.waitForFunction(r=>{const t=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r];return t.pose==='sit'&&t.station==='yardTable';},role,{timeout:45000});await page.waitForTimeout(1500);await assertSeat(role);return p;};
  const finish=async p=>{await page.locator('[data-social-finish]').tap();await take('task_ended',x=>x.taskId===p.taskId&&x.outcome==='completed');};
- let p=await start('yardLounge');await shot('02-solo-lounge');await finish(p);
- p=await start('yardHookahSolo');await shot('03-solo-hookah');await finish(p);
+ let p=await start('yardLounge');await take('snapshot',x=>x.state.characters[role].comfort>20);await shot('02-solo-lounge');await finish(p);
+ p=await start('yardHookahSolo');assert.equal(p.effects.fun,15);assert.equal(p.effects.comfort,15);
+ await page.waitForFunction(r=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r].hookah.puffs>=3,role,{timeout:35000});
+ await shot('03-solo-hookah-smoke');await finish(p);
+ await page.waitForFunction(r=>{const h=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[r].hookah;return !h.visible&&!h.puffs;},role,{timeout:10000});
  peer=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(peer,'open');peer.send(JSON.stringify({type:'auth',role:other,code:files.access[other]}));
  await take('online',p=>p.online?.includes(other));await page.waitForTimeout(1000);
  await send({type:'social_propose',action:'yardRest'});const offer=await take('social_pending',p=>p.offer?.action==='yardRest');

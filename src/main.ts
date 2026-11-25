@@ -359,8 +359,8 @@ function drawTaskPanel(): void {
     const fill = document.createElement('i');
     track.appendChild(fill);
     box.append(top, track);
-    if(task.freeRest)track.hidden=true;
-    if (task.effects) box.append(needChips(task.effects,false));
+    if(task.freeRest)track.setAttribute('aria-label','Начисление бонусов отдыха');
+    if (task.effects) {const chips=needChips(task.effects,false);if(task.freeRest)chips.setAttribute('aria-label','Максимальный бонус за 45 секунд отдыха');box.append(chips);}
     const question = task.question ? studyQuestion(task.question) : undefined;
     if ((question || task.answer) && role === active && task.since !== null) {
       const form = document.createElement('div');
@@ -460,7 +460,11 @@ function updateTaskProgress(): void {
     const elapsed = task.since === null ? 0 : Math.min(taskNow() - task.since, task.durationMs);
     const finish=card.querySelector<HTMLButtonElement>('[data-social-finish]');
     if(finish)finish.disabled=task.freeRest?task.since===null:elapsed/task.durationMs<.72;
-    if(task.freeRest){card.querySelector<HTMLElement>('.task-seconds')!.textContent=task.since===null?'В пути':'Свободный отдых';continue;}
+    if(task.freeRest){
+      card.querySelector<HTMLElement>('.running-task-track i')!.style.width=(Math.max(0,elapsed)/task.durationMs*100)+'%';
+      card.querySelector<HTMLElement>('.task-seconds')!.textContent=task.since===null?'В пути':elapsed>=task.durationMs?'Бонус начислен':'Бонус · '+Math.ceil((task.durationMs-elapsed)/1000)+' с';
+      continue;
+    }
     card.querySelector<HTMLElement>('.running-task-track i')!.style.width =
       (task.material ? (task.studyProgress ? task.studyProgress.elapsed / task.studyProgress.total * 100 : 0)
         : Math.min(100, elapsed / task.durationMs * 100)) + '%';

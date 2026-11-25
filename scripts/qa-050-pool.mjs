@@ -74,7 +74,7 @@ try{
  if(action==='poolSwimTogether'){await page.waitForTimeout(9000);await page.screenshot({path:join(out,action+'-moving.jpg'),type:'jpeg',quality:90});assert.deepEqual(errors,[]);process.exitCode=0;}else{
  assert.equal(await page.locator('[data-social-finish]').innerText(),'Выйти из воды');
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
- assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);
+ assert.match(await page.locator('.running-task').first().innerText(),/Бонус/);
  await page.waitForTimeout(24000);
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
  await page.screenshot({path:join(out,action+'.jpg'),type:'jpeg',quality:90});

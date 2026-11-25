@@ -30,14 +30,15 @@ test('solo terrace never times out, early voluntary exit earns proportional rewa
  const r=rig();try{
   const cmd={type:'furniture_use' as const,furnitureId:1,action:'terraceRest' as const};
   assert.ok(r.s.start(['vlad'],planTask(cmd)!,r.sockets.vlad));r.advance(15_000);
+  const earned=r.state().characters.vlad.comfort;assert.ok(earned>20&&earned<50);
   r.finish('vlad');assert.equal(r.s.busy('vlad'),false);
   assert.ok(r.state().characters.vlad.comfort>20&&r.state().characters.vlad.comfort<50);
   assert.equal(r.state().characters.vlad.pose,'idle');
   assert.ok(r.s.start(['vlad'],planTask(cmd)!,r.sockets.vlad));r.advance(600_000);
   assert.ok(r.s.busy('vlad'));
   const before=r.state().characters.vlad.comfort;r.finish('vlad');
-  assert.equal(r.state().characters.vlad.comfort,before+30);
-  r.finish('vlad');assert.equal(r.state().characters.vlad.comfort,before+30);
+  assert.ok(Math.abs(r.state().characters.vlad.comfort-before)<1e-8);
+  r.finish('vlad');assert.ok(Math.abs(r.state().characters.vlad.comfort-before)<1e-8);
  }finally{r.s.dispose();}
 });
 test('paired terrace stays seated through multiple conversations, permits independent departure',()=>{
@@ -71,7 +72,8 @@ test('built-in lounge is free and permits independent solo or shared unlimited r
   assert.equal(HOME_FLOOR.maxZ,16.7);assert.equal(HOME_YARD.gate.z,17.06);
   const money=r.state().money;
   assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardLounge'})!,r.sockets.vlad));
-  r.advance(600000);assert.ok(r.s.busy('vlad'));r.finish('vlad');assert.ok(!r.s.busy('vlad'));assert.equal(r.state().characters.vlad.pose,'idle');
+  r.advance(10_000);assert.ok(r.state().characters.vlad.comfort>20&&r.state().characters.vlad.comfort<50);
+  r.advance(600000);assert.ok(r.s.busy('vlad'));assert.ok(Math.abs(r.state().characters.vlad.comfort-50)<1e-8);r.finish('vlad');assert.ok(Math.abs(r.state().characters.vlad.comfort-50)<1e-8);assert.ok(!r.s.busy('vlad'));assert.equal(r.state().characters.vlad.pose,'idle');
   r.invite('yardRest');r.advance(600000);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
   r.invite('nearTalk:day');r.advance(45000);assert.ok(r.state().relationship.recent.some(e=>e.action==='nearTalk:day'));
   r.finish('vlad');assert.ok(!r.s.busy('vlad')&&r.s.busy('alina'));
@@ -80,16 +82,17 @@ test('built-in lounge is free and permits independent solo or shared unlimited r
  }finally{r.s.dispose();}
 });
 
-test('optional hookah uses the fixed lounge, has no need reward, and permits conversation and independent exit',()=>{
+test('optional hookah grants bounded recreational rest, preserves energy and permits independent exit',()=>{
  const r=rig(true);try{
   const before=structuredClone(r.state().characters),money=r.state().money;
   assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardHookahSolo'})!,r.sockets.vlad));
+  r.advance(15_000);assert.ok(r.state().characters.vlad.fun>before.vlad.fun&&r.state().characters.vlad.fun<before.vlad.fun+15);
   r.advance(600000);assert.ok(r.s.busy('vlad'));r.finish('vlad');
-  for(const key of ['fun','energy','comfort','mood'] as const)assert.equal(r.state().characters.vlad[key],before.vlad[key]);
+  for(const [key,value] of Object.entries({fun:15,comfort:15,mood:8,energy:0}))assert.ok(Math.abs(r.state().characters.vlad[key as 'fun']-before.vlad[key as 'fun']-value)<1e-8);
   r.invite('yardHookah');r.advance(3000);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
   r.invite('nearTalk:day');r.advance(600000);assert.ok(r.state().relationship.recent.some(e=>e.action==='nearTalk:day'));
   const afterTalk=structuredClone(r.state().characters);r.finish('vlad');assert.ok(!r.s.busy('vlad')&&r.s.busy('alina'));
-  r.finish('alina');for(const role of ['vlad','alina'] as const)for(const key of ['fun','energy','comfort','mood'] as const)assert.equal(r.state().characters[role][key],afterTalk[role][key]);
+  r.finish('alina');for(const role of ['vlad','alina'] as const)for(const key of ['fun','energy','comfort','mood'] as const)assert.ok(Math.abs(r.state().characters[role][key]-afterTalk[role][key])<1e-8);
   assert.equal(r.state().money,money);
  }finally{r.s.dispose();}
 });
@@ -101,5 +104,13 @@ test('weekend hookah step is credited by actual paired rest, not solo or prematu
   r.advance(600000);r.finish('vlad');assert.deepEqual(r.state().weekends?.plan?.done,[]);
   r.invite('yardHookah');r.advance(3000);r.finish('vlad');r.finish('alina');assert.deepEqual(r.state().weekends?.plan?.done,[]);
   r.invite('yardHookah');r.advance(600000);r.finish('vlad');assert.deepEqual(r.state().weekends?.plan?.done,['hookah']);r.finish('alina');
+ }finally{r.s.dispose();}
+});
+
+test('short departure preserves only elapsed reward and never pays again',()=>{
+ const r=rig(true);try{
+  assert.ok(r.s.start(['vlad'],planTask({type:'act',actionId:'yardLounge'})!,r.sockets.vlad));
+  r.advance(7500);r.finish('vlad');const paid=r.state().characters.vlad.comfort;
+  assert.ok(paid>23&&paid<26);r.advance(600000);assert.equal(r.state().characters.vlad.comfort,paid);
  }finally{r.s.dispose();}
 });

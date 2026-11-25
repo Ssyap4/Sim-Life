@@ -7,7 +7,7 @@ import { catHomeSeatError, catHomeSeatOverlap } from '../src/shared/catOccupancy
 import type { CatPerch } from '../src/shared/CatPerches';
 import { HOME_WORLD_FLOOR } from '../src/shared/district';
 import { taskAccessError } from '../src/shared/serviceAccess';
-import { LEISURE, isLeisureAction, isFreeLeisureRest } from '../src/shared/leisure';
+import { LEISURE, isLeisureAction, isFreeLeisureRest, FREE_REST_SECONDS, freeRestReward } from '../src/shared/leisure';
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
@@ -37,7 +37,7 @@ import { parkConversation, completeTogether, cooperationDenial, pairScenes, soci
 import type { PetId } from '../src/shared/pets';
 
 type Started = Extract<ServerPacket, { type: 'task_started' }>;
-type Participant = { wish?:Wish; role: CharacterId; socket: WebSocket; packet: Started; arriveMs: number };
+type Participant = { restPaid?:number; wish?:Wish; role: CharacterId; socket: WebSocket; packet: Started; arriveMs: number };
 type Cooperation = { from:CharacterId; choice:number; moment?:FamilyMoment };
 type Session = {
   plan: TaskPlan;
@@ -413,6 +413,30 @@ export function createHomeSessions(hooks: Hooks) {
     }
   }
 
+  function restAction(command:TimedCommand,home?:HomePresentation){
+    return command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item;
+  }
+  function restStrength(session:Session){return Math.min(1,Math.max(0,(now()-session.activeAt!)/session.duration));}
+  function accrueRest(state:GameState,session:Session,member:Participant,strength:number){
+    const paid=member.restPaid??0,delta=Math.max(0,strength-paid);
+    const needs=state.characters[member.role],reward=freeRestReward(restAction(session.plan.command,member.packet.home));
+    for(const key of ['energy','fun','comfort','mood'] as const){
+      const amount=(reward[key]??0)*delta;
+      needs[key]=Math.min(100,Math.max(0,needs[key]+amount));
+    }
+  }
+  function tickRest(session:Session){
+    if(session.activeAt===null||!session.participants.length)return;
+    const strength=restStrength(session),before=hooks.state(),next=structuredClone(before);
+    const members=session.participants.filter(p=>sessions.get(p.role)===session&&(p.restPaid??0)<strength);
+    if(members.length){
+      for(const member of members)accrueRest(next,session,member,strength);
+      next.revision++;
+      try{hooks.save(next);for(const member of members)member.restPaid=strength;broadcastSnapshot();}
+      catch{/* Retry the unpaid portion; never grant it twice. */}
+    }
+    if(session.participants.some(p=>(p.restPaid??0)<1))session.timer=schedule(()=>tickRest(session),Math.min(5000,Math.max(1000,session.duration-(now()-session.activeAt))));
+  }
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false, cooperation?:Cooperation) {
     const command = plan.command;
     const material = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
@@ -484,9 +508,11 @@ export function createHomeSessions(hooks: Hooks) {
     const story=command.type==='together'&&cooperation&&command.moment
       ?familyMoments(hooks.state(),cooperation.from).find(m=>m.id===command.moment):undefined;
     const freeRest=!automatic&&participants.every(p=>isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:p.packet.home?.pair?.item));
+    const restDuration=freeRest?Math.max(15,Math.round(FREE_REST_SECONDS*1000*hooks.timeScale)):duration;
+    if(freeRest)for(const p of participants){p.packet.durationMs=restDuration;p.packet.effects=freeRestReward(restAction(command,p.packet.home));}
     const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,freeRest,
       cooperation:cooperation?{...cooperation,moment:story}:undefined,
-      duration, timer: schedule(() => {
+      duration:restDuration, timer: schedule(() => {
         if(cooperation&&command.type==='together'){
           const reason=cooperationDenial(hooks.state(),cooperation.from,command);
           if(reason){cancel(cooperation.from,reason);return;}
@@ -505,7 +531,8 @@ export function createHomeSessions(hooks: Hooks) {
             else session.timer = schedule(tick, 500);
           };
           tick();
-        } else if(!session.freeRest)session.timer = schedule(() => complete(session), session.duration);
+        } else if(session.freeRest)session.timer=schedule(()=>tickRest(session),Math.min(5000,session.duration));
+        else session.timer = schedule(() => complete(session), session.duration);
       }, Math.round(travel * hooks.timeScale)) };
     for (const participant of participants) {
       sessions.set(participant.role, session);
@@ -560,6 +587,7 @@ export function createHomeSessions(hooks: Hooks) {
     const members=independent?session.participants.filter(p=>p.role===role):session.participants;
     const next = structuredClone(hooks.state());
     checkpoint(next, session);
+    if(session.freeRest&&session.activeAt!==null)for(const member of members)accrueRest(next,session,member,restStrength(session));
     for (const {role,packet} of members) {
       const elapsed = session.activeAt === null ? (now()-session.started)/hooks.timeScale : Infinity;
       const home=packet.home!;
@@ -604,17 +632,13 @@ export function createHomeSessions(hooks: Hooks) {
       const hookah=command?.type==='act'&&command.actionId==='yardHookahSolo'||command?.type==='together'&&command.action==='yardHookah';
       if(!fixed&&id===undefined)return error(socket,'Место отдыха недоступно');
       // Credit a bounded fraction of the existing reward for actual seated time.
-      const strength=Math.min(1,Math.max(0,(now()-s.activeAt)/s.duration));
+      const strength=restStrength(s);
       const action=command?.type==='furniture_use'?command.action:home.pair?.item;
       if(!fixed&&action!=='terraceRest'&&action!=='poolFloat')return error(socket,'Место отдыха недоступно');
       const restCommand:TimedCommand=fixed?{type:'act',actionId:hookah?'yardHookahSolo':'yardLounge'}:{type:'furniture_use',furnitureId:id!,action:action as 'terraceRest'|'poolFloat'};
-      const result=evaluateTask(before,role,restCommand);
-      if(!result.ok){cancel(role,result.reason,member.packet.taskId);return;}
-      const next=result.state;
-      for(const need of ['fun','mood','comfort','energy'] as const){
-        const base=before.characters[role][need],gain=next.characters[role][need]-base;
-        next.characters[role][need]=base+Math.round(gain*strength);
-      }
+      const next=structuredClone(before);
+      accrueRest(next,s,member,strength);
+      next.revision++;
       Object.assign(next.characters[role],home.route.path.at(-1)??home.route.from,{pose:'idle'});
       const remember=!!s.cooperation&&!s.finishedTogether&&s.participants.length===2&&strength>=1;
       if(strength>=1){

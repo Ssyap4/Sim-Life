@@ -13,6 +13,7 @@ import { kitchenMove, grillMove, helperChop, mealUtensil } from './CookingChoreo
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED, HOME_PLACEMENTS } from '../shared/home';
 import {LoungeHose} from './LoungeHose';
+import {LoungeSmoke,hookahPhase} from './LoungeSmoke';
 import { activityProps } from './ActivityProps';
 import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
@@ -66,6 +67,13 @@ export class Actor {
   private readonly teaCup = new THREE.Group();
   private readonly loungeMouthpiece=new THREE.Group();
   private readonly loungeHose=new LoungeHose();
+  private readonly loungeSmoke=new LoungeSmoke();
+  private readonly loungeMouth=new THREE.Vector3();
+  private readonly loungeForward=new THREE.Vector3();
+  private readonly loungeGrip=new THREE.Vector3();
+  private readonly loungeAxis=new THREE.Vector3();
+  private readonly loungeRotation=new THREE.Quaternion();
+  hookahQA(){return {visible:this.loungeMouthpiece.visible,puffs:this.loungeSmoke.activePuffs};}
   private readonly hoseLowA=new THREE.Vector3();
   private readonly hoseLowB=new THREE.Vector3();
   private readonly hoseStart=new THREE.Vector3();
@@ -218,7 +226,7 @@ export class Actor {
   hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
-    this.loungeMouthpiece.visible=this.loungeHose.visible=false;
+    this.loungeMouthpiece.visible=this.loungeHose.visible=this.loungeSmoke.visible=false;
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
@@ -271,7 +279,9 @@ export class Actor {
     const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic'));liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
     const cupHandle=new THREE.Mesh(new THREE.TorusGeometry(.026,.006,6,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));cupHandle.position.x=.051;
     this.teaCup.add(cup,liquid,cupHandle);this.teaCup.visible=false;this.rig.wrists[1].add(this.teaCup);
-    const mouthpiece=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.16,8),finish(0x536e75,'metal'));mouthpiece.rotation.x=Math.PI/2;mouthpiece.position.z=.04;this.loungeMouthpiece.add(mouthpiece);this.loungeMouthpiece.visible=false;this.rig.wrists[1].add(this.loungeMouthpiece);
+    const hoseHandle=(r:number,length:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,length,10),finish(color,'metal'));m.rotation.x=Math.PI/2;m.position.z=z;this.loungeMouthpiece.add(m);};
+    hoseHandle(.015,.115,0,0x29383c);hoseHandle(.009,.065,.09,0x849396);hoseHandle(.012,.021,.129,0x344c50);hoseHandle(.014,.032,-.070,0x465b60);
+    this.loungeMouthpiece.position.set(0,-.050,.024);this.loungeMouthpiece.visible=false;this.rig.wrists[1].add(this.loungeMouthpiece);this.root.add(this.loungeSmoke);
     this.loungeHose.frustumCulled=false;this.loungeHose.visible=false;this.root.add(this.loungeHose);
     const frameMat=finish(id==='vlad'?0x31495e:0x8b425e,'metal'),gripMat=finish(0x25282b,'fabric'),stringMat=finish(0xe8e7db,'fabric');
     const rod=(radius:number,length:number,z:number,mat:THREE.Material)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,10),mat);m.rotation.x=Math.PI/2;m.position.z=z;this.racket.add(m);};
@@ -363,6 +373,7 @@ export class Actor {
     this.pose = pose;this.swingHinge=null;this.swingAngle=0;this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;
     this.gesture = null;
     this.partnerGesture = null;
+    this.loungeSmoke.visible=this.loungeMouthpiece.visible=this.loungeHose.visible=false;
     this.activity = null;
     this.clearVenueProp();
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=false;
@@ -454,7 +465,7 @@ export class Actor {
     this.props.phone.visible=false;
     if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
     this.partnerGesture=null;
-    this.loungeHose.visible=this.loungeMouthpiece.visible=false;
+    this.loungeHose.visible=this.loungeMouthpiece.visible=this.loungeSmoke.visible=false;
     this.gesture=null;
     if(this.activity?.startsWith('gym'))this.setPose('idle');
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
@@ -1860,21 +1871,32 @@ export class Actor {
     const hookah=pair?.motion==='yardHookah'&&!!pair.target;
     this.loungeMouthpiece.visible=this.loungeHose.visible=hookah;
     if(hookah&&pair?.target){
-      const phase=(pair.time+(pair.leads?0:3))%12;
-      const raise=THREE.MathUtils.smoothstep(phase,2,3.8)*(1-THREE.MathUtils.smoothstep(phase,5.2,6.8));
-      const head=this.rig.head.getWorldPosition(this.hoseEnd);
-      const rest=this.bodyPosition(this.hoseStart).add(this.handDirection.set(.20,.80,.25).applyAxisAngle(up,this.root.rotation.y));
-      const mouth=head.add(this.handDirection.set(.035,-.14,.19).applyAxisAngle(up,this.root.rotation.y));
-      this.reach(1,rest.lerp(mouth,raise),alpha*.85);
-      this.aimHand(1,this.handDirection.set(0,-.12,.98).applyAxisAngle(up,this.root.rotation.y),alpha);
+      const {raise,exhale}=hookahPhase(pair.time,pair.leads);
+      // Mouth anchor follows the actual head including nods and yaw.
+      this.rig.head.localToWorld(this.loungeMouth.set(0,-.132,.155));
+      this.rig.head.localToWorld(this.loungeForward.set(0,-.132,1.155));
+      this.loungeForward.sub(this.loungeMouth).normalize();
+      const rest=this.bodyPosition(this.hoseStart).add(this.handDirection.set(.22,.80,.25).applyAxisAngle(up,this.root.rotation.y));
+      const wristGoal=this.loungeGrip.copy(this.loungeMouth).addScaledVector(this.loungeForward,.145);wristGoal.y-=.036;
+      this.reach(1,rest.lerp(wristGoal,raise),alpha,.35);
+      this.aimHand(1,this.handDirection.set(.08,-.78+.48*raise,.65-.5*raise).applyAxisAngle(up,this.root.rotation.y),alpha);
       this.root.updateMatrixWorld(true);
+      this.loungeMouthpiece.getWorldPosition(this.loungeGrip);
+      this.loungeAxis.copy(this.loungeForward).multiplyScalar(-1);this.loungeAxis.y+=.36;this.loungeAxis.normalize();
+      this.loungeAxis.lerp(this.hoseEnd.copy(this.loungeMouth).sub(this.loungeGrip).normalize(),raise).normalize();
+      this.rig.wrists[1].getWorldQuaternion(this.loungeRotation).invert();
+      this.loungeAxis.applyQuaternion(this.loungeRotation);
+      this.loungeMouthpiece.quaternion.setFromUnitVectors(forwardAxis,this.loungeAxis);
+      this.loungeMouthpiece.updateWorldMatrix(true,false);
+      this.loungeSmoke.updateExhale(exhale,this.loungeMouth,this.loungeForward);
       const side=this.id==='vlad'?-1:1;
       this.hoseStart.copy(pair.target);this.hoseStart.x+=side*.08;
-      this.loungeMouthpiece.localToWorld(this.hoseEnd.set(0,0,-.04));
+      this.loungeMouthpiece.localToWorld(this.hoseEnd.set(0,0,-.086));
       this.hoseLowA.set(pair.target.x+.20,.06,HOME_PLACEMENTS.yardTable.z+.58);
       this.hoseLowB.set(this.hoseEnd.x,.08,HOME_PLACEMENTS.yardTable.z+.64+side*.06);
       this.loungeHose.updatePath(this.root.worldToLocal(this.hoseStart),this.root.worldToLocal(this.hoseLowA),this.root.worldToLocal(this.hoseLowB),this.root.worldToLocal(this.hoseEnd));
     }
+    if(!hookah)this.loungeSmoke.visible=false;
     this.teaCup.visible=pair?.motion==='teaTogether';
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;

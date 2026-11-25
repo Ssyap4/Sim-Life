@@ -13,6 +13,17 @@ export const LEISURE = {
 } as const;
 // The seconds value is a reward reference, never a seating deadline.
 export function isFreeLeisureRest(action:unknown):boolean{return action==='terraceRest'||action==='poolFloat'||action==='yardRest'||action==='yardLounge'||action==='yardHookah'||action==='yardHookahSolo';}
+export const FREE_REST_SECONDS=45;
+export const FREE_REST_REWARDS={
+ yardLounge:{energy:8,fun:20,comfort:30,mood:14},
+ yardHookahSolo:{fun:15,comfort:15,mood:8},
+ terraceRest:{energy:8,fun:20,comfort:30,mood:14},
+ poolFloat:{energy:6,fun:22,comfort:30,mood:16},
+} as const;
+export function freeRestReward(action:unknown):import('./homeLife').NeedEffects{
+ const key=action==='yardRest'?'yardLounge':action==='yardHookah'?'yardHookahSolo':action;
+ return typeof key==='string'&&Object.hasOwn(FREE_REST_REWARDS,key)?FREE_REST_REWARDS[key as keyof typeof FREE_REST_REWARDS]:{};
+}
 export type LeisureAction=keyof typeof LEISURE;
 export function isLeisureAction(a:unknown):a is LeisureAction{return typeof a==='string'&&Object.hasOwn(LEISURE,a);}
 export function leisureAction(sku:string,socialId?:string):LeisureAction|undefined{if(socialId==='poolSwimTogether')return sku==='oasis-pool'?'poolSwim':undefined;return (Object.keys(LEISURE) as LeisureAction[]).find(a=>LEISURE[a].sku===sku);}
