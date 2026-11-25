@@ -4,6 +4,7 @@
 #app .phone-info .weekend-card{display:grid;gap:7px;padding:12px;background:#edf2ec;border:1px solid #d5e0d7;border-radius:12px;color:#29483d}
 #app .phone-info .weekend-intro{background:linear-gradient(145deg,#dcebe0,#f1f5ed)}
 #app .weekend-intro>strong{font-size:19px}
+#app .weekend-card .weekend-cost{font-weight:700;font-size:13px;color:#29483d;padding:7px 8px;background:#dceade;border-radius:8px}
 #app .weekend-card p{margin:0;font-size:12px;line-height:1.45;color:#496458;overflow-wrap:anywhere}
 #app .weekend-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 #app .weekend-card button{min-height:44px;width:100%;padding:7px 9px;white-space:normal;overflow-wrap:anywhere;font-size:12px;font-weight:700;border-radius:9px}

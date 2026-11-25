@@ -34,7 +34,10 @@ try{
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  const open=async()=>{await page.locator('#phone-btn').tap();await page.locator('[data-phone-app=weekends]').tap();await page.locator('.weekend-intro').waitFor();};
  await open();await shot('01-presets');
- await page.locator('[data-weekend-preset=active]').tap();await shot('02-active-budget');
+ await page.locator('[data-weekend-preset=active]').tap();
+ assert.match(await page.locator('.weekend-cost').innerText(),/2[\s\u00a0\u202f]?700/);
+ const budget=await page.locator('.weekend-cost').boundingBox(),propose=await page.locator('[data-weekend-propose]').boundingBox();assert.ok(budget.y+budget.height<page.viewportSize().height&&propose.y+propose.height<page.viewportSize().height);
+ await shot('02-active-budget');
  await page.locator('[data-weekend-preset=custom]').tap();
  await page.locator('[data-weekend-pick=hookah]').check();
  await page.locator('[data-weekend-pick=coffee]').check();
@@ -44,9 +47,9 @@ try{
  await page.getByText('Ждём ответ второго игрока.',{exact:false}).waitFor();await shot('03-awaiting-consent');
  send({type:'weekend_accept',version});await take('snapshot',p=>p.state.weekends?.plan?.approved.length===2);
  await page.getByText('Согласовано вдвоём',{exact:true}).waitFor();await shot('04-approved');
- await page.locator('[data-phone-close]').tap();
- send({type:'social_propose',action:'yardHookah'});await take('social_pending');
- await page.locator('[data-social-reply="0"]').click({timeout:15000});
+ await page.locator('[data-weekend-action=yardHookah]').tap();
+ await page.locator('[data-social-propose=yardHookah]').tap();
+ const offer=await take('social_pending');send({type:'social_reply',inviteId:offer.offer.id,choice:0});
  const started=await take('task_started',p=>p.role==='vlad'&&p.command?.action==='yardHookah');
  await take('task_active',p=>p.taskId===started.taskId);
  await page.locator('[data-focus-shared]').click();await page.waitForTimeout(12000);
