@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p public/qa-baseline /tmp/polished-assets
           for id in alina vlad; do
-            git show df42ade:src/assets/characters/remake/$id.glb > public/qa-baseline/$id.glb
+            cp src/assets/characters/remake/$id.glb public/qa-baseline/$id.glb
             /tmp/blender-4.3.2-linux-x64/blender --background --factory-startup --python-exit-code 1 --python art/characters/remake.py -- "$id"
           done
           cp -r art/characters/remake /tmp/polished-assets/art
