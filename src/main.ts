@@ -49,7 +49,8 @@ import './mobile-ux-020.css';
 import './district-minimal-021.css';
 import { installMobileInput } from './mobileInput';
 import { installMobileBack } from './mobileBack';
-import { subtleHaptic } from './mobileHaptics';
+import { subtleHaptic, installTouchFeedback } from './mobileHaptics';
+import './touch-feedback.css';
 import { gameAudio } from './game/GameAudio';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
@@ -218,6 +219,7 @@ app.innerHTML = `
 `;
 
 installMobileInput(app);
+installTouchFeedback(app);
 gameAudio.install(app);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;

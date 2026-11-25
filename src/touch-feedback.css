@@ -1,0 +1,13 @@
+/* iOS Safari has no Vibration API; tactile-looking press state stays local. */
+@media (any-pointer: coarse) and (prefers-reduced-motion: no-preference) {
+ #app button,#app [role="button"],#app summary,#app [data-touch-feedback] {
+  transition: filter 100ms ease, scale 100ms ease;
+ }
+ #app .touch-pressed {
+  scale: .975;
+  filter: brightness(.92);
+ }
+}
+@media (any-pointer: coarse) and (prefers-reduced-motion: reduce) {
+ #app .touch-pressed {filter:brightness(.92);}
+}

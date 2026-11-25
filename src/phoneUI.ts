@@ -287,7 +287,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         settings.append(row);
       }
       const touchCard=block('📱 Удобство управления',
-        'Лёгкая вибрация подтверждения на поддерживаемых Android. На iPhone Safari вибрация недоступна, визуальный отклик остаётся.');
+        'Мягкий отклик при нажатии, выборе и подтверждении. На поддерживаемых Android — короткая вибрация; на iPhone — визуальное нажатие.');
       touchCard.classList.add('autonomy-phone-settings');
       const touchRow=document.createElement('label');
       const touchToggle=document.createElement('input');
@@ -297,7 +297,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         setHapticsEnabled(touchToggle.checked);
         if(touchToggle.checked)subtleHaptic('confirm');
       });
-      touchRow.append(touchToggle,document.createTextNode('Тактильный отклик (необязательно)'));
+      touchRow.append(touchToggle,document.createTextNode('Виброотклик (на поддерживаемых устройствах)'));
       touchCard.append(touchRow);
       const historyIntro=block('🕰 Недавние мысли',
         'Пять последних мыслей каждого персонажа. История хранится на этом устройстве, не изменяя семейное сохранение.');
