@@ -417,6 +417,8 @@ export class Actor {
     } else this.keys = keys;
   }
 
+  /** Submerged seat uses the actual rig pelvis height, not the standing offset. */
+  setSpaSeat(x:number,z:number,seatTop:number,yaw:number){this.setFurniturePose("sit",new THREE.Vector3(x,seatTop-(this.rig.waistY-.035),z),yaw);}
   private authoredWaterAnchor=false;
   private poolStepTravel=0;
   updateWaterAnchor(worldAnchor:THREE.Vector3,yaw:number,stepping=false):void{

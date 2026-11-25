@@ -1290,7 +1290,7 @@ export class World {
  if(a==='spaLocker'){actor.faceTowards(new THREE.Vector3(x,0,z));actor.playDomesticActivity('tidy');}
  else if(a==='spaShower'){actor.setFurniturePose('idle',new THREE.Vector3(x,.12,z),Math.PI);actor.playDomesticActivity('shower');if(this.remote)(this.remote.root.userData.spaShowers??={})[role]=station.id;}
  else if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+(role==='vlad'?-1.35:1.35),.20,z+.45),0);actor.playDomesticActivity('spaSwim');if(this.remote)(this.remote.root.userData.spaWaterUsers??={})[role]=station.id;}
- else if(a==='spaJacuzzi'){actor.setFurniturePose('sit',new THREE.Vector3(x+(role==='vlad'?-.70:.70),.08,z-.60),0);if(this.remote)(this.remote.root.userData.spaWaterUsers??={})[role]=station.id;}
+ else if(a==='spaJacuzzi'){actor.setSpaSeat(x+(role==='vlad'?-.70:.70),z-.60,.37,0);if(this.remote)(this.remote.root.userData.spaWaterUsers??={})[role]=station.id;}
  else if(a==='spaSauna')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.10,z-.28),0);
  else if(a==='spaLounge'||a==='spaMassage'){actor.setFurniturePose('idle',new THREE.Vector3(x,a==='spaMassage'?1.06:.71,z+.98),a==='spaMassage'?Math.PI:0);actor.playDomesticActivity(a==='spaMassage'?'spaMassage':'spaRecline');if(a==='spaMassage'&&this.remote)(this.remote.root.userData.spaMassages??={})[role]=station.id;}
  }
@@ -3151,7 +3151,7 @@ export class World {
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA()}])),grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA()}])),grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

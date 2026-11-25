@@ -4,7 +4,7 @@ import {painted} from './LocationArt';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
 export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boolean,resources:Resources){
  const root=new THREE.Group();root.name='SPA aquatic fixture';parent.add(root);
- const h=jacuzzi?.66:.34,waterY=h-.09,iw=w-.38,id=d-.38;
+ const h=jacuzzi?.88:.34,waterY=h-.09,iw=w-.38,id=d-.38;
  const box=(size:number[],pos:number[],color:number,geom:THREE.BufferGeometry=cube)=>{const m=new THREE.Mesh(geom,finish(color,'ceramic'));m.scale.set(size[0],size[1],size[2]);m.position.set(pos[0],pos[1],pos[2]);root.add(m);return m;};
  box([w,.16,d],[0,.06,0],0x367b88);
  for(const side of [-1,1]){
@@ -21,7 +21,7 @@ export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boole
  if(mosaic){mosaic.wrapS=mosaic.wrapT=THREE.RepeatWrapping;mosaic.repeat.set(iw/2,id/2);}
  const bottomMat=new THREE.MeshStandardMaterial({map:mosaic,color:mosaic?0xffffff:0x50a8b4,roughness:.72});resources.materials.push(bottomMat);
  const bottom=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),bottomMat);bottom.rotation.x=-Math.PI/2;bottom.position.y=.145;root.add(bottom);
- if(jacuzzi){for(const x of [-.70,.70]){box([.96,.14,.67],[x,.30,-.60],0xb8d9d8,softCube);box([.96,.34,.15],[x,.42,-.95],0xb8d9d8,softCube);}}
+ if(jacuzzi){for(const x of [-.70,.70]){box([.96,.14,.67],[x,.30,-.60],0xb8d9d8,softCube);box([.96,.34,.15],[x,.49,-.95],0xb8d9d8,softCube);}}
  else{
   // Entry steps are within the pool footprint, away from both swimming lanes.
   for(let i=0;i<3;i++)box([.88,.07+i*.07,.30],[0,.18+i*.035,d/2-.35-i*.30],0xc7d7cc);
