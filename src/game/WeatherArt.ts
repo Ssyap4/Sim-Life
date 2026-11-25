@@ -118,7 +118,11 @@ export class WeatherArt {
   light(scene:THREE.Scene,place:PlaceId,sun:THREE.DirectionalLight,ambient:THREE.HemisphereLight) {
     if(!this.mode){
       this.stormLight=undefined;
-      if(scene.fog instanceof THREE.Fog){scene.fog.near=place==='district'?125:49;scene.fog.far=place==='district'?171:75;}
+      if(scene.fog instanceof THREE.Fog){
+        // Clear weather must not hide a distant home overview (camera max 88).
+        scene.fog.near=place==='home'?125:place==='district'?125:place==='fitness'?85:49;
+        scene.fog.far=place==='home'?185:place==='district'?171:place==='fitness'?115:75;
+      }
       return;
     }
     const preset=skies[this.mode];

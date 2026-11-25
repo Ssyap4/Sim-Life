@@ -31,7 +31,7 @@ test('live particles switch in one batch, recover clear fog and never enter shop
  art.setWeather('snow',scene,'home');assert.ok(scene.children[0] instanceof THREE.Points);assert.equal(scene.children.length,1);
  art.setWeather('rain',scene,'home');assert.equal(scene.children[0],rain);
  art.setWeather('fog',scene,'home');art.light(scene,'home',sun,ambient);assert.equal(scene.children.length,0);assert.ok(scene.fog.far>=185);
- art.setWeather('clear',scene,'home');art.light(scene,'home',sun,ambient);assert.equal(scene.fog.far,75);
+ art.setWeather('clear',scene,'home');art.light(scene,'home',sun,ambient);assert.equal(scene.fog.near,125);assert.equal(scene.fog.far,185);
  art.setWeather('storm',scene,'home');art.enter(scene,'cafe');assert.equal(scene.children.length,0);
  const before=sun.intensity;art.light(scene,'cafe',sun,ambient);assert.equal(sun.intensity,before);
 });

@@ -2253,7 +2253,7 @@ export class World {
     else this.neighbors.group.removeFromParent();
     this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place==='venue'||place==='spa'?null:place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='fitness'?85:49, place==='fitness'?115:75);
+    this.scene.fog = place==='venue'||place==='spa'?null:place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='home'?125:place==='fitness'?85:49, place==='home'?185:place==='fitness'?115:75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
