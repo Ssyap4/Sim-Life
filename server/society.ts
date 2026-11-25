@@ -80,7 +80,7 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
 
 const petActions:Record<string,Exclude<PetAction,'buyFood'|'call'|'perch'|'fetch'|'mat'|'scratch'|'toy'|import('../src/shared/dogTraining').DogTrainingAction>>={petPlay:'play',petFeed:'feed',petPet:'pet',petBrush:'brush'};
 export function socialResource(a:SocialActivity,item?:string) { return a.object==='leisure'?'furniture:'+item:petActions[a.id]?'pet:'+item:a.resource??null; }
-import {CONSOLE_GAMES,isConsoleGame} from '../src/shared/consoleCatalog';
+import {CONSOLE_GAMES,isConsoleGame,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
 export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
   if(a.object==='console'&&isConsoleGame(command.item))return CONSOLE_GAMES[command.item].seconds*1000;
   if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku);if(action)return LEISURE[action].seconds*1000;}
@@ -240,6 +240,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
   const matchWinner=a.object==='parkBadminton'?badmintonWinner():undefined;
+  const consoleMatch=a.object==='console'&&isConsoleGame(p)&&CONSOLE_GAMES[p].mode==='versus'?newConsoleMatch(true,from):undefined;
   for(const role of ['vlad','alina'] as const){
     const seat=seats[role],entry=work[role];
     const station=localStation&&stationById(place,localStation);
@@ -263,7 +264,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
     const pair:PairPresentation={motion:entry?.motion??(seatedChat?'sitTalk':a.object==='petFeed'&&role!==from?'listen':a.motion),
       place,from,target:focus,seat,station:localStation??undefined,pet,item:a.object==='cafeMeal'?state.world.cafe[role]?.item:a.object==='picnic'?picnicPortions(state,role)[0]?.item:p,stroll:onward,
       offsetMs:a.object==='read'&&role!==from?900:0,carry,badmintonWinner:matchWinner};
-    result[role]={route,station:seat??'studyPractice',program,consoleGame:a.object==='console'&&isConsoleGame(p)?p:undefined,lesson:a.object==='lesson'?p:undefined,
+    result[role]={route,station:seat??'studyPractice',program,consoleGame:a.object==='console'&&isConsoleGame(p)?p:undefined,consoleMatch,lesson:a.object==='lesson'?p:undefined,
       pickup:picked,pickupMs:picked!==undefined?600:undefined,pair};
     if(intimateSeat&&seat==='sofa'){
       const own=homeSeat(seat,role),other=homeSeat(seat,otherPerson(role));
@@ -378,7 +379,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'console':{
       if(!isConsoleGame(id)||roles.length!==2||CONSOLE_GAMES[id].mode==='solo')return fail('Нужны два игрока и совместимая игра');
       for(const role of roles){const home=homes[role];Object.assign(state.characters[role],home.route.path.at(-1)??home.route.from);const result=evaluateTask(state,role,{type:'console_play',game:id},true);if(!result.ok)return result;state=result.state;}
-      message=CONSOLE_GAMES[id].name+' · '+(CONSOLE_GAMES[id].mode==='coop'?'Совместный уровень пройден!':'Победитель: '+(Math.random()<.5?'Влад':'Алина'));break;
+      message=CONSOLE_GAMES[id].name+' · '+(CONSOLE_GAMES[id].mode==='coop'?'Совместный уровень пройден!':'Победитель: '+consoleMatchWinner(homes.vlad.consoleMatch??newConsoleMatch(true,from)));break;
     }
     case 'film':rejected=each({type:'movie',genre:id as Genre}); break;
     case 'youtube':rejected=each({type:'youtube'}); break;

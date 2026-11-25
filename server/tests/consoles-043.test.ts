@@ -87,7 +87,7 @@ test('Console sessions require installed hardware and purchased title, share TV 
  assert.ok(cooperationDenial(s,'vlad',{...paired,item:'mk1'}));
  assert.equal(socialDuration(SOCIAL_BY_ID.get('consoleTogether')!,paired,s),120000);
  const homes=pairScenes(s,'vlad',paired);assert.ok(homes);for(const role of ['vlad','alina'] as const){assert.equal(homes[role].consoleGame,'ufc6');assert.equal(homes[role].pair?.motion,'console');}
- const both=completeTogether(s,'vlad',paired,['vlad','alina'],0,homes);assert.ok(both.ok);assert.match(both.message,/Победитель: (Влад|Алина)/);assert.ok(both.state.characters.alina.fun>70);
+ const both=completeTogether(s,'vlad',paired,['vlad','alina'],0,homes);assert.ok(both.ok);assert.match(both.message,/Победитель: (Влад|Алина)/);assert.deepEqual(homes.vlad.consoleMatch,homes.alina.consoleMatch);assert.ok(both.message.includes(homes.vlad.consoleMatch?.winner==='red'?'Влад':'Алина'));assert.ok(both.state.characters.alina.fun>70);
  const coop={...paired,item:'itTakesTwo'};const co=pairScenes(s,'vlad',coop)!;const result=completeTogether(s,'vlad',coop,['vlad','alina'],0,co);assert.ok(result.ok);assert.match(result.message,/Совместный уровень пройден/);
 });
 test('Both animated fallback character rigs reach two gamepad wrist anchors and release prop',()=>{

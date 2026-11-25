@@ -1,6 +1,8 @@
-import {CONSOLE_GAMES,type ConsoleGameId} from '../shared/consoleCatalog';
+import {drawUfc} from './UfcBroadcast';
+import {CONSOLE_GAMES,type ConsoleMatch,type ConsoleGameId} from '../shared/consoleCatalog';
 // Original miniature game-like animation, not captured or executable commercial gameplay.
-export function drawConsoleFrame(c:CanvasRenderingContext2D,id:ConsoleGameId,t:number){
+export function drawConsoleFrame(c:CanvasRenderingContext2D,id:ConsoleGameId,t:number,match?:ConsoleMatch){
+ if(id==='ufc6'){drawUfc(c,t,match);return;}
  const w=256,h=144,phase=t%12; c.clearRect(0,0,w,h);
  const rect=(x:number,y:number,a:number,b:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,a,b);};
  const line=(pts:number[],color:string,width=2)=>{c.strokeStyle=color;c.lineWidth=width;c.lineJoin='round';c.beginPath();c.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)c.lineTo(pts[i],pts[i+1]);c.stroke();};
@@ -36,4 +38,5 @@ export function drawConsoleFrame(c:CanvasRenderingContext2D,id:ConsoleGameId,t:n
   text('★ '+(Math.floor(t*3)%100),210,132);
  }
  rect(0,0,w,15,'#111827');text(CONSOLE_GAMES[id].name,8,11,9);
+ if(match&&t>=CONSOLE_GAMES[id].seconds-5){rect(55,48,146,36,'#111827');text('WINNER: '+(match.winner==='red'?match.redLabel:match.blueLabel),68,69,12);}
 }

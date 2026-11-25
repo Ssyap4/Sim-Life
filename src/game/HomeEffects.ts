@@ -1,5 +1,5 @@
 import {drawConsoleFrame} from './ConsoleFrames';
-import type {ConsoleGameId} from '../shared/consoleCatalog';
+import type {ConsoleMatch,ConsoleGameId} from '../shared/consoleCatalog';
 import * as THREE from 'three';
 import { electronicsDisplay,electronicsVariants } from './ElectronicsArt';
 import type { ElectronicsId } from '../shared/electronics';
@@ -42,8 +42,8 @@ export class HomeEffects {
   private readonly dogFoam:THREE.InstancedMesh;
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
-  private readonly games=new Map<string,{game:ConsoleGameId;start:number}>();
-  console(id:string,game?:ConsoleGameId,start=0){if(game)this.games.set(id,{game,start});else this.games.delete(id);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
+  private readonly games=new Map<string,{game:ConsoleGameId;start:number;match?:ConsoleMatch}>();
+  console(id:string,game?:ConsoleGameId,start=0,match?:ConsoleMatch){if(game)this.games.set(id,{game,start,match});else this.games.delete(id);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
   private lesson?: string;
 
   audioProgram():Program|undefined{return this.media.values().next().value;}
@@ -140,7 +140,7 @@ export class HomeEffects {
     if(frame === this.lastScreen) return;
     this.lastScreen = frame;
     const program = this.media.values().next().value!;
-    if(game)drawConsoleFrame(this.context,game.game,Math.max(0,seconds-game.start));else this.draw(program,seconds);
+    if(game)drawConsoleFrame(this.context,game.game,Math.max(0,seconds-game.start),game.match);else this.draw(program,seconds);
     this.texture.needsUpdate = true;
   }
 

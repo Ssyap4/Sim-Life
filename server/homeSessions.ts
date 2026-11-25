@@ -87,6 +87,7 @@ function sampled(home: HomePresentation, elapsed: number) {
   return {route:remaining, pickup:Math.max(0,home.pickup-route.path.length+remaining.path.length),
     pickupMs:home.pickupMs-pause};
 }
+import {CONSOLE_GAMES,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
 const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv' || c.type==='console_play';
 
 export function usesHomeSession(command: TimedCommand): boolean {
@@ -322,7 +323,7 @@ export function createHomeSessions(hooks: Hooks) {
     const program = command.type === 'free_tv' ? 'broadcast' : command.type === 'movie' ? command.genre
       : command.type === 'youtube' ? YOUTUBE[Math.floor(Math.random() * YOUTUBE.length)]
       : undefined;
-    return { route, station, program,consoleGame:command.type==='console_play'?command.game:undefined };
+    return { route, station, program,consoleGame:command.type==='console_play'?command.game:undefined,consoleMatch:command.type==='console_play'&&CONSOLE_GAMES[command.game].mode==='versus'?newConsoleMatch(false,role):undefined };
   }
 
   function end(session: Session, outcome: 'cancelled' | 'failed', message: string) {
@@ -366,6 +367,7 @@ export function createHomeSessions(hooks: Hooks) {
       recordCompletedActivity(result.state,role,session.plan.command);
       result.message+=fulfillWish(result.state,role,wish,next);
       next = result.state;
+      if(session.plan.command.type==='console_play'&&packet.home?.consoleMatch)result.message+=' · Победитель: '+consoleMatchWinner(packet.home.consoleMatch);
       results.push(result);
     }
     try { hooks.save(next); }

@@ -29,4 +29,7 @@ export const consoleLibrary=(s:GameState)=>s.consoleLibrary??[];
 export const validConsoleLibrary=(v:unknown):v is ConsoleGameId[]=>Array.isArray(v)&&v.length<=Object.keys(CONSOLE_GAMES).length&&v.every(isConsoleGame)&&new Set(v).size===v.length;
 export const consoleGames=(sku:ConsoleSku)=>(Object.keys(CONSOLE_GAMES) as ConsoleGameId[]).filter(id=>CONSOLE_GAMES[id].console===sku);
 export function consolePlayError(s:GameState,id:unknown){if(!isConsoleGame(id))return 'Неизвестная игра';if(!consoleInstalled(s,CONSOLE_GAMES[id].console))return 'Установи нужную консоль';if(!consoleLibrary(s).includes(id))return 'Сначала купи игру';if(s.furnishing.soldFixtures?.includes('sofa'))return 'Для игры пока нужен штатный диван';}
+export type ConsoleMatch={seed:number;winner:'red'|'blue';redLabel:string;blueLabel:string};
+export function newConsoleMatch(paired:boolean,role:'vlad'|'alina',random= Math.random):ConsoleMatch{return {seed:Math.floor(random()*1000000),winner:random()<.5?'red':'blue',redLabel:paired||role==='vlad'?'VLAD':'ALINA',blueLabel:paired?'ALINA':'CPU'};}
+export function consoleMatchWinner(m:ConsoleMatch){const label=m.winner==='red'?m.redLabel:m.blueLabel;return label==='VLAD'?'Влад':label==='ALINA'?'Алина':'Компьютер';}
 export type ConsoleCommand={type:'console_buy';sku:ConsoleSku}|{type:'console_game_buy';game:ConsoleGameId};

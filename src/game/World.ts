@@ -981,14 +981,14 @@ export class World {
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
-      if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000);
+      if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
       if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
       if(pair.action==='parkBadminton'&&this.badmintonStarted===null)this.badmintonStarted=this.visualSeconds-elapsedMs/1000;
       this.playPair(role);
       this.playPair(role==='vlad'?'alina':'vlad');
       return;
     }
-    if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000);
+    if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
     if (home?.program) this.homeEffects.television(role,home.program,home.lesson);
   }
 

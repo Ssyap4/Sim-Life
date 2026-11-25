@@ -52,6 +52,7 @@ export type HomePresentation = {
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
   consoleGame?:import('./consoleCatalog').ConsoleGameId;
+  consoleMatch?:import('./consoleCatalog').ConsoleMatch;
   furnitureId?:number;
   furniturePose?:{x:number;y:number;z:number;yaw:number};
   furnitureSeat?:boolean;
