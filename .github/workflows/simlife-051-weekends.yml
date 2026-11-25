@@ -16,7 +16,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npx tsx --test server/tests/weekends-051.test.ts server/tests/terrace-free-rest-050.test.ts server/tests/spa-048.test.ts server/tests/venue-048.test.ts server/tests/player-copy-020.test.ts
+      - run: npm test
       - run: npm run build
   mobile:
     runs-on: ubuntu-24.04
