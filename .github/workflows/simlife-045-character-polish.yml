@@ -1,0 +1,52 @@
+name: Sim-Life 0.45 portrait polish
+on:
+  push:
+    branches: [feat/character-polish-045]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  polish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install cloud Blender
+        run: |
+          curl -fsSL --retry 3 https://download.blender.org/release/Blender4.3/blender-4.3.2-linux-x64.tar.xz -o /tmp/blender.tar.xz
+          tar -xJf /tmp/blender.tar.xz -C /tmp
+      - name: Export refined original remake models
+        run: |
+          mkdir -p public/qa-baseline /tmp/polished-assets
+          for id in alina vlad; do
+            git show df42ade:src/assets/characters/remake/$id.glb > public/qa-baseline/$id.glb
+            /tmp/blender-4.3.2-linux-x64/blender --background --factory-startup --python-exit-code 1 --python art/characters/remake.py -- "$id"
+          done
+          cp -r art/characters/remake /tmp/polished-assets/art
+          cp -r src/assets/characters/remake /tmp/polished-assets/game
+      - run: npm ci
+      - run: node scripts/qa-character-assets.mjs
+      - run: npx tsx --test server/tests/blender.test.ts server/tests/blenderWalkingGait.test.ts server/tests/consoles-043.test.ts server/tests/vanity-044.test.ts server/tests/wardrobe-033.test.ts
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: polished-models
+          path: /tmp/polished-assets
+          retention-days: 7
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - name: Compare real meshes from both revisions
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/portrait-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-character-polish.html >/dev/null && break; sleep 1; done
+          node scripts/qa-character-polish.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: polished-comparisons
+          path: /tmp/simlife-045-polish
+          retention-days: 7

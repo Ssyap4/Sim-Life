@@ -25,7 +25,7 @@ ALINA = [
 VLAD = [
     (BOTTOM,.011,.019,.036),(-.162,.050,.056,.038),(-.145,.077,.077,.020),
     (-.125,.088,.094,.005),(-.096,.103,.108,-.001),(-.062,.115,.119,-.009),
-    (-.030,.126,.130,-.015),(.006,.125,.131,-.014),(.040,.127,.131,-.015),
+    (-.030,.122,.130,-.015),(.006,.123,.131,-.014),(.040,.126,.131,-.015),
     (.075,.124,.132,-.015),(.109,.116,.125,-.020),(.138,.098,.106,-.027),
     (.160,.072,.081,-.031),(.173,.032,.045,-.035),(TOP,.002,.006,-.036),
 ]
@@ -88,14 +88,14 @@ class Sculpt:
     def relief(self,x,y):
         f=self.woman
         side=abs(x)
-        cheek=(.017 if f else .015)*bell((side-.086)/.044)*bell((y+.043)/.033)
-        under=(-.008 if f else -.015)*bell((side-.090)/.031)*bell((y+.092)/.031)
+        cheek=(.012 if f else .010)*bell((side-.086)/.044)*bell((y+.043)/.033)
+        under=(-.005 if f else -.008)*bell((side-.090)/.031)*bell((y+.092)/.031)
         chin=.018*bell(x/.052)*bell((y+.141)/.026)
         y0=-.050 if f else -.059
-        bridge=(.027 if f else .044)*bell(x/(.017 if f else .023))*bell((y+.022)/.050)
-        tip=(.033 if f else .030)*bell(x/(.018 if f else .019))*bell((y-y0)/.015)
-        alae=(.015 if f else .021)*bell((side-(.016 if f else .019))/.009)*bell((y-y0+.008)/.011)
-        nostril=-.010*bell((side-.016)/.005)*bell((y-y0+.012)/.005)
+        bridge=(.024 if f else .040)*bell(x/(.016 if f else .019))*bell((y+.022)/.050)
+        tip=(.029 if f else .034)*bell(x/(.017 if f else .0165))*bell((y-y0)/.015)
+        alae=(.012 if f else .015)*bell((side-(.015 if f else .017))/.008)*bell((y-y0+.008)/.011)
+        nostril=-.0068*bell((side-.016)/.005)*bell((y-y0+.012)/.005)
         cranial=(.009 if f else .017)*bell((side-.058)/.052)*bell((y-.036)/.024)
         socket=-.016*bell((side-self.eye_x)/.039)*bell((y-.004)/.021)
         cushion=.015*bell((side-self.eye_x)/.031)*bell((y+.026)/.019)
@@ -135,7 +135,7 @@ class Sculpt:
         def g(x):
             return np.exp(-x*x)
         f=self.woman
-        shade('df8e7e' if f else 'bc7b69',front*g((y+.049)/.040)*g((side-.088)/.038)*(.38 if f else .21))
+        shade('df8e7e' if f else 'bc7b69',front*g((y+.049)/.040)*g((side-.088)/.038)*(.27 if f else .17))
         shade('f9d6b0',front*g((y-.050)/.081)*g(x/.082)*.17)
         shade('f9c29b',front*g((y+.127)/.040)*g(x/.065)*.18)
         shade('bd8673',g((y+.130)/.051)*(1-front**.74)*.41)
@@ -357,21 +357,31 @@ class Sculpt:
 
     def ear(self,skin,side):
         f=self.woman
-        cx=.121 if f else .123
-        cy=-.045 if f else -.047
-        height=.043 if f else .051
-        center_z=.006 if f else .007
+        cx=.121 if f else .116
+        cy=-.045 if f else -.043
+        height=.043 if f else .039
+        center_z=.006 if f else -.008
+        width=.026 if f else .017
+        lean=.010 if f else .005
+        depth=.019 if f else .010
+        rim_depth=.010 if f else .005
+        def surface(p,a):
+            dx=p*width*sin(a)+lean*cos(a)*p
+            x=side*(cx+dx)
+            y=cy+height*cos(a)*p
+            z=center_z+depth*sin(2.42*p)+(.013 if f else .005)*p*sin(a)+rim_depth*p**5
+            if not f:
+                # Outer helix follows the side of the skull, rather than facing forward.
+                z-=.55*dx
+            return self.xyz(x,y,z)
         rows=[]
         for t in steps(12):
             p=max(.013,t)
             row=[]
             for u in steps(46):
                 a=u*2*pi
-                x=side*(cx+p*.026*sin(a)+.010*cos(a)*p)
-                y=cy+height*cos(a)*p
-                z=center_z+.019*sin(2.42*p)+.013*p*sin(a)+.010*p**5
-                color=rgbmix(self.base,rgb('a26351'),.62*bell((p-.32)/.25)+.15*abs(sin(a)))
-                row.append((self.xyz(x,y,z),color,HEAD,(u,t)))
+                color=rgbmix(self.base,rgb('a26351'),(.62 if f else .39)*bell((p-.32)/.25)+(.15 if f else .09)*abs(sin(a)))
+                row.append((surface(p,a),color,HEAD,(u,t)))
             rows.append(row)
         skin.grid(rows,flip=(side<0))
         # Continuous helix and a small raised tragus.
@@ -379,8 +389,6 @@ class Sculpt:
         for t in steps(26):
             a=-.26+t*5.18
             p=.86
-            x=side*(cx+p*.026*sin(a)+.010*cos(a)*p)
-            y=cy+height*cos(a)*p
-            z=center_z+.019*sin(2.42*p)+.013*p*sin(a)+.010*p**5+.001
-            path.append((self.xyz(x,y,z),.0025+.0036*sin(pi*t)**.7))
+            x,y,z=surface(p,a)
+            path.append(((x,y,z+.001),(.0025+.0036*sin(pi*t)**.7) if f else (.0016+.0020*sin(pi*t)**.7)))
         skin.cord(path,rgbmix(self.base,rgb('d9987f'),.29),HEAD,sides=7)

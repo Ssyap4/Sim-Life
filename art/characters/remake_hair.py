@@ -13,9 +13,9 @@ def hair_atlas(sculpt, folder):
     w,h=1024,768
     u,v=np.meshgrid((np.arange(w)+.5)/w,(np.arange(h)+.5)/h)
     f=sculpt.woman
-    shadow=np.array(rgb('684121' if f else '392318'))
-    amber=np.array(rgb('ab713e' if f else '593822'))
-    shine=np.array(rgb('dbad70' if f else '825637'))
+    shadow=np.array(rgb('80532d' if f else '392318'))
+    amber=np.array(rgb('bf874d' if f else '593822'))
+    shine=np.array(rgb('e4ba81' if f else '825637'))
     broad=(.5+.5*np.sin(2*pi*(u*3.1+.034*np.sin(v*8)+.020*np.sin(u*45.))))**1.35
     fibril=.5+.5*np.sin(2*pi*(u*95.5+.052*np.sin(v*12+u*20)+.027*np.sin(v*22)))
     variable=(.52*broad+.16*fibril+.085*np.sin(u*189+v*7)+.075*np.sin(u*417-v*4))
@@ -57,7 +57,7 @@ def lock(hair, sculpt, controls, width, thickness, channel, frames=33, sides=17,
             row=[]
             for u in steps(sides):
                 angle=u*2*pi
-                ribs=1+.078*cos(angle*5+.21*sin(t*5+channel))+.037*cos(angle*8-t*3)
+                ribs=1+(.028 if sculpt.woman else .078)*cos(angle*5+.21*sin(t*5+channel))+(.012 if sculpt.woman else .037)*cos(angle*8-t*3)
                 q=p+across*(width*sin(angle)*span*ribs)+outward*(thickness*cos(angle)*span*ribs)
                 weight=skin('Head','Hair',ramp(.28,1.00,t)*.80) if sculpt.woman else HEAD
                 uv=(u*.89+.11*(.5+.5*sin(channel*1.7)),.12+.85*t)
@@ -111,7 +111,7 @@ def alina_locks(hair, sculpt):
           (.143,-.127,.087),(.162,-.221,.108),(.132,-.300,.117)],.014,.011),
     ]
     for i,(curve,w,d) in enumerate(primary):
-        lock(hair,sculpt,curve,w,d,i,frames=42,sides=17 if i<6 else 12,front=True)
+        lock(hair,sculpt,curve,w*1.06,d*.76,i,frames=42,sides=17 if i<6 else 12,front=True)
     # Closed rear curtain. Bands overlap at the side transition and all tips
     # are individually curved, including the silhouette seen from behind.
     for i in range(11):
@@ -123,7 +123,7 @@ def alina_locks(hair, sculpt):
             (x*.94,.052,z-.018),(x*1.03,-.037,z-.018),
             (x*.91+wave,-.123,z-.004),(x*1.05-wave,-.214,z+.034),
             (x*.96+wave,-.306,z+.027),(x*.86,-.372+.046*abs(a)+.022*sin(i*2),z+.051)]
-        lock(hair,sculpt,co,.034+.009*cos(a),.022,i+5,frames=34,sides=14)
+        lock(hair,sculpt,co,.038+.009*cos(a),.018,i+5,frames=34,sides=14)
 
 
 def vlad_crown(sculpt, angle, progress):
@@ -165,7 +165,7 @@ def vlad_locks(hair, sculpt):
 
 
 def build_hair(sculpt, folder):
-    hair=Mesh('Sculpted hairstyle','Hair pigment',.52,hair_atlas(sculpt,folder))
+    hair=Mesh('Sculpted hairstyle','Hair pigment',.58,hair_atlas(sculpt,folder))
     if sculpt.woman:
         scalp(hair,sculpt)
         alina_locks(hair,sculpt)
