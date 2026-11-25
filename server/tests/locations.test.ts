@@ -335,7 +335,7 @@ test('Both residents can save in the yard and walk back through the house thresh
     assert.deepEqual(state.world.places, { vlad: 'home', alina: 'home' });
     for (const role of ['vlad', 'alina'] as const) {
       assert.ok(applyWorld(state, role, { type: 'approach', place: 'home', station: 'fridge' }).ok);
-      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: 13 }).ok, false);
+      assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: 13 }).ok, true);
       assert.equal(applyWorld(state, role, { type: 'walk', place: 'home', x: 0, z: floor.maxZ+1 }).ok, false);
     }
   } finally {

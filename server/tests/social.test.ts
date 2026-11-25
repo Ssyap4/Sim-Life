@@ -305,7 +305,7 @@ test('Routes stay walkable for both partners in the home, cafe, park and PLAY AR
     const candidates=a.object==='venue'?['venue'] as const:['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
     for(const place of candidates){
       for(const role of residents){state.world.places[role]=place;Object.assign(state.characters[role],spawn(place,role));}
-      if(a.object==='leisure'){state.furnishing.placed=[{id:1,sku:'leisure-chess',finish:'sage',rotation:0,x:10,z:8.6}];state.furnishing.nextId=2;}
+      if(a.object==='leisure'){state.furnishing.placed=[a.id==='poolSwimTogether'?{id:1,sku:'oasis-pool',finish:'oak',rotation:0,x:-9.95,z:8.1}:{id:1,sku:'leisure-chess',finish:'sage',rotation:0,x:10,z:8.6}];state.furnishing.nextId=2;}
       if(a.object==='parkTalk')for(const role of residents){const seat=stationById('park','park-swing')!;Object.assign(state.characters[role],approachFor(seat,role),{pose:'sit'});}
       if(a.object==='picnic')state.world.picnic={portions:{vlad:[{kind:'meal',item:'omelette',expiresAt:9999}],alina:[{kind:'meal',item:'omelette',expiresAt:9999}]}};
       if(a.object==='cafeTalk')for(const role of residents){const table=stationById('cafe','cafe-left')!;Object.assign(state.characters[role],approachFor(table,role),{pose:'sit'});}
