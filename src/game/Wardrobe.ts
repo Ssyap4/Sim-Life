@@ -1,5 +1,7 @@
 import { PREVIEW_LOOKS, isPreviewLook, previewLongSleeves } from '../shared/previewWardrobe';
+import * as THREE from 'three';
 import type { Object3D } from 'three';
+import {orb,finish} from './ArtKit';
 import type { CharacterId } from '../shared/protocol';
 
 export const GARMENT_SLOTS = ['upper','lower','footwear','outfit','accessory'] as const;
@@ -48,6 +50,7 @@ export function fitWardrobe(model:Object3D, character:CharacterId, choices:reado
   for(const rule of GARMENTS)if(rule.fit===fit)fitted.set(rule.id,rule);
   const assets=new Map<string,{item:Garment; parts:Object3D[]; defaultFit:boolean}>();
   model.traverse(object=>{
+    if(object.userData.spaFoot)object.visible=false;
     const {garmentId,garmentSlot,garmentFit}=object.userData;
     if(typeof garmentId!=='string')return;
     object.visible=false;
@@ -79,4 +82,32 @@ export function fitWardrobe(model:Object3D, character:CharacterId, choices:reado
     if(region)object.visible=!covered.has(region);
   });
   return selection;
+}
+
+// A temporary venue outfit uses the approved short clothes, not a purchased
+// wardrobe item. The original GLBs have no bare foot under their footwear.
+// Fit two small stylized feet to the actual ankle joints; no new skeleton.
+export function fitSpaWardrobe(model:Object3D,role:CharacterId){
+ const look=role==='vlad'?'home':'pink';
+ fitWardrobe(model,role,outfitChoices(look));
+ const ankles=['AnkleL','AnkleR'].map(name=>model.getObjectByName(name));
+ if(ankles.some(a=>!a))return;
+ let skin=new THREE.Color(role==='vlad'?0xc58c70:0xd9a68c);
+ model.traverse(o=>{
+  if(!(o instanceof THREE.SkinnedMesh)||!o.visible||o.userData.garmentSlot!=='lower')return;
+  const pos=o.geometry.getAttribute('position'),colors=o.geometry.getAttribute('color');
+  if(!colors)return;let low=Infinity,index=0;for(let i=0;i<pos.count;i++)if(pos.getY(i)<low){low=pos.getY(i);index=i;}
+  skin.setRGB(colors.getX(index),colors.getY(index),colors.getZ(index));
+ });
+ model.traverse(o=>{if(o.userData.garmentSlot==='footwear')o.visible=false;});
+ for(const ankle of ankles){
+  let group=ankle!.children.find(o=>o.userData.spaFoot);
+  if(!group){
+   group=new THREE.Group();group.name='SPA barefoot';group.userData.spaFoot=true;
+   const sole=new THREE.Mesh(orb,finish(skin.getHex(),'fabric'));sole.scale.set(.075,.052,.120);sole.position.set(0,-.036,.056);
+   const instep=new THREE.Mesh(orb,sole.material);instep.scale.set(.061,.047,.075);instep.position.set(0,-.012,.011);
+   group.add(sole,instep);ankle!.add(group);
+  }
+  group.visible=true;
+ }
 }

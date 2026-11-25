@@ -3,7 +3,7 @@ import {isNotebookDesk} from './shared/furniture';
 import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
-import { fitWardrobe, outfitChoices } from './game/Wardrobe';
+import { fitWardrobe, fitSpaWardrobe, outfitChoices } from './game/Wardrobe';
 import { NEARBY_TALK_TOPICS } from './shared/socialLife';
 import { createSocialOffer, showSocialMenu } from './socialUI';
 import { familyMoments } from './shared/familyMoments';
@@ -657,9 +657,9 @@ function render(reset = false): void {
     world.syncHousehold(state, active, reset, online);
     for(const role of ['vlad','alina'] as const){
       const inSpa=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false;
-      const worn=inSpa?(role==='vlad'?'home':'pink'):(state.world.wardrobe??defaultWardrobe())[role].worn;
+      const worn=inSpa?'spa-visit':(state.world.wardrobe??defaultWardrobe())[role].worn;
       const actor=world.actors[role];
-      if(actor.root.userData.wornLook!==worn){fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+      if(actor.root.userData.wornLook!==worn){if(inSpa)fitSpaWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
     }
     locationUI.refresh(state, active);
     mapBtn.setAttribute('aria-label', 'Карта района. Сейчас: ' + PLACES[place].name);

@@ -5,13 +5,16 @@ import {readFile} from 'node:fs/promises';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createBlenderCharacter} from '../../src/game/BlenderCharacter';
 import {Actor} from '../../src/game/Actor';
-import {outfitChoices} from '../../src/game/Wardrobe';
+import {fitSpaWardrobe,fitWardrobe,outfitChoices} from '../../src/game/Wardrobe';
 test('both current resident skins fit above the SPA massage mattress, within the table footprint',async()=>{
  for(const role of ['vlad','alina'] as const){
   const bytes=await readFile(new URL('../../src/assets/characters/remake/'+role+'.glb',import.meta.url));
   const loader=new GLTFLoader().register(()=>({name:'HeadlessTexture',loadTexture:async()=>new THREE.Texture()}));
   const gltf=await loader.parseAsync(Uint8Array.from(bytes).buffer,'');
   const actor=new Actor(role,[0,0],createBlenderCharacter(gltf,role,outfitChoices(role==='vlad'?'home':'pink')));
+  fitSpaWardrobe(actor.root,role);
+  const feet=actor.root.getObjectsByProperty('name','SPA barefoot');assert.equal(feet.length,2);assert.ok(feet.every(f=>f.visible));
+  assert.ok(actor.root.getObjectsByProperty('isSkinnedMesh',true).filter(m=>m.userData.garmentSlot==='footwear').every(m=>!m.visible));
   actor.setFurniturePose('idle',new THREE.Vector3(0,1.06,.98),Math.PI);actor.playDomesticActivity('spaMassage');
   for(let f=0;f<90;f++)actor.update(1/30);
   actor.root.updateMatrixWorld(true);
@@ -25,5 +28,6 @@ test('both current resident skins fit above the SPA massage mattress, within the
   assert.ok(all.min.z>=-1.06&&all.max.z<=1.06,role+' overhang');
   assert.ok(all.min.x>=-.45&&all.max.x<=.45,role+' side overhang');
   actor.finishActivity();actor.setPose('idle');
+  fitWardrobe(actor.root,role,outfitChoices('signature'));assert.ok(feet.every(f=>!f.visible));assert.ok(actor.root.getObjectsByProperty('isSkinnedMesh',true).some(m=>m.visible&&m.userData.garmentSlot==='footwear'));
  }
 });
