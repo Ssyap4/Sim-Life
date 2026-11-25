@@ -70,7 +70,7 @@ class Sculpt:
         self.base=rgb('e6a685' if self.woman else 'd7997a')
         self.eye_width=.038 if self.woman else .033
         self.eye_radius=.0398 if self.woman else .0360
-        self.eye_center=.094 if self.woman else .091
+        self.eye_center=.088 if self.woman else .085
         self.mouth=-.103 if self.woman else -.110
         self.mouth_width=.042 if self.woman else .047
 
@@ -92,13 +92,13 @@ class Sculpt:
         under=(-.005 if f else -.008)*bell((side-.090)/.031)*bell((y+.092)/.031)
         chin=.018*bell(x/.052)*bell((y+.141)/.026)
         y0=-.050 if f else -.059
-        bridge=(.024 if f else .040)*bell(x/(.016 if f else .019))*bell((y+.022)/.050)
-        tip=(.029 if f else .034)*bell(x/(.017 if f else .0165))*bell((y-y0)/.015)
+        bridge=(.022 if f else .036)*bell(x/(.019 if f else .023))*bell((y+.022)/.050)
+        tip=(.027 if f else .029)*bell(x/(.018 if f else .020))*bell((y-y0)/.015)
         alae=(.012 if f else .015)*bell((side-(.015 if f else .017))/.008)*bell((y-y0+.008)/.011)
         nostril=-.0068*bell((side-.016)/.005)*bell((y-y0+.012)/.005)
-        cranial=(.009 if f else .017)*bell((side-.058)/.052)*bell((y-.036)/.024)
-        socket=-.016*bell((side-self.eye_x)/.039)*bell((y-.004)/.021)
-        cushion=.015*bell((side-self.eye_x)/.031)*bell((y+.026)/.019)
+        cranial=(.004 if f else .008)*bell((side-.058)/.052)*bell((y-.036)/.024)
+        socket=-.0065*bell((side-self.eye_x)/.039)*bell((y-.004)/.021)
+        cushion=.006*bell((side-self.eye_x)/.031)*bell((y+.026)/.019)
         philtrum=-.0032*bell(x/.0058)*bell((y+.083)/.016)
         muzzle=.018*bell(x/.057)*bell((y-self.mouth)/.032)
         line,span,upper,lower=self.lip(x)
@@ -139,9 +139,9 @@ class Sculpt:
         shade('f9d6b0',front*g((y-.050)/.081)*g(x/.082)*.17)
         shade('f9c29b',front*g((y+.127)/.040)*g(x/.065)*.18)
         shade('bd8673',g((y+.130)/.051)*(1-front**.74)*.41)
-        shade('c28571',front*g((side-.058)/.031)*g((y-.019)/.032)*.29)
+        shade('c28571',front*g((side-.058)/.031)*g((y-.019)/.032)*.14)
         shade('f0a184',front*g((y+.048)/.030)*g(x/.025)*.24)
-        shade('6e362c',front*g((side-(.016 if f else .018))/.0051)*g((y+(.062 if f else .071))/.0045)*.49)
+        shade('6e362c',front*g((side-(.016 if f else .018))/.0051)*g((y+(.062 if f else .071))/.0045)*.28)
         shade('ac695d',front*g((y-self.mouth+.024)/.009)*g(x/.036)*.27)
         seam,span,up,lo=self.lip(x)
         d=y-seam
@@ -282,12 +282,10 @@ class Sculpt:
                 ix,iy=opening(t,sin(a)>=0)
                 iz=globe(ix,iy)+.0013
                 x,y=ix+(bx-ix)*q,iy+(by-iy)*q
-                dx,dy=bx-ix,by-iy
-                in_slope=(self.depth(ix+.16*dx,iy+.16*dy)-self.depth(ix,iy))*2.2
-                out_slope=(bz-self.depth(bx-.05*dx,by-.05*dy))*20
-                # Hermite tangents blend into the existing skull instead of
-                # adding a raised eye patch with its own lighting normals.
-                z=spline(iz,bz,max(-.022,min(.022,in_slope)),max(-.037,min(.037,out_slope)),q)
+                # Continuous skull depth under the eyelid; blend the rim offset
+                # locally instead of interpolating a rectangular socket plane.
+                weight=1-q*q*(3-2*q)
+                z=self.depth(x,y)+(iz-self.depth(ix,iy))*weight+(bz-self.depth(bx,by))*(1-weight)
                 if q==1:
                     index=boundary
                 else:
@@ -357,6 +355,9 @@ class Sculpt:
 
     def ear(self,skin,side):
         f=self.woman
+        if not f:
+            self.male_ear(skin,side)
+            return
         cx=.121 if f else .116
         cy=-.045 if f else -.043
         height=.043 if f else .039
@@ -392,3 +393,43 @@ class Sculpt:
             x,y,z=surface(p,a)
             path.append(((x,y,z+.001),(.0025+.0036*sin(pi*t)**.7) if f else (.0016+.0020*sin(pi*t)**.7)))
         skin.cord(path,rgbmix(self.base,rgb('d9987f'),.29),HEAD,sides=7)
+
+    def male_ear(self,skin,side):
+        """A compact lateral pinna, with a bowl, rim and rounded back."""
+        cx,cy,cz=.124,-.042,-.007
+        height,width=.038,.023
+        def surface(p,a,back=False):
+            # A rear-leaning oval in the actual sagittal plane.
+            y=cy+height*cos(a)*p
+            z=cz+width*sin(a)*p-.008*cos(a)*p
+            outer=.010*(p**.72)+.004*p*(-sin(a))-.003*p*cos(a)
+            x=cx+outer
+            if back:
+                x-=.023*(1-p)**.72
+            else:
+                x+=.006*bell((p-.77)/.21)-.0025*bell((p-.30)/.25)
+                # Meet the back surface at the rim without a gap.
+                x-=.006*bell((1-.77)/.21)*p**8
+                x+=.0025*bell((1-.30)/.25)*p**8
+            return self.xyz(side*x,y,z)
+        for back in (False,True):
+            rows=[]
+            for t in steps(12):
+                p=max(.013,t)
+                row=[]
+                for u in steps(46):
+                    a=u*2*pi
+                    color=rgbmix(self.base,rgb('a76c59'),(.29*bell((p-.33)/.26)+.075*abs(sin(a))) if not back else .08)
+                    row.append((surface(p,a,back),color,HEAD,(u,t)))
+                rows.append(row)
+            skin.grid(rows,flip=(side>0)!=back)
+        path=[]
+        for t in steps(30):
+            a=-.32+t*5.55
+            x,y,z=surface(.88,a)
+            path.append(((x+side*.0014,y,z),.0017+.0018*sin(pi*t)**.7))
+        skin.cord(path,rgbmix(self.base,rgb('d9987f'),.17),HEAD,sides=8)
+        tragus=[]
+        for t in steps(9):
+            tragus.append((self.xyz(side*(cx+.005+.005*sin(pi*t)),cy-.009+.017*t,cz+.013+.003*sin(pi*t)),.0018+.0020*sin(pi*t)))
+        skin.cord(tragus,self.base,HEAD,sides=7)

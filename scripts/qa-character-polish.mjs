@@ -19,6 +19,6 @@ try{
    await page.screenshot({path:out+'/alina-'+care+'.png'});
   }
  }
- for(const id of ['alina','vlad'])assert.equal(results[id+'-after-front'],results[id+'-before-front'],'topology budget unchanged');
+ for(const id of ['alina','vlad'])assert.ok(Math.abs(results[id+'-after-front']-results[id+'-before-front'])<4000,'bounded ear topology increase');
  writeFileSync(out+'/results.json',JSON.stringify({results,errors},null,2));assert.deepEqual(errors,[]);
 }finally{await browser.close();}

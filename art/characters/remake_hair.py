@@ -13,15 +13,15 @@ def hair_atlas(sculpt, folder):
     w,h=1024,768
     u,v=np.meshgrid((np.arange(w)+.5)/w,(np.arange(h)+.5)/h)
     f=sculpt.woman
-    shadow=np.array(rgb('80532d' if f else '392318'))
-    amber=np.array(rgb('bf874d' if f else '593822'))
-    shine=np.array(rgb('e4ba81' if f else '825637'))
+    shadow=np.array(rgb('74502f' if f else '392318'))
+    amber=np.array(rgb('b77e4b' if f else '593822'))
+    shine=np.array(rgb('dbad76' if f else '825637'))
     broad=(.5+.5*np.sin(2*pi*(u*3.1+.034*np.sin(v*8)+.020*np.sin(u*45.))))**1.35
     fibril=.5+.5*np.sin(2*pi*(u*95.5+.052*np.sin(v*12+u*20)+.027*np.sin(v*22)))
-    variable=(.52*broad+.16*fibril+.085*np.sin(u*189+v*7)+.075*np.sin(u*417-v*4))
+    variable=((.30 if f else .52)*broad+.16*fibril+.055*np.sin(u*189+v*7)+.045*np.sin(u*417-v*4))
     root=np.minimum(v/.25,1.)
     color=shadow+(amber-shadow)*np.clip(.22+.66*root+.12*variable,0,1)[...,None]
-    color+=(shine-shadow)*np.clip(variable*(.40+.48*root),0,1)[...,None]
+    color+=(shine-shadow)*np.clip(variable*(.35+.40*root),0,1)[...,None]
     return bake(sculpt.character+'-hair',color,folder)
 
 
