@@ -198,6 +198,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       shape(root,[.12,.56,.12],[x,.28,d/2+.19],0xe0b757,drum);
       shape(root,[.12,.10,.12],[x,.36,d/2+.19],0x55514e,drum);
     }
+  } else if(station.action.kind==='barber'){
+    const f=station.action.facility;if(f==='reception'){shape(root,[2.1,.94,.85],[0,.47,0],0x302d2a,softCube);shape(root,[2.16,.09,.91],[0,.97,0],0xa47c4f);shape(root,[.45,.32,.10],[-.48,1.19,-.12],0x242e35);sign(root,'BRO',1.24,.43,1.4,C.paper,textures,materials);}else{shape(root,[.82,.10,.82],[0,.07,0],0xadb3b4,drum);shape(root,[.20,.49,.20],[0,.30,0],0xadb3b4,drum);shape(root,[.73,.16,.65],[0,.62,0],0x332d29,softCube);shape(root,[.72,.71,.14],[0,1.01,.30],0x332d29,softCube);shape(root,[.38,.19,.16],[0,1.44,.30],0x332d29,softCube);for(const x of [-.42,.42]){shape(root,[.14,.10,.55],[x,.91,0],0x332d29,softCube);shape(root,[.065,.30,.065],[x,.78,0],0xb5bbbd);}shape(root,[.47,.09,.31],[0,.32,-.48],0xaeb5b5);}
   } else if(station.action.kind==='clinic'){
     const f=station.action.facility,w=station.width,d=station.depth;
     const white=0xf4f4ec,teal=0x438f91,metal=0xa5b7ba;
@@ -504,7 +506,19 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='clinic'){
+  if(place==='barber'){
+    shape(floor,[12.3,.36,10.3],[0,-.20,0],0x514637,cube);shape(floor,[12,.06,10],[0,-.03,0],0x7e6550,cube);
+    for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0x8b6e55:0x9b8065,cube);
+    shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0x343535,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0x5c4f43,cube);sign(floor,'B R O · BARBERSHOP',2.52,-4.90,5.0,C.paper,textures,materials);
+    for(const x of [-3,0,3]){shape(floor,[1.65,1.55,.09],[x,1.42,-4.89],0xa37c4f,cube);shape(floor,[1.49,1.39,.025],[x,1.42,-4.82],0xb2c2c3,cube);shape(floor,[1.72,.10,.45],[x,.83,-4.61],0x392e27,cube);for(let i=0;i<4;i++)shape(floor,[.10,.23,.10],[x-.55+i*.18,.99,-4.60],i%2?0xdecbb3:0x465759);}
+    const npc=marketCashier(resources,{title:'Барбер',color:0x282b2d,shirt:0xddd7c7,animated:true});npc.position.set(0,0,-1.14);npc.rotation.y=Math.PI;root.add(npc);
+    const motion=npc.userData.motion as {head:THREE.Group;arms:THREE.Group[]};const tools=new THREE.Group();tools.position.set(.172,-.236,.274);motion.arms[1].add(tools);
+    const clipper=new THREE.Group(),scissors=new THREE.Group(),razor=new THREE.Group(),pad=new THREE.Group();tools.add(clipper,scissors,razor,pad);
+    shape(clipper,[.045,.10,.033],[0,0,.04],0x263139);shape(clipper,[.055,.025,.039],[0,.055,.04],0xb9c0c3);
+    for(const side of [-1,1]){shape(scissors,[.014,.12,.014],[side*.019,.055,.035],0xd3d8d8);shape(scissors,[.036,.04,.018],[side*.023,-.02,.035],0x3f4648);}
+    shape(razor,[.021,.11,.022],[0,0,.04],0x5f4537);shape(razor,[.055,.021,.021],[0,.06,.04],0xc5cacc);shape(pad,[.07,.045,.06],[0,0,.05],0xe8dbca,softCube);
+    animateCafe=(seconds)=>{const a=String(root.userData.barberAction??''),phase=a==='barberFull'?Math.floor(seconds/9)%4: a==='barberFade'?Math.floor(seconds/5)%2:a==='barberShave'?2:a==='barberFace'?3:1;const active=[clipper,scissors,razor,pad][phase];for(const tool of tools.children)tool.visible=!!a&&tool===active;motion.head.rotation.x=a?.12:0;motion.arms.forEach((arm,i)=>{arm.rotation.x=a?-.85+.15*Math.sin(seconds*(phase===2?4:6)+i):Math.sin(seconds*.7+i)*.04;arm.rotation.z=a?(i?-.32:.32):0;});};
+  } else if(place==='clinic'){
     shape(floor,[12.3,.36,10.3],[0,-.20,0],0x829b98,cube);
     shape(floor,[12,.06,10],[0,-.031,0],0xe4ece8,cube);
     for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0xdde8e5:0xf2f3ed,cube);
@@ -659,7 +673,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='fitness'||place==='clinic'||place==='electronics')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {

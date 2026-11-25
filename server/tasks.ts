@@ -1,4 +1,4 @@
-import {CARE,isCare,finishCare,careRole} from '../src/shared/vanity';
+import {CARE,isCare,finishCare,careRole,homeCare} from '../src/shared/vanity';
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
@@ -11,6 +11,7 @@ import { completeComputerGame, completeComputerVideo } from './computers';
 import { taskAccessError } from '../src/shared/serviceAccess';
 import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
+import {isBarberAction,BARBER_SERVICES} from '../src/shared/barber';
 import {isVetAction,VET_SERVICES,isClinicAction,CLINIC_SERVICES} from '../src/shared/health';
 import {fitnessExercise,fitnessBarItem} from '../src/shared/fitness';
 import {stationById} from '../src/shared/locations';
@@ -64,7 +65,7 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 import {CONSOLE_GAMES,isConsoleGame} from '../src/shared/consoleCatalog';
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
-  if(command.type==='vanity_care'&&isCare(command.care)){const care=command.care;return {command:{type:'vanity_care',care},label:CARE[care].label,durationMs:CARE[care].seconds*1000,resource:careRole(care)==='vlad'?'basin':'vanity'};}
+  if(command.type==='vanity_care'&&isCare(command.care)&&homeCare(command.care)){const care=command.care;return {command:{type:'vanity_care',care},label:CARE[care].label,durationMs:CARE[care].seconds*1000,resource:careRole(care)==='vlad'?'basin':'vanity'};}
   if(command.type==='console_play'&&isConsoleGame(command.game)){const game=command.game,g=CONSOLE_GAMES[game];if(g.mode==='coop')return null;return {command:{type:'console_play',game},label:'🎮 '+g.name,durationMs:g.seconds*1000,resource:'tv'};}
   if(command.type==='furniture_use'){
     if(!Number.isSafeInteger(command.furnitureId)||typeof command.action!=='string'||
@@ -121,6 +122,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
     if(isVetAction(action)){const s=VET_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'vet:'+command.station};}
+    if(isBarberAction(action)){if(command.station!=='barber-chair')return null;const d=BARBER_SERVICES[action];return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:'barber-chair'};}
     if(isClinicAction(action)){const s=CLINIC_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'clinic:'+command.station};}
     if(action==='fitnessTrain'){
       const station=stationById('fitness',command.station),exercise=station?.action.kind==='fitness'?fitnessExercise(station.action.facility):undefined;
@@ -208,7 +210,7 @@ export function entertainmentReward(command: Entertainment, together = false, bo
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
-  if(command.type==='vanity_care'){if(!isCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
+  if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
     const pose=bedPose(state,role,'starter');
     const reason=pose&&catBedError(state,'starter:bed',pose);

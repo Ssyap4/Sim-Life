@@ -33,6 +33,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
   node.textContent = text;
   return node;
 }
+import {BARBER_SERVICES,barberDenial,type BarberAction} from './shared/barber';
 import {VET_SERVICES,vetAvailable,petHealth,PET_CONDITIONS,CLINIC_SERVICES,clinicAvailable,humanHealth,healthStatus,medicinePrice,type ClinicAction} from './shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessCareAction,fitnessCareRole,type FitnessBarAction,FITNESS_PROGRAMS,type FitnessProgramId,fitnessExercise,fitnessProfile,fitnessAccess,SAUNA_PRICE,type FitnessPass} from './shared/fitness';
 function button(label: string, click: () => void, disabled = false) {
@@ -80,7 +81,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'))&&destination!=='home')return false;
+    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'))&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -104,12 +105,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)||(id==='fitness'||id==='clinic')&&location!==id) continue;
+      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber')&&location!==id) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'))&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'))&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'))&&id==='home'?'Вернуться домой':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'))&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -178,7 +179,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else {options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic'] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else {options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic',...(role==='vlad'?['barber' as const]:[])] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапу и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));}
     } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){
@@ -186,6 +187,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       options.append(element('small','',(pet==='verdell'?'Верделл':'Симба')+' · '+(h.illness?h.illness.diagnosed?PET_CONDITIONS[h.illness.id].name:'Недомогание':'Здоров')));
       for(const a of ['vetExam','vetTreatment','vetMedicine'] as const){const s=VET_SERVICES[a];if(s.station===station.id)options.append(button(s.name+' · '+formatRub(s.price),()=>{if(send({type:'local_activity',action:a,station:station.id}))close();},!vetAvailable(place,pet,a)||place.money<s.price));}
       if(station.id!=='service'&&station.id!=='records')options.append(element('small','','Осмотр и лечение — у смотрового стола, лекарства — у стойки записей.'));
+    } else if(station.action.kind==='barber'){
+      if(station.action.facility==='reception')options.append(element('small','','BRO · услуги у кресла. Можно без записи.'));
+      else for(const [id,d] of Object.entries(BARBER_SERVICES)){const action=id as BarberAction;options.append(button(d.name+' · '+formatRub(d.price)+' · '+d.hours+' ч.',()=>{if(send({type:'local_activity',station:station.id,action}))close();},!!barberDenial(place,role,action)));}
     } else if(station.action.kind==='clinic'){
       options.append(element('small','',healthStatus(place,role)));
       if(station.action.facility==='reception'){

@@ -1,4 +1,4 @@
-import {CARE,careScore,careEffects,careRole,type CareId} from './shared/vanity';
+import {CARE,careScore,careEffects,careRole,homeCare,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
 import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
@@ -819,7 +819,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1467,7 +1467,7 @@ function openActions(item: ItemId): void {
       return sent;
     },active);
   }
-  if(item==='basin'&&state&&active==='vlad'){const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state,'vlad')+'% · необязательные процедуры';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='vlad')){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state,'vlad').find(e=>CARE[e.id].group===d.group);b.textContent=d.label+' · '+(old?'Обновить':'+'+d.points+'%')+' · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}}
+  if(item==='basin'&&state&&active==='vlad'){const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state,'vlad')+'% · необязательные процедуры';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='vlad'&&homeCare(id))){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state,'vlad').find(e=>CARE[e.id].group===d.group);b.textContent=d.label+' · '+(old?'Обновить':'+'+d.points+'%')+' · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}}
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];

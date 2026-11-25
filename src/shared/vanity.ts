@@ -10,7 +10,11 @@ export const CARE = {
  perfume:{label:'Нанести парфюм',group:'scent',points:10,mood:5,hours:12,seconds:8},
  vladShave:{label:'Побриться',group:'skin',points:20,mood:10,hours:24,seconds:30},
  vladStyle:{label:'Уложить волосы',group:'hair',points:20,mood:10,hours:24,seconds:25},
- vladPerfume:{label:'Нанести мужской парфюм',group:'scent',points:20,mood:5,hours:12,seconds:8}
+ vladPerfume:{label:'Нанести мужской парфюм',group:'scent',points:20,mood:5,hours:12,seconds:8},
+ vladProFade:{label:'Коррекция Fade',group:'hair',points:30,mood:18,hours:72,seconds:50},
+ vladProShave:{label:'Королевское бритьё',group:'skin',points:25,mood:15,hours:48,seconds:40},
+ vladProStyle:{label:'Профессиональная укладка',group:'hair',points:25,mood:15,hours:48,seconds:35},
+ vladProFace:{label:'Уход за лицом',group:'face',points:20,mood:12,hours:48,seconds:40}
 } as const;
 export type CareId=keyof typeof CARE;
 export type CareGroup=typeof CARE[CareId]['group'];
@@ -25,14 +29,15 @@ export function validVanity(v:unknown,r:CharacterId='alina'):v is VanityState {
  if(!v||typeof v!=='object'||Array.isArray(v))return false;
  return Object.entries(v as Record<string,unknown>).every(([k,value])=>{if(!value||typeof value!=='object')return false;const e=value as Partial<CareEffect>;return isCare(e.id)&&careRole(e.id)===r&&CARE[e.id].group===k&&typeof e.until==='number'&&Number.isSafeInteger(e.until)&&e.until>=0&&typeof e.noticed==='boolean';});
 }
-export function finishCare(s:GameState,id:CareId){
+export const homeCare=(id:CareId)=>!id.startsWith('vladPro');
+export function finishCare(s:GameState,id:CareId,hours:number=CARE[id].hours){
  const r=careRole(id),effects=r==='vlad'?(s.vladCare??={}):(s.vanity??={});
  const d=CARE[id],now=gameMinutes(s.clock),old=effects[d.group];
  const fresh=!old||old.until<=now;
  const upgrade=!fresh&&CARE[old.id].points<d.points;
  if(!fresh&&CARE[old.id].points>d.points)return;
  // A refresh can extend an existing effect but cannot farm mood or reset a compliment.
- const next:CareEffect={id,until:now+d.hours*60,noticed:fresh||upgrade?false:old.noticed};
+ const next:CareEffect={id,until:Math.max(!fresh?old.until:0,now+hours*60),noticed:fresh||upgrade?false:old.noticed};
  effects[d.group]=next;
  if(fresh||upgrade)s.characters[r].mood=Math.min(100,s.characters[r].mood+(fresh?d.mood:Math.max(0,d.mood-CARE[old.id].mood)));
 }

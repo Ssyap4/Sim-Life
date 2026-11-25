@@ -1194,6 +1194,7 @@ export class World {
       if (!station) return false;
       const actor = this.actors[role];
       const start = () => {
+        if(station.action.kind==='barber'&&station.action.facility==='chair'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.15,station.center.z),Math.PI);if(this.remote)this.remote.root.userData.barberAction=command.action;}
         if (command.action === 'rest' || command.action === 'dine' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);
         if(command.action==='badminton'){actor.faceTowards(new THREE.Vector3(station.center.x,0,station.center.z));actor.playDomesticActivity('badminton');}
         if(command.action==='campIgnite'||isCampRecipe(command.action)){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);}
@@ -1426,6 +1427,7 @@ export class World {
   }
 
   finishTimedAction(role: CharacterId): void {
+    if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
     this.endDogBath(role);
@@ -1444,6 +1446,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
+    if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
     this.endDogBath(role);

@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  barber:{name:'Барбершоп BRO',icon:'💈',detail:'Стрижка, бритьё и профессиональный уход'},
   clinic:{name:'Добрый доктор',icon:'🏥',detail:'Терапевт, диагностика и аптека'},
   fitness:{name:'PULSE Fitness',icon:'🏋️',detail:'Кардио, силовые тренировки и сауна'},
   petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Корм, лежанки, домики и когтеточки'},
@@ -52,6 +53,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'barber'; facility:'reception'|'chair'}
   | {kind:'clinic'; facility:string}
   | {kind:'fitness'; facility:string}
   | {kind:'warehouse';job:'ozon'|'wildberries'}
@@ -155,6 +157,12 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  barber:[
+    site('barber-reception','Ресепшен BRO',-3.8,2.5,2.1,.85,{kind:'barber',facility:'reception'}),
+    site('barber-chair','Кресло барбера',0,-1.8,1.5,1.45,{kind:'barber',facility:'chair'}),
+    site('barber-wait','Зона ожидания',3.6,2.4,2.2,.85,{kind:'rest'}),
+    door('barber-exit','Выход на улицу','district',0,4.6,true),
   ],
   clinic:[
     site('clinic-reception','Ресепшен',-3.8,2.5,2.1,.85,{kind:'clinic',facility:'reception'}),
@@ -370,9 +378,10 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./consoleCatalog').ConsoleCommand
+  | import('./barber').BarberCommand
   | import('./health').HealthCommand
   | import('./fitness').FitnessCommand
   | { type:'camp_pack'; item:CampRecipe|'fuel' }
@@ -389,7 +398,7 @@ export type WorldCommand =
   | import('./vacuum').VacuumCommand
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic'|'work-clinic';pet?:import('./pets').PetId }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic'|'barber'|'work-clinic';pet?:import('./pets').PetId }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

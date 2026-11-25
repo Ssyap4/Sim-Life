@@ -7,3 +7,6 @@ QA: TypeScript and Vite build passed, 12/12 focused tests (relationships-046, va
 
 ## Preview v2: actual gift delivery
 Owner asked for purchased gifts delivered by courier. Phone Delivery has Gifts catalog (850/450 RUB), normal 149 RUB fee and 18 game-minute courier route, handoff then parcel collection. Shared received gift inventory, pending-order cap of 10 per type, gifts only purchasable via delivery, no debit at giving, one stock unit consumed at successful mutual completion. Orders appear in existing courier/parcel menus and gifts in stock. Gift-only expense category and mixed-cart gift accounting. No new physical store. 20/20 targeted market, relationship and courier tests passed; mobile visual QA still pending.
+
+## Preview v3: BRO barbershop
+Separate car-travel location, waiting seat, reception, mirror wall, barber chair, animated NPC and clipper/scissors/razor/face pad props. Phone booking is optional and records chosen service/time; walk-ins allowed. Five approved prices and temporary professional effects, server-side payment on successful completion, blocked free home use. No hair geometry change. 20/20 targeted tests passed. Booking has no exclusive slot enforcement yet; hand contact and actual mobile scene unverified. Breakfast in bed still pending. Main and production untouched.

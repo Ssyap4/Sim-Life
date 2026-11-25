@@ -30,14 +30,16 @@ import {DUST_ROOMS,initialDust,cleanliness,dustStage,type DustRoomId} from './sh
 import {speakerItems,speakerDevice,type SpeakerCommand,type SpeakerAction} from './shared/speaker';
 import {SPEAKER_MODELS,MUSIC_GENRES,trackInfo,type SpeakerSku,type MusicGenre} from './shared/speakerCatalog';
 import {roomAt} from './shared/homeDust';
+import {BARBER_SERVICES,barberSlots,type BarberAction,type BarberCommand} from './shared/barber';
 import {humanHealth,petHealth,healthStatus,healthBookingSlots,PET_CONDITIONS,type HealthCommand} from './shared/health';
 import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fitnessStats,fitnessForm,fitnessBonuses,fitnessProfile,fitnessAccess,fitnessBookingSlots,type FitnessCommand,type FitnessPass} from './shared/fitness';
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
-type App = 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   consoles:['🎮','Игровые консоли'],
+  barber:['💈','BRO'],
   health:['🏥','Добрый доктор'],
   fitness:['🏋️','PULSE Fitness'],
   speakers:['🔊','Умные колонки'],
@@ -61,7 +63,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -85,7 +87,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let speakerKey='',fitnessKey='',healthKey='',consoleKey='';
+  let speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
@@ -119,6 +121,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         }info.replaceChildren(...cards);info.scrollTop=scroll;
       }
     }
+    if(app==='barber'){const now=gameMinutes(state.clock),key=JSON.stringify([role,state.barberBooking,Math.floor(now/60)]);if(key!==barberKey){barberKey=key;const card=block('💈 BRO',role==='vlad'?'Запись бесплатная. Оплата после процедуры. Доехать можно на семейной машине.':'Услуги предназначены для Влада.');if(role==='vlad'){const service=document.createElement('select');service.setAttribute('aria-label','Услуга BRO');for(const [id,d] of Object.entries(BARBER_SERVICES)){const o=document.createElement('option');o.value=id;o.textContent=d.name+' · '+formatRub(d.price);service.append(o);}const slot=document.createElement('select');slot.setAttribute('aria-label','Время записи');const format=(at:number)=>{const c=clockAt(at);return 'День '+c.day+' · '+String(Math.floor(c.minute/60)).padStart(2,'0')+':00';};for(const at of barberSlots(now)){const o=document.createElement('option');o.value=String(at);o.textContent=format(at);slot.append(o);}const book=document.createElement('button');book.textContent='Записаться';book.onclick=()=>barberControl?.({type:'barber_book',at:Number(slot.value),service:service.value as BarberAction});card.append(service,slot,book);if(state.barberBooking){const b=state.barberBooking;card.append(block('Твоя запись',BARBER_SERVICES[b.service].name+' · '+format(b.at)));const cancel=document.createElement('button');cancel.textContent='Отменить';cancel.onclick=()=>barberControl?.({type:'barber_cancel'});card.append(cancel);}}info.replaceChildren(card);}}
     if(app==='health'){
       const h=humanHealth(state,role),now=gameMinutes(state.clock);
       const key=JSON.stringify([role,h.booking,h.illness?.id,h.illness?.diagnosed,h.illness?.medicine,h.illness?.medicated,Math.ceil((h.illness?.remaining??0)/60),Math.floor(now/60),state.world.places[role],state.world.vetVisit,h.careAt,state.world.carDriver,online,state.pantry.tea,Math.round(state.characters[role].x),Math.round(state.characters[role].z),humanHealth(state,role==='vlad'?'alina':'vlad').illness?.id,...PET_IDS.map(p=>{const q=petHealth(state,p),i=q.illness;return [q.booking,i?.id,i?.diagnosed,i?.medicine,i?.medicated,Math.ceil((i?.remaining??0)/60)];})]);
@@ -396,13 +399,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
+    app=next;barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

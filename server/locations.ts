@@ -1,3 +1,4 @@
+import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
 import {VET_SERVICES,isVetAction,vetAvailable,completeVetService,isHealthPet,setVetBooking,takeVetMedicine,familyCare,CLINIC_SERVICES,isClinicAction,clinicAvailable,completeClinicService,medicinePrice,healthBookingSlots,setHealthBooking,takeGameMedicine} from '../src/shared/health';
 import {FITNESS_PASSES,FITNESS_BAR,fitnessBarItem,fitnessCareRole,fitnessCareAction,fitnessExercise,emptyFitnessStats,fitnessAccess,fitnessProfile,fitnessBookingSlots,initialFitness,validFitness,SAUNA_PRICE,type FitnessPass} from '../src/shared/fitness';
 import {skillRank} from '../src/shared/education';
@@ -53,7 +54,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','work-clinic'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','work-clinic'].includes(w.places![w.carDriver]))) &&
     (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
@@ -104,7 +105,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
  return done(next,'Приехали вместе в «Добрый доктор»');
 }
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
-export const worldMessages = new Set(['console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
+export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
@@ -119,6 +120,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='barber_book'||command.type==='barber_cancel'){if(role!=='vlad')return fail('Запись доступна Владу');const next=structuredClone(source);if(command.type==='barber_cancel')delete next.barberBooking;else{if(typeof command.at!=='number'||!barberSlots(clockMinutes(source.clock)).includes(command.at)||!isBarberAction(command.service))return fail('Выбери услугу и время');next.barberBooking={at:command.at,service:command.service};}return done(next,command.type==='barber_book'?'Запись в BRO сохранена':'Запись отменена');}
   if(command.type==='vet_book'||command.type==='vet_cancel'||command.type==='vet_medicine'){
     if(!isHealthPet(command.pet))return fail('Выбери питомца');
     const pet=command.pet,next=structuredClone(source);
@@ -278,7 +280,8 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='work-clinic')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='barber'&&command.place!=='work-clinic')return fail('Выбери доступное место');
+    if(command.place==='barber'&&role!=='vlad')return fail('BRO доступен Владу');
     if(command.place==='work-clinic'&&(!isHealthPet(command.pet)||command.pet==='verdell'&&source.world.dogWalker))return fail('Выбери свободного питомца для поездки');
     if(command.place!=='work-clinic'&&command.pet!==undefined)return fail('Питомца можно взять только в ветеринарку');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
@@ -339,6 +342,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
+    if(command.place==='barber')return fail('До BRO можно доехать на машине');
     if(command.place==='clinic')return fail('До клиники можно доехать на машине');
     if(command.place==='fitness')return fail('До PULSE Fitness можно доехать на машине');
     next.world.places[role] = command.place;
@@ -606,6 +610,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 
 export const localLabels: Record<LocalActivity, string> = {
   vetExam:VET_SERVICES.vetExam.name,vetTreatment:VET_SERVICES.vetTreatment.name,vetMedicine:VET_SERVICES.vetMedicine.name,
+  barberFade:BARBER_SERVICES.barberFade.name,barberShave:BARBER_SERVICES.barberShave.name,barberStyle:BARBER_SERVICES.barberStyle.name,barberFace:BARBER_SERVICES.barberFace.name,barberFull:BARBER_SERVICES.barberFull.name,
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
@@ -627,6 +632,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     completeVetService(next,visit.pet,action);next.characters[role].pose='idle';
     return done(next,service.name+' · выполнено');
   }
+  if(isBarberAction(action)){if(place!=='barber'||id!=='barber-chair'||!station||!at(source,role,station))return fail('Подойди к креслу барбера');const reason=barberDenial(source,role,action);if(reason)return fail(reason);const next=structuredClone(source),d=BARBER_SERVICES[action];next.money-=d.price;addLedger(next,role,'expense','services',d.price,'BRO · '+d.name);finishBarber(next,action);next.characters[role].pose='idle';return done(next,d.name+' · готово');}
   if(isClinicAction(action)){
     const service=CLINIC_SERVICES[action];
     if(place!=='clinic'||id!==service.station||!station||!at(source,role,station))return fail('Подойди к нужному кабинету');
