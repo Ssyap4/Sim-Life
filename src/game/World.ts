@@ -504,7 +504,7 @@ export class World {
     const ufc=station.id==='venue-ufc',bowling=station.id==='venue-bowling';
     const direction=new THREE.Vector3(ufc?.16:bowling?.18:.75,ufc?.62:bowling?1.22:1.04,1).normalize();
     if(bowling)target.z+=1.0;
-    const distance=ufc?12.4:bowling?18.0:station.id==='spa-pool'?14.2:station.id==='spa-jacuzzi'?10.5:9.6;
+    const distance=ufc?12.4:bowling?18.0:station.id.startsWith('spa-massage')?12.6:station.id==='spa-pool'?14.2:station.id==='spa-jacuzzi'?10.5:9.6;
     this.controls.minDistance=3.4;this.controls.maxDistance=88;this.controls.maxPolarAngle=1.4;
     this.cameraMove={target,position:target.clone().addScaledVector(direction,distance)};
     return true;
@@ -1236,7 +1236,7 @@ export class World {
  else if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+offset,.13,z+.62),0);actor.playDomesticActivity('spaSwim');}
  else if(a==='spaJacuzzi')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,.01,z-.38),0);
  else if(a==='spaSauna')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.10,z-.28),0);
- else if(a==='spaLounge'||a==='spaMassage'){actor.setFurniturePose('idle',new THREE.Vector3(x,a==='spaMassage'?1.04:.66,z+.62),a==='spaMassage'?Math.PI:0);actor.playDomesticActivity(a==='spaMassage'?'spaMassage':'spaRecline');if(a==='spaMassage'&&this.remote)(this.remote.root.userData.spaMassages??={})[role]=station.id;}
+ else if(a==='spaLounge'||a==='spaMassage'){actor.setFurniturePose('idle',new THREE.Vector3(x,a==='spaMassage'?1.06:.71,z+.98),a==='spaMassage'?Math.PI:0);actor.playDomesticActivity(a==='spaMassage'?'spaMassage':'spaRecline');if(a==='spaMassage'&&this.remote)(this.remote.root.userData.spaMassages??={})[role]=station.id;}
  }
         if(station.action.kind==='barber'&&station.action.facility==='chair'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.15,station.center.z),Math.PI);if(this.remote)this.remote.root.userData.barberAction=command.action;}
         if (command.action === 'rest' || command.action === 'dine' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);

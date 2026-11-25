@@ -1539,7 +1539,7 @@ export class Actor {
     this.figure.position.copy(this.figureBase);
     // Close the visual gap during a hug while the path endpoints stay fixed.
     this.figure.position.z += embrace;
-    this.figure.position.y -= stanceDrop + this.crouchBlend;
+    this.figure.position.y -= this.activity==='spaMassage'||this.activity==='spaRecline'?0:stanceDrop + this.crouchBlend;
     this.figure.position.x += motion * 0.011 * Math.sin(stridePhase) + restlessSway * 0.15 + partnerSide;
     this.figure.position.z += partnerForward;
     if(this.activity==='spaSwim'){this.figure.position.y+=.045*Math.sin(a*2.7);this.figure.position.z+=.36*Math.sin(a*.42);}

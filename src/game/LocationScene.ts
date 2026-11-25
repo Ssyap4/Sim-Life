@@ -234,10 +234,10 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       for(const x of [-w*.37,w*.37])for(const z of [-d*.37,d*.37])shape(root,[.09,h,.09],[x,h/2,z],wood,cube);
       shape(root,[w,.13,d],[0,h,0],wood,softCube);
       shape(root,[w-.07,.13,d-.08],[0,h+.10,0],linen,softCube);
-      const pillow=shape(root,[w*.78,.13,.37],[0,h+.21,-d*.32],0xe9f1e8,softCube);
+      const pillow=shape(root,[w*.78,massage?.045:.08,.29],[0,h+.18,-d*.40],0xe9f1e8,softCube);
       if(!massage)pillow.rotation.x=-.30;
-      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.59:.59,0,-.25);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
-      shape(root,[w*.80,.045,.32],[0,h+.19,d*.24],massage?0x9dbab0:0x9dd4d1,softCube);
+      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.58:.58,0,-.28);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
+      if(!massage)shape(root,[w*.80,.018,.20],[0,h+.17,d*.39],0x9dd4d1,softCube);
     }else{
       shape(root,[w,.93,d],[0,.46,0],wood,softCube);shape(root,[w+.07,.08,d+.08],[0,.96,0],stone,cube);shape(root,[.43,.30,.10],[-.35,1.16,-.1],0x344c50,cube);
     }
