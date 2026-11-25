@@ -9,7 +9,7 @@ import WebSocket, { type RawData } from 'ws';
 import { INITIAL_AUTONOMY, autonomyCandidates, thoughtFor, validAutonomy } from '../../src/shared/autonomy';
 import { furnitureUseLocation } from '../../src/shared/furnitureUse';
 import { leisureDurationMs, planLeisure } from '../home';
-import { initialState, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
+import { initialState, points, type CharacterId, type GameState, type ServerPacket } from '../../src/shared/protocol';
 import { openServerFiles } from '../storage';
 import { startServer } from '../server';
 
@@ -445,4 +445,39 @@ test('Full resident independently uses the other sofa seat while manually contro
     }
     assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
   }finally{await ctx.close();}
+});
+
+test('Full resident chooses a real table activity during a manual cooking session',async()=>{
+ const seed=initialState();seed.clock.minute=780;seed.pantry.milk=1;
+ for(const r of ['vlad','alina'] as const)Object.assign(seed.characters[r],{hunger:95,energy:95,hygiene:95,bladder:95,fun:95,comfort:95,social:95,pose:'idle'});
+ const ctx=await setup(seed,true,60,10,false,.85);
+ try{
+  const vlad=await ctx.join('vlad'),alina=await ctx.join('alina');
+  const start=waitFor(vlad,p=>p.type==='task_started'&&p.role==='vlad'&&p.command.type==='cook');
+  send(vlad,{type:'cook',recipe:'omelette'});const task=await start;
+  if(task.type!=='task_started')throw new Error('Expected cooking task');
+  await waitFor(vlad,p=>p.type==='task_active'&&p.taskId===task.taskId,20000);
+  const companion=waitFor(alina,p=>p.type==='task_started'&&p.role==='alina'&&p.automatic===true&&p.command.type==='act'&&['tablePlan','tableRest'].includes(p.command.actionId),12000);
+  send(alina,{type:'autonomy_mode',mode:'full'});const next=await companion;
+  if(next.type!=='task_started')throw new Error('Expected table task');
+  assert.equal(next.home?.station,'table');assert.notDeepEqual(next.home?.route.path.at(-1),task.home?.route.path.at(-1));
+  assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+ }finally{await ctx.close();}
+});
+test('Full resident selects reading or the office chair while partner works on desktop',async()=>{
+ const seed=initialState();seed.clock.minute=780;
+ for(const r of ['vlad','alina'] as const)Object.assign(seed.characters[r],{hunger:95,energy:95,hygiene:95,bladder:95,fun:95,comfort:95,social:95,pose:'idle'});
+ Object.assign(seed.characters.vlad,points.desk);
+ const ctx=await setup(seed,true,60,10,false,.85);
+ try{
+  const vlad=await ctx.join('vlad'),alina=await ctx.join('alina');
+  const start=waitFor(vlad,p=>p.type==='task_started'&&p.role==='vlad'&&p.command.type==='act'&&p.command.actionId==='vladOrder');
+  send(vlad,{type:'act',actionId:'vladOrder'});await start;
+  await new Promise(resolve=>setTimeout(resolve,1500));
+  const companion=waitFor(alina,p=>p.type==='task_started'&&p.role==='alina'&&p.automatic===true&&(p.command.type==='read_book'&&p.command.seat==='officeChair'||p.command.type==='act'&&p.command.actionId==='officeChairSit'),15000);
+  send(alina,{type:'autonomy_mode',mode:'full'});const next=await companion;
+  if(next.type!=='task_started')throw new Error('Expected office activity');
+  assert.equal(next.home?.station,'officeChair');
+  assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+ }finally{await ctx.close();}
 });

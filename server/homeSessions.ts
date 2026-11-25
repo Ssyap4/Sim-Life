@@ -1,3 +1,4 @@
+import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {fitnessTaskSpeed} from '../src/shared/fitness';
 import {laptopDesk,laptopWorkplace,diningLocation} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
@@ -368,6 +369,7 @@ export function createHomeSessions(hooks: Hooks) {
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
       recordCompletedActivity(result.state,role,session.plan.command);
+      recordDailyCompletion(result.state,role,session.plan.command);
       result.message+=fulfillWish(result.state,role,wish,next);
       next = result.state;
       if(session.plan.command.type==='console_play'&&packet.home?.consoleMatch)result.message+=' · Победитель: '+consoleMatchWinner(packet.home.consoleMatch);
@@ -818,14 +820,14 @@ export function createHomeSessions(hooks: Hooks) {
       }
     }
   }
-  function soloEntertainment(role:CharacterId){
+  function soloCompanionTask(role:CharacterId){
     const session=sessions.get(role);
     if(!session||session.activeAt===null||session.participants.length!==1||
-       !['console_play','free_tv','movie','youtube'].includes(session.plan.command.type))return undefined;
+       !['console_play','free_tv','movie','youtube','cook'].includes(session.plan.command.type))return undefined;
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloEntertainment,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {
