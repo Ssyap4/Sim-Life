@@ -18,9 +18,13 @@ export function graphicsProfile(userAgent: string, query: string) {
 
 export type GraphicsQuality = 'standard' | 'high' | 'low';
 
-export function chooseGraphicsQuality(frameMs: number, profile: {safe: boolean; full: boolean}): GraphicsQuality {
+export function chooseGraphicsQuality(frameMs: number, profile: {safe: boolean; full: boolean}, current: GraphicsQuality = 'standard'): GraphicsQuality {
   if (profile.safe) return 'low';
   if (profile.full) return 'high';
+  // Hysteresis avoids repeatedly reallocating the framebuffer near a threshold.
+  if (!Number.isFinite(frameMs) || frameMs <= 0) return current;
+  if (current === 'low') return frameMs < 20.5 ? 'standard' : 'low';
+  if (current === 'high') return frameMs > 24 ? 'low' : frameMs > 20 ? 'standard' : 'high';
   return frameMs > 24 ? 'low' : frameMs < 17.8 ? 'high' : 'standard';
 }
 

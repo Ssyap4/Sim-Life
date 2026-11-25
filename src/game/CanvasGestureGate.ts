@@ -98,6 +98,14 @@ export class CanvasGestureGate {
     return true;
   }
 
+  /** Browser interruption may swallow pointerup entirely. */
+  reset(): void {
+    this.touches.clear();
+    this.tap = null;
+    this.inMultiTouch = false;
+    this.lastTouchTap = null;
+  }
+
   cancel(pointerId: number): void {
     this.clear(pointerId);
   }

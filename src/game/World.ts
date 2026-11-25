@@ -48,6 +48,7 @@ import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGrap
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
+import { frameTiming } from './FrameTiming';
 import { subtleHaptic } from '../mobileHaptics';
 import { Actor, type DomesticMotion } from './Actor';
 import { dirtyDishStops, type DishStation } from '../shared/dirtyDishes';
@@ -449,6 +450,12 @@ export class World {
       if (this.followingPlayer || this.followingPair) this.setFollowPlayer(false);
     }, { passive: true });
     this.canvas.addEventListener('lostpointercapture', cancel);
+    window.addEventListener('blur', () => gate.reset());
+    document.addEventListener('visibilitychange', () => {
+      gate.reset();
+      this.lastFrame = performance.now();
+      this.lastQualityUpdate = this.lastFrame;
+    });
   }
 
   setFollowPlayer(enabled: boolean): void {
@@ -2763,14 +2770,14 @@ export class World {
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
-    const frameMs = Math.max(1, now - this.lastFrame);
-    const dt = this.paused ? 0 : Math.min(frameMs / 1000, 0.20);
+    const {dt, qualitySample} = frameTiming(now - this.lastFrame, this.paused, document.hidden);
     this.lastFrame = now;
+    if (document.hidden) return;
     this.visualSeconds += dt;
-    this.smoothedFrameMs = this.smoothedFrameMs * .97 + Math.min(frameMs, 150) * .03;
-    if (!this.paused && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
+    if (qualitySample !== null) this.smoothedFrameMs = this.smoothedFrameMs * .97 + qualitySample * .03;
+    if (qualitySample !== null && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {
       this.lastQualityUpdate = now;
-      const nextQuality = chooseGraphicsQuality(this.smoothedFrameMs, this.graphics);
+      const nextQuality = chooseGraphicsQuality(this.smoothedFrameMs, this.graphics, this.quality);
       if (nextQuality !== this.quality) {
         this.quality = nextQuality;
         this.refreshViewport();
