@@ -13,6 +13,7 @@ export const PLACES = {
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
+  venue:{name:'PLAY ARENA',icon:'🎳',detail:'Боулинг, аэрохоккей, бильярд, настолки и PS5'},
   spa:{name:'SPA «Лагуна»',icon:'♨️',detail:'Бассейн, джакузи, сауна и массаж'},
   barber:{name:'Барбершоп BRO',icon:'💈',detail:'Стрижка, бритьё и профессиональный уход'},
   clinic:{name:'Добрый доктор',icon:'🏥',detail:'Терапевт, диагностика и аптека'},
@@ -31,13 +32,14 @@ export const PLACES = {
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
+export const VENUE_FLOOR={minX:-9.62,maxX:9.62,minZ:-6.62,maxZ:6.62};
 export const SPA_FLOOR={minX:-5.62,maxX:9.62,minZ:-4.62,maxZ:4.62};
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
 export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='spa'?SPA_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='venue'?VENUE_FLOOR:place==='spa'?SPA_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -55,6 +57,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'venue';facility:import('./venue').VenueGame|'reception'}
   | {kind:'spa'; facility:import('./spa').SpaAction|'reception'}
   | {kind:'barber'; facility:'reception'|'chair'}
   | {kind:'clinic'; facility:string}
@@ -160,6 +163,16 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('warehouse-ozon','Склад Ozon',-4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'ozon'},{approach:{x:-4.65,z:.35}}),
     site('warehouse-wildberries','Склад Wildberries',4.65,-2.60,6.65,4.3,{kind:'warehouse',job:'wildberries'},{approach:{x:4.65,z:.35}}),
     door('industrial-exit','Вернуться в район','district',-2.75,6.40,true),
+  ],
+  venue:[
+    site('venue-reception','Касса PLAY ARENA',-7.5,4.7,2.1,.85,{kind:'venue',facility:'reception'}),
+    site('venue-bowling','Боулинг',-6.2,-1.7,3.0,7.2,{kind:'venue',facility:'venueBowling'}),
+    site('venue-hockey','Аэрохоккей',-1.6,-3.6,1.5,2.5,{kind:'venue',facility:'venueHockey'}),
+    site('venue-billiards','Бильярд',2.3,-3.6,2.5,1.45,{kind:'venue',facility:'venueBilliards'}),
+    site('venue-jenga','Дженга',-1.6,2.4,1.7,1.55,{kind:'venue',facility:'venueJenga'}),
+    site('venue-uno','UNO',2.3,2.4,1.7,1.55,{kind:'venue',facility:'venueUno'}),
+    site('venue-ufc','PS5 · UFC 6',6.9,-1.5,3.7,4.9,{kind:'venue',facility:'venueUfc'}),
+    door('venue-exit','Выход','district',0,6.6,true),
   ],
   spa:[
     site('spa-reception','Ресепшен',-4,2.4,1.8,.7,{kind:'spa',facility:'reception'}),
@@ -304,6 +317,11 @@ export const stationById = (place: PlaceId, id: unknown) => STATIONS[place].find
 export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind === 'education' && station.action.room !== 'reception')
     return { x: station.approach.x + (role === 'vlad' ? -.63 : .63), z: station.approach.z + .35 };
+  if(station.action.kind==='venue'&&station.action.facility!=='reception'){
+    const {x,z}=station.center,side=role==='vlad'?-1:1;
+    if(station.action.facility==='venueBowling'||station.action.facility==='venueUfc')return {x:x+side*.65,z:station.approach.z};
+    return {x,z:z+side*(station.depth/2+.63)};
+  }
   if(station.action.kind==='spa'&&['spaPool','spaJacuzzi','spaSauna'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.44:.44),z:station.approach.z};
   if(station.action.kind==='fitness'&&['sauna','bar'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.42:.42),z:station.approach.z};
   if(station.action.kind==='badminton')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.85};
@@ -400,6 +418,7 @@ export function initialWorld(): WorldState {
 }
 export type LocalActivity = import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | import('./venue').VenueCommand
   | import('./spa').SpaCommand
   | import('./consoleCatalog').ConsoleCommand
   | import('./barber').BarberCommand

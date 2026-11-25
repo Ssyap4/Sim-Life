@@ -1,3 +1,5 @@
+import {VENUE_GAMES,isVenueGame,venueStation,venueWinner,venueScore} from '../src/shared/venue';
+import {addLedger} from '../src/shared/economy';
 import {isGift,giftCount} from '../src/shared/gifts';
 import {familyGift} from '../src/shared/socialLife';
 import {careTopic,rewardCareTopic,careBonuses} from '../src/shared/vanity';
@@ -124,6 +126,17 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const a=SOCIAL_BY_ID.get(command.action)!;
   const place=state.world.places[from],obstacles=placeObstacles(place,state.furnishing),floor=floorFor(place);
   const to=otherPerson(from),p=command.item;
+  if(a.object==='venue'){
+    if(place!=='venue'||!isVenueGame(a.id))return null;
+    const d=VENUE_GAMES[a.id],station=stationById('venue',venueStation(a.id))!,match=newConsoleMatch(true,from);
+    const homes={} as Record<CharacterId,HomePresentation>;
+    for(const role of ['vlad','alina'] as const){
+      const target=approachFor(station,role),route=planWalk(state.characters[role],target,obstacles,floor);if(!route)return null;
+      const side=role==='vlad'?-1:1,x=station.center.x,z=station.center.z;
+      const seat=a.id==='venueUfc'?{x:x+side*.65,y:-.18,z:z+1.15,yaw:Math.PI}:{x,y:-.20,z:z+side*.87,yaw:side<0?0:Math.PI};
+      homes[role]={route,station:'furniture',furnitureSeat:d.seated,furniturePose:d.seated?seat:undefined,consoleGame:a.id==='venueUfc'?'ufc6':undefined,consoleMatch:match,pair:{motion:'venue',place,from,item:a.id,target:{x,z}}};
+    }return homes;
+  }
   if(a.object==='leisure'){
     const item=state.furnishing.placed.find(i=>String(i.id)===p),action=item&&leisureAction(item.sku);
     if(!item||!action||!LEISURE[action].paired)return null;
@@ -350,6 +363,14 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   };
   let rejected:EvaluatedTask|undefined;
   switch(a.object){
+    case 'venue':{
+      if(!isVenueGame(a.id)||roles.length!==2||!remember)return fail('Нужны оба участника');
+      const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if(!match||state.money<d.price)return fail('Партия недоступна');
+      state.money-=d.price;addLedger(state,from,'expense','services',d.price,'PLAY ARENA · '+d.name);
+      for(const role of roles)change(state,role,{fun:d.fun,mood:d.mood,energy:d.energy,social:12});
+      const winner=venueWinner(match);change(state,winner,{mood:5});const score=venueScore(a.id,match);
+      message=d.name+' · '+(winner==='vlad'?'Влад победил!':'Алина победила!')+(score?' · '+score:'');break;
+    }
     case 'breakfastBed':{
       if(roles.length!==2||!remember)return fail('Завтрак в постели требует согласия и завершения обоих');
       rejected=run(from,{type:'cook',recipe:id as RecipeId});if(!rejected.ok)break;

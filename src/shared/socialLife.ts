@@ -59,10 +59,11 @@ import { FURNITURE_BY_ID } from './furniture';
 import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
-export type PairMotion = 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
+import {VENUE_GAMES,isVenueGame,venueDenial} from './venue';
+export type PairMotion = 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
-export type ObjectActivity = 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
+export type ObjectActivity = 'venue' | 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'breakfastCare'|'breakfastBed';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
@@ -173,7 +174,8 @@ const greetings:SocialActivity[]=[
 const careTalk:SocialActivity[]=CARE_TOPICS.map(t=>({id:t.id,title:t.title,group:'romance',lines:[t.line],replies:t.replies,motion:'talk',seconds:20,context:'vanity'}));
 export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
 export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
-export const SOCIAL_ACTIVITIES = [...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
+const venueActivities:SocialActivity[]=Object.entries(VENUE_GAMES).map(([id,d])=>({id,title:d.name,group:'fun',lines:['Сыграем вдвоём? '+d.name+' · '+d.price+' ₽ за партию.'],replies:['Давай сыграем!','Я готов(а)!'],motion:'venue',seconds:d.seconds,object:'venue',resource:'venue:'+id,memorable:true}));
+export const SOCIAL_ACTIVITIES = [...venueActivities,...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
@@ -319,6 +321,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   const gift=familyGift(a.id);
   if(gift){const last=state.relationship.lastGiftAt?.[from];if(individual||place!=='home')return 'Подарок можно вручить вдвоём дома';if(last!==undefined&&gameMinutes(state.clock)-last<1440)return 'Следующий подарок можно вручить через игровые сутки';if(!isGift(a.id)||giftCount(state,a.id)<1)return 'Сначала закажи подарок в телефоне → Доставка → Подарки и забери у двери';}
   const name=a.object;
+  if(name==='venue')return isVenueGame(a.id)?venueDenial(state,a.id,individual):'Неизвестная игра';
   if (name==='walk'&&place!=='home'&&place!=='park') return 'Для прогулки нужен двор или парк';
   if((name==='parkBadminton'||name==='parkSwing'||name==='parkTalk'||name==='picnic')&&place!=='park')return 'Это занятие доступно в парке';
   if(name==='parkTalk'&&!['park-swing','park-picnic'].some(id=>[from,to].every(r=>{const s=stationById('park',id)!,p=approachFor(s,r),c=state.characters[r];return c.pose==='sit'&&Math.hypot(p.x-c.x,p.z-c.z)<.28;})))return 'Сядьте вместе на качели или у пледа';

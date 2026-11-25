@@ -1,3 +1,4 @@
+import {isVenueGame} from '../shared/venue';
 import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
 import {isSurfaceDevice} from '../shared/consoleCatalog';
@@ -312,7 +313,7 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -515,7 +516,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -645,7 +646,7 @@ export class World {
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:this.place==='fitness'?88:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -984,7 +985,8 @@ export class World {
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
-      if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
+      if(home?.pair?.motion==='venue'&&isVenueGame(home.pair.item)&&home.consoleMatch&&this.remote)this.remote.root.userData.venuePlay={game:home.pair.item,match:home.consoleMatch,started:this.visualSeconds-elapsedMs/1000};
+      else if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
       if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
       if(pair.action==='parkBadminton'&&this.badmintonStarted===null)this.badmintonStarted=this.visualSeconds-elapsedMs/1000;
       this.playPair(role);
@@ -1036,7 +1038,7 @@ export class World {
     const stage=this.pairStages.get(role), home=this.homeTasks.get(role), pair=home?.pair;
     if(!stage?.active||!stage.arrived||stage.playing||!pair)return;
     const other=role==='vlad'?'alina':'vlad', opposite=this.pairStages.get(other);
-    if((isContact(pair.motion)||pair.motion==='console'||pair.motion==='badminton'||pair.item==='pingPong')&&opposite&&(!opposite.active||!opposite.arrived))return;
+    if((isContact(pair.motion)||pair.motion==='console'||pair.motion==='venue'||pair.motion==='badminton'||pair.item==='pingPong')&&opposite&&(!opposite.active||!opposite.arrived))return;
     stage.playing=true;
     const actor=this.actors[role], partner=this.actors[other];
     const focus=pair.target?new THREE.Vector3(pair.target.x,0,pair.target.z):undefined;
@@ -1054,6 +1056,15 @@ export class World {
     switch(pair.motion){
       case 'breakfastServe':actor.hideFoodContainer();actor.playPartnerGesture('talk',true);break;
       case 'breakfastReceive':{if(!home.furniturePose)break;const p=home.furniturePose;const tray=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),p.yaw);const plate=this.showMeal(role,p.x+tray.x,p.y+.83,p.z+tray.z,pair.item as RecipeId);const serving=this.meals.get(role)!;serving.rotation.y=p.yaw;serving.getObjectByName('Breakfast tray')!.visible=true;actor.playActivity('eat',plate,pair.item as RecipeId);break;}
+      case 'venue':{
+        if(pair.item==='venueUfc')actor.playConsole('ufc6');
+        else if(pair.item==='venueBowling')actor.playDomesticActivity('venueBowl');
+        else if(pair.item==='venueHockey')actor.playDomesticActivity('venueHockey');
+        else if(pair.item==='venueBilliards')actor.playDomesticActivity('billiards');
+        else if(pair.item==='venueJenga')actor.playDomesticActivity('venueJenga');
+        else if(pair.item==='venueUno')actor.playDomesticActivity('venueCards');
+        break;
+      }
       case 'leisure':{
         if(pair.item==='boardGame'||pair.item==='chessGame')actor.playDomesticActivity('chess');
         else if(pair.item==='dartsGame')actor.playDomesticActivity('darts');
@@ -1162,6 +1173,7 @@ export class World {
     const home = this.homeTasks.get(role);
     if (!home) return false;
     this.homeTasks.delete(role);
+    if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
     if(![...this.homeTasks.values()].some(h=>h.pair?.item==='pingPong'))this.tennisStarted=null;
     if(![...this.pairStages.values()].some(p=>p.action==='parkBadminton'))this.badmintonStarted=null;
@@ -2229,7 +2241,7 @@ export class World {
     this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:18;
     this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:this.place==='fitness'?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?88:(this.place==='fitness'||this.place==='venue')?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -2653,7 +2665,7 @@ export class World {
       }
       return siteView;
     }
-    if(this.remote&&this.place==='fitness')return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
+    if(this.remote&&(this.place==='fitness'||this.place==='venue'))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
     if (this.remote && this.place === 'market')
       return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.14,1.09,1.0]);
     if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,

@@ -55,7 +55,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','work-clinic'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','venue','work-clinic'].includes(w.places![w.carDriver]))) &&
     (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
     (w.spa===undefined?ROLES.every(r=>w.places![r]!=='spa'):validSpa(w.spa)&&ROLES.every(r=>!!w.spa?.[r]===(w.places![r]==='spa'))) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
@@ -99,6 +99,12 @@ export function fitnessTogetherTrip(source:GameState,driver:CharacterId):Result{
   const next=structuredClone(source);next.world.carDriver=driver;
   for(const r of ROLES){next.world.places[r]='fitness';Object.assign(next.characters[r],doorwayArrival('fitness','district',r),{pose:'idle'});const p=(next.world.fitness??=initialFitness())[r],now=clockMinutes(next.clock);if(p.ticket&&p.until<=now){delete p.ticket;p.visit=true;}if(p.booking!==undefined&&Math.abs(p.booking-now)<=60)delete p.booking;}
   return done(next,'Приехали вместе в PULSE Fitness');
+}
+export function venueTogetherTrip(source:GameState,driver:CharacterId):Result{
+ if(source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Оба должны быть дома и свободны');
+ const next=structuredClone(source);next.world.carDriver=driver;
+ for(const r of ROLES){next.world.places[r]='venue';Object.assign(next.characters[r],doorwayArrival('venue','district',r),{pose:'idle'});}
+ return done(next,'Приехали вместе в PLAY ARENA');
 }
 export function spaTogetherTrip(source:GameState,driver:CharacterId,pass:'pair'|'package'):Result{
  if(source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Оба должны быть дома и свободны');
@@ -323,7 +329,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
       if(!arrival)return fail('Парковка занята');
       delete next.world.carDriver;
-      if(place==='spa'&&next.world.places[neighbor]==='spa')next.world.carDriver=neighbor;
+      if((place==='spa'||place==='venue')&&next.world.places[neighbor]===place)next.world.carDriver=neighbor;
       if(next.world.vetVisit?.owner===role)delete next.world.vetVisit;
       if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
       if(place==='spa'&&next.world.spa)delete next.world.spa[role];
@@ -333,7 +339,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       Object.assign(next.characters[role],arrival,{pose:'idle'});
       return done(next,'Вернулись домой на машине');
     }
-    if(place==='fitness'||place==='clinic'||place==='spa'){
+    if(place==='fitness'||place==='clinic'||place==='spa'||place==='venue'){
       const exit=stationById(place,command.via);if(command.place!=='district'||exit?.id!==place+'-exit'||!at(source,role,exit))return fail('Подойди к выходу');
       const next=structuredClone(source),parking=approachFor(stationById('home','family-car')!,role),other=neighborAt('home');
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
@@ -354,6 +360,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if (command.dog === true && (place !== 'home' || !['district','park'].includes(command.place) || source.world.dogWalker))
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
+    if(command.place==='venue')return fail('В PLAY ARENA нужно поехать вдвоём на машине');
     if(command.place==='spa')return fail('До SPA можно доехать на машине');
     if(command.place==='barber')return fail('До BRO можно доехать на машине');
     if(command.place==='clinic')return fail('До клиники можно доехать на машине');

@@ -27,7 +27,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -938,6 +938,18 @@ export class Actor {
           leftZ = 0.35; rightZ = 0.37;
           gaze = 0.23;
           break;
+        case 'venueBowl':{
+          const cycle=(a+(this.id==='alina'?7:0))%14,p=cycle%7,active=cycle<7;
+          const swing=active?Math.sin(Math.PI*Math.max(0,Math.min(1,(p-.3)/2.4))):0;
+          rightY=-.48+.38*swing;rightZ=.15+.42*swing;leftY=-.42;leftZ=.18;lean=.10+.24*swing;crouch=.045*swing;break;
+        }
+        case 'venueHockey':{
+          const beat=Math.sin(a*3.3+(this.id==='alina'?Math.PI:0));lean=.22;rightY=-.38;rightZ=.42+.10*beat;leftY=-.43;leftZ=.29;gaze=.30;break;
+        }
+        case 'venueCards':case 'venueJenga':{
+          const cycle=(a+(this.id==='alina'?4.5:0))%9,p=cycle%4.5,reach=cycle<4.5?Math.sin(Math.PI*Math.min(1,p/2.2)):0;
+          lean=.12+.22*reach;rightY=-.39+.22*reach;rightZ=.26+.26*reach;leftY=-.35;leftZ=.25;gaze=.32;expression=.15;break;
+        }
         case 'darts': {
           const aim=(Math.sin(a*2.2)+1)/2;rightY=-.12+.28*aim;rightZ=.24+.35*aim;gaze=.04;expression=.20;break;
         }

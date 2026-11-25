@@ -1,0 +1,29 @@
+name: Sim-Life 0.48 PLAY ARENA mobile QA
+on:
+  push:
+    branches: [feat/entertainment-048]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  venue:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: npx tsx --test server/tests/venue-048.test.ts server/tests/spa-048.test.ts
+      - run: node --import tsx scripts/qa-048-venue.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: venue-mobile
+          path: /tmp/simlife-048-venue
+          retention-days: 7

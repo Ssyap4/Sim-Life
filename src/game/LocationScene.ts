@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {buildVenueStation,animateVenueStation,type VenuePlay} from './VenueArt';
 import { createShopToy } from './PetToys';
 import { PET_TOYS } from '../shared/petToys';
 import {FEEDING_MODELS} from '../shared/petFeeders';
@@ -549,7 +550,16 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='spa'){
+  if(place==='venue'){
+    shape(floor,[20.3,.36,14.3],[0,-.20,0],0x3e4c57,cube);
+    shape(floor,[20,.06,14],[0,-.03,0],0xb8a38b,cube);
+    shape(floor,[20.15,2.85,.18],[0,1.42,-7.05],0x465b68,cube);shape(floor,[.18,2.85,14.1],[-10.04,1.42,0],0x526c76,cube);
+    for(const x of [-8,-4,0,4,8]){shape(floor,[2.8,.08,.14],[x,2.60,-6.88],0xf3dcaa,cube);shape(floor,[2.7,1.32,.08],[x,1.48,-6.88],0x7d9198,cube);}
+    for(const x of [-6.2,-1.6,2.3,6.9])shape(floor,[x===-6.2?3.5:3.0,.016,x===-6.2?8.2:5.1],[x,.006,-1.9],0x80999b,cube);
+    sign(floor,'P L A Y  A R E N A',2.52,-6.86,5.2,0xf5ebda,textures,materials);
+    const clerk=marketCashier(resources,{title:'Администратор',color:0x526d7b,shirt:0xf5ebda,animated:true});clerk.position.set(-7.5,0,4.02);root.add(clerk);
+    animateCafe=(seconds)=>{for(const g of stations.values())animateVenueStation(g,seconds,root.userData.venuePlay as VenuePlay|undefined);};
+  } else if(place==='spa'){
     shape(floor,[16.3,.36,10.3],[2,-.20,0],0x6a8c8a,cube);
     shape(floor,[16,.06,10],[2,-.03,0],0xe2d7c3,cube);
     for(let i=-5;i<=9;i++)shape(floor,[.024,.012,10],[i,.007,0],0xbeb9a8,cube);
@@ -714,10 +724,11 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
+    const custom = place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
           : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
+    if(station.action.kind==='venue')group.name=station.action.facility;
     stations.set(station.id, group);
     root.add(group);
   }
@@ -727,7 +738,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
