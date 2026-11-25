@@ -23,7 +23,8 @@ test('floor hookah is outside serving tabletop and is a real obstacle without bl
  assert.ok(!pointIsClear(LOUNGE_HOOKAH_BASE,obs,HOME_FLOOR));
  for(const role of ['vlad','alina'] as const)assert.ok(findRoute(s.characters[role],homeSeat('yardTable',role).approach,obs,HOME_FLOOR));
  assert.equal(yard.night.visible,false);
- assert.ok(yard.night.getObjectByName('Coral evening strip'));
+ assert.ok(yard.night.getObjectByName('Warm evening strip'));
+ assert.equal(yard.night.getObjectByName('Coral evening strip'),undefined);
 });
 test('hose mesh reuses buffer and its two ring centers follow both endpoints',()=>{
  const hose=new LoungeHose(),p=hose.geometry.attributes.position;
@@ -37,4 +38,16 @@ test('hose mesh reuses buffer and its two ring centers follow both endpoints',()
   assert.ok(center(p.count-6).distanceTo(b)<.00001);
   assert.ok(Array.from(p.array).every(Number.isFinite));
  }
+});
+test('glass canopy preserves overview and does not intercept clicks or cast shadows',()=>{
+ const scene=new THREE.Scene();const yard=buildYard(scene);scene.updateMatrixWorld(true);
+ const roof=scene.getObjectByName('Lounge transparent roof') as THREE.Mesh<THREE.PlaneGeometry,THREE.MeshBasicMaterial>;
+ assert.ok(roof&&roof.material.transparent&&roof.material.opacity<=.1&&!roof.material.depthWrite);
+ assert.equal(roof.castShadow,false);assert.equal(roof.receiveShadow,false);
+ assert.ok(roof.geometry.parameters.width>4&&roof.geometry.parameters.height>2.8);
+ const canopy=scene.getObjectByName('Lounge glass canopy')!;
+ for(const role of ['vlad','alina'] as const){const seat=homeSeat('yardTable',role).position;
+  assert.equal(new THREE.Raycaster(new THREE.Vector3(seat.x,6,seat.z),new THREE.Vector3(0,-1,0)).intersectObject(canopy,true).length,0);}
+ assert.equal(yard.night.visible,false);
+ assert.equal((yard.night.getObjectByName('Warm evening strip') as THREE.Mesh<THREE.BufferGeometry,THREE.MeshBasicMaterial>).material.color.getHex(),0xffdfac);
 });

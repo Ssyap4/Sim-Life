@@ -280,10 +280,12 @@ function eveningGarden(parent:THREE.Group){
   const glow=paintedMap('yard-lantern-pool',64,64,ctx=>{const g=ctx.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,201,115,.58)');g.addColorStop(.45,'rgba(255,181,89,.24)');g.addColorStop(1,'rgba(255,181,89,0)');ctx.fillStyle=g;ctx.fillRect(0,0,64,64);});
   const night=new THREE.Group();night.name='Warm garden lantern pools';night.visible=false;
   if(glow){const material=new THREE.MeshBasicMaterial({map:glow,transparent:true,depthWrite:false});const positions:number[]=[],uvs:number[]=[],indices:number[]=[];for(const [x,z] of [[.48,6.15],[.48,10.95],[-4.95,8.15]]){const j=positions.length/3;positions.push(x-1.05,.017,z-1.05,x+1.05,.017,z-1.05,x+1.05,.017,z+1.05,x-1.05,.017,z+1.05);uvs.push(0,0,1,0,1,1,0,1);indices.push(j,j+2,j+1,j,j+3,j+2);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geo.setIndex(indices);const mesh=new THREE.Mesh(geo,material);mesh.raycast=()=>{};night.add(mesh);}
-  // Coral ambience only after dusk: baked pool and emissive strip, no shadow lights.
-  const coral=paintedMap('lounge-coral-pool',128,128,ctx=>{const g=ctx.createRadialGradient(64,64,5,64,64,64);g.addColorStop(0,'rgba(255,131,117,.34)');g.addColorStop(.60,'rgba(255,143,125,.16)');g.addColorStop(1,'rgba(255,143,125,0)');ctx.fillStyle=g;ctx.fillRect(0,0,128,128);});
-  if(coral){const pool=new THREE.Mesh(plane,new THREE.MeshBasicMaterial({map:coral,transparent:true,depthWrite:false}));pool.rotation.x=-Math.PI/2;pool.scale.set(4.5,3.0,1);pool.position.set(-3.38,.023,6.77);pool.raycast=()=>{};night.add(pool);}
-  const strip=new THREE.Mesh(cube,new THREE.MeshBasicMaterial({color:0xff9a87}));strip.name='Coral evening strip';strip.position.set(-3.38,2.24,5.84);strip.scale.set(4.24,.035,.035);strip.raycast=()=>{};night.add(strip);
+  // Warm white ambience after dusk: baked pool and emissive strips, no shadow lights.
+  const warm=paintedMap('lounge-warm-pool-v3',128,128,ctx=>{const g=ctx.createRadialGradient(64,64,5,64,64,64);g.addColorStop(0,'rgba(255,222,167,.62)');g.addColorStop(.55,'rgba(255,199,123,.32)');g.addColorStop(1,'rgba(255,199,123,0)');ctx.fillStyle=g;ctx.fillRect(0,0,128,128);});
+  if(warm){const pool=new THREE.Mesh(plane,new THREE.MeshBasicMaterial({map:warm,transparent:true,depthWrite:false}));pool.rotation.x=-Math.PI/2;pool.scale.set(4.5,3.0,1);pool.position.set(-3.38,.023,6.77);pool.raycast=()=>{};night.add(pool);}
+  const stripMat=new THREE.MeshBasicMaterial({color:0xffdfac});
+  for(const z of [5.29,8.15]){const strip=new THREE.Mesh(cube,stripMat);strip.name='Warm evening strip';strip.position.set(-3.38,2.40,z);strip.scale.set(4.50,.022,.028);strip.raycast=()=>{};night.add(strip);}
+  for(const x of [-5.65,-1.11]){const strip=new THREE.Mesh(cube,stripMat);strip.position.set(x,2.40,6.72);strip.scale.set(.028,.022,2.86);strip.raycast=()=>{};night.add(strip);}
   parent.add(night);return night;
 }
 
@@ -335,18 +337,20 @@ export function buildYard(scene: THREE.Scene) {
   shape(yard, [2.50, .012, .055], [parking.x, .01, parking.z+2.26], C.paper, cube);
   shape(yard, [1.59, .105, .14], [parking.x, .054, parking.z + 2.52], 0x8a7e6d, softCube);
 
-  // Built-in lounge: level timber deck and wall-mounted open pergola.
+  // Built-in lounge: timber deck and slim transparent canopy.
   // No ground posts in the existing grill, seating or pet routes.
   shape(yard,[4.78,.036,3.04],[-3.38,-.018,6.77],0xab8863,cube,false,'wood');
   for(let i=0;i<24;i++)shape(yard,[.188,.009,3.0],[-5.62+i*.19,.003,6.77],i%3===0?0xc0a17b:0xb69a78,cube,false,'wood');
-  for(const x of [-5.62,-3.38,-1.14]){
-    shape(yard,[.11,2.35,.10],[x,1.18,5.27],C.walnut,cube,false,'wood');
-    shape(yard,[.10,.14,1.12],[x,2.31,5.79],C.oak,cube,false,'wood');
-  }
-  for(let i=0;i<5;i++)shape(yard,[4.62,.085,.075],[-3.38,2.38,5.3+i*.25],C.oak,cube,false,'wood');
-  const lanterns=new THREE.Group();lanterns.name='Lounge warm lanterns';
-  for(const x of [-5.35,-4.40,-3.38,-2.36,-1.41]){const bulb=new THREE.Mesh(orb,new THREE.MeshStandardMaterial({color:0xffe6b3,emissive:0xffb76b,emissiveIntensity:.75}));bulb.position.set(x,2.24,6.3);bulb.scale.set(.055,.078,.055);lanterns.add(bulb);}
-  yard.add(lanterns);
+  const canopy=new THREE.Group();canopy.name='Lounge glass canopy';
+  const graphite=0x42494b;
+  for(const x of [-5.65,-1.11])shape(canopy,[.065,2.42,.065],[x,1.21,5.27],graphite,cube,false,'metal');
+  for(const z of [5.27,8.17])shape(canopy,[4.64,.055,.055],[-3.38,2.46,z],graphite,cube,false,'metal');
+  for(const x of [-5.65,-1.11])shape(canopy,[.055,.065,2.95],[x,2.46,6.72],graphite,cube,false,'metal');
+  // Single lightweight pane, no reflection/refraction or shadow pass.
+  const glass=new THREE.Mesh(new THREE.PlaneGeometry(4.51,2.86),new THREE.MeshBasicMaterial({color:0xc2dde2,transparent:true,opacity:.085,depthWrite:false,side:THREE.DoubleSide}));
+  glass.name='Lounge transparent roof';glass.rotation.x=-Math.PI/2;glass.position.set(-3.38,2.475,6.72);glass.castShadow=false;glass.receiveShadow=false;glass.raycast=()=>{};canopy.add(glass);
+  for(const x of [-4.14,-2.62]){const seam=shape(canopy,[.013,.018,2.86],[x,2.476,6.72],0xb6c4c6,cube,false,'metal');seam.material=new THREE.MeshBasicMaterial({color:0xb6c4c6,transparent:true,opacity:.25,depthWrite:false});}
+  canopy.traverse(o=>{o.raycast=()=>{};});batchRigidParts(canopy,true);yard.add(canopy);
   // Two compact planters beside the barbecue pad, outside the walking lane.
   const shrubs=new PlantBatch();
   for(const [x,z,i] of [[-5.65,7.85,0],[-5.82,5.58,1]]){growShrub(shrubs,x,0,z,.42,.34,.38,i,622+i);growFlowers(shrubs,x,0,z,.38,.36,i,5,999+i);}
