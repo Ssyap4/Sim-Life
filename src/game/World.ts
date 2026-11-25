@@ -1,8 +1,6 @@
 import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
 import {isSurfaceDevice} from '../shared/consoleCatalog';
-import {speakerItems,speakerDevice} from '../shared/speaker';
-import {SPEAKER_MODELS,type SpeakerSku} from '../shared/speakerCatalog';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
 import {vacuumItem,vacuumState} from '../shared/vacuum';
 import {DustArt} from './DustArt';
@@ -14,8 +12,7 @@ import {applySeason} from './SeasonalPalette';
 import { WeatherArt } from './WeatherArt';
 import {isNotebookDesk,workstationLayout} from '../shared/furniture';
 import { installedElectronics } from '../shared/electronics';
-import {insideHome,conversationCueTimes} from './AudioSpace';
-import { gameAudio, activitySound } from './GameAudio';
+import { gameAudio } from './GameAudio';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
@@ -28,8 +25,8 @@ import { HomeComputerScreens } from './HomeComputerScreens';
 import type { ComputerScene } from './ComputerScreenArt';
 import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
-import { tennisPlayer,tennisBall,tennisStrikes } from '../shared/tableTennis';
-import { badmintonPlayer,badmintonShuttle,badmintonStrikes } from '../shared/badminton';
+import { tennisPlayer,tennisBall } from '../shared/tableTennis';
+import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
 import { picnicPortions } from '../shared/picnic';
@@ -2120,8 +2117,8 @@ export class World {
         !this.walkTo(role,target,arrival)) actor.walkPath(path.map(p=>new THREE.Vector3(p.x,0,p.z)),arrival);
   }
 
-  openStorage(id: string, role = this.localRole): void {if(this.openDoors.get(role)!==id&&this.place==='home'&&this.actors[role].root.visible)gameAudio.play('door','effects',.38,this.actors[role].root.position);this.openDoors.set(role,id);}
-  closeStorage(role = this.localRole): void {if(this.openDoors.delete(role)&&this.place==='home'&&this.actors[role].root.visible)gameAudio.play('door','effects',.25,this.actors[role].root.position);}
+  openStorage(id: string, role = this.localRole): void {this.openDoors.set(role,id);}
+  closeStorage(role = this.localRole): void {this.openDoors.delete(role);}
 
   previewComputer(device:ComputerDevice,scene:ComputerScene|null):void {
     this.computerScreens.preview(device,scene);
@@ -2273,7 +2270,6 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
-    if(!previous||reset){this.speakerReplies.clear();for(const [id,d] of Object.entries(state.speakers??{}))if(d.reply)this.speakerReplies.set(Number(id),d.reply.seq);}
     if(!previous||previous.clock.day!==state.clock.day||previous.clock.minute!==state.clock.minute||JSON.stringify(previous.vacuum)!==JSON.stringify(state.vacuum))this.vacuumStamp=this.visualSeconds;
     this.dustArt.sync(state.homeDust);
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
@@ -2714,83 +2710,9 @@ export class World {
     bag.rotation.y = rotation.y;
   }
 
-  private lastAudioFrame=0;
-  private audioWeather:ReturnType<typeof weatherAt>|undefined;
-  private audioWeatherMinute=-1;
-  private speakerReplies=new Map<number,number>();
-  private audioFrame():void {
-    const now=performance.now();if(now-this.lastAudioFrame<80)return;this.lastAudioFrame=now;
-    if(!this.household)return;
-    const listener=this.actors[this.localRole].root.position;
-    const outside=(p:Point)=>!insideHome(p);
-    const minute=this.household.clock.minute,night=minute<360||minute>=1200;
-    const stamp=gameMinutes(this.household.clock);if(this.audioWeatherMinute!==stamp){this.audioWeatherMinute=stamp;this.audioWeather=weatherAt(this.household.clock);}
-    const right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion);if(!gameAudio.beginFrame(this.place,listener,night,outside(listener),this.audioWeather,{x:right.x,z:right.z}))return;
-    if(this.place==='home')for(const item of speakerItems(this.household)){
-      const d=speakerDevice(this.household,item.id),m=SPEAKER_MODELS[item.sku as SpeakerSku],now=gameMinutes(this.household.clock);
-      const p={x:item.x,z:item.z};
-      if(d.track&&d.volume>0)gameAudio.speakerMusic(String(item.id),d.track,m.gain*d.volume/100,p,(now-d.startedAt)*2,m.range);
-      if(d.reply&&this.speakerReplies.get(item.id)!==d.reply.seq){this.speakerReplies.set(item.id,d.reply.seq);if(now-d.reply.at<=3&&(d.reply.to==='all'||d.reply.to===this.localRole)&&Math.hypot(item.x-listener.x,item.z-listener.z)<12){if(d.reply.to==='all')gameAudio.play('ring','ui',.65,p);gameAudio.saySpeaker(d.reply.text,m.assistant,d.volume/100,p);}}
-    }
-    for(const role of ['vlad','alina'] as const){
-      const actor=this.actors[role],p=actor.root.position;if(!actor.root.visible)continue;
-      const m=actor.audioMotion();
-      const mediaTask=this.place==='home'&&(['desktop','laptop'] as const).some(device=>{const scene=this.computerScreens.audioTask(device);return scene?.role===role&&(scene.mode==='video'||scene.mode==='game');});
-      const cue=mediaTask||m.activity==='eat'||m.activity==='toilet'||m.activity==='music'?undefined:activitySound(m.activity,m.pose);
-      if(cue&&!m.walking){const bus=cue.sound==='music'?'music':'effects';if(cue.loop)gameAudio.loop(role+'-act',cue.sound,bus,.50,p);else gameAudio.beat(role+'-act',cue.sound,bus,cue.interval,cue.sound==='keyboard'?.30:.38,p);}
-      if(!m.walking&&['cook','grill','prep','dishes','wash'].includes(m.activity??''))gameAudio.beat(role+'-kitchen-contact','dish','effects',3.3,.27,p);
-      if(!m.walking&&m.activity==='music')gameAudio.loop(role+'-act','scoreMorning','music',.34,p);
-      if(!m.walking&&m.activity==='eat'){const cycle=role==='vlad'?2.55:2.9,round=Math.floor(m.activityTime/cycle);if(round%4!==3)gameAudio.cue(role+'-bite',m.activityTime,[{at:(round+.65)*cycle,sound:'eat'}],'effects',.17,p);}
-      if(!m.walking&&m.activity==='toilet')gameAudio.cue(role+'-flush',m.activityTime,[{at:2.5,sound:'flush'}],'effects',.28,p);
-      const pair=m.partner;
-      if(pair&&!m.walking){
-        const voice=role==='vlad'?'voiceVlad':'voiceAlina',laugh=role==='vlad'?'laughVlad':'laughAlina';
-        if(['talk','listen','explain','sitTalk','teaTogether','sofaLean','sofaMassage','gift','cuddle'].includes(pair.motion))gameAudio.cue(role+'-speech',pair.time,conversationCueTimes(pair.leads,pair.time).map(at=>({at,sound:voice})),'voices',.63,p);
-        if(pair.motion==='laugh')gameAudio.cue(role+'-laugh',pair.time,[{at:pair.leads?.40:1.55,sound:laugh},{at:pair.leads?5.4:6.5,sound:laugh}],'voices',.58,p);
-        if(pair.leads&&pair.motion==='highFive')gameAudio.cue(role+'-contact',pair.time,[{at:.78,sound:'clap'}],'effects',.60,p);
-        if(pair.leads&&['kiss','cheek'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.8,sound:'kiss'}],'effects',.30,p);
-        if(pair.leads&&['hug','closeHug','cuddle'].includes(pair.motion))gameAudio.cue(role+'-contact',pair.time,[{at:.65,sound:'cloth'}],'effects',.25,p);
-        if(pair.leads&&pair.motion==='musicTogether')gameAudio.loop('shared-music','scoreMorning','music',.32,p);
-        if(pair.leads&&['dance','slowDance'].includes(pair.motion))gameAudio.loop('dance',pair.motion==='slowDance'?'scoreEvening':'scoreDance','music',.38,p);
-      }
-      if(role==='vlad'&&m.gesture==='highFive')gameAudio.cue(role+'-gesture',m.gestureTime,[{at:.28,sound:'clap'}],'effects',.60,p);
-      if(actor.isParkSwing())gameAudio.beat(role+'-swing','swing','effects',1.85,.19,p);
-    }
-    if(this.place==='barber'&&this.remote?.root.userData.barberAction){const a=this.remote.root.userData.barberAction;if(a==='barberFade'||a==='barberFull')gameAudio.loop('barber-machine','clipper','effects',.34,{x:0,z:-1.8});else gameAudio.beat('barber-care','cloth','effects',3.3,.24,{x:0,z:-1.8});}
-    if(this.place==='home'){
-      const cleaner=vacuumItem(this.household),v=cleaner&&vacuumState(this.household,cleaner);if(v&&(v.mode==='cleaning'||v.mode==='returning'))gameAudio.loop('vacuum','vacuum','effects',.27,v.position);
-      const tv=this.homeEffects.audioProgram();if(tv)gameAudio.media('tv','tv',tv,this.homeEffects.audioPosition());
-      for(const device of ['desktop','laptop'] as const){
-        const scene=this.computerScreens.audioTask(device);if(!scene)continue;
-        const actor=this.actors[scene.role],motion=actor.audioMotion();if(!actor.root.visible||motion.walking||motion.pose!=='work')continue;
-        const p=this.computerScreens.hardwareGroup(device).getWorldPosition(new THREE.Vector3());
-        if(scene.mode==='game'&&motion.activity==='games')gameAudio.media(device,device,GAME_BY_ID.get(scene.game??'')?.genre??'sim',p);
-        if(scene.mode==='video'&&motion.activity==='read')gameAudio.media(device,device,scene.clip??'vlog',p);
-      }
-    }
-    for(const id of PET_IDS){
-      const pet=this.pets[id],p=pet.root.position;if(!pet.root.visible)continue;
-      const m=pet.audioMotion();
-      if(m.settled>.18&&!m.walking){
-        if(m.routine==='train'&&m.training?.success&&m.training.command==='bark')gameAudio.beat(id+'-bark','bark','pets',.79,.65,p);
-        if(m.routine==='eat'||m.reaction==='feed'||m.reaction==='treat')gameAudio.beat(id+'-eat','eat','pets',1.7,.12,p);
-        if(m.routine==='scratch')gameAudio.beat(id+'-scratch','scratch','pets',.65,.38,p);
-        if(m.routine==='toy'&&m.toy)gameAudio.beat(id+'-toy',m.toy==='bone'||m.toy==='marfa'?'squeak':m.toy==='spring'?'spring':m.toy==='feather'?'paper':'hit','pets',1.35,.36,p);
-        if(id==='simba'&&(m.reaction==='pet'||m.reaction==='brush'))gameAudio.loop(id+'-purr','purr','pets',.54,p);
-        if(m.routine==='beg')gameAudio.beat(id+'-beg',id==='simba'?'meow':'bark','pets',10,.48,p);
-      }
-      if(this.place==='home'&&this.feederVisual[id]?.started!==undefined)gameAudio.beat(id+'-feeder','feeder','pets',4,.38,p);
-    }
-    if(this.bathWashing&&this.place==='home')gameAudio.loop('dogBath','water','effects',.36,this.pets.verdell.root.position);
-    if(this.place==='park'&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock)){const s=stationById('park','park-fire');if(s)gameAudio.loop('campfire','fire','ambient',.44,s.center);}
-    if(this.badmintonStarted!==null&&this.place==='park'&&[...this.pairStages.values()].some(p=>p.playing&&p.action==='parkBadminton')){const s=stationById('park','park-badminton');if(s)gameAudio.cue('badminton',this.visualSeconds-this.badmintonStarted,badmintonStrikes(this.homeTasks.get('vlad')?.pair?.badmintonWinner).map(h=>({at:h.time,sound:'hit'})),'effects',.45,s.center);}
-    if(this.tennisStarted!==null&&this.place==='home'&&[...this.pairStages.values()].some(p=>p.playing)){const h=[...this.homeTasks.values()].find(h=>h.pair?.item==='pingPong'),model=h?.furnitureId!==undefined?this.furnishingModels.get(h.furnitureId):undefined;if(model){const hits=tennisStrikes(h?.pair?.tennisWinner),events=hits.flatMap((hit,i)=>i<hits.length-1?[{at:hit.time,sound:'hit' as const},{at:hit.time+2.4*(.70+(i%3)*.035),sound:'bounce' as const}]:[{at:hit.time,sound:'hit' as const}]);gameAudio.cue('tennis',this.visualSeconds-this.tennisStarted,events,'effects',.40,model.getWorldPosition(new THREE.Vector3()));}}
-    gameAudio.endFrame();
-  }
-
   private animate = (): void => {
     requestAnimationFrame(this.animate);
-    if (this.graphicsLost) {gameAudio.clearWorld();return;}
+    if (this.graphicsLost) return;
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
@@ -3081,7 +3003,6 @@ export class World {
       this.computerScreens.update(this.visualSeconds);
     }
     this.weather.frame(this.visualSeconds,this.controls.target,this.renderer.getPixelRatio());
-    this.audioFrame();
     if(this.place==='district')this.district?.animate(this.visualSeconds,this.camera);
     this.remote?.animate?.(this.visualSeconds);
     if(this.place==='fitness'&&this.remote){

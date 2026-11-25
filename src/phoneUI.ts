@@ -21,7 +21,7 @@ import { PETS, PET_IDS } from './shared/pets';
 import { petWish } from './shared/petWishes';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 import type { TimeStatus } from './shared/timeControl';
-import { gameAudio,AUDIO_LABELS,type AudioChannel,type Sound } from './game/GameAudio';
+import { gameAudio } from './game/GameAudio';
 import { hapticsEnabled, setHapticsEnabled, subtleHaptic } from './mobileHaptics';
 
 import {vacuumItem,vacuumState,type VacuumCommand} from './shared/vacuum';
@@ -88,6 +88,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   screen.append(delivery,jobs);
   let app: App | null = null;
   let speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
+  let audioUnsubscribe:(()=>void)|undefined;
   const alarmTimes=new Map<number,string>();
   const expandedSpeakers=new Map<number,boolean>();
   let calendarDate: HTMLElement | null = null;
@@ -181,10 +182,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       const items=speakerItems(state),key=JSON.stringify([items,state.speakers,state.world.places[role]]);
       if(key!==speakerKey){
         speakerKey=key;const scroll=info.scrollTop;
-        const intro=block('Умные колонки',items.length?'Музыка звучит в доме для обоих игроков.':'Купи колонку в «Импульсе» и размести её из склада мебели.');
+        const intro=block('Умные колонки',items.length?'Звук колонок временно отключён. Команды и игровые функции доступны.':'Купи колонку в «Импульсе» и размести её из склада мебели.');
         const cards=items.map(item=>{
           const m=SPEAKER_MODELS[item.sku as SpeakerSku],d=speakerDevice(state,item.id),where=roomAt(item)?.label??'Дом';
-          const card=block(m.name+' · '+where,m.assistant+' · '+(d.track?trackInfo(d.track).title:'Музыка выключена'));card.dataset.speakerId=String(item.id);card.classList.add('speaker-card');
+          const card=block(m.name+' · '+where,m.assistant+' · '+(d.track?trackInfo(d.track).title+' (без звука)':'Музыка выключена'));card.dataset.speakerId=String(item.id);card.classList.add('speaker-card');
           const disabled=state.world.places[role]!=='home';
           const send=(action:SpeakerAction,extra:Partial<SpeakerCommand>={})=>speakerControl?.({type:'speaker_control',id:item.id,action,...extra});
           const button=(title:string,action:SpeakerAction,extra:Partial<SpeakerCommand>={})=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.disabled=disabled;b.onclick=()=>send(action,extra);return b;};
@@ -399,7 +400,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    app=next;barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
@@ -409,17 +410,16 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){
-      const card=block('🔊 Звук','Настройки действуют только на этом устройстве. Звук включается после первого касания.');
+      const card=block('🎵 Фоновая музыка','Спокойный саундтрек без других звуков. Композиции сменяются автоматически. Громкость сохраняется на этом устройстве.');
       card.dataset.audioSetting='';card.classList.add('audio-settings');
-      for(const key of Object.keys(AUDIO_LABELS) as AudioChannel[]){
-        const row=document.createElement('label'),name=document.createElement('span'),slider=document.createElement('input'),value=document.createElement('output');
-        name.textContent=AUDIO_LABELS[key];slider.type='range';slider.min='0';slider.max='100';slider.step='5';slider.value=String(Math.round(gameAudio.settings[key]*100));slider.setAttribute('aria-label',AUDIO_LABELS[key]);value.textContent=slider.value+'%';
-        slider.addEventListener('input',()=>{gameAudio.setVolume(key,Number(slider.value)/100);value.textContent=slider.value+'%';});
-        row.append(name,value,slider);card.append(row);
-      }
-      const demos=document.createElement('div');demos.className='audio-demos';const label=document.createElement('strong');label.textContent='Проверить отдельно';demos.append(label);
-      const samples:readonly [string,Sound,Exclude<AudioChannel,'master'>][]=[['Интерфейс','confirm','ui'],['Голос Влада','voiceVlad','voices'],['Голос Алины','voiceAlina','voices'],['Верделл','bark','pets'],['Симба','meow','pets'],['Мурлыканье','purr','pets'],['Готовка','cook','effects'],['Душ','shower','effects'],['Телевизор','mediaTalk','effects'],['UFC 6','mediaFight','effects'],['Forza','mediaRace','effects'],['Дождь','rain','ambient'],['Музыка','scoreMorning','music']];
-      for(const [name,sound,bus] of samples){const button=document.createElement('button');button.type='button';button.textContent=name;button.onclick=()=>{void gameAudio.preview(sound,bus);};demos.append(button);}card.append(demos);info.replaceChildren(card);
+      const row=document.createElement('label'),name=document.createElement('span'),slider=document.createElement('input'),value=document.createElement('output');
+      name.textContent='Громкость музыки';slider.type='range';slider.min='0';slider.max='100';slider.step='5';slider.value=String(Math.round(gameAudio.volume*100));slider.setAttribute('aria-label','Громкость музыки');value.textContent=slider.value+'%';
+      slider.addEventListener('input',()=>{gameAudio.setVolume(Number(slider.value)/100);value.textContent=slider.value+'%';});
+      row.append(name,value,slider);card.append(row);
+      const current=document.createElement('small');const updateTrack=()=>{current.textContent='Сейчас: '+(gameAudio.currentTrack?.title??'Нажми для включения музыки');};updateTrack();audioUnsubscribe=gameAudio.subscribe(updateTrack);card.append(current);
+      const nextTrack=document.createElement('button');nextTrack.type='button';nextTrack.textContent='Следующая композиция';nextTrack.onclick=()=>{void gameAudio.unlock().then(()=>{gameAudio.next();current.textContent='Сейчас: '+(gameAudio.currentTrack?.title??'Музыка');});};card.append(nextTrack);
+      const mute=document.createElement('button');mute.type='button';mute.textContent=gameAudio.volume?'Выключить музыку':'Включить музыку';mute.onclick=()=>{const v=gameAudio.volume>0?0:.28;gameAudio.setVolume(v);slider.value=String(Math.round(v*100));value.textContent=slider.value+'%';mute.textContent=v?'Выключить музыку':'Включить музыку';void gameAudio.unlock();};card.append(mute);
+      info.replaceChildren(card);
     }
     if(next==='delivery') openDelivery(view.state);
     if(next==='jobs') openJobs(view.state,view.role);

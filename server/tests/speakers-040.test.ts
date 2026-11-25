@@ -10,7 +10,6 @@ import {pointIsClear,findRoute} from '../../src/game/navigation';
 import {buildSpeakerModel} from '../../src/game/SpeakerArt';
 import {advanceLife} from '../life';
 import {initialDust,advanceDust} from '../../src/shared/homeDust';
-import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 const first={id:1,sku:'speaker-alice',finish:'ivory' as const,x:2.39,z:-1.86,rotation:0 as const,mount:{support:'static:table',u:0,v:.36}};
 function home(){const s=initialState();s.furnishing.placed=[first];s.furnishing.nextId=2;return s;}
@@ -52,11 +51,8 @@ test('assistant uses actual game weather and time, triggers installed vacuum and
  const after=advanceLife(s,20,['vlad','alina']);assert.equal(speakerDevice(after,1).alarmAt,undefined);assert.equal(speakerDevice(after,1).reply?.to,'all');
  const seq=speakerDevice(after,1).reply!.seq;advanceSpeakers(after);assert.equal(speakerDevice(after,1).reply!.seq,seq);
 });
-test('all sixteen original audio files contain 32 seconds of non-silent PCM, three models fit their footprints',()=>{
- assert.equal(SPEAKER_TRACKS.length,16);for(const track of SPEAKER_TRACKS){
- const b=readFileSync('public/audio/speakers/'+track.id+'.wav');assert.equal(b.toString('ascii',0,4),'RIFF');assert.equal(b.readUInt32LE(24),16000);assert.equal(b.readUInt32LE(40),32*16000*2);
- assert.ok(b.subarray(44).some(x=>x!==0),track.id);
- }
+test('speaker catalogue and models stay intact in silent soundtrack mode',()=>{
+ assert.equal(SPEAKER_TRACKS.length,16);
  for(const [sku,m] of Object.entries(SPEAKER_MODELS)){
  const obj=buildSpeakerModel(sku as SpeakerSku),b=new THREE.Box3().setFromObject(obj),size=b.getSize(new THREE.Vector3());
  assert.ok(size.x<=m.width+.015&&size.z<=m.depth+.015&&size.y<=m.height+.015,sku+': '+size.toArray());

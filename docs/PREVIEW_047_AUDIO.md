@@ -1,10 +1,8 @@
-# 0.47 Preview v1 — Live sound
-Base: 0.46 Preview v4, commit 3457d89. Independent feat/audio-047 worktree. Not a main release.
+# 0.47 Preview v2 — Calm soundtrack only
+Base: 0.46 Preview v4, commit 3457d89; supersedes rejected audio Preview v1 (d18973c).
 
-- Local 79-clip CC0/original bank, 18.8 MB on disk, lazy decode with prewarm, PCM for mobile compatibility. No runtime third-party calls.
-- Recorded fictional speech and laughter with alternating conversation windows, multiple takes, pitch variation and no copied Simlish; actual cat/dog clips, purr and Foley.
-- New audio spatial profile: listener at controlled resident, camera-relative pan, real house wall rectangles/door openings and eastern wing, low-pass occlusion, device range. Master compressor when available.
-- Weather and seasonal birds/crickets/rain/thunder; quieter indoor ambience, street, cafe. Four original music arrangements. TV/PC/laptop and console audio; UFC and Forza use original programme mixes with licensed crowd and engine textures, not actual game audio.
-- Water/shower, frying/dishes, brushing, doors, paper, drinks, eating, vacuum and barber clippers. Steps/paws remain disabled. Seven volume channels preserved; phone Sound now has thirteen sample preview buttons.
-- 13/13 focused tests including asset headers, peaks and size, wall/door paths, panning, controls, action/console routing and cancellation/isolation. Typecheck and production build successful. No heavy visual or browser tests on ALINA-PC.
-- Pending: actual iPhone/Android listening, subjective timbre/voice selection, mix level tuning, dedicated espresso sound (source downloads timed out), additional specific reactions, some procedural fallback effects. Full cloud regression and visual QA for 0.46 still required before promotion. Main not touched.
+User explicitly requested removing all audio except calm background music. Removed 79 previous audio bank files, legacy pet recordings and speaker WAV assets, all gameplay/UI sound triggers and the previous procedural mixer. No voices, pets, actions, weather, console/TV/PC or smart-speaker audio. Existing speaker items, commands, state and other gameplay remain intact but silent; phone explains this.
+
+Eight original instrumental pieces generated offline with scripts/generate-soundtrack-047.py: gentle piano, felt keys, electric piano and nylon-like plucks, sparse arrangements, no drums. 30.75 minutes total, 3.5–4.25 min each; about 7.4 MB total MP3. Every track has a soft fade in/out. One streaming player, no per-frame sound work, randomized complete playlist cycles with no immediate repeat between cycles, automatic advance, independent of in-game scene/action. Local volume defaults to 28%, saved per device; one slider, mute and next-track controls in phone. Pause and hidden-tab pause preserve position. All music original procedural arrangements; no copied Sims music.
+
+Typecheck, build and 8/8 focused tests passed (3 soundtrack tests, 5 speaker gameplay/model/network tests). Old audio tests intentionally replaced because their behavior was removed. Actual listening and physical Safari/Android playback still unverified. No heavy graphics test on ALINA-PC. Main remains 0.45, separate preview 3198; 0.46 visual QA/full release regression still pending.
