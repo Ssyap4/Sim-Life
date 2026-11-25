@@ -349,7 +349,7 @@ export function buildYard(scene: THREE.Scene) {
   // Single lightweight pane, no reflection/refraction or shadow pass.
   const glass=new THREE.Mesh(new THREE.PlaneGeometry(4.51,2.86),new THREE.MeshBasicMaterial({color:0xc2dde2,transparent:true,opacity:.085,depthWrite:false,side:THREE.DoubleSide}));
   glass.name='Lounge transparent roof';glass.rotation.x=-Math.PI/2;glass.position.set(-3.38,2.475,6.72);glass.castShadow=false;glass.receiveShadow=false;glass.raycast=()=>{};canopy.add(glass);
-  for(const x of [-4.14,-2.62]){const seam=shape(canopy,[.013,.018,2.86],[x,2.476,6.72],0xb6c4c6,cube,false,'metal');seam.material=new THREE.MeshBasicMaterial({color:0xb6c4c6,transparent:true,opacity:.25,depthWrite:false});}
+  for(const x of [-4.14,-2.62]){const seam=shape(canopy,[.013,.018,2.86],[x,2.476,6.72],0xb6c4c6,cube,false,'metal');seam.material=new THREE.MeshStandardMaterial({color:0xb6c4c6,transparent:true,opacity:.25,depthWrite:false,roughness:.65});}
   canopy.traverse(o=>{o.raycast=()=>{};});batchRigidParts(canopy,true);yard.add(canopy);
   // Two compact planters beside the barbecue pad, outside the walking lane.
   const shrubs=new PlantBatch();
