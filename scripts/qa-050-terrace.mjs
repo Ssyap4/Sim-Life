@@ -9,10 +9,10 @@ import {initialState} from '../src/shared/protocol.ts';
 import {pairScenes} from '../server/society.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
-const action=process.argv[2]==='hookah'?'yardHookah':'yardRest',item=undefined,out='/tmp/simlife-050-terrace';mkdirSync(out,{recursive:true});
+const action=process.argv.includes('hookah')?'yardHookah':'yardRest',item=undefined,out='/tmp/simlife-050-terrace';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'couple-'));let server,browser,page,peer;
 try{
- const s=initialState();s.clock.minute=750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
+ const s=initialState();s.clock.minute=process.argv.includes('night')?1270:750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
  s.money=100000;
  const homes=pairScenes(s,'alina',{type:'together',action,item});assert.ok(homes);
  for(const role of ['vlad','alina']){
@@ -45,7 +45,7 @@ try{
  assert.equal(await page.locator('[data-social-finish]').innerText(),'Встать');
  assert.ok(await page.locator('[data-social-finish]').isEnabled());
  assert.match(await page.locator('.running-task').first().innerText(),/Свободный отдых/);
- await page.screenshot({path:join(out,action+'.jpg'),type:'jpeg',quality:84});
+ await page.screenshot({path:join(out,action+(process.argv.includes('night')?'-night':'')+'.jpg'),type:'jpeg',quality:84});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
  await page.locator('[data-social-finish]').click();
  await take('task_ended',p=>p.role==='vlad'&&p.taskId===start.taskId&&p.outcome==='completed');

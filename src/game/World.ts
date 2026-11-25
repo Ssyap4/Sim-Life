@@ -3082,6 +3082,10 @@ export class World {
           this.pairCameraEye.set(.24,1.10,1).normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP,poolModel.rotation.y)
             .multiplyScalar(this.compactPortrait.matches?20:14).add(this.pairCameraTarget);
         }
+        if(poolHome?.station==='yardTable'||poolHome?.pair?.seat==='yardTable'){
+          this.pairCameraTarget.set(HOME_PLACEMENTS.yardTable.x-.48,.95,HOME_PLACEMENTS.yardTable.z+.18);
+          this.pairCameraEye.set(.95,.83,-.85).normalize().multiplyScalar(this.compactPortrait.matches?12.4:10.4).add(this.pairCameraTarget);
+        }
         const fraction=1-Math.exp(-dt*5.5);
         this.controls.target.lerp(this.pairCameraTarget,fraction);
         this.camera.position.lerp(this.pairCameraEye,fraction);

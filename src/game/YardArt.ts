@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRILL_RECIPES, type RecipeId } from '../shared/food';
-import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, furniturePosition } from '../shared/home';
+import { DINING_TOP, HOUSE_ENTRY, HOME_YARD, HOME_FLOOR, LOUNGE_HOOKAH_BASE, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 
 import {seasonalMaterial} from './SeasonalPalette';
@@ -150,39 +150,34 @@ function grillAndTable() {
   const table = new THREE.Group();
   const { x, z } = furniturePosition('yardTable');
   table.position.set(x, 0, z);
-  for (const dz of [-.30, -.10, .10, .30])
-    shape(table, [1.91, .095, .193], [0, DINING_TOP - .047, dz], C.oak, softCube, true, 'wood');
-  for (const dx of [-.76, .76]) {
-    shape(table, [.13, .118, 1.15], [dx, .38, .24], C.walnut, cube, false, 'wood');
-    for (const dz of [-.25, .30])
-      shape(table, [.104, .74, .115], [dx, .391, dz], C.walnut, softCube, true, 'wood');
+  // Modern outdoor dining table: uninterrupted warm stone top and dark sled legs.
+  shape(table,[1.98,.085,.83],[0,DINING_TOP-.0425,0],0xd0bda5,softCube,true,'ceramic');
+  shape(table,[1.88,.038,.74],[0,DINING_TOP-.098,0],0x383c3b,softCube,false,'metal');
+  for(const dx of [-.70,.70]){
+    for(const dz of [-.26,.26])shape(table,[.075,.73,.075],[dx,.37,dz],0x303535,softCube,true,'metal');
+    shape(table,[.09,.075,.62],[dx,.045,0],0x303535,softCube,false,'metal');
   }
   // Two broad upholstered seats, keeping the original seat height/food anchors.
-  shape(table,[1.94,.14,.53],[0,.415,.72],C.walnut,softCube,true,'wood');
+  shape(table,[2.04,.17,.62],[0,.39,.75],0x3e4543,softCube,true,'metal');
   for(const dx of [-.47,.47]){
-    shape(table,[.91,.09,.49],[dx,.476,.72],0x81978a,softCube,true,'fabric');
-    shape(table,[.90,.42,.13],[dx,.73,.975],0x9caf9b,softCube,true,'fabric');
-    shape(table,[.23,.25,.13],[dx+(dx<0?-.29:.29),.72,.88],0xd8b18d,softCube,false,'fabric');
+    shape(table,[.94,.13,.54],[dx,.456,.72],0x879a90,softCube,true,'fabric');
+    shape(table,[.94,.49,.19],[dx,.76,.98],0xa7b8ac,softCube,true,'fabric');
+    const pillow=shape(table,[.29,.29,.15],[dx+(dx<0?-.30:.30),.75,.88],dx<0?0xc47769:0xe6ccaf,softCube,false,'fabric');pillow.rotation.z=dx<0?-.17:.17;
   }
-  for(const dx of [-.95,.95])shape(table,[.11,.16,.47],[dx,.64,.72],C.walnut,softCube,true,'wood');
+  for(const dx of [-.98,.98])shape(table,[.12,.19,.56],[dx,.64,.75],0x454947,softCube,true,'metal');
   for (const dx of [-.71, .71])
     shape(table, [.102, .433, .18], [dx, .225, .80], C.walnut, softCube, true, 'wood');
-  // The woven runner folds over both lips of the fixed picnic tabletop.
-  shape(table,[.32,.007,.82],[-.53,DINING_TOP+.003,0],0xb96e58,cube);
-  for(const dz of [-.409,.409]){
-    shape(table,[.32,.13,.008],[-.53,DINING_TOP-.06,dz],0xb96e58,cube);
-    for(const stripe of [-.106,.106]){
-      shape(table,[.022,.12,.010],[-.53+stripe,DINING_TOP-.06,dz],C.oat,cube);
-      if(dz>0)shape(table,[.022,.008,.82],[-.53+stripe,DINING_TOP+.004,0],C.oat,cube);
-    }
-  }
-  // A small decorative hookah at the outer edge, clear of the meal plates.
-  const hx=.80,hz=-.16;
-  shape(table,[.20,.025,.20],[hx,DINING_TOP+.013,hz],C.ink,drum,false,'metal');
-  shape(table,[.16,.22,.16],[hx,DINING_TOP+.12,hz],0x527f89,orb,false,'ceramic');
-  shape(table,[.048,.25,.048],[hx,DINING_TOP+.31,hz],C.brass,drum,false,'metal');
-  shape(table,[.14,.026,.14],[hx,DINING_TOP+.41,hz],C.ink,drum,false,'metal');
-  shape(table,[.075,.065,.075],[hx,DINING_TOP+.455,hz],0x967c69,drum,false,'ceramic');
+  // No fabric runner or accessories in the serving area.
+  // Floor hookah, inspired by a dark metal stem and smoked glass silhouette.
+  const hookah=new THREE.Group();hookah.name='Lounge floor hookah';hookah.position.set(LOUNGE_HOOKAH_BASE.x,0,LOUNGE_HOOKAH_BASE.z);
+  const lathe=(name:string,profile:number[][],material:THREE.Material)=>{const mesh=new THREE.Mesh(new THREE.LatheGeometry(profile.map(p=>new THREE.Vector2(p[0],p[1])),24),material);mesh.name=name;hookah.add(mesh);return mesh;};
+  lathe('Smoked glass base',[[0,.014],[.12,.014],[.165,.035],[.17,.071],[.145,.112],[.094,.147],[.061,.19],[.055,.27],[.067,.29],[.067,.305],[0,.305]],new THREE.MeshStandardMaterial({color:0x53676a,roughness:.19,metalness:.22,transparent:true,opacity:.83,depthWrite:false}));
+  lathe('Black turned stem',[[0,.30],[.075,.30],[.075,.34],[.043,.35],[.027,.39],[.023,.46],[.036,.49],[.028,.51],[.022,.57],[.035,.60],[.026,.62],[.028,.68],[.043,.70],[.043,.72],[0,.72]],finish(0x25282b,'metal'));
+  shape(hookah,[.125,.025,.125],[0,.73,0],0x292c2e,drum,false,'metal');
+  lathe('Terracotta bowl',[[0,.745],[.039,.745],[.038,.78],[.071,.81],[.077,.85],[.073,.87],[0,.87]],finish(0xc38362,'ceramic'));
+  for(const dx of [-.065,.065]){const port=shape(hookah,[.042,.085,.042],[dx,.32,0],0x282b2d,drum,false,'metal');port.rotation.z=dx<0?.85:-.85;}
+  hookah.userData.interactable='yardTable';
+  batchRigidParts(hookah,true);
   batchRigidParts(table, true);
 
   const shadeMap=paintedMap('picnic-contact',64,48,ctx=>{
@@ -216,7 +211,7 @@ function grillAndTable() {
     servings.set(recipe, plate);
   }
   platter.visible = false;
-  return { grill, table, lid, contents, platter, servings, embers, smoke };
+  return { grill, table, lid, contents, platter, servings, embers, smoke,hookah };
 }
 
 function fence(yard: THREE.Group): void {
@@ -285,6 +280,10 @@ function eveningGarden(parent:THREE.Group){
   const glow=paintedMap('yard-lantern-pool',64,64,ctx=>{const g=ctx.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,201,115,.58)');g.addColorStop(.45,'rgba(255,181,89,.24)');g.addColorStop(1,'rgba(255,181,89,0)');ctx.fillStyle=g;ctx.fillRect(0,0,64,64);});
   const night=new THREE.Group();night.name='Warm garden lantern pools';night.visible=false;
   if(glow){const material=new THREE.MeshBasicMaterial({map:glow,transparent:true,depthWrite:false});const positions:number[]=[],uvs:number[]=[],indices:number[]=[];for(const [x,z] of [[.48,6.15],[.48,10.95],[-4.95,8.15]]){const j=positions.length/3;positions.push(x-1.05,.017,z-1.05,x+1.05,.017,z-1.05,x+1.05,.017,z+1.05,x-1.05,.017,z+1.05);uvs.push(0,0,1,0,1,1,0,1);indices.push(j,j+2,j+1,j,j+3,j+2);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geo.setIndex(indices);const mesh=new THREE.Mesh(geo,material);mesh.raycast=()=>{};night.add(mesh);}
+  // Coral ambience only after dusk: baked pool and emissive strip, no shadow lights.
+  const coral=paintedMap('lounge-coral-pool',128,128,ctx=>{const g=ctx.createRadialGradient(64,64,5,64,64,64);g.addColorStop(0,'rgba(255,131,117,.34)');g.addColorStop(.60,'rgba(255,143,125,.16)');g.addColorStop(1,'rgba(255,143,125,0)');ctx.fillStyle=g;ctx.fillRect(0,0,128,128);});
+  if(coral){const pool=new THREE.Mesh(plane,new THREE.MeshBasicMaterial({map:coral,transparent:true,depthWrite:false}));pool.rotation.x=-Math.PI/2;pool.scale.set(4.5,3.0,1);pool.position.set(-3.38,.023,6.77);pool.raycast=()=>{};night.add(pool);}
+  const strip=new THREE.Mesh(cube,new THREE.MeshBasicMaterial({color:0xff9a87}));strip.name='Coral evening strip';strip.position.set(-3.38,2.24,5.84);strip.scale.set(4.24,.035,.035);strip.raycast=()=>{};night.add(strip);
   parent.add(night);return night;
 }
 
@@ -366,6 +365,6 @@ export function buildYard(scene: THREE.Scene) {
     effect.position.copy(furniture.grill.position);
     scene.add(effect);
   }
-  scene.add(furniture.platter);
+  scene.add(furniture.platter,furniture.hookah);
   return {...furniture,night};
 }

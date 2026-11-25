@@ -117,7 +117,8 @@ export function homeSeat(id: import('./homeLife').HomeSeat, role: import('./prot
 }
 
 export const DINING_TOP = .86;
-export const LOUNGE_HOOKAH={x:HOME_PLACEMENTS.yardTable.x+.80,y:DINING_TOP+.21,z:HOME_PLACEMENTS.yardTable.z-.16};
+export const LOUNGE_HOOKAH_BASE={x:HOME_PLACEMENTS.yardTable.x+1.26,z:HOME_PLACEMENTS.yardTable.z+.04};
+export const LOUNGE_HOOKAH={...LOUNGE_HOOKAH_BASE,y:.32};
 
 export function homeFootprint(center: { x: number; z: number },
   minX: number, maxX: number, minZ: number, maxZ: number): FloorRect {
@@ -134,7 +135,7 @@ const movableBounds = {
   bookcase: [-.44, .44, -1.02, 1.02],
   officeChair: [-.56, .52, -.64, .64],
   grill: [-.60, .60, -.45, .47],
-  yardTable: [-.98, .98, -.46, 1.01],
+  yardTable: [-1.04, 1.04, -.46, 1.09],
 } as const;
 export type HomeFurnitureId = keyof typeof movableBounds;
 export type HomeLayout = Partial<Record<HomeFurnitureId, { x: number; z: number }>>;
@@ -195,6 +196,7 @@ export const HOME_STRUCTURE_OBSTACLES = [
   { minX:5.68,maxX:6.22,minZ:HOUSE_ENTRY.z,maxZ:HOME_YARD.sideOpening.minZ },
   { minX:5.68,maxX:6.22,minZ:HOME_YARD.sideOpening.maxZ,maxZ:10.10 },
   homeFootprint(HOME_YARD.parking, -.99, .99, 2.25, 2.79),
+  homeFootprint(LOUNGE_HOOKAH_BASE,-.24,.24,-.24,.24),
   homeFootprint(HOME_YARD.planter, -.45, .50, -2.11, 2.11),
 ];
 

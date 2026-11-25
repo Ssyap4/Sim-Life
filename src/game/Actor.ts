@@ -11,7 +11,8 @@ import type { PetAction } from '../shared/pets';
 import type { RecipeId, TakeoutId } from '../shared/food';
 import { kitchenMove, grillMove, helperChop, mealUtensil } from './CookingChoreography';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
-import { HOME_WALK_SPEED } from '../shared/home';
+import { HOME_WALK_SPEED, HOME_PLACEMENTS } from '../shared/home';
+import {LoungeHose} from './LoungeHose';
 import { activityProps } from './ActivityProps';
 import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
@@ -64,7 +65,9 @@ export class Actor {
   private readonly spoon = new THREE.Group();
   private readonly teaCup = new THREE.Group();
   private readonly loungeMouthpiece=new THREE.Group();
-  private readonly loungeHose=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(36),3)),new THREE.LineBasicMaterial({color:0x39464b}));
+  private readonly loungeHose=new LoungeHose();
+  private readonly hoseLowA=new THREE.Vector3();
+  private readonly hoseLowB=new THREE.Vector3();
   private readonly hoseStart=new THREE.Vector3();
   private readonly hoseEnd=new THREE.Vector3();
   private readonly dirtyPlate: THREE.Mesh;
@@ -451,6 +454,7 @@ export class Actor {
     this.props.phone.visible=false;
     if(this.partnerGesture?.motion==='bedRest')this.setPose('idle');
     this.partnerGesture=null;
+    this.loungeHose.visible=this.loungeMouthpiece.visible=false;
     this.gesture=null;
     if(this.activity?.startsWith('gym'))this.setPose('idle');
     if(this.activity==='badminton'||this.activity==='pingPong'){this.poseOffset.set(0,0,0);this.badmintonFrame=null;this.badmintonTravel=0;this.racket.visible=false;this.paddle.visible=false;this.tennisTarget=null;this.tennisHit=0;}
@@ -1864,10 +1868,12 @@ export class Actor {
       this.reach(1,rest.lerp(mouth,raise),alpha*.85);
       this.aimHand(1,this.handDirection.set(0,-.12,.98).applyAxisAngle(up,this.root.rotation.y),alpha);
       this.root.updateMatrixWorld(true);
-      this.root.worldToLocal(this.hoseStart.copy(pair.target));
-      this.root.worldToLocal(this.loungeMouthpiece.getWorldPosition(this.hoseEnd));
-      const pos=this.loungeHose.geometry.attributes.position;
-      for(let j=0;j<12;j++){const u=j/11;pos.setXYZ(j,THREE.MathUtils.lerp(this.hoseStart.x,this.hoseEnd.x,u),THREE.MathUtils.lerp(this.hoseStart.y,this.hoseEnd.y,u)-.26*Math.sin(Math.PI*u),THREE.MathUtils.lerp(this.hoseStart.z,this.hoseEnd.z,u));}pos.needsUpdate=true;
+      const side=this.id==='vlad'?-1:1;
+      this.hoseStart.copy(pair.target);this.hoseStart.x+=side*.08;
+      this.loungeMouthpiece.localToWorld(this.hoseEnd.set(0,0,-.04));
+      this.hoseLowA.set(pair.target.x+.20,.06,HOME_PLACEMENTS.yardTable.z+.58);
+      this.hoseLowB.set(this.hoseEnd.x,.08,HOME_PLACEMENTS.yardTable.z+.64+side*.06);
+      this.loungeHose.updatePath(this.root.worldToLocal(this.hoseStart),this.root.worldToLocal(this.hoseLowA),this.root.worldToLocal(this.hoseLowB),this.root.worldToLocal(this.hoseEnd));
     }
     this.teaCup.visible=pair?.motion==='teaTogether';
     if(this.teaCup.visible&&pair){
