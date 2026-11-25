@@ -6,9 +6,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Actor } from '../../src/game/Actor';
 import { createBlenderCharacter } from '../../src/game/BlenderCharacter';
 
-for (const id of ['vlad', 'alina'] as const) {
-  test(`${id}: exported skin and blink load, and the game rig reaches the keyboard`, async () => {
-    const buffer = await readFile(new URL(`../../src/assets/characters/${id}.glb`, import.meta.url));
+for (const id of ['vlad', 'alina'] as const) for (const version of ['approved', 'remake']) {
+  test(`${id} (${version}): exported skin and blink load, and the game rig reaches the keyboard`, async () => {
+    const buffer = await readFile(new URL(`../../src/assets/characters/${version==='remake'?'remake/':''}${id}.glb`, import.meta.url));
     // This Node test exercises the skin and animations. The browser decodes the embedded atlas.
     const loader = new GLTFLoader().register(() => ({
       name: 'HeadlessTexture', loadTexture: async () => new THREE.Texture(),

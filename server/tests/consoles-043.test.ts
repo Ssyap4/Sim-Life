@@ -102,9 +102,9 @@ test('Both animated fallback character rigs reach two gamepad wrist anchors and 
 import {readFile} from 'node:fs/promises';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createBlenderCharacter} from '../../src/game/BlenderCharacter';
-test('Actual shipped Blender skin rigs reach both controller wrist anchors',async()=>{
- for(const role of ['vlad','alina'] as const){
-  const buffer=await readFile(new URL('../../src/assets/characters/'+role+'.glb',import.meta.url));
+test('Approved and remake Blender skins reach both controller wrist anchors',async()=>{
+ for(const role of ['vlad','alina'] as const)for(const directory of ['','remake/']){
+  const buffer=await readFile(new URL('../../src/assets/characters/'+directory+role+'.glb',import.meta.url));
   const loader=new GLTFLoader().register(()=>({name:'HeadlessTexture',loadTexture:async()=>new THREE.Texture()}));
   const gltf=await loader.parseAsync(Uint8Array.from(buffer).buffer,'');
   const actor=new Actor(role,[0,0],createBlenderCharacter(gltf,role)),seat=homeSeat('sofa',role);

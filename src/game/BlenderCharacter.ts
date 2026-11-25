@@ -6,6 +6,10 @@ import { fitWardrobe } from './Wardrobe';
 import type { CharacterModel } from './CharacterArt';
 
 const assets: Record<CharacterId, string> = {
+  vlad: new URL('../assets/characters/remake/vlad.glb', import.meta.url).href,
+  alina: new URL('../assets/characters/remake/alina.glb', import.meta.url).href,
+};
+const legacyAssets: Record<CharacterId, string> = {
   vlad: new URL('../assets/characters/vlad.glb', import.meta.url).href,
   alina: new URL('../assets/characters/alina.glb', import.meta.url).href,
 };
@@ -84,6 +88,7 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
     throw new Error('Missing face shape keys or eyelid track');
   }
   const faceName = face.name;
+  const remake = face.userData.remakePortrait === true;
 
   return (figure) => {
     const model = clone(gltf.scene);
@@ -102,8 +107,8 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         tailored=material.clone();
         // Refine hair sheen, natural skin response and crisp fabric separation
         // without increasing skinned meshes, bones, textures or draw calls.
-        if(material.name.includes('Hair')) {tailored.roughness=.71;tailored.metalness=0;}
-        else if(material.name.includes('Skin')||material.name.includes('Complexion')) {tailored.roughness=.87;tailored.metalness=0;}
+        if(material.name.includes('Hair')) {tailored.roughness=remake?.57:.71;tailored.metalness=0;}
+        else if(material.name.includes('Skin')||material.name.includes('Complexion')) {tailored.roughness=remake?.76:.87;tailored.metalness=0;}
         else if(material.name.includes('Eyes')) {tailored.roughness=.23;tailored.metalness=0;}
         else if(material.name.includes('Cloth')) {tailored.roughness=.91;tailored.metalness=0;}
         finishes.set(material,tailored);
@@ -125,7 +130,7 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
     watch.rotation.x=Math.PI/2;
     watch.position.y=.015;
     joints.WristL.add(watch);
-    if(id==='alina'){
+    if(id==='alina'&&!remake){
       const earringGeometry=new THREE.TorusGeometry(.017,.004,5,12);
       const earringFinish=new THREE.MeshStandardMaterial({
         color:0xc8ae79,metalness:.52,roughness:.35,
@@ -145,17 +150,20 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
     if(id==='alina'&&fm?.map){fm.onBeforeCompile=shader=>{shader.uniforms.careMakeup=makeupLevel;shader.fragmentShader='uniform float careMakeup;\n'+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       #ifdef USE_MAP
       float a=(vMapUv.x-.5)*6.2831853;
-      float y=-.209+.422*clamp((1.-vMapUv.y-.27)/.71,0.,1.);
+      float y=${remake ? '-.173+.350' : '-.209+.422'}*clamp((1.-vMapUv.y-.27)/.71,0.,1.);
       float front=max(0.,cos(a));
-      float lips=exp(-pow(abs(a/.34),4.)-pow(abs((y+.112)/.012),4.))*front;
+      float lips=exp(-pow(abs(a/${remake ? '.42' : '.34'}),4.)-pow(abs((y+${remake ? '.107' : '.112'})/.012),4.))*front;
       float cheek=exp(-pow(abs((abs(a)-.72)/.27),2.)-pow(abs((y+.049)/.028),2.))*front;
       float shadow=exp(-pow(abs((abs(a)-.44)/.22),2.)-pow(abs((y-.019)/.014),2.))*front;
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.39,.075,.13),lips*careMakeup*.37);
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.58,.19,.23),cheek*careMakeup*.15);
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.25,.13,.16),shadow*careMakeup*.12);
-      #endif`);};fm.customProgramCacheKey=()=> 'care-makeup-v1';}
+      #endif`);};fm.customProgramCacheKey=()=> remake?'care-makeup-045':'care-makeup-v1';}
     let hairMode='',base:Float32Array|undefined;
-    if(id==='alina'&&hairMesh){hairMesh.geometry=hairMesh.geometry.clone();base=Float32Array.from(hairMesh.geometry.attributes.position.array);}
+    const dailyStyle=hairMesh?.morphTargetDictionary?.DailyStyle;
+    const eveningStyle=hairMesh?.morphTargetDictionary?.EveningStyle;
+    const hairWeights=hairMesh?.morphTargetInfluences;
+    if(id==='alina'&&hairMesh&&dailyStyle===undefined){hairMesh.geometry=hairMesh.geometry.clone();base=Float32Array.from(hairMesh.geometry.attributes.position.array);}
     figure.add(model);
     const weights = (model.getObjectByName(faceName) as THREE.SkinnedMesh).morphTargetInfluences!;
     const sampleBlink = new THREE.LinearInterpolant(blinkTrack.times, blinkTrack.values, blinkTrack.getValueSize());
@@ -174,7 +182,14 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         upperArm: -joints.ElbowL.position.y, lowerArm: -joints.WristL.position.y,
         setCareAppearance(hair,makeup){
           if(id!=='alina')return;makeupLevel.value=makeup==='evening'?1:makeup==='light'?.48:0;
-          if(hair===hairMode||!hairMesh||!base)return;hairMode=hair;
+          if(hair===hairMode)return;
+          hairMode=hair;
+          if(hairWeights&&dailyStyle!==undefined&&eveningStyle!==undefined){
+            hairWeights[dailyStyle]=Number(hair==='style');
+            hairWeights[eveningStyle]=Number(hair==='fancy');
+            return;
+          }
+          if(!hairMesh||!base)return;
           const p=hairMesh.geometry.attributes.position,uv=hairMesh.geometry.attributes.uv;
           for(let i=0;i<p.count;i++){const x=base[i*3],y=base[i*3+1],z=base[i*3+2];const tip=THREE.MathUtils.smoothstep(uv.getY(i),.33,.97);
             if(hair==='fancy')p.setXYZ(i,x*(1-.26*tip),y+.075*tip,z-.035*tip);
@@ -204,10 +219,17 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
   };
 }
 
-export async function loadResidents(outfit:readonly string[]=[]): Promise<Partial<Record<CharacterId, CharacterModel>>> {
+export async function loadResidents(outfit:readonly string[]=[], legacy=false): Promise<Partial<Record<CharacterId, CharacterModel>>> {
   const entries = await Promise.all((Object.entries(assets) as [CharacterId, string][]).map(async ([id, url]) => {
+    if(!legacy){
+      try {
+        return [id, createBlenderCharacter(await readAsset(url), id, outfit)] as const;
+      } catch (error) {
+        console.warn(`Using previous game asset for ${id}`,error);
+      }
+    }
     try {
-      return [id, createBlenderCharacter(await readAsset(url), id, outfit)] as const;
+      return [id, createBlenderCharacter(await readAsset(legacyAssets[id]), id, outfit)] as const;
     } catch (error) {
       console.warn(`Using built-in character for ${id}`, error);
       return null;
