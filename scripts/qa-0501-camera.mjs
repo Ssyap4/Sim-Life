@@ -11,7 +11,7 @@ const venue=process.argv.includes('venue'),out='/tmp/simlife-0501-camera';
 mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'camera-mobile-'));let browser,server;
 try{
- let s=initialState();s.autonomy={vlad:'off',alina:'off'};s.money=100000;s.clock.minute=750;
+ let s=initialState();s.autonomy={vlad:'off',alina:'off'};s.money=100000;s.clock.minute=process.argv.includes("night")?1380:750;
  if(venue){const visit=venueTogetherTrip(s,'vlad');assert.ok(visit.ok);s=visit.state;}
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
@@ -37,6 +37,13 @@ try{
    assert.ok(!(await button.getAttribute('class')).includes('height-held'));
  };
  assert.equal((await pose()).place,venue?'venue':'home');
+ const glass=await page.evaluate(()=>{
+ const ids=['life-clock','money','map-btn','pets-btn','phone-btn','skills-btn','pause-btn','camera-height-up','status'];
+ return ids.map(id=>{const el=document.getElementById(id);const style=getComputedStyle(id==='money'?el.parentElement:el);return {id,background:style.backgroundImage,color:style.color,blur:style.backdropFilter};});
+ });
+ for(const surface of glass)assert.match(surface.background,/rgba\(/,surface.id+' must be translucent');
+ assert.equal(await page.locator('#app').getAttribute('data-hud-light'),process.argv.includes('night')?'night':'day');
+ console.log('HUD surfaces',JSON.stringify(glass));
  await shot('overview');
  const first=await pose();await touch(down,1700);const low=await pose();assert.ok(low.eye[1]<first.eye[1]-.3);
  await shot('free-low');
@@ -50,7 +57,7 @@ try{
  assert.ok(trackedLow.follow&&trackedLow.eye[1]<tracked.eye[1]-.3);
  await page.waitForTimeout(1200);const after=await pose();assert.ok(after.follow&&Math.abs(after.eye[1]-trackedLow.eye[1])<.12);
  await shot('follow-low');
- await page.locator('#phone-btn').tap();assert.ok(!(await down.isVisible()));await page.keyboard.press('Escape');
+ await page.locator('#phone-btn').tap();assert.ok(!(await down.isVisible()));await shot('phone');await page.keyboard.press('Escape');
  await page.locator('#camera-reset').tap();await page.waitForTimeout(2500);assert.ok(!(await pose()).follow);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!document.querySelector('#graphics-recovery')));
  assert.deepEqual(errors,[]);

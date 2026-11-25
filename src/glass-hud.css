@@ -1,0 +1,90 @@
+/* 0.50.1: translucent HUD only. No new geometry, textures, or full-screen filters.
+   A dark neutral tint and white ink remain legible on bright and dark scenes.
+   Blur is limited to 2px on small, non-nested HUD surfaces. */
+#app {
+  --glass-fill:linear-gradient(155deg,rgba(37,56,52,.65),rgba(17,34,32,.58));
+  --glass-edge:rgba(236,255,249,.42);
+  --glass-ink:#f7fffc;
+  --glass-muted:#e0eee8;
+  --glass-shadow:0 3px 12px rgba(9,24,22,.20),inset 0 1px 0 rgba(255,255,255,.16);
+  --glass-active:rgba(35,91,73,.78);
+}
+#app[data-hud-light="night"] {
+  --glass-fill:linear-gradient(155deg,rgba(73,98,98,.40),rgba(23,43,48,.51));
+  --glass-edge:rgba(210,240,240,.35);
+  --glass-active:rgba(38,99,89,.75);
+}
+#app .top-ui .money-panel,
+#app .top-ui .person,
+#app .top-ui .life-strip,
+#app .top-ui .status-line,
+#app .top-ui #life-clock,
+#app .top-ui .life-strip button,
+#app .top-ui .showcase-toggle,
+#app .camera-dock .camera-reset,
+#app .bottom-bar .home-buttons .market-btn,
+#app .home-buttons #pause-btn,
+#app .thought-dock .thought-trigger,
+#app .bottom-ui .stock-line,
+#app .bottom-ui .tip,
+#app .bottom-ui .running-task,
+#app .bottom-ui .queued-task-list,
+#app .bottom-ui #time-panel,
+#app .message {
+  background:var(--glass-fill);
+  border:1px solid var(--glass-edge);
+  color:var(--glass-ink);
+  box-shadow:var(--glass-shadow);
+  text-shadow:0 1px 2px rgba(0,0,0,.68);
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+/* Flatten wrappers so the view is not tinted twice. */
+#app .bottom-bar,#app #task-panel{
+  background:transparent;border-color:transparent;box-shadow:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+}
+#app .top-ui :is(.money-panel strong,.person-info strong),
+#app .top-ui #life-clock,#app .bottom-ui #time-panel strong {color:var(--glass-ink)}
+#app .top-ui :is(.money-panel>span,.person-info>span:nth-child(2)),
+#app .top-ui #life-clock small,#app .bottom-ui #time-panel small,
+#app .bottom-ui .home-buttons small,#app .top-ui .status-line{color:var(--glass-muted)}
+#app .top-ui .person.active,#app .top-ui #needs-toggle[aria-expanded="true"],
+#app .camera-dock .camera-follow[aria-pressed="true"],
+#app .camera-height-dock .height-held,
+#app .thought-dock .thought-trigger[aria-expanded="true"],
+#app .home-buttons #pause-btn[data-paused="true"]{
+  background:var(--glass-active);color:#fff;
+  border-color:rgba(177,249,217,.88);
+  box-shadow:0 0 0 1px rgba(161,238,204,.26),inset 0 1px 0 rgba(255,255,255,.22);
+}
+#app .thought-urgent .thought-trigger{border-color:#f1ce9a;color:#fff4db}
+#app .bottom-ui .queued-task-row{background:rgba(255,255,255,.09);color:var(--glass-ink)}
+#app .bottom-ui :is(.task-focus,.queue-clear,.task-cancel,.queued-task-row button){
+  background:rgba(255,255,255,.14);border:1px solid var(--glass-edge);color:var(--glass-ink);
+}
+#app .bottom-ui :is(.task-cancel,.queue-clear,.queued-task-row button){color:#ffe1d8}
+#app .bottom-ui .running-task-track{background:rgba(236,255,245,.25)}
+#app .bottom-ui .running-task-track i{background:#a4e2bc}
+#app .bottom-ui .running-task .social-button{background:rgba(31,83,67,.78);border-color:var(--glass-edge);color:#fff}
+#app .bottom-ui .need-chips span,#app .bottom-ui .study-question button{text-shadow:none}
+#app :is(.top-ui button,.camera-dock button,.home-buttons button,.thought-trigger):not(:disabled):active{
+  background:var(--glass-active);border-color:#c3efdf;
+}
+#app :is(.top-ui button,.camera-dock button,.home-buttons button,.thought-trigger):focus-visible{
+  outline-color:#e1fff2;
+}
+/* Only visible small floating surfaces receive blur; no nesting on desktop. */
+#app :is(.top-ui .money-panel,.top-ui .person,.camera-dock .camera-reset,
+  .bottom-bar .home-buttons button,.thought-dock .thought-trigger,.bottom-ui .running-task){
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+}
+@media(max-width:640px) and (orientation:portrait){
+  #app .top-ui #life-clock,#app .top-ui .life-strip button,#app .top-ui .showcase-toggle{
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  }
+  #app .top-ui .life-strip{background:transparent;border-color:transparent;box-shadow:none}
+}
+@media(prefers-reduced-transparency:reduce){
+  #app,#app[data-hud-light="night"]{--glass-fill:#243a36;--glass-active:#35634f}
+}

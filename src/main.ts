@@ -55,6 +55,7 @@ import './touch-feedback.css';
 import { gameAudio } from './game/GameAudio';
 import { bindCameraHeightButtons } from './cameraHeightUI';
 import './camera-height.css';
+import './glass-hud.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -636,6 +637,9 @@ function renderClock(): void {
   previousClockMinute = minute;
   previousClockSpeed = speed;
   const clock = clockAt(minute);
+  const hudLight = dayPhase(clock) === "night" ? "night" : "day";
+  const hud = document.getElementById("app")!;
+  if (hud.dataset.hudLight !== hudLight) hud.dataset.hudLight = hudLight;
   const date = gameDate(clock.day);
   const weather=weatherAt(clock);
   const icon = weather.kind!=='clear'?WEATHER_INFO[weather.kind].icon:{ night: '🌙', morning: '☀️', day: '☀️', evening: '🌇' }[dayPhase(clock)];
