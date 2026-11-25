@@ -33,7 +33,7 @@ export const PLACES = {
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
 export const VENUE_FLOOR={minX:-9.62,maxX:9.62,minZ:-6.62,maxZ:6.62};
-export const SPA_FLOOR={minX:-5.62,maxX:9.62,minZ:-4.62,maxZ:4.62};
+export const SPA_FLOOR={minX:-8.62,maxX:9.62,minZ:-6.62,maxZ:4.62};
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
 export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
@@ -177,8 +177,8 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   ],
   spa:[
     site('spa-reception','Ресепшен',-4,2.4,1.8,.7,{kind:'spa',facility:'reception'}),
-    site('spa-pool','Бассейн',-2.6,-2.1,4.4,3.2,{kind:'spa',facility:'spaPool'}),
-    site('spa-jacuzzi','Джакузи',2.5,-2.7,2.5,2.1,{kind:'spa',facility:'spaJacuzzi'}),
+    site('spa-pool','Бассейн',-3.8,-2.8,7.6,4.8,{kind:'spa',facility:'spaPool'}),
+    site('spa-jacuzzi','Джакузи',2.5,-3.6,3.3,2.8,{kind:'spa',facility:'spaJacuzzi'}),
     site('spa-sauna','Сауна',4.1,.1,1.8,1.3,{kind:'spa',facility:'spaSauna'},{approach:{x:2.1,z:.1}}),
     site('spa-lounge-v','Лежак',-2.2,2.2,.85,2.08,{kind:'spa',facility:'spaLounge'}),
     site('spa-lounge-a','Лежак',-.8,2.2,.85,2.08,{kind:'spa',facility:'spaLounge'}),

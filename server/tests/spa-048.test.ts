@@ -4,7 +4,7 @@ import {initialState} from '../../src/shared/protocol';
 import {applyWorld,localActivity,spaTogetherTrip,validWorld} from '../locations';
 import {approachFor,stationById,STATIONS,doorwayArrival,floorFor,placeObstacles} from '../../src/shared/locations';
 import {findRoute} from '../../src/game/navigation';
-import {SPA_ACTIVITIES,SPA_PASSES,SPA_MASSAGE_PRICE,validSpa} from '../../src/shared/spa';
+import {SPA_ACTIVITIES,SPA_PASSES,SPA_MASSAGE_PRICE,validSpa,spaProgress,spaSwimFrame} from '../../src/shared/spa';
 import {planTask} from '../tasks';
 const roles=['vlad','alina'] as const;
 test('SPA single ticket, route, one-time effects and paid massage',()=>{
@@ -53,7 +53,7 @@ test('SPA scene constructs and disposes with all stations',()=>{
 });
 test('SPA paired package requires matching consent over real WebSockets and is charged only once',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'spa-pair-')),files=openServerFiles(dir),s=initialState();
- s.autonomy={vlad:'off',alina:'off'};files.save(s);
+ s.autonomy={vlad:'off',alina:'off'};for(const r of roles)Object.assign(s.characters[r],{comfort:20,mood:20,energy:40,fun:20});files.save(s);
  const server=await startServer({port:0,dataDir:dir,taskTimeScale:.025,autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  const sockets:WebSocket[]=[];
  async function connect(role:'vlad'|'alina'){
@@ -79,6 +79,7 @@ test('SPA paired package requires matching consent over real WebSockets and is c
   v.send({type:'local_activity',action:'spaMassage',station:'spa-massage-v'});
   a.send({type:'local_activity',action:'spaMassage',station:'spa-massage-a'});
   const x=await v.take('task_started',p=>p.role==='vlad'),y=await a.take('task_started',p=>p.role==='alina');
+  const partial=await v.take('snapshot',p=>!!p.state.world.spa?.vlad?.progress?.spaMassage);assert.ok(partial.state.characters.vlad.comfort>20&&partial.state.characters.vlad.comfort<65);assert.equal(partial.state.money,5100);
   await v.take('task_ended',p=>p.taskId===x.taskId&&p.outcome==='completed');await a.take('task_ended',p=>p.taskId===y.taskId&&p.outcome==='completed');
   const end=await a.take('snapshot',p=>!!p.state.world.spa?.vlad?.used.includes('spaMassage')&&!!p.state.world.spa?.alina?.used.includes('spaMassage'));
   assert.equal(end.state.money,5100);
@@ -97,4 +98,22 @@ test('changing rooms are private, temporary and cannot farm rewards; showers res
  s.characters.vlad.hygiene=15;r=use('vlad','spa-shower-v','spaShower');assert.ok(r.ok);s=r.state;
  assert.equal(s.characters.vlad.hygiene,100);assert.equal(use('vlad','spa-shower-v','spaShower').ok,false);
  assert.equal(use('alina','spa-shower-v','spaShower').ok,false);assert.ok(validWorld(s.world));assert.equal(s.money,6800);
+});
+
+test('SPA partial rewards persist and finishing grants only the unearned remainder',()=>{
+ const trip=spaTogetherTrip(initialState(),'vlad','package');assert.ok(trip.ok);const s=trip.state;
+ Object.assign(s.characters.vlad,{comfort:20,mood:20,energy:40,fun:20});
+ spaProgress(s,'vlad','spaMassage',.25);assert.equal(s.characters.vlad.comfort,31.25);
+ assert.equal(s.world.spa!.vlad!.progress!.spaMassage,.25);assert.ok(validSpa(s.world.spa));
+ spaProgress(s,'vlad','spaMassage',.10);assert.equal(s.characters.vlad.comfort,31.25);
+ spaProgress(s,'vlad','spaMassage',.5);assert.equal(s.characters.vlad.comfort,42.5);
+ const route=applyWorld(s,'vlad',{type:'approach',place:'spa',station:'spa-massage-v'},true);assert.ok(route.ok);
+ const done=localActivity(route.state,'vlad','spaMassage','spa-massage-v');assert.ok(done.ok);assert.equal(done.state.characters.vlad.comfort,65);assert.equal(done.state.characters.vlad.energy,60);assert.equal(done.state.money,5100);assert.equal(done.state.world.spa!.vlad!.progress!.spaMassage,undefined);assert.ok(validSpa(done.state.world.spa));
+});
+test('larger SPA pool swim loops remain inside separate lanes',()=>{
+ const pool=stationById('spa','spa-pool')!;assert.equal(pool.width,7.6);assert.equal(pool.depth,4.8);
+ for(let t=0;t<120;t+=.1){const v=spaSwimFrame(t,'vlad'),a=spaSwimFrame(t,'alina');
+  for(const f of [v,a])for(const offset of [0,1.6]){assert.ok(Math.abs(f.x-offset*Math.sin(f.yaw))<pool.width/2-.20);assert.ok(Math.abs(f.z-offset*Math.cos(f.yaw))<pool.depth/2-.20);}
+  assert.ok(v.x<-.3&&a.x>.3);
+ }
 });

@@ -1,3 +1,5 @@
+import {isSpaAction,spaProgress,spaDenial,SPA_MASSAGE_PRICE,type SpaAction} from '../src/shared/spa';
+import {addLedger as spaLedger} from '../src/shared/economy';
 import {advancePetHealth} from '../src/shared/health';
 import {fitnessTaskSpeed,fitnessProgram,fitnessAccess,type FitnessProgramId} from '../src/shared/fitness';
 import {applySpeaker,type SpeakerCommand} from '../src/shared/speaker';
@@ -169,7 +171,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number; station?:string }>();
   const storageOpen = new Map<CharacterId, string>();
-  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean; talkSpot?:{x:number;z:number}; talkAt?:number }
+  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean; spaTimer?:ReturnType<typeof setTimeout>; talkSpot?:{x:number;z:number}; talkAt?:number }
   const running = new Map<CharacterId, RunningTask>();
   const pathLengthForTalk=(route:WalkRoute)=>route.path.reduce((sum,p,i)=>{const prev=route.path[i-1]??route.from;return sum+Math.hypot(p.x-prev.x,p.z-prev.z);},0);
   // Only the owner can enqueue. Each queue is per resident, in memory, and
@@ -703,6 +705,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const task = running.get(role);
     if (!task) return;
     pauseTimers.clear(task.timer);
+    if(task.spaTimer)pauseTimers.clear(task.spaTimer);
     running.delete(role);
     if(task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe'){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
     if(task.plan.fitnessProgram)clearQueue(role);
@@ -801,6 +804,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const timer = pauseTimers.schedule(() => {
       const current = running.get(role);
       if (!current || current.id !== id || active.get(role) !== socket) return;
+      if(current.spaTimer)pauseTimers.clear(current.spaTimer);
       running.delete(role);
       // Revalidate against the freshest household snapshot, so two simultaneous
       // players cannot create food, rewards or inventory from stale resources.
@@ -863,6 +867,21 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const talkRoute=talkSpot&&planWalk(position,talkSpot,placeObstacles(place,state.furnishing),floorFor(place));
     const talkAt=talkRoute?pauseTimers.now()+1000*pathLengthForTalk(talkRoute)/HOME_WALK_SPEED+900:undefined;
     running.set(role, { id, role, plan, timer, automatic, talkSpot:talkRoute?talkSpot:undefined,talkAt });
+    if(cmd.type==='local_activity'&&isSpaAction(cmd.action)&&cmd.action!=='spaLocker'){
+      const a:SpaAction=cmd.action,task=running.get(role)!,begin=pauseTimers.now()+gymTravelMs*scale,base=state.world.spa?.[role]?.progress?.[a]??0;
+      const tick=()=>{
+        if(running.get(role)!==task)return;
+        const fraction=Math.min(.999,base+Math.max(0,pauseTimers.now()-begin)/Math.max(15,activityMs*scale));
+        if(fraction>(state.world.spa?.[role]?.progress?.[a]??0)&&!spaDenial(state,role,a)){
+          const next=structuredClone(state);
+          if(a==='spaMassage'&&next.world.spa![role]!.pass!=='package'&&!next.world.spa![role]!.progress?.[a]){next.money-=SPA_MASSAGE_PRICE;spaLedger(next,role,'expense','services',SPA_MASSAGE_PRICE,'SPA · Массаж');}
+          spaProgress(next,role,a,fraction);next.revision++;
+          try{files.save(next);state=next;all({type:'snapshot',state});}catch{/* Retry next tick without double payment. */}
+        }
+        if(running.get(role)===task)task.spaTimer=pauseTimers.schedule(tick,Math.max(50,Math.round(5000*scale)));
+      };
+      task.spaTimer=pauseTimers.schedule(tick,Math.max(50,Math.round((gymTravelMs+5000)*scale)));
+    }
     if(bathRoute){const now=Math.floor(liveGameTime());state.pets.verdell.routine={kind:'bath',target:0,startedAt:now,until:now+Math.ceil(durationMs/1000*GAME_MINUTES_PER_REAL_SECOND)+2,goal:bathRoute.goal,route:bathRoute.route};state.revision++;all({type:'snapshot',state});}
     all({ type: 'task_started', role, taskId: id, label: plan.label,
       durationMs, command: plan.command, automatic, effects: gains(state,validation.state,role) });
@@ -1666,7 +1685,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   return {
     httpServer, port: actualPort,
     async close(): Promise<void> {
-      for (const task of running.values()) pauseTimers.clear(task.timer);
+      for (const task of running.values()){pauseTimers.clear(task.timer);if(task.spaTimer)pauseTimers.clear(task.spaTimer);}
       pauseTimers.dispose();
       clearPauseRequest();
       running.clear();

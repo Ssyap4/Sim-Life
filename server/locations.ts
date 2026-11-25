@@ -648,7 +648,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
  if(place!=='spa'||station?.action.kind!=='spa'||station.action.facility!==action||!at(source,role,station))return fail('Подойди к нужной зоне SPA');
  if((action==='spaLocker'||action==='spaShower')&&!id.endsWith('-'+role[0]))return fail('Выбери свою раздевалку или душ');
  const denial=spaDenial(source,role,action);if(denial)return fail(denial);const next=structuredClone(source);
- if(action==='spaMassage'&&next.world.spa![role]!.pass!=='package'){next.money-=SPA_MASSAGE_PRICE;addLedger(next,role,'expense','services',SPA_MASSAGE_PRICE,'SPA · Массаж');}
+ if(action==='spaMassage'&&next.world.spa![role]!.pass!=='package'&&!next.world.spa![role]!.progress?.[action]){next.money-=SPA_MASSAGE_PRICE;addLedger(next,role,'expense','services',SPA_MASSAGE_PRICE,'SPA · Массаж');}
  finishSpa(next,role,action);creditWeekendSpa(next);return done(next,SPA_ACTIVITIES[action].name+' · готово');
  }
   if(isVetAction(action)){

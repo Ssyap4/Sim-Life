@@ -45,6 +45,7 @@ import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBa
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, LOUNGE_HOOKAH, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
+import {spaSwimFrame} from '../shared/spa';
 import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
@@ -540,7 +541,7 @@ export class World {
     const ufc=station.id==='venue-ufc',bowling=station.id==='venue-bowling';
     const direction=new THREE.Vector3(ufc?.16:bowling?.18:.75,ufc?.62:bowling?1.22:1.04,1).normalize();
     if(bowling)target.z+=1.0;
-    const distance=ufc?12.4:bowling?18.0:station.id.startsWith('spa-massage')?12.6:station.id==='spa-pool'?14.2:station.id==='spa-jacuzzi'?10.5:9.6;
+    const distance=ufc?12.4:bowling?18.0:station.id.startsWith('spa-massage')?12.6:station.id==='spa-pool'?18.2:station.id==='spa-jacuzzi'?10.5:9.6;
     this.controls.minDistance=3.4;this.controls.maxDistance=88;this.controls.maxPolarAngle=1.4;
     this.cameraMove={target,position:target.clone().addScaledVector(direction,distance)};
     return true;
@@ -1288,8 +1289,8 @@ export class World {
  const a=station.action.facility,x=station.center.x,z=station.center.z,offset=role==='vlad'?-.44:.44;
  if(a==='spaLocker'){actor.faceTowards(new THREE.Vector3(x,0,z));actor.playDomesticActivity('tidy');}
  else if(a==='spaShower'){actor.setFurniturePose('idle',new THREE.Vector3(x,.12,z),Math.PI);actor.playDomesticActivity('shower');if(this.remote)(this.remote.root.userData.spaShowers??={})[role]=station.id;}
- else if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+offset,.13,z+.62),0);actor.playDomesticActivity('spaSwim');}
- else if(a==='spaJacuzzi')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,.01,z-.38),0);
+ else if(a==='spaPool'){actor.setFurniturePose('idle',new THREE.Vector3(x+(role==='vlad'?-1.35:1.35),.20,z+.45),0);actor.playDomesticActivity('spaSwim');if(this.remote)(this.remote.root.userData.spaWaterUsers??={})[role]=station.id;}
+ else if(a==='spaJacuzzi'){actor.setFurniturePose('sit',new THREE.Vector3(x+(role==='vlad'?-.70:.70),.08,z-.60),0);if(this.remote)(this.remote.root.userData.spaWaterUsers??={})[role]=station.id;}
  else if(a==='spaSauna')actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.10,z-.28),0);
  else if(a==='spaLounge'||a==='spaMassage'){actor.setFurniturePose('idle',new THREE.Vector3(x,a==='spaMassage'?1.06:.71,z+.98),a==='spaMassage'?Math.PI:0);actor.playDomesticActivity(a==='spaMassage'?'spaMassage':'spaRecline');if(a==='spaMassage'&&this.remote)(this.remote.root.userData.spaMassages??={})[role]=station.id;}
  }
@@ -1526,7 +1527,7 @@ export class World {
   }
 
   finishTimedAction(role: CharacterId): void {
-    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];}
+    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
@@ -1548,7 +1549,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
-    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];}
+    if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
     this.preparations.delete(role);
@@ -2897,6 +2898,10 @@ export class World {
           const target=f.strike?model.localToWorld(new THREE.Vector3(f.strike.x,f.strike.y,f.strike.z)):undefined;
           actor.setTennisFrame(p.x,p.z,f.hit,target);
         }
+      }
+      if(this.place==='spa'&&actor.audioMotion().activity==='spaSwim'&&this.remote?.root.userData.spaWaterUsers?.[id]==='spa-pool'){
+        const s=stationById('spa','spa-pool')!,f=spaSwimFrame(actor.audioMotion().activityTime,id);
+        actor.updateWaterAnchor(this.framePartPosition.set(s.center.x+f.x,f.y,s.center.z+f.z),f.yaw);
       }
       const pool=this.poolMotions.get(id),poolHome=this.homeTasks.get(id);
       if(this.place==='home'&&pool&&poolHome?.furniturePose){

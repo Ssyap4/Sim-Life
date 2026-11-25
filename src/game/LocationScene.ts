@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {buildSpaWater} from './SpaWater';
 import {buildVenueStation,animateVenueStation,type VenuePlay} from './VenueArt';
 import { createShopToy } from './PetToys';
 import { PET_TOYS } from '../shared/petToys';
@@ -201,16 +202,9 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     }
   } else if(station.action.kind==='spa'){
     const f=station.action.facility,w=station.width,d=station.depth;
-    const stone=0xe0d5bf,wood=0xb48b62,teal=0x65b3b7,linen=0xf5ebda;
+    const stone=0xe0d5bf,wood=0xb48b62,linen=0xf5ebda;
     if(f==='spaPool'||f==='spaJacuzzi'){
-      const h=f==='spaPool'?.34:.60;
-      shape(root,[w-.15,.17,d-.15],[0,.12,0],0x246e80,cube);
-      const water=shape(root,[w-.35,.035,d-.35],[0,h-.12,0],teal,cube);const waterMat=(water.material as THREE.MeshStandardMaterial).clone();waterMat.transparent=true;waterMat.opacity=.72;waterMat.depthWrite=false;water.material=waterMat;materials.push(waterMat);
-      for(const x of [-1,1])shape(root,[.17,h,d],[x*(w/2-.085),h/2,0],stone,cube);
-      for(const z of [-1,1])shape(root,[w,h,.17],[0,h/2,z*(d/2-.085)],stone,cube);
-      for(let i=0;i<5;i++){const wave=shape(root,[w*.70,.008,.035],[0,h-.095,-d*.32+i*d*.16],0xa7dddc,cube);wave.name='spa-wave';}
-      if(f==='spaPool')for(const x of [-.22,.22]){shape(root,[.035,.85,.035],[x,.52,d/2-.14],0xc6d4d7,drum);shape(root,[.035,.035,.28],[x,.95,d/2-.03],0xc6d4d7,cube);}
-      else for(const x of [-.55,.55])shape(root,[.75,.12,.43],[x,.30,-.45],0xadcfcf,softCube);
+      buildSpaWater(root,w,d,f==='spaJacuzzi',{textures,materials});
     }else if(f==='spaLocker'){
       for(let i=0;i<3;i++){const x=(i-1)*.52;shape(root,[.49,1.62,.49],[x,.81,-.31],wood,softCube);shape(root,[.46,1.54,.035],[x,.81,-.05],0x7d9b91,cube);shape(root,[.03,.22,.06],[x+.16,.85,-.016],0xe9e5d8,cube);}
       shape(root,[w-.16,.12,.43],[0,.43,.30],wood,softCube);
@@ -236,8 +230,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       shape(root,[w-.07,.13,d-.08],[0,h+.10,0],linen,softCube);
       const pillow=shape(root,[w*.78,massage?.045:.08,.29],[0,h+.18,-d*.40],0xe9f1e8,softCube);
       if(!massage)pillow.rotation.x=-.30;
-      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.58:.58,0,-.28);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
-      if(!massage)shape(root,[w*.80,.018,.20],[0,h+.17,d*.39],0x9dd4d1,softCube);
+      if(massage){const staff=marketCashier({textures,materials},{title:'Массажист',color:0x52847c,shirt:0xf5ebda,animated:true});staff.name='spa-therapist';staff.position.set(station.id.endsWith('-v')?-.49:.49,0,-.24);staff.rotation.y=station.id.endsWith('-v')?Math.PI/2:-Math.PI/2;staff.visible=false;root.add(staff);}
+      if(!massage){shape(root,[w*.80,.045,.30],[0,h+.18,d*.34],0x83aeb0,softCube);for(const x of [-w*.44,w*.44])shape(root,[.035,.10,d*.84],[x,h+.07,0],0x947b62,softCube);}else{for(const x of [-w*.34,w*.34])shape(root,[.09,.06,.32],[x,h+.20,-d*.37],0xd4e2d9,softCube);}
     }else{
       shape(root,[w,.93,d],[0,.46,0],wood,softCube);shape(root,[w+.07,.08,d+.08],[0,.96,0],stone,cube);shape(root,[.43,.30,.10],[-.35,1.16,-.1],0x344c50,cube);
     }
@@ -560,16 +554,17 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     const clerk=marketCashier(resources,{title:'Администратор',color:0x526d7b,shirt:0xf5ebda,animated:true});clerk.position.set(-7.5,0,4.02);root.add(clerk);
     animateCafe=(seconds)=>{for(const g of stations.values())animateVenueStation(g,seconds,root.userData.venuePlay as VenuePlay|undefined);};
   } else if(place==='spa'){
-    shape(floor,[16.3,.36,10.3],[2,-.20,0],0x6a8c8a,cube);
-    shape(floor,[16,.06,10],[2,-.03,0],0xe2d7c3,cube);
-    for(let i=-5;i<=9;i++)shape(floor,[.024,.012,10],[i,.007,0],0xbeb9a8,cube);
-    for(let i=-4;i<=4;i++)shape(floor,[16,.012,.024],[2,.008,i],0xbeb9a8,cube);
-    shape(floor,[16.15,2.85,.18],[2,1.42,-5.05],0xb0c8bb,cube);shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc4d8c8,cube);
-    for(const x of [-4,-2,2,4]){shape(floor,[1.45,1.35,.04],[x,1.45,-4.93],0x6a9ca0,cube);shape(floor,[1.32,1.20,.04],[x,1.45,-4.90],0xb6d9d4,cube);}
-    shape(floor,[4.0,.018,9.7],[8,.017,0],0xc4d6cf,cube);sign(floor,'ДУШ · РАЗДЕВАЛКИ',2.45,-4.88,3.5,0xf5ebda,textures,materials);floor.children.at(-1)!.position.x=7.6;
-    sign(floor,'L A G U N A · SPA',2.52,-4.88,4.0,0xf5ebda,textures,materials);
+    shape(floor,[19.3,.36,12.3],[.5,-.20,-1],0x6a8c8a,cube);
+    shape(floor,[19,.06,12],[.5,-.03,-1],0xe2d7c3,cube);
+    for(let i=-8;i<=9;i++)shape(floor,[.018,.006,12],[i,.003,-1],0xbeb9a8,cube);
+    for(let i=-6;i<=4;i++)shape(floor,[19,.006,.018],[.5,.004,i],0xbeb9a8,cube);
+    shape(floor,[19.15,2.85,.18],[.5,1.42,-7.05],0xb0c8bb,cube);shape(floor,[.18,2.85,12.1],[-9.04,1.42,-1],0xc4d8c8,cube);
+    for(const x of [-7,-4,-1,2,5]){shape(floor,[1.45,1.35,.04],[x,1.45,-6.93],0x6a9ca0,cube);shape(floor,[1.32,1.20,.04],[x,1.45,-6.90],0xb6d9d4,cube);}
+    shape(floor,[4.0,.018,9.7],[8,.017,0],0xc4d6cf,cube);sign(floor,'ДУШ · РАЗДЕВАЛКИ',2.45,-6.88,3.5,0xf5ebda,textures,materials);floor.children.at(-1)!.position.x=7.6;
+    sign(floor,'L A G U N A · SPA',2.52,-6.88,4.0,0xf5ebda,textures,materials);
     const clerk=marketCashier(resources,{title:'Администратор',color:0x52847c,shirt:0xf5ebda,animated:true});clerk.position.set(-4,0,1.7);root.add(clerk);
-    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='spa-drop'){w.visible=Object.values(root.userData.spaShowers??{}).includes(id);w.position.y=1.05+((seconds*1.9+w.position.x*5+w.position.z*2)%1+1)%1*.76;}if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.18;motion.arms.forEach((arm,i)=>{arm.rotation.x=-.36+.10*Math.sin(seconds*4+i*Math.PI);arm.rotation.z=i?-.13:.13;});}}};
+    for(const x of [-7.6,-4.6,-1.6,1.4,4.4,7.4]){shape(floor,[.12,2.72,.13],[x,1.36,-6.79],0xc6ac83,cube);const light=shape(floor,[2.1,.07,.06],[x+.95,2.66,-6.78],0xffe6b3,cube);const mat=(light.material as THREE.MeshStandardMaterial).clone();mat.emissive.setHex(0xffdb94);mat.emissiveIntensity=.75;light.material=mat;materials.push(mat);}
+    animateCafe=(seconds)=>{for(const [id,g] of stations)for(const w of g.children){if(w.name==='SPA aquatic fixture')w.userData.animate?.(seconds,Object.values(root.userData.spaWaterUsers??{}).includes(id));if(w.name==='spa-drop'){w.visible=Object.values(root.userData.spaShowers??{}).includes(id);w.position.y=1.05+((seconds*1.9+w.position.x*5+w.position.z*2)%1+1)%1*.76;}if(w.name==='spa-wave')w.position.x=Math.sin(seconds*.8+w.position.z)*.085;if(w.name==='spa-therapist'){w.visible=Object.values(root.userData.spaMassages??{}).includes(id);const motion=w.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.x=.23;motion.arms.forEach((arm,i)=>{const press=Math.sin(seconds*2.7+i*Math.PI);arm.rotation.x=-.25+.085*press;arm.rotation.z=(i?-.08:.08)+.035*Math.sin(seconds*1.2+i);});}}};
   } else if(place==='barber'){
     shape(floor,[12.3,.36,10.3],[0,-.20,0],0x514637,cube);shape(floor,[12,.06,10],[0,-.03,0],0x7e6550,cube);
     for(let x=-5.5;x<=5.5;x++)for(let z=-4.5;z<=4.5;z++)shape(floor,[.985,.012,.985],[x,.007,z],(Math.round(x+z)%2)?0x8b6e55:0x9b8065,cube);
