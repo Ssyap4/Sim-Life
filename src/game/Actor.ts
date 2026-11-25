@@ -65,6 +65,8 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly teaCup = new THREE.Group();
+  private workCoffeeCarrying=false;
+  private workCoffeeTarget?:THREE.Vector3;
   private readonly loungeMouthpiece=new THREE.Group();
   private readonly loungeHose=new LoungeHose();
   private readonly loungeSmoke=new LoungeSmoke();
@@ -220,12 +222,17 @@ export class Actor {
   }
   setPhoneModel(id:import('../shared/electronics').ElectronicsId){this.props.setPhone(id);}
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
+  workCoffeeQA(){return {visible:this.teaCup.visible&&this.workCoffeeCarrying,offering:!!this.workCoffeeTarget,position:this.teaCup.visible&&this.workCoffeeCarrying?this.teaCup.getWorldPosition(new THREE.Vector3()).toArray():null};}
+  workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();return cup;}
+  carryWorkCoffee(target?:THREE.Vector3):void{this.workCoffeeCarrying=true;this.workCoffeeTarget=target?.clone();}
+  private clearWorkCoffee():void{this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   carryFoodContainer(): void { this.foodContainer.visible = true; }
   hideFoodContainer(): void { this.foodContainer.visible = false; }
   hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
+    this.clearWorkCoffee();
     this.loungeMouthpiece.visible=this.loungeHose.visible=this.loungeSmoke.visible=false;
     this.carryingBook = false;
     this.closingBook = 0;
@@ -363,6 +370,7 @@ export class Actor {
   private homeWorkStyle:import("../shared/jobs").JobId|undefined;
   setHomeWorkStyle(style:import("../shared/jobs").JobId){this.homeWorkStyle=style;}
   setPose(pose: Pose): void {
+    this.clearWorkCoffee();
     this.clearVanity();
     this.hideGamepad();
     this.homeWorkStyle=undefined;
@@ -461,6 +469,7 @@ export class Actor {
   }
 
   finishActivity(): void {
+    this.clearWorkCoffee();
     this.clearVenueProp();
     this.clearVanity();
     this.hideGamepad();
@@ -1899,7 +1908,7 @@ export class Actor {
       this.loungeHose.updatePath(this.root.worldToLocal(this.hoseStart),this.root.worldToLocal(this.hoseLowA),this.root.worldToLocal(this.hoseLowB),this.root.worldToLocal(this.hoseEnd));
     }
     if(!hookah)this.loungeSmoke.visible=false;
-    this.teaCup.visible=pair?.motion==='teaTogether';
+    this.teaCup.visible=pair?.motion==='teaTogether'||this.workCoffeeCarrying;
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;
       const sip=THREE.MathUtils.smoothstep(phase,2,3.2)*(1-THREE.MathUtils.smoothstep(phase,4.2,5.5));
@@ -1907,6 +1916,16 @@ export class Actor {
       const resting=this.bodyPosition(new THREE.Vector3()).add(new THREE.Vector3(.20,.80,.25).applyAxisAngle(up,this.root.rotation.y));
       const mouth=head.add(new THREE.Vector3(.035,-.13,.15).applyAxisAngle(up,this.root.rotation.y));
       this.reach(1,resting.lerp(mouth,sip),alpha*0.9);
+      this.aimHand(1,this.handDirection.set(0,-.5,.6).applyAxisAngle(up,this.root.rotation.y),alpha);
+      this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
+      this.teaCup.quaternion.copy(this.parentRotation);
+      this.teaCup.position.set(0,-.055,.035);
+    }
+    if(this.workCoffeeCarrying&&!pair){
+      const target=this.workCoffeeTarget;
+      const goal=target?target.clone().add(new THREE.Vector3(0,.08,0)):
+        this.bodyPosition(new THREE.Vector3()).add(new THREE.Vector3(.24,1.12,.29).applyAxisAngle(up,this.root.rotation.y));
+      this.reach(1,goal,alpha*.92);
       this.aimHand(1,this.handDirection.set(0,-.5,.6).applyAxisAngle(up,this.root.rotation.y),alpha);
       this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
       this.teaCup.quaternion.copy(this.parentRotation);

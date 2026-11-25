@@ -183,7 +183,7 @@ export const ACTIONS = {
 } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
-export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent
+export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | import('./workCoffee').WorkCoffeeCommand
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'clean_room'; room: DustRoomId }

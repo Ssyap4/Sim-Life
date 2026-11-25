@@ -1,3 +1,4 @@
+import {WORK_COFFEE_DROP} from '../shared/workCoffee';
 import {isVenueGame,venueStation} from '../shared/venue';
 import {fitnessExercise,fitnessBarItem} from '../shared/fitness';
 import {speakerSurfaces,speakerHeight} from '../shared/speakerPlacement';
@@ -175,6 +176,7 @@ export class World {
   readonly pets: Record<PetId, PetActor>;
   private readonly raycaster = new THREE.Raycaster();
   private coffeeModels?:THREE.Group;
+  private workCoffeeCup?:THREE.Group;
   private kitchenCurtains?:THREE.Group;
   private readonly interactiveMeshes: THREE.Object3D[] = [];
   private readonly itemPoints = new Map<string, THREE.Vector3>();
@@ -938,6 +940,11 @@ export class World {
         actor.playDomesticActivity('games');
         return;
       }
+      if(station==='workCoffee'){
+        const target=new THREE.Vector3().copy(WORK_COFFEE_DROP);
+        actor.faceTowards(target);actor.playDomesticActivity('reach',target);
+        actor.carryWorkCoffee(target);return;
+      }
       if (station === 'studyPractice') { actor.playDomesticActivity('stretch'); return; }
       if (station === 'kitchenCook') {
         actor.faceTowards(cookingPan);
@@ -1014,7 +1021,17 @@ export class World {
         if (motion) actor.playDomesticActivity(motion);
       }
     };
-    if(pickup!==undefined&&station==='kitchenCook'){
+    if(station==='workCoffee'&&pickup!==undefined){
+      const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);actor.carryWorkCoffee();};
+      const prepare=()=>{
+        if(!current())return;
+        if(!home.pickupMs){carry();return;}
+        const target=new THREE.Vector3().copy(KITCHEN_WORK.coffee.target);
+        actor.faceTowards(target);actor.playDomesticActivity('coffee',target);
+        this.preparations.set(role,{remaining:home.pickupMs/1000,next:carry});
+      };
+      if(pickup>0)actor.walkPath(path.slice(0,pickup),prepare);else prepare();
+    }else if(pickup!==undefined&&station==='kitchenCook'){
       actor.walkPath(path.slice(0,pickup),()=>{
         if(!current())return;
         const fridge=stationById('home','fridge')!;
@@ -2393,6 +2410,13 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    // One delivered cup lives on the actual desk while that same order is active.
+    const worker=(['vlad','alina'] as const).find(id=>state.activeShifts[id]?.homeDevice==='desktop'&&state.activeShifts[id]?.coffeeServed);
+    if(worker&&!state.furnishing.soldFixtures?.includes('desk')){
+      if(!this.workCoffeeCup){this.workCoffeeCup=this.actors[worker==='vlad'?'alina':'vlad'].workCoffeeModel();this.homeScene.add(this.workCoffeeCup);}
+      this.workCoffeeCup.position.set(WORK_COFFEE_DROP.x,WORK_COFFEE_DROP.y+.0415,WORK_COFFEE_DROP.z);
+      this.workCoffeeCup.visible=true;
+    }else if(this.workCoffeeCup)this.workCoffeeCup.visible=false;
     if(!previous||previous.clock.day!==state.clock.day||previous.clock.minute!==state.clock.minute||JSON.stringify(previous.vacuum)!==JSON.stringify(state.vacuum))this.vacuumStamp=this.visualSeconds;
     this.dustArt.sync(state.homeDust);
     this.computerScreens.setHardware(installedElectronics(state,role,'desktop'),installedElectronics(state,role,'laptop'));
@@ -3159,7 +3183,7 @@ export class World {
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA()}])),grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

@@ -30,7 +30,7 @@ import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { validCoffeeOrder, type CoffeeDrink } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
-import { brewCoffee } from './coffee';
+import { brewCoffee,finishWorkCoffee } from './coffee';
 import { applyAction } from './logic';
 import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
@@ -158,6 +158,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
           own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
+  if(command.type==='serve_work_coffee'&&Number.isSafeInteger(command.shiftStart)&&Number(command.shiftStart)>=0&&validCoffeeOrder(command.blend,command.drink))return {command:{type:'serve_work_coffee',shiftStart:Number(command.shiftStart),blend:command.blend,drink:command.drink as CoffeeDrink|undefined},label:'☕ Принести кофе работающему партнёру',durationMs:7000,resource:'kitchen'};
   if (command.type === 'brew_coffee') {
     if (!validCoffeeOrder(command.blend,command.drink)) return null;
     const blend = command.blend;
@@ -356,6 +357,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     return result;
   }
+  if(command.type==='serve_work_coffee')return finishWorkCoffee(state,role,command);
   if (command.type === 'brew_coffee') return brewCoffee(state, role, command.blend,command.drink);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });
 }

@@ -481,3 +481,29 @@ test('Full resident selects reading or the office chair while partner works on d
   assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
  }finally{await ctx.close();}
 });
+
+
+test('Actual home order receives one automated coffee without ending or replacing the order',async()=>{
+ const seed=initialState();seed.clock.minute=780;seed.pantry.coffeeNescafeGold=2;
+ for(const r of ['vlad','alina'] as const)Object.assign(seed.characters[r],{hunger:95,energy:75,hygiene:95,bladder:95,fun:95,comfort:95,social:95,pose:'idle'});
+ Object.assign(seed.characters.vlad,points.desk);Object.assign(seed.characters.alina,points.coffeeMaker);
+ const ctx=await setup(seed,true,60,10,false,.25);
+ try{
+  const vlad=await ctx.join('vlad'),alina=await ctx.join('alina');
+  const working=waitFor(vlad,p=>p.type==='snapshot'&&p.state.activeShifts.vlad?.job==='vibeSite'&&p.state.characters.vlad.pose==='work',12000);
+  send(vlad,{type:'job_start',job:'vibeSite',device:'desktop'});const work=await working;
+  if(work.type!=='snapshot')throw new Error('Expected live home shift');
+  const shift=work.state.activeShifts.vlad!;
+  const started=waitFor(alina,p=>p.type==='task_started'&&p.role==='alina'&&p.automatic===true&&p.command.type==='serve_work_coffee',12000);
+  const served=waitFor(vlad,p=>p.type==='snapshot'&&p.state.activeShifts.vlad?.coffeeServed===true,20000);
+  send(alina,{type:'autonomy_mode',mode:'full'});const cup=await started;
+  if(cup.type!=='task_started')throw new Error('Expected coffee task');
+  assert.equal(cup.home?.station,'workCoffee');
+  const delivered=await served;if(delivered.type!=='snapshot')throw new Error('Expected delivery');
+  assert.equal(delivered.state.pantry.coffeeNescafeGold,1);
+  assert.equal(delivered.state.money,seed.money);
+  assert.equal(delivered.state.characters.vlad.pose,'work');
+  assert.equal(delivered.state.activeShifts.vlad?.endsAt,shift.endsAt);
+  assert.equal(delivered.state.activeShifts.vlad?.targetPay,shift.targetPay);
+ }finally{await ctx.close();}
+});

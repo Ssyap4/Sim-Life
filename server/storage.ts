@@ -150,6 +150,7 @@ const isValidState = (value: unknown): value is GameState => {
         if(HOME_JOBS[shift.job].owner!==role||!["desktop","laptop"].includes(String(shift.homeDevice))||role==="vlad"&&shift.homeDevice!=="desktop")return false;
         if(shift.homeSpeed!==undefined&&(typeof shift.homeSpeed!=="number"||!(shift.homeDevice==="desktop"?[0,10,18,25]:[0,8,15,22]).includes(shift.homeSpeed)))return false;
       }else if(shift.homeDevice!==undefined||shift.homeSpeed!==undefined)return false;
+      if(shift.coffeeServed!==undefined&&(!isHomeJob(shift.job)||typeof shift.coffeeServed!=='boolean'))return false;
       if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&

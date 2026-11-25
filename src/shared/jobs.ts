@@ -8,6 +8,7 @@ export interface ShiftAssignment {
   /** Rolled on the server at shift start; optional only for compatibility with older saves. */
   targetPay?: number;
   homeDevice?: import("./computer").ComputerDevice;
+  coffeeServed?: boolean; // one delivered cup per active home order
   homeSpeed?: number; // Percent duration reduction locked when accepting a home order.
   quests?: import("./homeJobQuests").HomeQuestRun[];
 }

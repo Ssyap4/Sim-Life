@@ -1,3 +1,4 @@
+import {activeHomeWork,workCoffeeChoices,workCompanionChoices} from '../src/shared/workCoffee';
 import {isSpaAction,spaProgress,spaDenial,SPA_MASSAGE_PRICE,type SpaAction} from '../src/shared/spa';
 import {addLedger as spaLedger} from '../src/shared/economy';
 import {advancePetHealth} from '../src/shared/health';
@@ -168,6 +169,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const recentLeisure = new Map<CharacterId, HomeLeisure>();
   const fullRoutineTurn=new Map<CharacterId,number>();
   const companionUsed=new Map<CharacterId,number>();
+  const workCompanionUsed=new Map<CharacterId,string>();
   // Ephemeral habit memory: never alter saved household state or manual queues.
   const recentHomeHabits=new Map<CharacterId,import('../src/shared/protocol').ActionId[]>();
 
@@ -566,6 +568,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
             if(!running.has(role)&&!homeTasks.busy(role))return false;
             lastAutoCare.set(role,now);return true;
           };
+          const peerShift=active.has(partner)?activeHomeWork(state,partner):undefined;
+          if(peerShift){
+            for(const command of workCoffeeChoices(state,role)){
+              if(tryEveryday(command)){started=true;break;}
+            }
+            if(started)continue;
+            const key=peerShift.job+':'+peerShift.startedAt;
+            if(workCompanionUsed.get(role)!==key)for(const command of workCompanionChoices(state,role)){
+              if(tryEveryday(command)){workCompanionUsed.set(role,key);started=true;break;}
+            }
+          }
+          if(started)continue;
           if(peerTask&&companionUsed.get(role)!==peerTask.id){
             for(const command of companionChoices(state,role,peerTask.command)){
               if(tryEveryday(command)){companionUsed.set(role,peerTask.id);started=true;break;}

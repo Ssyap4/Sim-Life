@@ -1,3 +1,4 @@
+import {workCoffeeRoute,otherResident} from '../src/shared/workCoffee';
 import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {fitnessTaskSpeed} from '../src/shared/fitness';
 import {laptopDesk,laptopWorkplace,diningLocation} from '../src/shared/furnitureUse';
@@ -94,7 +95,7 @@ import {CONSOLE_GAMES,newConsoleMatch,consoleMatchWinner} from '../src/shared/co
 const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv' || c.type==='console_play';
 
 export function usesHomeSession(command: TimedCommand): boolean {
-  return command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
+  return command.type === 'serve_work_coffee' || command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
       ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit','yardLounge','yardHookahSolo'].includes(command.actionId));
@@ -199,6 +200,7 @@ export function createHomeSessions(hooks: Hooks) {
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
+    if(command.type==='serve_work_coffee'){const route=workCoffeeRoute(hooks.state(),role);return route&&{...route,station:'workCoffee'};}
     if(command.type==='vanity_care'){if(role==='vlad'){const route=walk(from,BATH_FIXTURES.basin.approach);return route&&{route,station:'basin'};}if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
@@ -344,6 +346,7 @@ export function createHomeSessions(hooks: Hooks) {
       end(session, 'cancelled', 'Просмотр или занятие прервано'); return;
     }
     if(session.cooperation){completeSocial(session);return;}
+    if(session.plan.command.type==='serve_work_coffee'&&hooks.socket(otherResident(session.participants[0].role))?.readyState!==WebSocket.OPEN){end(session,'cancelled','Партнёр вышел из игры');return;}
     const before = hooks.state();
     let next = before;
     const results: { message: string }[] = [];

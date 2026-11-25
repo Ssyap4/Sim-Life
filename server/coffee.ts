@@ -1,3 +1,4 @@
+import {workCoffeeDenial,otherResident,type WorkCoffeeCommand} from '../src/shared/workCoffee';
 import { COFFEE_CUPS_PER_DAY, INSTANT_COFFEE_ENERGY, coffeeCupsToday, type CoffeeBlend, coffeeMachineTier, validCoffeeOrder } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
 import { KITCHEN_WORK } from '../src/shared/home';
@@ -27,4 +28,19 @@ export function brewCoffee(source: GameState, role: CharacterId, requested: stri
   state.revision++;
   return { ok: true, state, message: names[role] + ': выпил(а) ' + (drink===undefined?GROCERIES[id].name:String(drink)) +
     ' · бодрость +' + energy + '% · ' + state.coffeeDaily[role].cups + '/' + COFFEE_CUPS_PER_DAY + ' чашки за сутки' };
+}
+
+/** Delivery consumes the recipient's daily cup, not the giver's. Keep the
+ * entire live shift, position, pose, timer and earned pay untouched. */
+export function finishWorkCoffee(source:GameState,giver:CharacterId,command:WorkCoffeeCommand):CoffeeResult{
+ const denial=workCoffeeDenial(source,giver,command);
+ if(denial)return {ok:false,reason:denial};
+ const recipient=otherResident(giver);
+ const result=brewCoffee(source,recipient,command.blend,command.drink);
+ if(!result.ok)return result;
+ const before=source.characters[recipient],after=result.state.characters[recipient];
+ Object.assign(after,{x:before.x,z:before.z,pose:before.pose});
+ result.state.activeShifts[recipient]!.coffeeServed=true;
+ after.mood=Math.min(100,after.mood+4);
+ return {ok:true,state:result.state,message:names[giver]+' · кофе для '+names[recipient]};
 }

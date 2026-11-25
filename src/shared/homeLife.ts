@@ -50,7 +50,7 @@ export type HomePresentation = {
   route: WalkRoute;
   pickup?: number;
   pickupMs?: number;
-  station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
+  station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'workCoffee' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
   vanityCare?:import('./vanity').CareId;
   consoleGame?:import('./consoleCatalog').ConsoleGameId;
