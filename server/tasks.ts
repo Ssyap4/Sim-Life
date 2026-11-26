@@ -1,4 +1,4 @@
-import {isLakeMealAction,LAKE_MEAL_ACTIONS,LAKE_MEALS} from '../src/shared/lake';
+import {isLakeMealAction,LAKE_MEAL_ACTIONS,LAKE_MEALS,isLakeFishAction,FISH_ACTIONS,LAKE_RODS} from '../src/shared/lake';
 import {CARE,isCare,finishCare,careRole,homeCare} from '../src/shared/vanity';
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
@@ -123,6 +123,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
+    if(isLakeFishAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!=='fish')return null;return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:LAKE_RODS[FISH_ACTIONS[action]].seconds*1000,resource:'lake-fish:'+command.station};}
     if(isLakeMealAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!=='fire')return null;const p=LAKE_MEAL_ACTIONS[action];return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:(p.cook?LAKE_MEALS[p.meal].seconds:30)*1000,resource:p.cook?'lake-fire:'+command.station:'lake-eat:'+command.station};}
     if(isVetAction(action)){const s=VET_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'vet:'+command.station};}
     if(isSpaAction(action)){const station=stationById('spa',command.station);if(station?.action.kind!=='spa'||station.action.facility!==action)return null;return {command:{type:'local_activity',station:command.station,action},label:SPA_ACTIVITIES[action].name,durationMs:SPA_ACTIVITIES[action].seconds*1000,resource:['spaPool','spaJacuzzi','spaSauna'].includes(action)?null:'spa:'+command.station};}
@@ -191,14 +192,15 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'pet_action') {
     if (typeof command.pet !== 'string' || !own(PETS, command.pet) ||
         typeof command.action !== 'string' ||
-        !['feed', 'play', 'pet', 'brush','treat','bathe','loadFeeder'].includes(command.action)) return null;
+        !['feed', 'play', 'pet', 'brush','treat','fishTreat','bathe','loadFeeder'].includes(command.action)) return null;
     const pet = command.pet as PetId;
     const action = command.action as CareAction;
+    if(action==='fishTreat'&&pet!=='simba')return null;
     if(action==='bathe'&&pet!=='verdell')return null;
     return {
       command: { type: 'pet_action', pet, action },
       label: PET_ACTION_NAMES[action] + ': ' + PETS[pet].name,
-      durationMs: action==='bathe'?DOG_BATH_SECONDS*1000:action === 'play' ? 9_000 : action==='treat'?6_000:5_000,
+      durationMs: action==='bathe'?DOG_BATH_SECONDS*1000:action === 'play' ? 9_000 : (action==='treat'||action==='fishTreat')?6_000:5_000,
       resource: action==='bathe'?'bathtub':'pet:' + pet,
     };
   }

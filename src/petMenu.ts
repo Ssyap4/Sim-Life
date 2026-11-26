@@ -1,3 +1,4 @@
+import {freshFish} from './shared/lake';
 import {FURNITURE_REACTIONS} from './shared/petPreferences';
 import {FURNITURE_BY_ID} from './shared/furniture';
 import {feedingStation,feederReserve,dryRefills} from './shared/petFeeders';
@@ -179,6 +180,7 @@ export function renderPetChoices(
   if(selected==='verdell')actions.unshift({action:'bathe',icon:'🛁',hint:'Купание в ванной · чистота 100% · привязанность +7',disabled:stats.routine?.kind==='bath'||stats.satiety<20||stats.energy<15||stats.bladder<18});
   actions.unshift({action:'toy',icon:'🧸',hint:'Питомец идёт к купленной игрушке. Повтори, чтобы сменить её.',disabled:!toys.length||stats.satiety<40||stats.bladder<35||stats.energy<45});
   actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
+  if(selected==='simba')actions.unshift({action:'fishTreat',icon:'🐟',hint:'Приготовленная рыба без костей · сытость и настроение 100 · привязанность +35 · улов '+freshFish(state).length,disabled:!freshFish(state).length||state.world.fishing?.treatDay===state.clock.day});
   for (const row of actions) {
     const button = document.createElement('button');
     button.type = 'button';

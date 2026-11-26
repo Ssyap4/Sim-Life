@@ -2,7 +2,7 @@ import { toysFor } from './petToys';
 import { segmentIsClear, type FloorPoint, type FloorRect, type WalkRoute } from '../game/navigation';
 
 export type PetId = 'verdell' | 'simba';
-export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'toy' | 'bathe' | 'loadFeeder' | 'bedTogether' | 'leaveBed' | import('./dogTraining').DogTrainingAction;
+export type PetAction = 'buyFood' | 'feed' | 'play' | 'pet' | 'brush' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'treat' | 'fishTreat' | 'toy' | 'bathe' | 'loadFeeder' | 'bedTogether' | 'leaveBed' | import('./dogTraining').DogTrainingAction;
 export const PET_ROUTINES = ['wander', 'eat', 'sleep', 'toilet', 'perch', 'come', 'fetch', 'scratch', 'toy', 'beg','train','bath','event','bedTogether'] as const;
 export const DOG_TOYS=[
   {kind:'marfa',name:'Марфа',x:-1.70,z:4.10},
@@ -170,6 +170,7 @@ export const PET_ACTION_NAMES: Record<PetAction, string> = {
   mat: 'Отдохнуть на лежанке',
   scratch: 'Поточить когти',
   treat: 'Дать лакомство',
+  fishTreat:'Угостить пойманной рыбой',
   toy: 'Поиграть с игрушкой',
   bathe: 'Искупать в ванной',
   loadFeeder: 'Заполнить кормушку',

@@ -1,3 +1,4 @@
+import {freshFish} from '../src/shared/lake';
 import {chooseDogBed,currentDogBed,dogBedSleeping} from '../src/shared/dogBed';
 import { HOUSE_ENTRY } from '../src/shared/home';
 import {discoverFurniture,furniturePreference,housePreferenceKey,type PetEvent} from '../src/shared/petPreferences';
@@ -403,7 +404,7 @@ export function applyPetAction(
 ): PetResult {
   if (!PET_IDS.some((id) => id === pet)) return { ok: false, reason: 'Неизвестный питомец' };
   const training=trainingCommand(action);
-  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','toy','bathe','loadFeeder','bedTogether','leaveBed'].includes(action))
+  if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','fishTreat','toy','bathe','loadFeeder','bedTogether','leaveBed'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
   if(source.world.vetVisit?.pet===id&&action!=='buyFood')return {ok:false,reason:'Питомец сейчас в ветеринарке'};
@@ -534,6 +535,13 @@ export function applyPetAction(
   }
 
   switch (kind) {
+    case 'fishTreat':{
+      const fish=freshFish(next);if(id!=='simba'||next.world.places[role]!=='home'||!fish.length||next.world.fishing?.treatDay===next.clock.day)return {ok:false,reason:'Нужна свежая рыба для Симбы (раз в игровой день)'};
+      next.world.fishing!.fish=fish.slice(1);next.world.fishing!.treatDay=next.clock.day;
+      // The portion is cooked, cooled and deboned; never raw fish or bones.
+      data.satiety=100;data.happiness=100;data.bond=clamp(data.bond+35);data.energy=clamp(data.energy+20);delete data.routine;actor.mood=clamp(actor.mood+10);
+      message='Симба получил приготовленную рыбку без костей · привязанность +35';break;
+    }
     case 'treat':
       if(next.world.places[role]!=='home'||id==='verdell'&&next.world.dogWalker)return {ok:false,reason:'Лакомство можно дать питомцу дома'};
       if(treatsRemaining(data,next.clock.day)<=0)return {ok:false,reason:'Сегодня все три лакомства уже получены'};

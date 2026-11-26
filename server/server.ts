@@ -1,3 +1,4 @@
+import {isLakeFishAction} from '../src/shared/lake';
 import {LAKE_PASSES,lakePass,type LakePass} from '../src/shared/lake';
 import {activeHomeWork,workCoffeeChoices,workCompanionChoices} from '../src/shared/workCoffee';
 import {isSpaAction,spaProgress,spaDenial,SPA_MASSAGE_PRICE,type SpaAction} from '../src/shared/spa';
@@ -892,6 +893,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'food_event', role, action: plan.command.type === 'eat_takeout' ? 'eat' : plan.command.type, message: result.message });
       }
       all({ type: 'snapshot', state });
+      if(plan.command.type==='local_activity'&&isLakeFishAction(plan.command.action)&&!state.world.lake?.[role]?.catch&&active.get(role)===socket)beginTask(role,socket,plan,automatic);
     }, durationMs);
     // Legacy timed actions do not expose an active-arrival packet. Only use
     // a known station and a conservative route arrival estimate, never the old spawn.
@@ -1596,6 +1598,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           }
           all({ type: 'world_path', place: state.world.places[role], role, path: result.path, station: result.station });
         } else all({ type: 'world_event', role, message: result.message });
+        if(message.type==='lake_catch'&&isLakeFishAction(message.again)&&typeof message.station==='string'){const nextPlan=planTask({type:'local_activity',action:message.again,station:message.station});if(nextPlan)beginTask(role,socket,nextPlan);}
         return;
       }
       if (message.type === 'job_start') {

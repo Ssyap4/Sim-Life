@@ -1,3 +1,6 @@
+import {LAKE_FISH,LAKE_RODS,rollFish,validCatch,validFishing,emptyFishing,freshFish} from '../../src/shared/lake';
+import {buildLakeFish,FishingProp} from '../../src/game/LakeFishingArt';
+import {applyPetAction} from '../pets';
 import * as THREE from 'three';
 import {buildCampFood,buildDetailedTent} from '../../src/game/LakeCampArt';
 import {planTask} from '../tasks';
@@ -105,4 +108,36 @@ test('four tents differ in dimensions, food props are real geometry and fire onl
  fire.userData.setFood();assert.equal(fire.getObjectByName('Camp food sausages').visible,false);
  scene.animate?.(1.7);syncLakeTents(scene.stations,visit,1000);assert.equal(fire.getObjectByName('Campfire active').visible,false);
  }finally{scene.dispose();}
+});
+
+test('all fishing tackle durations and catch weights are bounded, nine fish have visible geometry',()=>{
+ let seed=943;const rng=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+ const counts=new Set<string>();for(const rod of ['float','spin','feeder'] as const){let misses=0;for(let i=0;i<1500;i++){const fish=rollFish(rod,100,rng);if(!fish){misses++;continue;}assert.ok(validCatch(fish));counts.add(fish.species);}assert.ok(misses>150&&misses<550);assert.ok(LAKE_RODS[rod].seconds>=40);}
+ assert.equal(counts.size,9);assert.equal(rollFish('float',100,()=>.999),null);
+ for(const id of Object.keys(LAKE_FISH) as (keyof typeof LAKE_FISH)[]){const g=buildLakeFish(id);assert.ok(new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()).x>.2);}
+ const root=new THREE.Group(),prop=new FishingProp('float');root.add(prop.group);for(const t of [0,1,6,30,39]){prop.frame(t,root,new THREE.Vector3(.13,1,.4));assert.ok(prop.rod.position.toArray().every(Number.isFinite));}prop.dispose();assert.equal(root.children.length,0);
+});
+test('fishing only at a fishing station with the rented rod, single-use catch and fridge stock',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night');assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-fish-1');assert.equal(localActivity(s,'vlad','lakeFishFloat','lake-fish-1').ok,false);
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'rod',item:'float'});
+ at(s,'vlad','lake-fish-1');assert.equal(localActivity(s,'vlad','lakeFishSpin','lake-fish-1').ok,false);
+ const original=Math.random;try{Math.random=()=>.10;const r=localActivity(s,'vlad','lakeFishFloat','lake-fish-1');assert.ok(r.ok);s=r.state;}finally{Math.random=original;}
+ assert.ok(s.world.lake?.vlad?.catch);assert.equal(localActivity(s,'vlad','lakeFishFloat','lake-fish-1').ok,false);
+ s=apply(s,'vlad',{type:'lake_catch',keep:true});assert.equal(freshFish(s).length,1);assert.equal(applyWorld(s,'vlad',{type:'lake_catch',keep:true}).ok,false);
+ assert.ok(validWorld(s.world));assert.ok(validFishing(s.world.fishing));
+ at(s,'vlad','lake-exit');s=apply(s,'vlad',{type:'travel',place:'district',via:'lake-exit'});assert.equal(freshFish(s).length,1);
+ s.pets.simba.bond=10;s.pets.simba.satiety=10;s.pets.simba.happiness=10;
+ const treat=applyPetAction(s,'vlad','simba','fishTreat');assert.ok(treat.ok);s=treat.state;assert.equal(s.pets.simba.bond,45);assert.equal(s.pets.simba.satiety,100);assert.equal(s.pets.simba.happiness,100);assert.equal(freshFish(s).length,0);
+ assert.equal(applyPetAction(s,'vlad','simba','fishTreat').ok,false);
+});
+test('fish and ukha require a real catch; no double-spend; release gives skill practice',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night');assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'basic'});
+ at(s,'vlad','lake-pitch-1');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-1'});at(s,'vlad','lake-fire-1');s=apply(s,'vlad',{type:'lake_fire',station:'lake-fire-1',lit:true});
+ assert.equal(localActivity(s,'vlad','lakeCookSoup','lake-fire-1').ok,false);
+ s.world.fishing=emptyFishing();s.world.fishing.fish.push({species:'carp',grams:1500,expires:99999});
+ const r=localActivity(s,'vlad','lakeCookSoup','lake-fire-1');assert.ok(r.ok);s=r.state;assert.equal(freshFish(s).length,0);assert.equal(s.world.lake?.vlad?.meals?.soup,2);assert.equal(localActivity(s,'vlad','lakeCookFish','lake-fire-1').ok,false);
+ s.world.lake!.vlad!.catch={species:'trout',grams:800,expires:99999};const before=s.education.characters.vlad.xp.attention;s=apply(s,'vlad',{type:'lake_catch',keep:false});assert.ok(s.education.characters.vlad.xp.attention>before);
+ assert.ok(validWorld(s.world));
 });

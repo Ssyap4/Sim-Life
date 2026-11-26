@@ -4,7 +4,7 @@ import type { RecipeId, TakeoutId } from '../shared/food';
 
 import type { CafeItem } from '../shared/locations';
 import type { CampRecipe } from '../shared/park';
-export type ServedDish = RecipeId | TakeoutId | CafeItem | CampRecipe;
+export type ServedDish = RecipeId | TakeoutId | CafeItem | CampRecipe | 'lakeFish' | 'lakeSoup';
 
 // One lathed, gently curved glazed ceramic plate, shared by every portion.
 // This replaces the flat cylinder without introducing another draw call.
@@ -252,7 +252,11 @@ function restaurantDish(g: THREE.Group, id: ServedDish): void {
 
 function makeDish(id: ServedDish | 'default'): THREE.Group {
   const g=new THREE.Group();
-  if(id==='campPotato'){
+  if(id==='lakeFish'){
+    bit(g,0xb38449,0,.052,0,.21,.062,.105,orb);bit(g,0xa36e38,.10,.045,0,.065,.032,.075,softCube);for(let i=0;i<4;i++)bit(g,0x71492b,-.055+i*.035,.085,0,.009,.006,.075,softCube);bit(g,0xe8c95b,-.085,.087,.032,.05,.009,.05,drum);
+  }else if(id==='lakeSoup'){
+    bit(g,0xe7e1cc,0,.046,0,.218,.088,.218,drum);bit(g,0xc3a162,0,.091,0,.195,.012,.195,drum);for(let i=0;i<9;i++){const a=i*2.399,r=.032+(i%3)*.016;bit(g,[0xf1dfb3,0xe59a57,0x78914d][i%3],Math.cos(a)*r,.105,Math.sin(a)*r,.028,.018,.024,softCube);}
+  }else if(id==='campPotato'){
     for(const x of [-.065,.065]){bit(g,0xada9a3,x,.045,0,.12,.063,.10,orb);bit(g,0xd4a961,x,.074,0,.089,.035,.076,orb);bit(g,0xe8d3a0,x,.091,.01,.038,.015,.035,softCube);}
   }else if(id==='campBread'){
     for(const x of [-.06,.06]){bit(g,0x9d6737,x,.038,0,.099,.045,.14,softCube);bit(g,0xe5b95f,x,.065,0,.082,.012,.119,softCube);for(let j=0;j<3;j++)bit(g,0x69452b,x,.074,-.035+j*.035,.075,.005,.008,softCube);}

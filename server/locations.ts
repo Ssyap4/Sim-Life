@@ -1,4 +1,5 @@
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {practiceXP} from './education';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -59,6 +60,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
     (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','venue','lake','work-clinic'].includes(w.places![w.carDriver]))) &&
     (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
+    (w.fishing===undefined||validFishing(w.fishing)) &&
     (w.lake===undefined?ROLES.every(r=>w.places![r]!=='lake'):validLake(w.lake)&&ROLES.every(r=>!!w.lake?.[r]===(w.places![r]==='lake'))) &&
     (w.spa===undefined?ROLES.every(r=>w.places![r]!=='spa'):validSpa(w.spa)&&ROLES.every(r=>!!w.spa?.[r]===(w.places![r]==='spa'))) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
@@ -132,7 +134,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'lake_rent','lake_pitch','lake_fire','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'lake_rent','lake_pitch','lake_fire','lake_catch','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -301,6 +303,14 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     if(!personal.owned.includes(look))return fail('Сначала купи комплект');
     personal.worn=look;
     return done(next,'Наряд изменён');
+  }
+  if(command.type==='lake_catch'){
+    const pending=source.world.lake?.[role]?.catch;if(source.world.places[role]!=='lake'||!pending||typeof command.keep!=='boolean')return fail('Нет улова для выбора');
+    const next=structuredClone(source),visit=next.world.lake![role]!,stock=next.world.fishing??=emptyFishing();stock.fish=freshFish(next);
+    if(command.keep&&pending.expires<=clockMinutes(next.clock))return fail('Рыба уже не свежая — отпусти её');
+    if(command.keep&&stock.fish.length>=12)return fail('Термосумка заполнена');
+    delete visit.catch;const c=next.characters[role];if(command.keep)stock.fish.push(pending);else {c.mood=Math.min(100,c.mood+(LAKE_FISH[pending.species].tier===2?18:8));c.fun=Math.min(100,c.fun+6);practiceXP(next,role,'lake-release','attention','Рыбалка · отпустили улов',LAKE_FISH[pending.species].tier===2?9:4,12);}
+    return done(next,(command.keep?'Забрали: ':'Отпустили: ')+fishLabel(pending));
   }
   if(command.type==='lake_rent'||command.type==='lake_pitch'||command.type==='lake_fire'){
     if(!lakeAccess(source,role))return fail('Нужен действующий билет клуба');
@@ -672,6 +682,8 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
+  lakeFishFloat:'Рыбалка · удочка',lakeFishSpin:'Рыбалка · спиннинг',lakeFishFeeder:'Рыбалка · фидер',
+  lakeCookFish:'Рыба на решётке · готовим',lakeCookSoup:'Уха · готовим',lakeEatFish:'Рыба · едим',lakeEatSoup:'Уха · едим',
   lakeCookSausages:'Колбаски на костре · готовим',lakeCookMarshmallow:'Маршмеллоу · готовим',lakeEatSausages:'Колбаски · едим',lakeEatMarshmallow:'Маршмеллоу · едим',
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
@@ -681,6 +693,14 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isLakeFishAction(action)){
+    const visit=source.world.lake?.[role];if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!=='fish'||!at(source,role,station)||visit?.rod!==FISH_ACTIONS[action]||visit.catch)return fail('Нужен билет, снасть и свободный выбор улова');
+    const next=structuredClone(source),v=next.world.lake![role]!,stock=next.world.fishing??=emptyFishing(),c=next.characters[role];
+    const fish=rollFish(v.rod!,clockMinutes(next.clock));c.fun=Math.min(100,c.fun+12);c.comfort=Math.min(100,c.comfort+5);
+    if(!fish)return done(next,'Рыба сорвалась или не клюнула. Можно забросить снова');
+    v.catch=fish;stock.record[role]=Math.max(stock.record[role]??0,fish.grams);if(!stock.species.includes(fish.species))stock.species.push(fish.species);
+    c.mood=Math.min(100,c.mood+10);return done(next,'Улов: '+fishLabel(fish)+' · забрать или отпустить');
+  }
   if(isLakeMealAction(action)){
     if(place!=='lake'||!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!=='fire'||!at(source,role,station))return fail('Нужен действующий билет и подход к костру');
     const next=structuredClone(source),camp=Object.values(next.world.lake!).find(v=>v.pitch===id.replace('lake-fire-','lake-pitch-'));
@@ -690,6 +710,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
       if(!camp.fire)return fail('Разожги костёр');
       if((stock[meal]??0)>2)return fail('Сначала съешьте готовые порции');
       if(next.money<d.price)return fail('Недостаточно денег на продукты');
+      if(meal==='fish'||meal==='soup'){const fish=freshFish(next);if(!fish.length)return fail('Сначала поймайте и заберите рыбу');next.world.fishing!.fish=fish.slice(1);}
       next.money-=d.price;addLedger(next,role,'expense','takeout',d.price,'Кемпинг · '+d.name);
       stock[meal]=(stock[meal]??0)+2;next.characters[role].mood=Math.min(100,next.characters[role].mood+8);
       return done(next,d.name+' · 2 порции готовы');

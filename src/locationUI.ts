@@ -1,4 +1,4 @@
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
@@ -197,15 +197,16 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if(station.action.kind==='lake'){
       const visit=place.world.lake?.[role],access=lakeAccess(place,role);
       options.append(element('small','',access?'Билет действует ещё '+Math.ceil((visit!.until-now)/60)+' ч.':'Билет закончился'));
+      if(visit?.catch){const fish=visit.catch;options.append(element('strong','','Улов: '+fishLabel(fish)+' · '+['Обычная','Крупная','Редкая'][LAKE_FISH[fish.species].tier]));options.append(button('Забрать улов',()=>{if(send({type:'lake_catch',keep:true}))close();},freshFish(place).length>=12||fish.expires<=now));options.append(button('Отпустить рыбу',()=>{if(send({type:'lake_catch',keep:false}))close();}));if(visit.rod&&station.action.facility==='fish'&&access){const again=Object.keys(FISH_ACTIONS).find(k=>FISH_ACTIONS[k as LakeFishAction]===visit.rod) as LakeFishAction;options.append(button('Забрать и продолжить',()=>{if(send({type:'lake_catch',keep:true,again,station:station.id}))close();},freshFish(place).length>=12||fish.expires<=now),button('Отпустить и продолжить',()=>{if(send({type:'lake_catch',keep:false,again,station:station.id}))close();}));}}
       if(station.action.facility==='rental'){
         for(const [id,p] of Object.entries(LAKE_TENTS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'tent',item:id as LakeTent}))close();},!access||place.money<p.price||Object.values(place.world.lake??{}).some(v=>!!v.tent)));
         for(const [id,p] of Object.entries(LAKE_RODS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'rod',item:id as LakeRod}))close();},!access||place.money<p.price||!!visit?.rod));
       }else if(station.action.facility==='pitch')options.append(button('Выбрать площадку',()=>{if(send({type:'lake_pitch',station:station.id}))close();},!access||!visit?.tent||!!visit?.pitch||Object.values(place.world.lake??{}).some(v=>v.pitch===station.id)));
       else if(station.action.facility==='fire'){
         const camp=Object.values(place.world.lake??{}).find(v=>v.pitch===station.id.replace('lake-fire-','lake-pitch-'));
-        for(const [id,p] of Object.entries(LAKE_MEAL_ACTIONS)){const action=id as LakeMealAction,d=LAKE_MEALS[p.meal],count=camp?.meals?.[p.meal]??0;options.append(button((p.cook?'Приготовить: ':'Съесть: ')+d.name+(p.cook?' · '+formatRub(d.price)+' / 2 порции':' · '+count+' порц.'),()=>{if(send({type:'local_activity',station:station.id,action}))close();},!access||!camp||(p.cook?!camp.fire||count>2||place.money<d.price:count<1)));}
+        for(const [id,p] of Object.entries(LAKE_MEAL_ACTIONS)){const action=id as LakeMealAction,d=LAKE_MEALS[p.meal],count=camp?.meals?.[p.meal]??0;options.append(button((p.cook?'Приготовить: ':'Съесть: ')+d.name+(p.cook?' · '+formatRub(d.price)+' / 2 порции':' · '+count+' порц.'),()=>{if(send({type:'local_activity',station:station.id,action}))close();},!access||!camp||(p.cook?!camp.fire||count>2||place.money<d.price||(['fish','soup'].includes(p.meal)&&freshFish(place).length===0):count<1)));}
         options.append(button(camp?.fire?'Потушить костёр':'Разжечь костёр',()=>{if(send({type:'lake_fire',station:station.id,lit:!camp?.fire}))close();},!access||!camp));
-      }else options.append(element('small','','Рыбалка — следующий этап разработки'));
+      }else if(station.action.facility==='fish'){const rod=visit?.rod;options.append(element('small','',rod?LAKE_RODS[rod].name+' · '+LAKE_RODS[rod].seconds+' сек.':'Сначала арендуй снасть в прокате'));if(rod){const action=Object.keys(FISH_ACTIONS).find(k=>FISH_ACTIONS[k as LakeFishAction]===rod) as LakeFishAction;options.append(button('Забросить снасть',()=>{if(send({type:'local_activity',station:station.id,action}))close();},!access||!!visit.catch));}options.append(element('small','','Улов в термосумке: '+freshFish(place).length+'/12 · рекорд '+((place.world.fishing?.record[role]??0)/1000).toFixed(2)+' кг'));}
     } else if(station.action.kind==='spa'){
  const a=station.action.facility,visit=place.world.spa?.[role];
  if(a==='reception')options.append(element('small','',visit?SPA_PASSES[visit.pass].name+' · оплачено':'Посещение не оплачено'));
@@ -575,7 +576,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         if (current?.action.kind === 'checkout') { cart.clear(); showCart(); }
         pending = null;
       }
+      const newCatch=location==='lake'&&next.world.lake?.[role]?.catch&&!state?.world.lake?.[role]?.catch;
       state = next;
+      if(newCatch){current=STATIONS.lake.find(s=>s.action.kind==='lake'&&s.action.facility==='fish'&&Math.hypot(s.approach.x-next.characters[role].x,s.approach.z-next.characters[role].z)<1)??STATIONS.lake.find(s=>s.id==='lake-fish-1')!;panel.hidden=false;panel.dataset.station=current.id;}
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },

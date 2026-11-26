@@ -1042,7 +1042,7 @@ const net = new LiveConnection({
     notify(message);
   },
   onPetEvent(_role, _pet, _action, message) {
-    if(_action==='treat')world.showPetTreat(_pet);
+    if(_action==='treat'||_action==='fishTreat')world.showPetTreat(_pet);
     statusEl.textContent = message;
     notify(message);
   },

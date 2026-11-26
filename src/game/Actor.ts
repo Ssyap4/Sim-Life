@@ -1,3 +1,5 @@
+import {FishingProp,buildLakeFish} from './LakeFishingArt';
+import type {LakeRod,FishCatch} from '../shared/lake';
 import {venueHandFrame,type VenueGame} from '../shared/venue';
 import type {ConsoleMatch} from '../shared/consoleCatalog';
 import {buildGamepad,CONTROLLER_GRIP} from './GamepadArt';
@@ -32,7 +34,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3, mouse?: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'fishing' | 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -115,7 +117,13 @@ export class Actor {
   private activityTime = 0;
   private venueFrame?:{game:VenueGame;center:FloorPoint;t:number;match:ConsoleMatch};
   private venueProp?:THREE.Group;
-  private clearVenueProp(){this.venueFrame=undefined;if(this.venueProp){this.venueProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.venueProp.removeFromParent();this.venueProp=undefined;}}
+  private fishing?:FishingProp;
+  private catchProp?:THREE.Group;
+  private catchKey='';
+  showLakeCatch(fish?:FishCatch){const key=fish?fish.species+':'+fish.grams:'';if(key===this.catchKey)return;this.catchKey=key;if(this.catchProp){this.catchProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.catchProp.removeFromParent();this.catchProp=undefined;}if(fish){const g=buildLakeFish(fish.species);g.scale.setScalar(Math.min(1.7,.74+Math.sqrt(fish.grams/1000)*.24));g.rotation.z=Math.PI/2;g.position.set(.03,-.12,.025);this.rig.wrists[1].add(g);this.catchProp=g;}}
+  playFishing(kind:LakeRod){this.playDomesticActivity('fishing');this.fishing=new FishingProp(kind);this.root.add(this.fishing.group);}
+  private clearFishing(){this.fishing?.dispose();this.fishing=undefined;}
+  private clearVenueProp(){this.clearFishing();this.venueFrame=undefined;if(this.venueProp){this.venueProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.venueProp.removeFromParent();this.venueProp=undefined;}}
   setVenueFrame(game:VenueGame,center:FloorPoint,t:number,match:ConsoleMatch){this.venueFrame={game,center,t,match};}
   private gymDumbbells?:THREE.Group[];
   private gamepads?:Record<string,THREE.Group>;
@@ -959,6 +967,8 @@ export class Actor {
           crouch = .08;
           gaze = .28;
           break;
+        case 'fishing':
+          lean=.04;gaze=.10;leftY=-.12;rightY=-.12;leftZ=.30;rightZ=.30;break;
         case 'grill':
           lean = .16;
           gaze = .18;
@@ -1732,6 +1742,13 @@ export class Actor {
         pad.getWorldQuaternion(this.parentRotation);
         this.aimHand(i,this.handDirection.set(-side*.30,-.12,1).applyQuaternion(this.parentRotation),1);
       }
+    } else if(this.activity==='fishing'&&this.fishing){
+      const p=this.fishing,cast=Math.sin(Math.PI*Math.min(1,a/2.1)),y=.99+cast*.23+.045*Math.sin(a*1.1);
+      const grip=this.root.localToWorld(new THREE.Vector3(.13,y,.39+cast*.06));
+      this.reach(1,grip,1,.65);this.aimHand(1,this.handDirection.set(0,-.2,1).applyAxisAngle(up,this.root.rotation.y),1);
+      this.reach(0,this.root.localToWorld(new THREE.Vector3(-.075,y-.06,.45)),1,.65);
+      this.rig.wrists[1].getWorldPosition(grip);p.frame(a,this.root,grip);
+    } else if(this.catchProp&&!this.activity&&!this.isWalking()){this.reach(1,this.root.localToWorld(new THREE.Vector3(.26,1.02,.37)),1,.65);this.aimHand(1,this.handDirection.set(0,-.2,1).applyAxisAngle(up,this.root.rotation.y),1);
     } else if(this.venueFrame&&this.activity&&['venueCue','venueHockey','venueCards','venueJenga','venueBowl'].includes(this.activity)){
       const f=this.venueFrame,frame=venueHandFrame(f.game,this.id,f.t,f.match);
       const target=new THREE.Vector3(f.center.x+frame.x,frame.y,f.center.z+frame.z);

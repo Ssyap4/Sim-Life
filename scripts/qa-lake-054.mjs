@@ -19,9 +19,10 @@ try{
  const trip=lakeTogetherTrip(s,'vlad','night');assert.ok(trip.ok);s=trip.state;
  const apply=(role,command)=>{const r=applyWorld(s,role,command);assert.ok(r.ok,JSON.stringify(r));s=r.state;};
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental'),'vlad'));
- apply('vlad',{type:'lake_rent',category:'tent',item:mode==='night'?'summit':'family'});apply('vlad',{type:'lake_rent',category:'rod',item:'spin'});
+ apply('vlad',{type:'lake_rent',category:'tent',item:mode==='night'?'summit':'family'});apply('vlad',{type:'lake_rent',category:'rod',item:mode==='fish'?'float':'spin'});
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-pitch-2'),'vlad'));apply('vlad',{type:'lake_pitch',station:'lake-pitch-2'});
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fire-2'),'vlad'));apply('vlad',{type:'lake_fire',station:'lake-fire-2',lit:true});Object.assign(s.characters.alina,{x:-2.95,z:-5.75,pose:'idle'});
+ if(mode==='fish'){Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fish-2'),'vlad'));Object.assign(s.characters.alina,{x:2.5,z:-5,pose:'idle'});}
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.45,lifeClock:{now:()=>0,tickMs:600000}});
  buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(buddy,'open');buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
@@ -34,6 +35,19 @@ try{
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='lake',undefined,{timeout:45000});
+ if(mode==='fish'){
+  const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
+  const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
+  const original=Math.random;Math.random=()=>.10;
+  try{await setView('fishing');await send({type:'local_activity',station:'lake-fish-2',action:'lakeFishFloat'});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.activity==='fishing',undefined,{timeout:15000});await shot('01-fishing');
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.world.lake?.vlad?.catch),undefined,{timeout:60000});await setView('catch');await shot('02-catch');
+  await send({type:'lake_catch',keep:true});await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.world.fishing?.fish?.length===1),undefined,{timeout:10000});
+  await send({type:'approach',place:'lake',station:'lake-fire-2'});await page.waitForTimeout(5000);await setView('fire');await send({type:'local_activity',station:'lake-fire-2',action:'lakeCookSoup'});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.activity==='grill',undefined,{timeout:25000});await shot('03-ukha');
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.world.lake?.vlad?.meals?.soup===2),undefined,{timeout:60000});assert.deepEqual(errors,[]);
+  console.log('Fishing, catch decision and real fish soup passed');}finally{Math.random=original;}
+ }else{
  await shot('01-overview');
  const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
  for(const v of ['camp','shore','water','fire']){await setView(v);await shot('02-'+v);}
@@ -52,4 +66,5 @@ try{
  await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase=vlad]').tap();await shot('03-home-restored');
  assert.deepEqual(errors,[]);
  console.log('Lake scene, active resident wardrobe, return to home and shader runtime passed');
+ }
 }finally{buddy?.terminate();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
