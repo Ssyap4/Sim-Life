@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {buildFamilyCar} from './FamilyCarArt';
+import {batchRigidParts} from './ArtKit';
 import {weatherAt} from '../shared/weather';
 import type {GameClock} from '../shared/life';
 import type {CarRide} from '../shared/carRide';
@@ -8,8 +9,9 @@ import {rideProgress} from '../shared/carRide';
 /** Single cached lightweight scene, rendered by the game's existing WebGL renderer. */
 export class CarRideScene {
   readonly scene=new THREE.Scene();
-  readonly camera=new THREE.PerspectiveCamera(49,1,.1,135);
-  private readonly car=buildFamilyCar();
+  readonly camera=new THREE.PerspectiveCamera(53,1,.1,135);
+  private readonly car=buildFamilyCar(true);
+  private readonly headlamps:THREE.SpotLight[]=[];
   private readonly ground=new THREE.MeshStandardMaterial({color:0x829c64});
   private readonly road=new THREE.MeshStandardMaterial({color:0x525b62});
   private readonly verge=new THREE.MeshStandardMaterial({color:0xb8aa8e});
@@ -45,13 +47,23 @@ export class CarRideScene {
       for(const side of [-1,1]){
         const x=side*(7.6+(i%3)*1.6),z=(side===1?4:-4);
         mesh(segment,box,bark,x,1.15,z,.26,2.3,.26);
-        mesh(segment,i%2?cone:sphere,i%2?pine:this.foliage,x,3.05,z,1.6,2.7,1.6);
-        mesh(segment,cone,pine,side*12,2.8,z+7,2.1,5.6,2.1);
+        if(i%2){
+          for(let tier=0;tier<3;tier++)mesh(segment,cone,pine,x,2.65+tier*.82,z,1.55-tier*.37,2.35-tier*.23,1.55-tier*.37);
+        }else{
+          mesh(segment,sphere,this.foliage,x,3.15,z,1.42,1.75,1.36);
+          mesh(segment,sphere,this.foliage,x+.85,2.95,z+.32,1.05,1.23,1.02);
+          mesh(segment,sphere,this.foliage,x-.64,3.31,z-.32,.91,1.21,.94);
+        }
+        for(let tier=0;tier<3;tier++)mesh(segment,cone,pine,side*12,2.25+tier*1.0,z+7,1.85-tier*.42,3.1-tier*.38,1.85-tier*.42);
+        mesh(segment,sphere,this.foliage,side*6.6,.43,z+5,.85,.55,.72);
         const building=new THREE.Group();building.name='roadside-house';segment.add(building);
         if(i%3===0){
           mesh(building,box,wall,side*17,1.8,z,6,3.6,5);
           const r=mesh(building,cone,roof,side*17,4.35,z,4.5,2.3,4);r.rotation.y=Math.PI/4;
           mesh(building,box,windowMat,side*13.97,2.0,z, .06,1.05,1.4);
+          mesh(building,box,windowMat,side*17,2.15,z-2.52,1.25,1.1,.07);
+          mesh(building,box,bark,side*15.25,1.05,z-2.54,.8,2.1,.10);
+          batchRigidParts(building);
         }
         if(i%2===0){
           mesh(segment,box,metal,side*4.5,2.7,0,.12,5.4,.12);
@@ -59,6 +71,7 @@ export class CarRideScene {
           this.lamps.push(mesh(segment,box,this.lamp,side*3.85,5.27,0,.48,.12,.24));
         }
       }
+      batchRigidParts(segment);
     }
     this.car.position.set(1.7,.025,0);this.car.rotation.y=0;scene.add(this.car);
     const shade=new THREE.Mesh(new THREE.CircleGeometry(1,32),new THREE.MeshBasicMaterial({color:0x171d24,transparent:true,opacity:.32,depthWrite:false}));shade.rotation.x=-Math.PI/2;shade.position.set(1.7,.018,0);shade.scale.set(1.12,2.52,1);scene.add(shade);
@@ -67,6 +80,7 @@ export class CarRideScene {
     for(const side of [-1,1]){
       this.lights.push(mesh(this.car,box,lightMat,side*.69,1.025,2.40,.29,.12,.025));
       this.lights.push(mesh(this.car,box,rearMat,side*.865,1.07,-2.405,.11,.21,.025));
+      const light=new THREE.SpotLight(0xffe6bc,40,22,.38,.72,1.5);light.position.set(1.7+side*.69,1.02,2.45);light.target.position.set(1.7+side*.45,.0,13);light.castShadow=false;scene.add(light,light.target);this.headlamps.push(light);
     }
     const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(this.drops,3));
     this.precipitation=new THREE.Points(geo,new THREE.PointsMaterial({color:0xe5f0ff,size:.09,transparent:true,opacity:.65}));
@@ -81,13 +95,15 @@ export class CarRideScene {
       const cloudy=['overcast','rain','storm','fog','snow'].includes(w.kind);
       const sky=night?0x182b48:evening?0xc7a3a0:cloudy?0xa9bbc5:0xb3d9eb;
       this.scene.background=new THREE.Color(sky);this.scene.fog=new THREE.Fog(sky,w.kind==='fog'?9:24,w.kind==='fog'?41:110);
-      this.ambient.intensity=night?.85:cloudy?1.8:2.2;
-      this.sun.intensity=night?.25:cloudy?.65:2.3;
+      this.ambient.intensity=night?1.28:cloudy?1.8:2.2;
+      this.sun.intensity=night?.7:cloudy?.65:2.3;
+      this.sun.color.setHex(night?0xa9c8ff:0xffe6c6);
       this.ground.color.setHex(this.snowy?0xdbe4e6:w.season==='autumn'?0x999064:0x829c64);
       this.foliage.color.setHex(w.season==='autumn'?0xb78a48:0x567b46);
       this.road.color.setHex(w.kind==='rain'||w.kind==='storm'?0x3c474f:0x525b62);
       this.lamp.color.setHex(night||evening?0xffd697:0xbfc6c4);
       this.lights.forEach(l=>l.visible=night||evening||cloudy);
+      this.headlamps.forEach(l=>l.visible=night||evening||w.kind==='fog'||w.kind==='rain'||w.kind==='storm');
       for(const s of this.segments)s.children.filter(c=>c.name==='roadside-house').forEach(c=>c.visible=!this.rural);
       this.precipitation.visible=['rain','storm','snow'].includes(w.kind);
       (this.precipitation.material as THREE.PointsMaterial).size=w.kind==='snow'?.13:.055;
@@ -95,12 +111,14 @@ export class CarRideScene {
     const p=rideProgress(ride,now),t=p*(ride.endsAt-ride.startedAt)/1000;
     for(let i=0;i<this.segments.length;i++)this.segments[i].position.z=((i*24-t*14+72)%216+216)%216-72;
     this.car.position.y=.025+Math.sin(t*9)*.012;
+    for(const child of this.car.children)if(child.name==='travel-wheel')child.rotation.x=t*14/.43;
     const reduced=typeof matchMedia!=='undefined'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
     const angle=reduced?-.42:-.42-2.05*(.5-.5*Math.cos(p*Math.PI));
     this.camera.aspect=Math.max(.35,aspect);
-    const distance=aspect<.75?9.8:8.6;
-    this.camera.position.set(1.7+Math.sin(angle)*distance,4.1+Math.sin(p*Math.PI)*.65,-Math.cos(angle)*distance);
-    this.camera.lookAt(1.5,.9,1.9);this.camera.updateProjectionMatrix();
+    // Horizontal FOV is much narrower in portrait; fit the entire SUV at every orbit angle.
+    const distance=Math.max(9.8,6.65/(2*Math.tan(53*Math.PI/360)*Math.max(.35,aspect)));
+    this.camera.position.set(1.7+Math.sin(angle)*distance,4.8+Math.sin(p*Math.PI)*.6,-Math.cos(angle)*distance);
+    this.camera.lookAt(1.7,1.05,.10);this.camera.updateProjectionMatrix();
     if(this.precipitation.visible){
       for(let i=0;i<150;i++){this.drops[3*i]=((i*73%137)/137-.5)*17;
         this.drops[3*i+1]=((i*.713-t*(this.weather==='snow'?.8:5))%7+7)%7;

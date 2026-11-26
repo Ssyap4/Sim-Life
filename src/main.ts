@@ -693,7 +693,7 @@ function refreshCarRide():void{
     screen.querySelector('.ride-track')?.setAttribute('aria-valuenow',String(Math.round(p*100)));
     if(p>=1)refreshCarRide();
   };
-  tick();rideTimer=window.setInterval(tick,80);
+  rideTimer=window.setInterval(tick,80);tick();
 }
 function render(reset = false): void {
   if (!state) return;

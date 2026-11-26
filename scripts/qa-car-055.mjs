@@ -38,6 +38,8 @@ try{
  await page.locator('#car-ride').waitFor({state:'visible',timeout:10000});
  await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=12);
  await shot('01-travel');
+ await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=49,undefined,{timeout:10000});
+ await shot('01b-side');
  const ride=await page.evaluate(()=>window.__packets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad)?.state.world.carRides.vlad);
  assert.equal(ride.to,mode);assert.equal(ride.endsAt-ride.startedAt,mode==='lake'?10000:6000);
  const snapshot=buddyPackets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad);
@@ -45,5 +47,15 @@ try{
  await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
  assert.ok(await page.locator('#app').getAttribute('data-place')===mode);
  await shot('02-arrived');
+ if(mode==='market'){
+   await send({type:'approach',place:'market',station:'market-exit'});
+   await page.waitForFunction(()=>window.__packets.some(p=>p.type==='world_path'&&p.role==='vlad'&&p.station==='market-exit'),undefined,{timeout:10000});
+   await send({type:'travel',place:'district',via:'market-exit'});
+   await page.locator('#car-ride').waitFor({state:'visible',timeout:10000});
+   await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=12);
+   await shot('03-return');
+   await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
+   assert.equal(await page.locator('#app').getAttribute('data-place'),'home');
+ }
  assert.deepEqual(errors,[]);console.log('Car cinematic, shared timestamp, arrival and UI restored: '+mode);
 }finally{await browser?.close();buddy?.terminate();await server?.close();rmSync(dir,{recursive:true,force:true});}

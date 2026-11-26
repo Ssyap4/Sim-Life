@@ -5,7 +5,7 @@ import { batchRigidParts, cube, softCube, drum, finish } from './ArtKit';
 type Point3=[number,number,number];
 /** Black full-size 1999-style SUV. Sculpted continuous body, recessed arches,
  * four doors, three side windows, chrome five-spoke wheels. No roof equipment. */
-export function buildFamilyCar():THREE.Group{
+export function buildFamilyCar(animateWheels=false):THREE.Group{
   const group=new THREE.Group();group.name='Семейный внедорожник';
   group.position.set(CAR_PARKING.x,0,CAR_PARKING.z);
   group.rotation.y=Math.PI;
@@ -89,6 +89,7 @@ export function buildFamilyCar():THREE.Group{
         if(i<14){const j=i*2;ix.push(...(side>0?[j,j+2,j+1,j+1,j+2,j+3]:[j,j+1,j+2,j+1,j+3,j+2]));}
       }
       geometry(strip,ix,shoulder);
+      const wheelStart=group.children.length;
       const tyre=part(wheelRadius,.285,wheelRadius,side*.889,wheelY,z,rubber,drum,'fabric');tyre.rotation.z=Math.PI/2;
       const rim=part(.264,.021,.264,side*1.038,wheelY,z,chrome,drum);rim.rotation.z=Math.PI/2;
       const inset=part(.222,.025,.222,side*1.05,wheelY,z,0x31363a,drum);inset.rotation.z=Math.PI/2;
@@ -97,6 +98,10 @@ export function buildFamilyCar():THREE.Group{
         spoke.rotation.x=a;
       }
       const center=part(.080,.035,.080,side*1.075,wheelY,z,silver,drum);center.rotation.z=Math.PI/2;
+      if(animateWheels){
+        const pieces=group.children.slice(wheelStart),pivot=new THREE.Group();pivot.position.set(side*.94,wheelY,z);pivot.name='travel-wheel';
+        group.add(pivot);for(const piece of pieces){piece.position.sub(pivot.position);pivot.add(piece);}batchRigidParts(pivot,true);
+      }
     }
     // Door gaps, handles and chrome belt molding. Wheel wells stay open.
     for(const z of [-1.08,-.15,.90]){
