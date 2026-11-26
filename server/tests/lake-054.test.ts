@@ -1,3 +1,6 @@
+import {applyFoodAction} from '../food';
+import {levelXP} from '../../src/shared/education';
+import {recipeAvailability} from '../../src/shared/recipeAvailability';
 import {LAKE_TALK_TOPICS,lakeTalkStation} from '../../src/shared/socialLife';
 import {cooperationDenial,pairScenes,completeTogether} from '../society';
 import {lakeCanSwim,lakeSwimFrame,LAKE_LEISURE,residentLook as lakeLook} from '../../src/shared/lake';
@@ -231,3 +234,20 @@ test('fire chat needs nearby partner; dog games need Verdell and improve bond',(
 });
 
 test('bait purchased once per visit, automatic rare bonus with no change to bite rate',()=>{let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night');assert.ok(q.ok);s=q.state;at(s,'vlad','lake-rental');const cash=s.money;s=apply(s,'vlad',{type:'lake_buy_bait'});assert.equal(s.money,cash-250);assert.equal(s.world.lake?.vlad?.bait,true);assert.equal(applyWorld(s,'vlad',{type:'lake_buy_bait'}).ok,false);assert.equal(s.world.lake?.alina?.bait,undefined);const rng=()=>{let i=0;return ()=>[.1,.94,.1,.1,.5][i++%5];};const a=rollFish('float',100,rng(),false)!,b=rollFish('float',100,rng(),true)!;assert.equal(LAKE_FISH[a.species].tier,1);assert.equal(LAKE_FISH[b.species].tier,2);assert.equal(rollFish('float',100,()=>.99,true),null);assert.ok(validWorld(s.world));});
+
+test('three home catch recipes require a fresh fish and consume one only after successful cooking',()=>{
+ let s=initialState();s.education.characters.vlad.xp.cooking=levelXP(10);s.characters.vlad.energy=100;
+ for(const k of ['potato','oil','onion','carrot','herbs','tomato','lemon','butter'] as const)s.pantry[k]=10;
+ s.world.fishing=emptyFishing();
+ assert.equal(recipeAvailability(s,'vlad','lakeUkha').available,false);
+ s.world.fishing.fish.push({species:'carp',grams:1500,expires:0});
+ assert.equal(applyFoodAction(s,'vlad',{type:'cook',recipe:'lakeUkha'}).ok,false);
+ for(const id of ['lakeFriedFish','lakeUkha','lakeBakedFish'] as const){
+  s.world.fishing!.fish.push({species:'carp',grams:1500,expires:99999});
+  const old=s.meals[id];const r=applyFoodAction(s,'vlad',{type:'cook',recipe:id},()=>.5);assert.ok(r.ok,JSON.stringify(r));s=r.state;assert.equal(freshFish(s).length,0);assert.ok(s.meals[id]>old);assert.equal(applyFoodAction(s,'vlad',{type:'cook',recipe:id}).ok,false);
+  s.readyFood=[];for(const k of Object.keys(s.meals) as (keyof typeof s.meals)[])s.meals[k]=0;
+ }
+});
+test('lake trail lights turn on at night and off by day',()=>{
+ const scene=createLocation('lake');try{const lamps=scene.root.getObjectByName('Lake trail lanterns')!;assert.ok(lamps);const group=lamps.children.find(x=>x instanceof THREE.Group)!;assert.equal(group.visible,false);scene.setNight(true);assert.equal(group.visible,true);scene.setNight(false);assert.equal(group.visible,false);}finally{scene.dispose();}
+});

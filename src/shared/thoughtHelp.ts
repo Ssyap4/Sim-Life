@@ -1,3 +1,4 @@
+import {isCatchRecipe} from './lake';
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId } from './food';
 import { NEED_INFO, type VitalNeed } from './life';
 import { thoughtFor, AUTONOMY_LABELS } from './autonomy';
@@ -37,7 +38,7 @@ export function thoughtLessons(state:GameState,role:CharacterId):MiniLesson[]{
     hunger:{id:'hunger',icon:'🍳',title:'Голод и домашняя еда',body:(()=>{
       if(Object.values(state.meals).some(n=>n>0)||Object.values(state.takeout).some(n=>n>0))
         return 'Дома уже есть готовые порции: персонаж может их съесть, если они доступны. Без покупки новых продуктов.';
-      const recipe=(Object.keys(RECIPES) as RecipeId[]).find(id=>!isGrillRecipe(id)&&
+      const recipe=(Object.keys(RECIPES) as RecipeId[]).find(id=>!isCatchRecipe(id)&&!isGrillRecipe(id)&&
         ingredientList(id).every(([item,count])=>state.pantry[item]>=count));
       return recipe
         ? 'Готовых порций нет, но некоторые блюда можно приготовить из имеющихся ингредиентов. При подходящем режиме персонаж попробует сделать это сам.'

@@ -47,6 +47,7 @@ export type LakeFishAction=keyof typeof FISH_ACTIONS;
 export const isLakeFishAction=(v:unknown):v is LakeFishAction=>typeof v==='string'&&Object.hasOwn(FISH_ACTIONS,v);
 export type FishingStock={fish:FishCatch[];record:Partial<Record<CharacterId,number>>;species:LakeFish[];treatDay?:number};
 export const emptyFishing=():FishingStock=>({fish:[],record:{},species:[]});
+export const isCatchRecipe=(id:string)=>['lakeFriedFish','lakeUkha','lakeBakedFish'].includes(id);
 export const freshFish=(s:GameState)=> (s.world.fishing?.fish??[]).filter(f=>f.expires>gameMinutes(s.clock));
 export const validCatch=(v:unknown):v is FishCatch=>{const f=v as FishCatch;if(!f||!Object.hasOwn(LAKE_FISH,f.species))return false;const d=LAKE_FISH[f.species];return Number.isSafeInteger(f.grams)&&f.grams>=d.min&&f.grams<=d.max&&Number.isSafeInteger(f.expires)&&f.expires>=0;};
 export function validFishing(v:unknown):v is FishingStock{

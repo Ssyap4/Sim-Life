@@ -1,3 +1,4 @@
+import {freshFish,isCatchRecipe} from './lake';
 import { skillRank } from './education';
 import { COOKING_RECIPES, cookingEnergy } from './cookingProgression';
 import { GROCERIES, RECIPES, ingredientList, type RecipeId } from './food';
@@ -18,6 +19,7 @@ export function recipeAvailability(state: GameState, role: CharacterId,
   const effort=cookingEnergy(cooking,id);
   if (cooking < required) return {available:false,effort,
     reason:'🔒 Нужна кулинария уровня '+required+' (сейчас '+cooking+')'};
+  if(isCatchRecipe(id)&&!freshFish(state).length)return {available:false,effort,reason:'Нужна свежая рыба из семейного улова'};
   const missing=ingredientList(id).filter(([item,amount])=>state.pantry[item]<amount);
   if(missing.length)return {available:false,effort,reason:'Не хватает: '+
     missing.map(([item,amount])=>GROCERIES[item].name.split(' · ')[0]+' ×'+

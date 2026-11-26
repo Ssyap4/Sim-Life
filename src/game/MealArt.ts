@@ -104,7 +104,7 @@ function pizza(group: THREE.Group): void {
  * iPhone 11 table-view distance. Shared primitive geometry and cached prototypes
  * keep them much cheaper than importing individual heavy 3D meshes. */
 const RESTAURANT_DISHES = new Set<string>([
-  'lasagna','mushroomRisotto','beefStroganoff','salmonLemon','creamyChicken',
+  'lasagna','mushroomRisotto','beefStroganoff','salmonLemon','lakeFriedFish','lakeBakedFish','creamyChicken',
   'shrimpLinguine','duckOrange','pepperMedallions','pannaCotta','cremeBrulee',
   'lambRosemary','beefWellington','seaBassRisotto','chocolateFondant',
 ]);
@@ -133,8 +133,8 @@ function restaurantDish(g: THREE.Group, id: ServedDish): void {
     }
     for(let i=0;i<4;i++)bit(g,palette.cream,Math.sin(i*2.4)*.059,.059,
       Math.cos(i*2.4)*.052,.032,.008,.014,orb);
-  } else if(id==='salmonLemon') {
-    const fillet=bit(g,palette.salmon,-.017,.037,0,.130,.044,.085,softCube);fillet.rotation.y=.22;
+  } else if((id==='salmonLemon'||id==='lakeFriedFish'||id==='lakeBakedFish')) {
+    const fillet=bit(g,id==='lakeFriedFish'?0xc19761:id==='lakeBakedFish'?0xbca476:palette.salmon,-.017,.037,0,.130,.044,.085,softCube);fillet.rotation.y=.22;
     for(let i=0;i<4;i++) {
       const stripe=bit(g,palette.cream,-.060+i*.027,.062,.012,.008,.004,.067,softCube);
       stripe.rotation.y=.22;
@@ -142,6 +142,7 @@ function restaurantDish(g: THREE.Group, id: ServedDish): void {
     bit(g,palette.lemon,.077,.031,.026,.049,.015,.048,drum);
     bit(g,palette.cream,.077,.041,.026,.030,.003,.030,drum);
     for(let i=0;i<4;i++)bit(g,palette.leaf,.035+i*.012,.071,-.050+i*.012,.006,.007,.038,softCube).rotation.y=-.4;
+    if(id==='lakeFriedFish'||id==='lakeBakedFish')for(let i=0;i<4;i++)bit(g,id==='lakeFriedFish'?0xd9bb74:[0xdc7755,0x809b56,0xefb46b][i%3],.056+i*.011,.035,-.054+i*.03,.027,.023,.032,softCube);
   } else if(id==='creamyChicken') {
     bit(g,palette.cream,0,.020,0,.135,.031,.104,orb);
     for(let i=0;i<3;i++) {
@@ -339,9 +340,9 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
     bit(g,palette.cheese,-.034,.060,.017,.088,.012,.059,softCube);
     bit(g,palette.tomato,.038,.064,.041,.047,.011,.036,softCube);
   } else if (id==='salad'||id==='fruitSalad') salad(g,id==='fruitSalad');
-  else if (id==='porridge'||id==='chickenSoup'||id==='beefStew') {
+  else if (id==='porridge'||(id==='chickenSoup'||id==='lakeUkha')||id==='beefStew') {
     bit(g,id==='porridge'?palette.rice:palette.sauce,0,.022,0,.124,.044,.114,orb);
-    grains(g,id==='porridge'?palette.cream:id==='chickenSoup'?palette.veg:palette.meat,7,.047);
+    grains(g,id==='porridge'?palette.cream:(id==='chickenSoup'||id==='lakeUkha')?palette.veg:palette.meat,7,.047);
   } else if (id==='pancakes') {
     for(let i=0;i<4;i++)bit(g,palette.bread,0,.018+i*.013,0,.115,.013,.105,drum);
     bit(g,palette.sauce,.020,.077,-.010,.043,.010,.038,orb);
@@ -383,7 +384,7 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
   } else if (id==='pancakes') {
     for(let i=0;i<3;i++)bit(g,palette.cream,
       -.03+i*.024,.085,-.018+i*.015,.018,.014,.015);
-  } else if (id==='porridge'||id==='chickenSoup'||id==='beefStew') {
+  } else if (id==='porridge'||(id==='chickenSoup'||id==='lakeUkha')||id==='beefStew') {
     for(let i=0;i<5;i++) {
       const a=i*2.4;
       bit(g,i%2?palette.leaf:palette.cream,

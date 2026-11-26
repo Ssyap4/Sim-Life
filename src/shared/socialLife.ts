@@ -1,4 +1,4 @@
-import {lakeAccess,lakeCampFor} from './lake';
+import {lakeAccess,lakeCampFor,isCatchRecipe,freshFish} from './lake';
 import {CARE_TOPICS,careTopicAvailable} from './vanity';
 import {sharedCoffeeOptions} from './coffee';
 import {GROCERIES} from './food';
@@ -306,7 +306,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
     return [...ready,...delivery,...cooked];
   }
   switch(a.object){
-    case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
+    case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&(!isCatchRecipe(id)||freshFish(state).length>0)&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
       const count=a.object==='eat'?2:1;
       return recipeIds.filter(id=>state.meals[id]>=count&&

@@ -1,3 +1,4 @@
+import {isCatchRecipe} from './lake';
 import { residentEmotion, rankLeisure, PERSONALITIES } from './emotions';
 import { isNotebookDesk } from './furniture';
 import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
@@ -75,7 +76,7 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
         // No purchase, delivery or money spending without a player's command.
         if(person.energy>=16)
           for(const recipe of Object.keys(RECIPES) as RecipeId[]){
-            if(isGrillRecipe(recipe)||!recipeAvailability(state,role,recipe).available)continue;
+            if(isCatchRecipe(recipe)||isGrillRecipe(recipe)||!recipeAvailability(state,role,recipe).available)continue;
             offer(need,{type:'cook',recipe},'Готового нет — приготовлю из домашних продуктов.');
           }
         break;
@@ -132,7 +133,7 @@ export function foodSupplyProblem(state:GameState,role:CharacterId):boolean{
   if(state.characters[role].hunger>50)return false;
   if(state.readyFood.some(b=>b.portions>0&&b.expiresAt>gameMinutes(state.clock)))return false;
   return !(Object.keys(RECIPES) as RecipeId[]).some(id=>
-    !isGrillRecipe(id)&&ingredientList(id).every(([ing,n])=>state.pantry[ing]>=n));
+    !isCatchRecipe(id)&&!isGrillRecipe(id)&&ingredientList(id).every(([ing,n])=>state.pantry[ing]>=n));
 }
 
 /** Broad real full-mode actions, rotated by successful decision cycles. */

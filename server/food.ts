@@ -1,3 +1,4 @@
+import {freshFish,isCatchRecipe} from '../src/shared/lake';
 import {foodIllness} from '../src/shared/health';
 import {recordEmotion} from '../src/shared/emotions';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
@@ -46,6 +47,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     const availability=recipeAvailability(state,role,id);
     if(!availability.available)return {ok:false,reason:availability.reason};
     const {effort}=availability;
+    if(isCatchRecipe(id))state.world.fishing!.fish=freshFish(state).slice(1);
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
     const quality=cookingQuality(state,role,random);

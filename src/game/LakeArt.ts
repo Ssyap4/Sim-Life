@@ -27,6 +27,12 @@ export function lakeStation(s:Station,resources:Resources){
    box(g,[2.23,.09,.65],[.95,.99,.8],0xc6ac83);
    box(g,[.28,.25,.13],[.65,1.15,.75],0x3e474b);
    for(let j=0;j<3;j++){box(g,[1.55,.085,.38],[-1.42,.65+j*.54,-1.14],wood);for(let i=0;i<3;i++)box(g,[.31,.28,.30],[-1.92+i*.50,.84+j*.54,-1.14],[0x81935f,0xb89c6d,0x57747b][(i+j)%3],softCube);}
+   // Rental counter: folded tents, labelled bait jars, reels and rolled sleeping mats.
+   for(let i=0;i<4;i++){const x=-1.85+i*.42;box(g,[.34,.19,.28],[x,1.98,-1.13],[0x5c8064,0x9ca58b,0xb89c73,0xd9c7a6][i],softCube);box(g,[.035,.195,.29],[x,1.98,-1.13],0x41483b);}
+   for(let i=0;i<3;i++){const x=.15+i*.28;box(g,[.16,.22,.16],[x,.13+1.00,.84],0x8e7855,drum);box(g,[.17,.045,.17],[x,1.25,.84],0x485448,drum);box(g,[.13,.09,.015],[x,1.13,.93],0xe8dfc7);}
+   for(let i=0;i<3;i++){const roll=box(g,[.19,.47,.19],[-2.08+i*.39,.30,-.45],0x879a73,drum);roll.rotation.z=Math.PI/2;}
+   const signMap=painted(resources,512,96,ctx=>{ctx.fillStyle='#314b3b';ctx.fillRect(0,0,512,96);ctx.strokeStyle='#c9b991';ctx.strokeRect(4,4,504,88);ctx.fillStyle='#fff0ce';ctx.font='bold 34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('КЕМПИНГ И РЫБАЛКА',256,48);});
+   const signMat=new THREE.MeshBasicMaterial({map:signMap,color:0xffffff});resources.materials.push(signMat);const sign=new THREE.Mesh(new THREE.PlaneGeometry(3.9,.45),signMat);sign.position.set(0,2.38,1.61);g.add(sign);
    for(let i=0;i<3;i++){const rod=box(g,[.035,1.8,.035],[1.40+i*.28,1.10,-1.15],0x39463d,drum);rod.rotation.z=-.12;}
   }else if(s.action.facility==='pitch'){
    box(g,[4.10,.035,3.55],[0,.018,0],0xb8aa81,softCube);
@@ -129,6 +135,13 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
   box(ground,[.13+rng()*.07,.008,.13],[x,.024,z],i%2?0x68884a:0x54783b,drum);
   if(i%5===0)box(ground,[.05,.05,.05],[x,.048,z],0xe3b3bd,orb);
  }
+ // Low wooden lanterns with inexpensive emissive faces and baked pools of light.
+ const lanterns=new THREE.Group();lanterns.name='Lake trail lanterns';root.add(lanterns);
+ const lanternGlow=new THREE.MeshStandardMaterial({color:0xffe6ad,emissive:0xffb95d,emissiveIntensity:0});resources.materials.push(lanternGlow);
+ const glowMap=painted(resources,64,64,ctx=>{const gr=ctx.createRadialGradient(32,32,1,32,32,32);gr.addColorStop(0,'rgba(255,195,103,0.55)');gr.addColorStop(.4,'rgba(255,185,90,0.22)');gr.addColorStop(1,'rgba(255,185,90,0)');ctx.fillStyle=gr;ctx.fillRect(0,0,64,64);});
+ const glowMat=new THREE.MeshBasicMaterial({map:glowMap,transparent:true,opacity:.65,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});resources.materials.push(glowMat);
+ const pools=new THREE.Group();pools.visible=false;lanterns.add(pools);
+ for(const [x,z] of [[-7.5,12],[-7.5,7],[-7.5,1],[-7.5,-5],[-7.5,-11],[2.5,-10],[2.5,-3],[2.5,4],[2.5,11],[-12.4,8]]){box(ground,[.10,.74,.10],[x,.37,z],0x72583e);box(ground,[.25,.06,.25],[x,.75,z],0x405447);box(ground,[.26,.07,.26],[x,.99,z],0x405447);const bulb=new THREE.Mesh(cube,lanternGlow);bulb.scale.set(.18,.20,.18);bulb.position.set(x,.86,z);lanterns.add(bulb);const pool=new THREE.Mesh(new THREE.PlaneGeometry(2.5,2.5),glowMat);pool.rotation.x=-Math.PI/2;pool.position.set(x,.005,z);pools.add(pool);}
  batchRigidParts(ground,true);
  // A tiny baked silhouette strip of the actual far-bank trees. Projected across the lake with
  // reflected camera rays and ripples; no render-to-texture pass or second scene render.
@@ -199,7 +212,7 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
  const water=new THREE.Mesh(lakeSurface(),mat);water.name='Lake water surface';root.add(water);
  const waves=new THREE.Group();root.add(waves);
  const rings=Array.from({length:6},(_,i)=>{const m=new THREE.MeshBasicMaterial({color:0xc9f0e2,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide});resources.materials.push(m);const r=new THREE.Mesh(new THREE.RingGeometry(.96,1,32),m);r.rotation.x=-Math.PI/2;r.position.set(7+i*1.1,.022,-10+(i*7)%20);waves.add(r);return r;});
- return {animate(t:number){mat.uniforms.time.value=t;for(let i=0;i<rings.length;i++){const k=(t*.21+i*.173)%1;rings[i].scale.setScalar(.10+k*.72);rings[i].material.opacity=.19*Math.sin(k*Math.PI);}},setNight(n:boolean){mat.uniforms.night.value=n?1:0;}};
+ return {animate(t:number){mat.uniforms.time.value=t;for(let i=0;i<rings.length;i++){const k=(t*.21+i*.173)%1;rings[i].scale.setScalar(.10+k*.72);rings[i].material.opacity=.19*Math.sin(k*Math.PI);}},setNight(n:boolean){mat.uniforms.night.value=n?1:0;lanternGlow.emissiveIntensity=n?1.8:0;pools.visible=n;}};
 }
 
 export function syncLakeCutaway(stations:Map<string,THREE.Group>,occupied:ReadonlySet<string>){for(const [id,g] of stations){const models=g.userData.tents as Map<LakeTent,THREE.Group>|undefined;if(models)for(const m of models.values())if(m.userData.shell)m.userData.shell.visible=!occupied.has(id);}}

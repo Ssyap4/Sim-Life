@@ -1,3 +1,4 @@
+import {freshFish,isCatchRecipe} from './shared/lake';
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
@@ -131,7 +132,7 @@ export function showFoodChoices(
         const toggle=document.createElement('summary');
         toggle.textContent='📋 Состав и описание блюда';
         const paragraph=document.createElement('p');
-        paragraph.textContent=RECIPE_DESCRIPTIONS[id]+' · Нужно: '+
+        paragraph.textContent=RECIPE_DESCRIPTIONS[id]+' · Нужно: '+(isCatchRecipe(id)?'🐟 Улов ×1 (есть '+freshFish(state).length+') · ':'')+
           ingredientList(id).map(([ingredient,quantity])=>
             GROCERIES[ingredient].emoji+' '+GROCERIES[ingredient].name.split(' · ')[0]+
             ' ×'+quantity+(state.pantry[ingredient]<quantity?

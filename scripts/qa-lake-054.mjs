@@ -56,11 +56,11 @@ try{
   const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
   const waitActor=async(role,activity)=>page.waitForFunction(([r,a])=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.[r]?.activity===a,[role,activity],{timeout:25000});
   await setView('swim');await send({type:'local_activity',station:'lake-swim',action:'lakeSwim'});await waitActor('vlad','spaSwim');
-  await shot('01-swimming');await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:60000});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.look==='spa-visit',undefined,{timeout:10000});await shot('01-swimming');await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:60000});
   await send({type:'approach',place:'lake',station:'lake-dog'});
   await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&Math.hypot(p.state.characters.vlad.x+1.6,p.state.characters.vlad.z-7.9)<.2),undefined,{timeout:20000});
   await setView('dog');await send({type:'local_activity',station:'lake-dog',action:'lakeDogFetch'});
-  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_started'&&p.command?.action==='lakeDogFetch'),undefined,{timeout:20000});await shot('02-dog-play');
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_started'&&p.command?.action==='lakeDogFetch'),undefined,{timeout:20000});await page.waitForFunction(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').lakeDog;return d?.visible&&Math.hypot(d.position[0]+2.7,d.position[2]-8.6)<3;},undefined,{timeout:18000});await shot('02-dog-play');
   assert.deepEqual(errors,[]);console.log('Warm-weather swim and dog play passed');
  }else if(mode==='fish'){
   const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
@@ -77,7 +77,7 @@ try{
  }else{
  await shot('01-overview');
  const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
- for(const v of ['camp','shore','water','fire']){await setView(v);await shot('02-'+v);}
+ for(const v of ['camp','shore','water','fire','rental']){await setView(v);await shot('02-'+v);}
  const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
  const action=mode==='night'?'lakeCookMarshmallow':'lakeCookSausages';
  await setView('fire');await send({type:'local_activity',station:'lake-fire-2',action});
