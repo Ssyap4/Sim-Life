@@ -177,7 +177,7 @@ const isValidState = (value: unknown): value is GameState => {
     const routine = pet?.routine;
     return pet && validFurniturePreferences(pet,id) && (pet.lastEventAt===undefined||Number.isSafeInteger(pet.lastEventAt)&&pet.lastEventAt>=0) && validFeeder(pet,id) && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
-      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')) &&
+      (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')||point(pet.parkPosition,'lake')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&
       (pet.favoriteBedId===undefined||Number.isSafeInteger(pet.favoriteBedId)&&pet.favoriteBedId>0) &&
       (routine === undefined || routine && PET_ROUTINES.includes(routine.kind) &&

@@ -149,7 +149,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }
   // Sleepers are recovered from their saved bed and target below. No energy
   // is awarded while the server is offline; sleep resumes when players return.
-  if (state.world.dogWalker) {
+  if (state.world.dogWalker&&state.world.places[state.world.dogWalker]!=='lake') {
     state.world.dogWalker = null;
     setDogParkPosition(state);
   }
@@ -158,7 +158,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let pauseRequestedBy: CharacterId | null = null;
   let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
-  let fitnessTripOffer:{from:CharacterId;expires:number;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`lake-${LakePass}`}|undefined;
+  let fitnessTripOffer:{from:CharacterId;expires:number;dog?:boolean;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`lake-${LakePass}`}|undefined;
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
@@ -1543,13 +1543,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const partner=otherRole(role),otherSocket=active.get(partner),now=pauseTimers.now();
         const available=(r:CharacterId)=>state.world.places[r]==='home'&&!running.has(r)&&!homeTasks.busy(r)&&!sleepers.has(r)&&!(queuedTasks.get(r)?.length)&&!state.activeShifts[r]&&!state.careers.residents[r].shift&&state.world.dogWalker!==r;
         if(!otherSocket||state.world.carDriver||!available(role)||!available(partner)){fitnessTripOffer=undefined;packet(socket,{type:'error',reason:'Для поездки вдвоём оба игрока должны быть дома, онлайн и свободны'});return;}
-        if(!fitnessTripOffer||fitnessTripOffer.expires<now||fitnessTripOffer.from===role||fitnessTripOffer.destination!==destination){
-          fitnessTripOffer={from:role,expires:now+60000,destination};
+        if(!fitnessTripOffer||fitnessTripOffer.expires<now||fitnessTripOffer.from===role||fitnessTripOffer.destination!==destination||!!fitnessTripOffer.dog!==(message.type==='lake_trip'&&message.dog===true)){
+          fitnessTripOffer={from:role,expires:now+60000,destination,dog:message.type==='lake_trip'&&message.dog===true};
           packet(socket,{type:'world_event',role,message:destination.startsWith('lake-')?'Предложение отправлено. Партнёру нужно выбрать тот же билет клуба у машины.':destination==='venue'?'Предложение отправлено. Партнёру нужно выбрать поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'Предложение отправлено. Партнёру нужно выбрать тот же пакет SPA в телефоне или у машины.':'Предложение отправлено. Второму игроку нужно нажать «Поехать вдвоём» в '+label+'.'});
           packet(otherSocket,{type:'world_event',role:partner,message:names[role]+' предлагает поехать в '+label+(destination.startsWith('lake-')?'. Выбери такой же билет клуба у машины.':destination==='venue'?'. Выбери поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'. Выбери такой же пакет SPA в телефоне или у машины для подтверждения.':'. Подтверди в телефоне: «Поехать вдвоём».')});
           return;
         }
-        const result=destination.startsWith('lake-')?lakeTogetherTrip(state,fitnessTripOffer.from,destination.slice(5) as LakePass):destination==='venue'?venueTogetherTrip(state,fitnessTripOffer.from):destination==='spa-pair'||destination==='spa-package'?spaTogetherTrip(state,fitnessTripOffer.from,destination==='spa-pair'?'pair':'package'):(destination==='clinic'?clinicTogetherTrip:fitnessTogetherTrip)(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
+        const result=destination.startsWith('lake-')?lakeTogetherTrip(state,fitnessTripOffer.from,destination.slice(5) as LakePass,fitnessTripOffer.dog):destination==='venue'?venueTogetherTrip(state,fitnessTripOffer.from):destination==='spa-pair'||destination==='spa-package'?spaTogetherTrip(state,fitnessTripOffer.from,destination==='spa-pair'?'pair':'package'):(destination==='clinic'?clinicTogetherTrip:fitnessTogetherTrip)(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить поездку'});return;}
         for(const r of [role,partner]){walkingHome.delete(r);stopLeisure(r);closeStorage(r);clearQueue(r);lastIntent.set(r,now);}
@@ -1711,7 +1711,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         shiftVotes.delete(role);
         stopSleep(role);
         announceTime();
-        if (state.world.dogWalker === role) {
+        if (state.world.dogWalker === role && state.world.places[role]!=='lake') {
           const home = structuredClone(state);
           home.world.dogWalker = null;
           setDogParkPosition(home);

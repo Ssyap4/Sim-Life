@@ -1,3 +1,4 @@
+import {advanceLife} from '../life';
 import {lakeSleepAnchor,LAKE_REST} from '../../src/shared/lake';
 import {LAKE_FISH,LAKE_RODS,rollFish,validCatch,validFishing,emptyFishing,freshFish} from '../../src/shared/lake';
 import {buildLakeFish,FishingProp} from '../../src/game/LakeFishingArt';
@@ -157,4 +158,20 @@ test('camp rest requires a live campsite; two sleeping lanes and tier comfort, d
  assert.equal(planTask({type:'local_activity',station:'lake-pitch-2',action:'lakeSleep'})?.durationMs,LAKE_REST.lakeSleep.seconds*1000);
  assert.equal(planTask({type:'local_activity',station:'lake-pitch-2',action:'lakeFireRest'}),null);
  for(const id of ['basic','nord','family','summit'] as const){const v=lakeSleepAnchor(id,'vlad'),a=lakeSleepAnchor(id,'alina');assert.ok(a.x-v.x>.9);assert.equal(a.z,v.z);}
+});
+
+test('lake dog joins only by choice, uses toilet, shares treats, transfers to partner and returns home',()=>{
+ let s=initialState();s.money=10000;let q=lakeTogetherTrip(s,'vlad','night',true);assert.ok(q.ok);s=q.state;
+ assert.equal(s.world.dogWalker,'vlad');assert.ok(s.pets.verdell.parkPosition);assert.ok(validWorld(s.world));
+ s.pets.verdell.bladder=20;s=advanceLife(s,8,['vlad','alina']);assert.equal(s.pets.verdell.bladder,100);assert.ok(s.world.parkDog?.toiletUntil);
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'basic'});at(s,'vlad','lake-pitch-1');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-1'});
+ at(s,'vlad','lake-fire-1');at(s,'alina','lake-fire-1');s.pets.verdell.satiety=10;
+ s.world.lake!.vlad!.meals={fish:1};s=apply(s,'alina',{type:'lake_dog_treat',station:'lake-fire-1',fish:true});
+ assert.equal(s.pets.verdell.satiety,55);assert.equal(s.world.lake!.vlad!.meals!.fish,0);assert.equal(applyWorld(s,'alina',{type:'lake_dog_treat',station:'lake-fire-1',fish:true}).ok,false);
+ for(let i=0;i<2;i++)s=apply(s,'vlad',{type:'lake_dog_treat',station:'lake-fire-1',fish:false});
+ assert.equal(applyWorld(s,'vlad',{type:'lake_dog_treat',station:'lake-fire-1',fish:false}).ok,false);
+ at(s,'vlad','lake-pitch-1');s.pets.verdell.energy=10;const rest=localActivity(s,'vlad','lakeSleep','lake-pitch-1');assert.ok(rest.ok);s=rest.state;assert.equal(s.pets.verdell.energy,55);
+ const dir=mkdtempSync(join(tmpdir(),'lake-dog-'));try{const f=openServerFiles(dir);f.save(s);assert.equal(f.load()!.world.dogWalker,'vlad');}finally{rmSync(dir,{recursive:true,force:true});}
+ at(s,'vlad','lake-exit');s=apply(s,'vlad',{type:'travel',place:'district',via:'lake-exit'});assert.equal(s.world.dogWalker,'alina');
+ at(s,'alina','lake-exit');s=apply(s,'alina',{type:'travel',place:'district',via:'lake-exit'});assert.equal(s.world.dogWalker,null);assert.equal(s.pets.verdell.parkPosition,undefined);
 });

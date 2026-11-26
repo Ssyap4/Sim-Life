@@ -78,7 +78,7 @@ export type LakeTent=keyof typeof LAKE_TENTS;
 export type LakeRod=keyof typeof LAKE_RODS;
 export type LakeVisit={pass:LakePass;until:number;rod?:LakeRod;tent?:LakeTent;pitch?:string;fire?:boolean;catch?:FishCatch;meals?:Partial<Record<LakeMeal,number>>};
 export type LakeState=Partial<Record<CharacterId,LakeVisit>>;
-export type LakeCommand={type:'lake_trip';pass:LakePass}|{type:'lake_rent';item:LakeTent|LakeRod;category:'tent'|'rod'}|{type:'lake_pitch';station:string}|{type:'lake_fire';station:string;lit:boolean}|{type:'lake_catch';keep:boolean;again?:LakeFishAction;station?:string};
+export type LakeCommand={type:'lake_trip';pass:LakePass;dog?:boolean}|{type:'lake_rent';item:LakeTent|LakeRod;category:'tent'|'rod'}|{type:'lake_pitch';station:string}|{type:'lake_fire';station:string;lit:boolean}|{type:'lake_dog_treat';station:string;fish:boolean}|{type:'lake_catch';keep:boolean;again?:LakeFishAction;station?:string};
 export const lakePass=(v:unknown):v is LakePass=>typeof v==='string'&&Object.hasOwn(LAKE_PASSES,v);
 export const lakeTent=(v:unknown):v is LakeTent=>typeof v==='string'&&Object.hasOwn(LAKE_TENTS,v);
 export const lakeRod=(v:unknown):v is LakeRod=>typeof v==='string'&&Object.hasOwn(LAKE_RODS,v);

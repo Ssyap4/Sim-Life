@@ -51,6 +51,7 @@ export function advanceLife(source: GameState, gameMinutes: number,
     if(character.mood<beforeMood)character.mood=clamp(beforeMood-(beforeMood-character.mood)*careBonuses(source,role).mood);
   }
   const walker=state.world.dogWalker;
+  if(walker&&state.world.places[walker]==='lake'&&online.length){const visit=state.world.parkDog??={minutes:0,toilets:0};visit.minutes+=gameMinutes;if(state.pets.verdell.bladder<=35||visit.toilets===0&&visit.minutes>=8){visit.toilets=Math.min(2,visit.toilets+1);visit.toiletUntil=(state.clock.day-1)*1440+state.clock.minute+3;state.pets.verdell.bladder=100;}}
   if(walker&&online.includes(walker)&&state.world.places[walker]==='park'){
     const visit=state.world.parkDog??={minutes:0,toilets:0};visit.minutes+=gameMinutes;
     if(visit.toilets<2&&visit.minutes>=(visit.toilets===0?8:45)){

@@ -16,7 +16,7 @@ const dir=mkdtempSync(join(tmpdir(),'lake-054-'));let browser,server,buddy,page;
 try{
  let s=initialState();s.clock.minute=mode==='night'?1240:750;s.money=100000;s.autonomy={vlad:'off',alina:'off'};
  s.world.wardrobe=defaultWardrobe();s.world.wardrobe.vlad={owned:['signature','polo'],worn:'polo'};s.world.wardrobe.alina={owned:['signature','pink'],worn:'pink'};
- const trip=lakeTogetherTrip(s,'vlad','night');assert.ok(trip.ok);s=trip.state;
+ const trip=lakeTogetherTrip(s,'vlad','night',mode==='night');assert.ok(trip.ok);s=trip.state;
  const apply=(role,command)=>{const r=applyWorld(s,role,command);assert.ok(r.ok,JSON.stringify(r));s=r.state;};
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental'),'vlad'));
  apply('vlad',{type:'lake_rent',category:'tent',item:mode==='night'?'summit':'family'});apply('vlad',{type:'lake_rent',category:'rod',item:mode==='fish'?'float':'spin'});
@@ -59,7 +59,7 @@ try{
  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:45000});
  if(mode==='night'){
   await send({type:'approach',place:'lake',station:'lake-pitch-2'});await page.waitForTimeout(3000);await setView('sleep');await send({type:'local_activity',station:'lake-pitch-2',action:'lakeSleep'});
-  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose==='sleep',undefined,{timeout:20000});await shot('04-sleep');
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose==='sleep',undefined,{timeout:20000});await page.waitForFunction(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').lakeDog;return d?.visible&&d.mode==='sleep:lake-pitch-2'&&Math.hypot(d.position[0]+4,d.position[2]+6.89)<.45;},undefined,{timeout:25000});await shot('04-sleep-with-dog');
   await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.characters.vlad.energy===100),undefined,{timeout:90000});
   await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose!=='sleep',undefined,{timeout:15000});
  }

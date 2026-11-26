@@ -65,6 +65,8 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
   part(g,[w*.31,.11,.34],[x,.204,-d*.38],0xe8dfce,softCube);
   for(let k=0;k<4;k++)part(g,[w*.34,.006,.014],[x,.233,z+.10+k*.15],0xbbb19a);
  }
+ // A small washable blanket for Verdell at the entrance between the sleeping lanes.
+ part(g,[.40,.035,.43],[0,.077,d*.40+.015],0x8c7964,softCube);
  if(mode>0){
   const shade=part(g,[w*.86,.035,.54],[0,h*.76,d*.5+.22],c,softCube);shade.rotation.x=.12;
   for(const x of [-w*.40,w*.40])rod(g,[x,.04,d*.5+.43],[x,h*.76,d*.5+.43],.019,steel);
