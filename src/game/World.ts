@@ -240,6 +240,7 @@ export class World {
   private activeGrillRecipe: RecipeId | undefined;
   private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
+  private readonly hobbyWorks=new Map<CharacterId,{id:number;action:string;start:number}>();
   private readonly poolMotions=new Map<CharacterId,{mode:'poolFloat'|'poolSwim';started:number;wet:boolean}>();
   private readonly dishTasks = new Set<CharacterId>();
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
@@ -1030,7 +1031,11 @@ export class World {
           else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
             actor.playDomesticActivity('games');
           else if(isLeisureAction(command.action)){
-            if(command.action==='boardGame'||command.action==='chessGame')actor.playDomesticActivity('chess');
+            if(['paintLandscape','paintStillLife','buildCottage','buildCar'].includes(command.action)){
+              const model=this.furnishingModels.get(command.furnitureId),painting=command.action.startsWith('paint');
+              if(model){this.hobbyWorks.set(role,{id:command.furnitureId,action:command.action,start:this.visualSeconds});actor.faceTowards(model.localToWorld(new THREE.Vector3(0,0,0)));actor.playDomesticActivity(painting?'painting':'modeling',model.localToWorld(new THREE.Vector3(painting?0:.07,painting?1.31:1.04,painting?.155:.04)));}
+            }
+            else if(command.action==='boardGame'||command.action==='chessGame')actor.playDomesticActivity('chess');
             else if(command.action==='dartsGame')actor.playDomesticActivity('darts');
             else if(command.action==='pingPong')actor.playDomesticActivity('pingPong');
             else if(command.action==='billiards')actor.playDomesticActivity('billiards');
@@ -1302,7 +1307,7 @@ export class World {
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
-    this.homeTasks.delete(role);
+    this.homeTasks.delete(role);this.hobbyWorks.delete(role);
     this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
@@ -2399,7 +2404,7 @@ export class World {
     this.grillCooking = false;
     this.kitchenCooking=false;
     this.kitchenEffects.root.visible=false;
-    this.homeTasks.clear();this.poolMotions.clear();
+    this.homeTasks.clear();this.hobbyWorks.clear();this.poolMotions.clear();
     this.neighborhoodView=false;
     this.frameDistrictResident();
     this.neighborBodies=[];
@@ -3285,6 +3290,10 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('hobbyQA')==='1'){
+      const id=Number(this.canvas.dataset.hobbyView),model=this.furnishingModels.get(id);
+      if(model){const target=model.localToWorld(new THREE.Vector3(0,.95,.25));this.controls.target.copy(target);this.camera.position.copy(model.localToWorld(new THREE.Vector3(2.4,2.6,3.8)));this.camera.lookAt(target);}
+    }
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('holidayQA')==='1'){
       const v=this.canvas.dataset.holidayView;
       if(v==='tree'){this.controls.target.set(-4.9,1.15,8.05);this.camera.position.set(.9,5.7,13.3);this.camera.lookAt(this.controls.target);}
@@ -3312,6 +3321,15 @@ export class World {
         }
       }
       for(const [id,model] of this.furnishingModels){
+        const sku=model.userData.sku;
+        if(sku==='hobby-easel'||sku==='hobby-workbench'){
+          const paint=sku==='hobby-easel',hobby=paint?'painting':'modeling',keys=paint?['paintLandscape','paintStillLife']:['buildCottage','buildCar'];
+          const active=[...this.hobbyWorks.values()].find(w=>w.id===id);
+          const records=this.household?.familyLife?.hobbies;
+          const a=records?.vlad[hobby],b=records?.alina[hobby];const previous=(b&&(b.lastDay>=(a?.lastDay??0))?b:a)?.unique.at(-1);
+          const shown=active?(this.visualSeconds-active.start>=5?active.action:undefined):previous;
+          for(const key of keys){const result=this.stableParts.get(model,'Hobby result '+key);if(result)result.visible=key===shown;}
+        }
         const raftV=this.stableParts.get(model,'Oasis float vlad');
         if(raftV){const swim=[...this.poolMotions.entries()].some(([r,p])=>p.mode==='poolSwim'&&this.homeTasks.get(r)?.furnitureId===id);
           for(const r of ['vlad','alina'] as const){const raft=this.stableParts.get(model,'Oasis float '+r);if(raft){raft.position.y=floatBob(this.visualSeconds,r);raft.visible=!swim;}}}

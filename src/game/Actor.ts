@@ -34,7 +34,7 @@ type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
 type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3, mouse?: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
-export type DomesticMotion = 'fishing' | 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
+export type DomesticMotion = 'painting'|'modeling'|'fishing' | 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
   'dishes', 'wash', 'washHands', 'grill', 'tidy', 'coffee', 'tea', 'prep',
 ]);
@@ -520,6 +520,12 @@ export class Actor {
     this.props.phone.visible=false;
     this.activity = kind;
     if(kind==='venueBowl'||kind==='venueCards'){const g=new THREE.Group(),prop=new THREE.Mesh(kind==='venueBowl'?orb:new THREE.BoxGeometry(1,1,1),finish(kind==='venueBowl'?(this.id==='vlad'?0x386f9c:0xc55354):0xd74c47));prop.scale.set(...(kind==='venueBowl'?[.12,.12,.12]:[.105,.014,.16]) as [number,number,number]);prop.position.set(0,-.045,.025);g.add(prop);g.visible=false;this.rig.wrists[1].add(g);this.venueProp=g;}
+    if(kind==='painting'||kind==='modeling'){
+      const g=new THREE.Group();g.name=kind==='painting'?'Paint brush':'Assembly piece';
+      if(kind==='painting'){const handle=new THREE.Mesh(drum,finish(0x9e6843,'wood'));handle.scale.set(.012,.19,.012);handle.rotation.x=Math.PI/2;handle.position.z=.07;g.add(handle);const tip=new THREE.Mesh(drum,finish(0xcba778,'fabric'));tip.scale.set(.017,.041,.017);tip.rotation.x=Math.PI/2;tip.position.z=.18;g.add(tip);}
+      else{const piece=new THREE.Mesh(new THREE.BoxGeometry(.045,.035,.065),finish(0xe4c49b,'wood'));piece.position.set(0,-.018,.04);g.add(piece);}
+      this.rig.wrists[1].add(g);this.venueProp=g;
+    }
     if(kind==='venueCue'){const g=new THREE.Group();const cue=new THREE.Mesh(drum,finish(0xb78b50,'wood'));cue.scale.set(.012,1.02,.012);cue.rotation.x=Math.PI/2;cue.position.z=.29;g.add(cue);const tip=new THREE.Mesh(drum,finish(0x385d82,'fabric'));tip.scale.set(.012,.035,.012);tip.rotation.x=Math.PI/2;tip.position.z=.805;g.add(tip);this.rig.wrists[1].add(g);this.venueProp=g;}
     if(kind==='gymCurl'&&!this.gymDumbbells){this.gymDumbbells=this.rig.wrists.map(wrist=>{const g=new THREE.Group();for(const [x,r,l] of [[0,.018,.17],[-.105,.052,.045],[.105,.052,.045]]){const m=new THREE.Mesh(drum,finish(x===0?0xb9c0c3:0x263139,'metal'));m.scale.set(r*2,l,r*2);m.rotation.z=Math.PI/2;m.position.x=x;g.add(m);}g.position.set(0,-.045,.02);wrist.add(g);return g;});}
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=kind==='gymCurl';
@@ -711,7 +717,7 @@ export class Actor {
     this.toolTip.copy(tool.localToWorld(this.target.set(0,tipY,tipZ)));
     this.toolError=this.toolTip.distanceTo(this.toolGoal);
   }
-  kitchenQA(){return {tool:this.spoon.visible?'spoon':this.props.fork.visible?'fork':this.props.knife.visible?'knife':this.props.spatula.visible?'spatula':this.props.tongs.visible?'tongs':null,
+  kitchenQA(){return {tool:this.activity==='painting'?'paint brush':this.spoon.visible?'spoon':this.props.fork.visible?'fork':this.props.knife.visible?'knife':this.props.spatula.visible?'spatula':this.props.tongs.visible?'tongs':null,
     error:this.toolError,portion:this.mealBite.visible,elapsed:this.activityTime};}
 
   /** World-space station target with offsets in the actor's facing direction.
@@ -1107,6 +1113,8 @@ export class Actor {
           gaze = 0.065 * Math.sin(a * 1.4);
           expression = 0.12;
           break;
+        case 'painting':gaze=.02;rightY=.04;rightZ=.46;leftY=-.42;leftZ=.16;break;
+        case 'modeling':gaze=.30;lean=.14;rightY=-.31;rightZ=.44;leftY=-.33;leftZ=.40;break;
         case 'journal':
           leftY = -0.33;
           rightY = -0.31 + 0.025 * Math.sin(a * 7);
@@ -2143,7 +2151,11 @@ export class Actor {
     this.selectionRing.position.x = this.figure.position.x;
     this.selectionRing.position.z = this.figure.position.z;
     // Resolve utensils after all body offsets and generic pose transforms.
-    if(this.pan&&this.activity==='cook'){
+    if(this.pan&&this.venueProp&&(this.activity==='painting'||this.activity==='modeling')){
+      const painting=this.activity==='painting',t=a*2.7;
+      if(painting)this.toolContact(this.venueProp,this.stationTarget(this.pan,.14*Math.sin(t*.61),.13*Math.sin(t),0),.20,0,0,.05);
+      else{this.reach(1,this.stationTarget(this.pan,.12*Math.sin(t*.55),.055+.065*Math.max(0,Math.sin(t)),0),alpha);this.reach(0,this.stationTarget(this.pan,-.13,.04,0),alpha);}
+    }else if(this.pan&&this.activity==='cook'){
       const phase=a*(kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
       if(this.spoon.visible){
         this.toolContact(this.spoon,this.stationTarget(this.pan,.068*Math.cos(phase),.058,.057*Math.sin(phase)),.203,0,0,-.60);

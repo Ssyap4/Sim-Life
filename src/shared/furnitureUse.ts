@@ -9,6 +9,7 @@ import { planWalk, pointIsClear, type WalkRoute } from '../game/navigation';
 
 /** Only meaningful activities for the purchased item's actual 3D shape. */
 export const FURNITURE_ACTIONS = {
+  paintLandscape:LEISURE.paintLandscape.label,paintStillLife:LEISURE.paintStillLife.label,buildCottage:LEISURE.buildCottage.label,buildCar:LEISURE.buildCar.label,
   boardGame:LEISURE.boardGame.label,chessGame:LEISURE.chessGame.label,dartsGame:LEISURE.dartsGame.label,
   pingPong:LEISURE.pingPong.label,billiards:LEISURE.billiards.label,hammockRest:LEISURE.hammockRest.label,swingRest:LEISURE.swingRest.label,terraceRest:LEISURE.terraceRest.label,poolFloat:LEISURE.poolFloat.label,poolSwim:LEISURE.poolSwim.label,
   sofaRest:'Отдохнуть',
@@ -102,6 +103,13 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
   const side=role==='vlad'?-1:1;
   if(isLeisureAction(action)){
     const spec=LEISURE[action];
+    if(item.sku==='hobby-easel'||item.sku==='hobby-workbench'){
+      const obstacles=placeObstacles('home',state.furnishing);
+      // Work only from the actual front, never snap inside the object.
+      const p=rotate(item,0,info.depth/2+.34);
+      const route=planWalk(from,p,obstacles,HOME_WORLD_FLOOR);
+      return route?{item,action,route,pose:{...p,y:0,yaw:item.rotation*Math.PI/2+Math.PI}}:null;
+    }
     if(action==='poolFloat'||action==='poolSwim'){
       const obstacles=placeObstacles('home',state.furnishing);
       const approaches=[[1.75+side*.35,info.depth/2+.38],[1.75+side*.35,info.depth/2+.65]];

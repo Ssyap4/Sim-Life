@@ -1,4 +1,4 @@
-import {OCCASIONS,PERSONAL_OCCASIONS,HOBBIES,HOBBY_LEVELS,LIFE_EVENTS,occasionsAhead,familyLife,currentLifeEvent,type FamilyLifeCommand,type Hobby} from './shared/familyLife';
+import {OCCASIONS,PERSONAL_OCCASIONS,HOBBIES,HOBBY_LEVELS,HOBBY_RESULTS,LIFE_EVENTS,occasionsAhead,familyLife,currentLifeEvent,type FamilyLifeCommand,type Hobby} from './shared/familyLife';
 import type {GameState,CharacterId} from './shared/protocol';
 const make=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const el=document.createElement(tag);el.textContent=text;return el;};
 export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>boolean){
@@ -31,6 +31,12 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
    for(const id of Object.keys(HOBBIES) as Hobby[]){
     const h=HOBBIES[id],p=f.hobbies[role][id],n=p?.sessions??0,level=HOBBY_LEVELS.filter(x=>n>=x).length;
     const c=card(h.icon+' '+h.name,h.hint);c.append(make('small',(level?h.milestones[level-1]:'Начало пути')+' · Занятий: '+n+' · Разновидностей: '+(p?.unique.length??0)));
+    if(id==='painting'||id==='modeling'){
+      const collection=make('div');collection.className='hobby-collection';
+      for(const [key,work] of Object.entries(HOBBY_RESULTS).filter(([k])=>id==='painting'?k.startsWith('paint'):k.startsWith('build'))){
+        const done=p?.unique.includes(key)??false;const tile=make('div');tile.className='hobby-work';tile.dataset.done=String(done);tile.append(make('strong',done?work.icon:'🔒'),make('span',work.title),make('small',done?'В коллекции':'Не завершено'));collection.append(tile);
+      }c.append(collection);
+    }
     const track=make('progress');track.max=HOBBY_LEVELS[level]??15;track.value=Math.min(n,track.max);track.setAttribute('aria-label','Прогресс '+h.name);c.append(track,make('p',p?.lastDay===s.clock.day?'Сегодня зачтено':level===3?'Все основные этапы пройдены':'Следующий этап: '+track.max+' занятий'));nodes.push(c);
    }
   }else{

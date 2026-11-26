@@ -18,9 +18,10 @@ jobs:
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install chromium
       - run: npm run build
-      - run: node --import tsx --test server/tests/holiday-art-056.test.ts server/tests/short-calendar-056.test.ts server/tests/weather039.test.ts server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/family-life-056.test.ts server/tests/calendar.test.ts server/tests/weekends-051.test.ts server/tests/lifeMoments037.test.ts
+      - run: node --import tsx --test server/tests/creative-hobbies-056.test.ts server/tests/holiday-art-056.test.ts server/tests/short-calendar-056.test.ts server/tests/weather039.test.ts server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/family-life-056.test.ts server/tests/calendar.test.ts server/tests/weekends-051.test.ts server/tests/lifeMoments037.test.ts
       - run: node --import tsx scripts/qa-family-life-056.mjs
       - run: node --import tsx scripts/qa-family-life-056.mjs winter
+      - run: node --import tsx scripts/qa-hobbies-056.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

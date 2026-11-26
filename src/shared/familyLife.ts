@@ -16,7 +16,10 @@ export const OCCASIONS={
 export type Occasion=keyof typeof OCCASIONS;
 export type PersonalOccasion='vladBirthday'|'alinaBirthday'|'anniversary';
 export const PERSONAL_OCCASIONS=['vladBirthday','alinaBirthday','anniversary'] as const;
+export const HOBBY_RESULTS={paintLandscape:{title:'Тихое озеро',icon:'🏞️'},paintStillLife:{title:'Яблоки и ваза',icon:'🍎'},buildCottage:{title:'Уютный домик',icon:'🏡'},buildCar:{title:'Миниатюрный автомобиль',icon:'🚙'}} as const;
 export const HOBBIES={
+ painting:{name:'Рисование',icon:'🎨',hint:'Купите мольберт в разделе мебели «Досуг» и создавайте картины.',milestones:['Любитель живописи','Уверенный художник','Мастер кисти']},
+ modeling:{name:'Моделирование',icon:'🧩',hint:'Купите стол для миниатюр и собирайте модели.',milestones:['Начинающий мастер','Мастер деталей','Мастер миниатюр']},
  reading:{name:'Чтение',icon:'📚',hint:'Завершайте чтение разных книг.',milestones:['Любитель книг','Книжный знаток','Библиофил']},
  cooking:{name:'Кулинария',icon:'🍳',hint:'Готовьте разные домашние блюда.',milestones:['Домашний кулинар','Гурман','Мастер кухни']},
  fishing:{name:'Рыбалка',icon:'🎣',hint:'Завершайте попытки рыбалки на Лесном озере.',milestones:['Начинающий рыбак','Опытный рыбак','Любитель озера']},
@@ -88,6 +91,8 @@ export function creditCelebration(s:GameState,action:string):string[]{
 export function hobbyFor(command:TimedCommand,s?:GameState):{id:Hobby;item:string}|undefined{
  if(command.type==='read_book')return {id:'reading',item:command.book};
  if(command.type==='furniture_use'){
+  if(command.action==='paintLandscape'||command.action==='paintStillLife')return {id:'painting',item:command.action};
+  if(command.action==='buildCottage'||command.action==='buildCar')return {id:'modeling',item:command.action};
   if(command.action==='read_book'&&command.book)return {id:'reading',item:command.book};
   if(command.action==='pingPong'||command.action==='poolSwim')return {id:'sport',item:command.action};
  }
@@ -107,12 +112,14 @@ export function hobbyFor(command:TimedCommand,s?:GameState):{id:Hobby;item:strin
 export function creditHobby(s:GameState,role:CharacterId,command:TimedCommand):string{
  const h=hobbyFor(command,s);if(!h)return '';
  const progress=mutable(s).hobbies[role],p=progress[h.id]??{sessions:0,unique:[],lastDay:0};
- if(!p.unique.includes(h.item)&&p.unique.length<40)p.unique.push(h.item);
- if(p.lastDay===s.clock.day){progress[h.id]=p;return '';}
+ const newResult=!p.unique.includes(h.item)&&p.unique.length<40;
+ if(newResult)p.unique.push(h.item);
+ const result=newResult&&Object.hasOwn(HOBBY_RESULTS,h.item)?' · В коллекции: '+HOBBY_RESULTS[h.item as keyof typeof HOBBY_RESULTS].title:'';
+ if(p.lastDay===s.clock.day){progress[h.id]=p;return result;}
  p.sessions=Math.min(1000000,p.sessions+1);p.lastDay=s.clock.day;progress[h.id]=p;
  const level=HOBBY_LEVELS.findIndex(n=>n===p.sessions);
- if(level>=0){s.characters[role].mood=Math.min(100,s.characters[role].mood+8);return ' · Хобби: '+HOBBIES[h.id].milestones[level];}
- return '';
+ if(level>=0){s.characters[role].mood=Math.min(100,s.characters[role].mood+8);return result+' · Хобби: '+HOBBIES[h.id].milestones[level];}
+ return result;
 }
 export function offerLifeEvent(s:GameState,previousMinute:number,eligible:readonly CharacterId[]):boolean{
  if(!eligible.length||s.clock.day<3)return false;

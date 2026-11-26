@@ -57,6 +57,26 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     ball(r,r,r,x,y,z,color,'metal');
   const s=sku;
 
+  if(s==='hobby-easel'){
+    for(const x of [-.40,.40])rod([x,.035,.28],[x*.45,1.76,-.10],.036,M,'wood');
+    rod([0,.035,-.34],[0,1.55,-.10],.035,D,'wood');
+    box(.90,.065,.30,0,.92,.07,M);box(.78,.68,.052,0,1.31,.10,0xeee4d0,'wood');
+    box(.74,.64,.012,0,1.31,.133,0xfaf1da,'fabric');
+    const art=(name:string,landscape:boolean)=>{const g=new THREE.Group();g.name='Hobby result '+name;root.add(g);const add=(...args:Parameters<typeof box>)=>{const b=box(...args);g.add(b);return b;};
+      if(landscape){add(.72,.31,.009,0,1.46,.145,0xaccfe0);add(.72,.27,.009,0,1.16,.145,0x82b1bc);for(let i=0;i<5;i++){const m=add(.19,.20,.012,-.28+i*.14,1.36+(i%2)*.025,.156,0x688c78);m.rotation.z=.785;}add(.65,.055,.013,0,1.13,.158,0xd5d3b2);}
+      else{add(.72,.58,.009,0,1.31,.145,0xe6c6a9);add(.72,.17,.012,0,1.09,.155,0x987757);add(.17,.28,.015,-.10,1.29,.165,0x749e9e);for(const x of [-.20,.04,.20]){const a=ball(.064,.061,.012,x,1.15,.17,0xc45d4d,'ceramic');g.add(a);}for(let i=0;i<3;i++){const a=ball(.05,.06,.012,-.18+i*.08,1.50+(i%2)*.04,.17,0xeacb68);g.add(a);}}
+      g.visible=false;batchRigidParts(g,true);
+    };art('paintLandscape',true);art('paintStillLife',false);
+    box(.24,.025,.15,.25,.965,.13,0xe1c1a2,'wood');for(let i=0;i<4;i++)ball(.026,.012,.026,.17+i*.055,.984,.13,[0xc6564a,0x729d80,0xe8c05b,0x89b2d1][i],'ceramic');
+    return root;
+  }
+  if(s==='hobby-workbench'){
+    box(w*.97,.08,d*.97,0,.91,0,M,'wood',true);feet(.87,.10,.07,D);box(w*.78,.10,.40,0,.28,-.04,L);box(.94,.13,.06,0,1.04,-.30,D);
+    for(let i=0;i<5;i++)box(.10,.045,.095,-.44+i*.09,.972,-.19,[0xd3a86f,0x6e9a87,0x9caec2][i%3]);
+    const cottage=new THREE.Group();cottage.name='Hobby result buildCottage';root.add(cottage);cottage.add(box(.25,.16,.22,.07,1.03,.04,0xe5ccab));for(const side of [-1,1]){const r=box(.18,.038,.27,.07+side*.065,1.145,.04,0xab6955);r.rotation.z=-side*.50;cottage.add(r);}cottage.add(box(.063,.10,.012,.07,.99,.157,0x89654f));cottage.visible=false;batchRigidParts(cottage,true);
+    const car=new THREE.Group();car.name='Hobby result buildCar';root.add(car);car.add(box(.29,.09,.14,.07,1.005,.04,0x527b93,'metal',true));car.add(box(.14,.07,.13,.065,1.075,.04,0x9abdc5,'metal',true));for(const x of [-.032,.176])for(const z of [-.032,.112])car.add(ball(.039,.039,.025,x,.986,z,0x303535,'metal'));car.visible=false;batchRigidParts(car,true);
+    return root;
+  }
   if(s==='leisure-chess'||s==='leisure-board'){
     const chess=s==='leisure-chess';
     box(.98,.095,.81,0,.945,0,M,'wood',true);
