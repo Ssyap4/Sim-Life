@@ -605,6 +605,25 @@ export class World {
     // Inspect from above and from the foot, respecting a rotated mattress.
     const pairMotion=person?this.homeTasks.get(subject)?.pair?.motion:undefined;
     const romanticSeat=pairMotion&&['sofaLean','sofaHands','sofaKiss','sofaHug','cuddle','musicTogether'].includes(pairMotion);
+    const standingPair=pairMotion&&['hug','closeHug','kiss','cheek','hands','slowDance'].includes(pairMotion);
+    const partner=person?this.actors[subject==='vlad'?'alina':'vlad']:null;
+    const pairClose=!!partner&&(romanticSeat||standingPair)&&
+      partner.root.position.distanceTo(subjectRoot.position)<2.1;
+    if(pairClose&&partner)bounds.union(new THREE.Box3().setFromObject(partner.root.children[0],true));
+    const coupleAngle=pairClose&&standingPair?new THREE.Vector3(.98,.30,.15)
+      .applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
+    // During care, include the nearby animal instead of cropping the coat
+    // out of the resident portrait. This remains an optional inspection.
+    const care=person&&['pet','brush'].includes(this.actors[subject].audioMotion().activity??'');
+    let careAngle:THREE.Vector3|null=null;
+    if(care){
+      let nearest:PetActor|null=null,distance=1.6;
+      for(const id of PET_IDS){const pet=this.pets[id],d=pet.root.position.distanceTo(subjectRoot.position);if(d<distance){nearest=pet;distance=d;}}
+      if(nearest){
+        bounds.union(new THREE.Box3().setFromObject(nearest.root.children[0],true));
+        careAngle=new THREE.Vector3(.86,.64,.50).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y);
+      }
+    }
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
     const vanityAngle=person&&this.homeTasks.get(subject)?.vanityCare?new THREE.Vector3(-.19,.32,.98):null;
@@ -613,7 +632,7 @@ export class World {
     const catalogAngle=catalogSeat?new THREE.Vector3(.38,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
     const handheld=person&&['read','phone','scrollPhone'].includes(this.actors[subject].audioMotion().activity??'');
     const handheldAngle=handheld?new THREE.Vector3(.40,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
-    const angle = loungeAngle??vanityAngle??bedAngle??handheldAngle??catalogAngle??(perch
+    const angle = loungeAngle??vanityAngle??bedAngle??coupleAngle??careAngle??handheldAngle??catalogAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)

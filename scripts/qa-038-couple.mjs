@@ -9,7 +9,7 @@ import {initialState} from '../src/shared/protocol.ts';
 import {pairScenes} from '../server/society.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
-const action=process.argv[2],out='/tmp/simlife-038-couple';mkdirSync(out,{recursive:true});
+const action=process.argv[2],android=process.argv.includes('android'),out=process.env.SIM_COUPLE_QA_OUT??'/tmp/simlife-038-couple';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'couple-'));let server,browser,page,peer;
 try{
  const s=initialState();s.clock.minute=750;s.autonomy.vlad=s.autonomy.alina='off';s.pantry.tea=10;
@@ -27,7 +27,7 @@ try{
  const take=async(type,predicate=()=>true)=>{for(let i=0;i<900;i++){const index=packets.findIndex(p=>p.type===type&&predicate(p));if(index>=0)return packets.splice(index,1)[0];await new Promise(r=>setTimeout(r,30));}throw Error('Missing '+type+' '+packets.map(p=>p.type).join(','));};
  send({type:'auth',role:'alina',code:files.access.alina});await take('ready');
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
- page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ page=await browser.newPage({viewport:android?{width:412,height:915}:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});

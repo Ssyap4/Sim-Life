@@ -1,0 +1,43 @@
+name: Sim-Life 0.53 final contact visual QA
+on:
+  push:
+    branches: [feat/living-everyday-053]
+    paths: ['src/game/**', 'scripts/qa-053-pet-contact.mjs', 'scripts/qa-038-couple.mjs', '.github/workflows/simlife-053-final-visual.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [kiss, closeHug, sofaKiss, sofaHands, verdell, simba]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - name: Actual game frames
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+          SIM_COUPLE_QA_OUT: /tmp/simlife-053-couple
+        run: |
+          case "$SCENARIO" in
+            verdell|simba) node --import tsx scripts/qa-053-pet-contact.mjs "$SCENARIO";;
+            *) node --import tsx scripts/qa-038-couple.mjs "$SCENARIO" android;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-053-${{ matrix.scenario }}
+          path: |
+            /tmp/simlife-053-couple
+            /tmp/simlife-053-pet-contact
+          retention-days: 7
