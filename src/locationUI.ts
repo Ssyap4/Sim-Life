@@ -1,3 +1,4 @@
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
@@ -83,7 +84,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'))&&destination!=='home')return false;
+    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -107,12 +108,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='spa'||id==='venue')&&location!==id) continue;
+      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='spa'||id==='venue'||id==='lake')&&location!==id) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'))&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'))&&id==='home'?'Вернуться домой':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -181,7 +182,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if(kind==='car'){
       options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
       if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else {options.append(button('🎳 В PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));options.append(button('♨️ SPA · один гость · '+formatRub(SPA_PASSES.single.price),()=>{if(send({type:'car_travel',place:'spa'}))close();},place.money<SPA_PASSES.single.price));for(const pass of ['pair','package'] as const)options.append(button(SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price),()=>{if(send({type:'spa_trip',pass}))close();},place.money<SPA_PASSES[pass].price));options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic',...(role==='vlad'?['barber' as const]:[])] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
+      else {for(const [id,p] of Object.entries(LAKE_PASSES)){const pass=id as LakePass;options.append(button('🏕️ '+p.name+' · один · '+formatRub(p.single),()=>{if(send({type:'car_travel',place:'lake',pass}))close();},place.money<p.single));options.append(button('🏕️ '+p.name+' · вдвоём · '+formatRub(p.pair),()=>{if(send({type:'lake_trip',pass}))close();},place.money<p.pair));}options.append(button('🎳 В PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));options.append(button('♨️ SPA · один гость · '+formatRub(SPA_PASSES.single.price),()=>{if(send({type:'car_travel',place:'spa'}))close();},place.money<SPA_PASSES.single.price));for(const pass of ['pair','package'] as const)options.append(button(SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price),()=>{if(send({type:'spa_trip',pass}))close();},place.money<SPA_PASSES[pass].price));options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic',...(role==='vlad'?['barber' as const]:[])] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
         if(send({type:'car_travel',place:destination}))close();
       }));for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапу и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));}
     } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){
@@ -193,6 +194,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const id=station.action.facility;
       if(id==='reception')options.append(element('small','','Оплата каждой партии только после завершения. Выберите игровую зону.'));
       else {const g=VENUE_GAMES[id];options.append(element('small','',g.name+' · '+g.seconds+' сек. · '+formatRub(g.price)+' за двоих'));if(cafeSocial)options.append(button('Пригласить сыграть вдвоём',()=>{if(cafeSocial(id))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));}
+    } else if(station.action.kind==='lake'){
+      const visit=place.world.lake?.[role],access=lakeAccess(place,role);
+      options.append(element('small','',access?'Билет действует ещё '+Math.ceil((visit!.until-now)/60)+' ч.':'Билет закончился'));
+      if(station.action.facility==='rental'){
+        for(const [id,p] of Object.entries(LAKE_TENTS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'tent',item:id as LakeTent}))close();},!access||place.money<p.price||Object.values(place.world.lake??{}).some(v=>!!v.tent)));
+        for(const [id,p] of Object.entries(LAKE_RODS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'rod',item:id as LakeRod}))close();},!access||place.money<p.price||!!visit?.rod));
+      }else if(station.action.facility==='pitch')options.append(button('Выбрать площадку',()=>{if(send({type:'lake_pitch',station:station.id}))close();},!access||!visit?.tent||!!visit?.pitch||Object.values(place.world.lake??{}).some(v=>v.pitch===station.id)));
+      else options.append(element('small','','Рыбалка — следующий этап разработки'));
     } else if(station.action.kind==='spa'){
  const a=station.action.facility,visit=place.world.spa?.[role];
  if(a==='reception')options.append(element('small','',visit?SPA_PASSES[visit.pass].name+' · оплачено':'Посещение не оплачено'));

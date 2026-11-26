@@ -1,9 +1,9 @@
+import {residentLook} from './shared/lake';
 import {CARE,careScore,careEffects,careRole,homeCare,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
-import { defaultWardrobe } from './shared/previewWardrobe';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
-import { fitWardrobe, fitSpaWardrobe, outfitChoices } from './game/Wardrobe';
+import { fitWardrobe, fitSpaWardrobe, fitLakeWardrobe, outfitChoices } from './game/Wardrobe';
 import { NEARBY_TALK_TOPICS } from './shared/socialLife';
 import { isFreeLeisureRest } from './shared/leisure';
 import { createSocialOffer, showSocialMenu } from './socialUI';
@@ -665,9 +665,9 @@ function renderClock(): void {
 function syncResidentLook(role:CharacterId):void{
   if(!state||!world)return;
   const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool;
-  const worn=water?'spa-visit':(state.world.wardrobe??defaultWardrobe())[role].worn;
+  const worn=residentLook(state,role,!!water);
   const actor=world.actors[role];
-  if(actor.root.userData.wornLook!==worn){if(water)fitSpaWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+  if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
 }
 function render(reset = false): void {
   if (!state) return;

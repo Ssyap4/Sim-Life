@@ -1,3 +1,4 @@
+import {buildLakeLandscape,lakeStation} from './LakeArt';
 import * as THREE from 'three';
 import {buildSpaWater} from './SpaWater';
 import {buildVenueStation,animateVenueStation,type VenuePlay} from './VenueArt';
@@ -539,12 +540,17 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const bulbs: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
   const outdoor = place === 'park';
   const floor = new THREE.Group();
+  let lakeArt:ReturnType<typeof buildLakeLandscape>|undefined;
   let animatePark: ((seconds:number)=>void)|undefined;
   let animateCafe: ((seconds:number)=>void)|undefined;
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='venue'){
+  if(place==='lake'){
+    lakeArt=buildLakeLandscape(root,resources);
+    const clerk=marketCashier(resources,{title:'Прокат',color:0x527151,shirt:0xe9dfbd,animated:true});clerk.position.set(-9.05,.08,9.12);root.add(clerk);
+    animatePark=(seconds)=>lakeArt!.animate(seconds);
+  }else if(place==='venue'){
     shape(floor,[20.3,.36,14.3],[0,-.20,0],0x3e4c57,cube);
     shape(floor,[20,.06,14],[0,-.03,0],0xb8a38b,cube);
     shape(floor,[20.15,2.85,.18],[0,1.42,-7.05],0x465b68,cube);shape(floor,[.18,2.85,14.1],[-10.04,1.42,0],0x526c76,cube);
@@ -721,10 +727,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
+    const custom = place==='lake'?lakeStation(station):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
           : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
+    if(place==='lake'&&station.id==='lake-rental')sign(group,'КЕМПИНГ И РЫБАЛКА',2.45,1.66,4.7,0xf5ebda,textures,materials);
+    if(place==='lake'&&station.id==='lake-exit')sign(group,'ЛЕСНОЕ ОЗЕРО',2.53,.17,2.7,0xf5ebda,textures,materials);
     if(station.action.kind==='venue')group.name=station.action.facility;
     stations.set(station.id, group);
     root.add(group);
@@ -735,13 +743,13 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
+  const horizontal = (place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   const vertical = corners(new THREE.Box3().setFromObject(root));
   return {
     root, stations, horizontal, vertical,
     animate: animateWork ?? animatePark ?? animateCafe,
-    setNight(night: boolean) { for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
+    setNight(night: boolean) { lakeArt?.setNight(night);for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {

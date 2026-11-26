@@ -1,3 +1,4 @@
+import {LAKE_LOOKS} from '../shared/lake';
 import { PREVIEW_LOOKS, isPreviewLook, previewLongSleeves } from '../shared/previewWardrobe';
 import * as THREE from 'three';
 import type { Object3D } from 'three';
@@ -44,7 +45,12 @@ export const GARMENTS: readonly Garment[] = [
   {id:'alina-tee-upper', name:'Футболка Алины',slot:'upper',fit:'alina-021',layers:['upper']},
 ];
 
+const lakeOriginals=new WeakMap<THREE.Mesh,THREE.BufferGeometry>();
+function restoreLakePalette(model:Object3D){
+ model.traverse(o=>{if(!(o instanceof THREE.Mesh))return;const original=lakeOriginals.get(o);if(original){o.geometry.dispose();o.geometry=original;lakeOriginals.delete(o);}});
+}
 export function fitWardrobe(model:Object3D, character:CharacterId, choices:readonly string[] = []) {
+  restoreLakePalette(model);
   const fit=character+'-021';
   const fitted=new Map<string,Garment>();
   for(const rule of GARMENTS)if(rule.fit===fit)fitted.set(rule.id,rule);
@@ -110,4 +116,22 @@ export function fitSpaWardrobe(model:Object3D,role:CharacterId){
   }
   group.visible=true;
  }
+}
+
+// A single temporary campsite kit, fitted on the already-approved garment rigs.
+// Copy only the color buffer. Never mutate the shared GLB, skeleton or owned look.
+export function fitLakeWardrobe(model:Object3D,role:CharacterId){
+ const look=LAKE_LOOKS[role];fitWardrobe(model,role,outfitChoices(look));
+ const palette=role==='alina'?{upper:0x9cae92,lower:0x6f685c}:{upper:0xc2b395,lower:0x596d48};
+ model.traverse(o=>{
+  if(!(o instanceof THREE.Mesh)||!o.visible||o.userData.garmentId!==role+'-'+look+'-'+o.userData.garmentSlot)return;
+  const slot=o.userData.garmentSlot as 'upper'|'lower';
+  if(slot!=='upper'&&slot!=='lower')return;
+  const color=o.geometry.getAttribute('color');if(!color||color.itemSize<3)return;
+  const original=o.geometry,copy=original.clone(),out=copy.getAttribute('color');
+  const target=new THREE.Color(palette[slot]);let peak=.001;
+  for(let i=0;i<color.count;i++)peak=Math.max(peak,.2126*color.getX(i)+.7152*color.getY(i)+.0722*color.getZ(i));
+  for(let i=0;i<color.count;i++){const y=.2126*color.getX(i)+.7152*color.getY(i)+.0722*color.getZ(i),shade=.36+.64*y/peak;out.setXYZ(i,target.r*shade,target.g*shade,target.b*shade);}
+  out.needsUpdate=true;lakeOriginals.set(o,original);o.geometry=copy;
+ });
 }

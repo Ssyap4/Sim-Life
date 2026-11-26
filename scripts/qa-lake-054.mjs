@@ -1,0 +1,47 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync,readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import WebSocket from 'ws';
+import {once} from 'node:events';
+import {initialState} from '../src/shared/protocol.ts';
+import {defaultWardrobe} from '../src/shared/previewWardrobe.ts';
+import {applyWorld,lakeTogetherTrip} from '../server/locations.ts';
+import {stationById,approachFor} from '../src/shared/locations.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simlife-lake-054';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'lake-054-'));let browser,server,buddy,page;
+try{
+ let s=initialState();s.clock.minute=750;s.money=100000;s.autonomy={vlad:'off',alina:'off'};
+ s.world.wardrobe=defaultWardrobe();s.world.wardrobe.vlad={owned:['signature','polo'],worn:'polo'};s.world.wardrobe.alina={owned:['signature','pink'],worn:'pink'};
+ const trip=lakeTogetherTrip(s,'vlad','night');assert.ok(trip.ok);s=trip.state;
+ const apply=(role,command)=>{const r=applyWorld(s,role,command);assert.ok(r.ok,JSON.stringify(r));s=r.state;};
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental'),'vlad'));
+ apply('vlad',{type:'lake_rent',category:'tent',item:'family'});apply('vlad',{type:'lake_rent',category:'rod',item:'spin'});
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-pitch-2'),'vlad'));apply('vlad',{type:'lake_pitch',station:'lake-pitch-2'});
+ Object.assign(s.characters.vlad,{x:-5.05,z:-5.50,pose:'idle'});Object.assign(s.characters.alina,{x:-3.35,z:-5.50,pose:'idle'});
+ openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(buddy,'open');buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
+ await page.addInitScript(()=>{const Native=window.WebSocket;window.__packets=[];window.WebSocket=class extends Native{constructor(...a){super(...a);if(this.url.includes('/sync')){window.__socket=this;this.addEventListener('message',e=>{try{window.__packets.push(JSON.parse(e.data))}catch{}});}}};});
+ const shot=async(name)=>{await page.waitForTimeout(1700);const p=join(out,name+'.jpg');await page.screenshot({path:p,type:'jpeg',quality:85});const b64=readFileSync(p).toString('base64');for(let i=0;i<b64.length;i+=6000)console.log('LAKEQA_IMAGE '+name+' '+(i/6000)+' '+b64.slice(i,i+6000));};
+ await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='lake',undefined,{timeout:45000});
+ await shot('01-overview');
+ for(const role of ['vlad','alina']){await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();await shot('02-'+role);}
+ const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
+ await send({type:'approach',place:'lake',station:'lake-exit'});
+ await page.waitForTimeout(2500);
+ await send({type:'travel',place:'district',via:'lake-exit'});
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='home',undefined,{timeout:35000});
+ await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase=vlad]').tap();await shot('03-home-restored');
+ assert.deepEqual(errors,[]);
+ console.log('Lake scene, active resident wardrobe, return to home and shader runtime passed');
+}finally{buddy?.terminate();await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

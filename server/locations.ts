@@ -1,3 +1,4 @@
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -56,8 +57,9 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','venue','work-clinic'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','venue','lake','work-clinic'].includes(w.places![w.carDriver]))) &&
     (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
+    (w.lake===undefined?ROLES.every(r=>w.places![r]!=='lake'):validLake(w.lake)&&ROLES.every(r=>!!w.lake?.[r]===(w.places![r]==='lake'))) &&
     (w.spa===undefined?ROLES.every(r=>w.places![r]!=='spa'):validSpa(w.spa)&&ROLES.every(r=>!!w.spa?.[r]===(w.places![r]==='spa'))) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
@@ -114,6 +116,13 @@ export function spaTogetherTrip(source:GameState,driver:CharacterId,pass:'pair'|
  for(const r of ROLES){next.world.places[r]='spa';next.world.spa[r]={pass,used:[]};Object.assign(next.characters[r],doorwayArrival('spa','district',r),{pose:'idle'});}
  next.money-=price;addLedger(next,driver,'expense','services',price,SPA_PASSES[pass].name);return done(next,'Приехали вместе в SPA «Лагуна»');
 }
+export function lakeTogetherTrip(source:GameState,driver:CharacterId,pass:LakePass):Result{
+ if(!lakePass(pass)||source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Оба должны быть дома и свободны');
+ const price=LAKE_PASSES[pass].pair;if(source.money<price)return fail('Недостаточно денег');
+ const next=structuredClone(source);next.world.carDriver=driver;next.world.lake={};
+ for(const r of ROLES){next.world.places[r]='lake';next.world.lake[r]=lakeVisit(pass,clockMinutes(next.clock));Object.assign(next.characters[r],doorwayArrival('lake','district',r),{pose:'idle'});}
+ next.money-=price;addLedger(next,driver,'expense','services',price,'Лесное озеро · '+LAKE_PASSES[pass].name);return done(next,'Приехали в Лесное озеро');
+}
 export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
  if(source.world.carDriver||ROLES.some(r=>source.world.places[r]!=='home'||source.activeShifts[r]||source.careers.residents[r].shift||source.world.dogWalker===r))return fail('Оба должны быть дома и свободны');
  const next=structuredClone(source);next.world.carDriver=driver;
@@ -123,7 +132,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'lake_rent','lake_pitch','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -293,16 +302,35 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     personal.worn=look;
     return done(next,'Наряд изменён');
   }
+  if(command.type==='lake_rent'||command.type==='lake_pitch'){
+    if(!lakeAccess(source,role))return fail('Нужен действующий билет клуба');
+    const next=structuredClone(source),visit=next.world.lake![role]!;
+    if(command.type==='lake_pitch'){
+      const station=stationById('lake',command.station);
+      if(station?.action.kind!=='lake'||station.action.facility!=='pitch'||!at(source,role,station)||!visit.tent)return fail('Возьми палатку и подойди к площадке');
+      if(Object.values(next.world.lake!).some(v=>v!==visit&&v.pitch===station.id))return fail('Площадка занята');
+      if(visit.pitch)return fail('Палатка уже установлена');
+      visit.pitch=station.id;return done(next,'Площадка выбрана');
+    }
+    if(!at(source,role,stationById('lake','lake-rental')))return fail('Подойди к прокату');
+    let price:number,label:string;
+    if(command.category==='tent'&&lakeTent(command.item)){if(visit.tent||next.world.lake?.[neighbor]?.tent)return fail('Семья уже арендовала палатку');visit.tent=command.item;price=LAKE_TENTS[command.item].price;label=LAKE_TENTS[command.item].name;}
+    else if(command.category==='rod'&&lakeRod(command.item)){if(visit.rod)return fail('Снасть уже арендована');visit.rod=command.item;price=LAKE_RODS[command.item].price;label=LAKE_RODS[command.item].name;}
+    else return fail('Выбери оборудование');
+    if(next.money<price)return fail('Недостаточно денег');
+    next.money-=price;addLedger(next,role,'expense','services',price,'Прокат · '+label);return done(next,'Арендовано: '+label);
+  }
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='barber'&&command.place!=='spa'&&command.place!=='work-clinic')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='barber'&&command.place!=='spa'&&command.place!=='lake'&&command.place!=='work-clinic')return fail('Выбери доступное место');
     if(command.place==='barber'&&role!=='vlad')return fail('BRO доступен Владу');
     if(command.place==='work-clinic'&&(!isHealthPet(command.pet)||command.pet==='verdell'&&source.world.dogWalker))return fail('Выбери свободного питомца для поездки');
     if(command.place!=='work-clinic'&&command.pet!==undefined)return fail('Питомца можно взять только в ветеринарку');
     if(source.world.dogWalker===role)return fail('Сначала отпусти Верделла домой');
     const next=structuredClone(source);
     const destination=command.place;
+    if(destination==='lake'){if(!lakePass(command.pass))return fail('Выбери билет');const price=LAKE_PASSES[command.pass].single;if(next.money<price)return fail('Недостаточно денег');next.money-=price;addLedger(next,role,'expense','services',price,'Лесное озеро · '+LAKE_PASSES[command.pass].name);(next.world.lake??={})[role]=lakeVisit(command.pass,clockMinutes(next.clock));}
     if(destination==='spa'){const price=SPA_PASSES.single.price;if(next.money<price)return fail('Недостаточно денег');next.money-=price;addLedger(next,role,'expense','services',price,SPA_PASSES.single.name);(next.world.spa??={})[role]={pass:'single',used:[]};}
     const spawnPoint=doorwayArrival(destination,'district',role);
     const other=neighborAt(destination);
@@ -330,21 +358,21 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
       if(!arrival)return fail('Парковка занята');
       delete next.world.carDriver;
-      if((place==='spa'||place==='venue')&&next.world.places[neighbor]===place)next.world.carDriver=neighbor;
+      if((place==='spa'||place==='venue'||place==='lake')&&next.world.places[neighbor]===place)next.world.carDriver=neighbor;
       if(next.world.vetVisit?.owner===role)delete next.world.vetVisit;
       if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
-      if(place==='spa'&&next.world.spa)delete next.world.spa[role];
+      if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;}delete next.world.lake[role];}
       next.world.places[role]='home';
       next.world.bags[role]=0;
       next.world.tableBags=0;
       Object.assign(next.characters[role],arrival,{pose:'idle'});
       return done(next,'Вернулись домой на машине');
     }
-    if(place==='fitness'||place==='clinic'||place==='spa'||place==='venue'){
+    if(place==='fitness'||place==='clinic'||place==='spa'||place==='venue'||place==='lake'){
       const exit=stationById(place,command.via);if(command.place!=='district'||exit?.id!==place+'-exit'||!at(source,role,exit))return fail('Подойди к выходу');
       const next=structuredClone(source),parking=approachFor(stationById('home','family-car')!,role),other=neighborAt('home');
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
-      if(!arrival)return fail('Парковка занята');if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;if(place==='spa'&&next.world.spa)delete next.world.spa[role];next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
+      if(!arrival)return fail('Парковка занята');if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;}delete next.world.lake[role];}next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
     }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
@@ -362,6 +390,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       return fail('Верделла можно взять из дома, если он свободен');
     const next = structuredClone(source);
     if(command.place==='venue')return fail('В PLAY ARENA нужно поехать вдвоём на машине');
+    if(command.place==='lake')return fail('В клуб нужен оплаченный билет и поездка на машине');
     if(command.place==='spa')return fail('До SPA можно доехать на машине');
     if(command.place==='barber')return fail('До BRO можно доехать на машине');
     if(command.place==='clinic')return fail('До клиники можно доехать на машине');
