@@ -82,6 +82,25 @@ export function buildElectronicsModel(id:ElectronicsId):THREE.Group{
    display(g,w-.045,h-.047,0,.165,-.035,-.20,pro?0x7187b5:air?0x96b0cf:neo?0x6d9e9f:0x63858c);
    const cam=part(g,[.035,.011,.008],[0,.165+(h-.047)/2-.005,-.015],black,true);cam.rotation.x=-.20;
    part(g,[.016,.007,.04],[w/2-.01,.014,.17],black);
+ }else if(id==='tvStart'){
+   // Actual 32-inch 16:9 panel; late-2000s plasma-style housing.
+   const screenW=32*.0254*16/Math.hypot(16,9),screenH=screenW*9/16;
+   const w=.88,h=.55,y=.465,z=-.025,thick=.145,front=z+thick/2;
+   part(g,[w,h,thick],[0,y,z],0x11151c,true);
+   part(g,[w-.045,h-.045,.105],[0,y,-.090],0x252930,true);
+   // Uninterrupted 16:9 anchor for the existing home TV texture.
+   display(g,screenW,screenH,0,y+.022,front+.002,0,0x293343);
+   // Silver lower speaker/control fascia below the visible panel.
+   part(g,[w,.112,.094],[0,.205,.009],0xb8bec5,true);
+   part(g,[w-.08,.008,.009],[0,.265,.056],0x5b6169);
+   const button=round(g,[.020,.007,.020],[0,.203,.060],0x565d66);
+   button.rotation.x=Math.PI/2;
+   const center=round(g,[.012,.008,.012],[0,.203,.066],0x161b23);
+   center.rotation.x=Math.PI/2;
+   part(g,[.15,.122,.10],[0,.095,-.025],0x60666e,true);
+   round(g,[.29,.032,.126],[0,.016,-.010],0x898e95);
+   round(g,[.245,.012,.102],[0,.038,-.010],0xc6cacf);
+   part(g,[.012,.007,.005],[.365,.179,.059],0x71a497);
  }else if(model.kind==='tv'){
    const hd=id==='tvHD',oled=id==='tvOLED',four=id==='tv4k';
    const w=hd?1.33:four?1.67:oled?1.87:1.82,h=w*9/16,thick=oled?.037:four?.055:.074;

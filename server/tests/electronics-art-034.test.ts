@@ -38,9 +38,34 @@ test('every showroom display includes its three corresponding devices and price 
 });
 test('larger televisions differ in dimensions, and compact Mac Studio differs from tower',()=>{
  const width=(id:keyof typeof ELECTRONICS)=>new THREE.Box3().setFromObject(buildElectronicsModel(id)).getSize(new THREE.Vector3()).x;
- assert.ok(width('tvHD')<width('tv4k')&&width('tv4k')<width('tvOLED'));
+ assert.ok(width('tvStart')<width('tvHD')&&width('tvHD')<width('tv4k')&&width('tv4k')<width('tvOLED'));
  const a=buildElectronicsModel('pcCreator'),b=buildElectronicsModel('pcPro');
  const sig=(o:THREE.Group)=>{const rows:string[]=[];o.traverse(x=>{if(x instanceof THREE.Mesh){rows.push(x.geometry.getAttribute('position').count+':'+x.position.toArray().join(','));}});return rows.join('|');};
  assert.notEqual(sig(a),sig(b));
  const laptop=homeExtensions().stations.get(HOME_LAPTOP)!;assert.ok(!laptop.getObjectByName('Laptop display surface'),'no old overlapping laptop');
+});
+
+test('starter TV is an older 32 inch 16:9 set with unobstructed display and stable base',()=>{
+ const g=buildElectronicsModel('tvStart'),display=electronicsDisplay(g)!;
+ assert.ok(Math.abs(Math.hypot(display.scale.x,display.scale.y)/.0254-32)<1e-6);
+ assert.ok(Math.abs(display.scale.x/display.scale.y-16/9)<1e-6);
+ const bounds=new THREE.Box3().setFromObject(g,true);
+ const size=bounds.getSize(new THREE.Vector3());
+ assert.ok(size.x<1.0&&size.z>.18);
+ assert.ok(Math.abs(bounds.min.y)<.005);
+ assert.ok(bounds.max.y<1);
+ g.updateMatrixWorld(true);
+ for(const x of [-.49,0,.49])for(const y of [-.49,0,.49]){
+  const target=display.localToWorld(new THREE.Vector3(x,y,.003));
+  const ray=new THREE.Raycaster(target.clone().add(new THREE.Vector3(0,0,1)),new THREE.Vector3(0,0,-1),0,.999);
+  assert.equal(ray.intersectObject(g,true).length,0,'TV frame must not cover playback plane');
+ }
+ const variants=electronicsVariants('tv'),screen=new THREE.Mesh(new THREE.PlaneGeometry(1,1));
+ screen.position.z=.003;
+ for(const id of ['tvStart','tvHD','tv4k','tvOLED','tvStart'] as const){
+  const anchor=electronicsDisplay(variants.select(id))!;
+  anchor.add(screen);
+  assert.equal(screen.parent,anchor);
+  assert.equal(variants.group.children.filter(o=>o.visible).length,1);
+ }
 });

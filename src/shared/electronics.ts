@@ -17,7 +17,7 @@ export const ELECTRONICS={
  laptopAir:{kind:'laptop',name:'MacBook Neo',price:22900,spec:'4 ядра · 16 ГБ · SSD 256 ГБ',speed:8,bonus:3,comfort:2,study:0},
  laptopPlus:{kind:'laptop',name:'MacBook Air',price:45900,spec:'8 ядер · 16 ГБ · SSD 512 ГБ',speed:15,bonus:6,comfort:4,study:0},
  laptopPro:{kind:'laptop',name:'MacBook Pro',price:69900,spec:'8 ядер · 32 ГБ · SSD 1 ТБ',speed:22,bonus:9,comfort:6,study:0},
- tvStart:{kind:'tv',name:'Домашний телевизор',price:0,spec:'Базовый экран',speed:0,bonus:0,comfort:0,study:0},
+ tvStart:{kind:'tv',name:'Домашний телевизор',price:0,spec:'32″ · Плазма',speed:0,bonus:0,comfort:0,study:0},
  tvHD:{kind:'tv',name:'Lumen 43',price:18900,spec:'43″ · Full HD',speed:0,bonus:4,comfort:3,study:5},
  tv4k:{kind:'tv',name:'Lumen 55',price:36900,spec:'55″ · 4K HDR',speed:0,bonus:8,comfort:6,study:10},
  tvOLED:{kind:'tv',name:'Lumen OLED 65',price:72900,spec:'65″ · OLED · 4K',speed:0,bonus:12,comfort:9,study:15},
