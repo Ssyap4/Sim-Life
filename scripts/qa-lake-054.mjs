@@ -24,7 +24,7 @@ try{
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental'),'vlad'));
  apply('vlad',{type:'lake_rent',category:'tent',item:mode==='night'?'summit':'family'});apply('vlad',{type:'lake_rent',category:'rod',item:mode==='fish'?'float':'spin'});
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-pitch-2'),'vlad'));apply('vlad',{type:'lake_pitch',station:'lake-pitch-2'});
- Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fire-2'),'vlad'));apply('vlad',{type:'lake_fire',station:'lake-fire-2',lit:true});Object.assign(s.characters.alina,{x:-2.95,z:-5.75,pose:'idle'});
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fire-2'),'vlad'));apply('vlad',{type:'lake_fire',station:'lake-fire-2',lit:true});Object.assign(s.characters.alina,{x:-2.95,z:-5.75,pose:'idle'});if(mode==='chat')Object.assign(s.characters.alina,approachFor(stationById('lake','lake-fire-2'),'alina'));
  if(mode==='leisure'){Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-swim'),'vlad'));Object.assign(s.characters.alina,approachFor(stationById('lake','lake-swim'),'alina'));}
  if(mode==='fish'){Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fish-2'),'vlad'));Object.assign(s.characters.alina,{x:2.5,z:-5,pose:'idle'});}
  openServerFiles(dir).save(s);
@@ -39,7 +39,19 @@ try{
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='lake',undefined,{timeout:45000});
- if(mode==='leisure'){
+ if(mode==='chat'){
+  const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
+  await page.locator('#game-canvas').evaluate(el=>el.dataset.lakeView='fire');
+  await send({type:'social_propose',action:'lakeTalk:trip'});
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='social_pending'),undefined,{timeout:15000});
+  const offer=await page.evaluate(()=>window.__packets.findLast(p=>p.type==='social_pending').offer);
+  assert.equal(offer.replies.length,2);await shot('01-offer');
+  buddy.send(JSON.stringify({type:'social_reply',inviteId:offer.id,choice:1}));
+  await page.waitForFunction(()=>{const a=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors;return a?.vlad?.pose==='sit'&&a?.alina?.pose==='sit';},undefined,{timeout:20000});
+  await shot('02-chat');
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.relationship.memories.some(m=>m.action==='lakeTalk:trip')),undefined,{timeout:30000});
+  assert.deepEqual(errors,[]);console.log('Real campfire topic, reply, shared seats and memory passed');
+ }else if(mode==='leisure'){
   const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
   const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
   const waitActor=async(role,activity)=>page.waitForFunction(([r,a])=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.[r]?.activity===a,[role,activity],{timeout:25000});

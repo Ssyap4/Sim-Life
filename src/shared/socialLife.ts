@@ -1,3 +1,4 @@
+import {lakeAccess,lakeCampFor} from './lake';
 import {CARE_TOPICS,careTopicAvailable} from './vanity';
 import {sharedCoffeeOptions} from './coffee';
 import {GROCERIES} from './food';
@@ -64,7 +65,7 @@ export type PairMotion = 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'list
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'yardHookah'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'venue' | 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
-  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'yardHookah'|'breakfastCare'|'breakfastBed';
+  'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'lakeTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'yardHookah'|'breakfastCare'|'breakfastBed';
 export type SocialActivity = {
   id:string; title:string; group:SocialGroup; lines:readonly string[]; replies:readonly string[]; motion:PairMotion;
   seconds:number; context?:Context; object?:ObjectActivity; resource?:string; independent?:boolean; memorable?:boolean;
@@ -167,6 +168,19 @@ const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(g
     memorable:special.includes(id)};
 }));
 export const PARK_TALK_TOPICS=exchanges.filter(a=>['talk','listen','explain','laugh','sitTalk'].includes(a.motion)).map(a=>({...a,id:'parkTalk:'+a.id,object:'parkTalk' as const,motion:'sitTalk' as const,seconds:18}));
+export const LAKE_TALK_TOPICS:SocialActivity[]=[
+ {id:'lakeTalk:trip',title:'Как тебе наша поездка?',group:'talk',lines:['Как тебе здесь? Мне нравится, что мы наконец выбрались на природу.','Что тебе больше всего понравилось сегодня?'],replies:['Хочу приезжать сюда чаще.','Больше всего нравится проводить время вместе.'],motion:'sitTalk',seconds:14,object:'lakeTalk',memorable:true},
+ {id:'lakeTalk:future',title:'Помечтать о будущем',group:'romance',lines:['Представь, какими будут наши выходные через несколько лет. Чего тебе хочется?'],replies:['Больше путешествий и уютных вечеров.','Хочу, чтобы у нас всегда было время друг на друга.'],motion:'sitTalk',seconds:15,object:'lakeTalk',memorable:true},
+ {id:'lakeTalk:fish',title:'Обсудить рыбалку',group:'fun',lines:['Как думаешь, кто из нас поймает самую большую рыбку?'],replies:['Устроим дружеское соревнование!','Главное не размер, а сам отдых.'],motion:'sitTalk',seconds:12,object:'lakeTalk'},
+ {id:'lakeTalk:stars',title:'Поговорить о звёздах и природе',group:'talk',lines:['Здесь так спокойно. Что тебе нравится в таких местах?'],replies:['Тишина, лес и вода.','Мне нравится смотреть на небо рядом с тобой.'],motion:'sitTalk',seconds:14,object:'lakeTalk'},
+ {id:'lakeTalk:pets',title:'Поговорить о Верделле и Симбе',group:'care',lines:['Интересно, как там Симба дома? А Верделлу наверняка нравится природа.'],replies:['Угостим Симбу рыбкой дома.','Надо чаще устраивать такие прогулки.'],motion:'sitTalk',seconds:12,object:'lakeTalk'},
+ {id:'lakeTalk:gratitude',title:'Сказать, за что благодарен',group:'romance',lines:['Хочу сказать спасибо за то, что мы можем вот так отдыхать вместе.'],replies:['Мне тоже очень дорог этот момент.','Давай запомним этот вечер.'],motion:'sitTalk',seconds:15,object:'lakeTalk',memorable:true},
+ ...PARK_TALK_TOPICS.filter(a=>['day','plans','quiet','story','joke','mood','listen','weekend'].includes(a.id.slice(9))).map(a=>({...a,id:'lakeTalk:'+a.id.slice(9),object:'lakeTalk' as const,seconds:14}))
+];
+export function lakeTalkStation(s:GameState,from:CharacterId){
+ const to=otherPerson(from);if(!lakeAccess(s,from)||!lakeAccess(s,to))return undefined;
+ return [1,2,3,4].map(n=>stationById('lake','lake-fire-'+n)!).find(st=>lakeCampFor(s,st.id)?.fire&&[from,to].every(r=>Math.hypot(s.characters[r].x-st.center.x,s.characters[r].z-st.center.z)<3));
+}
 export const PICNIC_TALK_TOPICS=PARK_TALK_TOPICS.map(a=>({...a,id:'picnicTalk:'+a.id.slice(9),object:'picnic' as const,motion:'eat' as const,seconds:PICNIC_SECONDS,memorable:true}));
 const greetings:SocialActivity[]=[
  {id:'nearTalk:welcomeHome',title:'Встретить после работы',group:'care',lines:['С возвращением домой! Как прошла смена?'],replies:['Хорошо, рад(а) быть дома.','Устал(а), хочется немного отдохнуть.'],motion:'listen',seconds:25,context:'returnGreeting'},
@@ -177,7 +191,7 @@ const careTalk:SocialActivity[]=CARE_TOPICS.map(t=>({id:t.id,title:t.title,group
 export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
 export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
 const venueActivities:SocialActivity[]=Object.entries(VENUE_GAMES).map(([id,d])=>({id,title:d.name,group:'fun',lines:['Сыграем вдвоём? '+d.name+' · '+d.price+' ₽ за партию.'],replies:['Давай сыграем!','Я готов(а)!'],motion:'venue',seconds:d.seconds,object:'venue',resource:'venue:'+id,memorable:true}));
-export const SOCIAL_ACTIVITIES = [...venueActivities,...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
+export const SOCIAL_ACTIVITIES = [...venueActivities,...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...LAKE_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
@@ -323,6 +337,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   const gift=familyGift(a.id);
   if(gift){const last=state.relationship.lastGiftAt?.[from];if(individual||place!=='home')return 'Подарок можно вручить вдвоём дома';if(last!==undefined&&gameMinutes(state.clock)-last<1440)return 'Следующий подарок можно вручить через игровые сутки';if(!isGift(a.id)||giftCount(state,a.id)<1)return 'Сначала закажи подарок в телефоне → Доставка → Подарки и забери у двери';}
   const name=a.object;
+  if(name==='lakeTalk')return !individual&&lakeTalkStation(state,from)?undefined:'Оба игрока должны быть рядом с одним горящим костром';
   if(name==='venue')return isVenueGame(a.id)?venueDenial(state,a.id,individual):'Неизвестная игра';
   if (name==='walk'&&place!=='home'&&place!=='park') return 'Для прогулки нужен двор или парк';
   if((name==='parkBadminton'||name==='parkSwing'||name==='parkTalk'||name==='picnic')&&place!=='park')return 'Это занятие доступно в парке';

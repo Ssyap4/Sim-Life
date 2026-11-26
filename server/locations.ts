@@ -1,6 +1,6 @@
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,LAKE_LEISURE,isLakeLeisureAction,lakeCanSwim,lakeNeedsFish,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,isLakeRestAction,LAKE_LEISURE,isLakeLeisureAction,lakeCanSwim,lakeNeedsFish,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -137,7 +137,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -326,6 +326,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     delete visit.catch;const c=next.characters[role];if(command.keep)stock.fish.push(pending);else {c.mood=Math.min(100,c.mood+(LAKE_FISH[pending.species].tier===2?18:8));c.fun=Math.min(100,c.fun+6);practiceXP(next,role,'lake-release','attention','Рыбалка · отпустили улов',LAKE_FISH[pending.species].tier===2?9:4,12);}
     return done(next,(command.keep?'Забрали: ':'Отпустили: ')+fishLabel(pending));
   }
+  if(command.type==='lake_buy_bait'){if(!lakeAccess(source,role)||!at(source,role,stationById('lake','lake-rental')))return fail('Подойди к прокату с действующим билетом');if(source.world.lake![role]!.bait)return fail('Прикормка уже куплена на эту поездку');if(source.money<LAKE_BAIT.price)return fail('Недостаточно денег');const next=structuredClone(source);next.world.lake![role]!.bait=true;next.money-=LAKE_BAIT.price;addLedger(next,role,'expense','services',LAKE_BAIT.price,'Рыбалка · прикормка');return done(next,'Прикормка: +8 п.п. к редкому улову до конца визита');}
   if(command.type==='lake_rent'||command.type==='lake_pitch'||command.type==='lake_fire'){
     if(!lakeAccess(source,role))return fail('Нужен действующий билет клуба');
     const next=structuredClone(source),visit=next.world.lake![role]!;
@@ -698,7 +699,7 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
-  lakeView:'Любоваться озером',lakeChat:'Разговор у костра',lakeSwim:'Купание в озере',lakeDogFetch:'Палочка для Верделла',lakeDogRoll:'Игры с Верделлом',
+  lakeView:'Любоваться озером',lakeSwim:'Купание в озере',lakeDogFetch:'Палочка для Верделла',lakeDogRoll:'Игры с Верделлом',
   lakeCookPotato:'Картофель · готовим',lakeEatPotato:'Картофель · едим',lakeCookFoil:'Рыба в фольге · готовим',lakeEatFoil:'Рыба в фольге · едим',lakeCookSkewers:'Рыбный шашлык · готовим',lakeEatSkewers:'Рыбный шашлык · едим',
   lakeToilet:'Санузел',lakeWash:'Умывание',
   lakeNap:'Отдых в палатке',lakeSleep:'Сон в палатке',lakeFireRest:'Отдых у костра',
@@ -715,15 +716,14 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   const station = stationById(place, id);
   if(isLakeLeisureAction(action)){
     if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==LAKE_LEISURE[action].facility||!at(source,role,station))return fail('Подойди к подходящей зоне клуба');
-    const peer=role==='vlad'?'alina':'vlad',other=source.characters[peer],walker=source.world.dogWalker;
+    const walker=source.world.dogWalker;
     if(action==='lakeSwim'&&(!lakeCanSwim(source)||source.characters[role].energy<20))return fail('Купание только в тёплую погоду и при достаточной энергии');
-    if(action==='lakeChat'&&(!lakeCampFor(source,id)?.fire||!lakeAccess(source,peer)||Math.hypot(other.x-station.center.x,other.z-station.center.z)>3))return fail('Нужен горящий костёр и партнёр рядом');
     const dog=action==='lakeDogFetch'||action==='lakeDogRoll';
     if(dog&&(!walker||source.world.places[walker]!=='lake'||Math.hypot(source.characters[walker].x-station.center.x,source.characters[walker].z-station.center.z)>4))return fail('Позови Верделла на лужайку');
     const next=structuredClone(source),c=next.characters[role];c.pose='idle';
-    c.fun=Math.min(100,c.fun+(action==='lakeSwim'?35:dog?25:20));c.mood=Math.min(100,c.mood+(action==='lakeChat'?25:15));
+    c.fun=Math.min(100,c.fun+(action==='lakeSwim'?35:dog?25:20));c.mood=Math.min(100,c.mood+15);
     if(action==='lakeSwim'){c.energy=Math.max(0,c.energy-12);practiceXP(next,role,'lake-swim','fitness','Плавание',8,12);}
-    else if(action==='lakeView'||action==='lakeChat'){c.comfort=Math.min(100,c.comfort+15);if(action==='lakeChat')c.social=Math.min(100,c.social+35);}
+    else if(action==='lakeView'){c.comfort=Math.min(100,c.comfort+15);}
     else if(dog){const p=next.pets.verdell;p.happiness=Math.min(100,p.happiness+25);p.bond=Math.min(100,p.bond+10);p.energy=Math.max(0,p.energy-6);}
     return done(next,LAKE_LEISURE[action].name+' · готово');
   }
@@ -744,7 +744,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   if(isLakeFishAction(action)){
     const visit=source.world.lake?.[role];if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!=='fish'||!at(source,role,station)||visit?.rod!==FISH_ACTIONS[action]||visit.catch)return fail('Нужен билет, снасть и свободный выбор улова');
     const next=structuredClone(source),v=next.world.lake![role]!,stock=next.world.fishing??=emptyFishing(),c=next.characters[role];
-    const fish=rollFish(v.rod!,clockMinutes(next.clock));c.fun=Math.min(100,c.fun+12);c.comfort=Math.min(100,c.comfort+5);
+    const fish=rollFish(v.rod!,clockMinutes(next.clock),Math.random,!!v.bait);c.fun=Math.min(100,c.fun+12);c.comfort=Math.min(100,c.comfort+5);
     if(!fish)return done(next,'Рыба сорвалась или не клюнула. Можно забросить снова');
     v.catch=fish;stock.record[role]=Math.max(stock.record[role]??0,fish.grams);if(!stock.species.includes(fish.species))stock.species.push(fish.species);
     c.mood=Math.min(100,c.mood+10);return done(next,'Улов: '+fishLabel(fish)+' · забрать или отпустить');

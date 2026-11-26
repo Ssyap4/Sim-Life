@@ -1,3 +1,4 @@
+import {lakeTalkStation} from '../src/shared/socialLife';
 import {VENUE_GAMES,isVenueGame,venueStation,venueWinner,venueScore} from '../src/shared/venue';
 import {addLedger} from '../src/shared/economy';
 import {isGift,giftCount} from '../src/shared/gifts';
@@ -270,7 +271,7 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const cafeSeat=cafeSeatAt(state,from);
   const sameCafeSeat=cafeSeat&&cafeSeat.id===cafeSeatAt(state,to)?.id;
   const seatedChat=sameCafeSeat&&!a.object&&['talk','listen','explain','laugh','sitTalk'].includes(a.motion);
-  const localStation=a.object==='parkRest'?'park-bench':a.object==='parkBadminton'?'park-badminton':a.object==='parkTalk'?(['park-swing','park-picnic'].find(id=>{const s=stationById('park',id)!,p=approachFor(s,from);return Math.hypot(p.x-state.characters[from].x,p.z-state.characters[from].z)<.28;})??null):a.object==='parkSwing'?'park-swing':a.object==='picnic'?'park-picnic':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
+  const localStation=a.object==='lakeTalk'?lakeTalkStation(state,from)?.id??null:a.object==='parkRest'?'park-bench':a.object==='parkBadminton'?'park-badminton':a.object==='parkTalk'?(['park-swing','park-picnic'].find(id=>{const s=stationById('park',id)!,p=approachFor(s,from);return Math.hypot(p.x-state.characters[from].x,p.z-state.characters[from].z)<.28;})??null):a.object==='parkSwing'?'park-swing':a.object==='picnic'?'park-picnic':a.object==='cafeMeal'?(state.world.cafe[from]?.table??'cafe-left'):a.object==='cafeTalk'||seatedChat?cafeSeat?.id??null:null;
   const program:Program|undefined=a.object==='tv'?'broadcast':a.object==='film'?p as Genre:
     a.object==='youtube'?YOUTUBE[(state.relationship.recent.length)%YOUTUBE.length]:a.object==='lesson'?'lesson':undefined;
   const matchWinner=a.object==='parkBadminton'?badmintonWinner():undefined;

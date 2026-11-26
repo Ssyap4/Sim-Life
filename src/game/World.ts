@@ -1347,7 +1347,6 @@ export class World {
         if(isLakeLeisureAction(command.action)){
           if(command.action==='lakeSwim'){const f=lakeSwimFrame(0,role);actor.setFurniturePose('idle',new THREE.Vector3(f.x,f.y,f.z),f.yaw);actor.playDomesticActivity('spaSwim');}
           else if(command.action==='lakeView')actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.16,station.center.z+(role==='vlad'?-.43:.43)),Math.PI/2);
-          else if(command.action==='lakeChat'){const side=role==='vlad'?-1:1;actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+side*.89,-.09,station.center.z),side<0?Math.PI/2:-Math.PI/2);actor.playDomesticActivity('chat');}
           else {this.lakeDogMode='';this.playParkDog(command.action==='lakeDogFetch'?'dogFetch':'dogRoll',role);this.parkDogUntil=this.visualSeconds+25;}
         }
         if(isLakeCareAction(command.action)){if(command.action==='lakeWash'){const target=new THREE.Vector3(station.center.x,1.06,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('washHands',target);}else{actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,role==='vlad'?-.29:-.24,station.center.z-.18),0);actor.playDomesticActivity('toilet');}}
@@ -2213,6 +2212,7 @@ export class World {
 
   private sitAt(role: CharacterId, station: Station): void {
     const actor = this.actors[role];
+    if(station.action.kind==='lake'&&station.action.facility==='fire'){const side=role==='vlad'?-1:1;actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+side*.89,-.09,station.center.z),side<0?Math.PI/2:-Math.PI/2);return;}
     if(station.action.kind==='picnic'){
       actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+(role==='vlad'?-.50:.50),role==='vlad'?-.76:-.71,station.center.z+.39),Math.PI);return;
     }

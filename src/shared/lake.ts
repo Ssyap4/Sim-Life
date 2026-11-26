@@ -52,10 +52,11 @@ export const validCatch=(v:unknown):v is FishCatch=>{const f=v as FishCatch;if(!
 export function validFishing(v:unknown):v is FishingStock{
  const f=v as FishingStock;return !!f&&Array.isArray(f.fish)&&f.fish.length<=12&&f.fish.every(validCatch)&&!!f.record&&Object.entries(f.record).every(([r,n])=>['vlad','alina'].includes(r)&&Number.isSafeInteger(n)&&n>=0&&n<=15000)&&Array.isArray(f.species)&&f.species.length<=9&&new Set(f.species).size===f.species.length&&f.species.every(k=>Object.hasOwn(LAKE_FISH,k))&&(f.treatDay===undefined||Number.isSafeInteger(f.treatDay)&&f.treatDay>=0);
 }
-export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random):FishCatch|null{
+export const LAKE_BAIT={price:250,rareBonus:8} as const;
+export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random,bait=false):FishCatch|null{
  const chance=rod==='float'?.78:rod==='spin'?.70:.75;
  if(random()>=chance)return null;
- const roll=random()*100,w=LAKE_RODS[rod].weights,tier=roll<w[0]?0:roll<w[0]+w[1]?1:2;
+ const roll=random()*100,w=LAKE_RODS[rod].weights,tier=roll<w[0]-(bait?LAKE_BAIT.rareBonus:0)?0:roll<w[0]+w[1]-(bait?LAKE_BAIT.rareBonus:0)?1:2;
  const pool=(Object.keys(LAKE_FISH) as LakeFish[]).filter(k=>LAKE_FISH[k].tier===tier);
  const preferred=rod==='spin'?pool.filter(k=>['perch','pike','trout','zander'].includes(k)):rod==='feeder'?pool.filter(k=>['crucian','roach','bream','carp','catfish'].includes(k)):pool;
  const list=preferred.length&&random()<.86?preferred:pool;
@@ -65,7 +66,6 @@ export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random):F
 export function fishLabel(f:FishCatch){return LAKE_FISH[f.species].name+' · '+(f.grams/1000).toFixed(2)+' кг';}
 export const LAKE_LEISURE={
  lakeView:{name:'Любоваться озером',seconds:45,facility:'rest'},
- lakeChat:{name:'Разговор у костра',seconds:40,facility:'fire'},
  lakeSwim:{name:'Поплавать в озере',seconds:60,facility:'swim'},
  lakeDogFetch:{name:'Бросать Верделлу палочку',seconds:25,facility:'dog'},
  lakeDogRoll:{name:'Поиграть с Верделлом на траве',seconds:25,facility:'dog'}
@@ -96,9 +96,9 @@ export function lakeSleepAnchor(tent:LakeTent,role:CharacterId){
 export type LakePass=keyof typeof LAKE_PASSES;
 export type LakeTent=keyof typeof LAKE_TENTS;
 export type LakeRod=keyof typeof LAKE_RODS;
-export type LakeVisit={pass:LakePass;until:number;rod?:LakeRod;tent?:LakeTent;pitch?:string;fire?:boolean;catch?:FishCatch;meals?:Partial<Record<LakeMeal,number>>};
+export type LakeVisit={pass:LakePass;until:number;rod?:LakeRod;bait?:boolean;tent?:LakeTent;pitch?:string;fire?:boolean;catch?:FishCatch;meals?:Partial<Record<LakeMeal,number>>};
 export type LakeState=Partial<Record<CharacterId,LakeVisit>>;
-export type LakeCommand={type:'lake_trip';pass:LakePass;dog?:boolean}|{type:'lake_rent';item:LakeTent|LakeRod;category:'tent'|'rod'}|{type:'lake_pitch';station:string}|{type:'lake_fire';station:string;lit:boolean}|{type:'lake_dog_treat';station:string;fish:boolean}|{type:'lake_catch';keep:boolean;again?:LakeFishAction;station?:string};
+export type LakeCommand={type:'lake_trip';pass:LakePass;dog?:boolean}|{type:'lake_rent';item:LakeTent|LakeRod;category:'tent'|'rod'}|{type:'lake_buy_bait'}|{type:'lake_pitch';station:string}|{type:'lake_fire';station:string;lit:boolean}|{type:'lake_dog_treat';station:string;fish:boolean}|{type:'lake_catch';keep:boolean;again?:LakeFishAction;station?:string};
 export const lakePass=(v:unknown):v is LakePass=>typeof v==='string'&&Object.hasOwn(LAKE_PASSES,v);
 export const lakeTent=(v:unknown):v is LakeTent=>typeof v==='string'&&Object.hasOwn(LAKE_TENTS,v);
 export const lakeRod=(v:unknown):v is LakeRod=>typeof v==='string'&&Object.hasOwn(LAKE_RODS,v);
@@ -107,6 +107,7 @@ export function validLake(v:unknown):v is LakeState{
  if(!v||typeof v!=='object'||Array.isArray(v))return false;
  const seen=new Set<string>();
  return Object.entries(v).every(([r,p])=>{if(!['vlad','alina'].includes(r)||!p||!lakePass(p.pass)||!Number.isSafeInteger(p.until)||p.until<0||p.rod!==undefined&&!lakeRod(p.rod)||p.tent!==undefined&&!lakeTent(p.tent))return false;
+ if(p.bait!==undefined&&typeof p.bait!=='boolean')return false;
  if(p.catch!==undefined&&!validCatch(p.catch))return false;
  if(p.fire!==undefined&&(typeof p.fire!=='boolean'||!p.pitch))return false;
  if(p.meals!==undefined&&(!p.pitch||!p.meals||typeof p.meals!=='object'||Array.isArray(p.meals)||!Object.entries(p.meals).every(([k,n])=>Object.hasOwn(LAKE_MEALS,k)&&Number.isSafeInteger(n)&&Number(n)>=0&&Number(n)<=4)))return false;

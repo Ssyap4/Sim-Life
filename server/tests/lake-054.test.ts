@@ -1,3 +1,5 @@
+import {LAKE_TALK_TOPICS,lakeTalkStation} from '../../src/shared/socialLife';
+import {cooperationDenial,pairScenes,completeTogether} from '../society';
 import {lakeCanSwim,lakeSwimFrame,LAKE_LEISURE,residentLook as lakeLook} from '../../src/shared/lake';
 import {clockAt} from '../../src/shared/life';
 import {syncLakeCutaway} from '../../src/game/LakeArt';
@@ -223,7 +225,9 @@ test('extra meals use real catch, cost once and have distinct grill props',()=>{
 test('fire chat needs nearby partner; dog games need Verdell and improve bond',()=>{
  let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night',true);assert.ok(q.ok);s=q.state;
  at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'basic'});at(s,'vlad','lake-pitch-1');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-1'});at(s,'vlad','lake-fire-1');s=apply(s,'vlad',{type:'lake_fire',station:'lake-fire-1',lit:true});
- assert.equal(localActivity(s,'vlad','lakeChat','lake-fire-1').ok,false);at(s,'alina','lake-fire-1');s.characters.vlad.social=10;let r=localActivity(s,'vlad','lakeChat','lake-fire-1');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.social,45);
+ const cmd={type:'together' as const,action:LAKE_TALK_TOPICS[0].id};assert.ok(cooperationDenial(s,'vlad',cmd));at(s,'alina','lake-fire-1');s.characters.vlad.social=10;s.characters.alina.social=10;assert.equal(cooperationDenial(s,'vlad',cmd),undefined);assert.equal(lakeTalkStation(s,'vlad')?.id,'lake-fire-1');const scenes=pairScenes(s,'vlad',cmd)!;assert.ok(scenes);let r=completeTogether(s,'vlad',cmd,['vlad','alina'],1,scenes);assert.ok(r.ok);s=r.state;assert.ok(s.characters.vlad.social>10&&s.characters.alina.social>10);assert.ok(s.relationship.memories.some(m=>m.action===cmd.action));
  at(s,'vlad','lake-dog');s.pets.verdell.bond=10;r=localActivity(s,'vlad','lakeDogFetch','lake-dog');assert.ok(r.ok);s=r.state;assert.equal(s.pets.verdell.bond,20);
  s.world.dogWalker=null;assert.equal(localActivity(s,'vlad','lakeDogRoll','lake-dog').ok,false);
 });
+
+test('bait purchased once per visit, automatic rare bonus with no change to bite rate',()=>{let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night');assert.ok(q.ok);s=q.state;at(s,'vlad','lake-rental');const cash=s.money;s=apply(s,'vlad',{type:'lake_buy_bait'});assert.equal(s.money,cash-250);assert.equal(s.world.lake?.vlad?.bait,true);assert.equal(applyWorld(s,'vlad',{type:'lake_buy_bait'}).ok,false);assert.equal(s.world.lake?.alina?.bait,undefined);const rng=()=>{let i=0;return ()=>[.1,.94,.1,.1,.5][i++%5];};const a=rollFish('float',100,rng(),false)!,b=rollFish('float',100,rng(),true)!;assert.equal(LAKE_FISH[a.species].tier,1);assert.equal(LAKE_FISH[b.species].tier,2);assert.equal(rollFish('float',100,()=>.99,true),null);assert.ok(validWorld(s.world));});
