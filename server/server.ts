@@ -96,7 +96,7 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 const types: Record<string, string> = {
-  '.wav':'audio/wav', '.mp3':'audio/mpeg',
+  '.wav':'audio/wav', '.mp3':'audio/mpeg', '.mp4':'video/mp4',
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
@@ -1033,10 +1033,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('Not found. Run npm run build first.'); return;
     }
-    // Stream MP3 byte ranges for mobile Safari instead of blocking the game server.
-    if(extname(requested)==='.mp3'){
+    // Stream audio and video byte ranges for mobile Safari without blocking the game server.
+    if(['.mp3','.mp4'].includes(extname(requested))){
       const size=statSync(requested).size,range=req.headers.range;let start=0,end=size-1,status=200;
-      const headers:Record<string,string|number>={'content-type':'audio/mpeg','accept-ranges':'bytes','cache-control':'private, max-age=3600','x-content-type-options':'nosniff'};
+      const headers:Record<string,string|number>={'content-type':types[extname(requested)],'accept-ranges':'bytes','cache-control':'private, max-age=3600','x-content-type-options':'nosniff'};
       if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m||(!m[1]&&!m[2])){res.writeHead(416,{...headers,'content-range':'bytes */'+size});res.end();return;}
         if(!m[1]){const suffix=Number(m[2]);start=Math.max(0,size-suffix);}else{start=Number(m[1]);if(m[2])end=Math.min(end,Number(m[2]));}
         if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||start>end||start>=size){res.writeHead(416,{...headers,'content-range':'bytes */'+size});res.end();return;}
