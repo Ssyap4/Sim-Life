@@ -261,3 +261,6 @@ For each deployed test update reset household progress to fresh initialState wit
 
 ## Visual QA delivery rule (owner approved 25.11.2026)
 For completed significant visual changes (locations, models, furniture, lighting, major animations), include actual screenshots from the changed game build in the same report whenever available. Review the frames before showing them. Use mobile cloud QA, never heavy WebGL on ALINA-PC. Label earlier captures or references accurately; if the new capture is not available, disclose that rather than inventing it. No intermediate playable preview links unless requested; screenshots are not preview deployments. Main still requires approved release.
+
+## Current approved production 0.54.0 (27 Nov 2026)
+Read the top of HANDOFF_LATEST.md and docs/RELEASE_054.md first. Main D:\Sim-Life port 3111; separate lake preview 3152. Owner's next car idea is not yet specified; discuss before implementing 0.55. All prior mobile, private media, save/backup and cloud-only heavy QA rules remain. The latest handoff supersedes older release references.
