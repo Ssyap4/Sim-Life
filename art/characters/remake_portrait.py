@@ -67,7 +67,7 @@ class Sculpt:
         self.height=height
         self.eye_x=eye_x
         self.sections=ALINA if self.woman else VLAD
-        self.base=rgb('ecc4b1' if self.woman else 'dcb29c')
+        self.base=rgb('e5bba8' if self.woman else 'd7ae99')
         self.eye_width=.0365 if self.woman else .0315
         self.eye_radius=.0385 if self.woman else .0355
         self.eye_center=.086 if self.woman else .084
@@ -93,12 +93,12 @@ class Sculpt:
         chin=(.012 if f else .017)*bell(x/.052)*bell((y+.141)/.028)
         y0=-.050 if f else -.059
         bridge=(.020 if f else .034)*bell(x/(.018 if f else .020))*bell((y+.020)/(.047 if f else .057))
-        tip=(.021 if f else .028)*bell(x/(.0165 if f else .019))*bell((y-y0)/.017)
-        alae=(.009 if f else .012)*bell((side-(.014 if f else .017))/.008)*bell((y-y0+.008)/.011)
-        nostril=-.0068*bell((side-.016)/.005)*bell((y-y0+.012)/.005)
+        tip=(.019 if f else .026)*bell(x/(.020 if f else .022))*bell((y-y0)/.020)
+        alae=(.0065 if f else .009)*bell((side-(.014 if f else .017))/.010)*bell((y-y0+.008)/.013)
+        nostril=-.0030*bell((side-.016)/.006)*bell((y-y0+.012)/.006)
         cranial=(.004 if f else .008)*bell((side-.058)/.052)*bell((y-.036)/.024)
-        socket=-.0065*bell((side-self.eye_x)/.039)*bell((y-.004)/.021)
-        cushion=.006*bell((side-self.eye_x)/.031)*bell((y+.026)/.019)
+        socket=-.0025*bell((side-self.eye_x)/.039)*bell((y-.004)/.021)
+        cushion=.0020*bell((side-self.eye_x)/.037)*bell((y+.025)/.023)
         philtrum=-.0032*bell(x/.0058)*bell((y+.083)/.016)
         muzzle=(.010 if f else .012)*bell(x/.057)*bell((y-self.mouth)/.033)
         line,span,upper,lower=self.lip(x)
@@ -141,14 +141,14 @@ class Sculpt:
         shade('bd8673',g((y+.130)/.051)*(1-front**.74)*.41)
         shade('c28571',front*g((side-.058)/.031)*g((y-.019)/.032)*.14)
         shade('f0a184',front*g((y+.048)/.030)*g(x/.025)*.24)
-        shade('6e362c',front*g((side-(.016 if f else .018))/.0051)*g((y+(.062 if f else .071))/.0045)*.28)
+        shade('815047',front*g((side-(.016 if f else .018))/.0051)*g((y+(.062 if f else .071))/.0045)*.13)
         shade('ac695d',front*g((y-self.mouth+.024)/.009)*g(x/.036)*.27)
         seam,span,up,lo=self.lip(x)
         d=y-seam
         width=np.maximum(.00001,np.where(d>0,up,lo)*span)
         inside=np.clip((1-np.abs(d/width))*7,0,1)*np.clip((1-side/self.mouth_width)*15,0,1)*front
-        shade('bd7b80' if f else 'b1857b',inside*.77)
-        shade('855459' if f else '865c53',inside*g(d/.0017)*.55)
+        shade('b8757b' if f else 'b1857b',inside*.81)
+        shade('805357' if f else '865c53',inside*g(d/.0017)*.47)
         shade('e6aaa8' if f else 'dfb4a1',inside*g((d+.006)/.004)*.23)
         shade('ffd2b1',inside*g((d+.006)/.0024)*g((x+.018)/.020)*.14)
         eyebrow=np.clip((side-.023)/.083,0,1)
@@ -227,7 +227,7 @@ class Sculpt:
         def globe(x,y):
             # The eye surface follows the curvature of the face: the nasal
             # canthus lies forward of the temporal canthus in bind pose.
-            return self.eye_center+sqrt(max(.00006,radius*radius-(x-cx)**2-y*y))-.48*side*(x-cx)
+            return self.depth(x,y)+.0023+.0042*bell((x-cx)/.028)*bell(y/.022)
 
         # Only the part of the sphere between the eyelids is sclera. Keeping
         # the aperture in the topology avoids exposed white on the cheek.
@@ -242,7 +242,7 @@ class Sculpt:
                 row.append((self.xyz(x,y,globe(x,y)),tint,HEAD,(u,v)))
             rows.append(row)
         eyes.grid(rows,flip=side<0)
-        iris=.0148 if f else .0118
+        iris=.0150 if f else .0120
         iris_col=rgb('547d98' if f else '4d5b3e')
         iris_light=rgb('91b5c7' if f else '78835a')
         ring=rgb('354f64' if f else '35452e')
@@ -287,7 +287,7 @@ class Sculpt:
                 # Continuous skull depth under the eyelid; blend the rim offset
                 # locally instead of interpolating a rectangular socket plane.
                 weight=1-q*q*(3-2*q)
-                z=self.depth(x,y)+(iz-self.depth(ix,iy))*weight+(bz-self.depth(bx,by))*(1-weight)
+                z=self.depth(x,y)+(iz-self.depth(ix,iy))*weight+(bz-self.depth(bx,by))*(1-weight)+.0014*bell((q-.12)/.12)*sin(pi*q)
                 if q==1:
                     index=boundary
                 else:
@@ -310,14 +310,14 @@ class Sculpt:
             rings.append(ring)
         # Relax only interior ring depths. Aperture, skull seam and UVs stay
         # anchored, preserving the exact eyeball and eyelash contact.
-        for _ in range(4):
+        for _ in range(2):
             change={}
             for row in range(1,len(rings)-1):
                 for col,index in enumerate(rings[row]):
                     n=len(rings[row])
                     neighbors=(rings[row-1][col],rings[row+1][col],rings[row][(col-1)%n],rings[row][(col+1)%n])
                     mean=sum(face.points[j][2] for j in neighbors)*.25
-                    change[index]=(mean-face.points[index][2])*.36
+                    change[index]=(mean-face.points[index][2])*.18
             for index,delta in change.items():
                 x,y,z=face.points[index]
                 face.points[index]=(x,y,z+delta)
