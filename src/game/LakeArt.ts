@@ -107,11 +107,27 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
   if(i%5===0)box(ground,[.05,.05,.05],[x,.048,z],0xe3b3bd,orb);
  }
  batchRigidParts(ground,true);
+ // A tiny baked silhouette strip of the actual far-bank trees. Projected across the lake with
+ // reflected camera rays and ripples; no render-to-texture pass or second scene render.
+ const reflection=painted(resources,512,128,ctx=>{
+  ctx.clearRect(0,0,512,128);
+  const far=trees.slice(17,35);
+  for(const [i,[, ,z]] of far.entries()){
+   const x=(z+14.5)/29*512,w=18+(i%5)*3,h=82+(i%4)*9;
+   ctx.fillStyle='#594c37';ctx.fillRect(x-2,128-h*.4,4,h*.4);
+   if(i%4===0){
+    ctx.fillStyle='#3f694f';ctx.beginPath();ctx.ellipse(x,128-h*.65,w*.57,h*.36,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#527b50';ctx.beginPath();ctx.ellipse(x-w*.18,128-h*.79,w*.38,h*.25,0,0,Math.PI*2);ctx.fill();
+   }else{
+    for(let k=0;k<4;k++){const y=128-h+k*h*.18,ww=w*(.30+k*.18);ctx.fillStyle=['#315543','#254b3b','#375f48','#2a4d3e'][k];ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-ww,y+h*.37);ctx.lineTo(x+ww,y+h*.37);ctx.closePath();ctx.fill();}
+   }
+  }
+ });
  // View-dependent fresnel, moving normals, shoreline caustics and stylized tree reflections.
- const mat=new THREE.ShaderMaterial({uniforms:{time:{value:0},night:{value:0}},side:THREE.DoubleSide,vertexShader:`
+ const mat=new THREE.ShaderMaterial({uniforms:{time:{value:0},night:{value:0},reflection:{value:reflection}},side:THREE.DoubleSide,vertexShader:`
  varying vec2 uv0;varying vec3 wp;
  void main(){uv0=uv;vec4 p=modelMatrix*vec4(position,1.);wp=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,fragmentShader:`
- uniform float time;uniform float night;varying vec2 uv0;varying vec3 wp;
+ uniform float time;uniform float night;uniform sampler2D reflection;varying vec2 uv0;varying vec3 wp;
  void main(){
  vec2 p=wp.xz;float t=time;
  float a=sin(dot(p,vec2(2.2,1.15))-t*.85);
@@ -124,18 +140,34 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
  float fresnel=pow(1.-clamp(dot(n,v),0.,1.),2.5);
  float edge=min(min(uv0.x,1.-uv0.x),min(uv0.y,1.-uv0.y)*.9);
  float deep=smoothstep(.005,.17,edge);
- vec3 shall=vec3(.39,.55,.35),depth=vec3(.045,.23,.27);
+ vec3 shall=vec3(.26,.39,.24),depth=vec3(.016,.115,.155);
  float caustic=pow(abs(sin(p.x*7.+a*.9)*sin(p.y*8.+b*.8)),3.);
  vec3 col=mix(shall,depth,deep)+vec3(.17,.22,.13)*caustic*(1.-deep)*.35;
- vec3 sky=mix(vec3(.28,.49,.59),vec3(.57,.71,.72),.55+.45*wave);
- col=mix(col,sky,.18+.57*fresnel);
+ vec3 sky=mix(vec3(.09,.23,.31),vec3(.30,.46,.54),.55+.45*wave);
+ col=mix(col,sky,.11+.56*fresnel);
  float silhouette=pow(abs(sin(p.y*1.25+wave*.22)*sin(p.y*.35+.8)),2.);
- float bankReflection=exp(-edge*9.)*silhouette;
- col=mix(col,vec3(.075,.17,.13),bankReflection*(.30+.24*fresnel));
+ float bankReflection=exp(-edge*12.)*silhouette;
+ col=mix(col,vec3(.035,.105,.065),bankReflection*(.22+.24*fresnel));
+ // Reflect the far-shore silhouettes in water-space, distorted by the animated normal.
+ float cap=pow(max(0.,sin(uv0.y*3.14159265)),.58);
+ float farX=5.25+18.5*cap+.34*sin(wp.z*.46)*cap;
+ vec3 r=reflect(-v,n);
+ float hit=max(0.,farX-wp.x)/max(.18,r.x);
+ float refZ=wp.z+clamp(r.z*hit,-5.,5.)+wave*.18;
+ float refY=hit*max(.12,r.y)*.55;
+ vec4 treeColor=texture2D(reflection,vec2(clamp((refZ+14.5)/29.,0.,1.),clamp(refY/6.,0.,1.)));
+ float valid=step(0.,r.x)*(1.-smoothstep(4.5,6.,refY))*step(0.,refY);
+ col=mix(col,treeColor.rgb*.47,treeColor.a*valid*(.42+.36*fresnel));
+ // Small oblique, narrow surface ripples and broken highlights, not an even dotted grid.
+ float lines=sin(dot(p,vec2(8.9,1.4))+1.9*sin(dot(p,vec2(.6,2.4))+t*.56)-t*1.3);
+ float breaks=.5+.5*sin(dot(p,vec2(1.7,4.1))+b*.7+t*.38);
+ float rip=smoothstep(.86,.99,lines)*smoothstep(.23,.71,breaks);
+ col+=vec3(.12,.22,.24)*rip*(.52+.48*fresnel);
+
  vec3 sun=normalize(vec3(-.55,.80,.25));float spec=pow(max(0.,dot(reflect(-sun,n),v)),36.);
- col+=vec3(.84,.72,.44)*spec*.67+vec3(.15,.23,.23)*pow(max(wave,0.),6.)*.30;
+ col+=vec3(.84,.72,.44)*spec*.67+vec3(.22,.32,.34)*pow(max(wave,0.),6.)*.45;
  float rim=1.-smoothstep(.0,.017,edge);col=mix(col,vec3(.63,.72,.56),rim*.20);
- col=mix(col,col*vec3(.27,.40,.65)+vec3(.012,.024,.052),night);
+ col=mix(col,col*vec3(.16,.27,.46)+vec3(.006,.014,.032),night);
  gl_FragColor=vec4(col,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>

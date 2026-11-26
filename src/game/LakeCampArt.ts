@@ -1,5 +1,6 @@
+import {painted} from './LocationArt';
 import * as THREE from 'three';
-import {cube,drum,softCube,orb,torus,finish,batchRigidParts,type XYZ} from './ArtKit';
+import {cube,drum,softCube,orb,torus,plane,finish,batchRigidParts,type XYZ} from './ArtKit';
 import type {LakeTent} from '../shared/lake';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
 const wood=0x8e6949,steel=0x41494b;
@@ -118,21 +119,40 @@ export function buildCampFire(resources:Resources){
  const food=new Map<string,THREE.Group>();for(const kind of ['fish','soup','sausages','marshmallow'] as const){const model=buildCampFood(kind);model.position.y=.58;model.visible=false;g.add(model);food.set(kind,model);}
  g.userData.setFood=(kind?:string)=>{for(const [id,m] of food)m.visible=id===kind;};
  const active=new THREE.Group();active.name='Campfire active';g.add(active);active.visible=false;
- const flameMat=new THREE.MeshBasicMaterial({color:0xffae42,transparent:true,opacity:.88,depthWrite:false}),coreMat=new THREE.MeshBasicMaterial({color:0xffed96,transparent:true,opacity:.94,depthWrite:false});
- resources.materials.push(flameMat,coreMat);
- const geo=new THREE.SphereGeometry(1,8,7);
- const flames=Array.from({length:7},(_,i)=>{const m=new THREE.Mesh(geo,i%2?coreMat:flameMat);active.add(m);return m;});
+ // Three narrow intersecting flame curtains: feathered orange edges and pointed, dancing tongues.
+ const flames=Array.from({length:3},(_,i)=>{
+  const mat=new THREE.ShaderMaterial({uniforms:{time:{value:0},seed:{value:i*2.39}},transparent:true,side:THREE.DoubleSide,depthWrite:false,vertexShader:`
+ varying vec2 uv0;void main(){uv0=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}
+ `,fragmentShader:`
+ uniform float time;uniform float seed;varying vec2 uv0;
+ void main(){
+  float y=uv0.y,t=time*4.5+seed,x=uv0.x-.5;
+  float sway=.075*sin(t+y*9.)*y+.035*sin(t*1.7-y*13.)*y;
+  float q=x-sway;
+  float w=.38*pow(max(0.,1.-y),.69);
+  float tip=.81+.12*sin(q*13.+t)+.07*sin(q*26.-t*1.3);
+  float mask=(1.-smoothstep(w*.72,w,abs(q)))*(1.-smoothstep(tip-.09,tip,y))*smoothstep(0.,.10,y);
+  float core=(1.-smoothstep(w*.22,w*.66,abs(q)))*(1.-smoothstep(.20,.80,y));
+  vec3 col=mix(vec3(1.,.10,.012),vec3(1.,.49,.045),clamp(1.-abs(q)/max(.01,w),0.,1.));
+  col=mix(col,vec3(1.,.91,.54),core*.91);
+  gl_FragColor=vec4(col,mask*.91);
+  #include <colorspace_fragment>
+ }
+ `});
+  resources.materials.push(mat);
+  const m=new THREE.Mesh(plane,mat);m.name='Campfire flame tongue';m.position.set(0,.45,0);m.rotation.y=i*Math.PI/3;m.scale.set(.73,.80,1);m.renderOrder=3;active.add(m);return m;
+ });
  const emberMat=new THREE.MeshBasicMaterial({color:0xf48028});resources.materials.push(emberMat);
  const embers=new THREE.InstancedMesh(new THREE.SphereGeometry(.023,5,4),emberMat,16);active.add(embers);
- const smokeMat=new THREE.MeshBasicMaterial({color:0x938f86,transparent:true,opacity:.12,depthWrite:false});resources.materials.push(smokeMat);
- const smoke=Array.from({length:5},()=>{const m=new THREE.Mesh(geo,smokeMat);active.add(m);return m;});
+ const cloud=painted(resources,64,64,ctx=>{const gr=ctx.createRadialGradient(32,32,1,32,32,31);gr.addColorStop(0,'rgba(200,191,174,0.72)');gr.addColorStop(.38,'rgba(177,173,163,0.38)');gr.addColorStop(1,'rgba(160,160,160,0)');ctx.fillStyle=gr;ctx.fillRect(0,0,64,64);});
+ const smoke=Array.from({length:5},()=>{const mat=new THREE.SpriteMaterial({map:cloud,color:0xb8b3a9,transparent:true,opacity:.08,depthWrite:false});resources.materials.push(mat);const m=new THREE.Sprite(mat);m.renderOrder=4;active.add(m);return m;});
  const light=new THREE.PointLight(0xff9a42,2.0,5,2);light.position.y=.53;active.add(light);
  const t=new THREE.Object3D();
  g.userData.setLit=(lit:boolean)=>{active.visible=lit;};
  g.userData.animate=(time:number)=>{if(!active.visible)return;
-  for(let i=0;i<flames.length;i++){const m=flames[i],a=i*2.399,k=.5+.5*Math.sin(time*(4.1+i*.36)+i*2.7);m.position.set(Math.cos(a)*.18+.04*Math.sin(time*3+i),.20+.13*k,Math.sin(a)*.16);m.scale.set(.095+.035*k,.18+.18*k,.075+.025*k);m.rotation.z=.2*Math.sin(time*4+i);}
+  for(let i=0;i<flames.length;i++){const m=flames[i];m.material.uniforms.time.value=time;const k=.94+.09*Math.sin(time*5.1+i*2.1);m.scale.y=.80*k;m.position.y=.12+.40*k;}
   for(let i=0;i<16;i++){const age=(time*.67+i*.147)%1,a=i*2.399;t.position.set(Math.cos(a)*(.12+age*.24),.23+age*.91,Math.sin(a)*(.12+age*.20));t.scale.setScalar(Math.max(.04,1-age));t.updateMatrix();embers.setMatrixAt(i,t.matrix);}embers.instanceMatrix.needsUpdate=true;
-  for(let i=0;i<smoke.length;i++){const age=(time*.31+i/5)%1;smoke[i].position.set(age*.62,.58+age*1.35,.15*Math.sin(i+time*.6));smoke[i].scale.setScalar(.08+age*.22);}
+  for(let i=0;i<smoke.length;i++){const age=(time*.31+i/5)%1;smoke[i].position.set(age*.62,.58+age*1.35,.15*Math.sin(i+time*.6));smoke[i].scale.setScalar(.13+age*.49);smoke[i].material.opacity=.21*Math.sin(age*Math.PI);}
   light.intensity=2.3+.32*Math.sin(time*7)+.20*Math.sin(time*12.7);
  };
  return g;
