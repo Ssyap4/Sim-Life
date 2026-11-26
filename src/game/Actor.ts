@@ -1264,7 +1264,7 @@ export class Actor {
           // partner body anchor, including rotated purchased sofas.
           const side=pair.partner?Math.sign(this.root.worldToLocal(pair.partner.bodyPosition(new THREE.Vector3())).x-this.figure.position.x):this.id==='vlad'?-1:1;
           const inward=side||1;
-          const strength=pair.motion==='sofaLean'?(pair.leads?1:.10):pair.motion==='sofaKiss'?.85:pair.motion==='sofaHands'?.20:.72;
+          const strength=pair.motion==='sofaLean'?(pair.leads?1:.10):pair.motion==='sofaKiss'?.77:pair.motion==='sofaHands'?.20:.72;
           partnerRoll=-inward*.32*contact*strength;
           partnerHead=-inward*.18*contact*strength;
           partnerSide=inward*.045*contact*strength;

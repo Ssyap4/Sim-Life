@@ -18,6 +18,10 @@ test('sofa romance uses real distinct seats and existing rewards, not inventory'
   assert.equal(homes.vlad.pair?.seat,'sofa');assert.equal(homes.alina.pair?.seat,'sofa');
   const v=homes.vlad.route.path.at(-1)??homes.vlad.route.from,a=homes.alina.route.path.at(-1)??homes.alina.route.from;
   assert.notDeepEqual(v,a);
+  if(action==='sofaKiss'){
+   const p=homes.vlad.furniturePose!,q=homes.alina.furniturePose!;
+   assert.ok(Math.hypot(p.x-q.x,p.z-q.z)>.95,'kiss must not use compact cuddle spacing');
+  }
   const result=completeTogether(s,'vlad',cmd,[...roles],0,homes);assert.ok(result.ok);
   assert.equal(result.state.money,s.money);assert.deepEqual(result.state.pantry,s.pantry);
   assert.equal(result.state.characters.vlad.pose,'sit');assert.equal(result.state.characters.alina.pose,'sit');

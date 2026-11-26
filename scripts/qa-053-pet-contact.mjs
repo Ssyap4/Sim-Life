@@ -36,7 +36,7 @@ try{
   const t=await take('task_started',p=>p.role===role&&p.command?.action===action);
   await page.waitForFunction(({role,action})=>{const a=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[role];return a.activity===action&&a.handheld.elapsed>.5;},{role,action},{timeout:45000});
   await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();
-  await page.waitForTimeout(700);await shot(action);
+  await page.waitForTimeout(200);await shot(action);
   await take('task_ended',p=>p.taskId===t.taskId&&p.outcome==='completed');
  }
  assert.deepEqual(errors,[]);

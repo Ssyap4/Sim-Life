@@ -180,7 +180,10 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const intimateSeat=['sofaMassage','sofaLean','sofaHands','sofaKiss','sofaHug','cuddle'].includes(a.motion);
   const compactSeat=(own:{x:number;y:number;z:number;yaw:number},other:{x:number;z:number})=>{
     const gap=Math.hypot(other.x-own.x,other.z-own.z);
-    const ratio=gap>.58?(gap-.58)/(2*gap):0;
+    // The kiss leans both upper bodies inward; the compact .58 m seating
+    // used for hand holding and cuddling makes their heads cross.
+    const spacing=a.motion==='sofaKiss'?1.0:.58;
+    const ratio=gap>spacing?(gap-spacing)/(2*gap):0;
     return {...own,x:own.x+(other.x-own.x)*ratio,z:own.z+(other.z-own.z)*ratio};
   };
   if(a.object==='sofa'&&state.furnishing.soldFixtures?.includes('sofa')){

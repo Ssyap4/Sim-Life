@@ -3,6 +3,8 @@ import test from 'node:test';
 import * as THREE from 'three';
 import {Actor} from '../../src/game/Actor';
 import {RESIDENT_CLEARANCE} from '../../src/game/residentCollision';
+import {initialState} from '../../src/shared/protocol';
+import {pairScenes} from '../society';
 import {readFile} from 'node:fs/promises';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createBlenderCharacter} from '../../src/game/BlenderCharacter';
@@ -24,9 +26,13 @@ test('kiss and embrace contact keeps approved portraits and navigation roots sta
   const sofa=motion==='sofaKiss';
   v.setPose('idle');a.setPose('idle');
   if(sofa){
-   v.root.position.set(-.5,0,0);a.root.position.set(.5,0,0);
-   v.setFurniturePose('sit',new THREE.Vector3(-.5,.057,0),0);a.setFurniturePose('sit',new THREE.Vector3(.5,.106,0),0);
-   v.snapFurnitureOffset();a.snapFurnitureOffset();
+   // Use actual authoritative sofa poses, not synthetic one-meter seats.
+   const homes=pairScenes(initialState(),'vlad',{type:'together',action:'sofaKiss'});assert.ok(homes);
+   for(const [role,actor] of [['vlad',v],['alina',a]] as const){
+    const home=homes[role],end=home.route.path.at(-1)??home.route.from,p=home.furniturePose!;
+    actor.root.position.set(end.x,0,end.z);
+    actor.setFurniturePose('sit',new THREE.Vector3(p.x,p.y,p.z),p.yaw);actor.snapFurnitureOffset();
+   }
   }else{
    v.root.position.set(0,0,0);a.root.position.set(0,0,RESIDENT_CLEARANCE+.05);
    v.faceTowards(a.root.position);a.faceTowards(v.root.position);

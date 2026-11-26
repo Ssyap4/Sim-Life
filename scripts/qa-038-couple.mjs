@@ -40,7 +40,7 @@ try{
  const start=await take('task_started',p=>p.role==='vlad'&&p.command?.action===action);
  await take('task_active',p=>p.taskId===start.taskId);
  await page.locator('#showcase-toggle').click();await page.locator('[data-showcase=alina]').click();
- await page.waitForTimeout(action==='sofaKiss'?1200:2300);
+ await page.waitForTimeout(action==='sofaKiss'?700:350);
  await page.screenshot({path:join(out,action+'.jpg'),type:'jpeg',quality:84});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2&&!!document.querySelector('canvas')&&document.querySelector('canvas').width>250&&!document.querySelector('#graphics-recovery')));
  assert.deepEqual(errors,[]);
