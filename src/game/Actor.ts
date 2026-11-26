@@ -1815,7 +1815,15 @@ export class Actor {
       const lateral = brushing ? .065 : .023;
       const coat=this.activity==='pet'||this.activity==='brush';
       if(typeof this.petContact==='function')this.petContact(this.target,coat?stroke:0);
-      else this.target.copy(this.petContact);
+      else{
+        this.target.copy(this.petContact);
+        // Static contact anchors (legacy caller / fallback) still need a
+        // repeated stroke. Live coat callbacks already include pet-local motion.
+        if(coat){
+          this.target.x+=.10*stroke*Math.sin(this.root.rotation.y);
+          this.target.z+=.10*stroke*Math.cos(this.root.rotation.y);
+        }
+      }
       if(coat){
         // Use the animated coat in the animal's local coordinate system.
         // Palm clearance is explicit; a grooming brush contacts with bristles.
