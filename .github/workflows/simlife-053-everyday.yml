@@ -19,6 +19,7 @@ jobs:
       - run: npx tsx --test server/tests/animation053.test.ts server/tests/workCoffee053.test.ts server/tests/dailyRoutine053.test.ts server/tests/autonomy.test.ts server/tests/familyAutonomy038.test.ts server/tests/nearbyTalk038.test.ts server/tests/contact-polish-049.test.ts server/tests/polish-049.test.ts server/tests/blender.test.ts
       - run: npx tsx --test server/tests/seating053.test.ts server/tests/bodyVisual.test.ts server/tests/walkingGait.test.ts server/tests/blenderWalkingGait.test.ts server/tests/naturalSleep038.test.ts server/tests/furniture-functionality.test.ts server/tests/consoles-043.test.ts server/tests/leisure-032.test.ts
       - run: npx tsx --test server/tests/ufc053.test.ts server/tests/venue-048.test.ts server/tests/handheld053.test.ts server/tests/kitchen053.test.ts server/tests/cooking-visual.test.ts server/tests/mealtime.test.ts
+      - run: npx tsx --test server/tests/pairContact053.test.ts server/tests/romance038.test.ts server/tests/relationships-046.test.ts
       - run: npm run check
   ufc-screen:
     runs-on: ubuntu-24.04

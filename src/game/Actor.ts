@@ -656,6 +656,17 @@ export class Actor {
     wrists[index].quaternion.slerp(this.aimRotation.setFromUnitVectors(handAxis, direction), alpha);
   }
 
+  // A social contact is authored at the palm, not the wrist joint.
+  // Leave the two palms a small clearance so both hand meshes remain visible.
+  private reachPartnerPalm(hand:0|1,contact:THREE.Vector3,amount:number,clearance=.012):void{
+    const shoulder=hand===0?this.leftArm:this.rightArm;
+    shoulder.getWorldPosition(this.handDirection);
+    this.handDirection.subVectors(contact,this.handDirection).normalize();
+    contact.addScaledVector(this.handDirection,-(.055+clearance));
+    this.reach(hand,contact,amount,.72);
+    this.aimHand(hand,this.handDirection,amount);
+  }
+
   private readonly toolAxis=new THREE.Vector3();
   private readonly toolGoal=new THREE.Vector3();
   private readonly toolOffset=new THREE.Vector3();
@@ -1828,7 +1839,13 @@ export class Actor {
       const hand=local.x-this.figure.position.x>0?1:0;
       const shoulder=other.root.worldToLocal(own.clone()).x-other.figure.position.x>0?other.rightArm:other.leftArm;
       this.target.copy(shoulder.position);this.target.y+=.015+.025*Math.sin(pair.time*5);this.target.z+=.025;other.rig.chest.localToWorld(this.target);
-      const blend=Math.min(1,alpha*3*partnerReach);this.reach(hand,this.target,blend);this.aimHand(hand,this.handDirection.set(0,-1,.2).applyAxisAngle(up,this.root.rotation.y),blend);
+      const blend=Math.min(1,alpha*3*partnerReach);
+      // Reach the shoulder with the palm and vary pressure, rather than
+      // burying the wrist and hand in the recipient's upper arm.
+      this.handDirection.set(0,-1,.2).applyAxisAngle(up,this.root.rotation.y).normalize();
+      this.target.addScaledVector(this.handDirection,-.055);
+      this.reach(hand,this.target,blend,.70);
+      this.aimHand(hand,this.handDirection,blend);
     } else if(pair?.partner&&partnerReach>0.002&&(pair.motion==='sofaHands'||pair.motion==='sofaHug')){
       const other=pair.partner;
       const own=this.bodyPosition(new THREE.Vector3()),theirs=other.bodyPosition(new THREE.Vector3());
@@ -1844,13 +1861,22 @@ export class Actor {
         this.target.z-=.015;
         other.rig.chest.localToWorld(this.target);
       }
-      this.reach(hand,this.target,blend);
-      this.aimHand(hand,this.handDirection.set(0,-.8,.2).applyAxisAngle(up,this.root.rotation.y),blend);
+      if(pair.motion==='sofaHands')this.reachPartnerPalm(hand,this.target,blend);
+      else {
+        this.reach(hand,this.target,blend);
+        this.aimHand(hand,this.handDirection.set(0,-.8,.2).applyAxisAngle(up,this.root.rotation.y),blend);
+      }
     } else if(pair?.target&&partnerReach>0.002) {
       const hand=pair.motion==='gift'||pair.motion==='hands'||pair.motion==='slowDance'?(this.id==='vlad'?1:0):1;
-      this.reach(hand,this.target.copy(pair.target),Math.min(1,alpha*4*partnerReach));
-      this.aimHand(hand,this.handDirection.set(0,-.55,-.3)
-        .applyAxisAngle(up,this.root.rotation.y),alpha*partnerReach);
+      const blend=Math.min(1,alpha*4*partnerReach);
+      this.target.copy(pair.target);
+      if(pair.motion==='hands'||pair.motion==='slowDance'){
+        this.reachPartnerPalm(hand,this.target,blend);
+      }else{
+        this.reach(hand,this.target,blend);
+        this.aimHand(hand,this.handDirection.set(0,-.55,-.3)
+          .applyAxisAngle(up,this.root.rotation.y),alpha*partnerReach);
+      }
     }
     // The old idle gestures only raised an elbow toward the face. Use
     // the existing two-bone IK solver to put the wrist at a meaningful
