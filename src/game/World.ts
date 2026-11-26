@@ -3215,6 +3215,21 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA && new URLSearchParams(location.search).get('tvQA')==='1' && this.place==='home' && this.household){
+      const tv=installedElectronics(this.household,this.localRole,'tv');
+      const model=this.scene.getObjectByName('Device '+tv);
+      if(model?.visible){
+        this.controls.minDistance=1;
+        this.controls.target.set(-2.39,.86,-.38);
+        if(this.canvas.dataset.tvView==='side')this.camera.position.set(.10,2.50,3.8);
+        else this.camera.position.set(-2.39,3.10,4.75);
+        this.camera.lookAt(this.controls.target);
+        model.updateWorldMatrix(true,true);
+        const box=new THREE.Box3().setFromObject(model,true);
+        this.canvas.dataset.tvQa=JSON.stringify({id:tv,width:box.getSize(new THREE.Vector3()).x,min:box.min.toArray(),max:box.max.toArray()});
+      }
+    }
+
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
