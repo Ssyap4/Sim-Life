@@ -1227,7 +1227,7 @@ export class World {
       case 'pet':{
         const action=stage.action==='petPlay'?'play':stage.action==='petBrush'?'brush':'pet';
         const pet=pair.pet&&pair.pet in this.pets?this.pets[pair.pet as PetId]:undefined;
-        const petContact=pet ? (target:THREE.Vector3)=>pet.coatContact(target) : undefined;
+        const petContact=pet ? (target:THREE.Vector3,stroke?:number)=>pet.coatContact(target,stroke) : undefined;
         if(leads) {
           actor.playPetActivity(action,petContact);
           pet?.react(action);
@@ -1614,7 +1614,7 @@ export class World {
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
       actor.playPetActivity(action==='loadFeeder'?'feed':action,filling
         ? new THREE.Vector3(position.x,action==='loadFeeder'?(station?.model?.height??.28)+.10:.28,position.z)
-        : (hand:THREE.Vector3)=>pet.coatContact(hand));
+        : (hand:THREE.Vector3,stroke?:number)=>pet.coatContact(hand,stroke));
       // The animal eats during its own routine, not when the player pours food.
       if (!filling) pet.react(action);
     });

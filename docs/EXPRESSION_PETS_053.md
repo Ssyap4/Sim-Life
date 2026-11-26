@@ -1,0 +1,5 @@
+# 0.53 v11 — conversation and pet contacts
+- Approved portrait assets unchanged. Nearby conversation now has phrase-sized speaker emphasis, listener nod, small smiles, gaze breaks, and reduced movement during focused tasks. Existing sleep and intimate gesture priorities retained. No lip-sync or new face morphs.
+- Petting/brush contacts follow animal-local back anchors with animated body transforms. Deeper crouch makes ground-level pets reachable; brush bristles face coat while grip remains at palm. No changes to pet paths, action durations, rewards or server state. Feeding, bathing and play retain prior choreography.
+- Tested both approved GLBs with Verdell/Simba, three pet orientations, both pet and brush actions. Maximum measured settled palm-to-anchor error 7.8 cm (Alina with Simba facing away); brush tip-to-anchor 3.1 cm; grip under 1 mm. These are control anchors, not mesh collision checks. Deep crouch and pet surface alignment still need actual visual inspection.
+- Previous cloud run 45883566971 succeeded. New changes need visual QA before release; no physical FPS claim. Production unchanged.

@@ -19,7 +19,7 @@ import { drum, finish, orb, batchRigidParts } from './ArtKit';
 import type { FloorPoint } from './navigation';
 import { walkStrideLength, walkPelvisDrop, walkFootTarget, walkMotionTarget } from './WalkingGait';
 import { mealGesture } from './MealGesture';
-import { stableElbowPlane, conversationEyeLead } from './ContactMotion';
+import { stableElbowPlane, conversationEyeLead, conversationExpression } from './ContactMotion';
 import { NEED_REACTION_DURATION, needReactionWeight, pickNeedReaction, reactionAllowed,
   type NeedReaction, type ReactionNeeds } from './NeedReactions';
 import { expressiveDemeanor } from './CharacterDemeanor';
@@ -204,7 +204,11 @@ export class Actor {
   private emotion:EmotionId|null=null;
   private conversationYaw:number|null=null;
   private conversationSpeaking=false;
-  setConversation(yaw:number|null,speaking:boolean):void{this.conversationYaw=yaw;this.conversationSpeaking=speaking;}
+  private conversationBeat=0;
+  setConversation(yaw:number|null,speaking:boolean):void{
+    if(yaw===null||this.conversationYaw===null||speaking!==this.conversationSpeaking)this.conversationBeat=0;
+    this.conversationYaw=yaw;this.conversationSpeaking=speaking;
+  }
   setCareAppearance(hair:string,makeup:string){this.rig.setCareAppearance?.(hair,makeup);}
   setNeeds(needs: ReactionNeeds,emotion:EmotionId|null=null): void { this.needs = needs; this.emotion=emotion; }
   /** Local visual awareness only: no game state or social actions are changed. */
@@ -286,7 +290,7 @@ export class Actor {
   private keys: HandTargets | undefined;
   private pan: THREE.Vector3 | undefined;
   private gestureTarget: THREE.Vector3 | undefined;
-  private petContact: THREE.Vector3 | ((target:THREE.Vector3)=>THREE.Vector3) | undefined;
+  private petContact: THREE.Vector3 | ((target:THREE.Vector3,stroke?:number)=>THREE.Vector3) | undefined;
   private readonly target = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
   private readonly elbowAxis = new THREE.Vector3();
@@ -549,7 +553,7 @@ export class Actor {
     this.foodContainer.visible = false;
   }
 
-  playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3 | ((target:THREE.Vector3)=>THREE.Vector3)): void {
+  playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3 | ((target:THREE.Vector3,stroke?:number)=>THREE.Vector3)): void {
     this.setPose('idle');
     this.activity = kind;
     this.petContact = petContact instanceof THREE.Vector3 ? petContact.clone() : petContact;
@@ -678,11 +682,12 @@ export class Actor {
 
   // Solve the wrist from the actual working end, not just point a utensil
   // toward a target after the wrist has been animated independently.
-  private toolContact(tool:THREE.Object3D,point:THREE.Vector3,tipZ:number,tipY:number,yaw:number,pitch:number):void{
+  private toolContact(tool:THREE.Object3D,point:THREE.Vector3,tipZ:number,tipY:number,yaw:number,pitch:number,bristlesDown=false):void{
     this.toolGoal.copy(point);
     this.toolAxis.set(Math.sin(yaw),pitch,Math.cos(yaw)).normalize().applyAxisAngle(up,this.root.rotation.y);
     this.basisX.crossVectors(up,this.toolAxis).normalize();
     this.basisZ.crossVectors(this.toolAxis,this.basisX).normalize();
+    if(bristlesDown){this.basisX.negate();this.basisZ.negate();}
     this.toolRotation.setFromRotationMatrix(this.rotationBasis.makeBasis(this.basisX,this.basisZ,this.toolAxis));
     this.toolHandRotation.setFromUnitVectors(handAxis,this.toolAxis);
     // Handle center is 4.5 cm from the origin; keep it in the palm.
@@ -1140,8 +1145,8 @@ export class Actor {
           // Short, repeatable strokes, with the body leaning toward the pet.
           // No navigation or physics movement: only bones and a held prop.
           const stroke = Math.sin(a * 6.2);
-          crouch = .32;
-          lean = .44 + .016 * stroke;
+          crouch = .51;
+          lean = .60 + .016 * stroke;
           gaze = .29;
           leftY = -.31;
           leftZ = .31;
@@ -1159,7 +1164,8 @@ export class Actor {
           gaze = 0.24;
           break;
         default:
-          crouch = this.activity === 'feed' ? 0.42 : 0.32;
+          crouch = this.activity === 'feed' ? 0.42 : this.activity==='pet'?.60:0.32;
+          if(this.activity==='pet'){lean=.72;gaze=.40;expression=.28;}
           leftY = -0.49;
           rightY = -0.455 + Math.sin(a * 4) * 0.034;
           leftZ = 0.20;
@@ -1662,9 +1668,11 @@ export class Actor {
 
     // Speech overlay only on the face/head: preserve utensils, hands, legs, route and furniture pose.
     const chatActive=(!resting||this.activity==='spaRecline')&&this.activity!=='spaSwim'&&this.conversationYaw!==null&&!this.partnerGesture;
-    const chatYaw=chatActive?THREE.MathUtils.clamp(this.conversationYaw!,-.55,.55)*(this.activity||this.pose==='work'?.48:.85):0;
-    const chatNod=chatActive?Math.sin(t*(this.conversationSpeaking?3.5:1.6))*.035:0;
-    if(chatActive)expression=Math.max(expression,this.conversationSpeaking?.28:.18);
+    this.conversationBeat=chatActive?this.conversationBeat+dt:0;
+    const chat=conversationExpression(this.conversationBeat,this.conversationSpeaking,!!this.activity||this.pose==='work',this.id==='alina');
+    const chatYaw=chatActive?THREE.MathUtils.clamp(this.conversationYaw!,-.55,.55)*(this.activity||this.pose==='work'?.48:.85)*chat.focus:0;
+    const chatNod=chatActive?chat.nod:0;
+    if(chatActive)expression=Math.max(expression,chat.smile);
     const idleLook = seated || resting || this.activity || this.gesture || this.idleGesture || pair ? 0 : Math.sin(t * 0.53) ** 7;
     if (data.animateFace) {
       const chatEye=conversationEyeLead(chatYaw,!!this.activity||this.pose==='work');
@@ -1684,7 +1692,7 @@ export class Actor {
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
     data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, (rest?rest.headPitch:gaze + 0.022 * breath - lean * 0.55 + chatNod), alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
-      rest?rest.headRoll:0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + demeanor.tilt*moodWeight, alpha);
+      rest?rest.headRoll:0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + (chatActive?chat.tilt:0) + demeanor.tilt*moodWeight, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
@@ -1805,8 +1813,22 @@ export class Actor {
       const brushing = this.activity === 'brush'||bathing;
       const stroke = Math.sin(a * (brushing ? 6.2 : 3.7));
       const lateral = brushing ? .065 : .023;
-      if(typeof this.petContact==='function')this.petContact(this.target);
+      const coat=this.activity==='pet'||this.activity==='brush';
+      if(typeof this.petContact==='function')this.petContact(this.target,coat?stroke:0);
       else this.target.copy(this.petContact);
+      if(coat){
+        // Use the animated coat in the animal's local coordinate system.
+        // Palm clearance is explicit; a grooming brush contacts with bristles.
+        this.toolSurface.copy(this.target);
+        if(this.activity==='brush'){
+          this.toolContact(this.props.groomingBrush,this.toolSurface,.153,.048,0,-.12,true);
+        }else{
+          this.handDirection.set(0,-.55,1).normalize().applyAxisAngle(up,this.root.rotation.y);
+          this.target.addScaledVector(this.handDirection,-.055);
+          this.reach(1,this.target,Math.min(1,alpha*3),.65);
+          this.aimHand(1,this.handDirection,Math.min(1,alpha*3));
+        }
+      }else{
       this.target.x += lateral * stroke * Math.cos(this.root.rotation.y);
       this.target.z -= lateral * stroke * Math.sin(this.root.rotation.y);
       if(brushing||this.activity==='pet'){
@@ -1818,6 +1840,7 @@ export class Actor {
       if(bathing){this.target.y+=.04;this.target.x+=.05*Math.sin(a*4);this.reach(0,this.target.clone().add(new THREE.Vector3(0,.01,-.18)),Math.min(1,alpha*3));}
       this.reach(1,this.target,Math.min(1,alpha * 2.8));
       this.aimHand(1,this.handDirection.set(0,-1,-.25).applyAxisAngle(up,this.root.rotation.y),alpha);
+      }
     } else if (this.gestureTarget && highFive > 0) {
       const hand = this.id === 'vlad' ? 1 : 0;
       this.target.copy(this.gestureTarget).addScaledVector(up, -0.069);

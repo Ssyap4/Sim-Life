@@ -207,8 +207,10 @@ export class PetActor {
     this.ambient = context;
   }
 
-  coatContact(target: THREE.Vector3): THREE.Vector3 {
-    return this.body.localToWorld(target.set(0,this.id==='verdell'?.59:.58,.17));
+  coatContact(target: THREE.Vector3,stroke=0): THREE.Vector3 {
+    const s=THREE.MathUtils.clamp(stroke,-1,1);
+    // Stroke along the pet's back, not the resident's facing axis.
+    return this.body.localToWorld(target.set(0,(this.id==='verdell'?.59:.58)+.012*(1-s*s),.17+.12*s));
   }
 
   syncGround(x: number, z: number): void {
