@@ -1202,6 +1202,7 @@ export class Actor {
     }
 
     const pair=this.partnerGesture;
+    let intimateContact=0;
     let partnerRoll=0, partnerHead=0, partnerReach=0, partnerForward=0,partnerYaw=0,partnerSide=0,partnerChestYaw=0;
     if(pair){
       const sec=pair.time;
@@ -1218,7 +1219,7 @@ export class Actor {
           const weight=contact;
           leftY=rightY=-.54+.47*weight; leftZ=rightZ=.39*weight;
           armSpread+=.32*weight; embrace=weight*.091; lean=.14*weight;
-          partnerForward=.071*weight;
+          partnerForward=(pair.motion==='closeHug'?.083:.071)*weight;
           partnerReach=weight;
           partnerRoll=.018*Math.sin(sec*1.65)*weight;
           expression=.13+.45*weight; partnerHead=(pair.leads?-.11:.14)*weight;
@@ -1226,11 +1227,13 @@ export class Actor {
         }
         case 'kiss':case 'cheek':
           lean+=(pair.motion==='kiss'?.19:pair.leads?.17:.035)*contact;
-          partnerForward=(pair.motion==='kiss'?.12:pair.leads?.146:.048)*contact;
-          partnerHead=(pair.motion==='cheek'?.21:.17)*(pair.leads?-1:1)*contact;
+          partnerForward=(pair.motion==='kiss'?.151:pair.leads?.146:.048)*contact;
+          partnerHead=(pair.motion==='cheek'?.21:.22)*(pair.leads?-1:1)*contact;
           partnerRoll=(pair.leads?-.041:.028)*contact;
-          crouch+=(this.id==='vlad'?.034:0)*contact;
-          gaze+=(pair.leads?-.075:.055)*contact; expression+=.28*rise;
+          crouch+=(this.id==='vlad'?.047:0)*contact;
+          gaze+=(pair.leads?-.075:.055)*contact;
+          intimateContact=contact;
+          expression+=.13*rise-.08*contact;
           leftY+=.07*contact; rightY+=.11*contact;
           break;
         case 'gift':
@@ -1263,7 +1266,9 @@ export class Actor {
           partnerChestYaw+=inward*(pair.motion==='sofaKiss'?.56:pair.motion==='sofaHug'?.18:.06)*contact;
           if(pair.motion==='sofaHands'||pair.motion==='sofaHug'&&pair.leads)partnerReach=contact;
           if(inward>0)rightY+=.13*contact;else leftY+=.13*contact;
-          expression+=.30*contact;break;
+          if(pair.motion==='sofaKiss'){intimateContact=contact;expression+=.12*contact;}
+          else expression+=.30*contact;
+          break;
         }
         case 'teaTogether':{
           const speaking=Math.floor(sec/3)%2===(pair.leads?0:1);
@@ -1668,11 +1673,11 @@ export class Actor {
       const eyePitch = resting ? 0 : this.activity === 'cook' ? 0.07 :
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) :
         0.025 * Math.sin(t * 0.67) + idleEyePitch;
-      data.animateFace(dt, asleep || (this.needReaction === 'yawn' && needWeight > 0.60),
+      data.animateFace(dt, asleep || intimateContact>.72 || (this.needReaction === 'yawn' && needWeight > 0.60),
         expression, eyeYaw, eyePitch, demeanor.lids*moodWeight);
     } else {
       const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
-      const blink = asleep ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
+      const blink = asleep || intimateContact>.72 ? 0.13 : blinkTime < 0.17 ? 1 - 0.89 * Math.sin(blinkTime / 0.17 * Math.PI) : 1;
       for (const eye of data.eyes) eye.scale.y = THREE.MathUtils.lerp(eye.scale.y, blink*(1-demeanor.lids*moodWeight), alpha);
     }
     const look = rest?rest.headYaw+(reclining?partnerYaw:0)+chatYaw:0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
@@ -1830,9 +1835,13 @@ export class Actor {
         this.target.y-=hand===0?.14:.23;
         this.target.z-=.052;
         partner.rig.chest.localToWorld(this.target);
+        // Place the palm on the partner's upper-arm surface, keeping
+        // the wrist back from it and the elbow outside the torso.
+        this.handDirection.set(hand===0?.8:-.8,-.33,.40)
+          .applyAxisAngle(up,this.root.rotation.y).normalize();
+        this.target.addScaledVector(this.handDirection,-.055);
         this.reach(hand,this.target,blend,1.1);
-        this.aimHand(hand,this.handDirection.set(hand===0?.8:-.8,-.33,.40)
-          .applyAxisAngle(up,this.root.rotation.y),blend);
+        this.aimHand(hand,this.handDirection,blend);
       }
     } else if(pair?.partner&&partnerReach>0.002&&pair.motion==='sofaMassage'&&pair.leads){
       const other=pair.partner,own=this.bodyPosition(new THREE.Vector3()),local=this.root.worldToLocal(other.bodyPosition(new THREE.Vector3()));
