@@ -81,19 +81,27 @@ export function creditCelebration(s:GameState,action:string):string[]{
  }
  return today.map(o=>OCCASIONS[o.id].title);
 }
-export function hobbyFor(command:TimedCommand):{id:Hobby;item:string}|undefined{
+export function hobbyFor(command:TimedCommand,s?:GameState):{id:Hobby;item:string}|undefined{
  if(command.type==='read_book')return {id:'reading',item:command.book};
+ if(command.type==='furniture_use'){
+  if(command.action==='read_book'&&command.book)return {id:'reading',item:command.book};
+  if(command.action==='pingPong'||command.action==='poolSwim')return {id:'sport',item:command.action};
+ }
  if(command.type==='cook')return {id:'cooking',item:command.recipe};
  if(command.type==='local_activity'){
   if(['lakeFishFloat','lakeFishSpin','lakeFishFeeder'].includes(command.action))return {id:'fishing',item:command.action};
   if(['fitnessTrain','exercise'].includes(command.action))return {id:'sport',item:command.station};
  }
- if(command.type==='together'&&['parkBadminton','parkTennis','badminton','tableTennis','tennis'].includes(command.action))return {id:'sport',item:command.action};
+ if(command.type==='together'){
+  if(command.action==='read'&&command.item)return {id:'reading',item:command.item};
+  if(command.action==='parkBadminton'||command.action==='poolSwimTogether')return {id:'sport',item:command.action};
+  if(command.action==='leisureTogether'&&s?.furnishing.placed.some(p=>String(p.id)===command.item&&p.sku==='leisure-tennis'))return {id:'sport',item:'pingPong'};
+ }
  return undefined;
 }
 /** At most one credited session per hobby per game day, no automatic farming. */
 export function creditHobby(s:GameState,role:CharacterId,command:TimedCommand):string{
- const h=hobbyFor(command);if(!h)return '';
+ const h=hobbyFor(command,s);if(!h)return '';
  const progress=mutable(s).hobbies[role],p=progress[h.id]??{sessions:0,unique:[],lastDay:0};
  if(!p.unique.includes(h.item)&&p.unique.length<40)p.unique.push(h.item);
  if(p.lastDay===s.clock.day){progress[h.id]=p;return '';}
