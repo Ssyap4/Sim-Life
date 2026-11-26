@@ -119,6 +119,7 @@ export class Actor {
   private gymDumbbells?:THREE.Group[];
   private gamepads?:Record<string,THREE.Group>;
   private activePad?:THREE.Group;
+  private activeConsoleGame?:ConsoleGameId;
   private vanityKind?:import('../shared/vanity').CareId;
   private vanityProp?:THREE.Group;
   playVanity(id:import('../shared/vanity').CareId){
@@ -139,8 +140,8 @@ export class Actor {
     g.visible=leads;g.position.set(0,-.045,.025);this.rig.wrists[this.id==='vlad'?1:0].add(g);this.vanityProp=g;
   }
   private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;}
-  playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;}
-  private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;}
+  playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;this.activeConsoleGame=game;}
+  private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;this.activeConsoleGame=undefined;}
   gamepadGripError(){if(!this.activePad)return null;const pad=this.activePad;return ([0,1] as const).map(i=>this.rig.wrists[i].getWorldPosition(new THREE.Vector3()).distanceTo(pad.localToWorld(new THREE.Vector3(i===0?-CONTROLLER_GRIP:CONTROLLER_GRIP,-.01,-.069))));}
   private mealSlow=false;
   private parkChatUntil=0;
@@ -1657,9 +1658,19 @@ export class Actor {
     if(rest)this.figure.position.y+=rest.lift+.004*breath;
     if(this.activity==='consolePlay'&&this.activePad){
       const pad=this.activePad,shoulderY=(this.leftArm.position.y+this.rightArm.position.y)/2;
-      const center=data.chest.localToWorld(this.target.set(0,shoulderY-.35+.013*Math.sin(a*3.1),.31+.018*Math.sin(a*2.0)));
-      pad.position.copy(this.figure.worldToLocal(center));pad.rotation.set(-.10+.07*Math.sin(a*2.8),.035*Math.sin(a*1.9),.055*Math.sin(a*3.2));pad.updateWorldMatrix(true,false);
-      for(const i of [0,1] as const){const side=i===0?-1:1;this.reach(i,pad.localToWorld(this.target.set(side*CONTROLLER_GRIP,-.01,-.069)),1,.63);this.aimHand(i,this.handDirection.set(-side*.30,-.12,1).applyAxisAngle(up,this.root.rotation.y),1);}
+      const fight=this.activeConsoleGame==='ufc6',phase=a+(this.id==='alina'?1.1:0);
+      const burst=fight?Math.max(0,Math.sin(phase*3.5))**4:0;
+      const center=data.chest.localToWorld(this.target.set(0,shoulderY-.35+.013*Math.sin(a*3.1)+burst*.028,.31+.018*Math.sin(a*2.0)+burst*.018));
+      pad.position.copy(this.figure.worldToLocal(center));pad.rotation.set(-.10+.07*Math.sin(a*2.8)-burst*.08,.035*Math.sin(a*1.9)+burst*.055,.055*Math.sin(a*3.2));pad.updateWorldMatrix(true,false);
+      const l=pad.getObjectByName('stick-left'),r=pad.getObjectByName('stick-right');
+      if(l)l.position.set(-.038+.0035*Math.sin(phase*4.1),.034,-.005+.0035*Math.cos(phase*3.7));
+      if(r)r.position.set(.038+.003*Math.sin(phase*5.7),.034,-.005+.003*Math.cos(phase*5.1));
+      for(const i of [0,1] as const){
+        const side=i===0?-1:1;
+        this.reach(i,pad.localToWorld(this.target.set(side*CONTROLLER_GRIP,-.01,-.069)),1,.63);
+        pad.getWorldQuaternion(this.parentRotation);
+        this.aimHand(i,this.handDirection.set(-side*.30,-.12,1).applyQuaternion(this.parentRotation),1);
+      }
     } else if(this.venueFrame&&this.activity&&['venueCue','venueHockey','venueCards','venueJenga','venueBowl'].includes(this.activity)){
       const f=this.venueFrame,frame=venueHandFrame(f.game,this.id,f.t,f.match);
       const target=new THREE.Vector3(f.center.x+frame.x,frame.y,f.center.z+frame.z);

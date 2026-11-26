@@ -19,3 +19,6 @@ coverage/
 
 # User-supplied music: local household only; do not publish audio
 /public/audio/soundtrack/*.mp3
+
+# Household-only UFC highlights; no copyrighted media in Git
+/public/media/ufc-private/

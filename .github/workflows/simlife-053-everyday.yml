@@ -18,7 +18,27 @@ jobs:
       - run: npm ci
       - run: npx tsx --test server/tests/animation053.test.ts server/tests/workCoffee053.test.ts server/tests/dailyRoutine053.test.ts server/tests/autonomy.test.ts server/tests/familyAutonomy038.test.ts server/tests/nearbyTalk038.test.ts server/tests/contact-polish-049.test.ts server/tests/polish-049.test.ts server/tests/blender.test.ts
       - run: npx tsx --test server/tests/seating053.test.ts server/tests/bodyVisual.test.ts server/tests/walkingGait.test.ts server/tests/blenderWalkingGait.test.ts server/tests/naturalSleep038.test.ts server/tests/furniture-functionality.test.ts server/tests/consoles-043.test.ts server/tests/leisure-032.test.ts
+      - run: npx tsx --test server/tests/ufc053.test.ts server/tests/venue-048.test.ts
       - run: npm run check
+  ufc-screen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: node scripts/qa-053-ufc.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ufc-screen-053
+          path: /tmp/simlife-053-ufc
+          retention-days: 7
   seating:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

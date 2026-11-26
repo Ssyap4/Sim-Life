@@ -1,4 +1,5 @@
 import {drawConsoleFrame} from './ConsoleFrames';
+import {stopUfcHighlight} from './UfcHighlights';
 import type {ConsoleMatch,ConsoleGameId} from '../shared/consoleCatalog';
 import * as THREE from 'three';
 import { electronicsDisplay,electronicsVariants } from './ElectronicsArt';
@@ -43,7 +44,7 @@ export class HomeEffects {
   private readonly media = new Map<string, Program>();
   private lastScreen = -1;
   private readonly games=new Map<string,{game:ConsoleGameId;start:number;match?:ConsoleMatch}>();
-  console(id:string,game?:ConsoleGameId,start=0,match?:ConsoleMatch){if(game)this.games.set(id,{game,start,match});else this.games.delete(id);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
+  console(id:string,game?:ConsoleGameId,start=0,match?:ConsoleMatch){if(game)this.games.set(id,{game,start,match});else this.games.delete(id);if(![...this.games.values()].some(g=>g.game==='ufc6'))stopUfcHighlight(this.context);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
   private lesson?: string;
 
   constructor(scene: THREE.Scene) {
@@ -122,6 +123,7 @@ export class HomeEffects {
 
   dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}
   reset() {
+    stopUfcHighlight(this.context);
     this.media.clear();this.games.clear();
     this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
     this.dogBath(null);

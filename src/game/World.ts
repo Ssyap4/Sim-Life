@@ -46,6 +46,7 @@ import {DOG_BATH_OWNER,DOG_BATH_APPROACH,DOG_BATH_SURFACE} from '../shared/dogBa
 import { BATH_FIXTURES, DINING_TOP, GRILL_WORK, LOUNGE_HOOKAH, HOME_FLOOR, HOME_PLACEMENTS, HOUSE_ENTRY,
   KITCHEN_ACTIONS, KITCHEN_WORK, HOME_YARD, homeSeat, type BathFixture, type HomeLeisure } from '../shared/home';
 import * as THREE from 'three';
+import {stopUfcHighlight} from './UfcHighlights';
 import {spaSwimFrame} from '../shared/spa';
 import { graphicsProfile, showGraphicsProblem, clearGraphicsProblem, isBlankGraphicsFrame, chooseGraphicsQuality, worldPixelRatio } from './GraphicsCompatibility';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -2353,6 +2354,7 @@ export class World {
     this.pairStages.clear();this.badmintonStarted=null;this.tennisStarted=null;
     this.dishTasks.clear();
     for (const actor of Object.values(this.actors)) actor.clearProps();
+    stopUfcHighlight();
     this.place = place;
     this.weather.enter(this.scene,place);
     this.horizon.enter(this.scene,place);
@@ -2804,6 +2806,7 @@ export class World {
   }
 
   setPaused(value: boolean): void {
+    if(value)stopUfcHighlight();
     this.paused = value;
     gameAudio.setPaused(value);
     this.lastFrame = performance.now();

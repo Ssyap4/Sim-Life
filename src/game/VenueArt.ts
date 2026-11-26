@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {cube,softCube,drum,orb,plane,finish,batchRigidParts,type XYZ} from './ArtKit';
 import {buildConsoleModel} from './ConsoleArt';
 import {drawConsoleFrame} from './ConsoleFrames';
+import {stopUfcHighlight} from './UfcHighlights';
 import {VENUE_GAMES,venueWinner,venueScoreAt,bowlingHit,hockeyPad,type VenueGame} from '../shared/venue';
 import type {ConsoleMatch} from '../shared/consoleCatalog';
 import type {Station} from '../shared/locations';
@@ -82,7 +83,7 @@ export function buildVenueStation(station:Station,textures:THREE.Texture[],mater
   const ps5=buildConsoleModel('console-ps5');ps5.position.set(1.05,.54,-1.70);fixed.add(ps5);
   const screen=display(fixed,textures,materials,3.10,1.744,1.65,-1.97);
   let frame=-2;
-  render=(t,play)=>{const n=play?Math.floor(t*15):-1;if(!screen||n===frame)return;frame=n;if(play)drawConsoleFrame(screen.c,'ufc6',t,play.match);else{screen.c.fillStyle='#192532';screen.c.fillRect(0,0,256,144);screen.c.fillStyle='#f5e9d8';screen.c.textAlign='center';screen.c.font='bold 28px sans-serif';screen.c.fillText('UFC 6',128,70);screen.c.font='12px sans-serif';screen.c.fillText('PS5 · LOCAL VERSUS',128,93);}screen.tex.needsUpdate=true;};
+  render=(t,play)=>{const n=play?Math.floor(t*15):-1;if(!screen||n===frame)return;frame=n;if(play)drawConsoleFrame(screen.c,'ufc6',t,play.match);else{stopUfcHighlight(screen.c);screen.c.fillStyle='#192532';screen.c.fillRect(0,0,256,144);screen.c.fillStyle='#f5e9d8';screen.c.textAlign='center';screen.c.font='bold 28px sans-serif';screen.c.fillText('UFC 6',128,70);screen.c.font='12px sans-serif';screen.c.fillText('PS5 · LOCAL VERSUS',128,93);}screen.tex.needsUpdate=true;};
  }
  if(game!=='reception'&&game!=='venueUfc'){
   const scoreMount=new THREE.Group();fixed.add(scoreMount);

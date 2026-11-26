@@ -1,8 +1,10 @@
 import {drawUfc} from './UfcBroadcast';
+import {drawUfcHighlight,stopUfcHighlight} from './UfcHighlights';
 import {CONSOLE_GAMES,type ConsoleMatch,type ConsoleGameId} from '../shared/consoleCatalog';
 // Original miniature game-like animation, not captured or executable commercial gameplay.
 export function drawConsoleFrame(c:CanvasRenderingContext2D,id:ConsoleGameId,t:number,match?:ConsoleMatch){
- if(id==='ufc6'){drawUfc(c,t,match);return;}
+ if(id==='ufc6'){if(!drawUfcHighlight(c,t,match?.seed??0))drawUfc(c,t,match);return;}
+ stopUfcHighlight(c);
  const w=256,h=144,phase=t%12; c.clearRect(0,0,w,h);
  const rect=(x:number,y:number,a:number,b:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,a,b);};
  const line=(pts:number[],color:string,width=2)=>{c.strokeStyle=color;c.lineWidth=width;c.lineJoin='round';c.beginPath();c.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)c.lineTo(pts[i],pts[i+1]);c.stroke();};

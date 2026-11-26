@@ -13,7 +13,8 @@ export function buildGamepad(sku:ConsoleSku){
   const grip=part([.056,.049,.104],[side*.067,-.013,-.027],shell);grip.rotation.y=side*.22;
   part([.040,.018,.023],[side*.059,.017,.045],0x20252b);
   part([.025,.012,.025],[side*.038,.026,-.005],0x191f26,drum);
-  part([.021,.006,.021],[side*.038,.034,-.005],0x50545a,drum);
+  const stick=part([.021,.006,.021],[side*.038,.034,-.005],0x50545a,drum);
+  stick.name=side<0?'stick-left':'stick-right';
  }
  part([.066,.007,.041],[0,.022,.007],ps?0x242932:0x171d24);
  part([.009,.004,.009],[0,.026,-.031],0x70b4fa);
