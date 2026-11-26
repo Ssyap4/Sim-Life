@@ -15,7 +15,7 @@ try{
  s.pantry.eggs=2;s.pantry.milk=1;s.meals.porridge=1;addReadyFood(s,'meal','porridge',1,'table');
  Object.assign(s.characters.vlad,KITCHEN_WORK.stove.position,{pose:'idle',energy:90,hunger:25});
  const files=openServerFiles(dir);files.save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1.5,lifeClock:{now:()=>0,tickMs:600000}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
