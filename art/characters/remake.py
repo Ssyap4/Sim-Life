@@ -6,13 +6,13 @@ from math import cos, pi, sin
 from pathlib import Path
 
 import bpy
-from mathutils import Quaternion
+from mathutils import Quaternion, Vector
 
 ART=Path(__file__).resolve().parent
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(ART))
 from export import export
-from mesh import Mesh, bell, blend, rgb, solid, skin
+from mesh import Mesh, bell, blend, rgb, solid, skin, profile, ramp
 from remake_hair import build_hair
 from remake_portrait import Sculpt, bezier_path
 
@@ -99,6 +99,32 @@ def blink(face,character):
     scene.frame_set(1)
 
 
+def soften_portrait_normals(sculpt, face, obj):
+    # The eye-window rings have irregular triangle sizes. Use the analytic
+    # underlying face normal on their smooth skin, rather than inheriting
+    # a visible rectangular crease from the triangulation.
+    data=obj.data
+    data.update()
+    normals=[]
+    for i,vertex in enumerate(data.vertices):
+        x,y,z=face.points[i];y-=sculpt.height
+        rx,rz,mid=profile(sculpt.sections,y)
+        n=vertex.normal.copy()
+        if abs(x)<rx*.89 and -.159<y<.143 and z>mid+.025:
+            e=min(.0012,(rx-abs(x))*.23)
+            dzdx=(sculpt.depth(x+e,y)-sculpt.depth(x-e,y))/(2*e)
+            dzdy=(sculpt.depth(x,y+e)-sculpt.depth(x,y-e))/(2*e)
+            goal=Vector((-.86*dzdx,-1,-.86*dzdy)).normalized()
+            orbital=ramp(-.075,-.033,y)*(1-ramp(.072,.103,y))
+            mask=(1-ramp(.73,.89,abs(x)/rx))*ramp(-.159,-.136,y)*(1-ramp(.12,.143,y))
+            # Preserve the volume of lip edges and lashes while blending
+            # the continuous forehead and cheeks.
+            amount=mask*(.40+.58*orbital)
+            n.lerp(goal,amount).normalize()
+        normals.append(n)
+    data.normals_split_custom_set_from_vertices(normals)
+
+
 def rebuild(character, source, blender_output, game_output, textures):
     bpy.ops.wm.open_mainfile(filepath=str(source))
     rig=bpy.data.objects['Resident']
@@ -118,6 +144,7 @@ def rebuild(character, source, blender_output, game_output, textures):
     face,eyes,skin_mesh=sculpt.build_face(textures)
     lower=neck_and_hands(sculpt,rig,skin_mesh)
     portrait=face.build(rig)
+    soften_portrait_normals(sculpt,face,portrait)
     portrait['remakePortrait']=True
     for mesh in (eyes,skin_mesh,build_hair(sculpt,textures)):
         mesh.build(rig)

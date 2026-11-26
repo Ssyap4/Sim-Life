@@ -16,15 +16,15 @@ BOTTOM, TOP = -.173, .177
 # separately for the two portraits. Lower jaw, orbital and temporal anatomy
 # is then sculpted into those continuous sections.
 ALINA = [
-    (BOTTOM,.007,.019,.032),(-.162,.043,.049,.034),(-.145,.066,.073,.022),
+    (BOTTOM,.007,.019,.032),(-.162,.043,.049,.034),(-.145,.071,.073,.022),
     (-.130,.085,.085,.014),(-.101,.100,.102,.008),(-.068,.115,.115,.000),
     (-.037,.124,.129,-.008),(-.003,.127,.133,-.009),(.035,.129,.137,-.011),
     (.075,.126,.138,-.014),(.111,.116,.128,-.019),(.139,.094,.108,-.025),
     (.160,.067,.078,-.030),(.173,.034,.042,-.035),(TOP,.002,.005,-.037),
 ]
 VLAD = [
-    (BOTTOM,.010,.019,.038),(-.162,.048,.054,.039),(-.145,.071,.074,.023),
-    (-.125,.083,.092,.008),(-.096,.097,.106,-.001),(-.062,.108,.118,-.009),
+    (BOTTOM,.010,.019,.038),(-.162,.048,.054,.039),(-.145,.079,.075,.023),
+    (-.125,.089,.092,.008),(-.096,.097,.106,-.001),(-.062,.108,.118,-.009),
     (-.030,.116,.130,-.015),(.006,.120,.131,-.014),(.040,.123,.131,-.015),
     (.075,.124,.132,-.015),(.109,.116,.125,-.020),(.138,.098,.106,-.027),
     (.160,.072,.081,-.031),(.173,.032,.045,-.035),(TOP,.002,.006,-.036),
@@ -80,7 +80,7 @@ class Sculpt:
     def lip(self,x):
         q=np.clip(x/self.mouth_width,-1,1)
         shape=np.maximum(0,1-q*q)**.73
-        arch=(.0050 if self.woman else .0027)*q*q+.0009*q
+        arch=(.0018 if self.woman else .0012)*q*q+.0009*q
         top=(.0075 if self.woman else .0045)+.0023*np.exp(-((abs(q)-.27)/.18)**2)
         bottom=.0127 if self.woman else .0086
         return self.mouth+arch, shape, top, bottom
@@ -155,7 +155,7 @@ class Sculpt:
         arch=(.036 if f else .028)+(.016 if f else .009)*np.sin(pi*eyebrow*.94)-(.008 if f else .004)*eyebrow
         width=((.0068 if f else .0085)*(1-eyebrow)**.39*np.clip(eyebrow/.094,0,1)+.0001)
         brows=np.clip((1-abs(y-arch)/width)*4,0,1)*np.clip((1-eyebrow)*15,0,1)*front
-        shade('79604c' if f else '725545',brows*(.82+.15*np.cos(y*1010+x*840)))
+        shade('79604c' if f else '725545',brows*(.87+.045*np.cos(y*1010+x*840)))
         if not f:
             # A bare-skinned low fade. Fine pepper grain stops at the temple.
             around=np.clip((.86-front)/.66,0,1)
@@ -242,7 +242,7 @@ class Sculpt:
                 row.append((self.xyz(x,y,globe(x,y)),tint,HEAD,(u,v)))
             rows.append(row)
         eyes.grid(rows,flip=side<0)
-        iris=.0150 if f else .0120
+        iris=.0165 if f else .0130
         iris_col=rgb('547d98' if f else '4d5b3e')
         iris_light=rgb('91b5c7' if f else '78835a')
         ring=rgb('354f64' if f else '35452e')
@@ -254,7 +254,10 @@ class Sculpt:
             for u in steps(64):
                 a=u*2*pi
                 x=iris*t*sin(a); y=iris*t*cos(a)
-                depth=globe(cx+x,y)+.0007
+                u_eye=max(0,min(1,.5+side*x/(2*width)))
+                low=opening(u_eye,False)[1];high=opening(u_eye,True)[1]
+                outside=max(0,low-y,y-high)
+                depth=globe(cx+x,y)+.0007-.009*ramp(.0004,.005,outside)
                 streak=.20+.41*(.5+.5*sin(a*29+t*16)*cos(a*9-t*3))
                 iris_color=rgbmix(iris_col,iris_light,streak)
                 inner=ramp(.31,.39,t)
@@ -398,14 +401,14 @@ class Sculpt:
 
     def male_ear(self,skin,side):
         """A compact lateral pinna, with a bowl, rim and rounded back."""
-        cx,cy,cz=.123,-.042,-.007
+        cx,cy,cz=.117,-.042,-.007
         height,width=.038,.023
         def surface(p,a,back=False):
             # A rear-leaning oval in the actual sagittal plane.
             y=cy+height*cos(a)*p
             z=cz+width*sin(a)*p-.008*cos(a)*p
             # Round the frontal silhouette at both the top and the lobe.
-            outer=(.009*(p**.72)+.003*p*(-sin(a)))*(1-.38*(p*cos(a))**2)
+            outer=(.007*(p**.72)+.0025*p*(-sin(a)))*(1-.38*(p*cos(a))**2)
             x=cx+outer
             if back:
                 x-=.023*(1-p)**.72

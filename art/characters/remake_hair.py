@@ -13,8 +13,8 @@ def hair_atlas(sculpt, folder):
     w,h=1024,768
     u,v=np.meshgrid((np.arange(w)+.5)/w,(np.arange(h)+.5)/h)
     f=sculpt.woman
-    shadow=np.array(rgb('655247' if f else '4a3b30'))
-    amber=np.array(rgb('b99d7d' if f else '4e3f33'))
+    shadow=np.array(rgb('655247' if f else '6d5747'))
+    amber=np.array(rgb('b99d7d' if f else '493d33'))
     shine=np.array(rgb('e0c49f' if f else '73604e'))
     broad=(.5+.5*np.sin(2*pi*(u*3.1+.034*np.sin(v*8)+.020*np.sin(u*45.))))**1.35
     fibril=.5+.5*np.sin(2*pi*(u*95.5+.052*np.sin(v*12+u*20)+.027*np.sin(v*22)))
@@ -51,7 +51,7 @@ def lock(hair, sculpt, controls, width, thickness, channel, frames=33, sides=17,
             across=tangent.cross(orient).normalized()
             outward=across.cross(tangent).normalized()
             if sculpt.woman:
-                span=(.60+.40*sin(pi*t)**.55)*(1-ramp(.66,1.0,t)*.98)
+                span=(.18+.82*sin(pi*t)**.48)*(1-ramp(.66,1.0,t)*.98)
             else:
                 span=(.43+.57*sin(pi*t)**.50)*(1-ramp(.75,1,t)*.99)
             row=[]
@@ -75,7 +75,7 @@ def scalp(hair, sculpt):
     for t in steps(24):
         row=[]
         for u in steps(70):
-            a=(u-.5)*2*pi
+            a=(u-.5)*1.84
             front=max(0,cos(a))
             cut=.155-.264*ramp(.55,1.38,abs(a+.15))+.013*sin(a)*front
             y=cut+(.176-cut)*t
@@ -115,7 +115,7 @@ def alina_locks(hair, sculpt):
     # A continuous swept rear curtain, rather than a row of separate tubes.
     # Two thin surfaces join at the tips and side edges. Morphs share topology.
     frames,across=35,69
-    sections=[(-.36,.145,.116,-.008),(-.28,.169,.145,-.009),(-.18,.167,.153,-.014),(-.08,.157,.157,-.012),(.02,.150,.151,-.012),(.10,.130,.135,-.015),(.16,.080,.087,-.029)]
+    sections=[(-.36,.145,.116,-.008),(-.28,.169,.145,-.009),(-.18,.167,.153,-.014),(-.08,.157,.157,-.012),(.02,.150,.151,-.012),(.10,.134,.140,-.015),(.16,.095,.095,-.024),(.178,.058,.065,-.031),(.194,.010,.018,-.037)]
     starts=[]
     for inner in (False,True):
         for mode in ('Basis','DailyStyle','EveningStyle'):
@@ -125,7 +125,7 @@ def alina_locks(hair, sculpt):
                 for u in steps(across):
                     a=.82+(2*pi-1.64)*u
                     tip=ramp(.72,1,t)
-                    y=.16-.50*t+tip*(.012*cos(a*8)+.014*abs(cos(a)))
+                    y=.194-.534*t+tip*(.012*cos(a*8)+.014*abs(cos(a)))
                     rx,rz,mid=profile(sections,y)
                     wave=(.004*cos(a*9+5*t)+.002*cos(a*17-6*t))*sin(pi*t)**.5
                     inset=.012 if inner else 0
