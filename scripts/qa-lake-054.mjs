@@ -57,6 +57,12 @@ try{
  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.activity==='grill',undefined,{timeout:15000});
  await shot('03-cooking');
  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:45000});
+ if(mode==='night'){
+  await send({type:'approach',place:'lake',station:'lake-pitch-2'});await page.waitForTimeout(3000);await setView('sleep');await send({type:'local_activity',station:'lake-pitch-2',action:'lakeSleep'});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose==='sleep',undefined,{timeout:20000});await shot('04-sleep');
+  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.characters.vlad.energy===100),undefined,{timeout:90000});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose!=='sleep',undefined,{timeout:15000});
+ }
  await setView('');
  if(mode==='day')for(const role of ['vlad','alina']){await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();await shot('02-'+role);}
  await send({type:'approach',place:'lake',station:'lake-exit'});

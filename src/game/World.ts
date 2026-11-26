@@ -1,4 +1,4 @@
-import {isLakeMealAction,LAKE_MEAL_ACTIONS,isLakeFishAction,FISH_ACTIONS} from '../shared/lake';
+import {isLakeMealAction,LAKE_MEAL_ACTIONS,isLakeFishAction,FISH_ACTIONS,isLakeRestAction,lakeCampFor,lakeSleepAnchor} from '../shared/lake';
 import {syncLakeTents} from './LakeArt';
 import {WORK_COFFEE_DROP} from '../shared/workCoffee';
 import {isVenueGame,venueStation} from '../shared/venue';
@@ -1343,6 +1343,10 @@ export class World {
         if(station.action.kind==='barber'&&station.action.facility==='chair'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.15,station.center.z),Math.PI);if(this.remote)this.remote.root.userData.barberAction=command.action;}
         if (command.action === 'rest' || command.action === 'dine' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);
         if(command.action==='badminton'){actor.faceTowards(new THREE.Vector3(station.center.x,0,station.center.z));actor.playDomesticActivity('badminton');}
+        if(isLakeRestAction(command.action)&&this.household){
+          if(command.action==='lakeFireRest'){const side=role==='vlad'?-1:1;actor.setFurniturePose('sit',new THREE.Vector3(station.center.x+side*.89,-.09,station.center.z),side<0?Math.PI/2:-Math.PI/2);}
+          else {const tent=lakeCampFor(this.household,station.id)?.tent;if(tent){const p=lakeSleepAnchor(tent,role);actor.setFurniturePose('sleep',new THREE.Vector3(station.center.x+p.x,p.y,station.center.z+p.z),p.yaw);}}
+        }
         if(isLakeFishAction(command.action)){actor.faceTowards(new THREE.Vector3(station.center.x+5,0,station.center.z));actor.playFishing(FISH_ACTIONS[command.action]);}
         if(isLakeMealAction(command.action)){const p=LAKE_MEAL_ACTIONS[command.action],fire=this.remote?.stations.get(station.id)?.userData.fire;if(p.cook){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);if(fire){fire.userData.cookRole=role;fire.userData.setFood(p.meal);}}else{const side=role==='vlad'?-1:1,x=station.center.x+side*.89,z=station.center.z;actor.setFurniturePose('sit',new THREE.Vector3(x,-.09,z),side<0?Math.PI/2:-Math.PI/2);const dish=p.meal==='sausages'?'campSkewers':p.meal==='marshmallow'?'campMarshmallow':p.meal==='fish'?'lakeFish':'lakeSoup';const plate=this.showMeal(role,x-side*.25,.62,z,dish);actor.playActivity('eat',plate,(p.meal==='soup'?'chickenSoup':p.meal==='fish'?'salmonLemon':dish) as RecipeId,true);}}
         if(command.action==='campIgnite'||isCampRecipe(command.action)){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);}
@@ -1590,6 +1594,7 @@ export class World {
     const home = this.homeTasks.get(role);
     this.clearHomeTask(role);
     this.actors[role].finishActivity();
+    if(this.place==='lake')this.actors[role].setPose('idle');
     if(home?.furnitureId!==undefined&&this.household?.furnishing.placed.some(i=>i.id===home.furnitureId&&['oasis-pool','oasis-terrace'].includes(i.sku)))this.actors[role].setPose('idle');
     if(home?.station==='yardTable'&&this.household?.characters[role].pose==='idle')this.actors[role].setPose('idle');
     if(home?.pair?.motion==='stroll'||home?.pair?.motion==='bedRest'||home?.pair?.motion==='breakfastReceive')this.actors[role].setPose('idle');
@@ -3227,7 +3232,7 @@ export class World {
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
       const v=this.canvas.dataset.lakeView;
-      const view=v==='fishing'?{target:[4.45,.65,-3],eye:[.35,2.4,.15]}:v==='catch'?{target:[3.35,1.05,-3],eye:[5.55,1.9,-.15]}:v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.50,-4],eye:[-4.1,2.1,-.3]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;
+      const view=v==='sleep'?{target:[-4,.45,-8.25],eye:[-2.6,2.5,-4.65]}:v==='fishing'?{target:[4.45,.65,-6],eye:[.35,2.4,-2.85]}:v==='catch'?{target:[3.35,1.05,-6],eye:[5.55,1.9,-3.15]}:v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.50,-4],eye:[-4.1,2.1,-.3]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');

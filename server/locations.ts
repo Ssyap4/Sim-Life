@@ -1,5 +1,5 @@
 import {practiceXP} from './education';
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -682,6 +682,7 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
+  lakeNap:'Отдых в палатке',lakeSleep:'Сон в палатке',lakeFireRest:'Отдых у костра',
   lakeFishFloat:'Рыбалка · удочка',lakeFishSpin:'Рыбалка · спиннинг',lakeFishFeeder:'Рыбалка · фидер',
   lakeCookFish:'Рыба на решётке · готовим',lakeCookSoup:'Уха · готовим',lakeEatFish:'Рыба · едим',lakeEatSoup:'Уха · едим',
   lakeCookSausages:'Колбаски на костре · готовим',lakeCookMarshmallow:'Маршмеллоу · готовим',lakeEatSausages:'Колбаски · едим',lakeEatMarshmallow:'Маршмеллоу · едим',
@@ -693,6 +694,15 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isLakeRestAction(action)){
+    const visit=source.world.lake?.[role],camp=lakeCampFor(source,id),byFire=action==='lakeFireRest';
+    if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==(byFire?'fire':'pitch')||!at(source,role,station)||!camp?.tent)return fail('Нужен билет и установленная палатка');
+    if(action==='lakeSleep'&&(visit?.pass==='day'||camp.pass==='day'))return fail('Для сна нужен билет с ночёвкой');
+    if(byFire&&!camp.fire)return fail('Сначала разожгите костёр');
+    const next=structuredClone(source),c=next.characters[role],tent=LAKE_TENTS[camp.tent],d=LAKE_REST[action];
+    c.energy=Math.min(100,c.energy+d.energy);c.comfort=Math.min(100,c.comfort+(byFire?18:tent.comfort));c.mood=Math.min(100,c.mood+(byFire?20:tent.mood));c.fun=Math.min(100,c.fun+(byFire?25:5));c.pose='idle';
+    return done(next,d.name+' · отдых завершён');
+  }
   if(isLakeFishAction(action)){
     const visit=source.world.lake?.[role];if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!=='fish'||!at(source,role,station)||visit?.rod!==FISH_ACTIONS[action]||visit.catch)return fail('Нужен билет, снасть и свободный выбор улова');
     const next=structuredClone(source),v=next.world.lake![role]!,stock=next.world.fishing??=emptyFishing(),c=next.characters[role];

@@ -1,3 +1,4 @@
+import {lakeSleepAnchor,LAKE_REST} from '../../src/shared/lake';
 import {LAKE_FISH,LAKE_RODS,rollFish,validCatch,validFishing,emptyFishing,freshFish} from '../../src/shared/lake';
 import {buildLakeFish,FishingProp} from '../../src/game/LakeFishingArt';
 import {applyPetAction} from '../pets';
@@ -140,4 +141,20 @@ test('fish and ukha require a real catch; no double-spend; release gives skill p
  const r=localActivity(s,'vlad','lakeCookSoup','lake-fire-1');assert.ok(r.ok);s=r.state;assert.equal(freshFish(s).length,0);assert.equal(s.world.lake?.vlad?.meals?.soup,2);assert.equal(localActivity(s,'vlad','lakeCookFish','lake-fire-1').ok,false);
  s.world.lake!.vlad!.catch={species:'trout',grams:800,expires:99999};const before=s.education.characters.vlad.xp.attention;s=apply(s,'vlad',{type:'lake_catch',keep:false});assert.ok(s.education.characters.vlad.xp.attention>before);
  assert.ok(validWorld(s.world));
+});
+
+test('camp rest requires a live campsite; two sleeping lanes and tier comfort, day ticket excludes full sleep',()=>{
+ let s=initialState();s.money=10000;let q=lakeTogetherTrip(s,'vlad','day');assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-pitch-2');assert.equal(localActivity(s,'vlad','lakeNap','lake-pitch-2').ok,false);
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'nord'});
+ at(s,'vlad','lake-pitch-2');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-2'});
+ assert.equal(localActivity(s,'vlad','lakeSleep','lake-pitch-2').ok,false);
+ s.characters.vlad.energy=10;s.characters.vlad.comfort=10;let r=localActivity(s,'vlad','lakeNap','lake-pitch-2');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.energy,40);assert.equal(s.characters.vlad.comfort,35);
+ s.world.lake!.vlad!.pass='night';s.world.lake!.alina!.pass='night';
+ at(s,'alina','lake-pitch-2');s.characters.alina.energy=10;r=localActivity(s,'alina','lakeSleep','lake-pitch-2');assert.ok(r.ok);s=r.state;assert.equal(s.characters.alina.energy,85);
+ at(s,'alina','lake-fire-2');assert.equal(localActivity(s,'alina','lakeFireRest','lake-fire-2').ok,false);
+ s=apply(s,'alina',{type:'lake_fire',station:'lake-fire-2',lit:true});assert.ok(localActivity(s,'alina','lakeFireRest','lake-fire-2').ok);
+ assert.equal(planTask({type:'local_activity',station:'lake-pitch-2',action:'lakeSleep'})?.durationMs,LAKE_REST.lakeSleep.seconds*1000);
+ assert.equal(planTask({type:'local_activity',station:'lake-pitch-2',action:'lakeFireRest'}),null);
+ for(const id of ['basic','nord','family','summit'] as const){const v=lakeSleepAnchor(id,'vlad'),a=lakeSleepAnchor(id,'alina');assert.ok(a.x-v.x>.9);assert.equal(a.z,v.z);}
 });

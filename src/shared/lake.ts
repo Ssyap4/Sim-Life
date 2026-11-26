@@ -58,6 +58,21 @@ export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random):F
  return {species,grams:Math.round(d.min+(d.max-d.min)*Math.pow(random(),1.7)),expires:now+2880};
 }
 export function fishLabel(f:FishCatch){return LAKE_FISH[f.species].name+' · '+(f.grams/1000).toFixed(2)+' кг';}
+export const LAKE_REST={
+ lakeNap:{name:'Вздремнуть в палатке',seconds:45,energy:30},
+ lakeSleep:{name:'Поспать в палатке',seconds:120,energy:75},
+ lakeFireRest:{name:'Отдохнуть у костра',seconds:45,energy:8}
+} as const;
+export type LakeRestAction=keyof typeof LAKE_REST;
+export const isLakeRestAction=(v:unknown):v is LakeRestAction=>typeof v==='string'&&Object.hasOwn(LAKE_REST,v);
+export function lakeCampFor(s:GameState,station:string){
+ const pitch=station.replace('lake-fire-','lake-pitch-');
+ return Object.values(s.world.lake??{}).find(v=>v.pitch===pitch&&v.until>gameMinutes(s.clock));
+}
+export function lakeSleepAnchor(tent:LakeTent,role:CharacterId){
+ const w={basic:2.12,nord:2.50,family:3.12,summit:3.48}[tent],d={basic:2.12,nord:2.45,family:2.68,summit:2.78}[tent];
+ return {x:(role==='vlad'?-1:1)*w*.225,y:.33,z:d*.40-.13,yaw:0};
+}
 export type LakePass=keyof typeof LAKE_PASSES;
 export type LakeTent=keyof typeof LAKE_TENTS;
 export type LakeRod=keyof typeof LAKE_RODS;
