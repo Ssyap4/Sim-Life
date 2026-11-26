@@ -56,7 +56,7 @@ export class CarRideScene {
       const segment=new THREE.Group();this.segments.push(segment);scene.add(segment);
       for(const z of [-8,0,8])mesh(segment,box,white,0,.015,z,.13,.025,3.8);
       for(const side of [-1,1]){
-        const x=side*(side===1?7.6+(i%3)*1.6:14.5+(i%3)*1.6),z=(side===1?4:-4);
+        const x=side*(side===1?7.6+(i%3)*1.6:23.5+(i%3)*1.6),z=(side===1?4:-4);
         mesh(segment,box,bark,x,1.15,z,.26,2.3,.26);
         if(i%2){
           for(let tier=0;tier<3;tier++)mesh(segment,cone,pine,x,2.65+tier*.82,z,1.55-tier*.37,2.35-tier*.23,1.55-tier*.37);
@@ -65,7 +65,7 @@ export class CarRideScene {
           mesh(segment,sphere,this.foliage,x+.85,2.95,z+.32,1.05,1.23,1.02);
           mesh(segment,sphere,this.foliage,x-.64,3.31,z-.32,.91,1.21,.94);
         }
-        for(let tier=0;tier<3;tier++)mesh(segment,cone,pine,side*(side===1?12:18),2.25+tier*1.0,z+7,1.85-tier*.42,3.1-tier*.38,1.85-tier*.42);
+        for(let tier=0;tier<3;tier++)mesh(segment,cone,pine,side*(side===1?12:27),2.25+tier*1.0,z+7,1.85-tier*.42,3.1-tier*.38,1.85-tier*.42);
         mesh(segment,sphere,this.foliage,side*6.6,.43,z+5,.85,.55,.72);
         for(let j=0;j<4;j++){
           const gx=side*(5.3+(j%2)*.7),gz=z-5+j*2.7;
@@ -75,13 +75,13 @@ export class CarRideScene {
         if(i%2===1){mesh(segment,box,trim,side*4.25,.36,z,.11,.72,.13);mesh(segment,box,dark,side*4.25,.58,z-.075,.12,.13,.025);}
         if(i%3===1)mesh(segment,sphere,stone,side*6.3,.16,z-1.6,.48,.28,.37);
         const forest=new THREE.Group();forest.name='roadside-forest';segment.add(forest);
-        const fx=side*(side===1?9.6+(i%3)*1.5:15.5+(i%3)*1.5),fz=z-5;
+        const fx=side*(side===1?9.6+(i%3)*1.5:24.5+(i%3)*1.5),fz=z-5;
         mesh(forest,box,bark,fx,1.35,fz,.22,2.7,.22);
         for(let tier=0;tier<3;tier++)mesh(forest,cone,pine,fx,2.7+tier*.92,fz,1.7-tier*.4,2.7-tier*.25,1.7-tier*.4);
         mesh(forest,sphere,this.foliage,side*8.6,.65,z+1,1.2,.7,.9);batchRigidParts(forest);
         const building=new THREE.Group();building.name='roadside-house';segment.add(building);
         if(i%3!==2){
-          const bx=side*(side===1?10.9:15.7),bz=z-7,h=i%3===0?3.5:4.7;
+          const bx=side*(side===1?10.9:23.7),bz=z-7,h=i%3===0?3.5:4.7;
           mesh(building,box,wall,bx,h/2,bz,4.7,h,5.4);
           const r=mesh(building,cone,roof,bx,h+.85,bz,3.85,1.8,3.85);r.rotation.y=Math.PI/4;
           const face=bx-side*2.38;
@@ -91,7 +91,7 @@ export class CarRideScene {
           }
           mesh(building,box,bark,face-side*.07,.95,bz,.12,1.9,.85);
           mesh(building,box,stone,bx-side*2.75,.075,bz,.8,.15,1.3);
-          const f=side*(side===1?7.1:12.0);
+          const f=side*(side===1?7.1:20.0);
           for(const dz of [-3,-1,1,3])mesh(building,box,fence,f,.48,bz+dz,.12,.96,.13);
           for(const y of [.29,.68])mesh(building,box,fence,f,y,bz,.08,.105,6.1);
           batchRigidParts(building);
