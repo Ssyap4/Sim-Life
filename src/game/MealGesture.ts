@@ -8,6 +8,7 @@ export interface MealGesture {
   chew: number;
   settle: number;
   glance: number;
+  loaded: number;
 }
 
 function smooth(edge0: number, edge1: number, value: number): number {
@@ -27,6 +28,7 @@ export function mealGesture(time: number, role: CharacterId): MealGesture {
   const settle = smooth(0, .12, phase) * (1 - smooth(.87, 1, phase));
   return {
     lift,
+    loaded: resting?0:smooth(.09,.15,phase)*(1-smooth(.36,.44,phase)),
     chew,
     settle,
     glance: resting ? .055 : (1 - lift) * .024 * Math.sin(elapsed * 1.8),

@@ -64,6 +64,7 @@ export class Actor {
   private gaitBlend = 0;
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
+  private readonly mealBite=new THREE.Mesh(orb,finish(0xc69b61,'ceramic'));
   private readonly teaCup = new THREE.Group();
   private readonly cupCenter = new THREE.Vector3();
   private readonly cupHandleOffset = new THREE.Vector3();
@@ -270,9 +271,10 @@ export class Actor {
     this.closingBook = 0;
     this.props.hideBook();
     this.props.phone.visible=false;
+    this.mealBite.visible=false;this.spoon.visible=false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
-    this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.fork.visible = false;
+    this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.spatula.visible = this.props.fork.visible = false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
     this.petContact = undefined;
@@ -347,7 +349,9 @@ export class Actor {
     this.spoon.rotation.x = 0.31;
     this.spoon.visible = false;
     this.teaCup.visible = false;
+    this.spoon.name='Held spoon';
     this.rig.wrists[1].add(this.spoon);
+    this.mealBite.name='Meal mouthful';this.mealBite.scale.set(.026,.015,.025);this.mealBite.visible=false;this.figure.add(this.mealBite);
     this.dirtyPlate = new THREE.Mesh(drum, finish(0xeee2ce, 'ceramic'));
     this.dirtyPlate.scale.set(.12, .013, .12);
     this.dirtyPlate.position.set(0, -.055, .02);
@@ -431,13 +435,14 @@ export class Actor {
     this.poseOffset.set(0, pose === 'sit' || pose === 'work' ? -0.26 : 0, 0);
     this.heart.visible = false;
     this.spoon.visible = false;
+    this.mealBite.visible=false;
     this.teaCup.visible = false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
-    this.props.knife.visible = false;
+    this.props.knife.visible = this.props.spatula.visible = false;
     this.props.fork.visible = false;
     this.props.phone.visible = false;
   }
@@ -530,7 +535,7 @@ export class Actor {
     this.props.brush.visible = false;
     this.props.groomingBrush.visible = false;
     this.props.tongs.visible = false;
-    this.props.knife.visible = false;
+    this.props.knife.visible = this.props.spatula.visible = false;
     this.props.fork.visible = false;
     this.cookingRecipe = undefined;
     this.diningDish = undefined;
@@ -538,6 +543,7 @@ export class Actor {
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
     this.spoon.visible = false;
+    this.mealBite.visible=false;
     this.teaCup.visible = false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
@@ -650,12 +656,39 @@ export class Actor {
     wrists[index].quaternion.slerp(this.aimRotation.setFromUnitVectors(handAxis, direction), alpha);
   }
 
-  private aimSpoon(point: THREE.Vector3, amount = 1): void {
-    const direction = this.basisX.copy(point).sub(this.spoon.getWorldPosition(this.target)).normalize();
+  private readonly toolAxis=new THREE.Vector3();
+  private readonly toolGoal=new THREE.Vector3();
+  private readonly toolOffset=new THREE.Vector3();
+  private readonly toolRotation=new THREE.Quaternion();
+  private readonly toolHandRotation=new THREE.Quaternion();
+  private readonly toolTip=new THREE.Vector3();
+  private readonly toolSurface=new THREE.Vector3();
+  private toolError:number|null=null;
+
+  // Solve the wrist from the actual working end, not just point a utensil
+  // toward a target after the wrist has been animated independently.
+  private toolContact(tool:THREE.Object3D,point:THREE.Vector3,tipZ:number,tipY:number,yaw:number,pitch:number):void{
+    this.toolGoal.copy(point);
+    this.toolAxis.set(Math.sin(yaw),pitch,Math.cos(yaw)).normalize().applyAxisAngle(up,this.root.rotation.y);
+    this.basisX.crossVectors(up,this.toolAxis).normalize();
+    this.basisZ.crossVectors(this.toolAxis,this.basisX).normalize();
+    this.toolRotation.setFromRotationMatrix(this.rotationBasis.makeBasis(this.basisX,this.basisZ,this.toolAxis));
+    this.toolHandRotation.setFromUnitVectors(handAxis,this.toolAxis);
+    // Handle center is 4.5 cm from the origin; keep it in the palm.
+    this.toolOffset.set(0,tipY,tipZ-.045).applyQuaternion(this.toolRotation);
+    this.target.copy(this.toolGoal).sub(this.toolOffset).addScaledVector(this.toolAxis,-.055);
+    this.reach(1,this.target,1,.65);
+    this.rig.elbows[1].getWorldQuaternion(this.parentRotation).invert();
+    this.rig.wrists[1].quaternion.copy(this.parentRotation).multiply(this.toolHandRotation);
     this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
-    const rotation = this.aimRotation.setFromUnitVectors(forwardAxis, direction.applyQuaternion(this.parentRotation));
-    this.spoon.quaternion.slerp(rotation, amount);
+    tool.quaternion.copy(this.parentRotation).multiply(this.toolRotation);
+    tool.position.set(0,0,.045).applyQuaternion(tool.quaternion).negate();
+    tool.position.y-=.055;
+    this.toolTip.copy(tool.localToWorld(this.target.set(0,tipY,tipZ)));
+    this.toolError=this.toolTip.distanceTo(this.toolGoal);
   }
+  kitchenQA(){return {tool:this.spoon.visible?'spoon':this.props.fork.visible?'fork':this.props.knife.visible?'knife':this.props.spatula.visible?'spatula':this.props.tongs.visible?'tongs':null,
+    error:this.toolError,portion:this.mealBite.visible,elapsed:this.activityTime};}
 
   /** World-space station target with offsets in the actor's facing direction.
    * Reusing the scratch vectors avoids per-frame garbage on mobile. */
@@ -1518,16 +1551,11 @@ export class Actor {
     this.props.fork.visible = this.activity === 'eat' && eatingWith === 'fork';
     this.props.knife.visible = (this.activity === 'cook' && kitchenStep === 'chop') ||
       (this.activity === 'prep' && helperChop(a));
+    this.props.spatula.visible=this.activity==='cook'&&(kitchenStep==='flip'||kitchenStep==='plate');
     this.props.groomingBrush.visible = this.activity === 'brush';
     this.props.tongs.visible = this.activity === 'grill';
     if (this.props.tongs.visible) this.props.grip(a);
-    // Do not overwrite the spoon quaternion immediately before aimSpoon():
-    // that used to reset its orientation every frame, so the tip could never
-    // settle at the pan even though the wrist was correctly positioned.
-    if (this.activity !== 'cook' || !this.pan) {
-      this.spoon.rotation.y = .02;
-      this.spoon.rotation.x = this.activity === 'cook' ? .56 : .31;
-    }
+    this.toolError=null;this.mealBite.visible=false;
     this.crouchBlend = THREE.MathUtils.lerp(this.crouchBlend, crouch, alpha);
     const armZ = this.activity === 'cook' ? -0.11 + Math.sin(a * 5) * 0.15 : armSpread;
     // Keep keyboard IK in the base work pose (including remote career rigs),
@@ -1740,16 +1768,12 @@ export class Actor {
       for(const i of [0,1] as const)
         this.aimHand(i,this.handDirection.set(0,-.48,-1)
           .applyAxisAngle(up,this.root.rotation.y),alpha);
-      if(this.spoon.visible)
-        this.aimSpoon(this.stationTarget(stirring,
-          .060*Math.cos(phase),.030,.046*Math.sin(phase)),alpha);
-    } else if (bite > 0) {
+    } else if (bite > 0 && !this.pan) {
       data.head.localToWorld(this.target.set(0.022, -0.133, 0.151));
       this.handDirection.set(0.066, -0.114, 0.175).applyAxisAngle(up, this.root.rotation.y);
       this.target.add(this.handDirection);
       this.reach(1, this.target, bite);
       this.aimHand(1, this.handDirection.set(0, -0.21, 1).applyAxisAngle(up, this.root.rotation.y), bite);
-      if(this.spoon.visible)this.aimSpoon(data.head.localToWorld(this.target.set(0, -0.134, 0.158)), bite);
     } else if (this.activity==='eat' && this.pan) {
       // Between mouthfuls, the right hand actually collects the next bite
       // from the resident's own plate; the left hand rests near its rim.
@@ -2035,6 +2059,56 @@ export class Actor {
     }
     this.selectionRing.position.x = this.figure.position.x;
     this.selectionRing.position.z = this.figure.position.z;
+    // Resolve utensils after all body offsets and generic pose transforms.
+    if(this.pan&&this.activity==='cook'){
+      const phase=a*(kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
+      if(this.spoon.visible){
+        this.toolContact(this.spoon,this.stationTarget(this.pan,.068*Math.cos(phase),.058,.057*Math.sin(phase)),.203,0,0,-.60);
+      }else if(this.props.spatula.visible){
+        const lift=.085*Math.max(0,Math.sin(phase));
+        this.toolContact(this.props.spatula,this.stationTarget(this.pan,.075*Math.cos(phase),.048+lift,.045*Math.sin(phase)),.209,-.008,0,-.30+lift*3);
+      }else if(this.props.knife.visible){
+        // Board is to the cook's right when facing the stove (world -X).
+        this.toolSurface.copy(this.pan);this.toolSurface.x-=.23;this.toolSurface.z+=.10;this.toolSurface.y=1.124;
+        this.toolContact(this.props.knife,this.stationTarget(this.toolSurface,.035*Math.sin(phase*.5),.05*(.5+.5*Math.sin(phase)),0),.15,-.015,0,-.22);
+        this.reach(0,this.stationTarget(this.toolSurface,-.12,.08,-.09),1,.7);
+      }else if(kitchenStep==='knead'){
+        this.toolSurface.copy(this.pan);this.toolSurface.x-=.23;this.toolSurface.z+=.10;this.toolSurface.y=1.124;
+        for(const i of [0,1] as const){
+          const side=i===0?-1:1;
+          this.reach(i,this.stationTarget(this.toolSurface,side*.075+.025*Math.sin(phase+i*Math.PI),.065+.025*Math.cos(phase+i*Math.PI),-.035+.025*Math.cos(phase)),1,.65);
+          this.aimHand(i,this.handDirection.set(0,-.75,.65).applyAxisAngle(up,this.root.rotation.y),1);
+        }
+      }
+    }else if(this.pan&&this.activity==='prep'&&this.props.knife.visible){
+      this.toolContact(this.props.knife,this.stationTarget(this.pan,.07,.025+.047*(.5+.5*Math.sin(a*7)),0),.15,-.015,0,-.22);
+    }else if(this.pan&&this.activity==='grill'&&this.props.tongs.visible){
+      const swing=a*3.1;
+      this.toolContact(this.props.tongs,this.stationTarget(this.pan,.085*Math.sin(swing),.035+.08*Math.max(0,Math.sin(swing)),.055*Math.cos(swing)),.173,0,0,-.50);
+    }else if(this.pan&&this.activity==='eat'){
+      const mealTime=this.mealSlow?a/2.8:a;
+      const meal=mealGesture(mealTime,this.id);
+      // The portion is collected from the actual personal plate, then
+      // follows one continuous path to the mouth and returns empty.
+      this.toolSurface.copy(this.pan);
+      this.toolSurface.x+=.025*Math.cos(mealTime*2.7);this.toolSurface.y-=.035;
+      data.head.localToWorld(this.toolGoal.set(0,-.134,.158));
+      this.toolSurface.lerp(this.toolGoal,bite);
+      this.toolSurface.y+=.045*Math.sin(Math.PI*bite);
+      if(this.spoon.visible||this.props.fork.visible){
+        const tool=this.spoon.visible?this.spoon:this.props.fork;
+        this.toolContact(tool,this.toolSurface,this.spoon.visible?.203:.2565,0,-Math.PI*bite,-.46+.56*bite);
+      }else{
+        this.toolAxis.set(.12,-.20,1).normalize().applyAxisAngle(up,this.root.rotation.y);
+        this.target.copy(this.toolSurface).addScaledVector(this.toolAxis,-.07);
+        this.reach(1,this.target,1,.65);this.aimHand(1,this.handDirection.copy(this.toolAxis),1);
+        this.rig.wrists[1].localToWorld(this.toolTip.set(0,-.07,0));
+      }
+      if(meal.loaded>0&&bite>.035){
+        this.mealBite.visible=true;this.mealBite.position.copy(this.figure.worldToLocal(this.target.copy(this.toolTip)));
+        this.mealBite.position.y+=.008;
+      }
+    }
     // Resolve handheld objects after all body offsets and pose transforms.
     // The props are authoritative targets; IK keeps the hands on their edges.
     if(this.props.phone.visible){

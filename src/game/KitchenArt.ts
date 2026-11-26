@@ -57,6 +57,8 @@ export function buildCookingStation(scene: THREE.Scene) {
   spoon.add(handle,bowl);
   spoon.position.set(pan.x+.07,pan.y+.105,pan.z-.065);
   spoon.rotation.z=.16;
+  // Do not render a second floating utensil alongside the one in the hand.
+  spoon.visible=false;
   root.add(spoon);
   const steam=new THREE.Group();
   const puffs:THREE.Mesh[]=[];
@@ -72,9 +74,11 @@ export function buildCookingStation(scene: THREE.Scene) {
   root.add(steam);
   root.visible=false;
   scene.add(root);
+  let activeRecipe:RecipeId|undefined;
   return {
     root, board, steam, puffs,
     recipe(id:RecipeId){
+      activeRecipe=id;
       selectIndoorDish(cookingFood,id);
       const preparation=kitchenMove(id,0);
       board.visible=preparation!=='whisk';
@@ -82,9 +86,12 @@ export function buildCookingStation(scene: THREE.Scene) {
       dough.visible=preparation==='knead';
     },
     update(seconds:number){
-      const cycle=Math.max(0,seconds);
-      spoon.rotation.y=Math.sin(cycle*2.15)*.18;
-      spoon.rotation.z=.16+Math.sin(cycle*3.15)*.06;
+      const cycle=Math.max(0,seconds),phase=kitchenMove(activeRecipe,cycle);
+      board.visible=phase==='chop'||phase==='knead';
+      diced.visible=phase==='chop';dough.visible=phase==='knead';
+      cookingFood.visible=phase!=='chop'&&phase!=='knead';
+      steam.visible=phase==='stir'||phase==='flip'||phase==='plate';
+      cookingFood.position.y=pan.y+.062+(phase==='flip'?.07*Math.max(0,Math.sin(cycle*3.6)):0);
       for(let i=0;i<puffs.length;i++){
         const progress=(cycle*.37+i/4)%1;
         const puff=puffs[i];

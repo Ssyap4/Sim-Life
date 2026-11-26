@@ -69,6 +69,13 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   knife.rotation.x=.12;
   knife.visible=false;
   wrists[1].add(knife);
+  const spatula=new THREE.Group();
+  spatula.name='Cooking spatula';
+  part(spatula,material(0x665447),[.023,.022,.11],[0,0,.045]);
+  part(spatula,steel,[.015,.012,.09],[0,0,.13]);
+  part(spatula,steel,[.067,.009,.092],[0,-.008,.209]);
+  batchRigidParts(spatula);
+  wrists[1].add(spatula);spatula.visible=false;
   const fork = new THREE.Group();
   fork.name='Dining fork';
   part(fork,steel,[.012,.012,.195],[0,0,.098]);
@@ -95,6 +102,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
     setPhone(id:ElectronicsId){phoneVariants.select(id);},
     groomingBrush,
     knife,
+    spatula,
     fork,
     tongs,
     grip(time: number) {
