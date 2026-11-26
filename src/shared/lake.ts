@@ -75,7 +75,8 @@ export type LakeLeisureAction=keyof typeof LAKE_LEISURE;
 export const isLakeLeisureAction=(v:unknown):v is LakeLeisureAction=>typeof v==='string'&&Object.hasOwn(LAKE_LEISURE,v);
 export const lakeNeedsFish=(meal:LakeMeal)=>['fish','soup','foil','skewers'].includes(meal);
 export function lakeCanSwim(s:Pick<GameState,'clock'>){const w=weatherAt(s.clock);return w.temp>=20&&['clear','overcast'].includes(w.kind);}
-export function lakeSwimFrame(t:number,role:CharacterId){const a=t*.33+(role==='vlad'?0:Math.PI),lane=role==='vlad'?-1:1;return {x:7.8+.95*Math.sin(a),z:10+lane*1.1+.44*Math.cos(a),y:.17,yaw:Math.atan2(.95*Math.cos(a),-.44*Math.sin(a))};}
+export const LAKE_FIRE_SEAT_OFFSET=1.36;
+export function lakeSwimFrame(t:number,role:CharacterId){const a=t*.33+(role==='vlad'?0:Math.PI),lane=role==='vlad'?-1:1;return {x:7.8+.95*Math.sin(a),z:10+lane*1.1+.44*Math.cos(a),y:-.035,yaw:Math.atan2(.95*Math.cos(a),-.44*Math.sin(a))};}
 export const LAKE_CARE={lakeToilet:{name:'В туалет',seconds:18,facility:'toilet'},lakeWash:{name:'Умыться и вымыть руки',seconds:20,facility:'wash'}} as const;
 export type LakeCareAction=keyof typeof LAKE_CARE;
 export const isLakeCareAction=(v:unknown):v is LakeCareAction=>typeof v==='string'&&Object.hasOwn(LAKE_CARE,v);

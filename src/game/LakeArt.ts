@@ -4,7 +4,7 @@ import {buildDetailedTent,buildCampFire} from './LakeCampArt';
 import * as THREE from 'three';
 import {cube,drum,softCube,orb,finish,batchRigidParts,type XYZ} from './ArtKit';
 import {PlantBatch,growTree,growShrub,landscapeRandom} from './LandscapePlants';
-import {LAKE_TENTS,type LakeTent,type LakeState} from '../shared/lake';
+import {LAKE_TENTS,LAKE_FIRE_SEAT_OFFSET,type LakeTent,type LakeState} from '../shared/lake';
 import type {Station} from '../shared/locations';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
 const wood=0x9a7049,grass=0x82995d;
@@ -32,7 +32,7 @@ export function lakeStation(s:Station,resources:Resources){
    for(let i=0;i<3;i++){const x=.15+i*.28;box(g,[.16,.22,.16],[x,.13+1.00,.84],0x8e7855,drum);box(g,[.17,.045,.17],[x,1.25,.84],0x485448,drum);box(g,[.13,.09,.015],[x,1.13,.93],0xe8dfc7);}
    for(let i=0;i<3;i++){const roll=box(g,[.19,.47,.19],[-2.08+i*.39,.30,-.45],0x879a73,drum);roll.rotation.z=Math.PI/2;}
    const signMap=painted(resources,512,96,ctx=>{ctx.fillStyle='#314b3b';ctx.fillRect(0,0,512,96);ctx.strokeStyle='#c9b991';ctx.strokeRect(4,4,504,88);ctx.fillStyle='#fff0ce';ctx.font='bold 34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('КЕМПИНГ И РЫБАЛКА',256,48);});
-   const signMat=new THREE.MeshBasicMaterial({map:signMap,color:0xffffff});resources.materials.push(signMat);const sign=new THREE.Mesh(new THREE.PlaneGeometry(3.9,.45),signMat);sign.position.set(0,2.38,1.61);g.add(sign);
+   const signMat=new THREE.MeshBasicMaterial({map:signMap,color:0xffffff});resources.materials.push(signMat);const sign=new THREE.Mesh(new THREE.PlaneGeometry(3.9,.45),signMat);sign.position.set(0,2.54,1.90);g.add(sign);
    for(let i=0;i<3;i++){const rod=box(g,[.035,1.8,.035],[1.40+i*.28,1.10,-1.15],0x39463d,drum);rod.rotation.z=-.12;}
   }else if(s.action.facility==='pitch'){
    box(g,[4.10,.035,3.55],[0,.018,0],0xb8aa81,softCube);
@@ -43,8 +43,8 @@ export function lakeStation(s:Station,resources:Resources){
   }else if(s.action.facility==='fire'){
    const fire=buildCampFire(resources);g.add(fire);g.userData.fire=fire;
    // Low logs and small side table around the stone fire pit.
-   for(const side of [-1,1]){box(g,[.72,.10,.33],[side*.89,.35,0],wood,softCube);for(const dz of [-.11,.11])box(g,[.11,.32,.11],[side*.89,.17,dz],0x72583d);}
-   box(g,[.40,.07,.45],[.93,.48,-.58],wood);for(const dx of [-.13,.13])for(const dz of [-.16,.16])box(g,[.05,.44,.05],[.93+dx,.23,-.58+dz],wood);
+   for(const side of [-1,1]){box(g,[.38,.10,.74],[side*LAKE_FIRE_SEAT_OFFSET,.35,0],wood,softCube);for(const dz of [-.26,.26])box(g,[.19,.32,.11],[side*LAKE_FIRE_SEAT_OFFSET,.17,dz],0x72583d);}
+   box(g,[.40,.07,.45],[1.36,.48,-.76],wood);for(const dx of [-.13,.13])for(const dz of [-.16,.16])box(g,[.05,.44,.05],[1.36+dx,.23,-.76+dz],wood);
   }else if(s.action.facility==='rest'){
    box(g,[1.8,.10,.55],[0,.44,0],wood,softCube);for(const x of [-.72,.72]){box(g,[.12,.44,.47],[x,.22,0],0x53574d);box(g,[.08,.55,.08],[x,.69,-.27],0x53574d);}box(g,[1.8,.37,.09],[0,.80,-.28],wood,softCube);g.rotation.y=Math.PI/2;
   }else if(s.action.facility==='swim'){
@@ -197,8 +197,8 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
  // Small oblique, narrow surface ripples and broken highlights, not an even dotted grid.
  float lines=sin(dot(p,vec2(8.9,1.4))+1.9*sin(dot(p,vec2(.6,2.4))+t*.56)-t*1.3);
  float breaks=.5+.5*sin(dot(p,vec2(1.7,4.1))+b*.7+t*.38);
- float rip=smoothstep(.86,.99,lines)*smoothstep(.23,.71,breaks);
- col+=vec3(.12,.22,.24)*rip*(.52+.48*fresnel);
+ float rip=smoothstep(.955,.999,lines)*smoothstep(.35,.85,breaks);
+ col+=vec3(.045,.085,.10)*rip*(.52+.48*fresnel);
 
  vec3 sun=normalize(vec3(-.55,.80,.25));float spec=pow(max(0.,dot(reflect(-sun,n),v)),36.);
  col+=vec3(.84,.72,.44)*spec*.67+vec3(.22,.32,.34)*pow(max(wave,0.),6.)*.45;

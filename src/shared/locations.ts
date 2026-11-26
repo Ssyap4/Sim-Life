@@ -181,7 +181,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   lake:[
     site('lake-rental','Прокат и кемпинг',-10,9,5.0,3.0,{kind:'lake',facility:'rental'},{approach:{x:-10,z:11.2}}),
     ...[[-10,-8],[-4,-8],[-10,1],[-4,1]].map(([x,z],i)=>site('lake-pitch-'+(i+1),'Площадка '+(i+1),x,z,4.0,3.4,{kind:'lake',facility:'pitch'})),
-    ...[[-10,-8],[-4,-8],[-10,1],[-4,1]].map(([x,z],i)=>site('lake-fire-'+(i+1),'Костёр '+(i+1),x,z+4,1.8,1.6,{kind:'lake',facility:'fire'},{approach:{x,z:z+5.25}})),
+    ...[[-10,-8],[-4,-8],[-10,1],[-4,1]].map(([x,z],i)=>site('lake-fire-'+(i+1),'Костёр '+(i+1),x,z+4,3.24,1.6,{kind:'lake',facility:'fire'},{approach:{x,z:z+5.25}})),
     site('lake-toilet','Санузел',-13.55,5.0,1.65,1.65,{kind:'lake',facility:'toilet'},{approach:{x:-13.55,z:6.4}}),
     site('lake-wash','Умывальник',-13.6,2.4,1.4,.7,{kind:'lake',facility:'wash'},{approach:{x:-13.6,z:3.3}}),
     site('lake-view','Скамейка у озера',1.8,-11.8,1.8,.65,{kind:'lake',facility:'rest'},{approach:{x:1.8,z:-10.8}}),

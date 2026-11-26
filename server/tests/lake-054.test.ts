@@ -1,3 +1,4 @@
+import {LAKE_FIRE_SEAT_OFFSET} from '../../src/shared/lake';
 import {applyFoodAction} from '../food';
 import {levelXP} from '../../src/shared/education';
 import {recipeAvailability} from '../../src/shared/recipeAvailability';
@@ -251,3 +252,5 @@ test('three home catch recipes require a fresh fish and consume one only after s
 test('lake trail lights turn on at night and off by day',()=>{
  const scene=createLocation('lake');try{const lamps=scene.root.getObjectByName('Lake trail lanterns')!;assert.ok(lamps);const group=lamps.children.find(x=>x instanceof THREE.Group)!;assert.equal(group.visible,false);scene.setNight(true);assert.equal(group.visible,true);scene.setNight(false);assert.equal(group.visible,false);}finally{scene.dispose();}
 });
+
+test('fire seats keep feet outside the stone ring and lake swim anchor sits near the waterline',()=>{assert.ok(LAKE_FIRE_SEAT_OFFSET-.55>.65);assert.ok(lakeSwimFrame(1,'vlad').y<.025);assert.ok(lakeSwimFrame(1,'alina').y>-.10);});
