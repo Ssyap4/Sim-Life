@@ -39,6 +39,22 @@ export function lakeStation(s:Station,resources:Resources){
    // Low logs and small side table around the stone fire pit.
    for(const side of [-1,1]){box(g,[.72,.10,.33],[side*.89,.35,0],wood,softCube);for(const dz of [-.11,.11])box(g,[.11,.32,.11],[side*.89,.17,dz],0x72583d);}
    box(g,[.40,.07,.45],[.93,.48,-.58],wood);for(const dx of [-.13,.13])for(const dz of [-.16,.16])box(g,[.05,.44,.05],[.93+dx,.23,-.58+dz],wood);
+  }else if(s.action.facility==='toilet'){
+   box(g,[1.65,.10,1.65],[0,.05,0],wood);box(g,[1.65,2.25,.12],[0,1.15,-.77],0x8b775b);
+   for(const x of [-.77,.77])box(g,[.12,2.25,1.65],[x,1.15,0],0x8b775b);
+   box(g,[1.85,.13,1.85],[0,2.35,0],0x405e4e);
+   box(g,[1.55,2.12,.08],[0,1.13,.77],0x776b56);
+   box(g,[.07,.08,.07],[.48,1.05,.83],0xc6bd98);
+   box(g,[.25,.25,.03],[0,1.77,.83],0xe9e3ca);
+   box(g,[.44,.38,.48],[0,.24,-.18],0xe5e3d9,softCube);box(g,[.45,.08,.53],[0,.45,-.18],0xf1eee2,softCube);box(g,[.43,.44,.17],[0,.60,-.48],0xe5e3d9,softCube);
+   box(g,[.17,.08,.035],[0,1.76,.86],0x426151);
+  }else if(s.action.facility==='wash'){
+   for(const x of [-.58,.58])box(g,[.07,1.0,.07],[x,.5,0],0x666a63);
+   box(g,[1.40,.12,.68],[0,1.00,0],0x9b9d92,softCube);
+   box(g,[.56,.055,.40],[0,1.07,0],0x526463,softCube);
+   box(g,[.06,.22,.06],[0,1.19,-.23],0x9eaaa9,drum);
+   box(g,[.06,.045,.22],[0,1.28,-.15],0xc4cdca,softCube);
+   box(g,[.13,.18,.12],[.45,1.15,-.15],0x87a5a2,softCube);
   }else if(s.action.facility==='fish'){
    if(s.id!=='lake-pier')box(g,[1.25,.10,1.38],[.20,.04,0],wood);
    box(g,[.28,.33,.32],[-.27,.20,.42],0x69795c,softCube);
@@ -178,3 +194,5 @@ export function buildLakeLandscape(root:THREE.Group,resources:Resources){
  const rings=Array.from({length:6},(_,i)=>{const m=new THREE.MeshBasicMaterial({color:0xc9f0e2,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide});resources.materials.push(m);const r=new THREE.Mesh(new THREE.RingGeometry(.96,1,32),m);r.rotation.x=-Math.PI/2;r.position.set(7+i*1.1,.022,-10+(i*7)%20);waves.add(r);return r;});
  return {animate(t:number){mat.uniforms.time.value=t;for(let i=0;i<rings.length;i++){const k=(t*.21+i*.173)%1;rings[i].scale.setScalar(.10+k*.72);rings[i].material.opacity=.19*Math.sin(k*Math.PI);}},setNight(n:boolean){mat.uniforms.night.value=n?1:0;}};
 }
+
+export function syncLakeCutaway(stations:Map<string,THREE.Group>,occupied:ReadonlySet<string>){for(const [id,g] of stations){const models=g.userData.tents as Map<LakeTent,THREE.Group>|undefined;if(models)for(const m of models.values())if(m.userData.shell)m.userData.shell.visible=!occupied.has(id);}}

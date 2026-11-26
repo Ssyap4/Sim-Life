@@ -59,7 +59,7 @@ try{
  await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:45000});
  if(mode==='night'){
   await send({type:'approach',place:'lake',station:'lake-pitch-2'});await page.waitForTimeout(3000);await setView('sleep');await send({type:'local_activity',station:'lake-pitch-2',action:'lakeSleep'});
-  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose==='sleep',undefined,{timeout:20000});await page.waitForFunction(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').lakeDog;return d?.visible&&d.mode==='sleep:lake-pitch-2'&&Math.hypot(d.position[0]+4,d.position[2]+6.89)<.45;},undefined,{timeout:25000});await shot('04-sleep-with-dog');
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose==='sleep',undefined,{timeout:20000});await page.waitForFunction(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').lakeDog;return d?.visible&&d.mode==='sleep:lake-pitch-2'&&Math.hypot(d.position[0]+4,d.position[2]+6.89)<.45;},undefined,{timeout:25000});await page.getByRole('button',{name:'×',exact:true}).first().click({timeout:1500}).catch(()=>{});await shot('04-sleep-with-dog');
   await page.waitForFunction(()=>window.__packets.some(p=>p.type==='snapshot'&&p.state.characters.vlad.energy===100),undefined,{timeout:90000});
   await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.pose!=='sleep',undefined,{timeout:15000});
  }

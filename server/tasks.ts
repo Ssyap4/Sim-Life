@@ -1,4 +1,4 @@
-import {isLakeMealAction,LAKE_MEAL_ACTIONS,LAKE_MEALS,isLakeRestAction,LAKE_REST,isLakeFishAction,FISH_ACTIONS,LAKE_RODS} from '../src/shared/lake';
+import {isLakeMealAction,LAKE_MEAL_ACTIONS,LAKE_MEALS,isLakeRestAction,LAKE_REST,isLakeCareAction,LAKE_CARE,isLakeFishAction,FISH_ACTIONS,LAKE_RODS} from '../src/shared/lake';
 import {CARE,isCare,finishCare,careRole,homeCare} from '../src/shared/vanity';
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
@@ -123,6 +123,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
+    if(isLakeCareAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==LAKE_CARE[action].facility)return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_CARE[action].name,durationMs:LAKE_CARE[action].seconds*1000,resource:'lake-care:'+station.id};}
     if(isLakeRestAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==(action==='lakeFireRest'?'fire':'pitch'))return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_REST[action].name,durationMs:LAKE_REST[action].seconds*1000,resource:null};}
     if(isLakeFishAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!=='fish')return null;return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:LAKE_RODS[FISH_ACTIONS[action]].seconds*1000,resource:'lake-fish:'+command.station};}
     if(isLakeMealAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!=='fire')return null;const p=LAKE_MEAL_ACTIONS[action];return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:(p.cook?LAKE_MEALS[p.meal].seconds:30)*1000,resource:p.cook?'lake-fire:'+command.station:'lake-eat:'+command.station};}

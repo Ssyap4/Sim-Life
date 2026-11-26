@@ -1,6 +1,6 @@
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -698,6 +698,7 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
+  lakeToilet:'Санузел',lakeWash:'Умывание',
   lakeNap:'Отдых в палатке',lakeSleep:'Сон в палатке',lakeFireRest:'Отдых у костра',
   lakeFishFloat:'Рыбалка · удочка',lakeFishSpin:'Рыбалка · спиннинг',lakeFishFeeder:'Рыбалка · фидер',
   lakeCookFish:'Рыба на решётке · готовим',lakeCookSoup:'Уха · готовим',lakeEatFish:'Рыба · едим',lakeEatSoup:'Уха · едим',
@@ -710,6 +711,10 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isLakeCareAction(action)){
+    if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==LAKE_CARE[action].facility||!at(source,role,station))return fail('Подойди к санузлу или умывальнику');
+    const next=structuredClone(source),c=next.characters[role];if(action==='lakeToilet')c.bladder=100;else c.hygiene=Math.min(100,c.hygiene+35);c.pose='idle';return done(next,LAKE_CARE[action].name+' · готово');
+  }
   if(isLakeRestAction(action)){
     const visit=source.world.lake?.[role],camp=lakeCampFor(source,id),byFire=action==='lakeFireRest';
     if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==(byFire?'fire':'pitch')||!at(source,role,station)||!camp?.tent)return fail('Нужен билет и установленная палатка');

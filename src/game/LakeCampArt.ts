@@ -19,6 +19,7 @@ const tents={
 } as const;
 export function buildDetailedTent(id:LakeTent,resources?:Resources){
  const g=new THREE.Group(),{w,d,h,c,trim,mode}=tents[id];
+ const shell=new THREE.Group();shell.name='Tent removable shell';g.add(shell);g.userData.shell=shell;
  const rows=12,cols=24;
  const point=(u:number,v:number):XYZ=>{
   const a=u*Math.PI;
@@ -31,7 +32,7 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
  resources?.materials.push(mat);
  const mesh=(positions:number[],idx:number[],colors:number[])=>{
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.setIndex(idx);geo.computeVertexNormals();
-  const m=new THREE.Mesh(geo,mat);m.receiveShadow=true;g.add(m);return m;
+  const m=new THREE.Mesh(geo,mat);m.receiveShadow=true;shell.add(m);return m;
  };
  const ps:number[]=[],ix:number[]=[],cs:number[]=[];
  for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
@@ -50,7 +51,7 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
  }
  // Poles/seams follow the actual cut of each tent.
  for(const v of mode<2?[0,.5,1]:[0,.25,.5,.75,1]){
-  for(let i=0;i<cols;i++){const a=point(i/cols,v),b=point((i+1)/cols,v);a[1]+=.008;b[1]+=.008;rod(g,a,b,.012,trim);}
+  for(let i=0;i<cols;i++){const a=point(i/cols,v),b=point((i+1)/cols,v);a[1]+=.008;b[1]+=.008;rod(shell,a,b,.012,trim);}
  }
  for(const side of [-1,1]){
   const a:XYZ=[side*w*.47,.065,-d*.49],b:XYZ=[side*w*.47,.065,d*.49];rod(g,a,b,.022,trim);
@@ -68,22 +69,22 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
  // A small washable blanket for Verdell at the entrance between the sleeping lanes.
  part(g,[.40,.035,.43],[0,.077,d*.40+.015],0x8c7964,softCube);
  if(mode>0){
-  const shade=part(g,[w*.86,.035,.54],[0,h*.76,d*.5+.22],c,softCube);shade.rotation.x=.12;
-  for(const x of [-w*.40,w*.40])rod(g,[x,.04,d*.5+.43],[x,h*.76,d*.5+.43],.019,steel);
+  const shade=part(shell,[w*.86,.035,.54],[0,h*.76,d*.5+.22],c,softCube);shade.rotation.x=.12;
+  for(const x of [-w*.40,w*.40])rod(shell,[x,.04,d*.5+.43],[x,h*.76,d*.5+.43],.019,steel);
  }
  if(mode>=2){
   // Separate side window panels, ventilation seam and porch mat.
   for(const side of [-1,1]){
-   const win=part(g,[.025,.48,.74],[side*w*.46,h*.36,-.23],0x647b79,softCube);win.rotation.z=side*-.24;
-   rod(g,[side*w*.465,h*.13,-.60],[side*w*.465,h*.13,.14],.016,trim);
+   const win=part(shell,[.025,.48,.74],[side*w*.46,h*.36,-.23],0x647b79,softCube);win.rotation.z=side*-.24;
+   rod(shell,[side*w*.465,h*.13,-.60],[side*w*.465,h*.13,.14],.016,trim);
   }
   part(g,[1.12,.025,.42],[0,.019,d*.5+.32],0x9c896b,softCube);
  }
  if(mode===3){for(const x of [-.63,.63])part(g,[.48,.16,.42],[x,.16,-d*.46],0xe6d6be,softCube);part(g,[.20,.27,.20],[0,.18,-d*.32],0x926d41,drum);}
  // Rolled doorway flaps and a compact lantern.
- for(const x of [-w*.31,w*.31])rod(g,[x,.12,d*.5+.015],[x,h*.66,d*.5+.015],.033,trim);
- part(g,[.10,.14,.10],[0,h*.63,d*.46],0xffe6a5,drum);
- g.name='Lake tent '+id;batchRigidParts(g,true);return g;
+ for(const x of [-w*.31,w*.31])rod(shell,[x,.12,d*.5+.015],[x,h*.66,d*.5+.015],.033,trim);
+ part(shell,[.10,.14,.10],[0,h*.63,d*.46],0xffe6a5,drum);
+ g.name='Lake tent '+id;batchRigidParts(shell,true);batchRigidParts(g,true);return g;
 }
 export function buildCampFood(kind:'fish'|'soup'|'sausages'|'marshmallow'){
  const g=new THREE.Group();g.name='Camp food '+kind;

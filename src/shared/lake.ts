@@ -58,6 +58,9 @@ export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random):F
  return {species,grams:Math.round(d.min+(d.max-d.min)*Math.pow(random(),1.7)),expires:now+2880};
 }
 export function fishLabel(f:FishCatch){return LAKE_FISH[f.species].name+' · '+(f.grams/1000).toFixed(2)+' кг';}
+export const LAKE_CARE={lakeToilet:{name:'В туалет',seconds:18,facility:'toilet'},lakeWash:{name:'Умыться и вымыть руки',seconds:20,facility:'wash'}} as const;
+export type LakeCareAction=keyof typeof LAKE_CARE;
+export const isLakeCareAction=(v:unknown):v is LakeCareAction=>typeof v==='string'&&Object.hasOwn(LAKE_CARE,v);
 export const LAKE_REST={
  lakeNap:{name:'Вздремнуть в палатке',seconds:45,energy:30},
  lakeSleep:{name:'Поспать в палатке',seconds:120,energy:75},

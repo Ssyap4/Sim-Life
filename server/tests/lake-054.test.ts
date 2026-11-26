@@ -1,3 +1,4 @@
+import {syncLakeCutaway} from '../../src/game/LakeArt';
 import {advanceLife} from '../life';
 import {lakeSleepAnchor,LAKE_REST} from '../../src/shared/lake';
 import {LAKE_FISH,LAKE_RODS,rollFish,validCatch,validFishing,emptyFishing,freshFish} from '../../src/shared/lake';
@@ -174,4 +175,21 @@ test('lake dog joins only by choice, uses toilet, shares treats, transfers to pa
  const dir=mkdtempSync(join(tmpdir(),'lake-dog-'));try{const f=openServerFiles(dir);f.save(s);assert.equal(f.load()!.world.dogWalker,'vlad');}finally{rmSync(dir,{recursive:true,force:true});}
  at(s,'vlad','lake-exit');s=apply(s,'vlad',{type:'travel',place:'district',via:'lake-exit'});assert.equal(s.world.dogWalker,'alina');
  at(s,'alina','lake-exit');s=apply(s,'alina',{type:'travel',place:'district',via:'lake-exit'});assert.equal(s.world.dogWalker,null);assert.equal(s.pets.verdell.parkPosition,undefined);
+});
+
+test('occupied tent cutaway hides only the roof and restores it without changing rental visibility',()=>{
+ const scene=createLocation('lake');try{
+ const visit={vlad:{pass:'night' as const,until:1000,tent:'summit' as const,pitch:'lake-pitch-2'}};
+ syncLakeTents(scene.stations,visit,0);const models=scene.stations.get('lake-pitch-2')!.userData.tents;
+ const model=models.get('summit');assert.ok(model.visible);assert.ok(model.userData.shell.visible);
+ syncLakeCutaway(scene.stations,new Set(['lake-pitch-2']));assert.equal(model.userData.shell.visible,false);assert.ok(model.visible);assert.ok(model.children.some((c:THREE.Object3D)=>c!==model.userData.shell&&c.visible));
+ syncLakeCutaway(scene.stations,new Set());assert.ok(model.userData.shell.visible);assert.equal(models.get('basic').visible,false);
+ }finally{scene.dispose();}
+});
+
+test('club hygiene is included in valid ticket, toilet restores bladder and wash restores hygiene',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','day');assert.ok(q.ok);s=q.state;s.characters.vlad.bladder=12;s.characters.vlad.hygiene=30;
+ assert.equal(localActivity(s,'vlad','lakeToilet','lake-wash').ok,false);
+ at(s,'vlad','lake-toilet');let r=localActivity(s,'vlad','lakeToilet','lake-toilet');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.bladder,100);
+ at(s,'vlad','lake-wash');r=localActivity(s,'vlad','lakeWash','lake-wash');assert.ok(r.ok);assert.equal(r.state.characters.vlad.hygiene,65);assert.equal(r.state.money,s.money);
 });
