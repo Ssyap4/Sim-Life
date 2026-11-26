@@ -1,0 +1,75 @@
+name: Sim-Life 0.53 reference portraits
+on:
+  push:
+    branches: [feat/portrait-053]
+    paths: ['art/characters/**', '.github/workflows/simlife-053-portrait.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: portrait-053
+  cancel-in-progress: true
+jobs:
+  portrait:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install cloud Blender
+        run: |
+          curl -fsSL --retry 3 https://download.blender.org/release/Blender4.3/blender-4.3.2-linux-x64.tar.xz -o /tmp/blender.tar.xz
+          tar -xJf /tmp/blender.tar.xz -C /tmp
+      - name: Export reference-driven models
+        run: |
+          mkdir -p public/qa-baseline /tmp/portrait-053-assets
+          for id in alina vlad; do
+            git show 53919ee:src/assets/characters/remake/$id.glb > public/qa-baseline/$id.glb
+            /tmp/blender-4.3.2-linux-x64/blender --background --factory-startup --python-exit-code 1 --python art/characters/portrait053.py -- "$id"
+          done
+          cp -r art/characters/remake /tmp/portrait-053-assets/art
+          cp -r src/assets/characters/remake /tmp/portrait-053-assets/game
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reference-models-053
+          path: /tmp/portrait-053-assets
+          retention-days: 7
+      - run: npm ci
+      - run: node scripts/qa-character-assets.mjs
+      - run: npm run check
+      - run: npx tsx --test server/tests/blender.test.ts server/tests/blenderWalkingGait.test.ts server/tests/consoles-043.test.ts server/tests/vanity-044.test.ts server/tests/wardrobe-033.test.ts
+      - name: Test newly exported models against 0.53 contacts
+        run: |
+          for id in alina vlad; do
+            cp src/assets/characters/remake/$id.glb src/assets/characters/$id.glb
+          done
+          npx tsx --test server/tests/handheld053.test.ts server/tests/kitchen053.test.ts server/tests/animation053.test.ts
+          git restore src/assets/characters/alina.glb src/assets/characters/vlad.glb
+      - run: npm run build
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - name: Compare original and reference models in real WebGL
+        run: |
+          npx vite --host 127.0.0.1 --port 4173 > "$RUNNER_TEMP/portrait-server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-character-polish.html >/dev/null && break; sleep 1; done
+          node scripts/qa-character-polish.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reference-comparisons-053
+          path: /tmp/simlife-045-polish
+          retention-days: 7
+      - name: Store validated experimental assets only
+        if: github.ref == 'refs/heads/feat/portrait-053'
+        run: |
+          git config user.name "simlife-portrait-ci"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add art/characters/remake src/assets/characters/remake
+          git diff --cached --quiet && exit 0
+          git commit -m "Export validated experimental 0.53 reference portraits"
+          git push origin HEAD:feat/portrait-053

@@ -13,15 +13,15 @@ def hair_atlas(sculpt, folder):
     w,h=1024,768
     u,v=np.meshgrid((np.arange(w)+.5)/w,(np.arange(h)+.5)/h)
     f=sculpt.woman
-    shadow=np.array(rgb('74502f' if f else '392318'))
-    amber=np.array(rgb('b77e4b' if f else '593822'))
-    shine=np.array(rgb('dbad76' if f else '825637'))
+    shadow=np.array(rgb('645044' if f else '302820'))
+    amber=np.array(rgb('b99e7d' if f else '554335'))
+    shine=np.array(rgb('e3c9a5' if f else '79614d'))
     broad=(.5+.5*np.sin(2*pi*(u*3.1+.034*np.sin(v*8)+.020*np.sin(u*45.))))**1.35
     fibril=.5+.5*np.sin(2*pi*(u*95.5+.052*np.sin(v*12+u*20)+.027*np.sin(v*22)))
     variable=((.30 if f else .52)*broad+.16*fibril+.055*np.sin(u*189+v*7)+.045*np.sin(u*417-v*4))
-    root=np.minimum(v/.25,1.)
-    color=shadow+(amber-shadow)*np.clip(.22+.66*root+.12*variable,0,1)[...,None]
-    color+=(shine-shadow)*np.clip(variable*(.35+.40*root),0,1)[...,None]
+    root=np.clip((v-.12)/(.58 if f else .32),0,1)**.78
+    color=shadow+(amber-shadow)*np.clip(.10+.78*root+.12*variable,0,1)[...,None]
+    color+=(shine-shadow)*np.clip(variable*(.22+.44*root),0,1)[...,None]
     return bake(sculpt.character+'-hair',color,folder)
 
 
@@ -111,7 +111,7 @@ def alina_locks(hair, sculpt):
           (.143,-.127,.087),(.162,-.221,.108),(.132,-.300,.117)],.014,.011),
     ]
     for i,(curve,w,d) in enumerate(primary):
-        lock(hair,sculpt,curve,w*1.06,d*.76,i,frames=42,sides=17 if i<6 else 12,front=True)
+        lock(hair,sculpt,[(x*.94 if y<.03 else x,y*.91 if y<-.10 else y,z-.006 if y<.07 else z) for x,y,z in curve],w*1.08,d*.65,i,frames=42,sides=17 if i<6 else 12,front=True)
     # Closed rear curtain. Bands overlap at the side transition and all tips
     # are individually curved, including the silhouette seen from behind.
     for i in range(11):
@@ -123,13 +123,13 @@ def alina_locks(hair, sculpt):
             (x*.94,.052,z-.018),(x*1.03,-.037,z-.018),
             (x*.91+wave,-.123,z-.004),(x*1.05-wave,-.214,z+.034),
             (x*.96+wave,-.306,z+.027),(x*.86,-.372+.046*abs(a)+.022*sin(i*2),z+.051)]
-        lock(hair,sculpt,co,.038+.009*cos(a),.018,i+5,frames=34,sides=14)
+        lock(hair,sculpt,[(x,y*.91 if y<-.10 else y,z) for x,y,z in co],.038+.009*cos(a),.017,i+5,frames=34,sides=14)
 
 
 def vlad_crown(sculpt, angle, progress):
     front=max(0,cos(angle))
     side=sin(angle)
-    hairline=.093+.021*front+.009*sin(2*angle+.35)*front
+    hairline=.108+.020*front+.012*sin(2*angle+.35)*front
     y=hairline+(.176-hairline)*progress
     rx,rz,mid=profile(sculpt.sections,y)
     t=ramp(0,.30,progress)
@@ -137,8 +137,8 @@ def vlad_crown(sculpt, angle, progress):
     thickness=.0014+(.0046+.0034*front)*taper*t
     ridges=.0019*cos(angle*48+progress*12+.65*sin(angle*3+progress*4))*t*taper
     x=side*(rx+thickness+ridges)-.015*taper*front*progress
-    y+=.002+( .010+.015*front*(.62-.38*side))*taper*progress
-    z=mid+cos(angle)*(rz+thickness+ridges)+.004*taper*front
+    y+=.002+(.010+.050*front*(.70-.30*side))*taper*progress
+    z=mid+cos(angle)*(rz+thickness+ridges)+.010*taper*front
     return x,y,z
 
 

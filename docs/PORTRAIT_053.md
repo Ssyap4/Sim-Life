@@ -1,0 +1,7 @@
+# Experimental portraits — 0.53
+Base: 53919ee (0.53 v8 kitchen); isolated branch feat/portrait-053. The user supplied private frontal and profile references; no original photos or photo textures are stored or uploaded. This is a hand-sculpted stylized approximation, not a reconstructed scan.
+- Alina: gentler oval jaw, reduced cheek protrusion, softer nose and lips, smaller almond-shaped gray-blue eyes, thinner lashes and brows, neutral light skin pigment; ash-beige/light brown waves with darker roots and shorter softer silhouette.
+- Vlad: narrower lower face, less rounded cheek, defined nose bridge, smaller hooded olive eyes, thinner lips, neutral expression, short dark brown fade with raised side-swept crown.
+- Keep original rig, bind matrices, eye bones, Blink/Smile morphs, garment assets and budget. Existing generator also regenerates neck/hand skin tint to match face; no changes to their shape or animation logic. Legacy GLBs and base branch retained.
+- Cloud pipeline exports two GLBs and Blender sources, validates rig/wardrobe, tests 0.53 prop contacts, captures actual front/quarter/profile/full portraits plus Alina care variants, and stores successful experimental assets on feat/portrait-053 only. No local Blender or WebGL workload. User visual approval required before merge or production deployment.
+- No visual result or real likeness claimed before reviewing actual generated model renders. Resume shared animations after this portrait review.
