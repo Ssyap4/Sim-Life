@@ -11,7 +11,7 @@ import { BOOKS, GENRES, HOME_SECONDS, type HomeSeat } from './homeLife';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { MATERIALS } from './educationCatalog';
 import { skillRank } from './education';
-import { recipeAvailability } from './recipeAvailability';
+import { recipeAvailability,holidayRecipeOpen } from './recipeAvailability';
 import { PETS, PET_IDS } from './pets';
 import { gameMinutes } from './life';
 import { serviceAvailable } from './services';
@@ -306,7 +306,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
     return [...ready,...delivery,...cooked];
   }
   switch(a.object){
-    case 'cook':case 'grill': return recipeIds.filter(id=>isGrillRecipe(id)===(a.object==='grill')&&(!isCatchRecipe(id)||freshFish(state).length>0)&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
+    case 'cook':case 'grill': return recipeIds.filter(id=>holidayRecipeOpen(state,id)&&isGrillRecipe(id)===(a.object==='grill')&&(!isCatchRecipe(id)||freshFish(state).length>0)&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));
     case 'eat':case 'bring':case 'serve': {
       const count=a.object==='eat'?2:1;
       return recipeIds.filter(id=>state.meals[id]>=count&&

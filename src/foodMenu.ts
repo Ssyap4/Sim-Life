@@ -1,6 +1,6 @@
 import {freshFish,isCatchRecipe} from './shared/lake';
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
-import { recipeAvailability } from './shared/recipeAvailability';
+import { recipeAvailability,holidayRecipeOpen } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
 import { COOKING_ORDER, COOKING_RECIPES, cookingExperience } from './shared/cookingProgression';
 import { gameMinutes } from './shared/life';
@@ -62,7 +62,7 @@ export function showFoodChoices(
     // On a phone, dozens of long ingredient lists were making recipes
     // impossible to browse. Keep availability visible; reveal composition on tap.
     const recipes=COOKING_ORDER
-      .filter(id=>isGrillRecipe(id)===(location==='grill'))
+      .filter(id=>isGrillRecipe(id)===(location==='grill')&&holidayRecipeOpen(state,id))
       .map(id=>({id,recipe:RECIPES[id],availability:recipeAvailability(state,role,id)}));
     const tools=document.createElement('div');
     tools.className='food-recipe-tools';

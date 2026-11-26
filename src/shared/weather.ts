@@ -1,4 +1,4 @@
-import {clockAt,gameDate,gameMinutes,type GameClock} from './life';
+import {clockAt,gameDate,gameMinutes,GAME_DAYS_PER_MONTH,type GameClock} from './life';
 export type WeatherKind='clear'|'overcast'|'fog'|'rain'|'snow'|'storm';
 export const WEATHER_INFO:Record<WeatherKind,{name:string;icon:string}>={
  clear:{name:'Ясно',icon:'☀️'},overcast:{name:'Облачно',icon:'☁️'},fog:{name:'Туман',icon:'🌫️'},
@@ -10,8 +10,7 @@ const lerp=(a:number,b:number,t:number)=>a+(b-a)*t;
 const smooth=(v:number)=>v*v*(3-2*v);
 function temperatureAt(clock:GameClock){
  const date=gameDate(clock.day),i=date.month-1;
- const days=new Date(Date.UTC(2000+date.year,date.month,0)).getUTCDate();
- const monthly=lerp(BASE[i],BASE[(i+1)%12],(date.day-1)/days);
+ const monthly=lerp(BASE[i],BASE[(i+1)%12],(date.day-1+clock.minute/1440)/GAME_DAYS_PER_MONTH);
  const m=gameMinutes(clock),day=Math.floor(m/1440),t=(m%1440)/1440;
  const anomaly=lerp((hash(day+527)-.5)*10,(hash(day+528)-.5)*10,smooth(t));
  return monthly+anomaly+5*Math.cos((clock.minute-900)*Math.PI/720);

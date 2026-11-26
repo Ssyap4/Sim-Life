@@ -44,7 +44,7 @@ test('seasonal materials share uniforms and preserve existing shader hooks',()=>
  assert.ok(previous);assert.ok(shader.fragmentShader.includes('snowCover'));
  applySeason({...weatherAt({day:300,minute:0}),season:'winter',snow:.7});
  assert.equal(shader.uniforms.seasonIndex.value,3);assert.equal(shader.uniforms.snowCover.value,.7);
- applySeason(weatherAt({day:150,minute:0}));assert.equal(shader.uniforms.seasonIndex.value,1);
+ applySeason(weatherAt({day:10,minute:0}));assert.equal(shader.uniforms.seasonIndex.value,1);
  const lawn=seasonalMaterial(new THREE.MeshStandardMaterial(),'lawn');
  const turf={uniforms:{},vertexShader:'',fragmentShader:'#include <color_fragment>'} as any;
  lawn.onBeforeCompile(turf,null as any);

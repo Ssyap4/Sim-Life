@@ -28,15 +28,15 @@ try{
  await page.locator('#phone-btn').click();
  await page.locator('[data-phone-app=holidays]').click();await page.getByText('Семейные праздники',{exact:false}).first().waitFor();
  const anniversary=page.locator('.family-life-phone article').filter({has:page.getByText('Годовщина отношений',{exact:true})}).last();
- await anniversary.locator('input').fill('3');await anniversary.locator('select').selectOption('3');await anniversary.getByRole('button',{name:'Сохранить'}).click();
- await page.getByText('3.03 · Сегодня!',{exact:true}).waitFor();await shot('01-holidays');
+ await anniversary.locator('input').fill('25');await anniversary.locator('select').selectOption('3');await anniversary.getByRole('button',{name:'Сохранить'}).click();
+ await page.getByText('25.03 · игр. день 3/3 · Сегодня!',{exact:true}).waitFor();await shot('01-holidays');
  await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=hobbies]').click();
  await page.getByText('Занятий: 1',{exact:false}).waitFor();await shot('02-hobbies');
  await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=events]').click();
  await page.getByRole('button',{name:'Получить 350 ₽'}).waitFor();await shot('03-event');
  await page.getByRole('button',{name:'Получить 350 ₽'}).click();await page.getByText('Принято',{exact:true}).waitFor();
  const snapshot=buddyPackets.findLast(p=>p.type==='snapshot'&&p.state.familyLife?.event?.status==='accepted');
- assert.ok(snapshot);assert.equal(snapshot.state.money,100350);assert.deepEqual(snapshot.state.familyLife.dates.anniversary,{day:3,month:3});
+ assert.ok(snapshot);assert.equal(snapshot.state.money,100350);assert.deepEqual(snapshot.state.familyLife.dates.anniversary,{day:25,month:3});
  buddy.send(JSON.stringify({type:'family_event',day:3,id:'refund',accept:true}));
  await new Promise(r=>setTimeout(r,500));assert.equal(openServerFiles(dir).load().money,100350);
  assert.deepEqual(errors,[]);console.log('Family calendar, hobby collection, shared event, actual UI and persisted single reward passed');

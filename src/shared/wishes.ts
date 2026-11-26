@@ -1,4 +1,5 @@
 import {isCatchRecipe} from './lake';
+import {holidayRecipeOpen} from './recipeAvailability';
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
 import { residentEmotion,wishEmotionPriority,PERSONALITIES,activeEmotions } from './emotions';
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
@@ -63,7 +64,7 @@ function foodWish(state:GameState,role:CharacterId):{command?:WishCommand;cta:st
   if(inFridge)return {command:{type:'fridge'},cta:'Открыть холодильник',
     detail:'Еда в холодильнике. Сначала достань порцию на стол.'};
   const current=skillRank(state.education.characters[role].xp.cooking).level;
-  const recipe=COOKING_ORDER.find(id=>!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=current&&
+  const recipe=COOKING_ORDER.find(id=>holidayRecipeOpen(state,id)&&!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=current&&
     ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)return {command:{type:'cook',recipe},cta:'Приготовить',
     detail:'Есть ингредиенты для '+RECIPES[recipe].name.toLowerCase()+'.'};
@@ -154,7 +155,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     if(state.dirtyDishes.table+state.dirtyDishes.yardTable>0)
       add('cozy-home','🧽','Освободить стол','После еды хочется вернуть дому уют.','Помыть посуду',{type:'act',actionId:'kitchenDishes'});
   }
-  const recipe=COOKING_ORDER.find(id=>!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
+  const recipe=COOKING_ORDER.find(id=>holidayRecipeOpen(state,id)&&!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
   const recent=activeEmotions(state,role)[0]?.kind;
   const emotion=residentEmotion(state,role).id;

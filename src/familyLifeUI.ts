@@ -10,12 +10,15 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
   if(signature===key)return;key=signature;
   const scroll=info.scrollTop,nodes:HTMLElement[]=[];
   if(view==='holidays'){
-   nodes.push(card('🎉 Семейные праздники','Праздники отмечаются совместной едой, подарками или уютным вечером. Успешное занятие в нужный день добавляет воспоминание и настроение.'));
+   nodes.push(card('🎉 Семейные праздники','Месяц — 3 игровых дня, год — 36. Реальные даты сохранены; в игре праздник попадает на соответствующий день месяца. Отметьте его совместным занятием.'));
    for(const o of occasionsAhead(s)){
-    nodes.push(card(OCCASIONS[o.id].title,o.date+'.'+String(o.month).padStart(2,'0')+' · '+(o.inDays===0?o.celebrated?'Уже отметили':'Сегодня!':'Через '+o.inDays+' игр. дн.')));
+    const c=card(OCCASIONS[o.id].title,(o.id==='easter'?'Весенний праздник':o.date+'.'+String(o.month).padStart(2,'0'))+' · игр. день '+o.slot+'/3 · '+(o.inDays===0?o.celebrated?'Уже отметили':'Сегодня!':'Через '+o.inDays+' игр. дн.'));
+    if(o.id==='easter')c.append(make('small','В этот день на кухне: блинчики с ягодами и сливками, с мёдом и яблоками.'));
+    if(o.id==='christmas')c.append(make('small','В этот день на кухне: рождественские яблоки с мёдом и ягодами.'));
+    nodes.push(c);
    }
    for(const id of PERSONAL_OCCASIONS){
-    const c=card(OCCASIONS[id].title,'Настройте личную дату (день и месяц).');
+    const c=card(OCCASIONS[id].title,'Реальная дата (день и месяц), игра перенесёт её в один из трёх дней месяца.');
     const row=make('div');row.className='family-date-row';
     const day=make('input'),month=make('select');day.type='number';day.min='1';day.max='31';day.value=String(f.dates[id]?.day??1);day.setAttribute('aria-label','День · '+OCCASIONS[id].title);
     for(let i=1;i<=12;i++){const o=make('option',String(i).padStart(2,'0'));o.value=String(i);month.append(o);}month.value=String(f.dates[id]?.month??1);month.setAttribute('aria-label','Месяц · '+OCCASIONS[id].title);

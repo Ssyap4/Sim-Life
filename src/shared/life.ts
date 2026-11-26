@@ -6,7 +6,10 @@ export const MINUTES_PER_DAY = 1440;
 export const CLOCK_SYNC_MS = 2000;
 export interface ClockSample { minutes: number; multiplier: 0 | 1 | 1.5 | 2 | 3 }
 
-const calendarStart = Date.UTC(2001, 2, 1);
+export const GAME_DAYS_PER_MONTH=3;
+export const GAME_DAYS_PER_YEAR=36;
+/** Real dates are retained for labels, but each ten-day band is one simulated day. */
+export const calendarSlot=(day:number)=>Math.min(3,Math.floor((day-1)/10)+1);
 const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const seasons = ['Зима', 'Весна', 'Лето', 'Осень'] as const;
@@ -16,14 +19,10 @@ export function clockAt(minutes: number): GameClock {
   return { day: Math.floor(minutes / MINUTES_PER_DAY) + 1, minute: Math.floor(minutes % MINUTES_PER_DAY) };
 }
 
-/** Game day 1 is March 1 of year 1. UTC keeps the calendar independent of device time zones. */
+/** Each month contains three actual simulated days; day 1 is March, year 1. */
 export function gameDate(day: number) {
-  const date = new Date(calendarStart + (day - 1) * 86_400_000);
-  const month = date.getUTCMonth();
-  return {
-    day: date.getUTCDate(), month: month + 1, monthName: months[month],
-    year: date.getUTCFullYear() - 2000, season: seasons[Math.floor(((month + 1) % 12) / 3)],
-  };
+  const offset=Math.max(0,Math.floor(day)-1),absoluteMonth=2+Math.floor(offset/GAME_DAYS_PER_MONTH),month=absoluteMonth%12;
+  return {day:offset%GAME_DAYS_PER_MONTH+1,month:month+1,monthName:months[month],year:Math.floor(absoluteMonth/12)+1,season:seasons[Math.floor(((month+1)%12)/3)]};
 }
 
 export const INITIAL_DAILY_NEEDS = {

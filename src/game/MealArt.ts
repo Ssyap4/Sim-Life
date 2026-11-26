@@ -343,9 +343,12 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
   else if (id==='porridge'||(id==='chickenSoup'||id==='lakeUkha')||id==='beefStew') {
     bit(g,id==='porridge'?palette.rice:palette.sauce,0,.022,0,.124,.044,.114,orb);
     grains(g,id==='porridge'?palette.cream:(id==='chickenSoup'||id==='lakeUkha')?palette.veg:palette.meat,7,.047);
-  } else if (id==='pancakes') {
+  } else if (id==='pancakes'||id==='easterBerryPancakes'||id==='easterHoneyPancakes') {
     for(let i=0;i<4;i++)bit(g,palette.bread,0,.018+i*.013,0,.115,.013,.105,drum);
-    bit(g,palette.sauce,.020,.077,-.010,.043,.010,.038,orb);
+    bit(g,id==='easterBerryPancakes'?palette.berry:id==='easterHoneyPancakes'?palette.caramel:palette.sauce,.020,.077,-.010,.043,.010,.038,orb);
+  } else if(id==='christmasApples'){
+    for(let i=0;i<3;i++){const a=i*2.094;bit(g,palette.apple,Math.cos(a)*.075,.046,Math.sin(a)*.075,.052,.055,.052);bit(g,palette.caramel,Math.cos(a)*.075,.098,Math.sin(a)*.075,.025,.01,.025);}
+    for(let i=0;i<5;i++){const a=i*2.4;bit(g,palette.berry,Math.cos(a)*.11,.025,Math.sin(a)*.11,.012,.014,.012);}
   } else if (id==='homemadePizza'||id==='pizzaCheese'||id==='pizzaPepperoni'||id==='pizzaBig') pizza(g);
   else if (id==='pastaBolognese'||id==='pastaCheese') {
     grains(g,palette.pasta,11);
@@ -381,8 +384,8 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
       bit(g,id==='pizzaPepperoni'?palette.meat:palette.olive,
         Math.cos(angle)*.080,.057,Math.sin(angle)*.080,.022,.011,.023,drum);
     }
-  } else if (id==='pancakes') {
-    for(let i=0;i<3;i++)bit(g,palette.cream,
+  } else if (id==='pancakes'||id==='easterBerryPancakes'||id==='easterHoneyPancakes') {
+    for(let i=0;i<3;i++)bit(g,id==='easterBerryPancakes'?palette.berry:id==='easterHoneyPancakes'?palette.apple:palette.cream,
       -.03+i*.024,.085,-.018+i*.015,.018,.014,.015);
   } else if (id==='porridge'||(id==='chickenSoup'||id==='lakeUkha')||id==='beefStew') {
     for(let i=0;i<5;i++) {

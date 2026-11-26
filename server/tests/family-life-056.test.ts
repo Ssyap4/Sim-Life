@@ -14,7 +14,7 @@ test('personal calendar dates validated and shared, celebration once on real day
  assert.deepEqual(creditCelebration(s,'walk'),[]);
  assert.deepEqual(creditCelebration(s,'film'),['Годовщина отношений']);
  assert.deepEqual(creditCelebration(s,'film'),[]);assert.ok(validFamilyLife(s.familyLife));assert.equal(s.relationship.memories.length,1);
- s.clock.day++;const changed=applyFamilyLife(s,'vlad',{type:'family_date',id:'anniversary',month:3,day:2});assert.ok(changed.ok);assert.deepEqual(creditCelebration(changed.state,'film'),[]);
+ s.clock.day++;const changed=applyFamilyLife(s,'vlad',{type:'family_date',id:'anniversary',month:3,day:12});assert.ok(changed.ok);assert.ok(!creditCelebration(changed.state,'film').includes('Годовщина отношений'));
 });
 test('hobby completion counts once daily, tracks variety and milestones',()=>{
  const s=initialState();

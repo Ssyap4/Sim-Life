@@ -1,10 +1,17 @@
 import {freshFish,isCatchRecipe} from './lake';
+import {gameDate} from './life';
 import { skillRank } from './education';
 import { COOKING_RECIPES, cookingEnergy } from './cookingProgression';
 import { GROCERIES, RECIPES, ingredientList, type RecipeId } from './food';
 import type { CharacterId, GameState } from './protocol';
 import { storageCanFit } from './storageSpace';
 
+export function holidayRecipeOpen(state:GameState,id:RecipeId):boolean{
+ const date=gameDate(state.clock.day);
+ if(id==='easterBerryPancakes'||id==='easterHoneyPancakes')return date.month===4&&date.day===2;
+ if(id==='christmasApples')return date.month===1&&date.day===1;
+ return true;
+}
 export type RecipeAvailability =
   | {available:true; effort:number}
   | {available:false; effort:number; reason:string};
@@ -17,6 +24,7 @@ export function recipeAvailability(state: GameState, role: CharacterId,
   const cooking=skillRank(state.education.characters[role].xp.cooking).level;
   const required=COOKING_RECIPES[id].minLevel;
   const effort=cookingEnergy(cooking,id);
+  if(!holidayRecipeOpen(state,id))return {available:false,effort,reason:id==='christmasApples'?'Доступно на Рождество':'Доступно на Пасху'};
   if (cooking < required) return {available:false,effort,
     reason:'🔒 Нужна кулинария уровня '+required+' (сейчас '+cooking+')'};
   if(isCatchRecipe(id)&&!freshFish(state).length)return {available:false,effort,reason:'Нужна свежая рыба из семейного улова'};

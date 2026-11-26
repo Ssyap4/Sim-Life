@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { GameClockDisplay } from '../../src/core/gameClock';
 import { clockAt, clockLabel, gameDate, gameMinutes } from '../../src/shared/life';
 
-test('The calendar advances through months, seasons, years and leap day', () => {
+test('The compressed calendar advances through three-day months, nine-day seasons and 36-day years', () => {
   const label = (day: number) => clockLabel({ day, minute: 0 });
   assert.equal(label(1), '1 марта, год 1 · 00:00');
-  assert.equal(label(92), '31 мая, год 1 · 00:00');
-  assert.equal(label(93), '1 июня, год 1 · 00:00');
-  assert.deepEqual([1, 93, 185, 276].map(day => gameDate(day).season), ['Весна', 'Лето', 'Осень', 'Зима']);
-  assert.equal(label(306), '31 декабря, год 1 · 00:00');
-  assert.equal(label(307), '1 января, год 2 · 00:00');
-  assert.equal(label(1096), '29 февраля, год 4 · 00:00');
-  assert.equal(label(1097), '1 марта, год 4 · 00:00');
+  assert.equal(label(9), '3 мая, год 1 · 00:00');
+  assert.equal(label(10), '1 июня, год 1 · 00:00');
+  assert.deepEqual([1, 10, 19, 28].map(day => gameDate(day).season), ['Весна', 'Лето', 'Осень', 'Зима']);
+  assert.equal(label(30), '3 декабря, год 1 · 00:00');
+  assert.equal(label(31), '1 января, год 2 · 00:00');
+  assert.equal(label(36), '3 февраля, год 2 · 00:00');
+  assert.equal(label(37), '1 марта, год 2 · 00:00');
   assert.deepEqual(clockAt(gameMinutes({ day: 92, minute: 1439 }) + 1), { day: 93, minute: 0 });
 });
 

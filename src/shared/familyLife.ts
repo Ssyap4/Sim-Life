@@ -1,12 +1,14 @@
 import type {CharacterId,GameState,TimedCommand} from './protocol';
-import {gameDate,gameMinutes} from './life';
+import {gameDate,gameMinutes,calendarSlot,GAME_DAYS_PER_YEAR} from './life';
 import {addLedger} from './economy';
 import {giftCount,pendingGifts,GIFT_LIMIT} from './gifts';
 
 export const OCCASIONS={
- newYear:{title:'Новый год',month:1,day:1},
- valentines:{title:'День влюблённых',month:2,day:14},
- spring:{title:'8 Марта',month:3,day:8},
+ newYear:{title:'Новый год',month:12,day:31,slot:3},
+ christmas:{title:'Рождество',month:1,day:7,slot:1},
+ valentines:{title:'День влюблённых',month:2,day:14,slot:2},
+ spring:{title:'8 Марта',month:3,day:8,slot:2},
+ easter:{title:'Пасха',month:4,day:15,slot:2},
  vladBirthday:{title:'День рождения Влада'},
  alinaBirthday:{title:'День рождения Алины'},
  anniversary:{title:'Годовщина отношений'},
@@ -37,9 +39,10 @@ export interface FamilyLifeState{
  hobbies:Record<CharacterId,Partial<Record<Hobby,HobbyProgress>>>;
  event?:EventOffer;
 }
-export const initialFamilyLife=():FamilyLifeState=>({dates:{},celebrated:{},hobbies:{vlad:{},alina:{}}});
-export const familyLife=(s:GameState)=>s.familyLife??initialFamilyLife();
-const mutable=(s:GameState)=>s.familyLife??=initialFamilyLife();
+const defaultDates=()=>({vladBirthday:{month:1,day:25},alinaBirthday:{month:2,day:4}});
+export const initialFamilyLife=():FamilyLifeState=>({dates:defaultDates(),celebrated:{},hobbies:{vlad:{},alina:{}}});
+export const familyLife=(s:GameState):FamilyLifeState=>s.familyLife?{...s.familyLife,dates:{...defaultDates(),...s.familyLife.dates}}:initialFamilyLife();
+const mutable=(s:GameState)=>{s.familyLife=familyLife(s);return s.familyLife;};
 const int=(x:unknown,min:number,max:number)=>Number.isSafeInteger(x)&&Number(x)>=min&&Number(x)<=max;
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const member=(x:unknown,keys:object)=>typeof x==='string'&&Object.hasOwn(keys,x);
@@ -53,14 +56,15 @@ export function validFamilyLife(v:unknown):v is FamilyLifeState{
  if(Object.keys(v.hobbies).length!==2||!['vlad','alina'].every(role=>{const h=v.hobbies as Record<string,unknown>;return object(h[role])&&Object.entries(h[role]).every(([k,p])=>member(k,HOBBIES)&&object(p)&&int(p.sessions,1,1000000)&&int(p.lastDay,1,10000000)&&Array.isArray(p.unique)&&p.unique.length<=40&&p.unique.every(x=>typeof x==='string'&&x.length<=80)&&new Set(p.unique).size===p.unique.length);}))return false;
  return v.event===undefined||object(v.event)&&member(v.event.id,LIFE_EVENTS)&&int(v.event.day,1,10000000)&&['open','accepted','declined'].includes(String(v.event.status));
 }
-export function occasionsAhead(s:GameState,horizon=370){
- const out:{id:Occasion;day:number;month:number;date:number;inDays:number;celebrated:boolean}[]=[];
+export function occasionsAhead(s:GameState,horizon=GAME_DAYS_PER_YEAR-1){
+ const out:{id:Occasion;day:number;month:number;date:number;slot:number;inDays:number;celebrated:boolean}[]=[];
  const f=familyLife(s);
  for(const id of Object.keys(OCCASIONS) as Occasion[]){
    const spec=OCCASIONS[id],date='month' in spec?spec:f.dates[id as PersonalOccasion];if(!date)continue;
    for(let delta=0;delta<=horizon;delta++){
      const d=gameDate(s.clock.day+delta);
-     if(d.month===date.month&&d.day===date.day){out.push({id,day:s.clock.day+delta,month:d.month,date:d.day,inDays:delta,celebrated:f.celebrated[id]!==undefined&&gameDate(f.celebrated[id]!).year===d.year});break;}
+     const slot='slot' in spec?spec.slot:calendarSlot(date.day);
+     if(d.month===date.month&&d.day===slot){out.push({id,day:s.clock.day+delta,month:d.month,date:date.day,slot,inDays:delta,celebrated:f.celebrated[id]!==undefined&&gameDate(f.celebrated[id]!).year===d.year});break;}
    }
  }
  return out.sort((a,b)=>a.inDays-b.inDays||a.id.localeCompare(b.id));
