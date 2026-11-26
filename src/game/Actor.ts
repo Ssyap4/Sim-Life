@@ -142,6 +142,11 @@ export class Actor {
   private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;}
   playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;this.activeConsoleGame=game;}
   private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;this.activeConsoleGame=undefined;}
+  handheldQA(){
+    const phone=this.props.phone,book=this.props.heldBook,page=this.props.bookPage;
+    return {phone:phone.visible,book:book.visible,page:page.visible&&book.visible,
+      pageAngle:page.rotation.z,elapsed:this.activityTime};
+  }
   gamepadGripError(){if(!this.activePad)return null;const pad=this.activePad;return ([0,1] as const).map(i=>this.rig.wrists[i].getWorldPosition(new THREE.Vector3()).distanceTo(pad.localToWorld(new THREE.Vector3(i===0?-CONTROLLER_GRIP:CONTROLLER_GRIP,-.01,-.069))));}
   private mealSlow=false;
   private parkChatUntil=0;
@@ -264,6 +269,7 @@ export class Actor {
     this.carryingBook = false;
     this.closingBook = 0;
     this.props.hideBook();
+    this.props.phone.visible=false;
     this.dirtyPlate.visible = false;
     this.foodContainer.visible = false;
     this.props.brush.visible = this.props.tongs.visible = this.props.groomingBrush.visible = this.props.knife.visible = this.props.fork.visible = false;
@@ -479,6 +485,7 @@ export class Actor {
   playActivity(kind: 'cook' | 'eat', pan?: THREE.Vector3, recipe?: RecipeId|TakeoutId, slow=false): void {
     // World has already placed the actor at the visual station.
     this.clearVenueProp();this.clearVanity();this.hideGamepad();
+    this.carryingBook=false;this.closingBook=0;this.props.hideBook();
     this.props.phone.visible=false;
     this.activity = kind;this.mealSlow=slow;
     this.pan = pan?.clone();
@@ -490,6 +497,8 @@ export class Actor {
   playDomesticActivity(kind: DomesticMotion, target?: THREE.Vector3, recipe?: RecipeId): void {
     this.clearVanity();
     if(kind!=='consolePlay')this.hideGamepad();
+    if(kind==='read')this.carryingBook=true;
+    else {this.carryingBook=false;this.closingBook=0;this.props.hideBook();}
     this.clearVenueProp();
     this.props.phone.visible=false;
     this.activity = kind;
@@ -1505,7 +1514,7 @@ export class Actor {
     this.spoon.visible = (this.activity === 'cook' &&
       (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
       (this.activity === 'eat' && eatingWith === 'spoon');
-    this.props.phone.visible=this.activity==='scrollPhone';
+    this.props.phone.visible=this.activity==='scrollPhone'||this.activity==='phone';
     this.props.fork.visible = this.activity === 'eat' && eatingWith === 'fork';
     this.props.knife.visible = (this.activity === 'cook' && kitchenStep === 'chop') ||
       (this.activity === 'prep' && helperChop(a));
@@ -2026,8 +2035,59 @@ export class Actor {
     }
     this.selectionRing.position.x = this.figure.position.x;
     this.selectionRing.position.z = this.figure.position.z;
+    // Resolve handheld objects after all body offsets and pose transforms.
+    // The props are authoritative targets; IK keeps the hands on their edges.
+    if(this.props.phone.visible){
+      const phone=this.props.phone,call=this.activity==='phone';
+      const shoulderY=this.rightArm.position.y;
+      phone.position.copy(this.figure.worldToLocal(data.chest.localToWorld(this.target.set(.085,shoulderY-.29,.36))));
+      phone.rotation.set(-.76,.08,.04);
+      if(call){
+        const lift=THREE.MathUtils.smoothstep(a,0,.65);
+        const ear=data.head.localToWorld(this.target.set(.183,-.075,.008));
+        phone.position.lerp(this.figure.worldToLocal(ear),lift);
+        data.head.getWorldQuaternion(this.aimRotation);
+        this.rotationBasis.makeBasis(this.basisX.set(0,0,-1),this.elbowAxis.set(-1,0,0),this.basisZ.set(0,1,0));
+        this.parentRotation.setFromRotationMatrix(this.rotationBasis);
+        this.aimRotation.multiply(this.parentRotation);
+        this.figure.getWorldQuaternion(this.parentRotation).invert();
+        phone.quaternion.slerp(this.parentRotation.multiply(this.aimRotation),lift);
+      }
+      phone.updateWorldMatrix(true,false);
+      this.reach(1,phone.localToWorld(this.target.set(.012,-.018,-.095)),1,.65);
+      this.aimHand(1,this.handDirection.set(0,0,1).applyQuaternion(phone.getWorldQuaternion(this.parentRotation)),1);
+      if(!call){
+        const cycle=a%3.8,swipe=THREE.MathUtils.smoothstep(cycle,.8,1.05)*(1-THREE.MathUtils.smoothstep(cycle,1.75,2.1));
+        const z=THREE.MathUtils.lerp(-.035,.035,THREE.MathUtils.smoothstep(cycle,1.05,1.75));
+        // The animated palm travels along the glass during a swipe, then
+        // hovers above it. No independent finger joints on the shipped rig.
+        phone.getWorldQuaternion(this.parentRotation);
+        this.handDirection.set(.65,-.30,.72).normalize().applyQuaternion(this.parentRotation);
+        this.target.set(-.012,.025+.026*(1-swipe),z);
+        phone.localToWorld(this.target).addScaledVector(this.handDirection,-.085);
+        this.reach(0,this.target,1,.66);
+        this.aimHand(0,this.handDirection,1);
+      }
+    }
     if (this.carryingBook || this.closingBook > 0) {
-      this.props.book(this.activityTime,this.activity === 'read',this.closingBook/.36);
+      const reading=this.activity==='read',closing=this.closingBook/.36;
+      this.props.book(this.activityTime,reading,closing);
+      if(reading||closing>0){
+        const book=this.props.heldBook,page=this.props.bookPage,shoulderY=(this.leftArm.position.y+this.rightArm.position.y)*.5;
+        book.position.copy(this.figure.worldToLocal(data.chest.localToWorld(this.target.set(0,shoulderY-.31,.36))));
+        book.rotation.set(-.47,0,0);book.updateWorldMatrix(true,true);
+        const phase=this.activityTime%10.5,turn=reading?Math.sin(Math.PI*THREE.MathUtils.smoothstep(phase,7.85,9.40)):0;
+        for(const i of [0,1] as const){
+          const side=i===0?-1:1;
+          const leaf=this.props.bookLeaves[i];
+          this.handDirection.set(-side*.28,.16,1).normalize().applyQuaternion(book.getWorldQuaternion(this.parentRotation));
+          const goal=leaf.localToWorld(this.target.set(side*.105,-.017,-.052));
+          if(i===1&&turn>0){const edge=page.localToWorld(this.basisX.set(.11,.022,-.025));goal.lerp(edge,turn);}
+          goal.addScaledVector(this.handDirection,-.055);
+          this.reach(i,goal,1,.65);
+          this.aimHand(i,this.handDirection,1);
+        }
+      }
       this.closingBook = Math.max(0,this.closingBook-dt);
     } else this.props.hideBook();
   }

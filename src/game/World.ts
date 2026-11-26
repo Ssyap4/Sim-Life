@@ -611,7 +611,9 @@ export class World {
     const loungeAngle=person&&this.homeTasks.get(subject)?.station==='yardTable'?new THREE.Vector3(.65,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
     const catalogSeat=person&&this.homeTasks.get(subject)?.station==='furniture'&&this.homeTasks.get(subject)?.furnitureSeat;
     const catalogAngle=catalogSeat?new THREE.Vector3(.38,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
-    const angle = loungeAngle??vanityAngle??bedAngle??catalogAngle??(perch
+    const handheld=person&&['read','phone','scrollPhone'].includes(this.actors[subject].audioMotion().activity??'');
+    const handheldAngle=handheld?new THREE.Vector3(.40,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
+    const angle = loungeAngle??vanityAngle??bedAngle??handheldAngle??catalogAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)
@@ -992,7 +994,7 @@ export class World {
         if(command.type==='vanity_care'){actor.playVanity(command.care);if(this.inspected===role)this.showcase(role);return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
-          if(command.action==='read_book')actor.playDomesticActivity('read');
+          if(command.action==='read_book'){actor.carryBook(BOOKS[command.book!][4]);actor.playDomesticActivity('read');}
           else if(['deskJournal','tablePlan'].includes(command.action))actor.playDomesticActivity('journal');
           else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
             actor.playDomesticActivity('games');
@@ -3195,7 +3197,7 @@ export class World {
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

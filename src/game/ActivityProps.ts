@@ -23,6 +23,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   book.name = 'Held book';
   const leaves = [-1,1].map(sign => {
     const leaf = new THREE.Group();
+    leaf.name=sign<0?'Book left cover':'Book right cover';
     part(leaf,cover,[.135,.027,.183],[sign*.067,0,0]);
     part(leaf,paper,[.121,.016,.167],[sign*.066,.017,0]);
     for(let line=0;line<4;line++)
@@ -32,6 +33,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
     return leaf;
   });
   const page = new THREE.Group();
+  page.name='Turning page';
   part(page,paper,[.114,.0028,.158],[.058,.022,0]);
   book.add(page);
   book.visible=false;
@@ -78,14 +80,16 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
   fork.visible=false;
   wrists[1].add(fork);
   const phoneVariants=electronicsVariants('phone'),phone=phoneVariants.group;
-  phoneVariants.select('phoneStart');wrists[1].add(phone);phone.position.set(0,-.048,.052);phone.rotation.x=-.34;phone.visible=false;
+  phoneVariants.select('phoneStart');figure.add(phone);phone.name='Held phone';phone.visible=false;
   const tongs = new THREE.Group();
   tongs.position.set(0, -.090, .043);
   const jaws = [-1, 1].map(side => part(tongs, steel, [.013, .013, .202], [.016 * side, 0, .072]));
   wrists[1].add(tongs);
   tongs.visible = false;
-  const left=new THREE.Vector3(),right=new THREE.Vector3();
   return {
+    heldBook:book,
+    bookLeaves:leaves,
+    bookPage:page,
     brush,
     phone,
     setPhone(id:ElectronicsId){phoneVariants.select(id);},
@@ -103,12 +107,8 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
     book(t: number, reading: boolean, closing = 0) {
       if (reading || closing > 0) {
         if (book.parent !== figure) figure.add(book);
-        wrists[0].getWorldPosition(left);
-        wrists[1].getWorldPosition(right);
-        book.position.copy(figure.worldToLocal(left.lerp(right,.5)));
-        book.position.y += .064;
-        book.position.z += .080;
-        book.rotation.set(-.47, 0, 0);
+        // The Actor places the book first and solves the wrists against its
+        // physical cover and page, not the midpoint of two moving hands.
       } else {
         if (book.parent !== wrists[1]) wrists[1].add(book);
         book.position.set(.034, -.069, .035);
@@ -121,6 +121,7 @@ export function activityProps(figure: THREE.Group, wrists: readonly THREE.Object
       const phase = t%10.5;
       page.visible = reading && phase>8.15 && phase<9.10;
       page.rotation.z = THREE.MathUtils.smoothstep(phase,8.15,9.1)*Math.PI;
+      book.updateWorldMatrix(true,true);
       book.visible=true;
     },
   };
