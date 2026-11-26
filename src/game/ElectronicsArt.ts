@@ -49,7 +49,8 @@ export function buildElectronicsModel(id:ElectronicsId):THREE.Group{
    part(g,[.67,.032,.18],[0,.027,.34],pro?silver:dark,true);
    for(let row=0;row<3;row++)for(let col=0;col<10;col++)
      part(g,[.052,.008,.033],[(col-4.5)*.061,.047,.294+row*.047],pro?0xe5e6e6:office?0x60785f:0x657480);
-   part(g,[.095,.034,.15],[.47,.03,.34],pro?silver:dark,true);
+   // The resident faces local -Z: local -X is their right-hand side.
+   part(g,[.095,.034,.15],[-.47,.03,.34],pro?silver:dark,true);
    if(pro){
      part(g,[.28,.14,.25],[.61,.075,-.10],silver,true);
      part(g,[.024,.008,.02],[.51,.148,-.10],0x575f64);

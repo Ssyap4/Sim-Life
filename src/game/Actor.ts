@@ -30,7 +30,7 @@ import { RESIDENT_IDLE_SECONDS, chooseResidentIdle, residentIdleAllowed, residen
 
 type Pose = 'idle' | 'sit' | 'work' | 'sleep';
 type Arrival = () => void;
-type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3];
+type HandTargets = readonly [left: THREE.Vector3, right: THREE.Vector3, mouse?: THREE.Vector3];
 type Steering = (from: FloorPoint, target: FloorPoint) => FloorPoint;
 export type DomesticMotion = 'venueCue'|'venueBowl'|'venueHockey'|'venueCards'|'venueJenga'| 'spaMassage' | 'spaRecline' | 'spaSwim' | 'vanity' | 'consolePlay' | import('../shared/fitness').FitnessMotion | 'dishes' | 'wash' | 'tidy' | 'tea' | 'read' | 'phone' | 'scrollPhone' | 'stretch' | 'music' | 'journal' | 'games' | 'chess' | 'darts' | 'pingPong' | 'badminton' | 'billiards' | 'reach' | 'chat' | 'shower' | 'bath' | 'toilet' | 'teeth' | 'watch' | 'grill' | 'washHands' | 'coffee' | 'prep';
 const COUNTER_ACTIONS: ReadonlySet<DomesticMotion> = new Set([
@@ -65,6 +65,25 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly teaCup = new THREE.Group();
+  private readonly cupCenter = new THREE.Vector3();
+  private readonly cupHandleOffset = new THREE.Vector3();
+  private readonly cupGripDirection = new THREE.Vector3();
+  private readonly cupYaw = new THREE.Quaternion();
+
+  /** The ceramic handle, not the cup center, belongs in the palm.
+   * Keep the liquid horizontal and the handle facing the resident's right. */
+  private gripCup(center: THREE.Vector3, alpha: number): void {
+    this.cupYaw.setFromAxisAngle(up,this.root.rotation.y);
+    this.cupHandleOffset.set(.051,0,0).applyQuaternion(this.cupYaw);
+    this.cupGripDirection.set(0,-.5,.6).normalize().applyQuaternion(this.cupYaw);
+    this.target.copy(center).add(this.cupHandleOffset).addScaledVector(this.cupGripDirection,-.055);
+    this.reach(1,this.target,alpha,.42);
+    this.aimHand(1,this.handDirection.copy(this.cupGripDirection),alpha);
+    this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
+    this.teaCup.quaternion.copy(this.parentRotation).multiply(this.cupYaw);
+    this.teaCup.position.copy(this.cupHandleOffset).applyQuaternion(this.parentRotation).negate();
+    this.teaCup.position.y-=.055;
+  }
   private workCoffeeCarrying=false;
   private workCoffeeTarget?:THREE.Vector3;
   private readonly loungeMouthpiece=new THREE.Group();
@@ -222,7 +241,14 @@ export class Actor {
   }
   setPhoneModel(id:import('../shared/electronics').ElectronicsId){this.props.setPhone(id);}
   carryBook(color: string): void { this.carryingBook = true; this.props.color(color); }
-  workCoffeeQA(){return {visible:this.teaCup.visible&&this.workCoffeeCarrying,offering:!!this.workCoffeeTarget,position:this.teaCup.visible&&this.workCoffeeCarrying?this.teaCup.getWorldPosition(new THREE.Vector3()).toArray():null};}
+  workCoffeeQA(){
+    const visible=this.teaCup.visible&&this.workCoffeeCarrying;
+    const position=visible?this.teaCup.getWorldPosition(new THREE.Vector3()):null;
+    const handleError=visible?this.teaCup.localToWorld(new THREE.Vector3(.051,0,0))
+      .distanceTo(this.rig.wrists[1].localToWorld(new THREE.Vector3(0,-.055,0))):null;
+    const dropError=position&&this.workCoffeeTarget?position.distanceTo(this.workCoffeeTarget.clone().add(new THREE.Vector3(0,.0415,0))):null;
+    return {visible,offering:!!this.workCoffeeTarget,settled:!!this.workCoffeeTarget&&this.activityTime>1.05,position:position?.toArray()??null,handleError,dropError};
+  }
   workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();return cup;}
   carryWorkCoffee(target?:THREE.Vector3):void{this.workCoffeeCarrying=true;this.workCoffeeTarget=target?.clone();}
   private clearWorkCoffee():void{this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
@@ -620,13 +646,21 @@ export class Actor {
       this.handDirection.set(sideways, height, forward).applyAxisAngle(up, this.root.rotation.y));
   }
 
-  update(dt: number, steer?: Steering): void {
+  update(dt: number, steer?: Steering, pathDt = dt): void {
     this.clock += dt;
     this.gestureTime += dt;
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;
     const poolStep=this.poolStepTravel;this.poolStepTravel=0;
-    const traveled = this.advance(dt, steer)+poolStep+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
+    // Timed coffee delivery must keep up with the authoritative route clock.
+    // Substep movement only, retaining the existing steering/obstacle checks.
+    const firstStep=Math.min(pathDt,.20);
+    let walked=this.advance(firstStep,steer);
+    for(let remaining=pathDt-firstStep;remaining>1e-6&&this.isWalking();){
+      const step=Math.min(remaining,.20);
+      walked+=this.advance(step,steer);remaining-=step;
+    }
+    const traveled = walked+poolStep+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
     const sport=this.activity==='badminton'||this.activity==='pingPong';
     const walking = (this.waypoints.length > 0 || sport || poolStep>0) && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
@@ -1486,13 +1520,16 @@ export class Actor {
     // two-handed counter work just because World supplied a focus point.
     const counter = this.pan && this.activity && COUNTER_ACTIONS.has(this.activity as DomesticMotion)
       ? this.pan : undefined;
+    const cupHeld=this.workCoffeeCarrying||pair?.motion==='teaTogether';
     if (!rest && !typing && !stirring && !counter) {
       this.bend(armA, data.elbows[0], data.upperArm, data.lowerArm, leftY, leftZ, -1, alpha);
-      this.bend(armB, data.elbows[1], data.upperArm, data.lowerArm, rightY, rightZ, -1, alpha);
       armA.rotation.y = THREE.MathUtils.lerp(armA.rotation.y, 0, alpha);
-      armB.rotation.y = THREE.MathUtils.lerp(armB.rotation.y, 0, alpha);
       armA.rotation.z = THREE.MathUtils.lerp(armA.rotation.z, armSpread, alpha);
-      armB.rotation.z = THREE.MathUtils.lerp(armB.rotation.z, -armZ, alpha);
+      if(!cupHeld){
+        this.bend(armB, data.elbows[1], data.upperArm, data.lowerArm, rightY, rightZ, -1, alpha);
+        armB.rotation.y = THREE.MathUtils.lerp(armB.rotation.y, 0, alpha);
+        armB.rotation.z = THREE.MathUtils.lerp(armB.rotation.z, -armZ, alpha);
+      }
     }
     if(rest){
       // Direct authored local joint angles supersede the standing two-bone
@@ -1506,6 +1543,7 @@ export class Actor {
       }
     }
     if (!typing && !stirring && !counter) for (const wrist of data.wrists) {
+      if(cupHeld&&wrist===data.wrists[1])continue;
       wrist.rotation.x = THREE.MathUtils.lerp(wrist.rotation.x, rest?rest.arms[data.wrists.indexOf(wrist)].end:this.activity === 'eat' ? 0.12 : 0, alpha);
       wrist.rotation.y = THREE.MathUtils.lerp(wrist.rotation.y, 0, alpha);
       wrist.rotation.z = THREE.MathUtils.lerp(wrist.rotation.z, 0, alpha);
@@ -1622,16 +1660,21 @@ export class Actor {
       for (const i of [0, 1] as const) {
         const tap = beats * Math.max(0, Math.sin(t * ((i === 0 ? 8.5 : 10.2)+variant*.22) + i * 1.3)) ** 2;
         this.target.copy(typing[i]);
-        const pointer=!!spec&&["video","design","trade","notes"].includes(spec.style)&&i===1;
+        const pointerStyle=!!spec&&["video","design","trade","notes"].includes(spec.style);
+        const mouseBlend=i===1&&typing[2]?(pointerStyle?
+          THREE.MathUtils.smoothstep(phase,.12,.19)*(1-THREE.MathUtils.smoothstep(phase,.80,.91)):
+          pause):0;
+        if(mouseBlend&&typing[2])this.target.lerp(typing[2],mouseBlend);
         const teaching=spec?.style==="hair"&&pause>.05;
-        const listening=spec?.style==="mail"&&i===1;
-        this.target.y += 0.028 - 0.018 * tap + (teaching?pause*(.14+.07*Math.sin(t*2.4+i)):0)+(listening?pause*.20:0);
-        this.target.add(this.handDirection.set(pointer?.10+.025*Math.sin(t*1.5):teaching?pause*(i===0?-.10:.10):0, 0,
-          0.018 * Math.sin(t * 1.82 + i) - 0.008 * tap + (pointer?.05*Math.cos(t*1.7):0) - (listening?pause*.12:0))
+        const listening=spec?.style==="mail"&&i===1&&!mouseBlend;
+        const keyTap=tap*(1-mouseBlend);
+        this.target.y += .028-.018*keyTap + (teaching?pause*(.14+.07*Math.sin(t*2.4+i)):0)+(listening?pause*.20:0);
+        this.target.add(this.handDirection.set(mouseBlend*.008*Math.sin(t*1.5)+(teaching?pause*(i===0?-.10:.10):0), 0,
+          (1-mouseBlend)*(.014*Math.sin(t*1.82+i)-.008*keyTap)-mouseBlend*.035-(listening?pause*.12:0))
           .applyAxisAngle(up, this.root.rotation.y));
         this.reach(i, this.target, alpha);
-        this.aimHand(i, this.handDirection.set(0, -0.27, -1)
-          .applyAxisAngle(up, this.root.rotation.y), alpha);
+        // Fingers point toward the input surface, not back toward the body.
+        this.aimHand(i, this.handDirection.set(0,-.27,1).applyAxisAngle(up,this.root.rotation.y),alpha);
       }
     } else if (stirring) {
       // Alternate preparation, pan work and plating by recipe rather than
@@ -1816,7 +1859,7 @@ export class Actor {
           .applyAxisAngle(up, this.root.rotation.y), Math.min(1, wave * alpha * 6.1));
       }
     }
-    if (this.activity === 'reach' && this.pan) {
+    if (this.activity === 'reach' && this.pan && !this.workCoffeeCarrying) {
       // Taking an item from a shelf uses one hand; the other stays at rest.
       // Previously any supplied target forced BOTH hands into the furniture.
       this.reach(1, this.target.copy(this.pan), alpha);
@@ -1912,24 +1955,19 @@ export class Actor {
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;
       const sip=THREE.MathUtils.smoothstep(phase,2,3.2)*(1-THREE.MathUtils.smoothstep(phase,4.2,5.5));
-      const head=this.rig.head.getWorldPosition(new THREE.Vector3());
-      const resting=this.bodyPosition(new THREE.Vector3()).add(new THREE.Vector3(.20,.80,.25).applyAxisAngle(up,this.root.rotation.y));
-      const mouth=head.add(new THREE.Vector3(.035,-.13,.15).applyAxisAngle(up,this.root.rotation.y));
-      this.reach(1,resting.lerp(mouth,sip),alpha*0.9);
-      this.aimHand(1,this.handDirection.set(0,-.5,.6).applyAxisAngle(up,this.root.rotation.y),alpha);
-      this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
-      this.teaCup.quaternion.copy(this.parentRotation);
-      this.teaCup.position.set(0,-.055,.035);
+      this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.15,.80,.29).applyAxisAngle(up,this.root.rotation.y));
+      const mouth=this.rig.head.getWorldPosition(this.cupGripDirection)
+        .add(this.cupHandleOffset.set(.025,-.18,.19).applyAxisAngle(up,this.root.rotation.y));
+      this.gripCup(this.cupCenter.lerp(mouth,sip),alpha*.9);
     }
     if(this.workCoffeeCarrying&&!pair){
       const target=this.workCoffeeTarget;
-      const goal=target?target.clone().add(new THREE.Vector3(0,.08,0)):
-        this.bodyPosition(new THREE.Vector3()).add(new THREE.Vector3(.24,1.12,.29).applyAxisAngle(up,this.root.rotation.y));
-      this.reach(1,goal,alpha*.92);
-      this.aimHand(1,this.handDirection.set(0,-.5,.6).applyAxisAngle(up,this.root.rotation.y),alpha);
-      this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
-      this.teaCup.quaternion.copy(this.parentRotation);
-      this.teaCup.position.set(0,-.055,.035);
+      this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.19,1.12,.30).applyAxisAngle(up,this.root.rotation.y));
+      if(target){
+        const place=THREE.MathUtils.smoothstep(a,.08,1.05);
+        this.cupCenter.lerp(this.cupGripDirection.copy(target).add(this.cupHandleOffset.set(0,.0415,0)),place);
+      }
+      this.gripCup(this.cupCenter,alpha*.92);
     }
     this.racket.visible=this.activity==='badminton';
     if(this.racket.visible){

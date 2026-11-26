@@ -107,6 +107,7 @@ function relativeLookYaw(root: THREE.Object3D, target: THREE.Vector3): number {
 const deskKeys = [
   new THREE.Vector3(HOME_PLACEMENTS.desk.x + .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
   new THREE.Vector3(HOME_PLACEMENTS.desk.x - .17, 1.116, HOME_PLACEMENTS.desk.z + .388),
+  new THREE.Vector3(HOME_PLACEMENTS.desk.x - .47, 1.100, HOME_PLACEMENTS.desk.z + .34),
 ] as const;
 const cookingPan = new THREE.Vector3().copy(KITCHEN_WORK.stove.target);
 // Reuse the existing light articulated rig instead of loading extra animations.
@@ -763,10 +764,12 @@ export class World {
     }
   }
 
-  private placedDeskKeys(id:number|undefined):readonly [THREE.Vector3,THREE.Vector3]|undefined{
+  private placedDeskKeys(id:number|undefined):readonly [THREE.Vector3,THREE.Vector3,THREE.Vector3?]|undefined{
     if(id===undefined)return undefined;const model=this.furnishingModels.get(id);if(!model)return undefined;
     const layout=workstationLayout(String(model.userData.sku));
-    return [model.localToWorld(new THREE.Vector3(.14,(layout?.top??.75)+.05,(layout?.z??0)+.29)),model.localToWorld(new THREE.Vector3(-.14,(layout?.top??.75)+.05,(layout?.z??0)+.29))];
+    if(!layout)return [model.localToWorld(new THREE.Vector3(.14,.80,.29)),model.localToWorld(new THREE.Vector3(-.14,.80,.29))];
+    const input=(x:number,y:number,z:number)=>model.localToWorld(new THREE.Vector3(x*layout.scale,layout.top+y*layout.scale,layout.z+z*layout.scale));
+    return [input(.17,.063,.388),input(-.17,.063,.388),input(-.47,.047,.34)];
   }
   private laptopPose(role: CharacterId): void {
     const site = stationById('home', HOME_LAPTOP)!;
@@ -2864,7 +2867,11 @@ export class World {
     const now = performance.now();
     // Keep paths in real time in a slow frame. A short cap still prevents a
     // jump when returning from a suspended tab.
-    const {dt, qualitySample} = frameTiming(now - this.lastFrame, this.paused, document.hidden);
+    const elapsedMs=now-this.lastFrame;
+    const {dt, qualitySample} = frameTiming(elapsedMs, this.paused, document.hidden);
+    // Keep timed coffee choreography in step with the server even when a
+    // mobile GPU drops frames. Paused/hidden/interrupted frames still freeze.
+    const coffeeDt=dt>0?Math.min(elapsedMs/1000,1):0;
     this.lastFrame = now;
     if (document.hidden) return;
     this.visualSeconds += dt;
@@ -2959,7 +2966,7 @@ export class World {
           actor.updateWaterAnchor(anchor,yaw);
         }
       }
-      actor.update(dt, this.steering[id]);
+      actor.update(dt,this.steering[id],this.homeTasks.get(id)?.station==='workCoffee'?coffeeDt:dt);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
       const elapsed = actor.eatingElapsed();
@@ -3018,7 +3025,7 @@ export class World {
       this.entryLeaf.position.x = THREE.MathUtils.damp(this.entryLeaf.position.x, x - (open ? width + .07 : 0), 14, dt);
     }
     for (const [role, prep] of this.preparations) {
-      prep.remaining -= dt;
+      prep.remaining -= this.homeTasks.get(role)?.station==='workCoffee'?coffeeDt:dt;
       if (prep.remaining <= 0) { this.preparations.delete(role); prep.next(); }
     }
     if (this.cart?.visible) this.followBag(this.cart, this.actors[this.localRole]);

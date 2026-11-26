@@ -34,15 +34,22 @@ try{
  await take('ready');peer.send(JSON.stringify({type:'job_start',job:'vibeSite',device:'desktop'}));
  const work=await take('snapshot',p=>p.state.activeShifts.vlad?.job==='vibeSite'&&p.state.characters.vlad.pose==='work');
  const shift=work.state.activeShifts.vlad;
- await page.locator('#camera-follow').tap();await send({type:'autonomy_mode',mode:'full'});
+ // Start with a close-up before the timed sequence; no camera menu latency
+ // while the server is completing the delivery.
+ await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase=alina]').tap();
+ await page.waitForTimeout(1500);await send({type:'autonomy_mode',mode:'full'});
  const task=await take('task_started',p=>p.role==='alina'&&p.command?.type==='serve_work_coffee');
  assert.equal(task.home.station,'workCoffee');
  await waitVisual(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.activity==='coffee');
  await shot('01-brew');
  await waitVisual(()=>{const a=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina;return a.coffee.visible&&!a.coffee.offering;});
+ const carryQA=await page.locator('#game-canvas').evaluate(el=>JSON.parse(el.dataset.yardQA).actors.alina.coffee);
+ assert.ok(carryQA.handleError!==null&&carryQA.handleError<.005,'cup handle detached from palm');
  await shot('02-carry');
- await waitVisual(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA);return d.actors.alina.coffee.visible&&d.actors.alina.coffee.offering&&d.actors.vlad.pose==='work';});
- await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase=alina]').tap();await page.waitForTimeout(500);
+ await waitVisual(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA);return d.actors.alina.coffee.visible&&d.actors.alina.coffee.settled&&d.actors.vlad.pose==='work';});
+ const deliveryQA=await page.locator('#game-canvas').evaluate(el=>JSON.parse(el.dataset.yardQA).actors.alina.coffee);
+ console.log('COFFEE_CONTACT',carryQA,deliveryQA);
+ assert.ok(deliveryQA.handleError!==null&&deliveryQA.handleError<.005,'delivery grip detached');
  await shot('03-delivery');
  const delivered=await take('snapshot',p=>p.state.activeShifts.vlad?.coffeeServed===true);
  assert.equal(delivered.state.pantry.coffeeNescafeGold,1);assert.equal(delivered.state.money,100000);
