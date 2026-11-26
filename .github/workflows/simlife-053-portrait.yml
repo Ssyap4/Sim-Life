@@ -21,10 +21,20 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Cache cloud Blender
+        uses: actions/cache@v4
+        with:
+          path: /tmp/blender-4.3.2-linux-x64
+          key: simlife-blender-4.3.2-linux-x64-v1
       - name: Install cloud Blender
         run: |
-          curl -fsSL --retry 3 https://download.blender.org/release/Blender4.3/blender-4.3.2-linux-x64.tar.xz -o /tmp/blender.tar.xz
-          tar -xJf /tmp/blender.tar.xz -C /tmp
+          if [ ! -x /tmp/blender-4.3.2-linux-x64/blender ]; then
+            file=blender-4.3.2-linux-x64.tar.xz
+            curl -fsSL --retry 2 "https://download.blender.org/release/Blender4.3/$file" -o /tmp/blender.tar.xz ||
+              curl -fsSL --retry 2 "https://ftp.halifax.rwth-aachen.de/blender/release/Blender4.3/$file" -o /tmp/blender.tar.xz
+            tar -xJf /tmp/blender.tar.xz -C /tmp
+          fi
+          /tmp/blender-4.3.2-linux-x64/blender --version | head -n 1
       - name: Export reference-driven models
         run: |
           mkdir -p public/qa-baseline /tmp/portrait-053-assets
