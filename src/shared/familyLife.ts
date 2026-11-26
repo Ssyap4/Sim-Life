@@ -73,7 +73,7 @@ const memories=(s:GameState,action:string,title:string,description:string)=>{
  s.relationship.memories.push({at:gameMinutes(s.clock),action,title,description,group:'fun'});
  s.relationship.memories=s.relationship.memories.slice(-40);
 };
-const celebrationActions=new Set(['giftFlowers','giftSweets','cafeMeal','eat','takeout','film','cuddle','slowDance','yardCoffee','breakfastCare','breakfastBed','picnic','lakeTalk:trip','grill']);
+const celebrationActions=new Set(['holidayWish','giftFlowers','giftSweets','cafeMeal','eat','takeout','film','cuddle','slowDance','yardCoffee','breakfastCare','breakfastBed','picnic','lakeTalk:trip','grill']);
 /** Called only after a real voluntary shared activity completes. */
 export function creditCelebration(s:GameState,action:string):string[]{
  if(!celebrationActions.has(action))return [];

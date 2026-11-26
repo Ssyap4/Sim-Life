@@ -14,6 +14,8 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
    for(const o of occasionsAhead(s)){
     const c=card(OCCASIONS[o.id].title,o.date+'.'+String(o.month).padStart(2,'0')+' · '+(o.inDays===0?o.celebrated?'Уже отметили':'Можно праздновать!':'Через '+o.inDays+' игр. дн.'));
     if(o.id==='easter')c.append(make('small','В этот день на кухне: блинчики с ягодами и сливками, с мёдом и яблоками.'));
+    if(o.id==='vladBirthday'||o.id==='alinaBirthday')c.append(make('small','На кухне: именинный торт. Подарки можно заказать в доставке и вручить дома.'));
+    if(o.inDays===0&&!o.celebrated)c.append(make('small','Вместе → Нежность → Поздравить с праздником.'));
     if(o.id==='christmas')c.append(make('small','В этот день на кухне: рождественские яблоки с мёдом и ягодами.'));
     nodes.push(c);
    }

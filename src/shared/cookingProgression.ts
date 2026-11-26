@@ -18,6 +18,7 @@ export const COOKING_RECIPES: Record<RecipeId, { minLevel: number; baseXP: numbe
   pancakes: { minLevel: 3, baseXP: 48, tier: 'Домашнее' },
   easterBerryPancakes:{minLevel:1,baseXP:52,tier:'Праздничное'},
   easterHoneyPancakes:{minLevel:0,baseXP:52,tier:'Праздничное'},
+  birthdayCake:{minLevel:2,baseXP:54,tier:'Праздничное'},
   christmasApples:{minLevel:1,baseXP:35,tier:'Праздничное'},
   chickenRice: { minLevel: 3, baseXP: 50, tier: 'Домашнее' },
   grillChicken: { minLevel: 3, baseXP: 52, tier: 'Домашнее' },

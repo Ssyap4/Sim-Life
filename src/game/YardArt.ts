@@ -207,10 +207,11 @@ function fence(yard: THREE.Group): void {
   }
 }
 
-function garden(yard: THREE.Group): void {
+function garden(yard: THREE.Group): THREE.Group {
   const { x, z: center } = HOME_YARD.planter;
   shape(yard, [.58, .22, 3.8], [x, .115, center], C.walnut, softCube, false, 'wood');
   shape(yard, [.49,.031,3.69], [x,.219,center], 0x6d503b, softCube);
+  const gardenPlants=new THREE.Group();gardenPlants.name='Ordinary garden plants';yard.add(gardenPlants);
   const plants = new PlantBatch();
   for (const [i, dz] of [-1.58,-.89,-.19,.50,1.24].entries()) {
     growShrub(plants,x,.225,center+dz,.42,.43,.59,i%3,700+i*71);
@@ -218,9 +219,9 @@ function garden(yard: THREE.Group): void {
   }
   // Climbing roses on a timber espalier within the existing planter.
   for(const dz of [-1.66,0,1.66])
-    shape(yard,[.045,1.37,.045],[x-.13,.90,center+dz],C.walnut,cube,false,'wood');
+    shape(gardenPlants,[.045,1.37,.045],[x-.13,.90,center+dz],C.walnut,cube,false,'wood');
   for(const y of [.58,.89,1.20,1.50])
-    shape(yard,[.036,.028,3.46],[x-.13,y,center],C.oak,cube,false,'wood');
+    shape(gardenPlants,[.036,.028,3.46],[x-.13,y,center],C.oak,cube,false,'wood');
   const blush=[0xc84c75,0xf293ab,0xffc4d3];
   for(let cane=0;cane<6;cane++){
     const z=center-1.43+cane*.55;
@@ -233,7 +234,7 @@ function garden(yard: THREE.Group): void {
       if(j>=2){plants.bloom(blush[(cane+j)%3],p,.115,angle,.75);if(j%2===0)plants.bloom(blush[(cane+j+1)%3],[p[0]+.08,p[1]-.06,p[2]+.08],.078,angle+.8,.5);}
     }
   }
-  plants.attach(yard,'Flowers and shrubs in the family garden');
+  plants.attach(gardenPlants,'Flowers and shrubs in the family garden');batchRigidParts(gardenPlants,true);
   // The mailbox and its light are fixed to the gate post, outside the
   // furniture placement surface and the open central lane.
   const { gate }=HOME_YARD;
@@ -241,6 +242,7 @@ function garden(yard: THREE.Group): void {
   shape(yard,[.32,.24,.25],[post,.72,gate.z+.10],0x52766a,softCube,false,'metal');
   shape(yard,[.21,.023,.034],[post,.75,gate.z+.235],0xd6be95,cube,false,'metal');
   shape(yard,[.12,.057,.17],[post,.87,gate.z+.10],0xe4c9a0,softCube);
+  return gardenPlants;
 }
 
 function eveningGarden(parent:THREE.Group){
@@ -297,7 +299,7 @@ export function buildYard(scene: THREE.Scene) {
   const shrubs=new PlantBatch();
   for(const [x,z,i] of [[-5.65,7.85,0],[-5.82,5.58,1]]){growShrub(shrubs,x,0,z,.42,.34,.38,i,622+i);growFlowers(shrubs,x,0,z,.38,.36,i,5,999+i);}
   shrubs.attach(yard,'Barbecue garden accents');
-  garden(yard);
+  const gardenPlants=garden(yard);
   fence(yard);
   batchRigidParts(yard, true);
   const night=eveningGarden(yard);
@@ -312,5 +314,5 @@ export function buildYard(scene: THREE.Scene) {
     scene.add(effect);
   }
   scene.add(furniture.platter,furniture.hookah);
-  return {...furniture,night,landscape};
+  return {...furniture,night,landscape,gardenPlants};
 }

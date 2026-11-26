@@ -12,6 +12,7 @@ import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type
 import { MATERIALS } from './educationCatalog';
 import { skillRank } from './education';
 import { recipeAvailability,holidayRecipeOpen } from './recipeAvailability';
+import {occasionsAhead} from './familyLife';
 import { PETS, PET_IDS } from './pets';
 import { gameMinutes } from './life';
 import { serviceAvailable } from './services';
@@ -63,7 +64,7 @@ import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
 import {VENUE_GAMES,isVenueGame,venueDenial} from './venue';
 export type PairMotion = 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'yardHookah'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
-type Context = 'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
+type Context = 'holiday'|'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'venue' | 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
   'petPlay'|'petFeed'|'petPet'|'petBrush'|'walk'|'parkRest'|'parkBadminton'|'parkSwing'|'parkTalk'|'lakeTalk'|'leisure'|'picnic'|'cafeMeal'|'cafeTalk'|'sofa'|'table'|'bedRest'|'teaTogether'|'yardTea'|'yardRest'|'yardCoffee'|'yardHookah'|'breakfastCare'|'breakfastBed';
 export type SocialActivity = {
@@ -75,6 +76,7 @@ import {FAMILY_GIFTS,familyGift,isGift,giftCount} from './gifts';
 export {familyGift} from './gifts';
 const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:id==='giftSweets'?'Подарить коробку сладостей':'Подарить '+g.label.toLowerCase(),group:'romance',lines:['Хочу порадовать тебя: '+g.label+'. Подарок уже куплен и получен.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
 const objects: readonly SocialActivity[] = [
+  {id:'holidayWish',title:'Поздравить с праздником',group:'romance',lines:['С праздником! Хочу, чтобы этот день запомнился нам обоим.','Давай пожелаем друг другу чего-нибудь хорошего.'],replies:['И тебя с праздником! Пусть будет ещё много таких дней.','Спасибо! Очень люблю такие моменты вдвоём.'],motion:'closeHug',seconds:14,context:'holiday'}, 
   {id:'sofaMassage',title:'Сделать массаж плеч',group:'care',lines:['Давай посидим рядом, я немного разомну тебе плечи.'],replies:['Да, хочется расслабиться.','Спасибо, мне это сейчас нужно.'],motion:'sofaMassage',seconds:40,object:'sofa',memorable:true},
   {id:'breakfastBed',title:'Принести завтрак в постель',group:'care',lines:['Оставайся в кровати, я приготовлю и принесу тебе завтрак.'],replies:['Как приятно, спасибо!','С удовольствием!'],motion:'breakfastReceive',seconds:32,object:'breakfastBed',resource:'kitchen',memorable:true},
   {id:'breakfastCare',title:'Приготовить завтрак для любимого человека',group:'care',lines:['Хочешь, приготовлю тебе свежий завтрак? Посиди за столом, я всё сделаю.'],replies:['Да, спасибо!','С удовольствием, очень приятно.'],motion:'cook',seconds:25,object:'breakfastCare',resource:'kitchen',memorable:true},
@@ -232,6 +234,7 @@ function latestLesson(state:GameState,role:CharacterId){
 export function contextAvailable(a:SocialActivity,state:GameState,from:CharacterId):boolean {
   const partner=otherPerson(from);
   switch(a.context){
+    case 'holiday':return state.world.places[from]==='home'&&state.world.places[partner]==='home'&&occasionsAhead(state,0).some(o=>!o.celebrated);
     case 'vanity':return careTopicAvailable(state,from,a.id);
     case 'returnGreeting':return state.world.places[from]==='home'&&state.world.places[partner]==='home'&&!!recentCareer(state,partner,['Смена завершена','Досрочный уход'],150)&&!state.relationship.recent.some(e=>e.action===a.id&&gameMinutes(state.clock)-e.at<150);
     case 'morningGreeting':return state.clock.minute>=360&&state.clock.minute<660&&!state.relationship.recent.some(e=>e.action===a.id&&Math.floor(e.at/1440)===Math.floor(gameMinutes(state.clock)/1440));
@@ -257,6 +260,16 @@ export function contextAvailable(a:SocialActivity,state:GameState,from:Character
 }
 export function socialText(a:SocialActivity,state:GameState,from:CharacterId){
   const partner=otherPerson(from);
+  if(a.id==='holidayWish'){
+    const today=occasionsAhead(state,0).filter(o=>!o.celebrated);
+    if(today.some(o=>o.id===(partner==='vlad'?'vladBirthday':'alinaBirthday')))return 'С днём рождения, '+(partner==='vlad'?'Влад':'Алина')+'! Желаю тебе счастья, здоровья и побольше уютных дней вместе.';
+    if(today.some(o=>o.id==='newYear'))return 'С Новым годом! Давай загадаем желания на следующий год и вспомним, что хорошего было у нас.';
+    if(today.some(o=>o.id==='christmas'))return 'С Рождеством! Пусть дома всегда будет тепло и уютно.';
+    if(today.some(o=>o.id==='easter'))return 'С Пасхой! Давай проведём этот весенний день вместе.';
+    if(today.some(o=>o.id==='anniversary'))return 'С нашей годовщиной! Хочу, чтобы впереди у нас было много счастливых дней.';
+    if(today.some(o=>o.id==='valentines'))return 'С Днём влюблённых! Очень радостно, что мы вместе.';
+    if(today.some(o=>o.id==='spring'))return 'С 8 Марта! Пусть весна принесёт нам побольше радостных моментов.';
+  }
   if(a.id==='eveningPlan'&&state.characters[partner].mood<45)
     return 'Кажется, '+(partner==='alina'?'Алина':'Влад')+' сегодня не в духе. Может, посидим вместе за ужином и поддержим друг друга?';
   if(a.id==='eveningPlan'&&state.characters[partner].energy<40)
@@ -332,6 +345,7 @@ export function socialRestriction(a:SocialActivity,state:GameState,from:Characte
   if (!individual&&place!==state.world.places[to]) return 'Сначала встретьтесь в одной локации';
   if ((individual?[from]:[from,to]).some(role=>state.activeShifts[role]||state.careers.residents[role].shift||state.characters[role].pose==='sleep'))
     return 'Оба игрока должны быть свободны от работы и сна';
+  if(a.id==='holidayWish'&&individual)return 'Нужно согласие второго игрока';
   if (!contextAvailable(a,state,from)) return 'Этот разговор пока не подходит к ситуации';
   if(a.id==='sofaMassage'){const last=state.relationship.lastMassageAt?.[to];if(individual||last!==undefined&&gameMinutes(state.clock)-last<240)return 'Партнёру пока достаточно массажа';}
   const gift=familyGift(a.id);

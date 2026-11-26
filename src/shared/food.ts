@@ -87,6 +87,7 @@ export const RECIPES = {
   pancakes: { name:'Блинчики',emoji:'🥞', ingredients:{ flour:2,milk:1,eggs:2,butter:1 }, servings:3,hunger:65,mood:8 },
   easterBerryPancakes:{name:'Пасхальные блинчики с ягодами и сливками',emoji:'🥞',ingredients:{flour:2,milk:1,eggs:2,butter:1,berries:2,cream:1},servings:3,hunger:80,mood:18},
   easterHoneyPancakes:{name:'Пасхальные блинчики с мёдом и яблоками',emoji:'🥞',ingredients:{flour:2,milk:1,eggs:2,butter:1,honey:1,apple:2},servings:3,hunger:80,mood:18},
+  birthdayCake:{name:'Именинный торт со сливками и ягодами',emoji:'🎂',ingredients:{flour:2,eggs:3,sugar:2,butter:1,cream:2,berries:2},servings:4,hunger:80,mood:20},
   christmasApples:{name:'Рождественские яблоки с мёдом и ягодами',emoji:'🍎',ingredients:{apple:3,honey:1,berries:1,butter:1},servings:3,hunger:65,mood:16},
   buckwheatChicken: { name:'Гречка с курицей',emoji:'🍛', ingredients:{ buckwheat:2,chicken:2,onion:1 }, servings:2,hunger:70,mood:7 },
   beefStew: { name:'Тушёная говядина',emoji:'🥘', ingredients:{ beef:2,potato:3,onion:1,carrot:1 }, servings:3,hunger:70,mood:10 },

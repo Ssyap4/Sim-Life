@@ -3,7 +3,7 @@ import type { RecipeId, TakeoutId } from '../shared/food';
 export type KitchenMove = 'chop' | 'whisk' | 'knead' | 'stir' | 'flip' | 'plate';
 export type GrillMove = 'turn' | 'flip' | 'toss' | 'assemble' | 'plate';
 
-const WHISK = new Set<RecipeId>(['omelette', 'pancakes','easterBerryPancakes','easterHoneyPancakes', 'porridge', 'cremeBrulee', 'pannaCotta', 'chocolateFondant']);
+const WHISK = new Set<RecipeId>(['omelette', 'pancakes','easterBerryPancakes','easterHoneyPancakes','birthdayCake', 'porridge', 'cremeBrulee', 'pannaCotta', 'chocolateFondant']);
 const KNEAD = new Set<RecipeId>(['homemadePizza', 'sandwich', 'toast', 'lasagna', 'beefWellington']);
 const FLIP = new Set<RecipeId>(['omelette', 'pancakes','easterBerryPancakes','easterHoneyPancakes', 'friedPotatoes', 'toast']);
 

@@ -92,6 +92,7 @@ import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkpla
 import { buildCottageLights } from './CottageLights';
 import { polishFurniture } from './FurnitureSurfaceArt';
 import { buildYard, grilledFood, selectGrilledFood } from './YardArt';
+import {buildHolidayTree,buildHolidayGarlands} from './HolidayArt';
 import { clockAt, dayPhase, gameMinutes, GAME_MINUTES_PER_REAL_SECOND } from '../shared/life';
 import { RESIDENT_CLEARANCE, unoccupiedDestination } from './residentCollision';
 import { residentTraffic, resetResidentTraffic, smoothResidentTrafficStep, type TrafficBody } from './ResidentFlow';
@@ -245,6 +246,9 @@ export class World {
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
   private yard!: ReturnType<typeof buildYard>;
+  private readonly festiveTree=buildHolidayTree();
+  private readonly festiveGarlands=buildHolidayGarlands();
+  private festiveKey='';
   private grillCooking = false;
   private readonly otherBody = new THREE.Vector3();
   private readonly feederVisual:Partial<Record<PetId,{reserve:number;servings:number;id?:number;started?:number}>>={};
@@ -1781,7 +1785,10 @@ export class World {
   }
 
   setTimeOfDay(minute: number): void {
-    const current=weatherAt(clockAt(Math.max(0,minute)));
+    const clock=clockAt(Math.max(0,minute));
+    const current=weatherAt(clock);
+    const festiveKey=clock.day+':'+JSON.stringify(this.household?.familyLife?.dates??{});
+    if(this.yard&&festiveKey!==this.festiveKey){this.festiveKey=festiveKey;const theme=this.festiveGarlands.update(clock.day,this.household??undefined);this.festiveTree.visible=theme==='winter';this.yard.gardenPlants.visible=theme!=='winter';}
     this.weather.setWeather(current.kind,this.scene,this.place);
     applySeason(current);
     const hour = THREE.MathUtils.euclideanModulo(minute,1440);
@@ -1887,6 +1894,7 @@ export class World {
     this.cottageLamps=buildCottageLights(this.scene);
     buildHomeWing(this.scene);
     this.yard = buildYard(this.scene);
+    this.homeScene.add(this.festiveTree,this.festiveGarlands.root);
     this.familyCar=buildFamilyCar();
     this.scene.add(this.familyCar);
     this.trackStation(this.stationMeshes,'family-car',this.familyCar);
@@ -3277,6 +3285,11 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('holidayQA')==='1'){
+      const v=this.canvas.dataset.holidayView;
+      if(v==='tree'){this.controls.target.set(-4.9,1.15,8.05);this.camera.position.set(.9,5.7,13.3);this.camera.lookAt(this.controls.target);}
+      this.canvas.dataset.holidayTree=String(this.festiveTree.visible);
+    }
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
       const v=this.canvas.dataset.lakeView;
       const view=v==='rental'?{target:[-10,1.2,9],eye:[-8.8,3.1,13.4]}:v==='swim'?{target:[7.8,.10,10],eye:[2.4,5.1,13.3]}:v==='dog'?{target:[-2.7,.45,8.6],eye:[-6.2,5.4,14.4]}:v==='sleep'?{target:[-4,.30,-7.7],eye:[-1.1,9.7,-2.1]}:v==='fishing'?{target:[4.45,.65,-6],eye:[.35,2.4,-2.85]}:v==='catch'?{target:[3.35,1.05,-6],eye:[5.55,1.9,-3.15]}:v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.72,-4],eye:[-4.2,3.8,2.6]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;

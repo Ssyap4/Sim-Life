@@ -346,6 +346,10 @@ function makeDish(id: ServedDish | 'default'): THREE.Group {
   } else if (id==='pancakes'||id==='easterBerryPancakes'||id==='easterHoneyPancakes') {
     for(let i=0;i<4;i++)bit(g,palette.bread,0,.018+i*.013,0,.115,.013,.105,drum);
     bit(g,id==='easterBerryPancakes'?palette.berry:id==='easterHoneyPancakes'?palette.caramel:palette.sauce,.020,.077,-.010,.043,.010,.038,orb);
+  } else if(id==='birthdayCake'){
+    for(let i=0;i<3;i++){bit(g,palette.pastry,0,.025+i*.028,0,.11,.025,.11,drum);bit(g,palette.cream,0,.043+i*.028,0,.113,.012,.113,drum);}
+    for(let i=0;i<7;i++){const a=i*2*Math.PI/7;bit(g,palette.berry,Math.cos(a)*.075,.114,Math.sin(a)*.075,.025,.022,.025);}
+    bit(g,palette.cream,0,.116,0,.027,.02,.027);
   } else if(id==='christmasApples'){
     for(let i=0;i<3;i++){const a=i*2.094;bit(g,palette.apple,Math.cos(a)*.075,.046,Math.sin(a)*.075,.052,.055,.052);bit(g,palette.caramel,Math.cos(a)*.075,.098,Math.sin(a)*.075,.025,.01,.025);}
     for(let i=0;i<5;i++){const a=i*2.4;bit(g,palette.berry,Math.cos(a)*.11,.025,Math.sin(a)*.11,.012,.014,.012);}
