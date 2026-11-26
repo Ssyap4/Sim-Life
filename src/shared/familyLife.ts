@@ -1,6 +1,7 @@
 import type {CharacterId,GameState,TimedCommand} from './protocol';
 import {gameDate,gameMinutes,calendarSlot,GAME_DAYS_PER_YEAR} from './life';
 import {addLedger} from './economy';
+import {weatherAt} from './weather';
 import {giftCount,pendingGifts,GIFT_LIMIT} from './gifts';
 
 export const OCCASIONS={
@@ -31,16 +32,26 @@ type HobbyProgress={sessions:number;unique:string[];lastDay:number};
 export const LIFE_EVENTS={
  refund:{title:'Возврат переплаты',description:'Магазин обнаружил небольшую переплату по старому чеку. Можно получить возврат или отказаться.',accept:'Получить 350 ₽',decline:'Отказаться'},
  flowers:{title:'Цветочный сюрприз',description:'В магазине осталось несколько свежих букетов по сниженной цене. Можно взять букет для дома за 250 ₽.',accept:'Взять букет · 250 ₽',decline:'Пропустить'},
- invitation:{title:'Свободный вечер',description:'Сегодня хочется устроить небольшой семейный вечер без обязательств. Можно записать идею в календарь и выбрать совместное занятие.',accept:'Запомнить идею',decline:'Не сегодня'},
+ invitation:{title:'Свободный вечер',description:'Давно не было спокойного вечера вдвоём. Выберите совместный фильм, разговор на диване или объятия.',accept:'Устроить вечер',decline:'Не сегодня'},
+ rainyEvening:{title:'Непогода за окном',description:'На улице непогода. Самое время устроить домашний вечер вдвоём: фильм, разговор на диване или объятия.',accept:'Устроить уютный вечер',decline:'Другие планы'},
+ dogAttention:{title:'Верделл соскучился',description:'Верделлу не хватает внимания. Поиграйте с ним или погладьте его дома.',accept:'Провести время с Верделлом',decline:'Не сейчас'},
+ catAttention:{title:'Симба ищет компанию',description:'Симбе не хватает внимания. Поиграйте с ним или погладьте его дома.',accept:'Провести время с Симбой',decline:'Не сейчас'},
+ budgetDinner:{title:'Домашний ужин вместо доставки',description:'Семейный бюджет требует внимания. Приготовьте любое домашнее блюдо из продуктов, которые уже есть или будут куплены.',accept:'Приготовить дома',decline:'Пропустить'},
+ workBonus:{title:'Благодарность за работу',description:'После недавней оплаченной смены или заказа поступила небольшая дополнительная премия.',accept:'Получить премию · 450 ₽',decline:'Отказаться'},
+ creativeDay:{title:'Творческое вдохновение',description:'Сегодня хочется закончить ещё одну картину или миниатюру. Выполните занятие на мольберте или столе для моделирования.',accept:'Заняться творчеством',decline:'В другой раз'},
  parcel:{title:'Приятная находка',description:'В кармане старой куртки нашлись 200 ₽. Можно положить их в общий бюджет или оставить на мелкие расходы вне игры.',accept:'Добавить 200 ₽',decline:'Оставить'},
 } as const;
 export type LifeEvent=keyof typeof LIFE_EVENTS;
-type EventOffer={id:LifeEvent;day:number;status:'open'|'accepted'|'declined'};
+type EventOffer={id:LifeEvent;day:number;status:'open'|'accepted'|'declined'|'completed'};
+const goalEvents=new Set<LifeEvent>(['invitation','rainyEvening','dogAttention','catAttention','budgetDinner','creativeDay']);
+export const isGoalEvent=(id:LifeEvent)=>goalEvents.has(id);
+export function eventStatus(e:EventOffer,day:number){return e.day<day&&(e.status==='open'||e.status==='accepted'&&isGoalEvent(e.id))?'Истекло':e.status==='open'?'Новое':e.status==='completed'?'Выполнено':e.status==='declined'?'Пропущено':isGoalEvent(e.id)?'В процессе':'Принято';}
 export interface FamilyLifeState{
  dates:Partial<Record<PersonalOccasion,{month:number;day:number}>>;
  celebrated:Partial<Record<Occasion,number>>;
  hobbies:Record<CharacterId,Partial<Record<Hobby,HobbyProgress>>>;
  event?:EventOffer;
+ eventHistory?:EventOffer[];
 }
 const defaultDates=()=>({vladBirthday:{month:1,day:25},alinaBirthday:{month:2,day:4}});
 export const initialFamilyLife=():FamilyLifeState=>({dates:defaultDates(),celebrated:{},hobbies:{vlad:{},alina:{}}});
@@ -57,7 +68,8 @@ export function validFamilyLife(v:unknown):v is FamilyLifeState{
  if(!Object.entries(v.dates).every(([k,d])=>PERSONAL_OCCASIONS.includes(k as PersonalOccasion)&&object(d)&&validPersonalDate(d.month,d.day)))return false;
  if(!Object.entries(v.celebrated).every(([k,d])=>member(k,OCCASIONS)&&int(d,1,10000000)))return false;
  if(Object.keys(v.hobbies).length!==2||!['vlad','alina'].every(role=>{const h=v.hobbies as Record<string,unknown>;return object(h[role])&&Object.entries(h[role]).every(([k,p])=>member(k,HOBBIES)&&object(p)&&int(p.sessions,1,1000000)&&int(p.lastDay,1,10000000)&&Array.isArray(p.unique)&&p.unique.length<=40&&p.unique.every(x=>typeof x==='string'&&x.length<=80)&&new Set(p.unique).size===p.unique.length);}))return false;
- return v.event===undefined||object(v.event)&&member(v.event.id,LIFE_EVENTS)&&int(v.event.day,1,10000000)&&['open','accepted','declined'].includes(String(v.event.status));
+ const validEvent=(e:unknown)=>object(e)&&member(e.id,LIFE_EVENTS)&&int(e.day,1,10000000)&&['open','accepted','declined','completed'].includes(String(e.status));
+ return (v.event===undefined||validEvent(v.event))&&(v.eventHistory===undefined||Array.isArray(v.eventHistory)&&v.eventHistory.length<=12&&v.eventHistory.every(validEvent));
 }
 export function occasionsAhead(s:GameState,horizon=GAME_DAYS_PER_YEAR-1){
  const out:{id:Occasion;day:number;month:number;date:number;slot:number;inDays:number;celebrated:boolean}[]=[];
@@ -121,17 +133,51 @@ export function creditHobby(s:GameState,role:CharacterId,command:TimedCommand):s
  if(level>=0){s.characters[role].mood=Math.min(100,s.characters[role].mood+8);return result+' · Хобби: '+HOBBIES[h.id].milestones[level];}
  return result;
 }
-export function offerLifeEvent(s:GameState,previousMinute:number,eligible:readonly CharacterId[]):boolean{
+export function contextualEvents(s:GameState,eligible:readonly CharacterId[]):LifeEvent[]{
+ const now=gameMinutes(s.clock),w=weatherAt(s.clock),out:LifeEvent[]=[];
+ const atHome=eligible.some(r=>s.world.places[r]==='home');
+ const together=eligible.length===2&&eligible.every(r=>s.world.places[r]==='home');
+ if(together&&['rain','storm','snow'].includes(w.kind))out.push('rainyEvening');
+ if(together&&now-(s.relationship.lastTogether??0)>1440)out.push('invitation');
+ if(atHome&&s.pets.verdell.happiness<60&&!s.world.dogWalker)out.push('dogAttention');
+ if(atHome&&s.pets.simba.happiness<60)out.push('catAttention');
+ if(atHome&&(s.money<5000||s.savings.spent.takeout>=s.savings.limits.takeout&&s.savings.limits.takeout>0))out.push('budgetDinner');
+ if(s.ledger.some(e=>e.kind==='income'&&e.category==='work'&&e.amount>=2000&&e.day>=s.clock.day-2&&e.day<=s.clock.day&&e.actor!=='family'&&eligible.includes(e.actor)&&e.label!==LIFE_EVENTS.workBonus.title))out.push('workBonus');
+ if(atHome&&s.furnishing.placed.some(p=>p.sku==='hobby-easel'||p.sku==='hobby-workbench'))out.push('creativeDay');
+ return out;
+}
+export function offerLifeEvent(s:GameState,previousMinute:number,eligible:readonly CharacterId[],random=Math.random):boolean{
  if(!eligible.length||s.clock.day<3)return false;
  const day=s.clock.day,at=(day-1)*1440+600,now=gameMinutes(s.clock);
  // One shared opportunity every 3 or 4 days, never retroactive after reconnect.
  if(day%7!==3&&day%7!==6||previousMinute>=at||now<at||now-at>30||s.familyLife?.event?.day===day)return false;
- const ids=Object.keys(LIFE_EVENTS) as LifeEvent[];
- const index=(Math.floor(day/7)*2+(day%7===6?1:0))%ids.length;
- mutable(s).event={id:ids[index],day,status:'open'};
+ const f=mutable(s),recent=[...(f.eventHistory??[]),...(f.event?[f.event]:[])];
+ const allowed=(id:LifeEvent)=>!recent.some(e=>e.id===id&&day-e.day< (id==='workBonus'?10:7));
+ const context=contextualEvents(s,eligible).filter(allowed);
+ const fallback:LifeEvent[]=['parcel'];
+ if(s.money>=250&&giftCount(s,'giftFlowers')+pendingGifts(s,'giftFlowers')<GIFT_LIMIT)fallback.push('flowers');
+ if(s.ledger.some(e=>e.kind==='expense'&&e.category==='groceries'&&e.day>=day-2&&e.day<=day&&e.amount>=350))fallback.push('refund');
+ const candidates=context.length?context:fallback.filter(allowed);
+ if(!candidates.length)return false;
+ const index=Math.max(0,Math.min(candidates.length-1,Math.floor(random()*candidates.length)));
+ if(f.event)f.eventHistory=recent.slice(-12);
+ f.event={id:candidates[index],day,status:'open'};
  return true;
 }
 export function currentLifeEvent(s:GameState){const e=s.familyLife?.event;return e&&e.day===s.clock.day?e:undefined;}
+/** Real voluntary completions only. Acceptance alone never grants goal rewards. */
+export function creditLifeEvent(s:GameState,role:CharacterId,command:TimedCommand,shared=false):string{
+ const e=currentLifeEvent(s);if(!e||e.status!=='accepted'||!isGoalEvent(e.id))return '';
+ const joint=shared&&command.type==='together'&&['film','sofaTalk','cuddle','sofaHug','musicTogether','slowDance'].includes(command.action)&&s.world.places.vlad==='home'&&s.world.places.alina==='home';
+ const pet=command.type==='pet_action'&&['play','pet','brush'].includes(command.action);
+ const done=e.id==='invitation'||e.id==='rainyEvening'?joint:e.id==='dogAttention'?pet&&command.pet==='verdell':e.id==='catAttention'?pet&&command.pet==='simba':e.id==='budgetDinner'?command.type==='cook':e.id==='creativeDay'?command.type==='furniture_use'&&Object.hasOwn(HOBBY_RESULTS,command.action):false;
+ if(!done)return '';
+ e.status='completed';
+ const people=joint?(['vlad','alina'] as const):[role];
+ for(const r of people)s.characters[r].mood=Math.min(100,s.characters[r].mood+8);
+ if(joint)memories(s,'lifeEvent:'+e.id,LIFE_EVENTS[e.id].title,'Устроили уютный вечер вдвоём.');
+ return ' · Событие выполнено: '+LIFE_EVENTS[e.id].title;
+}
 export type FamilyLifeCommand={type:'family_date';id:PersonalOccasion;month:number;day:number}|{type:'family_event';day:number;id:LifeEvent;accept:boolean};
 type Result={ok:true;state:GameState;message:string}|{ok:false;reason:string};
 export function applyFamilyLife(source:GameState,role:CharacterId,cmd:Record<string,unknown>):Result{
@@ -153,6 +199,8 @@ export function applyFamilyLife(source:GameState,role:CharacterId,cmd:Record<str
   s.money-=250;addLedger(s,role,'expense','gifts',250,'Букет по акции');s.gifts??={};s.gifts.giftFlowers=(s.gifts.giftFlowers??0)+1;
  }else if(e.id==='refund'||e.id==='parcel'){
   const n=e.id==='refund'?350:200;s.money+=n;addLedger(s,'family','income','services',n,LIFE_EVENTS[e.id].title);
- }else memories(s,'lifeEvent:invitation','Идея для вечера','Решили выделить время друг для друга.');
- e.status='accepted';return ok(LIFE_EVENTS[e.id].title+' · принято');
+ }else if(e.id==='workBonus'){
+  s.money+=450;addLedger(s,'family','income','work',450,LIFE_EVENTS.workBonus.title);
+ }
+ e.status='accepted';return ok(LIFE_EVENTS[e.id].title+(isGoalEvent(e.id)?' · осталось выполнить занятие':' · принято'));
 }

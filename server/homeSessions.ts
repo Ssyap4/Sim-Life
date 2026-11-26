@@ -27,7 +27,7 @@ import { otherRole } from './social';
 import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
 import {creditWeekendTogether,creditWeekend} from '../src/shared/weekends';
-import {creditHobby,creditCelebration} from '../src/shared/familyLife';
+import {creditHobby,creditCelebration,creditLifeEvent} from '../src/shared/familyLife';
 import {recordCompletedActivity} from '../src/shared/emotions';
 import { wishAtStart, fulfillWish } from './happiness';
 import type { Wish } from '../src/shared/wishes';
@@ -372,7 +372,7 @@ export function createHomeSessions(hooks: Hooks) {
           next.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
-      if(!session.study&&!packet.automatic)result.message+=creditHobby(result.state,role,session.plan.command);
+      if(!session.study&&!packet.automatic){result.message+=creditHobby(result.state,role,session.plan.command);result.message+=creditLifeEvent(result.state,role,session.plan.command);}
       recordCompletedActivity(result.state,role,session.plan.command);
       recordDailyCompletion(result.state,role,session.plan.command);
       result.message+=fulfillWish(result.state,role,wish,next);
@@ -413,6 +413,7 @@ export function createHomeSessions(hooks: Hooks) {
       creditWeekendTogether(result.state,command.action,command.item);
       const celebrated=creditCelebration(result.state,command.action);if(celebrated.length)result.message+=' · 🎉 '+celebrated.join(', ');
       for(const role of roles)result.message+=creditHobby(result.state,role,command);
+      if(roles.length===2)result.message+=creditLifeEvent(result.state,from,command,true);
     }
     for(const {role,wish} of session.participants){recordCompletedActivity(result.state,role,command);result.message+=fulfillWish(result.state,role,wish,before);}
     try{hooks.save(result.state);}

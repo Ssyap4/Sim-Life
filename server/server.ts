@@ -21,7 +21,7 @@ import type { CatPerch } from '../src/shared/CatPerches';
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
 import {applyWeekend} from '../src/shared/weekends';
-import {applyFamilyLife,offerLifeEvent,creditHobby,occasionsAhead,OCCASIONS} from '../src/shared/familyLife';
+import {applyFamilyLife,offerLifeEvent,creditHobby,creditLifeEvent,occasionsAhead,OCCASIONS,LIFE_EVENTS} from '../src/shared/familyLife';
 import { applyBudgetCommand } from './familyBudget';
 import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
@@ -436,7 +436,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
-    if(newFamilyEvent)all({type:'billing_event',messages:['✨ Новое событие · Телефон → События']});
+    if(newFamilyEvent&&state.familyLife?.event)all({type:'billing_event',messages:['✨ '+LIFE_EVENTS[state.familyLife.event.id].title+' · Телефон → События']});
     if(newHolidays.length)all({type:'billing_event',messages:newHolidays.map(h=>'🎉 Сегодня: '+OCCASIONS[h.id].title+' · Телефон → Праздники')});
     for(const id of alarms){const speaker=state.furnishing.placed.find(p=>p.id===id);if(!speaker)continue;for(const role of online())if(state.world.places[role]==='home'&&Math.hypot(state.characters[role].x-speaker.x,state.characters[role].z-speaker.z)<=8){stopSleep(role);packet(active.get(role)!,{type:'world_event',role,message:'Будильник: пора вставать!'});}}
     if (spoiled.length) {
@@ -875,7 +875,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
-      if(!automatic)result.message+=creditHobby(result.state,role,plan.command);
+      if(!automatic){result.message+=creditHobby(result.state,role,plan.command);result.message+=creditLifeEvent(result.state,role,plan.command);}
       recordCompletedActivity(result.state,role,plan.command);
       recordDailyCompletion(result.state,role,plan.command);
       result.message+=fulfillWish(result.state,role,wish,state);

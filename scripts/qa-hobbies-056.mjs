@@ -22,11 +22,11 @@ try{
  await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1&hobbyQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
- const canvas=page.locator('canvas[data-yard-qa]');
+ const canvas=page.locator('#game-canvas');
  for(const [id,action,activity] of [[1,'paintLandscape','painting'],[2,'buildCar','modeling']]){
   await canvas.evaluate((c,id)=>c.dataset.hobbyView=String(id),id);
   await page.evaluate(c=>window.__socket.send(JSON.stringify(c)),{type:'furniture_use',furnitureId:id,action});
-  await page.waitForFunction(activity=>JSON.parse(document.querySelector('canvas[data-yard-qa]')?.dataset.yardQA||'{}').actors?.vlad?.activity===activity,activity,{timeout:45000});
+  await page.waitForFunction(activity=>JSON.parse(document.querySelector('#game-canvas')?.dataset.yardQA||'{}').actors?.vlad?.activity===activity,activity,{timeout:45000});
   await page.waitForTimeout(7000);await shot('hobby-'+activity);
   await page.waitForFunction(({action,activity})=>window.__packets.some(p=>p.type==='snapshot'&&p.state.familyLife?.hobbies.vlad[activity]?.unique.includes(action)),{action,activity},{timeout:75000});
   assert.ok(files.load().familyLife.hobbies.vlad[activity].unique.includes(action));

@@ -31,7 +31,8 @@ test('hobby completion counts once daily, tracks variety and milestones',()=>{
 test('single shared event, no stale claim, no double claim and no offline backfill',()=>{
  const s=initialState();s.clock={day:3,minute:600};const at=2*1440+600;
  assert.equal(offerLifeEvent(s,at-1,[]),false);
- assert.equal(offerLifeEvent(s,at-1,['vlad','alina']),true);assert.equal(offerLifeEvent(s,at-1,['vlad']),false);
+ s.ledger.push({id:1,day:2,minute:100,actor:'vlad',kind:'expense',category:'groceries',amount:500,label:'Покупка'});
+ assert.equal(offerLifeEvent(s,at-1,['vlad'],()=>.999),true);assert.equal(offerLifeEvent(s,at-1,['vlad']),false);
  const e=s.familyLife!.event!,cmd={type:'family_event',day:e.day,id:e.id,accept:true};
  const r=applyFamilyLife(s,'alina',cmd);assert.ok(r.ok);assert.equal(r.state.money,s.money+350);
  assert.equal(applyFamilyLife(r.state,'vlad',cmd).ok,false);assert.ok(validFamilyLife(r.state.familyLife));
@@ -41,7 +42,7 @@ test('single shared event, no stale claim, no double claim and no offline backfi
 test('new journal persists and discounted flowers respect existing capacity',()=>{
  const dir=mkdtempSync(join(tmpdir(),'family-life-056-test-'));
  try{
-  const s=initialState();s.clock={day:6,minute:600};offerLifeEvent(s,5*1440+599,['vlad']);assert.equal(s.familyLife?.event?.id,'flowers');
+  const s=initialState();s.clock={day:6,minute:600};s.familyLife!.event={id:'flowers',day:6,status:'open'};assert.equal(s.familyLife?.event?.id,'flowers');
   s.gifts={giftFlowers:10};const command={type:'family_event',day:6,id:'flowers',accept:true};assert.equal(applyFamilyLife(s,'vlad',command).ok,false);
   s.gifts={giftFlowers:1};const r=applyFamilyLife(s,'vlad',command);assert.ok(r.ok);assert.equal(r.state.money,s.money-250);assert.equal(r.state.gifts?.giftFlowers,2);
   creditHobby(r.state,'vlad',{type:'cook',recipe:'omelette'});const files=openServerFiles(dir);files.save(r.state);assert.deepEqual(files.load().familyLife,r.state.familyLife);

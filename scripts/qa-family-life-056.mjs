@@ -10,12 +10,13 @@ import {offerLifeEvent,creditHobby} from '../src/shared/familyLife.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 const dir=mkdtempSync(join(tmpdir(),'family-life-056-')),out='/tmp/simlife-family-life-056';
-mkdirSync(out,{recursive:true});let server,browser,buddy;const winter=process.argv.includes('winter');
+mkdirSync(out,{recursive:true});let server,browser,buddy;const winter=process.argv.includes('winter'),goal=process.argv.includes('goal');
 try{
  const s=initialState();s.clock=winter?{day:30,minute:1130}:{day:3,minute:600};s.money=100000;s.autonomy={vlad:'off',alina:'off'};
- offerLifeEvent(s,3479,['vlad']);creditHobby(s,'vlad',{type:'read_book',book:'master'});
+ if(!winter)s.familyLife.event={id:goal?'budgetDinner':'refund',day:3,status:'open'};
+ if(goal){s.money=1000;s.pantry.eggs=2;s.pantry.milk=1;}creditHobby(s,'vlad',{type:'read_book',book:'master'});
  openServerFiles(dir).save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:goal?.3:1,lifeClock:{now:()=>0,tickMs:600000}});
  const buddyPackets=[];buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');buddy.on('message',x=>{try{buddyPackets.push(JSON.parse(x.toString()));}catch{}});
  await once(buddy,'open');buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -31,6 +32,13 @@ try{
   await page.locator('canvas[data-holiday-tree]').evaluate(c=>c.dataset.holidayView='tree');await page.waitForTimeout(1000);await shot('05-winter-tree');
   await page.locator('#phone-btn').click();await page.locator('[data-phone-app=holidays]').click();await page.getByText('31.12 · Можно праздновать!',{exact:true}).waitFor();await shot('06-new-year');
   assert.deepEqual(errors,[]);console.log('Winter decorations visible in actual home scene');
+ }else if(goal){
+  await page.locator('#phone-btn').click();await page.locator('[data-phone-app=events]').click();await page.getByRole('button',{name:'Приготовить дома',exact:true}).click();await page.getByText('В процессе',{exact:true}).waitFor();await shot('07-context-pending');
+  assert.equal(openServerFiles(dir).load().familyLife.event.status,'accepted');
+  buddy.send(JSON.stringify({type:'cook',recipe:'omelette'}));
+  await page.getByText('Выполнено',{exact:true}).waitFor({timeout:60000});await shot('08-context-complete');
+  const saved=openServerFiles(dir).load();assert.equal(saved.familyLife.event.status,'completed');assert.equal(saved.pantry.eggs,0);assert.equal(saved.pantry.milk,0);
+  assert.ok(buddyPackets.some(p=>p.type==='task_ended'&&p.role==='alina'&&p.outcome==='completed'&&p.message.includes('Событие выполнено')));assert.deepEqual(errors,[]);console.log('Context event accepted by Vlad and completed by real cooking of Alina');
  }else{
  await page.locator('#phone-btn').click();
  await page.locator('[data-phone-app=holidays]').click();await page.getByText('Семейные праздники',{exact:false}).first().waitFor();

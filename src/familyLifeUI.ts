@@ -1,12 +1,13 @@
-import {OCCASIONS,PERSONAL_OCCASIONS,HOBBIES,HOBBY_LEVELS,HOBBY_RESULTS,LIFE_EVENTS,occasionsAhead,familyLife,currentLifeEvent,type FamilyLifeCommand,type Hobby} from './shared/familyLife';
+import {OCCASIONS,PERSONAL_OCCASIONS,HOBBIES,HOBBY_LEVELS,HOBBY_RESULTS,LIFE_EVENTS,occasionsAhead,familyLife,currentLifeEvent,isGoalEvent,eventStatus,type FamilyLifeCommand,type Hobby} from './shared/familyLife';
 import type {GameState,CharacterId} from './shared/protocol';
+import {displayDate} from './shared/life';
 const make=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const el=document.createElement(tag);el.textContent=text;return el;};
 export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>boolean){
  let key='';
  function card(title:string,description:string){const a=make('article');a.append(make('strong',title),make('p',description));return a;}
  function button(label:string,action:()=>void){const b=make('button',label);b.type='button';b.onclick=action;return b;}
  function render(s:GameState,role:CharacterId,view:'holidays'|'hobbies'|'events'){
-  const f=familyLife(s),e=currentLifeEvent(s),signature=JSON.stringify([view,role,s.clock.day,view==='holidays'?[f.dates,f.celebrated]:view==='hobbies'?f.hobbies[role]:[e,s.money]]);
+  const f=familyLife(s),e=currentLifeEvent(s),signature=JSON.stringify([view,role,s.clock.day,view==='holidays'?[f.dates,f.celebrated]:view==='hobbies'?f.hobbies[role]:[e,s.money,f.eventHistory,f.event]]);
   if(signature===key)return;key=signature;
   const scroll=info.scrollTop,nodes:HTMLElement[]=[];
   if(view==='holidays'){
@@ -45,9 +46,12 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
    else{
     const v=LIFE_EVENTS[e.id],c=card(v.title,v.description);
     if(e.status==='open')c.append(button(v.accept,()=>send({type:'family_event',day:e.day,id:e.id,accept:true})),button(v.decline,()=>send({type:'family_event',day:e.day,id:e.id,accept:false})));
-    else c.append(make('small',e.status==='accepted'?'Принято':'Пропущено'));
+    else c.append(make('small',eventStatus(e,s.clock.day)));
+    if(e.status==='accepted'&&isGoalEvent(e.id))c.append(make('p','Выполните указанное занятие до конца игровых суток. За завершение: +8 настроения.'));
     nodes.push(c);
    }
+   const past=[...(f.eventHistory??[]),...(f.event&&f.event.day<s.clock.day?[f.event]:[])].slice(-6).reverse();
+   if(past.length){nodes.push(card('Недавние события','История последних событий семьи.'));for(const old of past)nodes.push(card(LIFE_EVENTS[old.id].title,eventStatus(old,s.clock.day)+' · '+displayDate({day:old.day,minute:600}).day+'.'+String(displayDate({day:old.day,minute:600}).month).padStart(2,'0')));}
   }
   info.replaceChildren(...nodes);info.scrollTop=scroll;
  }
