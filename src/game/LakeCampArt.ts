@@ -1,7 +1,7 @@
 import {painted} from './LocationArt';
 import * as THREE from 'three';
 import {cube,drum,softCube,orb,torus,plane,finish,batchRigidParts,type XYZ} from './ArtKit';
-import type {LakeTent} from '../shared/lake';
+import type {LakeTent,LakeMeal} from '../shared/lake';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
 const wood=0x8e6949,steel=0x41494b;
 function part(g:THREE.Object3D,size:XYZ,pos:XYZ,color:number,geo:THREE.BufferGeometry=cube){
@@ -60,9 +60,9 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
  }
  part(g,[w*.90,.046,d*.94],[0,.045,0],0x434a43);
  for(const side of [-1,1]){
-  const x=side*w*.225,z=-d*.13;
-  part(g,[w*.39,.105,d*.69],[x,.113,z],mode>1?0xc0ad91:0x667760,softCube);
-  part(g,[w*.35,.105,d*.46],[x,.176,z+.16],mode===3?0xe1d8bd:side<0?0x879a82:0x9c8670,softCube);
+  const x=side*w*.225,z=-.035;
+  part(g,[w*.39,.105,Math.max(1.94,d*.84)],[x,.113,z],mode>1?0xc0ad91:0x667760,softCube);
+  part(g,[w*.35,.105,Math.max(1.55,d*.67)],[x,.176,z+.07],mode===3?0xe1d8bd:side<0?0x879a82:0x9c8670,softCube);
   part(g,[w*.31,.11,.34],[x,.204,-d*.38],0xe8dfce,softCube);
   for(let k=0;k<4;k++)part(g,[w*.34,.006,.014],[x,.233,z+.10+k*.15],0xbbb19a);
  }
@@ -86,7 +86,7 @@ export function buildDetailedTent(id:LakeTent,resources?:Resources){
  part(shell,[.10,.14,.10],[0,h*.63,d*.46],0xffe6a5,drum);
  g.name='Lake tent '+id;batchRigidParts(shell,true);batchRigidParts(g,true);return g;
 }
-export function buildCampFood(kind:'fish'|'soup'|'sausages'|'marshmallow'){
+export function buildCampFood(kind:LakeMeal){
  const g=new THREE.Group();g.name='Camp food '+kind;
  if(kind==='fish'){
   const body=part(g,[.33,.115,.14],[0,.10,0],0xb48b51,orb);body.rotation.y=.12;
@@ -100,10 +100,13 @@ export function buildCampFood(kind:'fish'|'soup'|'sausages'|'marshmallow'){
   part(g,[.25,.014,.25],[0,.316,0],0xb88b47,drum);
   for(let i=0;i<9;i++){const a=i*2.399;part(g,[.055,.026,.045],[Math.cos(a)*.17,.329,Math.sin(a)*.17],i%3===0?0xc76c36:i%3===1?0xe6c47b:0x6a8b48,softCube);}
   const handle=part(g,[.29,.29,.29],[0,.30,0],steel,torus);handle.rotation.y=Math.PI/2;
+ }else if(kind==='potato'||kind==='foil'){
+  for(const x of [-.22,.22]){part(g,[kind==='foil'?.18:.12,.085,.12],[x,.10,0],0xb4b4aa,softCube);for(let i=0;i<4;i++){const m=part(g,[.13,.008,.015],[x,.19,-.04+i*.027],0xe0ded6,softCube);m.rotation.y=.3*(i%2?1:-1);}}
  }else{
   for(const z of [-.12,.12]){rod(g,[-.37,.06,z],[.41,.06,z],.012,wood);
    for(let i=0;i<3;i++){const x=-.19+i*.16;
     if(kind==='sausages'){const p=part(g,[.052,.19,.052],[x,.11,z],0xa96036,drum);p.rotation.z=Math.PI/2;rod(g,[x-.04,.155,z-.04],[x+.025,.155,z+.04],.006,0x65402c);}
+    else if(kind==='skewers'){part(g,[.068,.060,.064],[x,.11,z],i%2?0xb7a450:0xd19a62,softCube);part(g,[.06,.008,.055],[x,.145,z],0x835b35,softCube);}
     else part(g,[.075,.075,.075],[x,.11,z],i===1?0xe1c293:0xf4ead8,softCube);
    }
   }
@@ -119,7 +122,7 @@ export function buildCampFire(resources:Resources){
  for(let i=0;i<11;i++){const x=(i-5)*.084;rod(g,[x,.58,-.39],[x,.58,.39],.009,steel);}
  rod(g,[-.49,.58,-.4],[.49,.58,-.4],.021,steel);rod(g,[-.49,.58,.4],[.49,.58,.4],.021,steel);
  batchRigidParts(g,true);
- const food=new Map<string,THREE.Group>();for(const kind of ['fish','soup','sausages','marshmallow'] as const){const model=buildCampFood(kind);model.position.y=.58;model.visible=false;g.add(model);food.set(kind,model);}
+ const food=new Map<string,THREE.Group>();for(const kind of ['fish','soup','sausages','marshmallow','potato','foil','skewers'] as const){const model=buildCampFood(kind);model.position.y=.58;model.visible=false;g.add(model);food.set(kind,model);}
  g.userData.setFood=(kind?:string)=>{for(const [id,m] of food)m.visible=id===kind;};
  const active=new THREE.Group();active.name='Campfire active';g.add(active);active.visible=false;
  // Three narrow intersecting flame curtains: feathered orange edges and pointed, dancing tongues.

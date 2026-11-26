@@ -111,6 +111,7 @@ interface TaskView {
   question?: string;
   paired?: SocialIntent;
   spaStation?:string;
+  lakeSwim?:boolean;
   isCooking?:boolean;
   freeRest?:boolean;
   soloLounge?:boolean;
@@ -664,7 +665,7 @@ function renderClock(): void {
 
 function syncResidentLook(role:CharacterId):void{
   if(!state||!world)return;
-  const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool;
+  const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool||state.world.places[role]==='lake'&&tasks.get(role)?.lakeSwim;
   const worn=residentLook(state,role,!!water);
   const actor=world.actors[role];
   if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
@@ -1056,7 +1057,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();

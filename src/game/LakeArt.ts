@@ -39,6 +39,13 @@ export function lakeStation(s:Station,resources:Resources){
    // Low logs and small side table around the stone fire pit.
    for(const side of [-1,1]){box(g,[.72,.10,.33],[side*.89,.35,0],wood,softCube);for(const dz of [-.11,.11])box(g,[.11,.32,.11],[side*.89,.17,dz],0x72583d);}
    box(g,[.40,.07,.45],[.93,.48,-.58],wood);for(const dx of [-.13,.13])for(const dz of [-.16,.16])box(g,[.05,.44,.05],[.93+dx,.23,-.58+dz],wood);
+  }else if(s.action.facility==='rest'){
+   box(g,[1.8,.10,.55],[0,.44,0],wood,softCube);for(const x of [-.72,.72]){box(g,[.12,.44,.47],[x,.22,0],0x53574d);box(g,[.08,.55,.08],[x,.69,-.27],0x53574d);}box(g,[1.8,.37,.09],[0,.80,-.28],wood,softCube);g.rotation.y=Math.PI/2;
+  }else if(s.action.facility==='swim'){
+   box(g,[.7,.05,1.1],[.20,.025,0],0xbca67a,softCube);box(g,[.065,.85,.065],[-.3,.425,.65],wood);box(g,[.34,.28,.05],[-.3,.79,.65],0x527f87,softCube);
+  }else if(s.action.facility==='dog'){
+   box(g,[2.15,.025,1.55],[0,.016,0],0x92a86d,softCube);
+   const stick=box(g,[.055,.45,.055],[.65,.05,.22],wood,drum);stick.rotation.z=Math.PI/2;
   }else if(s.action.facility==='toilet'){
    box(g,[1.65,.10,1.65],[0,.05,0],wood);box(g,[1.65,2.25,.12],[0,1.15,-.77],0x8b775b);
    for(const x of [-.77,.77])box(g,[.12,2.25,1.65],[x,1.15,0],0x8b775b);

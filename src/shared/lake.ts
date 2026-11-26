@@ -1,3 +1,4 @@
+import {weatherAt} from './weather';
 import type {CharacterId,GameState} from './protocol';
 import {gameMinutes} from './life';
 export const LAKE_PASSES={
@@ -20,10 +21,14 @@ export const LAKE_MEALS={
  sausages:{name:'Колбаски на костре',price:220,hunger:65,mood:20,seconds:35},
  fish:{name:'Рыба на решётке',price:90,hunger:80,mood:25,seconds:40},
  soup:{name:'Уха в котелке',price:160,hunger:95,mood:35,seconds:50},
+ potato:{name:'Картофель в углях',price:120,hunger:55,mood:18,seconds:35},
+ foil:{name:'Рыба с овощами в фольге',price:240,hunger:100,mood:40,seconds:55},
+ skewers:{name:'Рыбный шашлык',price:210,hunger:100,mood:45,seconds:45},
  marshmallow:{name:'Маршмеллоу на шпажках',price:140,hunger:20,mood:25,seconds:25}
 } as const;
 export type LakeMeal=keyof typeof LAKE_MEALS;
 export const LAKE_MEAL_ACTIONS={
+ lakeCookPotato:{meal:'potato',cook:true},lakeEatPotato:{meal:'potato',cook:false},lakeCookFoil:{meal:'foil',cook:true},lakeEatFoil:{meal:'foil',cook:false},lakeCookSkewers:{meal:'skewers',cook:true},lakeEatSkewers:{meal:'skewers',cook:false},
  lakeCookFish:{meal:'fish',cook:true},lakeCookSoup:{meal:'soup',cook:true},lakeEatFish:{meal:'fish',cook:false},lakeEatSoup:{meal:'soup',cook:false},
  lakeCookSausages:{meal:'sausages',cook:true},lakeCookMarshmallow:{meal:'marshmallow',cook:true},
  lakeEatSausages:{meal:'sausages',cook:false},lakeEatMarshmallow:{meal:'marshmallow',cook:false}
@@ -58,6 +63,18 @@ export function rollFish(rod:LakeRod,now:number,random:()=>number=Math.random):F
  return {species,grams:Math.round(d.min+(d.max-d.min)*Math.pow(random(),1.7)),expires:now+2880};
 }
 export function fishLabel(f:FishCatch){return LAKE_FISH[f.species].name+' · '+(f.grams/1000).toFixed(2)+' кг';}
+export const LAKE_LEISURE={
+ lakeView:{name:'Любоваться озером',seconds:45,facility:'rest'},
+ lakeChat:{name:'Разговор у костра',seconds:40,facility:'fire'},
+ lakeSwim:{name:'Поплавать в озере',seconds:60,facility:'swim'},
+ lakeDogFetch:{name:'Бросать Верделлу палочку',seconds:25,facility:'dog'},
+ lakeDogRoll:{name:'Поиграть с Верделлом на траве',seconds:25,facility:'dog'}
+} as const;
+export type LakeLeisureAction=keyof typeof LAKE_LEISURE;
+export const isLakeLeisureAction=(v:unknown):v is LakeLeisureAction=>typeof v==='string'&&Object.hasOwn(LAKE_LEISURE,v);
+export const lakeNeedsFish=(meal:LakeMeal)=>['fish','soup','foil','skewers'].includes(meal);
+export function lakeCanSwim(s:Pick<GameState,'clock'>){const w=weatherAt(s.clock);return w.temp>=20&&['clear','overcast'].includes(w.kind);}
+export function lakeSwimFrame(t:number,role:CharacterId){const a=t*.33+(role==='vlad'?0:Math.PI),lane=role==='vlad'?-1:1;return {x:7.8+.95*Math.sin(a),z:10+lane*1.1+.44*Math.cos(a),y:.17,yaw:Math.atan2(.95*Math.cos(a),-.44*Math.sin(a))};}
 export const LAKE_CARE={lakeToilet:{name:'В туалет',seconds:18,facility:'toilet'},lakeWash:{name:'Умыться и вымыть руки',seconds:20,facility:'wash'}} as const;
 export type LakeCareAction=keyof typeof LAKE_CARE;
 export const isLakeCareAction=(v:unknown):v is LakeCareAction=>typeof v==='string'&&Object.hasOwn(LAKE_CARE,v);
@@ -98,6 +115,6 @@ export function validLake(v:unknown):v is LakeState{
 export function lakeAccess(s:GameState,r:CharacterId){const v=s.world.lake?.[r];return s.world.places[r]==='lake'&&!!v&&v.until>gameMinutes(s.clock);}
 export function lakeVisit(pass:LakePass,now:number):LakeVisit{return {pass,until:now+LAKE_PASSES[pass].minutes};}
 export function residentLook(s:Pick<GameState,'world'>,r:CharacterId,water=false):string{
- return s.world.places[r]==='lake'?'lake-visit':water?'spa-visit':s.world.wardrobe?.[r].worn??'signature';
+ return s.world.places[r]==='lake'?(water?'spa-visit':'lake-visit'):water?'spa-visit':s.world.wardrobe?.[r].worn??'signature';
 }
 export const LAKE_LOOKS={vlad:'cargo',alina:'cozy'} as const;

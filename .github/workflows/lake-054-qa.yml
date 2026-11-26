@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [day, night, fish]
+        mode: [day, night, fish, leisure]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -1,3 +1,5 @@
+import {lakeCanSwim,lakeSwimFrame,LAKE_LEISURE,residentLook as lakeLook} from '../../src/shared/lake';
+import {clockAt} from '../../src/shared/life';
 import {syncLakeCutaway} from '../../src/game/LakeArt';
 import {advanceLife} from '../life';
 import {lakeSleepAnchor,LAKE_REST} from '../../src/shared/lake';
@@ -192,4 +194,36 @@ test('club hygiene is included in valid ticket, toilet restores bladder and wash
  assert.equal(localActivity(s,'vlad','lakeToilet','lake-wash').ok,false);
  at(s,'vlad','lake-toilet');let r=localActivity(s,'vlad','lakeToilet','lake-toilet');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.bladder,100);
  at(s,'vlad','lake-wash');r=localActivity(s,'vlad','lakeWash','lake-wash');assert.ok(r.ok);assert.equal(r.state.characters.vlad.hygiene,65);assert.equal(r.state.money,s.money);
+});
+
+test('lake leisure is location and weather gated; two separate swimming lanes, outfit restored',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night',true);assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-swim');assert.equal(lakeCanSwim(s),false);assert.equal(localActivity(s,'vlad','lakeSwim','lake-swim').ok,false);
+ // Use a warm day with a fresh visit, never bypass the ticket duration.
+ for(let day=90;day<190;day++){s.clock=clockAt(day*1440+900);if(lakeCanSwim(s))break;}
+ assert.ok(lakeCanSwim(s));for(const v of Object.values(s.world.lake!))v.until=999999;
+ s.characters.vlad.energy=90;let r=localActivity(s,'vlad','lakeSwim','lake-swim');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.energy,78);
+ assert.equal(lakeLook(s,'vlad',true),'spa-visit');assert.equal(lakeLook(s,'vlad',false),'lake-visit');
+ for(let t=0;t<60;t+=.1){const a=lakeSwimFrame(t,'vlad'),b=lakeSwimFrame(t,'alina');assert.ok(a.x>6&&b.x>6);assert.ok(Math.hypot(a.x-b.x,a.z-b.z)>1.3);}
+ at(s,'alina','lake-view');s.characters.alina.comfort=10;r=localActivity(s,'alina','lakeView','lake-view');assert.ok(r.ok);s=r.state;assert.equal(s.characters.alina.comfort,25);
+ assert.equal(planTask({type:'local_activity',station:'lake-swim',action:'lakeSwim'})?.durationMs,LAKE_LEISURE.lakeSwim.seconds*1000);
+ assert.equal(planTask({type:'local_activity',station:'lake-view',action:'lakeSwim'}),null);
+});
+test('extra meals use real catch, cost once and have distinct grill props',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night');assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'basic'});at(s,'vlad','lake-pitch-1');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-1'});at(s,'vlad','lake-fire-1');s=apply(s,'vlad',{type:'lake_fire',station:'lake-fire-1',lit:true});
+ assert.equal(localActivity(s,'vlad','lakeCookFoil','lake-fire-1').ok,false);
+ let r=localActivity(s,'vlad','lakeCookPotato','lake-fire-1');assert.ok(r.ok);s=r.state;
+ s.world.fishing=emptyFishing();s.world.fishing.fish.push({species:'carp',grams:1500,expires:99999},{species:'perch',grams:500,expires:99999});
+ for(const action of ['lakeCookFoil','lakeCookSkewers'] as const){r=localActivity(s,'vlad',action,'lake-fire-1');assert.ok(r.ok);s=r.state;}
+ assert.equal(freshFish(s).length,0);assert.equal(s.world.lake!.vlad!.meals!.foil,2);assert.equal(s.world.lake!.vlad!.meals!.skewers,2);
+ for(const k of ['foil','potato','skewers'] as const)assert.ok(new THREE.Box3().setFromObject(buildCampFood(k)).getSize(new THREE.Vector3()).length()>.15);
+ assert.ok(validWorld(s.world));
+});
+test('fire chat needs nearby partner; dog games need Verdell and improve bond',()=>{
+ let s=initialState();s.money=10000;const q=lakeTogetherTrip(s,'vlad','night',true);assert.ok(q.ok);s=q.state;
+ at(s,'vlad','lake-rental');s=apply(s,'vlad',{type:'lake_rent',category:'tent',item:'basic'});at(s,'vlad','lake-pitch-1');s=apply(s,'vlad',{type:'lake_pitch',station:'lake-pitch-1'});at(s,'vlad','lake-fire-1');s=apply(s,'vlad',{type:'lake_fire',station:'lake-fire-1',lit:true});
+ assert.equal(localActivity(s,'vlad','lakeChat','lake-fire-1').ok,false);at(s,'alina','lake-fire-1');s.characters.vlad.social=10;let r=localActivity(s,'vlad','lakeChat','lake-fire-1');assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad.social,45);
+ at(s,'vlad','lake-dog');s.pets.verdell.bond=10;r=localActivity(s,'vlad','lakeDogFetch','lake-dog');assert.ok(r.ok);s=r.state;assert.equal(s.pets.verdell.bond,20);
+ s.world.dogWalker=null;assert.equal(localActivity(s,'vlad','lakeDogRoll','lake-dog').ok,false);
 });

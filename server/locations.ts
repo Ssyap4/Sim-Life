@@ -1,6 +1,6 @@
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_REST,isLakeRestAction,LAKE_LEISURE,isLakeLeisureAction,lakeCanSwim,lakeNeedsFish,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -698,6 +698,8 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
+  lakeView:'Любоваться озером',lakeChat:'Разговор у костра',lakeSwim:'Купание в озере',lakeDogFetch:'Палочка для Верделла',lakeDogRoll:'Игры с Верделлом',
+  lakeCookPotato:'Картофель · готовим',lakeEatPotato:'Картофель · едим',lakeCookFoil:'Рыба в фольге · готовим',lakeEatFoil:'Рыба в фольге · едим',lakeCookSkewers:'Рыбный шашлык · готовим',lakeEatSkewers:'Рыбный шашлык · едим',
   lakeToilet:'Санузел',lakeWash:'Умывание',
   lakeNap:'Отдых в палатке',lakeSleep:'Сон в палатке',lakeFireRest:'Отдых у костра',
   lakeFishFloat:'Рыбалка · удочка',lakeFishSpin:'Рыбалка · спиннинг',lakeFishFeeder:'Рыбалка · фидер',
@@ -711,6 +713,20 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isLakeLeisureAction(action)){
+    if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==LAKE_LEISURE[action].facility||!at(source,role,station))return fail('Подойди к подходящей зоне клуба');
+    const peer=role==='vlad'?'alina':'vlad',other=source.characters[peer],walker=source.world.dogWalker;
+    if(action==='lakeSwim'&&(!lakeCanSwim(source)||source.characters[role].energy<20))return fail('Купание только в тёплую погоду и при достаточной энергии');
+    if(action==='lakeChat'&&(!lakeCampFor(source,id)?.fire||!lakeAccess(source,peer)||Math.hypot(other.x-station.center.x,other.z-station.center.z)>3))return fail('Нужен горящий костёр и партнёр рядом');
+    const dog=action==='lakeDogFetch'||action==='lakeDogRoll';
+    if(dog&&(!walker||source.world.places[walker]!=='lake'||Math.hypot(source.characters[walker].x-station.center.x,source.characters[walker].z-station.center.z)>4))return fail('Позови Верделла на лужайку');
+    const next=structuredClone(source),c=next.characters[role];c.pose='idle';
+    c.fun=Math.min(100,c.fun+(action==='lakeSwim'?35:dog?25:20));c.mood=Math.min(100,c.mood+(action==='lakeChat'?25:15));
+    if(action==='lakeSwim'){c.energy=Math.max(0,c.energy-12);practiceXP(next,role,'lake-swim','fitness','Плавание',8,12);}
+    else if(action==='lakeView'||action==='lakeChat'){c.comfort=Math.min(100,c.comfort+15);if(action==='lakeChat')c.social=Math.min(100,c.social+35);}
+    else if(dog){const p=next.pets.verdell;p.happiness=Math.min(100,p.happiness+25);p.bond=Math.min(100,p.bond+10);p.energy=Math.max(0,p.energy-6);}
+    return done(next,LAKE_LEISURE[action].name+' · готово');
+  }
   if(isLakeCareAction(action)){
     if(!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!==LAKE_CARE[action].facility||!at(source,role,station))return fail('Подойди к санузлу или умывальнику');
     const next=structuredClone(source),c=next.characters[role];if(action==='lakeToilet')c.bladder=100;else c.hygiene=Math.min(100,c.hygiene+35);c.pose='idle';return done(next,LAKE_CARE[action].name+' · готово');
@@ -742,7 +758,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
       if(!camp.fire)return fail('Разожги костёр');
       if((stock[meal]??0)>2)return fail('Сначала съешьте готовые порции');
       if(next.money<d.price)return fail('Недостаточно денег на продукты');
-      if(meal==='fish'||meal==='soup'){const fish=freshFish(next);if(!fish.length)return fail('Сначала поймайте и заберите рыбу');next.world.fishing!.fish=fish.slice(1);}
+      if(lakeNeedsFish(meal)){const fish=freshFish(next);if(!fish.length)return fail('Сначала поймайте и заберите рыбу');next.world.fishing!.fish=fish.slice(1);}
       next.money-=d.price;addLedger(next,role,'expense','takeout',d.price,'Кемпинг · '+d.name);
       stock[meal]=(stock[meal]??0)+2;next.characters[role].mood=Math.min(100,next.characters[role].mood+8);
       return done(next,d.name+' · 2 порции готовы');
