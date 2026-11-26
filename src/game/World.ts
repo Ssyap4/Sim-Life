@@ -3221,12 +3221,15 @@ export class World {
       if(model?.visible){
         this.controls.minDistance=1;
         this.controls.target.set(-2.39,.86,-.38);
-        if(this.canvas.dataset.tvView==='side')this.camera.position.set(.10,2.50,3.8);
+        if(this.canvas.dataset.tvView==='close')this.camera.position.set(-2.39,1.90,2.35);
+        else if(this.canvas.dataset.tvView==='side')this.camera.position.set(.10,2.50,3.8);
         else this.camera.position.set(-2.39,3.10,4.75);
         this.camera.lookAt(this.controls.target);
         model.updateWorldMatrix(true,true);
         const box=new THREE.Box3().setFromObject(model,true);
-        this.canvas.dataset.tvQa=JSON.stringify({id:tv,width:box.getSize(new THREE.Vector3()).x,min:box.min.toArray(),max:box.max.toArray()});
+        const anchor=model.getObjectByName('Electronics display');
+        const screen=anchor?.children.find(o=>o instanceof THREE.Mesh&&o.material instanceof THREE.MeshBasicMaterial&&o.material.map instanceof THREE.CanvasTexture) as THREE.Mesh<THREE.PlaneGeometry,THREE.MeshBasicMaterial>|undefined;
+        this.canvas.dataset.tvQa=JSON.stringify({id:tv,screenActive:!!screen?.visible,screenVersion:screen?.material.map?.version??0,width:box.getSize(new THREE.Vector3()).x,min:box.min.toArray(),max:box.max.toArray()});
       }
     }
 
