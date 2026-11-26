@@ -1,0 +1,44 @@
+import {OCCASIONS,PERSONAL_OCCASIONS,HOBBIES,HOBBY_LEVELS,LIFE_EVENTS,occasionsAhead,familyLife,currentLifeEvent,type FamilyLifeCommand,type Hobby} from './shared/familyLife';
+import type {GameState,CharacterId} from './shared/protocol';
+const make=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const el=document.createElement(tag);el.textContent=text;return el;};
+export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>boolean){
+ let key='';
+ function card(title:string,description:string){const a=make('article');a.append(make('strong',title),make('p',description));return a;}
+ function button(label:string,action:()=>void){const b=make('button',label);b.type='button';b.onclick=action;return b;}
+ function render(s:GameState,role:CharacterId,view:'holidays'|'hobbies'|'events'){
+  const f=familyLife(s),e=currentLifeEvent(s),signature=JSON.stringify([view,role,s.clock.day,view==='holidays'?[f.dates,f.celebrated]:view==='hobbies'?f.hobbies[role]:[e,s.money]]);
+  if(signature===key)return;key=signature;
+  const scroll=info.scrollTop,nodes:HTMLElement[]=[];
+  if(view==='holidays'){
+   nodes.push(card('🎉 Семейные праздники','Праздники отмечаются совместной едой, подарками или уютным вечером. Успешное занятие в нужный день добавляет воспоминание и настроение.'));
+   for(const o of occasionsAhead(s)){
+    nodes.push(card(OCCASIONS[o.id].title,o.date+'.'+String(o.month).padStart(2,'0')+' · '+(o.inDays===0?o.celebrated?'Уже отметили':'Сегодня!':'Через '+o.inDays+' игр. дн.')));
+   }
+   for(const id of PERSONAL_OCCASIONS){
+    const c=card(OCCASIONS[id].title,'Настройте личную дату (день и месяц).');
+    const row=make('div');row.className='family-date-row';
+    const day=make('input'),month=make('select');day.type='number';day.min='1';day.max='31';day.value=String(f.dates[id]?.day??1);day.setAttribute('aria-label','День · '+OCCASIONS[id].title);
+    for(let i=1;i<=12;i++){const o=make('option',String(i).padStart(2,'0'));o.value=String(i);month.append(o);}month.value=String(f.dates[id]?.month??1);month.setAttribute('aria-label','Месяц · '+OCCASIONS[id].title);
+    row.append(day,month,button('Сохранить',()=>send({type:'family_date',id,day:Number(day.value),month:Number(month.value)})));c.append(row);nodes.push(c);
+   }
+  }else if(view==='hobbies'){
+   nodes.push(card('Мои увлечения','Занимайтесь любимыми делами в игре. Один зачёт за каждое хобби в игровой день; новые книги и блюда пополняют коллекцию.'));
+   for(const id of Object.keys(HOBBIES) as Hobby[]){
+    const h=HOBBIES[id],p=f.hobbies[role][id],n=p?.sessions??0,level=HOBBY_LEVELS.filter(x=>n>=x).length;
+    const c=card(h.icon+' '+h.name,h.hint);c.append(make('small',(level?h.milestones[level-1]:'Начало пути')+' · Занятий: '+n+' · Разновидностей: '+(p?.unique.length??0)));
+    const track=make('progress');track.max=HOBBY_LEVELS[level]??15;track.value=Math.min(n,track.max);track.setAttribute('aria-label','Прогресс '+h.name);c.append(track,make('p',p?.lastDay===s.clock.day?'Сегодня зачтено':level===3?'Все основные этапы пройдены':'Следующий этап: '+track.max+' занятий'));nodes.push(c);
+   }
+  }else{
+   nodes.push(card('✨ Жизненные события','Небольшие общие возможности появляются время от времени. Решение одного игрока действует для всей семьи; пропуск не штрафуется.'));
+   if(!e)nodes.push(card('Пока спокойно','Новых событий сегодня нет.'));
+   else{
+    const v=LIFE_EVENTS[e.id],c=card(v.title,v.description);
+    if(e.status==='open')c.append(button(v.accept,()=>send({type:'family_event',day:e.day,id:e.id,accept:true})),button(v.decline,()=>send({type:'family_event',day:e.day,id:e.id,accept:false})));
+    else c.append(make('small',e.status==='accepted'?'Принято':'Пропущено'));
+    nodes.push(c);
+   }
+  }
+  info.replaceChildren(...nodes);info.scrollTop=scroll;
+ }
+ return {render,reset:()=>{key='';}};
+}

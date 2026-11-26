@@ -1,4 +1,6 @@
 import {createWeekendsUI} from './weekendsUI';
+import {createFamilyLifeUI} from './familyLifeUI';
+import {occasionsAhead,OCCASIONS,type FamilyLifeCommand} from './shared/familyLife';
 import type {WeekendCommand} from './shared/weekends';
 import { electronicsModel } from './shared/electronics';
 import { renderRelationship } from './socialUI';
@@ -38,10 +40,11 @@ import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fi
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
 import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
-type App = 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   weekends:['📅','Наши планы'],
+  holidays:['🎉','Праздники'],hobbies:['🎨','Хобби'],events:['✨','События'],
   consoles:['🎮','Игровые консоли'],
   spa:['♨️','SPA Лагуна'],
   barber:['💈','BRO'],
@@ -68,7 +71,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -80,6 +83,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const screen=root.querySelector<HTMLElement>('.phone-screen')!;
   const grid=root.querySelector<HTMLElement>('.phone-grid')!;
   const info=root.querySelector<HTMLElement>('.phone-info')!;
+  const familyLifeUI=createFamilyLifeUI(info,c=>familyLifeControl?.(c)??false);
   const weekends=createWeekendsUI(info,c=>weekendControl?.(c)??false,id=>{const a=SOCIAL_BY_ID.get(id);if(a)social.suggest(a.group,id);},id=>{if(id==='spa'){show('spa');return;}if(id==='bowling'||id==='hockey'||id==='billiards'){if(weekendVenue?.())close();return;}close();weekendMap?.();});
   const billing = createBillingUI(info, sendService, sendBudget);
   const education = createEducationUI(info, sendEducation, () => close(), travelToCenter);
@@ -116,6 +120,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.dataset.owner=role;
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
     if(app==='weekends')weekends.render(state,role,online);
+    if(app==='holidays'||app==='hobbies'||app==='events')familyLifeUI.render(state,role,app);
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
     if (app === 'education') education.render(state, role);
     if (app === 'career') career.render(state,role,time);
@@ -360,6 +365,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       calendarDate=today.querySelector('p');
       info.replaceChildren(
         today,
+        ...occasionsAhead(state,30).map(o=>block('🎉 '+OCCASIONS[o.id].title,o.inDays===0?'Сегодня':'Через '+o.inDays+' игр. дн.')),
         block('🧰 Подработка',shift ? JOBS[shift.job].name+' · окончание '+ending : 'Активной смены нет'),
         ...(careerId&&careerDate?[block('💼 '+CAREERS[careerId].employer,work.shift ? 'Смена до '+clockLabel(clockAt(work.shift.endsAt)) :
           clockLabel(clockAt(careerDate.start))+(careerDate.mode==='remote'?' · из дома':''))]:[]),
@@ -416,13 +422,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;weekends.reset();info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='holidays'&&next!=='hobbies'&&next!=='events'&&next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){

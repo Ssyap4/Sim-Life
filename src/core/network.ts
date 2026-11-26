@@ -125,6 +125,7 @@ export class LiveConnection {
 
   service(command: ServiceCommand): boolean {return this.sendAuthenticated(command);}
   weekend(command:import('../shared/weekends').WeekendCommand):boolean{return this.sendAuthenticated(command);}
+  familyLife(command:import('../shared/familyLife').FamilyLifeCommand):boolean{return this.sendAuthenticated(command);}
   budget(command: BudgetCommand): boolean {return this.sendAuthenticated(command);}
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}

@@ -21,6 +21,7 @@ import type { CatPerch } from '../src/shared/CatPerches';
 import { inHomeGrounds } from '../src/shared/district';
 import { applyServiceCommand, settleFamilyServices } from './services';
 import {applyWeekend} from '../src/shared/weekends';
+import {applyFamilyLife,offerLifeEvent,creditHobby,occasionsAhead,OCCASIONS} from '../src/shared/familyLife';
 import { applyBudgetCommand } from './familyBudget';
 import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
@@ -422,6 +423,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       !leisure.has(role)&&!walkingHome.has(role)&&!storageOpen.has(role)&&
       !(queuedTasks.get(role)?.length??0)&&!next.state.activeShifts[role]&&
       !next.state.careers.residents[role].shift));
+    const newFamilyEvent=offerLifeEvent(next.state,clockMinutes(state.clock),online());
+    const newHolidays=state.clock.day!==next.state.clock.day?occasionsAhead(next.state,0):[];
     const billingMessages = settleFamilyServices(next.state, next.state.money > state.money);
     try { files.save(next.state); }
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
@@ -433,6 +436,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
     all({ type: 'snapshot', state });
+    if(newFamilyEvent)all({type:'billing_event',messages:['✨ Новое событие · Телефон → События']});
+    if(newHolidays.length)all({type:'billing_event',messages:newHolidays.map(h=>'🎉 Сегодня: '+OCCASIONS[h.id].title+' · Телефон → Праздники')});
     for(const id of alarms){const speaker=state.furnishing.placed.find(p=>p.id===id);if(!speaker)continue;for(const role of online())if(state.world.places[role]==='home'&&Math.hypot(state.characters[role].x-speaker.x,state.characters[role].z-speaker.z)<=8){stopSleep(role);packet(active.get(role)!,{type:'world_event',role,message:'Будильник: пора вставать!'});}}
     if (spoiled.length) {
       const portions = spoiled.reduce((count,batch)=>count+batch.portions,0);
@@ -870,6 +875,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           state.education.characters[role].xp.cooking;
         if(earned>0)result.message+=' · 🍲 Кулинария +'+earned+' XP';
       }
+      if(!automatic)result.message+=creditHobby(result.state,role,plan.command);
       recordCompletedActivity(result.state,role,plan.command);
       recordDailyCompletion(result.state,role,plan.command);
       result.message+=fulfillWish(result.state,role,wish,state);
@@ -1329,6 +1335,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({ type: 'snapshot', state });
         packet(socket, { type: 'education_notice', role, message: result.message });
         return;
+      }
+      if(message.type==='family_date'||message.type==='family_event'){
+        const result=applyFamilyLife(state,role,message);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить событие'});return;}
+        state=result.state;all({type:'snapshot',state});all({type:'billing_event',messages:[result.message]});return;
       }
       if(typeof message.type==='string'&&['weekend_propose','weekend_accept','weekend_cancel','weekend_finish'].includes(message.type)){
         const result=applyWeekend(state,role,message);

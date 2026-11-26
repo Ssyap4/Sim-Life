@@ -57,6 +57,7 @@ import { bindCameraHeightButtons } from './cameraHeightUI';
 import './camera-height.css';
 import './glass-hud.css';
 import './weekends.css';
+import './family-life.css';
 import { World, objectNames } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
@@ -878,7 +879,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{

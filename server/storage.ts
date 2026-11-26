@@ -1,4 +1,5 @@
 import {validDailyHistory} from '../src/shared/dailyRoutine';
+import {validFamilyLife,initialFamilyLife} from '../src/shared/familyLife';
 import {validWeekendState,initialWeekends} from "../src/shared/weekends";
 import {validBarberBooking} from '../src/shared/barber';
 import {validGifts} from '../src/shared/gifts';
@@ -67,6 +68,7 @@ const isValidState = (value: unknown): value is GameState => {
       !Number.isSafeInteger(state.money) || state.money! < 0 ||
       !state.pantry || !state.characters) return false;
   if(state.weekends!==undefined&&!validWeekendState(state.weekends))return false;
+  if(state.familyLife!==undefined&&!validFamilyLife(state.familyLife))return false;
   if(state.speakers!==undefined&&!validSpeakers(state.speakers))return false;
   if(state.vacuum!==undefined&&!validVacuum(state.vacuum))return false;
   if(state.vanity!==undefined&&!validVanity(state.vanity))return false;
@@ -371,6 +373,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         dirtyDishes: data.dirtyDishes ?? { ...EMPTY_DIRTY_DISHES },
         ledger: [...(data.ledger ?? [])],
         weekends: data.weekends??initialWeekends(),
+        familyLife:data.familyLife??initialFamilyLife(),
         savings: restoreFamilyBudget(data.savings, { ...INITIAL_CLOCK,...data.clock }, data.ledger ?? []),
         shiftDays: Object.assign({ vlad: 0, alina: 0 }, data.shiftDays),
         activeShifts: { ...data.activeShifts },

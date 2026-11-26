@@ -84,6 +84,7 @@ export interface GameState {
   ledger: LedgerEntry[];
   savings: FamilyBudget;
   weekends?: import("./weekends").WeekendState;
+  familyLife?:import('./familyLife').FamilyLifeState;
   shiftDays: Record<CharacterId, number>;
   activeShifts: Partial<Record<CharacterId, ShiftAssignment>>;
   pets: PetFamily;
@@ -195,7 +196,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | 
   | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('./dogTraining').DogTrainingAction> };
 
-export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | EducationCommand | CareerCommand | SocialCommand
+export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | import('./familyLife').FamilyLifeCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
   | { type: 'movie_invite'; genre: Genre }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
