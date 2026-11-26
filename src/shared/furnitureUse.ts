@@ -136,25 +136,31 @@ export function furnitureUseLocation(state:GameState,role:CharacterId,
     return {item,action,route,pose};
   }
   const actorSeats=softSeats.has(shape);
-  const isBareSeat=seats.has(shape);
-  const seatTop=diningSeatTop(item.sku)??(shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
-    shape==='bench'?info.height*.54:shape==='ottoman'?info.height*.56:
-    shape==='armchair'?info.height*.52:info.height*.50);
+  // Match the upholstered surfaces authored in FurnitureDesigns, not the
+  // overall backrest height. Catalog couches open toward local +Z.
+  const upholstery=shape==='sofa'||shape==='corner'||shape==='armchair';
+  const cushionRatio=item.sku==='sofa-futon'?.485:item.sku==='sofa-micro'?.68:
+    item.sku==='chair-wicker'?.625:item.sku==='chair-wing'?.67:
+    item.sku==='chair-nest'?.80:item.sku==='chair-cloud'?.74:.59;
+  const seatTop=diningSeatTop(item.sku)??(upholstery?info.height*cushionRatio:
+    shape==='chair'?info.height*.48:shape==='stool'?info.height*.88:
+    shape==='bench'?info.height*.885:shape==='ottoman'?info.height*.94:info.height*.50);
   const isTable=['tableRest','tableTalk','tablePlan'].includes(action);
   const isSofa=['sofaRest','sofaMusic','sofaCall','sofaScroll','free_tv','youtube','movie'].includes(action)||
     (action==='read_book'&&(shape==='sofa'||shape==='corner'));
   const isDesk=shape==='desk';
   const isShelf=shape==='shelves';
-  const localX=isTable?-side*(info.width/2+.36):isSofa?side*info.width*.20:0;
-  const localZ=isTable?0:isSofa?0:isDesk?(workstationLayout(item.sku)?.seat??info.depth/2+.28):isShelf?info.depth/2+.56:0;
+  const localX=isTable?-side*(info.width/2+.36):isSofa?
+    (item.sku==='sofa-micro'?0:shape==='corner'?(side<0?-info.width*.25:0):side*info.width*.20):0;
+  const localZ=isTable?0:upholstery?(shape==='corner'?-.045:info.depth*.065):
+    isDesk?(workstationLayout(item.sku)?.seat??info.depth/2+.28):isShelf?info.depth/2+.56:0;
   const posePoint=rotate(item,localX,localZ);
   const pose={
     ...posePoint,
     y:isTable?(role==='vlad'?-.26:-.21):isDesk?(role==='vlad'?-.24:-.19):
-      isSofa?.04:actorSeats?seatTop-(role==='vlad'?.905:.852):0,
-    // An independent chair faces its open front (+Z); the old +PI made
-    // residents sit backwards through the backrest.
-    yaw:item.rotation*Math.PI/2+(isTable?(role==='vlad'?-Math.PI/2:Math.PI/2):isBareSeat?0:Math.PI),
+      actorSeats?seatTop-(role==='vlad'?.905:.852)+(upholstery?.055:0):0,
+    // Every catalog seat opens toward +Z; desks face their monitor (-Z).
+    yaw:item.rotation*Math.PI/2+(isTable?(role==='vlad'?-Math.PI/2:Math.PI/2):actorSeats?0:Math.PI),
   };
   const distance=isTable?info.width/2+.68:isSofa?info.depth/2+.63:
     isDesk?info.depth/2+.92:isShelf?info.depth/2+.62:info.depth/2+.55;

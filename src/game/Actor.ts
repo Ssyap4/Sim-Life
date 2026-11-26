@@ -380,6 +380,10 @@ export class Actor {
   walkPath(points: readonly THREE.Vector3[], onArrive: Arrival): void {
     const carryingDishes = this.dirtyPlate.visible;
     const carryingFood = this.foodContainer.visible;
+    // Keep a short vertical rise from a low seat, but never carry the
+    // horizontal furniture offset onto the collision-aware walking route.
+    const riseY=this.seatBlend>.15&&Math.abs(this.figure.rotation.x)<.2&&!this.authoredWaterAnchor?
+      Math.min(0,this.figureBase.y):0;
     this.setPose('idle');
     if (carryingDishes) this.dirtyPlate.visible = true;
     if (carryingFood) this.foodContainer.visible = true;
@@ -387,8 +391,8 @@ export class Actor {
     // If that offset eases away *during* a new walk, the visible person can
     // pass straight through a neighbor although their navigation roots don't.
     // Reattach the body to the collision-aware root before taking a step.
-    this.figureBase.set(0, 0, 0);
-    this.figure.position.set(0, 0, 0);
+    this.figureBase.set(0,riseY,0);
+    this.figure.position.set(0,riseY,0);
     this.waypoints = points.map((point) => point.clone());
     this.callback = onArrive;
   }
@@ -434,8 +438,12 @@ export class Actor {
   /** Pose the visible character on the furniture while the navigation root
    * stays in its safe, server-saved approach location. */
   setFurniturePose(pose: Pose, worldAnchor: THREE.Vector3, yaw: number, keys?: HandTargets): void {
+    // Preserve the previous world-space body position when turning onto a
+    // furniture anchor. Otherwise a nonzero offset swings around the root.
+    this.target.copy(this.figureBase).applyAxisAngle(up,this.root.rotation.y);
     this.setPose(pose);
     this.root.rotation.y = yaw;
+    this.figureBase.copy(this.target).applyAxisAngle(up,-yaw);
     const local = worldAnchor.clone().sub(this.root.position);
     local.applyAxisAngle(THREE.Object3D.DEFAULT_UP, -yaw);
     this.poseOffset.copy(local);
@@ -1556,9 +1564,18 @@ export class Actor {
       const legLength=data.thighLength+data.shinLength;
       const foot=walkFootTarget(this.gait,i as 0 | 1,legLength,strideLength,motion,stanceDrop,this.crouchBlend);
       const legBlend=1-Math.exp(-dt*(12+15*motion));
-      if(this.seatBlend>.001){
+      // Compensate the vertical rise even after the seat blend has ended,
+      // so feet do not sink as the first walking step begins.
+      if(this.seatBlend>.001||(!resting&&this.figureBase.y<-.001)){
         foot.y-=this.figureBase.y;
-        foot.z+=this.seatBlend*(data.thighLength*.84-i*.027)-weightTransfer*.036;
+      }
+      if(this.seatBlend>.001){
+        const seatForward=data.thighLength*.84-i*.027;
+        foot.z+=this.seatBlend*seatForward-weightTransfer*.036;
+        // A very tall seat cannot support ground contact with a bent knee.
+        // Let the shins hang naturally instead of extending both legs rigidly.
+        const highSeat=THREE.MathUtils.smoothstep(this.figureBase.y,-.13,.025)*this.seatBlend;
+        foot.y=THREE.MathUtils.lerp(foot.y,Math.max(foot.y,-data.shinLength-.09),highSeat);
         foot.toePitch*=1-this.seatBlend;
       }
       if(this.activity==='spaSwim'){foot.z+=Math.sin(a*4.8+i*Math.PI)*.11;foot.y+=.04*Math.sin(a*4.8+i*Math.PI);}

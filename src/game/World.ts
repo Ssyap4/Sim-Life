@@ -608,7 +608,9 @@ export class World {
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
     const vanityAngle=person&&this.homeTasks.get(subject)?.vanityCare?new THREE.Vector3(-.19,.32,.98):null;
     const loungeAngle=person&&this.homeTasks.get(subject)?.station==='yardTable'?new THREE.Vector3(.65,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
-    const angle = loungeAngle??vanityAngle??bedAngle??(perch
+    const catalogSeat=person&&this.homeTasks.get(subject)?.station==='furniture'&&this.homeTasks.get(subject)?.furnitureSeat;
+    const catalogAngle=catalogSeat?new THREE.Vector3(.38,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
+    const angle = loungeAngle??vanityAngle??bedAngle??catalogAngle??(perch
       ? new THREE.Vector3(
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)
