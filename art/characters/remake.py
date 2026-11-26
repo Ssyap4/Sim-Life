@@ -120,7 +120,7 @@ def soften_portrait_normals(sculpt, face, obj):
             # Preserve the volume of lip edges and lashes while blending
             # the continuous forehead and cheeks.
             amount=mask*(.40+.58*orbital)
-            n.lerp(goal,amount).normalize()
+            n=n.lerp(goal,amount).normalized()
         normals.append(n)
     data.normals_split_custom_set_from_vertices(normals)
 
