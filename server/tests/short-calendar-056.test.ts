@@ -22,7 +22,7 @@ test('birthdays preserve real dates; Easter and Christmas recur once per short y
  assert.equal(event('alinaBirthday').day,34);assert.equal(event('alinaBirthday').date,4);
  assert.equal(event('christmas').day,31);assert.equal(event('christmas').date,7);
  assert.equal(event('newYear').day,30);assert.equal(event('easter').day,5);
- assert.equal(event('spring').day,2);assert.equal(event('valentines').day,35);
+ assert.equal(event('spring').day,1);assert.equal(event('valentines').day,35);
  s.familyLife={dates:{},celebrated:{},hobbies:{vlad:{},alina:{}}};assert.equal(familyLife(s).dates.vladBirthday?.day,25);
  s.clock.day=5;assert.deepEqual(creditCelebration(s,'eat'),['Пасха']);assert.deepEqual(creditCelebration(s,'eat'),[]);
  s.clock.day=41;assert.deepEqual(creditCelebration(s,'eat'),['Пасха']);

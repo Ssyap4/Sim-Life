@@ -365,7 +365,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       calendarDate=today.querySelector('p');
       info.replaceChildren(
         today,
-        ...occasionsAhead(state,30).map(o=>block('🎉 '+OCCASIONS[o.id].title,o.inDays===0?'Сегодня':'Через '+o.inDays+' игр. дн.')),
+        ...occasionsAhead(state,30).map(o=>block('🎉 '+OCCASIONS[o.id].title,o.date+'.'+String(o.month).padStart(2,'0')+' · '+(o.inDays===0?o.celebrated?'Уже отметили':'Можно праздновать!':'Через '+o.inDays+' игр. дн.'))),
         block('🧰 Подработка',shift ? JOBS[shift.job].name+' · окончание '+ending : 'Активной смены нет'),
         ...(careerId&&careerDate?[block('💼 '+CAREERS[careerId].employer,work.shift ? 'Смена до '+clockLabel(clockAt(work.shift.endsAt)) :
           clockLabel(clockAt(careerDate.start))+(careerDate.mode==='remote'?' · из дома':''))]:[]),

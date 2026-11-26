@@ -57,7 +57,7 @@ test('All bathroom actions complete at their shared approach and restore the int
 });
 
 test('Calendar uses predictable phases without separate shadow meshes', () => {
-  assert.equal(clockLabel({ day: 2, minute: 60 }), '2 марта, год 1 · 01:00');
+  assert.equal(clockLabel({ day: 2, minute: 60 }), '11 марта, год 1 · 01:00');
   assert.equal(dayPhase({ day: 1, minute: 0 }), 'night');
   assert.equal(dayPhase({ day: 1, minute: 400 }), 'morning');
   assert.equal(dayPhase({ day: 1, minute: 900 }), 'day');

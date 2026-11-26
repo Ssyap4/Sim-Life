@@ -1,3 +1,4 @@
+import {initialFamilyLife} from './familyLife';
 import { initialRelationship, type Relationship, type SocialCommand, type SocialIntent, type SocialOffer, type SocialPhase } from './socialLife';
 import { INITIAL_AUTONOMY, type AutonomyMode, type AutonomySettings } from './autonomy';
 import { initialEducation, type EducationCommand, type EducationState } from './education';
@@ -276,7 +277,7 @@ export function initialState(): GameState {
     billing: initialServices(gameMinutes(INITIAL_CLOCK)),
     pantry: { ...EMPTY_PANTRY, eggs: 4, bread: 3 }, meals: { ...EMPTY_MEALS },
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
-    ledger: [], weekends:{version:0}, savings: initialFamilyBudget(INITIAL_CLOCK), shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
+    ledger: [], weekends:{version:0}, familyLife:initialFamilyLife(), savings: initialFamilyBudget(INITIAL_CLOCK), shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
     computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },

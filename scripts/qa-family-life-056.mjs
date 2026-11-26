@@ -29,7 +29,7 @@ try{
  await page.locator('[data-phone-app=holidays]').click();await page.getByText('Семейные праздники',{exact:false}).first().waitFor();
  const anniversary=page.locator('.family-life-phone article').filter({has:page.getByText('Годовщина отношений',{exact:true})}).last();
  await anniversary.locator('input').fill('25');await anniversary.locator('select').selectOption('3');await anniversary.getByRole('button',{name:'Сохранить'}).click();
- await page.getByText('25.03 · игр. день 3/3 · Сегодня!',{exact:true}).waitFor();await shot('01-holidays');
+ await page.getByText('25.03 · Можно праздновать!',{exact:true}).waitFor();await shot('01-holidays');
  await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=hobbies]').click();
  await page.getByText('Занятий: 1',{exact:false}).waitFor();await shot('02-hobbies');
  await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=events]').click();

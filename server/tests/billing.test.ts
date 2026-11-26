@@ -117,7 +117,7 @@ test('One-day reminders include fixed prices and lock the utility amount across 
     moveClock(state, 1);
     const reminders = settleFamilyServices(state, false);
     assert.equal(reminders.length, 5);
-    assert.ok(reminders.every(message => message.includes('11 марта') && message.includes('₽')));
+    assert.ok(reminders.every(message => message.includes('14 июня') && message.includes('₽')));
     const quote = state.billing.utilityQuote as GameState['billing']['utilityQuote'];
     assert.ok(quote && quote.amount >= UTILITY_RANGE[0] && quote.amount <= UTILITY_RANGE[1]);
     assert.equal(state.billing.bills.length, 2, 'the quote is not an invoice');

@@ -25,6 +25,16 @@ export function gameDate(day: number) {
   return {day:offset%GAME_DAYS_PER_MONTH+1,month:month+1,monthName:months[month],year:Math.floor(absoluteMonth/12)+1,season:seasons[Math.floor(((month+1)%12)/3)]};
 }
 
+/** Presentation only: ten calendar dates pass during one simulated day.
+ * Do not use this number for bills, needs, weather or action cooldowns. */
+export function displayDate(clock:GameClock){
+  const slot=gameDate(clock.day);
+  const first=(slot.day-1)*10+1;
+  const last=slot.day===3?new Date(Date.UTC(2000+slot.year,slot.month,0)).getUTCDate():slot.day*10;
+  const minute=Math.max(0,Math.min(MINUTES_PER_DAY-1,Math.floor(clock.minute)));
+  return {...slot,day:first+Math.floor(minute*(last-first+1)/MINUTES_PER_DAY)};
+}
+
 export const INITIAL_DAILY_NEEDS = {
   hygiene: 82, social: 75, fun: 72, comfort: 80, bladder: 86,
 };
@@ -51,7 +61,7 @@ export function timeLabel(clock: GameClock): string {
   return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
 }
 export function clockLabel(clock: GameClock): string {
-  const date = gameDate(clock.day);
+  const date = displayDate(clock);
   return date.day + ' ' + date.monthName + ', год ' + date.year + ' · ' + timeLabel(clock);
 }
 export function dayPhase(clock: GameClock): 'night' | 'morning' | 'day' | 'evening' {

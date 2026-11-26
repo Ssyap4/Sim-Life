@@ -7,7 +7,7 @@ export const OCCASIONS={
  newYear:{title:'Новый год',month:12,day:31,slot:3},
  christmas:{title:'Рождество',month:1,day:7,slot:1},
  valentines:{title:'День влюблённых',month:2,day:14,slot:2},
- spring:{title:'8 Марта',month:3,day:8,slot:2},
+ spring:{title:'8 Марта',month:3,day:8,slot:1},
  easter:{title:'Пасха',month:4,day:15,slot:2},
  vladBirthday:{title:'День рождения Влада'},
  alinaBirthday:{title:'День рождения Алины'},

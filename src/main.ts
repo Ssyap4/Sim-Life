@@ -72,7 +72,7 @@ import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import {weatherAt,WEATHER_INFO,weatherTemperature} from './shared/weather';
 import {activeCarRide,rideProgress,type CarRide} from './shared/carRide';
-import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
+import { clockAt, dayPhase, displayDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus } from './shared/timeControl';
 import {
   ACTIONS, itemNames, names,
@@ -651,7 +651,7 @@ function renderClock(): void {
   const hudLight = dayPhase(clock) === "night" ? "night" : "day";
   const hud = document.getElementById("app")!;
   if (hud.dataset.hudLight !== hudLight) hud.dataset.hudLight = hudLight;
-  const date = gameDate(clock.day);
+  const date = displayDate(clock);
   const weather=weatherAt(clock);
   const icon = weather.kind!=='clear'?WEATHER_INFO[weather.kind].icon:{ night: '🌙', morning: '☀️', day: '☀️', evening: '🌇' }[dayPhase(clock)];
   const hours = timeLabel(clock);

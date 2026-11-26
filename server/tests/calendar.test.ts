@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameClockDisplay } from '../../src/core/gameClock';
-import { clockAt, clockLabel, gameDate, gameMinutes } from '../../src/shared/life';
+import { clockAt, clockLabel, gameDate, gameMinutes, displayDate, calendarSlot } from '../../src/shared/life';
 
 test('The compressed calendar advances through three-day months, nine-day seasons and 36-day years', () => {
   const label = (day: number) => clockLabel({ day, minute: 0 });
   assert.equal(label(1), '1 марта, год 1 · 00:00');
-  assert.equal(label(9), '3 мая, год 1 · 00:00');
+  assert.equal(label(9), '21 мая, год 1 · 00:00');
   assert.equal(label(10), '1 июня, год 1 · 00:00');
   assert.deepEqual([1, 10, 19, 28].map(day => gameDate(day).season), ['Весна', 'Лето', 'Осень', 'Зима']);
-  assert.equal(label(30), '3 декабря, год 1 · 00:00');
+  assert.equal(label(30), '21 декабря, год 1 · 00:00');
   assert.equal(label(31), '1 января, год 2 · 00:00');
-  assert.equal(label(36), '3 февраля, год 2 · 00:00');
+  assert.equal(label(36), '21 февраля, год 2 · 00:00');
   assert.equal(label(37), '1 марта, год 2 · 00:00');
   assert.deepEqual(clockAt(gameMinutes({ day: 92, minute: 1439 }) + 1), { day: 93, minute: 0 });
 });
@@ -33,4 +33,25 @@ test('The display advances between server samples, reconciles delay and applies 
   assert.equal(display.read(5500), display.read(15000));
   display.sync({ minutes: midnight + 8, multiplier: 1 }, 15001);
   assert.equal(display.read(15001), midnight + 8);
+});
+
+test('display calendar covers every actual date without altering the simulated day',()=>{
+  let prior:Date|undefined;
+  for(let day=1;day<=180;day++){
+    const slot=gameDate(day),seen=new Set<number>();
+    for(let minute=0;minute<1440;minute++){
+      const d=displayDate({day,minute});seen.add(d.day);
+      assert.equal(calendarSlot(d.day),slot.day);
+      assert.equal(d.month,slot.month);assert.equal(d.year,slot.year);
+      const now=new Date(Date.UTC(2000+d.year,d.month-1,d.day));
+      if(prior)assert.ok(now.getTime()===prior.getTime()||now.getTime()-prior.getTime()===86400000);
+      prior=now;
+    }
+    const last=slot.day===3?new Date(Date.UTC(2000+slot.year,slot.month,0)).getUTCDate():slot.day*10;
+    assert.equal(seen.size,last-(slot.day-1)*10);
+  }
+  assert.equal(displayDate({day:30,minute:1439}).day,31);
+  assert.equal(displayDate({day:31,minute:864}).day,7);
+  assert.equal(displayDate({day:33,minute:576}).day,25);
+  assert.equal(displayDate({day:34,minute:432}).day,4);
 });
