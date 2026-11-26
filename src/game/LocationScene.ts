@@ -549,7 +549,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   if(place==='lake'){
     lakeArt=buildLakeLandscape(root,resources);
     const clerk=marketCashier(resources,{title:'Прокат',color:0x527151,shirt:0xe9dfbd,animated:true});clerk.position.set(-9.05,.08,9.12);root.add(clerk);
-    animatePark=(seconds)=>lakeArt!.animate(seconds);
+    animatePark=(seconds)=>{lakeArt!.animate(seconds);for(const g of stations.values())g.userData.fire?.userData.animate(seconds);};
   }else if(place==='venue'){
     shape(floor,[20.3,.36,14.3],[0,-.20,0],0x3e4c57,cube);
     shape(floor,[20,.06,14],[0,-.03,0],0xb8a38b,cube);
@@ -727,7 +727,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place==='lake'?lakeStation(station):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
+    const custom = place==='lake'?lakeStation(station,resources):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
           : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);

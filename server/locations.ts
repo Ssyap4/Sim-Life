@@ -1,4 +1,4 @@
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
 import {creditWeekendSpa} from '../src/shared/weekends';
 import {SPA_PASSES,SPA_ACTIVITIES,SPA_MASSAGE_PRICE,isSpaAction,validSpa,spaDenial,finishSpa} from '../src/shared/spa';
 import {BARBER_SERVICES,isBarberAction,barberSlots,barberDenial,finishBarber} from '../src/shared/barber';
@@ -132,7 +132,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'lake_rent','lake_pitch','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'lake_rent','lake_pitch','lake_fire','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -302,9 +302,16 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     personal.worn=look;
     return done(next,'Наряд изменён');
   }
-  if(command.type==='lake_rent'||command.type==='lake_pitch'){
+  if(command.type==='lake_rent'||command.type==='lake_pitch'||command.type==='lake_fire'){
     if(!lakeAccess(source,role))return fail('Нужен действующий билет клуба');
     const next=structuredClone(source),visit=next.world.lake![role]!;
+    if(command.type==='lake_fire'){
+      const station=stationById('lake',command.station);
+      if(station?.action.kind!=='lake'||station.action.facility!=='fire'||!at(source,role,station)||typeof command.lit!=='boolean')return fail('Подойди к костру');
+      const pitch=station.id.replace('lake-fire-','lake-pitch-'),camp=Object.values(next.world.lake!).find(v=>v.pitch===pitch);
+      if(!camp)return fail('Сначала установите палатку на этой площадке');
+      camp.fire=command.lit;return done(next,command.lit?'Костёр разожжён':'Костёр потушен');
+    }
     if(command.type==='lake_pitch'){
       const station=stationById('lake',command.station);
       if(station?.action.kind!=='lake'||station.action.facility!=='pitch'||!at(source,role,station)||!visit.tent)return fail('Возьми палатку и подойди к площадке');
@@ -361,7 +368,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       if((place==='spa'||place==='venue'||place==='lake')&&next.world.places[neighbor]===place)next.world.carDriver=neighbor;
       if(next.world.vetVisit?.owner===role)delete next.world.vetVisit;
       if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;
-      if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;}delete next.world.lake[role];}
+      if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;remaining.fire=leaving.fire;remaining.meals=leaving.meals;}delete next.world.lake[role];}
       next.world.places[role]='home';
       next.world.bags[role]=0;
       next.world.tableBags=0;
@@ -372,7 +379,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const exit=stationById(place,command.via);if(command.place!=='district'||exit?.id!==place+'-exit'||!at(source,role,exit))return fail('Подойди к выходу');
       const next=structuredClone(source),parking=approachFor(stationById('home','family-car')!,role),other=neighborAt('home');
       const arrival=other?unoccupiedDestination(parking,other,placeObstacles('home',source.furnishing),floorFor('home')):parking;
-      if(!arrival)return fail('Парковка занята');if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;}delete next.world.lake[role];}next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
+      if(!arrival)return fail('Парковка занята');if(place==='fitness'&&next.world.fitness)delete next.world.fitness[role].visit;if(place==='spa'&&next.world.spa)delete next.world.spa[role];if(place==='lake'&&next.world.lake){const leaving=next.world.lake[role],remaining=next.world.lake[neighbor];if(leaving?.tent&&remaining){remaining.tent=leaving.tent;remaining.pitch=leaving.pitch;remaining.fire=leaving.fire;remaining.meals=leaving.meals;}delete next.world.lake[role];}next.world.places[role]='home';Object.assign(next.characters[role],arrival,{pose:'idle'});return done(next,'Вернулись домой');
     }
     if (isCareerPlace(command.place)) return fail('Рабочая локация открывается только на смене');
     if (!isPlace(command.place) || command.place === place) return fail('Выбери другое доступное место');
@@ -665,6 +672,7 @@ export const localLabels: Record<LocalActivity, string> = {
   clinicExam:CLINIC_SERVICES.clinicExam.name,clinicDiagnosis:CLINIC_SERVICES.clinicDiagnosis.name,clinicProcedure:CLINIC_SERVICES.clinicProcedure.name,clinicFollowup:CLINIC_SERVICES.clinicFollowup.name,clinicMedicine:CLINIC_SERVICES.clinicMedicine.name,
   fitnessSauna:'Сауна',fitnessTrain:'Тренировка',fitnessLocker:'Отдохнуть в раздевалке',fitnessShower:'Принять душ',fitnessToilet:'Воспользоваться туалетом',
   fitnessWater:FITNESS_BAR.fitnessWater.name,fitnessIsotonic:FITNESS_BAR.fitnessIsotonic.name,fitnessShake:FITNESS_BAR.fitnessShake.name,fitnessSmoothie:FITNESS_BAR.fitnessSmoothie.name,fitnessSnack:FITNESS_BAR.fitnessSnack.name,fitnessMeal:FITNESS_BAR.fitnessMeal.name,
+  lakeCookSausages:'Колбаски на костре · готовим',lakeCookMarshmallow:'Маршмеллоу · готовим',lakeEatSausages:'Колбаски · едим',lakeEatMarshmallow:'Маршмеллоу · едим',
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
@@ -673,6 +681,23 @@ export const localLabels: Record<LocalActivity, string> = {
 export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
+  if(isLakeMealAction(action)){
+    if(place!=='lake'||!lakeAccess(source,role)||station?.action.kind!=='lake'||station.action.facility!=='fire'||!at(source,role,station))return fail('Нужен действующий билет и подход к костру');
+    const next=structuredClone(source),camp=Object.values(next.world.lake!).find(v=>v.pitch===id.replace('lake-fire-','lake-pitch-'));
+    if(!camp||camp.until<=clockMinutes(source.clock))return fail('Сначала установите палатку');
+    const {meal,cook}=LAKE_MEAL_ACTIONS[action],d=LAKE_MEALS[meal],stock=camp.meals??={};
+    if(cook){
+      if(!camp.fire)return fail('Разожги костёр');
+      if((stock[meal]??0)>2)return fail('Сначала съешьте готовые порции');
+      if(next.money<d.price)return fail('Недостаточно денег на продукты');
+      next.money-=d.price;addLedger(next,role,'expense','takeout',d.price,'Кемпинг · '+d.name);
+      stock[meal]=(stock[meal]??0)+2;next.characters[role].mood=Math.min(100,next.characters[role].mood+8);
+      return done(next,d.name+' · 2 порции готовы');
+    }
+    if(!stock[meal])return fail('Сначала приготовьте блюдо');
+    stock[meal]!--;const c=next.characters[role];c.hunger=Math.min(100,c.hunger+d.hunger);c.mood=Math.min(100,c.mood+d.mood);c.comfort=Math.min(100,c.comfort+8);c.fun=Math.min(100,c.fun+10);c.pose='idle';
+    return done(next,d.name+' · съедено');
+  }
   if(isSpaAction(action)){
  if(place!=='spa'||station?.action.kind!=='spa'||station.action.facility!==action||!at(source,role,station))return fail('Подойди к нужной зоне SPA');
  if((action==='spaLocker'||action==='spaShower')&&!id.endsWith('-'+role[0]))return fail('Выбери свою раздевалку или душ');

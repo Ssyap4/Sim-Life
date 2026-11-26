@@ -33,7 +33,7 @@ export const PLACES = {
 } as const;
 export type PlaceId = keyof typeof PLACES;
 export type Point = { x: number; z: number };
-export const LAKE_FLOOR={minX:-15.6,maxX:4.6,minZ:-13.6,maxZ:13.6};
+export const LAKE_FLOOR={minX:-15.6,maxX:9.4,minZ:-13.6,maxZ:13.6};
 export const VENUE_FLOOR={minX:-9.62,maxX:9.62,minZ:-6.62,maxZ:6.62};
 export const SPA_FLOOR={minX:-8.62,maxX:9.62,minZ:-6.62,maxZ:5.82};
 export const FITNESS_FLOOR={minX:-8.62,maxX:14.62,minZ:-6.62,maxZ:6.62};
@@ -181,6 +181,8 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   lake:[
     site('lake-rental','Прокат и кемпинг',-10,9,5.0,3.0,{kind:'lake',facility:'rental'},{approach:{x:-10,z:11.2}}),
     ...[[-10,-8],[-4,-8],[-10,1],[-4,1]].map(([x,z],i)=>site('lake-pitch-'+(i+1),'Площадка '+(i+1),x,z,4.0,3.4,{kind:'lake',facility:'pitch'})),
+    ...[[-10,-8],[-4,-8],[-10,1],[-4,1]].map(([x,z],i)=>site('lake-fire-'+(i+1),'Костёр '+(i+1),x,z+4,1.8,1.6,{kind:'lake',facility:'fire'},{approach:{x,z:z+5.25}})),
+    site('lake-pier','Рыбалка на пирсе',8.35,-3,1.0,1.2,{kind:'lake',facility:'fish'},{blocks:false,approach:{x:8.0,z:-3}}),
     ...[-10,-3,4,9].map((z,i)=>site('lake-fish-'+(i+1),'Рыбалка у воды',3.65,z,.8,1.3,{kind:'lake',facility:'fish'},{blocks:false,approach:{x:3.3,z}})),
     door('lake-exit','Выезд из клуба','district',-5,13.4,true),
   ],
@@ -332,6 +334,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
     if(station.action.facility==='venueBowling'||station.action.facility==='venueUfc')return {x:x+side*.65,z:station.approach.z};
     return {x,z:z+side*(station.depth/2+.63)};
   }
+  if(station.action.kind==='lake'&&station.action.facility==='fire')return {x:station.approach.x+(role==='vlad'?-.43:.43),z:station.approach.z};
   if(station.action.kind==='spa'&&['spaPool','spaJacuzzi','spaSauna'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.44:.44),z:station.approach.z};
   if(station.action.kind==='fitness'&&['sauna','bar'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.42:.42),z:station.approach.z};
   if(station.action.kind==='badminton')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.85};
@@ -351,6 +354,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
+  if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
   if(place==='district')obstacles.push(...DISTRICT_WORLD_OBSTACLES);
@@ -427,7 +431,7 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./venue').VenueCommand
   | import('./lake').LakeCommand

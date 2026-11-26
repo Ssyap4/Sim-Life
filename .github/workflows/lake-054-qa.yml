@@ -7,6 +7,10 @@ permissions:
   contents: read
 jobs:
   visual:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [day, night]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -20,10 +24,10 @@ jobs:
       - run: npx playwright install chromium
       - run: npm run build
       - run: node --import tsx --test server/tests/lake-054.test.ts server/tests/electronics-art-034.test.ts server/tests/spa-048.test.ts server/tests/venue-048.test.ts
-      - run: node --import tsx scripts/qa-lake-054.mjs
+      - run: node --import tsx scripts/qa-lake-054.mjs ${{ matrix.mode }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lake-054-initial
-          path: /tmp/simlife-lake-054
+          name: lake-054-${{ matrix.mode }}
+          path: /tmp/simlife-lake-054-${{ matrix.mode }}
           retention-days: 7

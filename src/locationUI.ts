@@ -1,4 +1,4 @@
-import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
+import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
@@ -201,7 +201,11 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         for(const [id,p] of Object.entries(LAKE_TENTS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'tent',item:id as LakeTent}))close();},!access||place.money<p.price||Object.values(place.world.lake??{}).some(v=>!!v.tent)));
         for(const [id,p] of Object.entries(LAKE_RODS))options.append(button(p.name+' · '+formatRub(p.price),()=>{if(send({type:'lake_rent',category:'rod',item:id as LakeRod}))close();},!access||place.money<p.price||!!visit?.rod));
       }else if(station.action.facility==='pitch')options.append(button('Выбрать площадку',()=>{if(send({type:'lake_pitch',station:station.id}))close();},!access||!visit?.tent||!!visit?.pitch||Object.values(place.world.lake??{}).some(v=>v.pitch===station.id)));
-      else options.append(element('small','','Рыбалка — следующий этап разработки'));
+      else if(station.action.facility==='fire'){
+        const camp=Object.values(place.world.lake??{}).find(v=>v.pitch===station.id.replace('lake-fire-','lake-pitch-'));
+        for(const [id,p] of Object.entries(LAKE_MEAL_ACTIONS)){const action=id as LakeMealAction,d=LAKE_MEALS[p.meal],count=camp?.meals?.[p.meal]??0;options.append(button((p.cook?'Приготовить: ':'Съесть: ')+d.name+(p.cook?' · '+formatRub(d.price)+' / 2 порции':' · '+count+' порц.'),()=>{if(send({type:'local_activity',station:station.id,action}))close();},!access||!camp||(p.cook?!camp.fire||count>2||place.money<d.price:count<1)));}
+        options.append(button(camp?.fire?'Потушить костёр':'Разжечь костёр',()=>{if(send({type:'lake_fire',station:station.id,lit:!camp?.fire}))close();},!access||!camp));
+      }else options.append(element('small','','Рыбалка — следующий этап разработки'));
     } else if(station.action.kind==='spa'){
  const a=station.action.facility,visit=place.world.spa?.[role];
  if(a==='reception')options.append(element('small','',visit?SPA_PASSES[visit.pass].name+' · оплачено':'Посещение не оплачено'));

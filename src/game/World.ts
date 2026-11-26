@@ -1,3 +1,4 @@
+import {isLakeMealAction,LAKE_MEAL_ACTIONS} from '../shared/lake';
 import {syncLakeTents} from './LakeArt';
 import {WORK_COFFEE_DROP} from '../shared/workCoffee';
 import {isVenueGame,venueStation} from '../shared/venue';
@@ -1342,6 +1343,7 @@ export class World {
         if(station.action.kind==='barber'&&station.action.facility==='chair'){actor.setFurniturePose('sit',new THREE.Vector3(station.center.x,-.15,station.center.z),Math.PI);if(this.remote)this.remote.root.userData.barberAction=command.action;}
         if (command.action === 'rest' || command.action === 'dine' || command.action === 'swing' || command.action === 'picnic') this.sitAt(role, station);
         if(command.action==='badminton'){actor.faceTowards(new THREE.Vector3(station.center.x,0,station.center.z));actor.playDomesticActivity('badminton');}
+        if(isLakeMealAction(command.action)){const p=LAKE_MEAL_ACTIONS[command.action],fire=this.remote?.stations.get(station.id)?.userData.fire;if(p.cook){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);if(fire){fire.userData.cookRole=role;fire.userData.setFood(p.meal);}}else{const side=role==='vlad'?-1:1,x=station.center.x+side*.89,z=station.center.z;actor.setFurniturePose('sit',new THREE.Vector3(x,-.09,z),side<0?Math.PI/2:-Math.PI/2);const dish=p.meal==='sausages'?'campSkewers':'campMarshmallow';const plate=this.showMeal(role,x-side*.25,.62,z,dish as RecipeId);actor.playActivity('eat',plate,dish as RecipeId,true);}}
         if(command.action==='campIgnite'||isCampRecipe(command.action)){const target=new THREE.Vector3(station.center.x,.60,station.center.z);actor.faceTowards(target);actor.playDomesticActivity('grill',target);}
         if(command.action==='picnic'&&this.household){
           const dish=picnicPortions(this.household,role)[0];
@@ -1571,7 +1573,9 @@ export class World {
     });
   }
 
+  private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
   finishTimedAction(role: CharacterId): void {
+    this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
@@ -1594,6 +1598,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
+    this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
@@ -2475,7 +2480,7 @@ export class World {
     // House NPCs share the server clock, without persisting visual-only traffic.
     if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
     if (changed) this.switchPlace(place);
-    if(place==='lake'&&this.remote)syncLakeTents(this.remote.stations,state.world.lake);
+    if(place==='lake'&&this.remote)syncLakeTents(this.remote.stations,state.world.lake,gameMinutes(state.clock));
     this.setTimeOfDay(gameMinutes(state.clock));
     for (const id of ['vlad', 'alina'] as const) {
       // Both clients animate from the same authoritative household needs.
@@ -2819,7 +2824,8 @@ export class World {
       }
       return siteView;
     }
-    if(this.remote&&(this.place==='fitness'||this.place==='venue'||this.place==='lake'))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
+    if(this.place==='lake'){const p=this.household?.characters[this.localRole]??{x:-5,z:7};const target=new THREE.Vector3(p.x+2,.45,p.z-3);return {target,position:target.clone().add(new THREE.Vector3(-12,19,21))};}
+    if(this.remote&&(this.place==='fitness'||this.place==='venue'))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
     if (this.remote && this.place === 'market')
       return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.14,1.09,1.0],88);
     if (compact && this.remote) return portraitHomeFrame(this.camera.fov, this.camera.aspect, band,
@@ -3217,6 +3223,11 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
+      const v=this.canvas.dataset.lakeView;
+      const view=v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.50,-4],eye:[-4.1,2.1,-.3]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;
+      if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
+    }
     if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {

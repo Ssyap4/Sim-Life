@@ -11,32 +11,40 @@ import {applyWorld,lakeTogetherTrip} from '../server/locations.ts';
 import {stationById,approachFor} from '../src/shared/locations.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
-const out='/tmp/simlife-lake-054';mkdirSync(out,{recursive:true});
+const mode=process.argv[2]??'day';const out='/tmp/simlife-lake-054-'+mode;mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'lake-054-'));let browser,server,buddy,page;
 try{
- let s=initialState();s.clock.minute=750;s.money=100000;s.autonomy={vlad:'off',alina:'off'};
+ let s=initialState();s.clock.minute=mode==='night'?1240:750;s.money=100000;s.autonomy={vlad:'off',alina:'off'};
  s.world.wardrobe=defaultWardrobe();s.world.wardrobe.vlad={owned:['signature','polo'],worn:'polo'};s.world.wardrobe.alina={owned:['signature','pink'],worn:'pink'};
  const trip=lakeTogetherTrip(s,'vlad','night');assert.ok(trip.ok);s=trip.state;
  const apply=(role,command)=>{const r=applyWorld(s,role,command);assert.ok(r.ok,JSON.stringify(r));s=r.state;};
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental'),'vlad'));
- apply('vlad',{type:'lake_rent',category:'tent',item:'family'});apply('vlad',{type:'lake_rent',category:'rod',item:'spin'});
+ apply('vlad',{type:'lake_rent',category:'tent',item:mode==='night'?'summit':'family'});apply('vlad',{type:'lake_rent',category:'rod',item:'spin'});
  Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-pitch-2'),'vlad'));apply('vlad',{type:'lake_pitch',station:'lake-pitch-2'});
- Object.assign(s.characters.vlad,{x:-5.05,z:-5.50,pose:'idle'});Object.assign(s.characters.alina,{x:-3.35,z:-5.50,pose:'idle'});
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fire-2'),'vlad'));apply('vlad',{type:'lake_fire',station:'lake-fire-2',lit:true});Object.assign(s.characters.alina,{x:-2.95,z:-5.75,pose:'idle'});
  openServerFiles(dir).save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.45,lifeClock:{now:()=>0,tickMs:600000}});
  buddy=new WebSocket('ws://127.0.0.1:'+server.port+'/sync');await once(buddy,'open');buddy.send(JSON.stringify({type:'auth',role:'alina',code:'TEST-LOCAL-NO-CODES'}));
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
  await page.addInitScript(()=>{const Native=window.WebSocket;window.__packets=[];window.WebSocket=class extends Native{constructor(...a){super(...a);if(this.url.includes('/sync')){window.__socket=this;this.addEventListener('message',e=>{try{window.__packets.push(JSON.parse(e.data))}catch{}});}}};});
  const shot=async(name)=>{await page.waitForTimeout(1700);const p=join(out,name+'.jpg');await page.screenshot({path:p,type:'jpeg',quality:85});const b64=readFileSync(p).toString('base64');for(let i=0;i<b64.length;i+=6000)console.log('LAKEQA_IMAGE '+name+' '+(i/6000)+' '+b64.slice(i,i+6000));};
- await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1&lakeQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='lake',undefined,{timeout:45000});
  await shot('01-overview');
- for(const role of ['vlad','alina']){await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();await shot('02-'+role);}
+ const setView=async(v)=>page.locator('#game-canvas').evaluate((el,v)=>el.dataset.lakeView=v,v);
+ for(const v of ['camp','shore','water','fire']){await setView(v);await shot('02-'+v);}
  const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
+ const action=mode==='night'?'lakeCookMarshmallow':'lakeCookSausages';
+ await setView('fire');await send({type:'local_activity',station:'lake-fire-2',action});
+ await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.vlad?.activity==='grill',undefined,{timeout:15000});
+ await shot('03-cooking');
+ await page.waitForFunction(()=>window.__packets.some(p=>p.type==='task_ended'&&p.role==='vlad'&&p.outcome==='completed'),undefined,{timeout:45000});
+ await setView('');
+ if(mode==='day')for(const role of ['vlad','alina']){await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();await shot('02-'+role);}
  await send({type:'approach',place:'lake',station:'lake-exit'});
  await page.waitForTimeout(2500);
  await send({type:'travel',place:'district',via:'lake-exit'});

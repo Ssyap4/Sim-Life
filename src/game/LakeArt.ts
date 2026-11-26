@@ -1,6 +1,9 @@
+import {painted} from './LocationArt';
+import {paintGround} from './LandscapeGround';
+import {buildDetailedTent,buildCampFire} from './LakeCampArt';
 import * as THREE from 'three';
-import {cube,drum,softCube,finish,batchRigidParts,type XYZ} from './ArtKit';
-import {PlantBatch,growTree,growShrub} from './LandscapePlants';
+import {cube,drum,softCube,orb,finish,batchRigidParts,type XYZ} from './ArtKit';
+import {PlantBatch,growTree,growShrub,landscapeRandom} from './LandscapePlants';
 import {LAKE_TENTS,type LakeTent,type LakeState} from '../shared/lake';
 import type {Station} from '../shared/locations';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
@@ -8,33 +11,8 @@ const wood=0x9a7049,grass=0x82995d;
 function box(g:THREE.Object3D,size:XYZ,pos:XYZ,color:number,geometry:THREE.BufferGeometry=cube){
  const m=new THREE.Mesh(geometry,finish(color,'wood'));m.position.set(...pos);m.scale.set(...size);m.receiveShadow=true;g.add(m);return m;
 }
-function cloth(g:THREE.Group,w:number,d:number,h:number,color:number,style:number){
- const points:number[]=[],indices:number[]=[];
- const rows=12,cols=10;
- for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
-  const t=i/cols*Math.PI,z=(j/rows-.5)*d;
-  const end=style===0?(.78+.22*Math.sin(j/rows*Math.PI)):style===3?(.94+.06*Math.sin(j/rows*Math.PI)):1;
-  points.push(Math.cos(t)*w*.5*end,.07+Math.sin(t)*h*end,z);
- }
- for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+cols+1;indices.push(a,b,a+1,b,b+1,a+1);}
- const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(points,3));geo.setIndex(indices);geo.computeVertexNormals();
- const mat=new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide});const mesh=new THREE.Mesh(geo,mat);g.add(mesh);
- // Arched frame and rear closure, open entrance facing +Z.
- const back=new THREE.Shape();back.moveTo(-w*.5,.07);
- for(let i=0;i<=cols;i++){const t=Math.PI-i/cols*Math.PI;back.lineTo(Math.cos(t)*w*.5,.07+Math.sin(t)*h);}
- back.lineTo(w*.5,.07);back.closePath();
- const rear=new THREE.Mesh(new THREE.ShapeGeometry(back),mat);rear.position.z=-d/2+.006;g.add(rear);
- box(g,[w*.92,.055,d*.96],[0,.05,0],0x38413b);
- for(const side of [-1,1])box(g,[.065,.07,d*.99],[side*w*.49,.045,0],0x4d5650);
- for(const side of [-1,1]){box(g,[w*.37,.09,d*.62],[side*w*.23,.11,-d*.13],style>1?0xc2a988:0x7d8c75,softCube);box(g,[w*.31,.095,.34],[side*w*.23,.18,-d*.36],0xe9dfbd,softCube);}
- if(style>0){box(g,[w*.98,.045,.72],[0,h*.79,d*.5+.32],color).rotation.x=.12;for(const x of [-w*.44,w*.44])box(g,[.037,h*.78,.037],[x,h*.39,d*.5+.61],0x5b625d,drum);}
-}
-export function buildLakeTent(id:LakeTent){
- const g=new THREE.Group(),i=Object.keys(LAKE_TENTS).indexOf(id);
- cloth(g,[2.15,2.50,3.15,3.50][i],[2.25,2.55,3.05,3.30][i],[1.30,1.56,1.88,2.05][i],[0x58785a,0x899178,0xb18a5d,0xcdbb97][i],i);
- g.name='Lake tent '+id;batchRigidParts(g,true);return g;
-}
-export function lakeStation(s:Station){
+export const buildLakeTent=buildDetailedTent;
+export function lakeStation(s:Station,resources:Resources){
  const g=new THREE.Group();g.position.set(s.center.x,0,s.center.z);
  if(s.action.kind==='door'){
   for(const x of [-1.25,1.25])box(g,[.23,2.6,.24],[x,1.30,0],wood);
@@ -54,59 +32,117 @@ export function lakeStation(s:Station){
    box(g,[4.10,.035,3.55],[0,.018,0],0xb8aa81,softCube);
    for(const x of [-1.95,1.95])for(const z of [-1.65,1.65])box(g,[.08,.32,.08],[x,.16,z],wood);
    const models=new Map<LakeTent,THREE.Group>();
-   for(const id of Object.keys(LAKE_TENTS) as LakeTent[]){const t=buildLakeTent(id);t.visible=false;g.add(t);models.set(id,t);}
+   for(const id of Object.keys(LAKE_TENTS) as LakeTent[]){const t=buildLakeTent(id,resources);t.position.z=-.13;t.visible=false;g.add(t);models.set(id,t);}
    g.userData.tents=models;
+  }else if(s.action.facility==='fire'){
+   const fire=buildCampFire(resources);g.add(fire);g.userData.fire=fire;
+   // Low logs and small side table around the stone fire pit.
+   for(const side of [-1,1]){box(g,[.72,.10,.33],[side*.89,.35,0],wood,softCube);for(const dz of [-.11,.11])box(g,[.11,.32,.11],[side*.89,.17,dz],0x72583d);}
+   box(g,[.40,.07,.45],[.93,.48,-.58],wood);for(const dx of [-.13,.13])for(const dz of [-.16,.16])box(g,[.05,.44,.05],[.93+dx,.23,-.58+dz],wood);
   }else if(s.action.facility==='fish'){
-   box(g,[1.25,.10,1.38],[.20,.04,0],wood);
+   if(s.id!=='lake-pier')box(g,[1.25,.10,1.38],[.20,.04,0],wood);
    box(g,[.28,.33,.32],[-.27,.20,.42],0x69795c,softCube);
   }
  }
  return g;
 }
-export function syncLakeTents(stations:Map<string,THREE.Group>,visits:LakeState|undefined){
- for(const [id,g] of stations){const models=g.userData.tents as Map<LakeTent,THREE.Group>|undefined;if(!models)continue;
+export function syncLakeTents(stations:Map<string,THREE.Group>,visits:LakeState|undefined,now=0){
+ for(const [id,g] of stations){const models=g.userData.tents as Map<LakeTent,THREE.Group>|undefined;if(!models){const fire=g.userData.fire as THREE.Group|undefined;if(fire){const v=Object.values(visits??{}).find(v=>v.pitch===id.replace('lake-fire-','lake-pitch-'));fire.userData.setLit(!!v?.fire&&v.until>now);}continue;}
  const visit=Object.values(visits??{}).find(v=>v.pitch===id);for(const [sku,m] of models)m.visible=visit?.tent===sku;}
+}
+// An irregular lake footprint with a narrow western bank and curved far shore.
+function lakeEdge(v:number){
+ const z=(v-.5)*29.0,cap=Math.pow(Math.max(0,Math.sin(v*Math.PI)),.58);
+ return {z,left:4.83+.18*Math.sin(z*.57)+.08*Math.sin(z*1.17),right:5.25+18.5*cap+.34*Math.sin(z*.46)*cap};
+}
+function lakeSurface(){
+ const pos:number[]=[],uv:number[]=[],idx:number[]=[];const rows=64,cols=20;
+ for(let j=0;j<=rows;j++){const v=j/rows,e=lakeEdge(v);for(let i=0;i<=cols;i++){const u=i/cols;pos.push(THREE.MathUtils.lerp(e.left,e.right,u),.012,e.z);uv.push(u,v);}}
+ for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+cols+1;idx.push(a,b,a+1,b,b+1,a+1);}
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();return geo;
 }
 export function buildLakeLandscape(root:THREE.Group,resources:Resources){
  const ground=new THREE.Group();root.add(ground);
- box(ground,[21.5,.38,29.0],[-5.65,-.20,0],grass);
- box(ground,[2.0,.04,28.2],[4.15,-.005,0],0xc4b38a);
- box(ground,[1.75,.026,26],[-6.95,.018,0],0xc4af81);
- for(const z of [-9,1,9])box(ground,[13.0,.026,1.35],[-5.5,.019,z+2],0xc2ae83);
- // Far shore and forest backdrop; no additional collision objects in the walkable area.
- box(ground,[4.8,.42,30],[25.2,-.18,0],0x708750);
- const plants=new PlantBatch();
+ const area={x:5.7,z:0,w:46,d:33};
+ box(ground,[area.w,.42,area.d],[area.x,-.23,0],grass);
+ const map=painted(resources,1024,1024,ctx=>{
+  paintGround(ctx,area,[
+   {x:-12,z:-10,w:6,d:7,ink:[56,109,62],opacity:.58},
+   {x:-1,z:0,w:7,d:25,ink:[144,168,103],opacity:.45},
+   {x:23,z:0,w:8,d:29,ink:[68,115,63],opacity:.62}
+  ],54129);
+  const px=(x:number)=>(x-area.x+area.w/2)/area.w*1024,pz=(z:number)=>(z+area.d/2)/area.d*1024;
+  function trail(points:XYZ[],width:number){ctx.lineJoin='round';ctx.lineCap='round';for(const [color,w] of [['#ae9b71',width+5],['#c8b68c',width]] as const){ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();points.forEach(([x,,z],i)=>i?ctx.lineTo(px(x),pz(z)):ctx.moveTo(px(x),pz(z)));ctx.stroke();}}
+  trail([[-5,0,13.4],[-6.9,0,9],[-6.6,0,5],[-7.1,0,0],[-6.7,0,-6],[-7.1,0,-11.2]],32);
+  for(const z of [-5.7,3.3,11.0])trail([[-11,0,z],[-7,0,z+.1],[-1.5,0,z+.4],[3.6,0,z]],24);
+  trail([[3.7,0,-12],[4.0,0,-5],[3.8,0,0],[4.0,0,7],[3.6,0,12]],27);
+ });
+ const gm=new THREE.MeshStandardMaterial({map,color:map?0xffffff:grass,roughness:1});resources.materials.push(gm);
+ const gmsh=new THREE.Mesh(new THREE.PlaneGeometry(area.w,area.d),gm);gmsh.rotation.x=-Math.PI/2;gmsh.position.set(area.x,-.012,0);gmsh.receiveShadow=true;root.add(gmsh);
+ // Sand/pebble ribbon follows the actual shore, rather than a rectangular border.
+ const shoreP:number[]=[],shoreI:number[]=[];
+ for(let j=0;j<=64;j++){const e=lakeEdge(j/64);shoreP.push(e.left-.78,-.003,e.z,e.left+.10,-.003,e.z,e.right-.10,-.003,e.z,e.right+.75,-.003,e.z);
+ if(j){const a=(j-1)*4,b=j*4;shoreI.push(a,b,a+1,b,b+1,a+1,a+2,b+2,a+3,b+2,b+3,a+3);}}
+ const shoreGeo=new THREE.BufferGeometry();shoreGeo.setAttribute('position',new THREE.Float32BufferAttribute(shoreP,3));shoreGeo.setIndex(shoreI);shoreGeo.computeVertexNormals();
+ const shore=new THREE.Mesh(shoreGeo,finish(0xc5b78d,'fabric'));shore.receiveShadow=true;root.add(shore);
+ // Public pier: the server permits walking only through this two-metre corridor.
+ for(let i=0;i<28;i++)box(ground,[.19,.13,2.1],[4.18+i*.187,.02,-3],i%4===0?0xb99563:0xa98658);
+ for(const x of [4.5,6.6,8.75])for(const z of [-3.9,-2.1])box(ground,[.12,.64,.12],[x,.20,z],0x72583e);
+ for(const z of [-3.9,-2.1])box(ground,[4.4,.09,.10],[6.62,.49,z],0x84613c);
+ const plants=new PlantBatch(),rng=landscapeRandom(65381);
  const trees:XYZ[]=[];
- for(let i=0;i<15;i++)trees.push([-16.5,0,-13+i*1.85],[23.8+(i%3)*1.3,0,-14+i*1.95]);
- for(let i=0;i<13;i++)trees.push([-15+i*1.5,0,-14.5],[-15+i*1.5,0,14.7]);
- for(const [i,[x,,z]] of trees.entries()){growTree(plants,x,z,i%3?'spruce':'birch',.88+(i%5)*.11,741+i*31,true);if(i%2===0)growShrub(plants,x+.55,0,z+.45,.70,.42,.70,i%4,773+i);}
- plants.attach(root,'Lake forest');
- batchRigidParts(ground);
- // Lightweight animated water: procedural wind waves, bank gradient and stylized tree-reflection bands.
- const mat=new THREE.ShaderMaterial({uniforms:{time:{value:0},night:{value:0}},vertexShader:`
+ for(let i=0;i<17;i++)trees.push([-16.5-rng()*.7,0,-14.5+i*1.8]);
+ for(let i=0;i<18;i++){const v=(i+.5)/18,e=lakeEdge(v);trees.push([e.right+1.05+rng()*1.8,0,e.z]);}
+ for(let i=0;i<17;i++)trees.push([-15+i*1.55,0,-15.6-rng()*.5],[-15+i*1.55,0,15.4+rng()*.5]);
+ for(const [i,[x,,z]] of trees.entries()){growTree(plants,x,z,i%4?'spruce':'birch',.94+(i%5)*.11,741+i*31,i%3!==0);if(i%2===0)growShrub(plants,x+.55,0,z+.45,.70,.42,.70,i%4,773+i);}
+ // Plants and rounded pebbles are kept outside the character corridor.
+ for(let i=0;i<46;i++){const z=-13.6+i*.60;if(Math.abs(z+3)<1.35)continue;const e=lakeEdge(z/29+.5),x=e.left+.10+rng()*.20;
+  for(let k=0;k<4;k++){const a=rng()*6.283;plants.stem(0x687f45,[x,0,z],[x+.12*Math.cos(a),.24+rng()*.43,z+.12*Math.sin(a)],.012);plants.blade(0x809653,[x,.14,z],[.045,.26,.04],a,.50);}
+  if(i%3===0)box(ground,[.10+rng()*.10,.075,.11],[e.left-.17,.04,z],0x8c8d7b,orb);
+ }
+ plants.attach(root,'Lake forest and reeds');
+ // Small lily clusters and water rocks, batched into one rigid group.
+ for(let i=0;i<20;i++){const z=-12+rng()*24;if(Math.abs(z+3)<1.5)continue;const e=lakeEdge(z/29+.5),x=e.left+.5+rng()*1.1;
+  box(ground,[.13+rng()*.07,.008,.13],[x,.024,z],i%2?0x68884a:0x54783b,drum);
+  if(i%5===0)box(ground,[.05,.05,.05],[x,.048,z],0xe3b3bd,orb);
+ }
+ batchRigidParts(ground,true);
+ // View-dependent fresnel, moving normals, shoreline caustics and stylized tree reflections.
+ const mat=new THREE.ShaderMaterial({uniforms:{time:{value:0},night:{value:0}},side:THREE.DoubleSide,vertexShader:`
  varying vec2 uv0;varying vec3 wp;
  void main(){uv0=uv;vec4 p=modelMatrix*vec4(position,1.);wp=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,fragmentShader:`
  uniform float time;uniform float night;varying vec2 uv0;varying vec3 wp;
  void main(){
- float a=sin(wp.x*3.1+wp.z*1.3-time*1.4);
- float b=sin(wp.x*1.4-wp.z*4.4+time*.9);
- float c=sin(wp.x*6.8+wp.z*.6+time*.7);
- float wave=(a+b*.6+c*.25)/1.85;
- float edge=smoothstep(0.,.20,min(uv0.x,1.-uv0.x));
- vec3 shallow=vec3(.26,.55,.49),deep=vec3(.075,.28,.38);
- vec3 col=mix(shallow,deep,edge);
- float tree=pow(abs(sin(wp.z*1.04+wave*.32)*sin(wp.z*.27+.8)),3.);
- col=mix(col,vec3(.10,.23,.18),tree*smoothstep(.35,1.,uv0.x)*.46);
- float glint=pow(max(0.,wave),7.);
- col+=vec3(.40,.55,.49)*glint*.48;
- col=mix(col,col*vec3(.36,.43,.70)+vec3(.015,.02,.055),night);
+ vec2 p=wp.xz;float t=time;
+ float a=sin(dot(p,vec2(2.2,1.15))-t*.85);
+ float b=sin(dot(p,vec2(-1.3,3.7))+t*.66);
+ float c=sin(dot(p,vec2(5.5,.75))+t*.58);
+ float d=sin(dot(p,vec2(1.9,-6.8))-t*.49);
+ float wave=(a+b*.52+c*.25+d*.12)/1.89;
+ vec3 n=normalize(vec3(.085*cos(dot(p,vec2(2.2,1.15))-t*.85)+.025*c,1.,.07*cos(dot(p,vec2(-1.3,3.7))+t*.66)+.025*d));
+ vec3 v=normalize(cameraPosition-wp);
+ float fresnel=pow(1.-clamp(dot(n,v),0.,1.),2.5);
+ float edge=min(min(uv0.x,1.-uv0.x),min(uv0.y,1.-uv0.y)*.9);
+ float deep=smoothstep(.005,.17,edge);
+ vec3 shall=vec3(.39,.55,.35),depth=vec3(.045,.23,.27);
+ float caustic=pow(abs(sin(p.x*7.+a*.9)*sin(p.y*8.+b*.8)),3.);
+ vec3 col=mix(shall,depth,deep)+vec3(.17,.22,.13)*caustic*(1.-deep)*.35;
+ vec3 sky=mix(vec3(.28,.49,.59),vec3(.57,.71,.72),.55+.45*wave);
+ col=mix(col,sky,.18+.57*fresnel);
+ float silhouette=pow(abs(sin(p.y*1.25+wave*.22)*sin(p.y*.35+.8)),2.);
+ float bankReflection=exp(-edge*9.)*silhouette;
+ col=mix(col,vec3(.075,.17,.13),bankReflection*(.30+.24*fresnel));
+ vec3 sun=normalize(vec3(-.55,.80,.25));float spec=pow(max(0.,dot(reflect(-sun,n),v)),36.);
+ col+=vec3(.84,.72,.44)*spec*.67+vec3(.15,.23,.23)*pow(max(wave,0.),6.)*.30;
+ float rim=1.-smoothstep(.0,.017,edge);col=mix(col,vec3(.63,.72,.56),rim*.20);
+ col=mix(col,col*vec3(.27,.40,.65)+vec3(.012,.024,.052),night);
  gl_FragColor=vec4(col,1.);
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
  }`});
  resources.materials.push(mat);
- const water=new THREE.Mesh(new THREE.PlaneGeometry(19.2,29),mat);water.rotation.x=-Math.PI/2;water.position.set(14.55,-.025,0);root.add(water);
+ const water=new THREE.Mesh(lakeSurface(),mat);water.name='Lake water surface';root.add(water);
  const waves=new THREE.Group();root.add(waves);
- const rings=Array.from({length:6},(_,i)=>{const m=new THREE.MeshBasicMaterial({color:0xc9f0e2,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide});resources.materials.push(m);const r=new THREE.Mesh(new THREE.RingGeometry(.94,1,32),m);r.rotation.x=-Math.PI/2;r.position.set(7+i*2.5,.003,-11+(i*7)%23);waves.add(r);return r;});
- return {animate(t:number){mat.uniforms.time.value=t;for(let i=0;i<rings.length;i++){const k=(t*.21+i*.173)%1;rings[i].scale.setScalar(.12+k*.85);rings[i].material.opacity=.25*Math.sin(k*Math.PI);}},setNight(n:boolean){mat.uniforms.night.value=n?1:0;}};
+ const rings=Array.from({length:6},(_,i)=>{const m=new THREE.MeshBasicMaterial({color:0xc9f0e2,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide});resources.materials.push(m);const r=new THREE.Mesh(new THREE.RingGeometry(.96,1,32),m);r.rotation.x=-Math.PI/2;r.position.set(7+i*1.1,.022,-10+(i*7)%20);waves.add(r);return r;});
+ return {animate(t:number){mat.uniforms.time.value=t;for(let i=0;i<rings.length;i++){const k=(t*.21+i*.173)%1;rings[i].scale.setScalar(.10+k*.72);rings[i].material.opacity=.19*Math.sin(k*Math.PI);}},setNight(n:boolean){mat.uniforms.night.value=n?1:0;}};
 }
