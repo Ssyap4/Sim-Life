@@ -20,6 +20,8 @@ import { gameAudio } from './GameAudio';
 import { cafeSeatAt } from '../shared/locations';
 import { HomeEffects } from './HomeEffects';
 import { buildFamilyCar } from './FamilyCarArt';
+import {CarRideScene} from './CarRideScene';
+import type {CarRide} from '../shared/carRide';
 import { buildHomeWing } from './HomeWing';
 import { NeighborPeople } from './NeighborPeople';
 import { courierVisit, COURIER_INDEX } from '../shared/courier';
@@ -155,6 +157,9 @@ export class World {
   private remoteMeshes: THREE.Object3D[] = [];
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private roadScene?:CarRideScene;
+  private carRide?:CarRide;
+  setCarRide(ride?:CarRide):void{this.carRide=ride;}
   private nearbyChat:{from:CharacterId;until:number;started:number}|null=null;
   nearbyConversation(from:CharacterId,remainingMs:number):void{
     this.nearbyChat=remainingMs>0?{from,started:this.visualSeconds,until:this.visualSeconds+remainingMs/1000}:null;
@@ -2924,6 +2929,15 @@ export class World {
     const coffeeDt=dt>0?Math.min(elapsedMs/1000,1):0;
     this.lastFrame = now;
     if (document.hidden) return;
+    if(this.carRide&&Date.now()<this.carRide.endsAt&&this.household){
+      try{
+        this.roadScene??=new CarRideScene();
+        this.roadScene.frame(this.carRide,this.household.clock,this.canvas.width/Math.max(1,this.canvas.height));
+        this.renderer.render(this.roadScene.scene,this.roadScene.camera);
+        this.onRenderedFrame?.(now,this.renderer.info.render.calls,this.renderer.info.render.triangles);
+        return;
+      }catch(error){console.warn('Car ride scene fallback',error);this.carRide=undefined;}
+    }
     this.visualSeconds += dt;
     if (qualitySample !== null) this.smoothedFrameMs = this.smoothedFrameMs * .97 + qualitySample * .03;
     if (qualitySample !== null && this.viewport?.compact && now - this.lastQualityUpdate > 8000) {

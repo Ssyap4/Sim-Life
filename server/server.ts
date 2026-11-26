@@ -34,6 +34,7 @@ import type { Wish } from '../src/shared/wishes';
 import { protectNeeds } from '../src/shared/happiness';
 import {dogBathPlan} from '../src/shared/dogBath';
 import {isTrainingAction} from '../src/shared/dogTraining';
+import { recordCarRide,isCarReturn } from '../src/shared/carRide';
 import { applyWorld, clinicTogetherTrip, lakeTogetherTrip, spaTogetherTrip, venueTogetherTrip, fitnessTogetherTrip, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
@@ -1551,8 +1552,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         const result=destination.startsWith('lake-')?lakeTogetherTrip(state,fitnessTripOffer.from,destination.slice(5) as LakePass,fitnessTripOffer.dog):destination==='venue'?venueTogetherTrip(state,fitnessTripOffer.from):destination==='spa-pair'||destination==='spa-package'?spaTogetherTrip(state,fitnessTripOffer.from,destination==='spa-pair'?'pair':'package'):(destination==='clinic'?clinicTogetherTrip:fitnessTogetherTrip)(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        recordCarRide(state,result.state,[role,partner]);
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить поездку'});return;}
-        for(const r of [role,partner]){walkingHome.delete(r);stopLeisure(r);closeStorage(r);clearQueue(r);lastIntent.set(r,now);}
+        for(const r of [role,partner]){walkingHome.delete(r);stopLeisure(r);closeStorage(r);clearQueue(r);lastIntent.set(r,now+(result.state.world.carRides?.[r]?.endsAt??Date.now())-Date.now());}
         state=result.state;all({type:'snapshot',state});
         for(const r of [role,partner])all({type:'world_event',role:r,message:result.message});
         return;
@@ -1580,8 +1582,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const from = travelSource.characters[role];
         const result = applyWorld(travelSource, role, message, active.has(otherRole(role)));
         if (!result.ok) { packet(socket, { type: 'error', reason: result.reason }); return; }
+        const carJourney=message.type==='car_travel'||(message.type==='travel'&&isCarReturn(state,result.state,role));
+        if(carJourney)recordCarRide(state,result.state,[role]);
         try { files.save(result.state); }
         catch { packet(socket, { type: 'error', reason: 'Не удалось сохранить действие в локации' }); return; }
+        if(carJourney)lastIntent.set(role,pauseTimers.now()+Math.max(0,(result.state.world.carRides?.[role]?.endsAt??Date.now())-Date.now()));
         state = result.state;
         all({ type: 'snapshot', state });
         if (message.type === 'travel'||message.type==='car_travel') {

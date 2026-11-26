@@ -1485,3 +1485,13 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 #needs-toggle.health-alert{position:relative;color:#a64343;outline:1px solid #ca7770} #needs-toggle.health-alert::after{content:'+';position:absolute;right:2px;top:1px;font-weight:800;color:#a64343;background:#fff1ea;border-radius:50%;width:14px;height:14px;line-height:14px;font-size:12px}
 
 .care-effects{font-size:10px;color:#79566a;margin:3px 0 6px}.care-effects summary{cursor:pointer;font-weight:700}.care-effects small{display:block;font-size:9px;margin:3px 0}
+
+/* Travel interlude: the same game canvas, no second WebGL context. */
+#app.car-riding > :not(#game-canvas):not(#car-ride){visibility:hidden!important;pointer-events:none!important}
+#car-ride{position:absolute;inset:0;z-index:150;display:flex;flex-direction:column;justify-content:space-between;pointer-events:auto;touch-action:none;color:#fff;background:linear-gradient(180deg,rgba(18,30,39,.8),transparent 30%,transparent 62%,rgba(15,26,34,.88));padding:calc(24px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));box-sizing:border-box;font-family:inherit;animation:ride-in .25s ease-out}
+#car-ride[hidden]{display:none}
+.ride-top,.ride-bottom{display:flex;flex-direction:column;gap:12px;max-width:480px;width:100%;margin:0 auto;text-shadow:0 1px 5px #14212c}
+.ride-top small{letter-spacing:.18em;font-size:10px;font-weight:700;opacity:.8}.ride-top strong{font-size:clamp(22px,6vw,32px);line-height:1.12}
+.ride-bottom span{font-size:13px;font-weight:600}.ride-bottom small{font-size:12px;opacity:.8}.ride-track{height:5px;border-radius:6px;overflow:hidden;background:#ffffff40}.ride-track i{height:100%;width:100%;display:block;background:#d9e7ca;transform-origin:left;transform:scaleX(0);transition:transform .1s linear}
+@keyframes ride-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){#car-ride{animation:none}.ride-track i{transition:none}}

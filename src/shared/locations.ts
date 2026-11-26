@@ -419,6 +419,7 @@ export interface WorldState {
   deliveries: Delivery[];
   courierDepartAt?:number;
   carDriver?:CharacterId;
+  carRides?:Partial<Record<CharacterId,import('./carRide').CarRide>>;
   electronics?: import('./electronics').ElectronicsState;
   wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;

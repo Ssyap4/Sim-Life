@@ -1,0 +1,32 @@
+name: Car ride 0.55 visual
+on:
+  push:
+    branches: [feat/car-travel-055]
+permissions:
+  contents: read
+jobs:
+  visual:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [market, lake]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx --test server/tests/car-ride-055.test.ts server/tests/family-car-wishes-029.test.ts
+      - run: node --import tsx scripts/qa-car-055.mjs ${{ matrix.mode }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: car-055-${{ matrix.mode }}
+          path: /tmp/simlife-car-055-${{ matrix.mode }}
+          retention-days: 7

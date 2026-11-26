@@ -70,6 +70,7 @@ import {feedingStation,feederModel,feederReserve,dryRefills} from './shared/petF
 import { renderPetChoices } from './petMenu';
 import { PETS, PET_IDS, PET_BOWL_CAPACITY, PET_FOOD_REFILLS_PER_PACK, petHungerLevel, type PetId } from './shared/pets';
 import {weatherAt,WEATHER_INFO,weatherTemperature} from './shared/weather';
+import {activeCarRide,rideProgress,type CarRide} from './shared/carRide';
 import { clockAt, dayPhase, gameDate, gameMinutes, timeLabel, LOW_BLADDER, NEED_INFO, VITAL_NEEDS } from './shared/life';
 import type { TimeStatus } from './shared/timeControl';
 import {
@@ -175,6 +176,7 @@ app.innerHTML = `
   <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
+  <section id="car-ride" aria-label="Поездка на автомобиле" hidden><div class="ride-top"><small>SIM LIFE · В ДОРОГЕ</small><strong id="ride-destination"></strong></div><div class="ride-bottom"><span id="ride-route"></span><div class="ride-track" role="progressbar" aria-label="Поездка"><i id="ride-progress"></i></div><small>Загружаем локацию…</small></div></section>
   <div id="message" class="message" aria-live="polite"></div>
   <aside id="payment-notice" class="payment-notice" hidden>
     <span role="status"></span><button type="button">К платежам</button>
@@ -670,8 +672,32 @@ function syncResidentLook(role:CharacterId):void{
   const actor=world.actors[role];
   if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
 }
+let shownRide:CarRide|undefined;
+let rideTimer:number|undefined;
+function refreshCarRide():void{
+  const ride=state&&active?activeCarRide(state,active):undefined;
+  if(ride?.startedAt===shownRide?.startedAt&&ride?.to===shownRide?.to)return;
+  shownRide=ride;
+  if(rideTimer!==undefined){window.clearInterval(rideTimer);rideTimer=undefined;}
+  const screen=document.querySelector<HTMLElement>('#car-ride')!;
+  screen.hidden=!ride;
+  app!.classList.toggle('car-riding',!!ride);
+  for(const child of Array.from(app!.children))if(child instanceof HTMLElement&&child!==screen&&child.id!=='game-canvas')child.inert=!!ride;
+  world?.setCarRide(ride);
+  if(!ride){if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)transition.animate([{opacity:.85},{opacity:0}],{duration:280});return;}
+  document.querySelector<HTMLElement>('#ride-destination')!.textContent=ride.to==='home'?'Возвращаемся домой':'Едем: '+PLACES[ride.to].name;
+  document.querySelector<HTMLElement>('#ride-route')!.textContent=PLACES[ride.from].name+' → '+PLACES[ride.to].name;
+  const tick=()=>{
+    const p=rideProgress(ride);
+    document.querySelector<HTMLElement>('#ride-progress')!.style.transform='scaleX('+p+')';
+    screen.querySelector('.ride-track')?.setAttribute('aria-valuenow',String(Math.round(p*100)));
+    if(p>=1)refreshCarRide();
+  };
+  tick();rideTimer=window.setInterval(tick,80);
+}
 function render(reset = false): void {
   if (!state) return;
+  refreshCarRide();
   if (active && world) {
     const place = state.world.places[active];
     if (world.place !== place) {
@@ -779,6 +805,7 @@ function signOut(): void {
   net.forgetDevice();
   deliverySequence = null;
   active = null;
+  refreshCarRide();
   state = null;
   tasks.clear();
   waitingTasks.clear();
@@ -1158,6 +1185,7 @@ const net = new LiveConnection({
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
       authEl.hidden = false;
       active = null;
+      refreshCarRide();
       gameAudio.setPlaying(false);
       mapBtn.disabled = true;
       phoneBtn.disabled = true;

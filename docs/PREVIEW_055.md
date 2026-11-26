@@ -1,0 +1,3 @@
+# 0.55 — Automatic car trips (preview)
+
+Owner approved 5–10 real seconds, no dealership/interior. Existing black family SUV, same renderer and cached lightweight road scene. Six seconds local shops/park, eight seconds longer city trips, ten seconds forest lake. Return uses the same duration. Walking and existing arrival/fees/consent/pet rules are unchanged. Shared server timestamp for paired trips. UI blocks normal interactions during the interlude; destination state is committed by the original travel transaction and rendered behind the interlude, not a delayed server teleport. No extra sound. Physical FPS and final visual QA not yet verified.
