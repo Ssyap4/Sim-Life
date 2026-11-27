@@ -1,5 +1,6 @@
 import {polishShopInterior} from './InteriorAtmosphere';
 import {addLocationFinish} from './LocationFinish061';
+import {addShopDetail} from './ShopDetail061';
 import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
@@ -675,6 +676,9 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   if(place==='clothing'){
     sign(floor,'СТИЛЬ',2.55,-4.88,3.2,C.paper,textures,materials);
     shape(floor,[2.5,.025,3.1],[0,.016,-.28],0xc6b7c4,cube);
+    const cashier=marketCashier(resources,{title:'Продавец',color:0x9b8395,shirt:0xf0e3db,animated:true});
+    cashier.position.set(3.70,0,.53);root.add(cashier);
+    animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.12;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.045);};
     for(const x of [-4.55,4.55]){
       shape(floor,[1.38,.08,.50],[x,.78,-4.32],0xded1be);
       for(let i=0;i<3;i++)shape(floor,[.35,.12,.35],[x+(i-1)*.39,.88,-4.32],accents[i]);
@@ -738,6 +742,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   polishShopInterior(root,place,resources);
   addLocationFinish(root,place,resources);
+  addShopDetail(root,place,resources);
   root.updateMatrixWorld(true);
   const corners = ({ min, max }: THREE.Box3): XYZ[] => {
     const result: XYZ[] = [];

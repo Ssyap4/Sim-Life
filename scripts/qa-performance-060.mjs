@@ -26,7 +26,7 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(...a){super(...a);if(this.url.includes('/sync'))window.__socket=this;}};});
- await page.goto('http://127.0.0.1:'+server.port+'/?perf=1&perfQA=1',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.goto('http://127.0.0.1:'+server.port+'/?perf=1&perfQA=1&cameraQA=1&shopDetailQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  const canvas=page.locator('#game-canvas');
@@ -76,6 +76,14 @@ try{
   for(const place of ['cafe','petshop','electronics','clothing','lake','fitness','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic']){
    await go(place,place+'-audit');
    await page.screenshot({path:join(out,place+'-audit.png')});
+    if(['cafe','petshop','clothing','electronics'].includes(place)){
+     for(const view of ['rear','fixture']){
+      await canvas.evaluate((c,v)=>c.dataset.shopDetailView=v,view);
+      await page.waitForTimeout(500);
+      await page.screenshot({path:join(out,place+'-'+view+'.png')});
+     }
+     await canvas.evaluate(c=>delete c.dataset.shopDetailView);
+    }
   }
   await go('home','home-after-all-destinations');
   // Simulate the partner remaining elsewhere while the local view changes.

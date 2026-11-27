@@ -26,7 +26,7 @@ export function polishShopInterior(root:THREE.Group,place:PlaceId,resources:Loca
    ctx.save();ctx.translate(px(s.center.x),pz(s.center.z));ctx.scale((s.width+.45)*256/p.w,(s.depth+.45)*256/p.d);
    const sh=ctx.createRadialGradient(0,0,.25,0,0,1);sh.addColorStop(0,'rgba(39,44,36,.37)');sh.addColorStop(.58,'rgba(39,44,36,.21)');sh.addColorStop(1,'rgba(39,44,36,0)');ctx.fillStyle=sh;ctx.fillRect(-1,-1,2,2);ctx.restore();
   }
-  for(const x of p.lamps)for(const z of [-2.2,2.2]){
+  for(const x of p.lamps)for(const z of [-3.6,-1.7]){
    ctx.save();ctx.translate(px(x),pz(z));ctx.scale(512/p.w*1.95,512/p.d*1.7);
    const light=ctx.createRadialGradient(0,0,0,0,0,1);light.addColorStop(0,place==='cafe'?'rgba(255,213,151,.21)':'rgba(255,252,226,.14)');light.addColorStop(1,'rgba(255,252,226,0)');ctx.fillStyle=light;ctx.fillRect(-1,-1,2,2);ctx.restore();
   }
@@ -36,9 +36,9 @@ export function polishShopInterior(root:THREE.Group,place:PlaceId,resources:Loca
  const lampMat=new THREE.MeshStandardMaterial({color:p.warm,emissive:p.warm,emissiveIntensity:.75,roughness:.65});
  resources.materials.push(lampMat);
  const fixtures=new THREE.Group();g.add(fixtures);
- for(const x of p.lamps)for(const z of [-3.15,1.8]){
-  const body=new THREE.Mesh(cube,finish(0x656b65,'metal'));body.scale.set(place==='cafe'?1.1:1.85,.075,.24);body.position.set(x,2.72,z);fixtures.add(body);
-  const lens=new THREE.Mesh(cube,lampMat);lens.scale.set(place==='cafe'?.96:1.71,.031,.18);lens.position.set(x,2.665,z);fixtures.add(lens);
+ for(const x of p.lamps){
+  const body=new THREE.Mesh(cube,finish(0x656b65,'metal'));body.scale.set(place==='cafe'?1.1:1.85,.11,.21);body.position.set(x,2.72,-4.77);fixtures.add(body);
+  const lens=new THREE.Mesh(cube,lampMat);lens.scale.set(place==='cafe'?.96:1.71,.065,.05);lens.position.set(x,2.71,-4.64);fixtures.add(lens);
  }
  batchRigidParts(fixtures);wallGallery(g,place,resources);g.traverse(o=>{if(o instanceof THREE.Mesh)o.raycast=()=>{};});
  return g;

@@ -3369,6 +3369,17 @@ export class World {
       if(v==='tree'){this.controls.target.set(-4.9,1.15,8.05);this.camera.position.set(.9,5.7,13.3);this.camera.lookAt(this.controls.target);}
       this.canvas.dataset.holidayTree=String(this.festiveTree.visible);
     }
+    if(this.cameraQA&&new URLSearchParams(location.search).get('shopDetailQA')==='1'){
+      const v=this.canvas.dataset.shopDetailView;
+      const views:Partial<Record<PlaceId,Record<string,{target:[number,number,number];eye:[number,number,number]}>>>={
+        cafe:{rear:{target:[0,1.3,-4.05],eye:[.2,4.0,5.1]},fixture:{target:[3.5,1.05,-2.5],eye:[5.05,2.9,1.1]}},
+        petshop:{rear:{target:[0,1.25,-2.85],eye:[.2,4.2,4.8]},fixture:{target:[-3.75,1.22,-2.65],eye:[-2.8,2.8,.65]}},
+        clothing:{rear:{target:[0,1.15,-3.65],eye:[.5,4.1,5.3]},fixture:{target:[-3.75,.95,-2.55],eye:[-2.75,3.0,1.25]}},
+        electronics:{rear:{target:[0,1.15,-3.2],eye:[.1,4.1,5.8]},fixture:{target:[0,1.0,-2.65],eye:[1.05,3.0,.95]}},
+      };
+      const view=v?views[this.place]?.[v]:undefined;
+      if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}
+    }
     if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){
       const view=this.place==='home'?{target:[3,.1,1],eye:[13,22,22]}:this.place==='district'?{target:[21.38,.1,21.05+DISTRICT_OFFSET_Z],eye:[26,8,29+DISTRICT_OFFSET_Z]}:this.place==='park'?{target:[1.6,.1,-.8],eye:[7.7,10.6,12]}:this.place==='electronics'?{target:[2.5,0,-.7],eye:[8.2,12,16]}:['market','cafe','petshop','clothing','education'].includes(this.place)?{target:[0,.1,-.5],eye:[6.5,11,14]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
