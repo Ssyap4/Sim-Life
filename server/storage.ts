@@ -22,7 +22,7 @@ import { HOME_FLOOR } from '../src/shared/home';
 import { nearestClearPoint, pointIsClear, segmentIsClear } from '../src/game/navigation';
 import { petNavigationGeometry } from '../src/game/PetNavigation';
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { initialState, points, type CharacterId, type CharacterState, type GameState } from '../src/shared/protocol';
 import { EMPTY_MEALS, EMPTY_PANTRY, EMPTY_TAKEOUT } from '../src/shared/food';
@@ -306,6 +306,38 @@ function restorePet(id: PetId, saved: PetState | undefined,
   return pet;
 }
 
+/**
+ * Explicit OFFLINE recovery only. Missing household.json deliberately means
+ * a fresh household, including approved release resets; never resurrect it.
+ * A valid primary is never rolled back, even if an older backup exists.
+ * Preserve the corrupt bytes and leave the validated backup untouched.
+ */
+export function recoverHouseholdBackup(dataDir: string): {revision:number;quarantine:string} {
+  const primary=join(dataDir,'household.json');
+  const backup=join(dataDir,'household.backup.json');
+  if(!existsSync(primary))throw new Error('No primary household; refusing to undo a deliberate reset');
+  const original=readFileSync(primary);
+  let current:unknown;
+  try{current=JSON.parse(original.toString('utf8'));}catch{/* corrupt JSON */}
+  if(isValidState(current))throw new Error('Primary household is valid; refusing rollback');
+  const bytes=readFileSync(backup);
+  let restored:unknown;
+  try{restored=JSON.parse(bytes.toString('utf8'));}catch{throw new Error('Invalid household backup JSON');}
+  if(!isValidState(restored))throw new Error('Invalid household backup state');
+  const suffix=randomBytes(8).toString('hex');
+  const quarantine=join(dataDir,'household.corrupt-'+suffix+'.json');
+  const temporary=join(dataDir,'household.recovery-'+suffix+'.tmp');
+  writeFileSync(quarantine,original,{flag:'wx'});
+  try{
+    writeFileSync(temporary,bytes,{flag:'wx'});
+    // Check once more before replacement; caller must have stopped the server.
+    if(!readFileSync(primary).equals(original))throw new Error('Primary changed during recovery');
+    renameSync(temporary,primary);
+  }finally{if(existsSync(temporary))unlinkSync(temporary);}
+  return {revision:restored.revision,quarantine};
+}
+
+
 export function openServerFiles(dataDir: string): ServerFiles {
   mkdirSync(dataDir, { recursive: true });
   const accessPath = join(dataDir, 'access.json');
@@ -439,7 +471,11 @@ export function openServerFiles(dataDir: string): ServerFiles {
       if (!isValidState(state)) throw new Error('Refusing to save invalid household');
       const temporary = join(dataDir, 'household.tmp');
       writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n');
-      if (existsSync(statePath)) copyFileSync(statePath, join(dataDir, 'household.backup.json'));
+      // The first save of a new household must invalidate any backup from
+      // before a deliberate reset. Both files then belong to the same family.
+      const backupTemp=join(dataDir,'household.backup.tmp');
+      copyFileSync(existsSync(statePath)?statePath:temporary,backupTemp);
+      renameSync(backupTemp,join(dataDir,'household.backup.json'));
       renameSync(temporary, statePath);
     },
   };

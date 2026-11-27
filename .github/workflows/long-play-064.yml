@@ -1,0 +1,42 @@
+name: SimOurHome 0.64 long play audit
+on:
+  push:
+    branches: [feat/long-play-064]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  long-play:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: 30, 60 and 100 game days
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p qa-064
+          node --import tsx --test server/tests/long-play-064.test.ts server/tests/recovery-064.test.ts server/tests/storage.test.ts | tee qa-064/long-play.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: long-play-064
+          path: qa-064
+          retention-days: 7
+  restart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test --test-concurrency=2 server/tests/billing.test.ts server/tests/bed-sleep-network.test.ts server/tests/careers.test.ts server/tests/locations.test.ts server/tests/autonomy.test.ts server/tests/economy-plus.test.ts
