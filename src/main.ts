@@ -19,6 +19,7 @@ import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type
 import { FURNITURE_BY_ID } from './shared/furniture';
 import { PLACES, stationById, cafeSeatAt, type PlaceId } from './shared/locations';
 import { formatRub } from './shared/economy';
+import {deliveryWasAccepted} from './core/deliveryAck';
 import { dishCount } from './shared/dirtyDishes';
 import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
@@ -784,9 +785,9 @@ function render(reset = false): void {
     petsBtn.setAttribute('aria-label', petsBtn.title);
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
-      deliverySequence = null;
-      marketUI.acknowledge();
-      computer.acknowledgeOrder();
+      const origin=deliveryOrigin,accepted=deliveryWasAccepted(state,active,deliverySequence);
+      deliverySequence = null;deliveryOrigin=null;
+      if(accepted){if(origin==='computer')computer.acknowledgeOrder(true);else marketUI.acknowledge();}
     }
   }
   renderClock();
@@ -839,11 +840,12 @@ function showStatus(text: string): void {
   authStatusEl.textContent = text;
 }
 let deliverySequence: number | null = null;
-const orderDelivery = (lines: BasketLine[]) => {
+let deliveryOrigin:'market'|'computer'|null=null;
+const orderDelivery = (lines: BasketLine[],origin:'market'|'computer'='market') => {
   if (!state || !active || deliverySequence !== null) return false;
   const sequence = state.world.sequence[active];
   if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
-  deliverySequence = sequence;
+  deliverySequence = sequence;deliveryOrigin=origin;
   return true;
 };
 const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'));
@@ -856,7 +858,7 @@ function signOut(): void {
   resetSceneTransition();
   gameAudio.setPlaying(false);
   net.forgetDevice();
-  deliverySequence = null;
+  deliverySequence = null;deliveryOrigin=null;
   active = null;
   refreshCarRide();
   state = null;
@@ -976,7 +978,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   travel: () => locationUI.go('education'),
   service: command => net.service(command),
   budget: command => net.budget(command),
-  checkout: lines => orderDelivery(lines),
+  checkout: lines => orderDelivery(lines,'computer'),
   furnishing:()=>furnishing.open(),
 });
 function openEducation(view: EducationView, room?: string) {
@@ -998,6 +1000,9 @@ const net = new LiveConnection({
     gameAudio.setPlaying(true);
     gameAudio.setPaused(false);
     state = household;
+    // Resolve a delivery whose acknowledgement was interrupted using the
+    // authoritative sequence. Unaccepted orders keep their unsent basket.
+    if(deliverySequence!==null&&household.world.sequence[role]<=deliverySequence){deliverySequence=null;deliveryOrigin=null;}
     thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
@@ -1234,7 +1239,7 @@ const net = new LiveConnection({
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
-    deliverySequence = null;
+    deliverySequence = null;deliveryOrigin=null;
     locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве') || reason.includes('Доверие устройства истекло')) {
       resetSceneTransition();
@@ -1258,11 +1263,16 @@ const net = new LiveConnection({
       for (const role of tasks.keys()) world.cancelTimedAction(role);
       tasks.clear();
       drawTaskPanel();
-      deliverySequence = null;
       invites.close();
       socialInvite.clear();
       phone.refreshRelationship();
       feedback.clear();
+      // A mutation may have succeeded before its acknowledgement was lost.
+      // Discard the local placement draft; the next ready snapshot is authoritative.
+      furnishing.close();
+      computer.close();
+      marketUI.close();
+      actionsEl.hidden=true;
       locationUI.reject();
       locationUI.close();
       locationUI.closeMap();

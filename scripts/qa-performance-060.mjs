@@ -56,7 +56,15 @@ try{
   for(const q of ['стол','кровать','диван',''])await search.fill(q);
   await page.locator('[data-furnish-close]').tap();
   await open();await search.fill('');
-  await page.locator('.furnish-card-icon img').first().waitFor({timeout:40000});
+  const thumbnail=page.locator('.furnish-card-icon img').first();
+  await thumbnail.waitFor({timeout:40000});
+  const pixels=await thumbnail.evaluate(async img=>{
+   await img.decode();const canvas=document.createElement('canvas');canvas.width=32;canvas.height=20;
+   const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,32,20);const data=ctx.getImageData(0,0,32,20).data;
+   const colors=new Set();for(let i=0;i<data.length;i+=4)colors.add([data[i]>>4,data[i+1]>>4,data[i+2]>>4].join(','));
+   return {width:img.naturalWidth,height:img.naturalHeight,colors:colors.size};
+  });
+  assert.ok(pixels.width>=300&&pixels.height>=180&&pixels.colors>=8,JSON.stringify(pixels));
   await page.screenshot({path:join(out,'catalog-reopened.png')});
   await page.locator('[data-furnish-close]').tap();
  }

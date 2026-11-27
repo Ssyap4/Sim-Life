@@ -226,12 +226,15 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       const previewFinish=finish;
       const picture=document.createElement('img');
       picture.alt='3D-модель '+info.name+' · '+FURNITURE_FINISHES[previewFinish].name;
-      picture.loading='lazy';
+      // IntersectionObserver already schedules visible/nearby cards. Decode
+      // before replacing the fallback, so a failed image never leaves a blank tile.
+      picture.loading='eager';
       const live=()=>generation===previewGeneration&&!root.hidden&&tab==='catalog'&&image.isConnected;
-      const load=()=>import('./game/FurnitureThumbnails').then(({furnitureThumbnail})=>furnitureThumbnail(info.id,previewFinish,live)).then(uri=>{
+      const load=()=>import('./game/FurnitureThumbnails').then(({furnitureThumbnail})=>furnitureThumbnail(info.id,previewFinish,live)).then(async uri=>{
         if(!uri||!live())return;
-        image.replaceChildren(picture);
         picture.src=uri;
+        await picture.decode();
+        if(live())image.replaceChildren(picture);
       }).catch(()=>{});
       if(previewObserver){staged.set(image,load);previewObserver.observe(image);}
       else void load();

@@ -436,7 +436,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
       desktop.scrollTop=0;
     },
     close,refresh,
-    acknowledgeOrder(){if(app==='shop')shop.acknowledge();},
+    acknowledgeOrder(confirmed=false){if(confirmed||app==='shop')shop.acknowledge();},
     billingMessages(messages:string[]){if(app && billingApps.has(app)){billing.setMessages(messages);refresh();}},
     educationMessage(message:string){if(app!=='study'||root.hidden)return false;education.feedback(message);refresh();return true;},
     get visible(){return !root.hidden;},

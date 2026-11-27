@@ -1,0 +1,40 @@
+name: SimOurHome 0.63 final regression and co-op
+on:
+  push:
+    branches: [feat/stability-063]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --import tsx --test --test-concurrency=2 server/tests/*.test.ts
+  coop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-coop-063.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coop-063
+          path: /tmp/simourhome-063-coop
+          retention-days: 7
