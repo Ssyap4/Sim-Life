@@ -157,7 +157,7 @@ const isValidState = (value: unknown): value is GameState => {
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&
         Number(hours) >= (isHomeJob(shift.job)?2:JOBS[shift.job].hoursMin) &&
-        Number(hours) <= JOBS[shift.job].hoursMax &&
+        Number(hours) <= (shift.job==='ozon'||shift.job==='wildberries'?16:JOBS[shift.job].hoursMax) &&
         Number.isSafeInteger(shift.startedAt) && Number(shift.startedAt) >= 0 &&
         Number.isSafeInteger(shift.endsAt) &&
         Number(shift.endsAt) === Number(shift.startedAt) + Math.round(Number(hours)*60*(100-Number(shift.homeSpeed??0))/100) &&

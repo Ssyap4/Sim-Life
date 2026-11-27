@@ -16,7 +16,7 @@ import { openServerFiles } from '../storage';
 test('Exactly six varied jobs have the requested pay and work-hour ranges',()=>{
   assert.equal(JOB_IDS.length,6);
   const expected={taxi:[3700,6700,10,12],courier:[3200,6000,8,10],
-    ozon:[5000,6800,14,16],wildberries:[5000,6800,14,16],petsitter:[2300,3300,6,7],driver:[3200,4500,7,8]};
+    ozon:[5000,6800,11,13],wildberries:[5000,6800,11,13],petsitter:[2300,3800,6,7],driver:[3200,4500,7,8]};
   for(const [id,ranges] of Object.entries(expected)){
     const spec=JOBS[id as keyof typeof JOBS];
     assert.deepEqual([spec.payMin,spec.payMax,spec.hoursMin,spec.hoursMax],ranges);

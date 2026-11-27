@@ -9,7 +9,7 @@ test('Separate home order catalogs: six per character and individual motion prof
   for(const role of ['vlad','alina'] as const){
     const own=homeJobsFor(role);assert.equal(own.length,6);
     for(const id of own){
-      const job=JOBS[id];assert.deepEqual([job.payMin,job.payMax,job.hoursMin,job.hoursMax],[2000,3500,3,4]);
+      const job=JOBS[id];assert.deepEqual([job.payMin,job.payMax,job.hoursMin,job.hoursMax],[2000,3500,4,5]);
       assert.equal(job.stages.length,4);assert.ok(job.description.length>60);
       assert.ok(!seen.has(HOME_JOBS[id].animation));seen.add(HOME_JOBS[id].animation);
       const other=role==='vlad'?'alina':'vlad';
@@ -26,7 +26,7 @@ test('Home orders have fixed random server payout, no advance payment, and separ
     const job=result.state.activeShifts[role]!;
     assert.equal(job.homeDevice,'desktop');
     assert.equal(job.startedAt,gameMinutes(base.clock)+4);
-    assert.ok(job.hours===3||job.hours===4);
+    assert.ok(job.hours===4||job.hours===5);
     assert.ok(shiftFullPay(job)>=2000&&shiftFullPay(job)<=3500);
     assert.equal(result.state.money,base.money);
     assert.equal(shiftWage(job,result.state.clock),0);
@@ -54,7 +54,7 @@ test('Shared computer exclusion; two separate devices allowed; partial payment a
 
 import {HOME_QUESTS,pendingHomeQuest,homeQuestContent,validHomeQuests,correctQuestChoice,validQuestChoice} from '../../src/shared/homeJobQuests';
 import {answerHomeQuest,expireHomeQuests} from '../jobs';
-test('Every job gets three or four distinct randomly scheduled quests with shuffled answers and valid storage',()=>{
+test('Every job gets four or five distinct randomly scheduled quests with shuffled answers and valid storage',()=>{
  for(const role of ['vlad','alina'] as const)for(const id of homeJobsFor(role)){
   assert.equal(HOME_QUESTS[id].length,10);
   for(let i=0;i<12;i++){

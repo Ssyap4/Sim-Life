@@ -15,7 +15,7 @@ import {advanceSpeakers} from '../src/shared/speaker';
 import {advanceHumanHealth} from '../src/shared/health';
 import {advanceFitness,fitnessBonuses} from '../src/shared/fitness';
 import {advanceVacuum} from '../src/shared/vacuum';
-const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 100) / 100));
+const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n * 1_000_000) / 1_000_000));
 
 /** A pure, deterministic clock step suitable for server tests and offline-safe persistence. */
 export function advanceLife(source: GameState, gameMinutes: number,

@@ -1554,7 +1554,7 @@ export function correctQuestChoice(spec:HomeQuest,run:HomeQuestRun):number{
 export function validHomeQuests(shift:Record<string,unknown>):boolean{
  if(shift.quests===undefined)return true;
  const pool=HOME_QUESTS[shift.job as HomeJobId];
- if(!pool||!Array.isArray(shift.quests)||![2,3,4].includes(shift.quests.length))return false;
+ if(!pool||!Array.isArray(shift.quests)||![2,3,4,5].includes(shift.quests.length))return false;
  const seen=new Set<number>(),nonces=new Set<string>();let end=Number(shift.startedAt);
  for(const q of shift.quests){
   if(!q||typeof q.nonce!=="string"||q.nonce.length!==36||nonces.has(q.nonce)||!Number.isInteger(q.index)||!pool[q.index]||seen.has(q.index)||!Number.isInteger(q.at)||!Number.isInteger(q.until)||q.at<end||q.until<=q.at||q.until>Number(shift.endsAt)||!Array.isArray(q.order)||q.order.length!==pool[q.index].options.length||!q.order.every((n:unknown)=>Number.isInteger(n))||[...q.order].sort().join(",")!==pool[q.index].options.map((_,i)=>i).join(",")||(q.result!==undefined&&!["correct","wrong","skipped"].includes(q.result)))return false;

@@ -27,7 +27,7 @@ test('Bladder drain follows elapsed game minutes and pauses for the offline resi
   start.characters.vlad.bladder = 10;
   for (const speed of [1, 1.5, 2, 3]) {
     const next = advanceLife(start, 20 * speed, ['vlad']);
-    assert.equal(next.characters.vlad.bladder, Math.round((10 - 6.5 * speed / 3) * 100) / 100);
+    assert.ok(Math.abs(next.characters.vlad.bladder - (10 - 6.5 * speed / 3)) < 0.000001);
     assert.equal(next.characters.alina.bladder, INITIAL_DAILY_NEEDS.bladder);
   }
   const empty = advanceLife(start, 120, ['vlad']);
@@ -127,4 +127,19 @@ test('Pre-Living-World saves preserve money, skills, pantry, pets and gain clock
     files.save(loaded);
     assert.equal(files.load().money, 7447);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('Need decay is independent of clock batch size at normal and accelerated speed', () => {
+  const start = initialState();
+  start.world.places.vlad = 'park';
+  const keys = ['hunger','energy','hygiene','social','fun','comfort','bladder'] as const;
+  for (const key of keys) start.characters.vlad[key] = 90;
+  const expected = advanceLife(start, 60, ['vlad']);
+  for (const step of [1,2,3,5,10]) {
+    let actual = structuredClone(start);
+    for(let i=0;i<60;i+=step) actual=advanceLife(actual,step,['vlad']);
+    for(const key of keys) assert.ok(Math.abs(actual.characters.vlad[key]-expected.characters.vlad[key])<0.0001, key+' step '+step);
+  }
+  assert.equal(expected.characters.vlad.comfort,89.55);
+  assert.equal(expected.characters.vlad.hygiene,89.15);
 });

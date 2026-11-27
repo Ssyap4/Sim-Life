@@ -94,3 +94,19 @@ test('Leaving immediately pays zero but uses the day, while tomorrow offers work
   tomorrow.clock.day++;
   assert.equal(beginShift(tomorrow,'vlad','courier').ok,true);
 });
+
+test('Previously booked 15-hour warehouse shift retains its duration and agreed wage across reload',()=>{
+  const state=seededOzon();
+  state.activeShifts.vlad!.targetPay=6200;
+  const dir=mkdtempSync(join(tmpdir(),'sim-life-balance-060-'));
+  try {
+    const files=openServerFiles(dir);
+    files.save(state);
+    const restored=files.load();
+    assert.deepEqual(restored.activeShifts.vlad,state.activeShifts.vlad);
+    const shift=restored.activeShifts.vlad!;
+    restored.clock.day=Math.floor(shift.endsAt/1440)+1;
+    restored.clock.minute=shift.endsAt%1440;
+    assert.equal(settleCompletedShifts(restored).completed[0].payment,6200);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
