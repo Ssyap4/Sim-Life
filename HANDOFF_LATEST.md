@@ -1,3 +1,11 @@
+# ACTIVE OWNER DECISION - FINAL RELEASE PLANS - 27 Nov 2026
+
+- Defer external hosting and mobile packaging until the game is fully finished. Keep the current local production/preview workflow until then. No hosting purchase or cloud migration now.
+- Final release: economical Russian-region VPS (prefer Moscow; verify live pricing and capacity before purchase), HTTPS, protected two-player access, one shared authoritative household, independent production and preview, approved-release-only automated GitHub deployment and backups. Main must work with ALINA-PC off. Test actual network accessibility, resource usage and offline clock behavior.
+- Android: signed privately distributed APK, no Google Play. Prefer a lightweight native WebView shell with server-delivered game updates, persistent authorization, portrait fullscreen and native haptics where supported. iPhone 11: installable PWA via Safari. Test actual device compatibility; no assumed FPS gain. Build APK in cloud, not on weak ALINA-PC.
+- Two flagship deep careers, deferred until the final gameplay phase with explicit owner approval: Vlad starts with programming/vibe coding and game/software projects, develops real expertise and eventually runs his own development studio/business. Alina starts with hair reconstruction, develops professional expertise and eventually runs her own hair reconstruction studio/business. Both must receive maximum gameplay depth, variety, meaningful player decisions and long-term interest, not merely salary tiers or repetitive timers. Detailed mechanics remain to be designed and approved. Do not start these now.
+- No new gameplay task approved yet. Continue polishing verified existing shortcomings before these final phases.
+
 # SimOurHome 0.63.0 - approved release, 27 November 2026
 
 Owner explicitly approved production after all final cloud gates passed. Released exact tested source f1df93db0d6cdc46c9f62000c84dd86453b1e370, annotated tag v0.63.0. Main fast-forwarded from 129eb2c. See docs/PREVIEW_063_STABILITY.md for stage history.

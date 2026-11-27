@@ -1,3 +1,11 @@
+# ACTIVE OWNER DECISION - FINAL RELEASE PLANS - 27 Nov 2026
+
+- Defer external hosting and mobile packaging until the game is fully finished. Keep the current local production/preview workflow until then. No hosting purchase or cloud migration now.
+- Final release: economical Russian-region VPS (prefer Moscow; verify live pricing and capacity before purchase), HTTPS, protected two-player access, one shared authoritative household, independent production and preview, approved-release-only automated GitHub deployment and backups. Main must work with ALINA-PC off. Test actual network accessibility, resource usage and offline clock behavior.
+- Android: signed privately distributed APK, no Google Play. Prefer a lightweight native WebView shell with server-delivered game updates, persistent authorization, portrait fullscreen and native haptics where supported. iPhone 11: installable PWA via Safari. Test actual device compatibility; no assumed FPS gain. Build APK in cloud, not on weak ALINA-PC.
+- Two flagship deep careers, deferred until the final gameplay phase with explicit owner approval: Vlad starts with programming/vibe coding and game/software projects, develops real expertise and eventually runs his own development studio/business. Alina starts with hair reconstruction, develops professional expertise and eventually runs her own hair reconstruction studio/business. Both must receive maximum gameplay depth, variety, meaningful player decisions and long-term interest, not merely salary tiers or repetitive timers. Detailed mechanics remain to be designed and approved. Do not start these now.
+- No new gameplay task approved yet. Continue polishing verified existing shortcomings before these final phases.
+
 # ACTIVE OWNER POLICY - FEATURE PROPOSALS - 27 Nov 2026
 Before proposing any feature, inspect the current code, latest handoff, relevant UI/server commands, tests and release notes; search aliases and Russian labels. Never present an implemented system as a new idea. Propose only verified missing capabilities, distinguish a new extension from an existing system, and explicitly disclose uncertainty. Respect deferred/rejected features. See docs/FEATURE_CHECK_BEFORE_PROPOSALS.md; update it as development advances. This rule applies to every future chat.
 
