@@ -1,6 +1,6 @@
 import type { PetId } from '../shared/pets';
 
-export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook' | 'playBow' | 'pawWave' | 'slowBlink' | 'pounce' | 'beg' | 'happyHop' | 'nuzzle' | 'shake' | 'yawn' | 'sitLook' | 'backStretch' | 'earScratch' | 'pawLick' | 'faceWash' | 'downRest' | 'sniffSweep' | 'arch' | 'knead' | 'stalk' | 'lookBack' | 'sideStretch';
+export type PetIdleGesture = 'greet' | 'sniff' | 'groom' | 'stretch' | 'observe' | 'hungryLook' | 'playBow' | 'pawWave' | 'slowBlink' | 'pounce' | 'beg' | 'happyHop' | 'nuzzle' | 'shake' | 'yawn' | 'sitLook' | 'backStretch' | 'earScratch' | 'pawLick' | 'faceWash' | 'downRest' | 'sniffSweep' | 'arch' | 'knead' | 'stalk' | 'lookBack' | 'sideStretch' | 'dogBounce' | 'catBound' | 'dogInvite' | 'catInspect';
 export interface PetIdleContext {
   satiety: number;
   energy: number;
@@ -31,20 +31,20 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
       state.satiety>=25 && slot%9===2) return 'beg';
     if (state.personNearby && state.happiness>=43 && slot%7===0) return 'greet';
     const quiet:readonly PetIdleGesture[]=[
-      'sniff','observe','pawWave','stretch','playBow','shake','sitLook','sniffSweep','earScratch','yawn','pawLick','backStretch','downRest','lookBack',
+      'sniff','observe','pawWave','stretch','playBow','shake','sitLook','sniffSweep','earScratch','yawn','pawLick','backStretch','downRest','lookBack','dogBounce',
     ];
     const gesture=quiet[slot%quiet.length];
-    return (gesture==='playBow' && (state.energy<48||state.happiness<47)||gesture==='pawWave'&&!state.personNearby&&state.energy<45)
+    return ((gesture==='playBow'||gesture==='dogBounce') && (state.energy<48||state.happiness<47)||gesture==='pawWave'&&!state.personNearby&&state.energy<45)
       ? 'observe':gesture;
   }
   // An independent cat does not nuzzle on every second idle loop.
   if (state.personNearby && state.bond>=48 && state.happiness>=54 &&
     state.energy>=25 && state.satiety>=25 && slot%8===1)return 'nuzzle';
   const quiet:readonly PetIdleGesture[]=[
-    'groom','slowBlink','observe','stretch','pounce','faceWash','arch','knead','stalk','yawn','earScratch','lookBack','sideStretch','pawLick',
+    'groom','slowBlink','observe','stretch','pounce','faceWash','arch','knead','stalk','yawn','earScratch','lookBack','sideStretch','pawLick','catBound',
   ];
   const gesture=quiet[slot%quiet.length];
-  return (gesture==='pounce'||gesture==='stalk') && (state.energy<52||state.happiness<55||state.satiety<30)
+  return (gesture==='pounce'||gesture==='stalk'||gesture==='catBound') && (state.energy<52||state.happiness<55||state.satiety<30)
     ? 'observe':gesture;
 }
 

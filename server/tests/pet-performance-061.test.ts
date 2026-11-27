@@ -7,6 +7,7 @@ import {PetActor} from '../../src/game/PetActor';
 import {SimbaRig} from '../../src/game/SimbaRig';
 import {PET_PERFORMANCES,newPetPerformance,samplePetPerformance} from '../../src/game/PetPerformance';
 import {choosePetIdle,petIdleWeight} from '../../src/game/PetIdle';
+import {petTurnMotion,petDreamMotion} from '../../src/game/PetMotion';
 
 test('new performances have different time-varying joint channels and neutral boundaries',()=>{
  const p=newPetPerformance(),flat=()=>Object.values(p).flat() as number[];
@@ -59,4 +60,46 @@ test('all new gestures animate actual rigs without moving the navigation root or
   assert.equal(pet.currentIdleGesture(),null);
   assert.equal(pet.previewPerformanceQA('yawn'),false);
  }
+});
+test('turn anticipation is bounded at 20, 30 and 60fps and sleeps have quiet intervals',()=>{
+ for(const fps of [20,30,60]){
+  let bank=0;
+  for(let i=0;i<fps;i++)bank=petTurnMotion(bank,i*3/fps,(i+1)*3/fps,1/fps);
+  assert.ok(bank>.59&&bank<.61);
+  for(let i=0;i<fps;i++)bank=petTurnMotion(bank,0,0,1/fps);
+  assert.ok(bank<.001);
+ }
+ assert.equal(petDreamMotion(5,1),0);
+ assert.equal(petDreamMotion(1,0),0);
+ const samples=Array.from({length:130},(_,i)=>petDreamMotion(i/10,1));
+ assert.ok(samples.some(x=>x>.3)&&samples.some(x=>x<-.3));
+ assert.ok(samples.filter(x=>x===0).length>90);
+});
+test('jumps include distinct anticipation, flight and landing phases',()=>{
+ const p=newPetPerformance();
+ for(const [id,g] of [['verdell','dogBounce'],['simba','catBound']] as const){
+  assert.ok(samplePetPerformance(p,id,g,.3,1).y<-.04);
+  const a=samplePetPerformance(p,id,g,.67,1);
+  assert.ok(a.flight>.20&&a.knee.every(k=>k>.5)&&a.pawY.every(y=>y>.08));
+  assert.ok(samplePetPerformance(p,id,g,1.08,1).y<-.04);
+  assert.equal(samplePetPerformance(p,id,g,1.6,1).flight,0);
+ }
+});
+test('companion invitation is a bounded visual exchange and yields to real actions',()=>{
+ const dog=new PetActor('verdell'),cat=new PetActor('simba');
+ dog.root.position.set(0,0,0);cat.root.position.set(1.2,0,0);
+ const context={satiety:95,energy:95,happiness:90,bond:80,bowl:1,personNearby:false};
+ dog.setAmbient(context);cat.setAmbient(context);
+ assert.ok(dog.canGreetCompanion()&&cat.canGreetCompanion());
+ dog.greetCompanion(cat.root.position);cat.greetCompanion(dog.root.position);
+ for(let i=0;i<60;i++){dog.update(1/60);cat.update(1/60);}
+ assert.equal(dog.currentIdleGesture(),'dogInvite');assert.equal(cat.currentIdleGesture(),'catInspect');
+ assert.ok(Math.abs(dog.root.rotation.y-Math.PI/2)<.05);
+ assert.ok(Math.abs(cat.root.rotation.y+Math.PI/2)<.05);
+ assert.deepEqual(dog.root.position.toArray(),[0,0,0]);assert.deepEqual(cat.root.position.toArray(),[1.2,0,0]);
+ dog.watchCompanion(cat.root.position,false);assert.equal(dog.currentIdleGesture(),null);
+ assert.ok(!dog.canGreetCompanion());
+ cat.followRoute([],'eat',0);cat.update(.05);
+ assert.equal(cat.currentIdleGesture(),null);assert.ok(!cat.canGreetCompanion());
+ const tired=new PetActor('simba');tired.setAmbient({...context,energy:20});assert.ok(!tired.canGreetCompanion());
 });

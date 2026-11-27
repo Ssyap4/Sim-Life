@@ -660,7 +660,7 @@ export class World {
           perch.approach.x-perch.surface.x,.65,
           perch.approach.z-perch.surface.z)
       : subject === 'simba' ? new THREE.Vector3(-0.46, 0.29, 1)
-        : new THREE.Vector3(0.29, person ? 0.11 : 0.22, 1));
+        : new THREE.Vector3(person?0.29:0.93, person ? 0.11 : 0.32, person?1:.60));
     const band = this.viewBand(true);
     const frame = (direction: THREE.Vector3) => inspectionFrame(bounds,direction,this.camera.fov,this.camera.aspect,band);
     this.cameraMove = frame(angle);
@@ -3248,6 +3248,15 @@ export class World {
         return { x: body.x, z: body.z };
       });
       const geometry = this.petGeometry;
+      // A rare mutual acknowledgment, only if both are free and have a
+      // clear line between them. Never invent social navigation or rewards.
+      const petGap=Math.hypot(cat.root.position.x-dog.root.position.x,cat.root.position.z-dog.root.position.z);
+      const near=petGap>=.85&&petGap<=1.55;
+      const clear=petGap<=2&&segmentIsClear(dog.root.position,cat.root.position,geometry.obstacles,geometry.floor);
+      dog.watchCompanion(cat.root.position,clear);cat.watchCompanion(dog.root.position,clear);
+      if(near&&clear&&dog.canGreetCompanion()&&cat.canGreetCompanion()){
+        dog.greetCompanion(cat.root.position);cat.greetCompanion(dog.root.position);
+      }
       // The dog and cat use the *visible* coordinates of each other, plus
       // the people nearby, rather than waiting for the next server snapshot.
       dog.update(dt, this.dogTravel, pace, {

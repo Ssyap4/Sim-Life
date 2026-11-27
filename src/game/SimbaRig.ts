@@ -86,7 +86,7 @@ export class SimbaRig {
     this.spine.rotation.y=.050*motion*Math.sin(distance*12)+rest*.12+
       (pose?.spineYaw??0)*settle;
     this.spine.rotation.x=.085*loaf+(pose?.spinePitch??0)*settle+(performance?.spine??0)+.025*motion*Math.sin(distance*12);
-    this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf+.04*settle;
+    this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf+.04*settle+.008*rest*Math.sin(time*1.4);
     for(let i=0;i<this.tail.length;i++){
       const joint = this.tail[i];
       // Curl the long tail around the hip instead of leaving a rigid rod
@@ -138,7 +138,7 @@ export class SimbaRig {
         const hit=THREE.MathUtils.clamp(toyReach,0,1);pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,hit);pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,hit);
       }
       // The skeletal cat uses actual IK targets for every new gesture.
-      pawY+=(performance?.pawY[index]??0)-(performance?.y??0);
+      pawY+=(performance?.pawY[index]??0)-(performance?.y??0)+(performance?.flight??0);
       pawZ+=performance?.pawZ[index]??0;
       plantPaw(limb,pawY,pawZ,
         (lift*.8-wash*.52-(limb.front?.60*reach:0))*(1-settle)+(performance?.pawPitch[index]??0)*.35);

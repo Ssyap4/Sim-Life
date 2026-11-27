@@ -23,11 +23,11 @@ try{
  await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  const canvas=page.locator('#game-canvas');
- for(const [id,gestures] of [['verdell',['sitLook','shake','backStretch','earScratch','yawn']],['simba',['arch','knead','faceWash','stalk','sideStretch','yawn']]]){
+ for(const [id,gestures] of [['verdell',['sitLook','shake','backStretch','earScratch','yawn','dogBounce']],['simba',['arch','knead','faceWash','stalk','sideStretch','yawn','catBound']]]){
   await page.locator('#showcase-toggle').click();await page.locator('[data-showcase='+id+']').click();
   for(const gesture of gestures){
    await canvas.evaluate((el,v)=>el.dataset.petMotion=v,id+':'+gesture);
-   await page.waitForFunction(({id,gesture})=>{const p=JSON.parse(document.querySelector('#game-canvas').dataset.petMotionState||'{}')[id];return p?.gesture===gesture&&p.time>=.95&&p.time<2.1;},{id,gesture},{timeout:20000});
+   await page.waitForFunction(({id,gesture})=>{const p=JSON.parse(document.querySelector('#game-canvas').dataset.petMotionState||'{}')[id];return p?.gesture===gesture&&p.time>=(gesture==='dogBounce'||gesture==='catBound'?.59:.95)&&p.time<(gesture==='dogBounce'||gesture==='catBound'?.94:2.1);},{id,gesture},{timeout:20000});
    await page.screenshot({path:join(out,id+'-'+gesture+'.png')});
   }
   await page.locator('#showcase-return').click();

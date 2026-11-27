@@ -5,27 +5,51 @@ import type {PetId} from '../shared/pets';
 /** Local, additive performance channels. No root translation, timers, rewards
  * or world events. Four legs are ordered FL, HL, FR, HR. */
 export type PetPerformance={
- y:number;z:number;pitch:number;roll:number;headPitch:number;headYaw:number;headRoll:number;
+ y:number;z:number;pitch:number;roll:number;flight:number;headPitch:number;headYaw:number;headRoll:number;
  headDrop:number;jaw:number;spine:number;tail:number;ear:number;eye:number;
  pawY:number[];pawZ:number[];pawPitch:number[];knee:number[];
 };
 export const newPetPerformance=():PetPerformance=>({
- y:0,z:0,pitch:0,roll:0,headPitch:0,headYaw:0,headRoll:0,headDrop:0,jaw:0,spine:0,tail:0,ear:0,eye:0,
+ y:0,z:0,pitch:0,roll:0,flight:0,headPitch:0,headYaw:0,headRoll:0,headDrop:0,jaw:0,spine:0,tail:0,ear:0,eye:0,
  pawY:[0,0,0,0],pawZ:[0,0,0,0],pawPitch:[0,0,0,0],knee:[0,0,0,0],
 });
 export const PET_PERFORMANCES={
- verdell:['shake','yawn','sitLook','backStretch','earScratch','pawLick','downRest','sniffSweep','lookBack'],
- simba:['yawn','faceWash','arch','knead','stalk','earScratch','lookBack','sideStretch','pawLick'],
+ verdell:['shake','yawn','sitLook','backStretch','earScratch','pawLick','downRest','sniffSweep','lookBack','dogBounce'],
+ simba:['yawn','faceWash','arch','knead','stalk','earScratch','lookBack','sideStretch','pawLick','catBound'],
 } as const satisfies Record<PetId,readonly PetIdleGesture[]>;
 const ease=(t:number,a:number,b:number)=>MathUtils.smoothstep(t,a,b);
 const window=(t:number,a:number,b:number,c:number,d:number)=>ease(t,a,b)*(1-ease(t,c,d));
 export function samplePetPerformance(p:PetPerformance,id:PetId,gesture:PetIdleGesture|null,t:number,w:number):PetPerformance{
- p.y=p.z=p.pitch=p.roll=p.headPitch=p.headYaw=p.headRoll=p.headDrop=p.jaw=p.spine=p.tail=p.ear=p.eye=0;
+ p.y=p.z=p.pitch=p.roll=p.flight=p.headPitch=p.headYaw=p.headRoll=p.headDrop=p.jaw=p.spine=p.tail=p.ear=p.eye=0;
  p.pawY.fill(0);p.pawZ.fill(0);p.pawPitch.fill(0);p.knee.fill(0);
  if(!gesture||w<=0)return p;
  const dog=id==='verdell',beat=Math.sin(t*7),front=[0,2],hind=[1,3];
  const fold=(legs:number[],v:number)=>{for(const i of legs){p.pawY[i]+=v*.11;p.knee[i]+=v*.58;p.pawPitch[i]-=v*.38;}};
  switch(gesture){
+ case 'dogBounce':case 'catBound': {
+  // Anticipation, push-off, flight and cushioned landing, not endless bobbing.
+  const k=t%1.65;
+  const crouch=window(k,.06,.24,.31,.43)*w;
+  const airborne=k>.38&&k<.96?Math.sin(Math.PI*(k-.38)/.58)*w:0;
+  const landing=window(k,.92,1.03,1.12,1.38)*w;
+  p.flight=(dog?.24:.27)*airborne;
+  p.y=p.flight-.075*(crouch+landing);
+  p.pitch=-.17*airborne+.10*landing;
+  p.headPitch=-.13*airborne+.14*crouch;p.tail=.25*airborne;
+  for(let i=0;i<4;i++){const f=i%2===0;p.pawY[i]=.11*airborne+.05*(landing+crouch);p.pawZ[i]=(f?.13:-.09)*airborne;p.knee[i]=.70*airborne+.35*landing;p.pawPitch[i]=(f?-.48:.35)*airborne;}
+  break;
+ }
+ case 'dogInvite': {
+  const a=window(t,.15,.65,2.2,3.05)*w;
+  p.y=-.065*a;p.pitch=.27*a;p.headDrop=.095*a;p.headPitch=.14*a;p.tail=.55*a*Math.sin(t*12);
+  for(const i of front){p.pawZ[i]+=.16*a;p.pawY[i]+=.10*a;p.pawPitch[i]-=.38*a;p.knee[i]+=.45*a;}
+  break;
+ }
+ case 'catInspect': {
+  const a=window(t,.15,.65,2.35,3.1)*w;
+  p.headPitch=.28*a;p.headDrop=.075*a;p.headYaw=.12*a*Math.sin(t*5);p.spine=.08*a;
+  p.tail=.34*a*Math.sin(t*4);p.ear=.15*a;p.eye=.38*a;break;
+ }
  case 'shake': {
   // Nose leads, then shoulders and hips, then ears and short tail settle.
   const a=window(t,.24,.55,2.0,2.7)*w;

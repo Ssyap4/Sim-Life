@@ -9,7 +9,7 @@ import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
-import { petStepPace, petPaceBlend, perchBodyYaw } from './PetMotion';
+import { petStepPace, petPaceBlend, perchBodyYaw, petTurnMotion, petDreamMotion } from './PetMotion';
 import {newPetPerformance,samplePetPerformance,PET_PERFORMANCES} from './PetPerformance';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
@@ -24,6 +24,12 @@ export class PetActor {
   private dogBedLeaving=false;
   private pendingDogBed:DogBedSite|null=null;
   private napWeight=0;
+  private previousYaw:number|undefined;
+  private turnMotion=0;
+  private turnDistance=0;
+  private nextCompanion=0;
+  private companionYaw=0;
+  private companionActive=false;
   private readonly performance=newPetPerformance();
   private animatedToyIndex:number|undefined;
   private dogBedProgress=0;
@@ -132,7 +138,7 @@ export class PetActor {
     if (this.hungerMarker) {
       // The dog and cat use different model scales: keep both icons readable
       // in world-space, and above their actual heads, not at the floor origin.
-      const size = 0.64 / this.root.scale.x;
+      const size = 0.38 / this.root.scale.x;
       this.hungerMarker.scale.set(size, size, 1);
       this.hungerMarker.position.set(0, dog ? 1.43 : 1.44, 0);
       this.root.add(this.hungerMarker);
@@ -244,7 +250,29 @@ export class PetActor {
     this.idleGesture=gesture as PetIdleGesture;this.idleTime=0;
     this.idleCooldown=4;return true;
   }
-  performanceQA(){return {gesture:this.idleGesture,time:this.idleTime};}
+  performanceQA(){return {gesture:this.idleGesture,time:this.idleTime,turn:this.turnMotion};}
+  canGreetCompanion():boolean{
+    return this.clock>=this.nextCompanion&&!this.idleGesture&&!this.route.length&&!this.reaction&&
+      !this.perchProgress&&!this.dogBedProgress&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&
+      this.napWeight<.05&&this.gaitPace<.08&&(this.routine===null||this.routine==='wander')&&
+      this.ambient.satiety>=35&&this.ambient.energy>=42&&this.ambient.happiness>=48;
+  }
+  greetCompanion(other:FloorPoint):void{
+    if(!this.canGreetCompanion())return;
+    this.idleGesture=this.id==='verdell'?'dogInvite':'catInspect';
+    this.idleTime=0;this.nextCompanion=this.clock+55;this.companionActive=true;
+    this.companionYaw=Math.atan2(other.x-this.root.position.x,other.z-this.root.position.z);
+  }
+  watchCompanion(other:FloorPoint,clear:boolean):void{
+    if(!this.companionActive)return;
+    const distance=Math.hypot(other.x-this.root.position.x,other.z-this.root.position.z);
+    if(!clear||distance>2||distance<.65){
+      this.companionActive=false;
+      if(this.idleGesture==='dogInvite'||this.idleGesture==='catInspect')this.idleGesture=null;
+      return;
+    }
+    this.companionYaw=Math.atan2(other.x-this.root.position.x,other.z-this.root.position.z);
+  }
 
   react(action: PetAction): void {
     this.stop();
@@ -287,7 +315,7 @@ export class PetActor {
     this.idleGesture = null;
     this.idleTime = 0;
     // Keep foot phase continuous through route replacement and fetch return.
-    this.route = route;
+    this.companionActive=false;this.route = route;
     this.routine = routine;
     this.facing = facing;
     this.settled = 0;
@@ -506,9 +534,9 @@ export class PetActor {
     this.reactionTime += dt;
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
-    const canIdle = !descending&&!dogDescending&&!this.route.length &&
+    const canIdle = !descending&&!dogDescending&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&!this.route.length &&
       (this.routine === null || this.routine === 'wander'||this.routine==='beg'||this.routine==='event') && !this.reaction && pace < .08;
-    if (!canIdle) {
+    if (!canIdle) {this.companionActive=false;
       this.idleGesture = null;
       this.idleTime = 0;
       this.idleCooldown = Math.max(this.idleCooldown, 2.0);
@@ -540,6 +568,20 @@ export class PetActor {
         this.idleTime = 0;
       }
     }
+    if(this.companionActive){
+      if(this.idleGesture!=='dogInvite'&&this.idleGesture!=='catInspect')this.companionActive=false;
+      else{
+        const delta=Math.atan2(Math.sin(this.companionYaw-this.root.rotation.y),Math.cos(this.companionYaw-this.root.rotation.y));
+        this.root.rotation.y+=delta*(1-Math.exp(-dt*5));
+      }
+    }
+    const turnAllowed=!descending&&!dogDescending&&!this.perchProgress&&!this.dogBedProgress&&!this.bathActive&&!this.parkRollTime&&this.napWeight<.1&&this.routine!=='sleep';
+    this.turnMotion=petTurnMotion(this.turnMotion,this.previousYaw??this.root.rotation.y,this.root.rotation.y,dt);
+    this.previousYaw=this.root.rotation.y;
+    const turn=turnAllowed?this.turnMotion:0;
+    this.turnDistance+=Math.abs(turn)*dt*.48*(1-pace);
+    const stepPace=Math.max(pace,Math.abs(turn)*.48);
+    const gaitTravel=travel+this.turnDistance;
     const idleWeight = this.idleGesture ? petIdleWeight(this.idleTime) : 0;
     // Undo previous additive head motion before updating the smoothed base.
     this.head.rotation.x-=this.performance.headPitch;
@@ -599,6 +641,10 @@ export class PetActor {
     const dogBedNap=this.dogBed?THREE.MathUtils.smoothstep(this.dogBedProgress,.78,1):0;
     this.napWeight=THREE.MathUtils.damp(this.napWeight,this.routine==='sleep'?settled:0,7,dt);
     const sleeping = Math.max(this.napWeight,curled*.92,dogBedNap);
+    const dream=petDreamMotion(this.clock,sleeping,this.id==='simba'?5:0);
+    performance.ear+=dream*.055;performance.tail+=dream*.045;
+    performance.pawPitch[0]+=dream*.055;performance.pawPitch[3]-=dream*.04;
+    performance.pawY[0]+=Math.abs(dream)*.009;
     // Purchased soft mats need an unmistakably reclined pose, not a pet
     // standing upright with the sleep icon. Keep the old floor/sofa poses.
     const matNap=this.onPetBed&&this.routine==='sleep'?settled:0;
@@ -766,11 +812,11 @@ export class PetActor {
       const paw = this.paws[i];
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
-      const walkPhase=travel*(dog?19:15)+[0,Math.PI*.52,Math.PI,Math.PI*1.52][i];
-      const trotPhase=travel*(dog?19:15)+(i===0||i===3?Math.PI:0);
+      const walkPhase=gaitTravel*(dog?19:15)+[0,Math.PI*.52,Math.PI,Math.PI*1.52][i];
+      const trotPhase=gaitTravel*(dog?19:15)+(i===0||i===3?Math.PI:0);
       const trot=THREE.MathUtils.smoothstep(pace,.56,.88);
       const gait=THREE.MathUtils.lerp(Math.sin(walkPhase),Math.sin(trotPhase),trot);
-      paw.rotation.x = pawLift * playful + (scratching&&front ? -.68*scratching*(.55+.45*Math.sin(t*12+i*Math.PI)) : 0) + gait * pace * .43 +
+      paw.rotation.x = pawLift * playful + (scratching&&front ? -.68*scratching*(.55+.45*Math.sin(t*12+i*Math.PI)) : 0) + gait * stepPace * .43 +
         sleeping * (front ? -.55 : .37) + dogNap*(front?-.43:.22) +
         catNap*(front?-.24:.10) + toilet * (front ? .02 : .31)
         + (!dog && perched ? (front?-.47:.24)*perched : 0)
@@ -796,11 +842,11 @@ export class PetActor {
       if(dog){
         const phase=walkPhase;
         const swing=THREE.MathUtils.lerp(Math.max(0,-Math.cos(phase)),Math.max(0,-Math.cos(trotPhase)),trot);
-        const flex=swing*pace*.60 + dogNap*.69 + sleeping*.37
+        const flex=swing*stepPace*.60 + dogNap*.69 + sleeping*.37
           + (front ? .62*begging + .19*pawWave : .24*toilet)+sit*(front?.08:.78)+lie*(front?.65:.48);
         const knee=this.rig.knees?.[i];
         if(knee)knee.rotation.x=(flex+performance.knee[i])*(front?1:-1);
-        paw.position.y+=swing*pace*.045;
+        paw.position.y+=swing*stepPace*.075;
       }
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
@@ -823,7 +869,7 @@ export class PetActor {
       this.body.position.y+=performance.y+Math.abs(Math.sin(travel*19))*pace*.027;
       this.body.position.z+=performance.z;
       this.body.rotation.x+=performance.pitch+.035*pace*Math.sin(travel*19);
-      this.body.rotation.z+=performance.roll+.036*pace*Math.sin(travel*9.5);
+      this.body.rotation.z+=performance.roll+.036*pace*Math.sin(travel*9.5)-turn*.115;
       this.rig.jaw.position.y-=performance.jaw;
       for(let i=0;i<this.paws.length;i++){
         const paw=this.paws[i];paw.position.y+=performance.pawY[i];
@@ -868,7 +914,7 @@ export class PetActor {
       this.body.position.y+=performance.y+pace*.018*Math.sin(travel*17);
       this.body.position.z+=performance.z;
       this.body.rotation.x+=performance.pitch;
-      this.body.rotation.z+=performance.roll+.025*pace*Math.sin(travel*9);
+      this.body.rotation.z+=performance.roll+.025*pace*Math.sin(travel*9)-turn*.08;
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,entering?0:surface.entry==='jump'?.35:.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.08,entering?.65:surface.entry==='jump'?.56:.82);
@@ -888,7 +934,7 @@ export class PetActor {
       const toyModel=catToy?this.homeToys.children[this.toyIndex!]:undefined;
       const toyContact=toyModel?this.body.worldToLocal(new THREE.Vector3(toyModel.position.x,toyModel.position.y+(toy?.kind==='feather'?.28:.055),toyModel.position.z)):undefined;
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
-        t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
+        t,gaitTravel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:stepPace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
         airborne+catPounce,rest,target,loaf,coil,restPoseId,restWeight,toyContact,catStrike,toy?.kind==='spring',performance);
       animate(contact);
