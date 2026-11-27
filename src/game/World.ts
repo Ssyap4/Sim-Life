@@ -1100,6 +1100,7 @@ export class World {
         this.mediaFoodArrived.add(role);if(!this.playSofaFood(role,home))actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
       } else if (command.type === 'read_book' || study?.channel === 'book') actor.playDomesticActivity('read');
       else if (study?.channel === 'practice') actor.playDomesticActivity('journal');
+      else if(command.type==='eat'&&command.drinkSeat){actor.playActivity('eat',undefined,command.recipe);}
       else if (station === 'yardTable' && command.type === 'eat') {
         const point=this.showMeal(role, seat.position.x, DINING_TOP, HOME_PLACEMENTS.yardTable.z + .22, command.recipe);
         actor.playActivity('eat',point,command.recipe);
@@ -1110,7 +1111,11 @@ export class World {
         if (motion) actor.playDomesticActivity(motion);
       }
     };
-    if(station==='workCoffee'&&pickup!==undefined){
+    if(command.type==='eat'&&command.drinkSeat&&pickup!==undefined){
+      const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);actor.carryHomeDrink(command.recipe);};
+      const take=()=>{if(!current())return;const top=this.household?diningSurface(this.household):undefined;if(top){const target=new THREE.Vector3(top.x,top.height+.12,top.z);actor.faceTowards(target);actor.playDomesticActivity('reach',target);}else actor.playDomesticActivity('reach');this.preparations.set(role,{remaining:(home.pickupMs??650)/1000,next:carry});};
+      if(pickup>0)actor.walkPath(path.slice(0,pickup),take);else take();
+    }else if(station==='workCoffee'&&pickup!==undefined){
       const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);actor.carryWorkCoffee();};
       const prepare=()=>{
         if(!current())return;

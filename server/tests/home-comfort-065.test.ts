@@ -47,3 +47,29 @@ test('all hair care uses correct room, independent effect, bounded mood and deli
  finishCare(s,'bathHairRitual');finishCare(s,'hairCurl');const before=careScore(s),mood=s.characters.alina.mood;finishCare(s,'hairStraight');assert.equal(s.vanity?.hair?.appearance,'hairStraight');assert.equal(careScore(s),before);assert.equal(s.characters.alina.mood,mood);
  assert.equal(careEffects(s).length,2);assert.equal(careFrame('bathHairRitual',12).phase,'shampoo');assert.equal(careFrame('bathHairRitual',30).phase,'hairMask');assert.equal(careFrame('bathHairRitual',80).phase,'relax');assert.equal(careFrame('bathHairRitual',172).phase,'rinse');
 });
+
+import WebSocket from 'ws';
+import {createHomeSessions,usesHomeSession} from '../homeSessions';
+import {gameMinutes} from '../../src/shared/life';
+import {homeSeat} from '../../src/shared/home';
+import type {ServerPacket} from '../../src/shared/protocol';
+test('portable drinks have a real pickup and seat route; cancel, stale stock and double use are safe',()=>{
+ let state=initialState(),now=0,seq=0;state.meals.berrySmoothie=1;addReadyFood(state,'meal','berrySmoothie',1,'table');
+ const sockets={vlad:{readyState:WebSocket.OPEN} as WebSocket,alina:{readyState:WebSocket.OPEN} as WebSocket};
+ const packets:ServerPacket[]=[],timers=new Map<ReturnType<typeof setTimeout>,{at:number;cb:()=>void}>();
+ const sessions=createHomeSessions({state:()=>state,save:s=>{state=s;},all:p=>packets.push(p),send:(_,p)=>packets.push(p),socket:r=>sockets[r],busy:()=>false,prepare:()=>{},nextId:()=>++seq,timeScale:1,gameTime:()=>gameMinutes(state.clock),now:()=>now,resourceBusy:()=>false,schedule:(cb,ms)=>{const h=++seq as unknown as ReturnType<typeof setTimeout>;timers.set(h,{at:now+ms,cb});return h;},clearTimer:h=>{timers.delete(h);}});
+ const advance=(ms:number)=>{const end=now+ms;while(true){const next=[...timers.entries()].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;timers.delete(next[0]);now=next[1].at;next[1].cb();}now=end;};
+ try{
+  for(const seat of ['sofa','yardTable','officeChair'] as const){
+   const cmd={type:'eat' as const,recipe:'berrySmoothie' as const,drinkSeat:seat},plan=planTask(cmd)!;assert.ok(usesHomeSession(plan.command));assert.equal(plan.command.type,'eat');
+   assert.ok(sessions.start(['alina'],plan,sockets.alina),seat);
+   const p=[...packets].reverse().find(p=>p.type==='task_started'&&p.role==='alina');assert.ok(p?.type==='task_started');assert.equal(p.home?.station,seat);assert.ok(p.home?.pickup!==undefined);assert.equal(p.home?.pickupMs,650);
+   const dest=p.home.route.path.at(-1)??p.home.route.from;const target=homeSeat(seat,'alina').approach;assert.ok(Math.hypot(dest.x-target.x,dest.z-target.z)<.06);
+   assert.equal(state.meals.berrySmoothie,1);sessions.cancel('alina','cancel');assert.equal(state.meals.berrySmoothie,1);
+  }
+  assert.equal(planTask({type:'eat',recipe:'omelette',drinkSeat:'sofa'}),null);assert.equal(planTask({type:'eat',recipe:'berrySmoothie',drinkSeat:'bed'}),null);
+  const plan=planTask({type:'eat',recipe:'berrySmoothie',drinkSeat:'yardTable'})!;
+  assert.ok(sessions.start(['alina'],plan,sockets.alina));assert.ok(sessions.start(['vlad'],plan,sockets.vlad));
+  advance(120000);assert.equal(state.meals.berrySmoothie,0);assert.equal(state.dirtyDishes.yardTable,1);assert.equal(packets.filter(p=>p.type==='task_ended'&&p.outcome==='failed').length,1);
+ }finally{sessions.dispose();}
+});

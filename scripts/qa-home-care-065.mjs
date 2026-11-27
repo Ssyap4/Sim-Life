@@ -7,6 +7,7 @@ import {initialState,points} from '../src/shared/protocol.ts';
 import {addReadyFood} from '../src/shared/readyFood.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
+const group=process.env.QA_GROUP??'all';const wants=name=>group==='all'||group===name;
 const out='/tmp/simourhome-065-care';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page;
 try{
@@ -43,21 +44,21 @@ try{
   console.log('CARE_SAMPLE',care,kind,JSON.stringify(q));if(q.error!==null&&q.blend>.98)assert.ok(q.error<.08,care+' '+kind+' contact '+q.error);
   await shot(care+'-'+kind);
  }
- for(const care of ['hydrate','serum','faceMask','handCream','lipCare']){
+ if(wants('body'))for(const care of ['hydrate','serum','faceMask','handCream','lipCare']){
   const id=await start(care,'furniture','vanity');await phase(care,care==='lipCare'?'lip':'apply',6,10);await cancel(id);
  }
- for(const care of ['bathLavender','bathRose','bathMilk','bathShave','bathRitual']){
+ if(wants('body'))for(const care of ['bathLavender','bathRose','bathMilk','bathShave','bathRitual']){
   const id=await start(care,'bathtub','bath');await phase(care,'relax',7,13);
   if(care==='bathShave'||care==='bathRitual')await phase(care,'shave',22,28);
   if(care==='bathMilk'||care==='bathRitual')await phase(care,'bodyCream',40,46);
   await cancel(id);
  }
- for(const [care,kind] of [['hairDry','dry'],['hairStraight','straighten'],['hairCurl','curl']]){const id=await start(care,'furniture','vanity');await phase(care,kind,6,10);await cancel(id);}
- for(const [care,kind] of [['bathHairWash','shampoo'],['bathHairMask','hairMask'],['bathHairRitual','hairMask']]){const id=await start(care,'bathtub','bath');await phase(care,kind,kind==='shampoo'?10:29,kind==='shampoo'?15:34);await cancel(id);}
- for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){
-  await send({type:'eat',recipe});await page.waitForFunction(recipe=>window.__qaMessages.some(m=>m.type==='task_started'&&m.role==='alina'&&m.command.type==='eat'&&m.command.recipe===recipe),recipe,{timeout:20000});
+ if(wants('hair'))for(const [care,kind] of [['hairDry','dry'],['hairStraight','straighten'],['hairCurl','curl']]){const id=await start(care,'furniture','vanity');await phase(care,kind,6,10);await cancel(id);}
+ if(wants('hair'))for(const [care,kind] of [['bathHairWash','shampoo'],['bathHairMask','hairMask'],['bathHairRitual','hairMask']]){const id=await start(care,'bathtub','bath');await phase(care,kind,kind==='shampoo'?10:29,kind==='shampoo'?15:34);await cancel(id);}
+ if(wants('drinks'))for(const [recipe,drinkSeat] of [['blackTeaCup','sofa'],['berrySmoothie','yardTable'],['berryCheesecake',undefined]]){
+  await send({type:'eat',recipe,...(drinkSeat?{drinkSeat}:{})});await page.waitForFunction(recipe=>window.__qaMessages.some(m=>m.type==='task_started'&&m.role==='alina'&&m.command.type==='eat'&&m.command.recipe===recipe),recipe,{timeout:20000});
   const id=await page.evaluate(recipe=>window.__qaMessages.find(m=>m.type==='task_started'&&m.role==='alina'&&m.command.recipe===recipe).taskId,recipe);
-  await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),id,{timeout:45000});
+  if(drinkSeat)await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),id,{timeout:45000});
   await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.activity==='eat',undefined,{timeout:20000});
   if(!(await page.locator('#showcase-return').isVisible())){await page.locator('#showcase-toggle').evaluate(el=>el.click());await page.locator('[data-showcase=alina]').evaluate(el=>el.click());}
   await page.waitForTimeout(3000);const drink=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.drink);

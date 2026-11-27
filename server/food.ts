@@ -15,7 +15,7 @@ import { names, points, type CharacterId, type GameState } from '../src/shared/p
 export type FoodCommand =
   | { type: 'buy'; item: string }
   | { type: 'cook'; recipe: string }
-  | { type: 'eat'; recipe: string };
+  | { type: 'eat'; recipe: string;drinkSeat?:import('../src/shared/food').DrinkSeat };
 export type FoodResult = { ok: true; state: GameState; message: string } | { ok: false; reason: string };
 
 const owns = <T extends object>(record: T, key: string): key is Extract<keyof T, string> =>
@@ -76,10 +76,10 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
     actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));
     actor.comfort = Math.min(100, actor.comfort + 4);
-    addDirtyDish(state.dirtyDishes, isGrillRecipe(id) ? 'yardTable' : 'table');
-    Object.assign(actor, { ...homeSeat(isGrillRecipe(id) ? 'yardTable' : 'table', role).approach,
+    addDirtyDish(state.dirtyDishes, isGrillRecipe(id)||command.drinkSeat==='yardTable' ? 'yardTable' : 'table');
+    Object.assign(actor, { ...homeSeat(command.drinkSeat??(isGrillRecipe(id) ? 'yardTable' : 'table'), role).approach,
       pose: 'sit' as const });
-    message = names[role] + ': ' + (role==='vlad'?'поел':'поела') + ' ' + meal.name+' · '+qualityLabel(portion.quality)+(effect.fun<0?' · настроение и досуг '+effect.fun:'');
+    message = names[role] + ': ' + (isHomeDrink(id)?(role==='vlad'?'выпил':'выпила'):(role==='vlad'?'поел':'поела')) + ' ' + meal.name+' · '+qualityLabel(portion.quality)+(effect.fun<0?' · настроение и досуг '+effect.fun:'');
   }
   state.revision += 1;
   return { ok: true, state, message };

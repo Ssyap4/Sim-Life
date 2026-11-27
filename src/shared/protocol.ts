@@ -195,7 +195,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | 
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
-  | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
+  | { type: 'cook' | 'eat'; recipe: import('./food').RecipeId; furnitureId?:number; drinkSeat?:import('./food').DrinkSeat }
   | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
   | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('./dogTraining').DogTrainingAction> };
@@ -227,7 +227,7 @@ export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldComman
   | { type: 'eat_takeout'; item: import('./food').TakeoutId; furnitureId?:number }
   | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'cook'; recipe: import('./food').RecipeId }
-  | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number }
+  | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number; drinkSeat?:import('./food').DrinkSeat }
   | { type: 'social_offer'; kind: SocialKind }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
   | { type: 'cancel_task'; taskId: number }

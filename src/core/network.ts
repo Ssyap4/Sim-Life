@@ -103,10 +103,10 @@ export class LiveConnection {
     return this.sendAuthenticated(command);
   }
 
-  food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId,furnitureId?:number): boolean {
+  food(type: 'buy' | 'cook' | 'eat', id: IngredientId | RecipeId,furnitureId?:number,drinkSeat?:import('../shared/food').DrinkSeat): boolean {
     if (type === 'buy') return this.sendAuthenticated({ type, item: id as IngredientId });
     return this.sendAuthenticated({ type, recipe: id as RecipeId,
-      ...(type==='eat'&&furnitureId!==undefined?{furnitureId}:{}) });
+      ...(type==='eat'&&furnitureId!==undefined?{furnitureId}:{}),...(type==='eat'&&drinkSeat?{drinkSeat}:{}) });
   }
 
   brewCoffee(blend: CoffeeBlend,drink?:CoffeeDrink): boolean {return this.sendAuthenticated({type:'brew_coffee',blend,drink});}

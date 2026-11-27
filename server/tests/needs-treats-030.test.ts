@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initialState} from '../../src/shared/protocol';
-import {RECIPES,TAKEOUT} from '../../src/shared/food';
+import {RECIPES,TAKEOUT,isHomeDrink,isShopSnack,HOME_DESSERTS,type RecipeId} from '../../src/shared/food';
 import {applyAction} from '../logic';
 import {applyPetAction,runPetRoutines} from '../pets';
 import {treatsRemaining,PET_IDS} from '../../src/shared/pets';
@@ -21,8 +21,9 @@ test('all everyday needs and meals have sensible complete restoration, with high
     const r=applyAction(s,'vlad',action);
     assert.ok(r.ok);assert.equal(r.state.characters.vlad[need],value);
   }
-  for(const item of [...Object.values(RECIPES),...Object.values(TAKEOUT)])
-    assert.ok(item.hunger>=60&&item.hunger<=100,item.name);
+  for(const [id,item] of [...Object.entries(RECIPES),...Object.entries(TAKEOUT)]){
+    const snack=isHomeDrink(id)||isShopSnack(id)||HOME_DESSERTS.includes(id as RecipeId);assert.ok(snack?item.hunger>=3&&item.hunger<40:item.hunger>=60&&item.hunger<=100,item.name);
+  }
   assert.equal(RECIPES.omelette.hunger,65);
   assert.equal(RECIPES.chickenRice.hunger,70);
   assert.equal(RECIPES.beefWellington.hunger,100);

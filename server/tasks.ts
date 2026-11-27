@@ -24,7 +24,7 @@ import { PICNIC_SECONDS, isCampRecipe, isParkDogAction } from '../src/shared/par
 import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT,isHomeDrink,isDrinkSeat, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
@@ -180,13 +180,15 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof id !== 'string' || !own(RECIPES, id)) return null;
     const recipe = id as RecipeId;
     const grill = isGrillRecipe(recipe);
+    if(command.drinkSeat!==undefined&&(command.type!=='eat'||!isHomeDrink(recipe)||!isDrinkSeat(command.drinkSeat)||command.furnitureId!==undefined))return null;
+    const drinkSeat=command.type==='eat'&&isDrinkSeat(command.drinkSeat)?command.drinkSeat:undefined;
     return {
       command: { type: command.type, recipe,
         ...(command.type==='eat'&&typeof command.furnitureId==='number'?
-          {furnitureId:command.furnitureId}:{}) },
-      label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
+          {furnitureId:command.furnitureId}:{}),...(drinkSeat?{drinkSeat}:{}) },
+      label: (command.type === 'cook' ? '🍳 Готовим: ' : isHomeDrink(recipe)?'☕ Пьём: ':'🍽️ Едим: ') + RECIPES[recipe].name,
       durationMs: command.type === 'cook' ? cookingSeconds(recipe)*1000 : MEAL_EAT_SECONDS*1000,
-      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
+      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : drinkSeat==='officeChair'?'officeChair':null,
     };
   }
   if (command.type === 'eat_takeout') {
@@ -354,6 +356,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   }
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type==='eat'||command.type==='eat_takeout'){
+    if(command.type==='eat'&&command.drinkSeat){if(!isHomeDrink(command.recipe)||!isDrinkSeat(command.drinkSeat)||state.world.places[role]!=='home'||state.furnishing.soldFixtures?.includes(command.drinkSeat as 'sofa'|'officeChair'))return {ok:false,reason:'Место для напитка недоступно'};return applyFoodAction(state,role,{type:'eat',recipe:command.recipe,drinkSeat:command.drinkSeat});}
     const purchased=command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('table');
     const location=purchased?diningLocation(state,role,command.furnitureId):null;
     if(purchased&&!location)return {ok:false,reason:'Поставь обеденный стол, к которому можно подойти'};

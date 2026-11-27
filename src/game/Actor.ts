@@ -79,7 +79,7 @@ export class Actor {
    * Keep the liquid horizontal and the handle facing the resident's right. */
   private gripCup(center: THREE.Vector3, alpha: number): void {
     this.cupYaw.setFromAxisAngle(up,this.root.rotation.y);
-    const cold=this.activity==='eat'&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.diningDish??'');
+    const cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.carriedDrink??(this.activity==='eat'?this.diningDish??'':''));
     this.cupHandleOffset.set(cold?.036:.051,0,0).applyQuaternion(this.cupYaw);
     this.cupGripDirection.set(0,-.5,.6).normalize().applyQuaternion(this.cupYaw);
     this.target.copy(center).add(this.cupHandleOffset).addScaledVector(this.cupGripDirection,-.055);
@@ -91,6 +91,7 @@ export class Actor {
     this.teaCup.position.y-=.055;
   }
   private workCoffeeCarrying=false;
+  private carriedDrink?:RecipeId;
   private workCoffeeTarget?:THREE.Vector3;
   private readonly loungeMouthpiece=new THREE.Group();
   private readonly loungeHose=new LoungeHose();
@@ -300,7 +301,8 @@ export class Actor {
   }
   workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();cup.getObjectByName('Cold glass')!.visible=false;cup.getObjectByName('Drink handle')!.visible=true;cup.getObjectByName('Drink vessel')!.visible=true;const liquid=cup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;liquid.material=liquid.material.clone();liquid.material.color.setHex(0x9b6332);liquid.position.y=.0415;return cup;}
   carryWorkCoffee(target?:THREE.Vector3):void{this.workCoffeeCarrying=true;this.workCoffeeTarget=target?.clone();}
-  private clearWorkCoffee():void{this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
+  carryHomeDrink(recipe:RecipeId){this.carryWorkCoffee();this.carriedDrink=recipe;}
+  private clearWorkCoffee():void{this.carriedDrink=undefined;this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   carryFoodContainer(): void { this.foodContainer.visible = true; }
   hideFoodContainer(): void { this.foodContainer.visible = false; }
@@ -2232,7 +2234,7 @@ export class Actor {
     }
     if(!hookah)this.loungeSmoke.visible=false;
     this.teaCup.visible=drinking||pair?.motion==='teaTogether'||this.workCoffeeCarrying;
-    if(this.teaCup.visible){const liquid=this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;const cold=drinking&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.diningDish??'');this.teaCup.getObjectByName('Cold glass')!.visible=cold;this.teaCup.getObjectByName('Drink handle')!.visible=!cold;this.teaCup.getObjectByName('Drink vessel')!.visible=!cold;liquid.position.y=cold?.062:.0415;liquid.material.color.setHex(drinking?HOME_DRINK_COLORS[this.diningDish as RecipeId]??0x9b6332:0x9b6332);}
+    if(this.teaCup.visible){const liquid=this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;const recipe=this.carriedDrink??(drinking?this.diningDish as RecipeId:undefined),cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(recipe??'');this.teaCup.getObjectByName('Cold glass')!.visible=cold;this.teaCup.getObjectByName('Drink handle')!.visible=!cold;this.teaCup.getObjectByName('Drink vessel')!.visible=!cold;liquid.position.y=cold?.062:.0415;liquid.material.color.setHex(recipe?HOME_DRINK_COLORS[recipe]??0x9b6332:0x9b6332);}
     if(drinking){const phase=a%7,sip=THREE.MathUtils.smoothstep(phase,1.3,2.4)*(1-THREE.MathUtils.smoothstep(phase,3.8,5));this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.15,.80,.29).applyAxisAngle(up,this.root.rotation.y));const mouth=this.rig.head.localToWorld(this.cupGripDirection.set(.025,-.18,.19));this.gripCup(this.cupCenter.lerp(mouth,sip),1);}
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;

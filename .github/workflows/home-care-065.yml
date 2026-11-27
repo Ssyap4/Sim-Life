@@ -19,6 +19,12 @@ jobs:
       - run: npm run check
       - run: node --import tsx --test server/tests/home-comfort-065.test.ts server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/market.test.ts server/tests/readyFood.test.ts server/tests/tv-food-060.test.ts server/tests/food-quality.test.ts server/tests/home-care-065.test.ts server/tests/care-motion-065.test.ts server/tests/vanity-044.test.ts server/tests/barber-046.test.ts server/tests/dog-bath-035.test.ts server/tests/wishes-019.test.ts server/tests/needs-treats-030.test.ts
   visual:
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [body, hair, drinks]
+    env:
+      QA_GROUP: ${{ matrix.group }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -35,6 +41,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: home-care-065
+          name: home-care-065-${{ matrix.group }}
           path: /tmp/simourhome-065-care
           retention-days: 7

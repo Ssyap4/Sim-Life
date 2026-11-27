@@ -1,3 +1,4 @@
+import {dishPickupPoint} from '../src/shared/diningSurface';
 import {workCoffeeRoute,otherResident} from '../src/shared/workCoffee';
 import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {fitnessTaskSpeed} from '../src/shared/fitness';
@@ -15,7 +16,7 @@ import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
 import {bathCare} from '../src/shared/vanity';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
-import { isGrillRecipe,TAKEOUT,type TakeoutId } from '../src/shared/food';
+import { isGrillRecipe,isHomeDrink,TAKEOUT,type TakeoutId } from '../src/shared/food';
 import { applyTvFood } from './food';
 import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
@@ -100,7 +101,7 @@ const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'y
 
 export function usesHomeSession(command: TimedCommand): boolean {
   return command.type === 'serve_work_coffee' || command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
-    (command.type === 'eat' && isGrillRecipe(command.recipe)) || command.type === 'act' &&
+    (command.type === 'eat' && (isGrillRecipe(command.recipe)||!!command.drinkSeat)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
       ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit','yardLounge','yardHookahSolo'].includes(command.actionId));
 }
@@ -284,6 +285,10 @@ export function createHomeSessions(hooks: Hooks) {
       const route = walk(from, BATH_FIXTURES[station].approach);
       return route && { route, station };
     }
+    if(command.type==='eat'&&command.drinkSeat){const station=command.drinkSeat,state=hooks.state();if(state.furnishing.soldFixtures?.includes(station as 'sofa'|'officeChair'))return null;
+      if(station==='officeChair'&&[...sessions.values()].some(s=>s.participants.some(p=>p.packet.home?.station==='officeChair')))return null;
+      const pickup=walk(from,dishPickupPoint(state,role));const onward=pickup&&walk(pickup.path.at(-1)??pickup.from,homeSeat(station,role).approach);
+      return pickup&&onward&&{station,route:{from:pickup.from,path:[...pickup.path,...onward.path]},pickup:pickup.path.length,pickupMs:650};}
     if (command.type === 'cook' || command.type === 'eat') {
       if(command.type==='cook'&&!isGrillRecipe(command.recipe)){
         const pantry=walk(from,stationById('home','fridge')!.approach);
@@ -309,6 +314,7 @@ export function createHomeSessions(hooks: Hooks) {
       const index = Math.floor(Math.random() * readingSeats.length);
       const order = command.seat ? [command.seat] : [...readingSeats.slice(index), ...readingSeats.slice(0,index)];
       for (const station of order) {
+        if(station==='officeChair'&&[...sessions.values()].some(s=>s.participants.some(p=>p.packet.home?.station==='officeChair')))continue;
         const route = walk(pickup.path.at(-1) ?? pickup.from, homeSeat(station, role).approach);
         if (route && !catHomeSeatError(hooks.state(),role,{route,station})) return { route: { from: pickup.from, path: [...pickup.path, ...route.path] },
           pickup: pickup.path.length, pickupMs: 720, station };
@@ -328,6 +334,7 @@ export function createHomeSessions(hooks: Hooks) {
     }
     const station = command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId)?'yardTable':command.type === 'act' && command.actionId === 'officeChairSit' ? 'officeChair'
       : command.type === 'act' && command.actionId.startsWith('table') ? 'table' : 'sofa';
+    if(station==='officeChair'&&[...sessions.values()].some(s=>s.participants.some(p=>p.packet.home?.station==='officeChair')))return null;
     const route = walk(from, homeSeat(station, role).approach);
     if (!route) return null;
     const program = command.type === 'free_tv' ? 'broadcast' : command.type === 'movie' ? command.genre
@@ -365,7 +372,7 @@ export function createHomeSessions(hooks: Hooks) {
       const route = packet.home!.route;
       const seat = packet.home!.station;
       const seated = seat==='furniture' ? packet.home!.furnitureSeat===true&&session.plan.command.type!=='vanity_care':
-        seat !== 'officeChair' && HOME_SEATS.some(item => item === seat);
+        (seat !== 'officeChair'||session.plan.command.type==='eat'&&!!session.plan.command.drinkSeat) && HOME_SEATS.some(item => item === seat);
       Object.assign(result.state.characters[role], route.path.at(-1) ?? route.from,
         { pose: seated ? 'sit' : 'idle' });
       if (!session.study && (!packet.automatic||session.plan.command.type==='cook'))
@@ -891,7 +898,7 @@ export function createHomeSessions(hooks: Hooks) {
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

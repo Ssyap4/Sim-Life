@@ -168,6 +168,9 @@ export const TAKEOUT = {
 } as const;
 export type TakeoutId = keyof typeof TAKEOUT;
 export const HOME_DRINK_COLORS:Partial<Record<RecipeId,number>>={"blackTeaCup":10183474,"greenTeaCup":10726752,"fruitTeaCup":11949410,"lemonHoneyTea":12819523,"hotChocolate":6504242,"marshmallowCocoa":9988948,"bananaShake":16048049,"berrySmoothie":13138082,"orangeJuice":15902527,"mintLemonade":14605443};
+export const DRINK_SEATS=['sofa','yardTable','officeChair'] as const;
+export type DrinkSeat=typeof DRINK_SEATS[number];
+export const isDrinkSeat=(x:unknown):x is DrinkSeat=>DRINK_SEATS.includes(x as DrinkSeat);
 export const isHomeDrink=(id:unknown):boolean=>typeof id==='string'&&Object.hasOwn(HOME_DRINK_COLORS,id);
 export const isShopSnack=(id:unknown):boolean=>typeof id==='string'&&["milkChocolate","assortedCandy","oatCookies","vanillaIceCream","berryIceCream","saltPopcorn","crispyChips"].includes(id);
 export const HOME_DESSERTS:readonly RecipeId[]=["appleCharlotte","brownie","berryCheesecake","butterCroissant"];
