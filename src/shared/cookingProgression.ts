@@ -1,9 +1,23 @@
 import { MAX_SKILL_LEVEL, skillRank, talent, type EducationProfile } from './education';
 import type { CharacterId } from './protocol';
-import { isGrillRecipe, type RecipeId } from './food';
+import { isGrillRecipe,isHomeDrink, type RecipeId } from './food';
 
 /** Cooking is gated by preparation technique, not by price, portions or ingredients. */
 export const COOKING_RECIPES: Record<RecipeId, { minLevel: number; baseXP: number; tier: string }> = {
+  blackTeaCup:{"minLevel":0,"baseXP":8,"tier":"Напитки"},
+  greenTeaCup:{"minLevel":0,"baseXP":8,"tier":"Напитки"},
+  fruitTeaCup:{"minLevel":0,"baseXP":8,"tier":"Напитки"},
+  lemonHoneyTea:{"minLevel":0,"baseXP":12,"tier":"Напитки"},
+  hotChocolate:{"minLevel":1,"baseXP":16,"tier":"Напитки"},
+  marshmallowCocoa:{"minLevel":1,"baseXP":17,"tier":"Напитки"},
+  bananaShake:{"minLevel":1,"baseXP":18,"tier":"Напитки"},
+  berrySmoothie:{"minLevel":1,"baseXP":18,"tier":"Напитки"},
+  orangeJuice:{"minLevel":0,"baseXP":12,"tier":"Напитки"},
+  mintLemonade:{"minLevel":1,"baseXP":16,"tier":"Напитки"},
+  appleCharlotte:{"minLevel":3,"baseXP":48,"tier":"Выпечка"},
+  brownie:{"minLevel":4,"baseXP":52,"tier":"Выпечка"},
+  berryCheesecake:{"minLevel":6,"baseXP":65,"tier":"Выпечка"},
+  butterCroissant:{"minLevel":3,"baseXP":44,"tier":"Выпечка"},
   toast: { minLevel: 0, baseXP: 25, tier: 'Основы' },
   fruitSalad: { minLevel: 0, baseXP: 27, tier: 'Основы' },
   sandwich: { minLevel: 1, baseXP: 29, tier: 'Основы' },
@@ -70,6 +84,7 @@ export function cookingExperience(profile: EducationProfile, role: CharacterId, 
 
 export function cookingEnergy(level: number, id: RecipeId): number {
   const required = COOKING_RECIPES[id].minLevel;
+  if(isHomeDrink(id))return 1;
   const tier = required >= 16 ? 8 : required >= 11 ? 7 : required >= 7 ? 6 : required >= 3 ? 5 : 4;
   return Math.max(2, tier - (level >= required + 5 ? 2 : level >= required + 2 ? 1 : 0));
 }
@@ -82,8 +97,8 @@ function baseCookingSeconds(id: RecipeId): number {
 }
 /** Solo preparation includes extra time for doing all the work alone. */
 export function cookingSeconds(id: RecipeId): number {
-  return baseCookingSeconds(id)+18;
+  return isHomeDrink(id)?18+COOKING_RECIPES[id].minLevel*8:baseCookingSeconds(id)+18;
 }
 export function pairedCookingSeconds(id: RecipeId): number {
-  return Math.max(10,Math.ceil(baseCookingSeconds(id)*.8));
+  return isHomeDrink(id)?12:Math.max(10,Math.ceil(baseCookingSeconds(id)*.8));
 }

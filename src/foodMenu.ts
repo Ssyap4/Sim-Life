@@ -1,5 +1,5 @@
 import {freshFish,isCatchRecipe} from './shared/lake';
-import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
+import { GROCERIES, RECIPES,isHomeDrink,HOME_DESSERTS, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability,holidayRecipeOpen } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
 import { COOKING_ORDER, COOKING_RECIPES, cookingExperience, cookingSeconds } from './shared/cookingProgression';
@@ -57,7 +57,7 @@ export function showFoodChoices(
     container.append(info);
     const chance=document.createElement("small");chance.className="food-cooking-skill";
     const [bad,average,good,perfect]=foodQualityChances(skill.level);
-    chance.textContent="Шансы качества: плохое "+bad+"% · среднячок "+average+"% · хорошее "+good+"% · идеальное "+perfect+"%";
+    chance.textContent="Шансы качества еды: плохое "+bad+"% · среднячок "+average+"% · хорошее "+good+"% · идеальное "+perfect+"% · Напитки: 85% хорошее / 15% идеальное";
     container.append(chance);
     // On a phone, dozens of long ingredient lists were making recipes
     // impossible to browse. Keep availability visible; reveal composition on tap.
@@ -79,6 +79,7 @@ export function showFoodChoices(
     // Direct child cards participate in the shared two-column action grid.
     results.className='food-recipe-results';
     let currentFilter:'all'|'available'|'locked'='all';
+    const category=document.createElement('select');category.setAttribute('aria-label','Категория рецептов');for(const [v,label] of [['all','Все рецепты'],['meal','Основные блюда'],['drink','Напитки'],['dessert','Выпечка и десерты']]){const o=document.createElement('option');o.value=v;o.textContent=label;category.append(o);}category.hidden=location==='grill';category.addEventListener('change',renderRecipes);
     const buttons=([
       ['all','Все'],['available','Готовить'],['locked','Недоступно'],
     ] as const).map(([filter,label])=>{
@@ -88,7 +89,7 @@ export function showFoodChoices(
       b.addEventListener('click',()=>{currentFilter=filter;renderRecipes();});
       filters.append(b);return b;
     });
-    tools.append(search,filters,count);
+    tools.append(search,category,filters,count);
     container.append(tools,results);
     // Keep a real grid container. iOS Safari incorrectly collapses the
     // nested recipe cards when display:contents is nested in the HUD grid.
@@ -98,7 +99,8 @@ export function showFoodChoices(
       const visible=recipes.filter(item=>{
         const ingredients=ingredientList(item.id).map(([ingredient])=>GROCERIES[ingredient].name).join(' ');
         const text=(item.recipe.name+' '+ingredients).toLocaleLowerCase('ru-RU').replaceAll('ё','е');
-        return (!query||text.includes(query))&&
+        const kind=isHomeDrink(item.id)?'drink':HOME_DESSERTS.includes(item.id)||['pannaCotta','cremeBrulee','chocolateFondant','birthdayCake','fruitSalad','christmasApples'].includes(item.id)?'dessert':'meal';
+        return (category.value==='all'||category.value===kind)&&(!query||text.includes(query))&&
           (currentFilter==='all'||(currentFilter==='available'?item.availability.available:!item.availability.available));
       });
       count.textContent='По сложности ↑ · можно сейчас: '+recipes.filter(item=>item.availability.available).length+

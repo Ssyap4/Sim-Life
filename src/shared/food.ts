@@ -65,12 +65,20 @@ export const GROCERIES = {
   seaBass: { name:'Филе сибаса · 500 г', emoji:'🐟', price:950, quantity:3, unit:'порц.', category:'fish' },
   saffron: { name:'Шафран · 1 г', emoji:'🌸', price:850, quantity:6, unit:'порц.', category:'pantry' },
   marshmallow: { name:'Зефир маршмеллоу · 150 г', emoji:'🍡', price:180, quantity:12, unit:'шт.', category:'pantry' },
+  greenTea:{"name":"Зелёный чай · 25 пакетиков","emoji":"🍵","price":220,"quantity":25,"unit":"пак.","category":"drinks"},
+  fruitTea:{"name":"Фруктовый чай · 20 пакетиков","emoji":"🍓","price":260,"quantity":20,"unit":"пак.","category":"drinks"},
+  cocoa:{"name":"Какао · 10 порций","emoji":"☕","price":290,"quantity":10,"unit":"порц.","category":"drinks"},
+  mint:{"name":"Свежая мята · пучок","emoji":"🌿","price":120,"quantity":5,"unit":"порц.","category":"fruit"},
+  sparklingWater:{"name":"Газированная вода · 1 л","emoji":"💧","price":85,"quantity":4,"unit":"порц.","category":"drinks"},
+  creamCheese:{"name":"Сливочный сыр · 300 г","emoji":"🧀","price":320,"quantity":3,"unit":"порц.","category":"dairy"},
+  cookieCrumbs:{"name":"Песочное печенье · 200 г","emoji":"🍪","price":145,"quantity":4,"unit":"порц.","category":"sweets"},
+  iceCreamBase:{"name":"Ванильное мороженое · 500 г","emoji":"🍨","price":350,"quantity":5,"unit":"порц.","category":"sweets"},
   darkChocolate: { name:'Тёмный шоколад · 200 г', emoji:'🍫', price:280, quantity:4, unit:'порц.', category:'pantry' },
 } as const;
 export type IngredientId = keyof typeof GROCERIES;
 export type Pantry = Record<IngredientId, number>;
 export const GROCERY_CATEGORIES = {
-  dairy:'Молочные и яйца', bakery:'Хлеб', meat:'Мясо и колбаса',
+  drinks:'Напитки и чай', sweets:'Сладости и перекусы', dairy:'Молочные и яйца', bakery:'Хлеб', meat:'Мясо и колбаса',
   vegetables:'Овощи', pantry:'Крупы и бакалея', fruit:'Фрукты', fish:'Рыба и морепродукты', grill:'Для мангала',
 } as const;
 
@@ -115,6 +123,20 @@ export const RECIPES = {
   beefWellington: { name:'Говядина Веллингтон',emoji:'🥩', ingredients:{ tenderloin:3,puffPastry:2,mushroom:2,dijonMustard:1,eggs:1 }, servings:3,hunger:100,mood:8 },
   seaBassRisotto: { name:'Сибас с шафрановым ризотто',emoji:'🐟', ingredients:{ seaBass:2,arborio:2,broth:2,parmesan:1,saffron:1,butter:1 }, servings:2,hunger:100,mood:8 },
   chocolateFondant: { name:'Шоколадный фондан с ягодами',emoji:'🍫', ingredients:{ darkChocolate:2,eggs:2,butter:2,sugar:1,flour:1,berries:1 }, servings:2,hunger:65,mood:8 },
+  blackTeaCup:{"name":"Чёрный чай","emoji":"🍵","ingredients":{"tea":1},"servings":1,"hunger":3,"mood":7},
+  greenTeaCup:{"name":"Зелёный чай","emoji":"🍵","ingredients":{"greenTea":1},"servings":1,"hunger":3,"mood":8},
+  fruitTeaCup:{"name":"Фруктовый чай","emoji":"🍓","ingredients":{"fruitTea":1},"servings":1,"hunger":3,"mood":9},
+  lemonHoneyTea:{"name":"Чай с лимоном и мёдом","emoji":"🍋","ingredients":{"tea":1,"lemon":1,"honey":1},"servings":2,"hunger":6,"mood":12},
+  hotChocolate:{"name":"Горячий шоколад","emoji":"☕","ingredients":{"milk":1,"darkChocolate":1},"servings":2,"hunger":15,"mood":14},
+  marshmallowCocoa:{"name":"Какао с маршмеллоу","emoji":"☕","ingredients":{"milk":1,"cocoa":1,"marshmallow":2},"servings":2,"hunger":14,"mood":15},
+  bananaShake:{"name":"Банановый молочный коктейль","emoji":"🥛","ingredients":{"milk":1,"banana":2,"iceCreamBase":1},"servings":2,"hunger":22,"mood":12},
+  berrySmoothie:{"name":"Ягодный смузи","emoji":"🫐","ingredients":{"berries":2,"banana":1,"milk":1},"servings":2,"hunger":20,"mood":13},
+  orangeJuice:{"name":"Свежевыжатый апельсиновый сок","emoji":"🍊","ingredients":{"orange":2},"servings":2,"hunger":10,"mood":9},
+  mintLemonade:{"name":"Домашний лимонад с мятой","emoji":"🍋","ingredients":{"lemon":1,"mint":1,"sparklingWater":2,"sugar":1},"servings":2,"hunger":5,"mood":12},
+  appleCharlotte:{"name":"Яблочная шарлотка","emoji":"🍰","ingredients":{"apple":3,"flour":2,"eggs":2,"sugar":1,"butter":1},"servings":4,"hunger":28,"mood":12},
+  brownie:{"name":"Шоколадный брауни","emoji":"🍫","ingredients":{"darkChocolate":2,"butter":2,"eggs":2,"sugar":1,"flour":1},"servings":4,"hunger":26,"mood":13},
+  berryCheesecake:{"name":"Ягодный чизкейк","emoji":"🍰","ingredients":{"creamCheese":2,"cookieCrumbs":2,"butter":1,"berries":1,"sugar":1},"servings":4,"hunger":27,"mood":15},
+  butterCroissant:{"name":"Слоёные круассаны","emoji":"🥐","ingredients":{"puffPastry":2,"butter":1,"eggs":1},"servings":4,"hunger":24,"mood":12},
 } as const;
 export type RecipeId = keyof typeof RECIPES;
 export type CookedMeals = Record<RecipeId, number>;
@@ -136,8 +158,19 @@ export const TAKEOUT = {
   rollsSmall: { name:'Роллы · 8 шт.',emoji:'🍣',price:850,quantity:1,hunger:65,mood:10 },
   rollsSet: { name:'Сет роллов',emoji:'🍣',price:2200,quantity:3,hunger:100,mood:12 },
   rollsPremium: { name:'Большой сет роллов',emoji:'🍱',price:2990,quantity:4,hunger:100,mood:13 },
+  milkChocolate:{"name":"Молочный шоколад","emoji":"🍫","price":145,"quantity":2,"hunger":12,"mood":9},
+  assortedCandy:{"name":"Шоколадные конфеты","emoji":"🍬","price":290,"quantity":4,"hunger":9,"mood":8},
+  oatCookies:{"name":"Овсяное печенье","emoji":"🍪","price":170,"quantity":3,"hunger":15,"mood":8},
+  vanillaIceCream:{"name":"Ванильное мороженое","emoji":"🍨","price":160,"quantity":1,"hunger":12,"mood":12},
+  berryIceCream:{"name":"Ягодное мороженое","emoji":"🍨","price":190,"quantity":1,"hunger":12,"mood":13},
+  saltPopcorn:{"name":"Попкорн","emoji":"🍿","price":160,"quantity":2,"hunger":12,"mood":8},
+  crispyChips:{"name":"Картофельные чипсы","emoji":"🥔","price":180,"quantity":2,"hunger":15,"mood":7},
 } as const;
 export type TakeoutId = keyof typeof TAKEOUT;
+export const HOME_DRINK_COLORS:Partial<Record<RecipeId,number>>={"blackTeaCup":10183474,"greenTeaCup":10726752,"fruitTeaCup":11949410,"lemonHoneyTea":12819523,"hotChocolate":6504242,"marshmallowCocoa":9988948,"bananaShake":16048049,"berrySmoothie":13138082,"orangeJuice":15902527,"mintLemonade":14605443};
+export const isHomeDrink=(id:unknown):boolean=>typeof id==='string'&&Object.hasOwn(HOME_DRINK_COLORS,id);
+export const isShopSnack=(id:unknown):boolean=>typeof id==='string'&&["milkChocolate","assortedCandy","oatCookies","vanillaIceCream","berryIceCream","saltPopcorn","crispyChips"].includes(id);
+export const HOME_DESSERTS:readonly RecipeId[]=["appleCharlotte","brownie","berryCheesecake","butterCroissant"];
 export type TakeoutStock = Record<TakeoutId, number>;
 
 export const EMPTY_PANTRY = Object.fromEntries(Object.keys(GROCERIES).map(id=>[id,0])) as Pantry;

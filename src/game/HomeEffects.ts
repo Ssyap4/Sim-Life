@@ -80,13 +80,12 @@ export class HomeEffects {
     this.shower.visible = false;
 
     this.foam = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),
-      new THREE.MeshStandardMaterial({color:0xeaf8ee,roughness:.83}),36);
+      new THREE.MeshStandardMaterial({color:0xeaf8ee,roughness:.83}),80);
     const dummy = new THREE.Object3D();
-    for(let i=0;i<36;i++){
-      const x = i%6, z = Math.floor(i/6);
-      const size = .091+(i*13%9)*.008;
-      dummy.position.set((x-2.5)*.143+Math.sin(i*4)*.034,.47+Math.sin(i*5)*.028,(z-2.5)*.265);
-      dummy.scale.set(size,size*.58,size*1.22);
+    for(let i=0;i<80;i++){
+      const x=i%8,z=Math.floor(i/8),size=.055+(i*13%9)*.004;
+      dummy.position.set((x-3.5)*.105+Math.sin(i*4)*.019,.447+Math.sin(i*5)*.016,(z-4.5)*.151+Math.cos(i*3)*.016);
+      dummy.scale.set(size,size*.43,size*1.18);
       dummy.updateMatrix();
       this.foam.setMatrixAt(i,dummy.matrix);
     }

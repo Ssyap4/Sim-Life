@@ -1,5 +1,5 @@
 import { isFoodQuality, type FoodQuality } from './foodQuality';
-import { RECIPES, TAKEOUT, type RecipeId, type TakeoutId } from './food';
+import { RECIPES, TAKEOUT,isHomeDrink, type RecipeId, type TakeoutId } from './food';
 import { gameMinutes, MINUTES_PER_DAY, type GameClock } from './life';
 import type { GameState } from './protocol';
 
@@ -19,6 +19,7 @@ export const READY_FOOD_SLOTS = 2; // One plated serving uses two fridge cells.
 export const TABLE_READY_CAPACITY = 12; // No infinite unrefrigerated buffet.
 export const TABLE_SHELF_MINUTES = 8 * 60; // Eight game hours exposed, not days.
 export function tableShelfMinutes(item:string):number{
+  if(isHomeDrink(item))return 2*60;
   return item==='salad'||item==='fruitSalad'?6*60:TABLE_SHELF_MINUTES;
 }
 function shiftedExpiry(batch:ReadyFoodBatch,next:ReadyFoodStorage,now:number):number{
@@ -53,7 +54,7 @@ export function readyFoodName(kind: ReadyFoodKind, item: string): string {
  * Unrefrigerated takeaway always has a maximum of 2 days. */
 export function readyFoodShelfDays(kind: ReadyFoodKind, item: string, storage: ReadyFoodStorage): 2 | 3 {
   if (storage === 'table') return 2; // Legacy fridge-day label; actual exposed food lasts hours.
-  if (kind === 'meal' && (item === 'salad' || item === 'fruitSalad')) return 2;
+  if (kind === 'meal' && (isHomeDrink(item)||item === 'salad' || item === 'fruitSalad')) return 2;
   if (kind === 'takeout' && item.startsWith('rolls')) return 2;
   return 3;
 }

@@ -3,7 +3,7 @@ import {isCatchRecipe} from './lake';
 import {holidayRecipeOpen} from './recipeAvailability';
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
 import { residentEmotion,wishEmotionPriority,PERSONALITIES,activeEmotions } from './emotions';
-import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
+import { RECIPES,TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { COOKING_RECIPES, COOKING_ORDER } from './cookingProgression';
 import { SOCIAL_BY_ID, socialRestriction } from './socialLife';
 import { SKILLS, skillRank, educationalXP } from './education';
@@ -56,7 +56,7 @@ function furniture(state:GameState,fixture:'sofa'|'table'|'desk',action:ActionId
 }
 function foodWish(state:GameState,role:CharacterId):{command?:WishCommand;cta:string;detail:string}{
   const now=gameMinutes(state.clock);
-  const available=state.readyFood.find(b=>b.storage==='table'&&b.portions>0&&b.expiresAt>now);
+  const available=state.readyFood.filter(b=>b.storage==='table'&&b.portions>0&&b.expiresAt>now).sort((a,b)=>Number((b.kind==='meal'?RECIPES[b.item as RecipeId]:TAKEOUT[b.item as TakeoutId]).hunger>=40)-Number((a.kind==='meal'?RECIPES[a.item as RecipeId]:TAKEOUT[a.item as TakeoutId]).hunger>=40))[0];
   if(available){
     const command:WishCommand=available.kind==='meal'
       ? {type:'eat',recipe:available.item as RecipeId}
@@ -67,7 +67,7 @@ function foodWish(state:GameState,role:CharacterId):{command?:WishCommand;cta:st
   if(inFridge)return {command:{type:'fridge'},cta:'Открыть холодильник',
     detail:'Еда в холодильнике. Сначала достань порцию на стол.'};
   const current=skillRank(state.education.characters[role].xp.cooking).level;
-  const recipe=COOKING_ORDER.find(id=>holidayRecipeOpen(state,id)&&!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=current&&
+  const recipe=[...COOKING_ORDER].sort((a,b)=>Number(RECIPES[a].hunger<40)-Number(RECIPES[b].hunger<40)).find(id=>holidayRecipeOpen(state,id)&&!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=current&&
     ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
   if(recipe)return {command:{type:'cook',recipe},cta:'Приготовить',
     detail:'Есть ингредиенты для '+RECIPES[recipe].name.toLowerCase()+'.'};
@@ -153,7 +153,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   }else{
     if(state.world.places.alina==='home'){
       const effects=careEffects(state);
-      if(!effects.some(e=>e.id==='style'||e.id==='fancy'))add('vanity-style','✨','Сделать красивую укладку','Хочется уделить немного времени себе.','Сделать укладку',{type:'vanity_care',care:'style'});
+      if(!effects.some(e=>CARE[e.id].group==='hair'&&CARE[e.id].points>=15))add('vanity-style','✨','Сделать красивую укладку','Хочется уделить немного времени себе.','Сделать укладку',{type:'vanity_care',care:'style'});
       if(!effects.some(e=>CARE[e.id].group==='skin'))add('vanity-skin','🌸','Уделить время себе','Небольшая процедура ухода.','Уход за кожей',{type:'vanity_care',care:'skin'});
       if(careTopicAvailable(state,role,'nearTalk:careLook'))add('vanity-compliment','♡','Поделиться своим образом','Хочется услышать мнение Влада.','Спросить Влада',{type:'together',action:'nearTalk:careLook'});
     }

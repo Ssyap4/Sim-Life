@@ -26,7 +26,7 @@ test('approved Alina rig: stable cosmetic palm and tool targets plus release on 
  const loader=new GLTFLoader().register(()=>({name:'HeadlessTexture',loadTexture:async()=>new THREE.Texture()}));
  const model=createBlenderCharacter(await loader.parseAsync(Uint8Array.from(b).buffer,''),'alina');
  const actor=new Actor('alina',[0,0],model);
- const cases:[CareId,number,string][]=[['hydrate',8,'apply'],['serum',8,'apply'],['faceMask',8,'apply'],['handCream',8,'apply'],['lipCare',8,'lip'],['bathShave',26,'shave'],['bathRitual',43,'bodyCream']];
+ const cases:[CareId,number,string][]=[['hydrate',8,'apply'],['serum',8,'apply'],['faceMask',8,'apply'],['handCream',8,'apply'],['lipCare',8,'lip'],['bathShave',26,'shave'],['bathRitual',43,'bodyCream'],['bathHairWash',12,'shampoo'],['bathHairMask',30,'hairMask'],['bathHairRitual',30,'hairMask'],['hairDry',8,'dry'],['hairStraight',8,'straighten'],['hairCurl',8,'curl']];
  for(const [id,duration,phase] of cases){
   actor.setFurniturePose('sit',new THREE.Vector3(0,id.startsWith('bath')?-.36:-.28,0),0);actor.snapFurnitureOffset();
   id.startsWith('bath')?actor.playBathCare(id):actor.playVanity(id);
@@ -40,6 +40,6 @@ test('approved Alina rig: stable cosmetic palm and tool targets plus release on 
   if(['hydrate','serum','faceMask','handCream'].includes(id))assert.equal(actor.careQA().prop,false);
   actor.finishActivity();assert.equal(actor.careQA().id,null);assert.equal(actor.careQA().prop,false);
   id.startsWith('bath')?actor.playBathCare(id):actor.playVanity(id);actor.clearProps();actor.setPose('idle');
-  assert.equal(actor.careQA().id,null);assert.equal(actor.root.getObjectByName('Held bath care'),undefined);assert.equal(actor.root.getObjectByName('Held vanity care'),undefined);
+  assert.equal(actor.careQA().id,null);assert.equal(actor.root.getObjectByName('Hair treatment foam'),undefined);assert.equal(actor.root.getObjectByName('Held bath care'),undefined);assert.equal(actor.root.getObjectByName('Held vanity care'),undefined);
  }
 });

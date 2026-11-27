@@ -4,7 +4,7 @@ import {foodIllness} from '../src/shared/health';
 import {recordEmotion} from '../src/shared/emotions';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { recipeAvailability } from '../src/shared/recipeAvailability';
-import { GROCERIES, RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { GROCERIES, RECIPES, TAKEOUT,isHomeDrink, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { homeSeat } from '../src/shared/home';
 import { addDirtyDish } from '../src/shared/dirtyDishes';
 import { addLedger } from '../src/shared/economy';
@@ -51,7 +51,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if(isCatchRecipe(id))state.world.fishing!.fish=freshFish(state).slice(1);
     for (const [item, amount] of ingredientList(id)) state.pantry[item] -= amount;
     state.meals[id] += recipe.servings;
-    const quality=cookingQuality(state,role,random);
+    const quality=isHomeDrink(id)?(random()<.15?'perfect':'good'):cookingQuality(state,role,random);
     addReadyFood(state,'meal',id,recipe.servings,'table',undefined,quality);
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
@@ -71,7 +71,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if (!portion) return { ok: false, reason: 'Это блюдо уже испортилось' };
     actor.hunger = Math.min(100, actor.hunger + meal.hunger);
     const effect=foodQualityEffect(portion.quality,meal.mood);
-    foodIllness(state,role,portion.quality,random);
+    if(!isHomeDrink(id))foodIllness(state,role,portion.quality,random);
     recordEmotion(state,role,effect.fun<0?'mealBad':'mealGood');
     actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
     actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));

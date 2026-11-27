@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {initialState} from '../../src/shared/protocol';
 import {levelXP, maximumXP, skillRank} from '../../src/shared/education';
-import {RECIPES, ingredientList, isGrillRecipe, type RecipeId} from '../../src/shared/food';
+import {RECIPES, ingredientList,isHomeDrink, isGrillRecipe, type RecipeId} from '../../src/shared/food';
 import {COOKING_ORDER, COOKING_RECIPES, cookingEnergy, cookingExperience} from '../../src/shared/cookingProgression';
 import {recipeAvailability} from '../../src/shared/recipeAvailability';
 import {applyFoodAction} from '../food';
@@ -10,7 +10,7 @@ import {awardCooking} from '../education';
 
 test('every kitchen/grill recipe has an ordered, reachable cooking tier', () => {
   assert.deepEqual([...COOKING_ORDER].sort(), (Object.keys(RECIPES) as RecipeId[]).sort());
-  assert.equal(COOKING_ORDER[0], 'toast');
+  assert.equal(COOKING_ORDER.find(id=>!isHomeDrink(id)), 'toast');
   assert.equal(COOKING_RECIPES.toast.minLevel, 0);
   assert.equal(COOKING_RECIPES.grillSteak.minLevel, 6);
   assert.equal(COOKING_RECIPES.pancakes.minLevel,3);
@@ -21,7 +21,7 @@ test('every kitchen/grill recipe has an ordered, reachable cooking tier', () => 
   for (const id of COOKING_ORDER) {
     const recipe = COOKING_RECIPES[id];
     assert.ok(recipe.minLevel >= 0 && recipe.minLevel <= 20);
-    assert.ok(recipe.baseXP >= 20);
+    assert.ok(recipe.baseXP >= (isHomeDrink(id)?8:20));
     assert.ok(ingredientList(id).length > (isGrillRecipe(id) ? 2 : 0));
   }
   for (let i = 1; i < COOKING_ORDER.length; i++)
@@ -124,10 +124,10 @@ import {SOCIAL_BY_ID} from '../../src/shared/socialLife';
 test('Every recipe uses shared complexity-based timing for solo and paired cooking',()=>{
   for(const id of COOKING_ORDER){
     const solo=cookingSeconds(id);
-    assert.ok(solo>=30&&solo<=60);
+    assert.ok(isHomeDrink(id)?solo>=18&&solo<=26:solo>=30&&solo<=60,id);
     assert.equal(planTask({type:'cook',recipe:id})?.durationMs,solo*1000);
     const pair=socialDuration(SOCIAL_BY_ID.get('cook')!,{type:'together',action:'cook',item:id});
-    assert.equal(pair,Math.max(10,Math.ceil((solo-18)*.8))*1000);
+    assert.equal(pair,(isHomeDrink(id)?12:Math.max(10,Math.ceil((solo-18)*.8)))*1000,id);
     assert.ok(pair<solo*1000);
     assert.equal(planTask({type:'eat',recipe:id})?.durationMs,32000);
   }

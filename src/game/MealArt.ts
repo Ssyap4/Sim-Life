@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { drum, orb, softCube, batchRigidParts } from './ArtKit';
-import type { RecipeId, TakeoutId } from '../shared/food';
+import {HOME_DRINK_COLORS,isHomeDrink,type RecipeId,type TakeoutId} from '../shared/food';
 
 import type { CafeItem } from '../shared/locations';
 import type { CampRecipe } from '../shared/park';
@@ -253,7 +253,22 @@ function restaurantDish(g: THREE.Group, id: ServedDish): void {
 
 function makeDish(id: ServedDish | 'default'): THREE.Group {
   const g=new THREE.Group();
-  if(id==='lakeFish'){
+  if(isHomeDrink(id)){
+    const cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(id),h=cold?.15:.09,r=cold?.10:.135;
+    bit(g,cold?0xe0e9e9:0xf0e3d3,0,h/2,0,r,h,r,drum);bit(g,HOME_DRINK_COLORS[id as RecipeId]??0x9b6332,0,h+.002,0,r*.86,.007,r*.86,drum);
+    if(!cold){const handle=new THREE.Mesh(new THREE.TorusGeometry(.025,.007,6,14),material(0xf0e3d3));handle.position.set(.079,.049,0);g.add(handle);}
+    if(id==='marshmallowCocoa')for(let i=0;i<3;i++)bit(g,0xffeee0,(i-1)*.027,h+.009,.012,.021,.018,.021,softCube);
+    if(id==='mintLemonade'){bit(g,palette.leaf,.025,h+.009,0,.033,.007,.018);for(let i=0;i<3;i++)bit(g,0xf5f8ee,(i-1)*.023,h+.009,-.018,.021,.012,.022,softCube);}
+    if(id==='lemonHoneyTea')bit(g,palette.lemon,.02,h+.008,.018,.042,.008,.042,drum);
+  }else if(id==='appleCharlotte'||id==='berryCheesecake'||id==='brownie'){
+    bit(g,id==='brownie'?palette.chocolate:palette.crust,0,.034,0,.115,.058,.094,softCube);bit(g,id==='berryCheesecake'?palette.cream:id==='brownie'?palette.char:palette.pastry,0,.069,0,.112,.023,.091,softCube);
+    for(let i=0;i<4;i++)bit(g,id==='berryCheesecake'?palette.berry:id==='brownie'?palette.chocolate:palette.apple,-.036+i*.024,.088,.008*Math.sin(i),.020,.016,.026,orb);
+  }else if(id==='butterCroissant'){
+    for(let i=0;i<7;i++){const a=(i-3)*.28;bit(g,i%2?palette.pastry:palette.crust,Math.sin(a)*.095,.035,Math.cos(a)*.066-.035,.045,.059-.006*Math.abs(i-3),.066,orb).rotation.y=a;}
+  }else if(['milkChocolate','assortedCandy','oatCookies','saltPopcorn','crispyChips','vanillaIceCream','berryIceCream'].includes(id)){
+    if(id==='vanillaIceCream'||id==='berryIceCream'){bit(g,0xf4e7d5,0,.024,0,.129,.048,.129,drum);for(let i=0;i<3;i++)bit(g,id==='berryIceCream'?0xc16f95:palette.cream,Math.sin(i*2.1)*.032,.073,Math.cos(i*2.1)*.032,.066,.059,.066);}
+    else for(let i=0;i<(id==='saltPopcorn'?14:8);i++){const a=i*2.4,r=.027+(i%4)*.021;bit(g,id==='milkChocolate'||id==='assortedCandy'?palette.chocolate:id==='crispyChips'?palette.potato:id==='saltPopcorn'?palette.cream:palette.crust,Math.sin(a)*r,.025+(i%3)*.013,Math.cos(a)*r,.036,id==='crispyChips'?.009:.024,.035,id==='milkChocolate'?softCube:orb).rotation.y=a;}
+  }else if(id==='lakeFish'){
     bit(g,0xb38449,0,.052,0,.21,.062,.105,orb);bit(g,0xa36e38,.10,.045,0,.065,.032,.075,softCube);for(let i=0;i<4;i++)bit(g,0x71492b,-.055+i*.035,.085,0,.009,.006,.075,softCube);bit(g,0xe8c95b,-.085,.087,.032,.05,.009,.05,drum);
   }else if(id==='lakeSoup'){
     bit(g,0xe7e1cc,0,.046,0,.218,.088,.218,drum);bit(g,0xc3a162,0,.091,0,.195,.012,.195,drum);for(let i=0;i<9;i++){const a=i*2.399,r=.032+(i%3)*.016;bit(g,[0xf1dfb3,0xe59a57,0x78914d][i%3],Math.cos(a)*r,.105,Math.sin(a)*r,.028,.018,.024,softCube);}

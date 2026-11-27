@@ -49,7 +49,7 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
     if(w.id==='reading'&&(command.type==='read_book'||action==='read_book'||action==='sofaRead'))return true;
     const c=w.command;
     if(!c)return false;
-    if(c.type==='vanity_care')return command.type==='vanity_care'&&(command.care===c.care||(w.id==='vanity-skin'&&CARE[command.care].group==='skin'));
+    if(c.type==='vanity_care')return command.type==='vanity_care'&&(command.care===c.care||(w.id==='vanity-skin'&&CARE[command.care].group==='skin')||(w.id==='vanity-style'&&CARE[command.care].group==='hair'&&CARE[command.care].points>=15));
     if(w.id==='vanity-compliment')return command.type==='together'&&command.action==='nearTalk:careLook';
     if(c.type==='act'||c.type==='furniture_use')return (c.type==='act'?c.actionId:c.action)===action;
     if(c.type==='cook'||c.type==='eat')return command.type===c.type&&'recipe' in command&&command.recipe===c.recipe;

@@ -1,4 +1,4 @@
-import type { RecipeId, TakeoutId } from '../shared/food';
+import {isHomeDrink,isShopSnack,type RecipeId,type TakeoutId} from '../shared/food';
 
 export type KitchenMove = 'chop' | 'whisk' | 'knead' | 'stir' | 'flip' | 'plate';
 export type GrillMove = 'turn' | 'flip' | 'toss' | 'assemble' | 'plate';
@@ -11,6 +11,8 @@ const FLIP = new Set<RecipeId>(['omelette', 'pancakes','easterBerryPancakes','ea
  * ingredients, timing, and results. All transitions are deterministic. */
 export function kitchenMove(recipe: RecipeId | undefined, seconds: number): KitchenMove {
   const elapsed = Math.max(0, seconds);
+  if(isHomeDrink(recipe))return elapsed<3?'whisk':elapsed<9.6?'stir':'plate';
+  if(recipe==='brownie'||recipe==='appleCharlotte'||recipe==='berryCheesecake'||recipe==='butterCroissant')return elapsed<3?'whisk':elapsed<9.6?'knead':'plate';
   if (elapsed >= 9.6) return 'plate';
   if (elapsed < 3.0) return recipe && WHISK.has(recipe) ? 'whisk'
     : recipe && KNEAD.has(recipe) ? 'knead' : 'chop';
@@ -30,7 +32,10 @@ export function grillMove(recipe: RecipeId | undefined, seconds: number): GrillM
 
 /** The helper prepares ingredients rather than mirroring the lead cook. */
 export function mealUtensil(dish: RecipeId | TakeoutId | undefined): 'hands'|'spoon'|'fork' {
-  if(dish==='toast'||dish==='sandwich'||dish==='homemadePizza'||
+  if(isHomeDrink(dish))return 'hands';
+  if(isShopSnack(dish)&&dish!=='vanillaIceCream'&&dish!=='berryIceCream')return 'hands';
+  if(dish==='vanillaIceCream'||dish==='berryIceCream'||dish==='berryCheesecake')return 'spoon';
+  if(dish==='butterCroissant'||dish==='brownie'||dish==='toast'||dish==='sandwich'||dish==='homemadePizza'||
     dish==='shawarma'||dish==='burgerCombo'||dish==='pizzaCheese'||
     dish==='pizzaPepperoni'||dish==='pizzaBig'||dish==='grillBurgers') return 'hands';
   if(dish==='porridge'||dish==='chickenSoup'||dish==='beefStew'||dish==='mushroomRisotto'||dish==='seaBassRisotto'||dish==='pannaCotta'||dish==='cremeBrulee'||dish==='chocolateFondant')return 'spoon';

@@ -75,20 +75,23 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
             batch.storage==='table'&&batch.portions>0&&batch.expiresAt>gameMinutes(state.clock)));
         // Prefer regular meals to grilled food when both exist, to avoid
         // leaving the house for the grill table on a casual snack.
-        meals.sort((a,b)=>Number(isGrillRecipe(a))-Number(isGrillRecipe(b)));
-        for(const recipe of meals)offer(need,{type:'eat',recipe},'Что-то я проголодался. Пора поесть.');
-        for(const item of Object.keys(TAKEOUT) as TakeoutId[])
-          if(state.readyFood.some(batch=>batch.kind==='takeout'&&batch.item===item&&
+        meals.sort((a,b)=>Number(RECIPES[a].hunger<40)-Number(RECIPES[b].hunger<40)||Number(isGrillRecipe(a))-Number(isGrillRecipe(b)));
+        for(const recipe of meals.filter(id=>RECIPES[id].hunger>=40))offer(need,{type:'eat',recipe},'Что-то я проголодался. Пора поесть.');
+        for(const item of (Object.keys(TAKEOUT) as TakeoutId[]).sort((a,b)=>TAKEOUT[b].hunger-TAKEOUT[a].hunger))
+          if(TAKEOUT[item].hunger>=40&&state.readyFood.some(batch=>batch.kind==='takeout'&&batch.item===item&&
             batch.storage==='table'&&batch.portions>0&&batch.expiresAt>gameMinutes(state.clock)))
             offer(need,{type:'eat_takeout',item},'На столе есть готовая еда.');
         if(state.readyFood.some(batch=>batch.storage==='fridge'&&batch.portions>0&&batch.expiresAt>gameMinutes(state.clock)))
           offer(need,{type:'act',actionId:'kitchenServe'},'Достану готовую еду из холодильника.');
         // No purchase, delivery or money spending without a player's command.
         if(person.energy>=16)
-          for(const recipe of Object.keys(RECIPES) as RecipeId[]){
-            if(isCatchRecipe(recipe)||isGrillRecipe(recipe)||!recipeAvailability(state,role,recipe).available)continue;
+          for(const recipe of (Object.keys(RECIPES) as RecipeId[]).sort((a,b)=>Number(RECIPES[a].hunger<40)-Number(RECIPES[b].hunger<40))){
+            if(RECIPES[recipe].hunger<40||isCatchRecipe(recipe)||isGrillRecipe(recipe)||!recipeAvailability(state,role,recipe).available)continue;
             offer(need,{type:'cook',recipe},'Готового нет — приготовлю из домашних продуктов.');
           }
+        for(const recipe of meals.filter(id=>RECIPES[id].hunger<40))offer(need,{type:'eat',recipe},'Небольшой перекус.');
+        for(const item of Object.keys(TAKEOUT) as TakeoutId[])if(TAKEOUT[item].hunger<40&&state.readyFood.some(b=>b.kind==='takeout'&&b.item===item&&b.storage==='table'&&b.portions>0&&b.expiresAt>gameMinutes(state.clock)))offer(need,{type:'eat_takeout',item},'Небольшой перекус.');
+        if(person.energy>=16)for(const recipe of Object.keys(RECIPES) as RecipeId[])if(RECIPES[recipe].hunger<40&&recipeAvailability(state,role,recipe).available)offer(need,{type:'cook',recipe},'Приготовлю лёгкий перекус.');
         break;
       }
       case 'energy':

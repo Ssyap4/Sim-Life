@@ -7,6 +7,14 @@ export const CUPBOARD_CAPACITY = 42; // dry-goods shelf slots
 export type StorageArea = 'fridge' | 'cupboard';
 
 export const GROCERY_DETAILS: Record<IngredientId,{area:StorageArea;description:string}> = {
+  greenTea:{"area":"cupboard","description":"Зелёный чай · 25 пакетиков"},
+  fruitTea:{"area":"cupboard","description":"Фруктовый чай · 20 пакетиков"},
+  cocoa:{"area":"cupboard","description":"Какао · 10 порций"},
+  mint:{"area":"fridge","description":"Свежая мята · пучок"},
+  sparklingWater:{"area":"cupboard","description":"Газированная вода · 1 л"},
+  creamCheese:{"area":"fridge","description":"Сливочный сыр · 300 г"},
+  cookieCrumbs:{"area":"cupboard","description":"Песочное печенье · 200 г"},
+  iceCreamBase:{"area":"fridge","description":"Ванильное мороженое · 500 г"},
   eggs:{area:'fridge',description:'Десяток яиц для омлета, выпечки и завтраков. Одна коробка занимает одно место в холодильнике.'},
   bread:{area:'cupboard',description:'Свежий нарезной хлеб для тостов и сэндвичей. Хранится на кухонной полке.'},
   milk:{area:'fridge',description:'Литр молока для каш, омлета и блинов. Береги место на полке холодильника.'},
@@ -70,6 +78,13 @@ export const GROCERY_DETAILS: Record<IngredientId,{area:StorageArea;description:
   darkChocolate:{area:'cupboard',description:'Тёмный шоколад для фондана с жидкой сердцевиной.'},
 };
 export const TAKEOUT_DESCRIPTIONS: Record<TakeoutId,string> = {
+  milkChocolate:"Молочный шоколад · готовый перекус, не требует приготовления.",
+  assortedCandy:"Шоколадные конфеты · готовый перекус, не требует приготовления.",
+  oatCookies:"Овсяное печенье · готовый перекус, не требует приготовления.",
+  vanillaIceCream:"Ванильное мороженое · готовый перекус, не требует приготовления.",
+  berryIceCream:"Ягодное мороженое · готовый перекус, не требует приготовления.",
+  saltPopcorn:"Попкорн · готовый перекус, не требует приготовления.",
+  crispyChips:"Картофельные чипсы · готовый перекус, не требует приготовления.",
   shawarma:'Горячая шаурма с соусом: быстро утоляет голод, но дома готовить дешевле.',
   burgerCombo:'Бургер и гарнир из доставки. Удобно после длинной смены.',
   pizzaCheese:'Сырная пицца на двоих — коробка занимает одно место в холодильнике.',
@@ -80,6 +95,20 @@ export const TAKEOUT_DESCRIPTIONS: Record<TakeoutId,string> = {
   rollsPremium:'Большой праздничный сет роллов — дорогое удовольствие на четверых.',
 };
 export const RECIPE_DESCRIPTIONS: Record<RecipeId,string> = {
+  blackTeaCup:"Чёрный чай · приготовь из запасов на кухне.",
+  greenTeaCup:"Зелёный чай · приготовь из запасов на кухне.",
+  fruitTeaCup:"Фруктовый чай · приготовь из запасов на кухне.",
+  lemonHoneyTea:"Чай с лимоном и мёдом · приготовь из запасов на кухне.",
+  hotChocolate:"Горячий шоколад · приготовь из запасов на кухне.",
+  marshmallowCocoa:"Какао с маршмеллоу · приготовь из запасов на кухне.",
+  bananaShake:"Банановый молочный коктейль · приготовь из запасов на кухне.",
+  berrySmoothie:"Ягодный смузи · приготовь из запасов на кухне.",
+  orangeJuice:"Свежевыжатый апельсиновый сок · приготовь из запасов на кухне.",
+  mintLemonade:"Домашний лимонад с мятой · приготовь из запасов на кухне.",
+  appleCharlotte:"Яблочная шарлотка · домашняя выпечка к чаю.",
+  brownie:"Шоколадный брауни · домашняя выпечка к чаю.",
+  berryCheesecake:"Ягодный чизкейк · домашняя выпечка к чаю.",
+  butterCroissant:"Слоёные круассаны · домашняя выпечка к чаю.",
   omelette:'Обжарь взбитые яйца с молоком: быстрый завтрак на двоих.',
   toast:'Подрумянь хлеб с сыром, чтобы сделать тёплый перекус.',
   salad:'Нарежь овощи и смешай их — свежий лёгкий обед.',

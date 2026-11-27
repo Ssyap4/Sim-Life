@@ -1,3 +1,4 @@
+import {isHomeDrink} from '../shared/food';
 import {interiorLighting} from './InteriorAtmosphere';
 import {updateWater} from './WaterArt';
 import {isLakeMealAction,LAKE_MEAL_ACTIONS,isLakeFishAction,FISH_ACTIONS,isLakeRestAction,isLakeCareAction,isLakeLeisureAction,lakeSwimFrame,LAKE_FIRE_SEAT_OFFSET,lakeCampFor,lakeSleepAnchor} from '../shared/lake';
@@ -953,7 +954,7 @@ export class World {
         new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
         toilet ? Math.PI / 2 : Math.PI);
       actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
-      if(command.type==='vanity_care'){const color=command.care==='bathLavender'?0xd7c8f1:command.care==='bathRose'?0xf5c9d9:command.care==='bathMilk'?0xfff0d7:0xeaf8ee;this.homeEffects.beginBathCare(color,command.care==='bathLavender'?0xc2a5ed:command.care==='bathRose'?0xe8a3c2:0xf0dfc3);actor.playBathCare(command.care);}
+      if(command.type==='vanity_care'){const color=command.care==='bathLavender'?0xd7c8f1:command.care==='bathRose'?0xf5c9d9:command.care==='bathMilk'?0xfff0d7:0xeaf8ee;if(command.care.startsWith('bathHair'))this.homeEffects.water('bathtub',true,0xf5f4ec);else this.homeEffects.beginBathCare(color,command.care==='bathLavender'?0xc2a5ed:command.care==='bathRose'?0xe8a3c2:0xf0dfc3);actor.playBathCare(command.care);}
       else if (action === 'bathFoam') this.homeEffects.water('bathtub',true);
     } else {
       const shower = item === 'shower';
@@ -2307,7 +2308,7 @@ export class World {
     food.scale.setScalar(1);
     food.visible = grilled;
     if(grilled)selectGrilledFood(food,dish as RecipeId);
-    meal.visible = true;
+    meal.visible = !isHomeDrink(dish);
     return new THREE.Vector3(x,y+.08,z);
   }
 
@@ -2568,7 +2569,7 @@ export class World {
       // Both clients animate from the same authoritative household needs.
       this.actors[id].showLakeCatch(place==='lake'&&state.world.places[id]==='lake'?state.world.lake?.[id]?.catch:undefined);
       this.actors[id].setNeeds(state.characters[id],residentEmotion(state,id).id);
-      if(id==='alina'){const v=state.vanity;this.actors[id].setCareAppearance(v?.hair&&v.hair.until>minute?v.hair.id:'',v?.makeup&&v.makeup.until>minute?v.makeup.id:'');}
+      if(id==='alina'){const v=state.vanity;this.actors[id].setCareAppearance(v?.hair&&v.hair.until>minute?v.hair.appearance??v.hair.id:'',v?.makeup&&v.makeup.until>minute?v.makeup.id:'');}
       this.actors[id].setPhoneModel(installedElectronics(state,id,'phone'));
       const offline = id !== role && !online.includes(id);
       const wasSleeping = this.sleepingOffline.has(id);
@@ -3451,7 +3452,7 @@ export class World {
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

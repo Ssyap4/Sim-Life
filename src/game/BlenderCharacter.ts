@@ -185,15 +185,15 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
           if(hair===hairMode)return;
           hairMode=hair;
           if(hairWeights&&dailyStyle!==undefined&&eveningStyle!==undefined){
-            hairWeights[dailyStyle]=Number(hair==='style');
-            hairWeights[eveningStyle]=Number(hair==='fancy');
+            hairWeights[dailyStyle]=hair==='hairStraight'?.10:hair==='hairDry'?.25:hair==='hairCurl'?.22:Number(hair==='style');
+            hairWeights[eveningStyle]=hair==='hairCurl'?.78:Number(hair==='fancy');
             return;
           }
           if(!hairMesh||!base)return;
           const p=hairMesh.geometry.attributes.position,uv=hairMesh.geometry.attributes.uv;
           for(let i=0;i<p.count;i++){const x=base[i*3],y=base[i*3+1],z=base[i*3+2];const tip=THREE.MathUtils.smoothstep(uv.getY(i),.33,.97);
-            if(hair==='fancy')p.setXYZ(i,x*(1-.26*tip),y+.075*tip,z-.035*tip);
-            else if(hair==='style')p.setXYZ(i,x*(1+.055*tip),y+.018*tip*Math.cos(x*33),z+.012*tip*Math.sin(x*28));
+            if(hair==='fancy'||hair==='hairCurl')p.setXYZ(i,x*(1-.26*tip),y+.075*tip,z-.035*tip);
+            else if(hair==='style'||hair==='hairStraight'||hair==='hairDry')p.setXYZ(i,x*(1+.055*tip),y+.018*tip*Math.cos(x*33),z+.012*tip*Math.sin(x*28));
             else p.setXYZ(i,x,y,z);}
           p.needsUpdate=true;hairMesh.geometry.computeVertexNormals();
         },

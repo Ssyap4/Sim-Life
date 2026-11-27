@@ -3,7 +3,7 @@ import { softCube, orb, drum, batchRigidParts } from './ArtKit';
 import { KITCHEN_WORK } from '../shared/home';
 import { selectIndoorDish } from './MealArt';
 import { kitchenMove } from './CookingChoreography';
-import type { RecipeId } from '../shared/food';
+import {isHomeDrink,type RecipeId} from '../shared/food';
 
 /** Small reusable effects anchored to the EXISTING cooker. No extra textures. */
 export function buildCookingStation(scene: THREE.Scene) {
@@ -80,6 +80,7 @@ export function buildCookingStation(scene: THREE.Scene) {
     recipe(id:RecipeId){
       activeRecipe=id;
       selectIndoorDish(cookingFood,id);
+      skillet.visible=rim.visible=!isHomeDrink(id);
       const preparation=kitchenMove(id,0);
       board.visible=preparation!=='whisk';
       diced.visible=preparation==='chop';
@@ -90,8 +91,9 @@ export function buildCookingStation(scene: THREE.Scene) {
       board.visible=phase==='chop'||phase==='knead';
       diced.visible=phase==='chop';dough.visible=phase==='knead';
       cookingFood.visible=phase!=='chop'&&phase!=='knead';
-      steam.visible=phase==='stir'||phase==='flip'||phase==='plate';
-      cookingFood.position.y=pan.y+.062+(phase==='flip'?.07*Math.max(0,Math.sin(cycle*3.6)):0);
+      const beverage=isHomeDrink(activeRecipe),cold=beverage&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(activeRecipe??'');
+      steam.visible=!cold&&(phase==='stir'||phase==='flip'||phase==='plate');
+      cookingFood.position.y=pan.y+(beverage?.01:.062)+(phase==='flip'?.07*Math.max(0,Math.sin(cycle*3.6)):0);
       for(let i=0;i<puffs.length;i++){
         const progress=(cycle*.37+i/4)%1;
         const puff=puffs[i];

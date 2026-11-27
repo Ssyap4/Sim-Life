@@ -1,8 +1,8 @@
-import { GROCERIES, TAKEOUT, GROCERY_CATEGORIES, type IngredientId, type TakeoutId } from './food';
+import { GROCERIES, TAKEOUT, GROCERY_CATEGORIES,isShopSnack, type IngredientId, type TakeoutId } from './food';
 import { PETS, type PetId } from './pets';
 import {FAMILY_GIFTS} from './gifts';
 
-export type MarketCategory = 'dairy' | 'bakery' | 'meat' | 'vegetables' | 'pantry' | 'fruit' | 'fish' | 'grill' | 'takeout' | 'pets' | 'gifts';
+export type MarketCategory = 'dairy' | 'bakery' | 'meat' | 'vegetables' | 'pantry' | 'fruit' | 'fish' | 'grill' | 'drinks' | 'sweets' | 'takeout' | 'pets' | 'gifts';
 export interface MarketProduct {
   id: string;
   stockKey: string;
@@ -25,7 +25,7 @@ export const MARKET_PRODUCTS: MarketProduct[] = [
   })),
   ...Object.entries(TAKEOUT).map(([id,p])=>({
     id:'takeout:'+id, stockKey:id, kind:'takeout' as const,
-    category:'takeout' as const, name:p.name, emoji:p.emoji,price:p.price,quantity:p.quantity,unit:'порц.',
+    category:isShopSnack(id)?'sweets' as const:'takeout' as const, name:p.name, emoji:p.emoji,price:p.price,quantity:p.quantity,unit:'порц.',
   })),
   ...Object.entries(PETS).map(([id,p])=>({
     id:'pet:'+id, stockKey:id, kind:'pet' as const,

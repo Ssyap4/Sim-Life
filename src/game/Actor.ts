@@ -12,7 +12,7 @@ import {sleepPosture} from './SleepPosture';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PairMotion } from '../shared/socialLife';
 import type { PetAction } from '../shared/pets';
-import type { RecipeId, TakeoutId } from '../shared/food';
+import {HOME_DRINK_COLORS,isHomeDrink,type RecipeId,type TakeoutId} from '../shared/food';
 import { kitchenMove, grillMove, helperChop, mealUtensil } from './CookingChoreography';
 import { buildCharacterArt, type CharacterModel, type CharacterRig } from './CharacterArt';
 import { HOME_WALK_SPEED, HOME_PLACEMENTS } from '../shared/home';
@@ -79,7 +79,8 @@ export class Actor {
    * Keep the liquid horizontal and the handle facing the resident's right. */
   private gripCup(center: THREE.Vector3, alpha: number): void {
     this.cupYaw.setFromAxisAngle(up,this.root.rotation.y);
-    this.cupHandleOffset.set(.051,0,0).applyQuaternion(this.cupYaw);
+    const cold=this.activity==='eat'&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.diningDish??'');
+    this.cupHandleOffset.set(cold?.036:.051,0,0).applyQuaternion(this.cupYaw);
     this.cupGripDirection.set(0,-.5,.6).normalize().applyQuaternion(this.cupYaw);
     this.target.copy(center).add(this.cupHandleOffset).addScaledVector(this.cupGripDirection,-.055);
     this.reach(1,this.target,alpha,.42);
@@ -133,19 +134,22 @@ export class Actor {
   private activeConsoleGame?:ConsoleGameId;
   private vanityKind?:import('../shared/vanity').CareId;
   private vanityProp?:THREE.Group;
+  private hairTreatmentFoam?:THREE.InstancedMesh;
   private careContactError:number|null=null;
   private readonly careGoal=new THREE.Vector3();
   private readonly careDirection=new THREE.Vector3();
+  drinkQA(){return {visible:this.teaCup.visible,cold:this.teaCup.getObjectByName('Cold glass')?.visible??false,liquid:(this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>)?.material.color.getHex()};}
   careQA(){return {id:this.vanityKind??null,phase:this.vanityKind?careFrame(this.vanityKind,this.activityTime).phase:null,elapsed:this.activityTime,prop:this.vanityProp?.visible??false,children:this.vanityProp?.visible?this.vanityProp.children.filter(c=>c.visible).map(c=>c.name):[],error:this.careContactError,blend:this.vanityKind?careFrame(this.vanityKind,this.activityTime).blend:0};}
   syncCareElapsed(seconds:number){if(this.vanityKind&&Number.isFinite(seconds))this.activityTime=Math.max(0,seconds);}
   bathBombSample(point:THREE.Vector3):number|null{
-    if(this.activity!=='bath'||!this.vanityKind?.startsWith('bath')||!this.vanityProp)return null;
+    if(this.activity!=='bath'||!this.vanityKind?.startsWith('bath')||this.vanityKind.startsWith('bathHair')||!this.vanityProp)return null;
     this.vanityProp.getWorldPosition(point);return this.activityTime;
   }
   playBathCare(id:import('../shared/vanity').CareId){
     this.playDomesticActivity('bath');this.vanityKind=id;
     const g=new THREE.Group();g.name='Held bath care';const bomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),finish(id==='bathLavender'?0xc2a5ed:id==='bathRose'?0xe8a3c2:0xf0dfc3,'wood'));
-    bomb.name='bomb';g.add(bomb);
+    bomb.name='bomb';if(id.startsWith('bathHair')){bomb.geometry.dispose();const bottle=new THREE.Mesh(new THREE.CylinderGeometry(.026,.028,.09,12),finish(0xb6d4c6,'ceramic'));bottle.name='shampoo';bottle.position.y=-.02;g.add(bottle);
+      const foam=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),finish(id==='bathHairWash'?0xf7f6ef:0xf0dfcf,'ceramic'),14),dummy=new THREE.Object3D();foam.name='Hair treatment foam';for(let i=0;i<14;i++){const angle=i*2.39996;dummy.position.set(Math.sin(angle)*(.08+(i%3)*.035),.104+(i%4)*.027,-.035+Math.cos(angle)*.10);const r=.023+(i%4)*.006;dummy.scale.set(r,r*.68,r);dummy.updateMatrix();foam.setMatrixAt(i,dummy.matrix);}foam.visible=false;this.rig.head.add(foam);this.hairTreatmentFoam=foam;}else g.add(bomb);
     if(id==='bathShave'||id==='bathRitual'){const razor=new THREE.Group();razor.name='razor';const handle=new THREE.Mesh(new THREE.BoxGeometry(.018,.083,.019),finish(0xd590b4,'wood'));handle.position.y=-.03;razor.add(handle);const head=new THREE.Mesh(new THREE.BoxGeometry(.05,.016,.026),finish(0xc9d2d7,'wood'));head.position.y=-.077;razor.add(head);razor.visible=false;g.add(razor);}
     if(id==='bathMilk'||id==='bathRitual'){const cream=new THREE.Mesh(new THREE.CylinderGeometry(.032,.032,.06,12),finish(0xf1dfcb,'wood'));cream.name='cream';cream.visible=false;g.add(cream);}
     g.position.set(0,-.025,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
@@ -154,6 +158,9 @@ export class Actor {
     this.playDomesticActivity('vanity');this.vanityKind=id;
     const g=new THREE.Group();g.name='Held vanity care';const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
     if(['brush','style','fancy','vladStyle'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
+    else if(id==='hairDry'){add(.083,.030,.037,.026,-.019,0,0x80617e);add(.052,.105,.054,0,-.053,0,0xad83a8);add(.033,.035,.036,0,-.115,0,0x4c414c);}
+    else if(id==='hairStraight'){for(const x of [-.013,.013]){add(.021,.15,.025,x,-.07,0,0x3e3745);add(.009,.09,.024,x*.45,-.099,0,0xd4bac0);}}
+    else if(id==='hairCurl'){add(.034,.085,.033,0,-.025,0,0x8e627e);add(.024,.135,.024,0,-.128,0,0xb7b5b4);add(.028,.017,.028,0,-.203,0,0x514552);}
     else if(id==='vladShave'){add(.022,.105,.026,0,-.035,0,0x34404b);add(.052,.02,.027,0,-.094,0,0xb9c6cf);}
     else if(id==='perfume'||id==='vladPerfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
     else if(id==='serum'){add(.036,.077,.035,0,-.03,0,0x94b3aa);add(.02,.035,.02,0,.026,0,0xe8e0d1);}
@@ -170,7 +177,7 @@ export class Actor {
     else{part(.16,.085,.13,0,-.055,0,0x954a42);part(.025,.089,.136,0,-.055,0,0xe8c37c);part(.164,.089,.025,0,-.055,0,0xe8c37c);}
     g.visible=leads;g.position.set(0,-.045,.025);this.rig.wrists[this.id==='vlad'?1:0].add(g);this.vanityProp=g;
   }
-  private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;this.careContactError=null;}
+  private clearVanity(){if(this.hairTreatmentFoam){this.hairTreatmentFoam.removeFromParent();this.hairTreatmentFoam.geometry.dispose();this.hairTreatmentFoam.dispose();this.hairTreatmentFoam=undefined;}if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;this.careContactError=null;}
   playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;this.activeConsoleGame=game;}
   private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;this.activeConsoleGame=undefined;}
   handheldQA(){
@@ -291,7 +298,7 @@ export class Actor {
     const dropError=position&&this.workCoffeeTarget?position.distanceTo(this.workCoffeeTarget.clone().add(new THREE.Vector3(0,.0415,0))):null;
     return {visible,offering:!!this.workCoffeeTarget,settled:!!this.workCoffeeTarget&&this.activityTime>1.05,position:position?.toArray()??null,handleError,dropError};
   }
-  workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();return cup;}
+  workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();cup.getObjectByName('Cold glass')!.visible=false;cup.getObjectByName('Drink handle')!.visible=true;cup.getObjectByName('Drink vessel')!.visible=true;const liquid=cup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;liquid.material=liquid.material.clone();liquid.material.color.setHex(0x9b6332);liquid.position.y=.0415;return cup;}
   carryWorkCoffee(target?:THREE.Vector3):void{this.workCoffeeCarrying=true;this.workCoffeeTarget=target?.clone();}
   private clearWorkCoffee():void{this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
@@ -354,9 +361,9 @@ export class Actor {
 
     this.props = activityProps(this.figure,this.rig.wrists);
     const cup=new THREE.Mesh(new THREE.CylinderGeometry(.047,.036,.083,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));
-    const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic'));liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
+    const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic').clone());liquid.name='Drink liquid';liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
     const cupHandle=new THREE.Mesh(new THREE.TorusGeometry(.026,.006,6,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));cupHandle.position.x=.051;
-    this.teaCup.add(cup,liquid,cupHandle);this.teaCup.visible=false;this.rig.wrists[1].add(this.teaCup);
+    cup.name='Drink vessel';cupHandle.name='Drink handle';const coldGlass=new THREE.Mesh(new THREE.CylinderGeometry(.041,.032,.124,16),finish(0xcfe3e6,'ceramic'));coldGlass.name='Cold glass';coldGlass.visible=false;this.teaCup.add(cup,liquid,cupHandle,coldGlass);this.teaCup.visible=false;this.rig.wrists[1].add(this.teaCup);
     const hoseHandle=(r:number,length:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,length,10),finish(color,'metal'));m.rotation.x=Math.PI/2;m.position.z=z;this.loungeMouthpiece.add(m);};
     hoseHandle(.015,.115,0,0x29383c);hoseHandle(.009,.065,.09,0x849396);hoseHandle(.012,.021,.129,0x344c50);hoseHandle(.014,.032,-.070,0x465b60);
     this.loungeMouthpiece.position.set(0,-.050,.024);this.loungeMouthpiece.visible=false;this.rig.wrists[1].add(this.loungeMouthpiece);this.root.add(this.loungeSmoke);
@@ -713,7 +720,7 @@ export class Actor {
     const id=this.vanityKind!,d=this.rig,prop=this.vanityProp,f=careFrame(id,a);
     const blend=Math.min(1,f.blend*alpha*8),stroke=f.stroke;
     this.careContactError=null;
-    if(prop){prop.visible=f.phase!=='relax'&&f.phase!=='apply'&&(f.phase!=='bodyCream'||a<38);if(this.activity==='bath')for(const c of prop.children)c.visible=c.name===(f.phase==='bomb'&&a<3.15?'bomb':f.phase==='shave'?'razor':f.phase==='bodyCream'?'cream':'');}
+    if(prop&&id.startsWith('bathHair')){prop.visible=f.phase==='hold';if(this.hairTreatmentFoam)this.hairTreatmentFoam.visible=f.phase==='shampoo'||f.phase==='hairMask'||(id!=='bathHairWash'&&f.phase==='relax'&&a>=38);}else if(prop){prop.visible=f.phase!=='relax'&&f.phase!=='apply'&&(f.phase!=='bodyCream'||a<38);if(this.activity==='bath')for(const c of prop.children)c.visible=c.name===(f.phase==='bomb'&&a<3.15?'bomb':f.phase==='shave'?'razor':f.phase==='bodyCream'?'cream':'');}
     if(blend<.002)return;
     const touch=(hand:0|1,point:THREE.Vector3,axis:THREE.Vector3,offset=.055)=>{
       this.careGoal.copy(point);this.careDirection.copy(axis).normalize();
@@ -723,7 +730,14 @@ export class Actor {
       const error=d.wrists[hand].localToWorld(this.toolTip.set(0,-offset,0)).distanceTo(this.careGoal);
       this.careContactError=Math.max(this.careContactError??0,error);
     };
-    if(f.phase==='bomb'){
+    if(['shampoo','hairMask','rinse'].includes(f.phase)){
+      for(const hand of [0,1] as const){const side=hand===0?-1:1;d.head.localToWorld(this.toolSurface.set(side*(.174+.014*stroke),.075+.05*stroke,.03+.035*Math.cos(a*2)));touch(hand,this.toolSurface,this.toolAxis.set(-side*.65,.70,-.16).applyAxisAngle(up,this.root.rotation.y));}
+    }else if(f.phase==='dry'||f.phase==='straighten'||f.phase==='curl'){
+      const p=.5+.5*stroke;d.head.localToWorld(this.toolSurface.set(.215+(f.phase==='dry'?.10:.02),.055-.17*p,.035+.025*Math.cos(a*2)));
+      touch(1,this.toolSurface,this.toolAxis.set(-.35,.86,-.18).applyAxisAngle(up,this.root.rotation.y),f.phase==='dry'?.157:.145);
+      if(prop&&f.blend>.75)this.careContactError=prop.localToWorld(this.toolTip.set(0,f.phase==='dry'?-.132:-.12,0)).distanceTo(this.careGoal);
+      d.head.localToWorld(this.toolSurface.set(-.181,-.03-.09*p,.09));touch(0,this.toolSurface,this.toolAxis.set(.65,.60,-.24).applyAxisAngle(up,this.root.rotation.y));
+    }else if(f.phase==='bomb'){
       d.chest.localToWorld(this.target.set(.13,this.rightArm.position.y-.28,.32+.11*f.stroke));
       this.reach(1,this.target,blend,.65);this.aimHand(1,this.handDirection.set(0,-.72,.60).applyAxisAngle(up,this.root.rotation.y),blend);
     }else if(f.phase==='shave'){
@@ -998,6 +1012,7 @@ export class Actor {
           // Pick up a portion, bring it to the mouth, chew and rest between bites.
           // Each resident eats at a slightly different rhythm.
           const meal = mealGesture(this.mealSlow?a/2.8:a, this.id);
+          if(isHomeDrink(this.diningDish)){meal.chew=0;meal.loaded=0;}
           bite = meal.lift;
           rightY = THREE.MathUtils.lerp(-0.40, 0.145, bite);
           rightZ = THREE.MathUtils.lerp(0.36, 0.12, bite);
@@ -1695,7 +1710,8 @@ export class Actor {
     // two-handed counter work just because World supplied a focus point.
     const counter = this.pan && this.activity && COUNTER_ACTIONS.has(this.activity as DomesticMotion)
       ? this.pan : undefined;
-    const cupHeld=this.workCoffeeCarrying||pair?.motion==='teaTogether';
+    const drinking=this.activity==='eat'&&isHomeDrink(this.diningDish);
+    const cupHeld=drinking||this.workCoffeeCarrying||pair?.motion==='teaTogether';
     if (!rest && !typing && !stirring && !counter) {
       this.bend(armA, data.elbows[0], data.upperArm, data.lowerArm, leftY, leftZ, -1, alpha);
       armA.rotation.y = THREE.MathUtils.lerp(armA.rotation.y, 0, alpha);
@@ -2215,7 +2231,9 @@ export class Actor {
       this.loungeHose.updatePath(this.root.worldToLocal(this.hoseStart),this.root.worldToLocal(this.hoseLowA),this.root.worldToLocal(this.hoseLowB),this.root.worldToLocal(this.hoseEnd));
     }
     if(!hookah)this.loungeSmoke.visible=false;
-    this.teaCup.visible=pair?.motion==='teaTogether'||this.workCoffeeCarrying;
+    this.teaCup.visible=drinking||pair?.motion==='teaTogether'||this.workCoffeeCarrying;
+    if(this.teaCup.visible){const liquid=this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;const cold=drinking&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.diningDish??'');this.teaCup.getObjectByName('Cold glass')!.visible=cold;this.teaCup.getObjectByName('Drink handle')!.visible=!cold;this.teaCup.getObjectByName('Drink vessel')!.visible=!cold;liquid.position.y=cold?.062:.0415;liquid.material.color.setHex(drinking?HOME_DRINK_COLORS[this.diningDish as RecipeId]??0x9b6332:0x9b6332);}
+    if(drinking){const phase=a%7,sip=THREE.MathUtils.smoothstep(phase,1.3,2.4)*(1-THREE.MathUtils.smoothstep(phase,3.8,5));this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.15,.80,.29).applyAxisAngle(up,this.root.rotation.y));const mouth=this.rig.head.localToWorld(this.cupGripDirection.set(.025,-.18,.19));this.gripCup(this.cupCenter.lerp(mouth,sip),1);}
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;
       const sip=THREE.MathUtils.smoothstep(phase,2,3.2)*(1-THREE.MathUtils.smoothstep(phase,4.2,5.5));
@@ -2292,7 +2310,7 @@ export class Actor {
     }else if(this.pan&&this.activity==='grill'&&this.props.tongs.visible){
       const swing=taskCadence(a,this.id,3.1);
       this.toolContact(this.props.tongs,this.stationTarget(this.pan,.085*Math.sin(swing),.035+.08*Math.max(0,Math.sin(swing)),.055*Math.cos(swing)),.173,0,0,-.50);
-    }else if(this.pan&&this.activity==='eat'){
+    }else if(this.pan&&this.activity==='eat'&&!drinking){
       const mealTime=this.mealSlow?a/2.8:a;
       const meal=mealGesture(mealTime,this.id);
       // The portion is collected from the actual personal plate, then

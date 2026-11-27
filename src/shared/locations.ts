@@ -282,11 +282,11 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   ],
   market: [
     shelf('dairy', 'Молочное', -4.37, -3.63, ['dairy']),
-    shelf('bakery', 'Хлеб и выпечка', 0, -3.63, ['bakery']),
+    shelf('bakery', 'Выпечка и сладости', 0, -3.63, ['bakery','sweets']),
     shelf('meat', 'Мясо', 4.39, -3.63, ['meat']),
     shelf('produce', 'Овощи и фрукты', -4.37, -0.92, ['vegetables', 'fruit']),
     shelf('pantry', 'Бакалея', 0, -0.92, ['pantry']),
-    shelf('drinks', 'Напитки', 4.39, -0.92, []),
+    shelf('drinks', 'Напитки', 4.39, -0.92, ['drinks']),
     shelf('ready', 'Готовая еда', -4.37, 1.79, ['takeout']),
     shelf('pet-shelf', 'Для питомцев', 4.39, 1.79, ['pets']),
     site('checkout', 'Касса', 0, 1.83, 1.50, 0.72, { kind: 'checkout' }),

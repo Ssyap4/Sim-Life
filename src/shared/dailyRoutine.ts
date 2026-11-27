@@ -32,7 +32,7 @@ export function recordDailyCompletion(s:GameState,role:CharacterId,c:TimedComman
   if(a==='bedMake')key='makeBed';
   if(c.type==='vanity_care'&&c.care==='brush')key='morningHair';
   if(c.type==='brew_coffee')key='morningCoffee';
-  if(c.type==='eat'||c.type==='eat_takeout')key='breakfast';
+  if(c.type==='eat'&&RECIPES[c.recipe].hunger>=40||c.type==='eat_takeout'&&TAKEOUT[c.item].hunger>=40)key='breakfast';
  }
  if(h>=11&&h<21&&a==='kitchenDishes')key='clearDishes';
  if(h>=20){if(a==='bathWash')key='eveningWash';if(a==='bathTeeth')key='eveningTeeth';}
@@ -58,13 +58,13 @@ export function dailyRoutineChoices(s:GameState,role:CharacterId,used:ReadonlySe
   if(p.hunger<=75&&!used.has('breakfast')){
    const fresh=s.readyFood.filter(b=>b.portions>0&&b.expiresAt>gameMinutes(s.clock));
    for(const b of fresh.filter(b=>b.storage==='table')){
-    if(b.kind==='meal'&&Object.hasOwn(RECIPES,b.item)&&!isGrillRecipe(b.item as RecipeId))add('breakfast',{type:'eat',recipe:b.item as RecipeId});
-    if(b.kind==='takeout'&&Object.hasOwn(TAKEOUT,b.item))add('breakfast',{type:'eat_takeout',item:b.item as TakeoutId});
+    if(b.kind==='meal'&&Object.hasOwn(RECIPES,b.item)&&RECIPES[b.item as RecipeId].hunger>=40&&!isGrillRecipe(b.item as RecipeId))add('breakfast',{type:'eat',recipe:b.item as RecipeId});
+    if(b.kind==='takeout'&&Object.hasOwn(TAKEOUT,b.item)&&TAKEOUT[b.item as TakeoutId].hunger>=40)add('breakfast',{type:'eat_takeout',item:b.item as TakeoutId});
    }
-   if(fresh.some(b=>b.storage==='fridge'))add('breakfast',{type:'act',actionId:'kitchenServe'});
+   if(fresh.some(b=>b.storage==='fridge'&&(b.kind==='meal'?RECIPES[b.item as RecipeId]:TAKEOUT[b.item as TakeoutId]).hunger>=40))add('breakfast',{type:'act',actionId:'kitchenServe'});
    // Cook only if nothing ready is present. Both residents still reserve
    // the actual kitchen; preparing food itself does not mark breakfast eaten.
-   if(!fresh.length)for(const recipe of ['omelette','toast','porridge','fruitSalad','sandwich'] as const)
+   if(!fresh.some(b=>(b.kind==='meal'?RECIPES[b.item as RecipeId]:TAKEOUT[b.item as TakeoutId]).hunger>=40))for(const recipe of ['omelette','toast','porridge','fruitSalad','sandwich'] as const)
     if(recipeAvailability(s,role,recipe).available)add('breakfast',{type:'cook',recipe});
   }
  }

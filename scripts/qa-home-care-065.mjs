@@ -4,12 +4,14 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import {initialState,points} from '../src/shared/protocol.ts';
+import {addReadyFood} from '../src/shared/readyFood.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 const out='/tmp/simourhome-065-care';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page;
 try{
  const s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
+ for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){s.meals[recipe]=1;addReadyFood(s,'meal',recipe,1,'table',undefined,'good');}
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -49,6 +51,18 @@ try{
   if(care==='bathShave'||care==='bathRitual')await phase(care,'shave',22,28);
   if(care==='bathMilk'||care==='bathRitual')await phase(care,'bodyCream',40,46);
   await cancel(id);
+ }
+ for(const [care,kind] of [['hairDry','dry'],['hairStraight','straighten'],['hairCurl','curl']]){const id=await start(care,'furniture','vanity');await phase(care,kind,6,10);await cancel(id);}
+ for(const [care,kind] of [['bathHairWash','shampoo'],['bathHairMask','hairMask'],['bathHairRitual','hairMask']]){const id=await start(care,'bathtub','bath');await phase(care,kind,kind==='shampoo'?10:29,kind==='shampoo'?15:34);await cancel(id);}
+ for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){
+  await send({type:'eat',recipe});await page.waitForFunction(recipe=>window.__qaMessages.some(m=>m.type==='task_started'&&m.role==='alina'&&m.command.type==='eat'&&m.command.recipe===recipe),recipe,{timeout:20000});
+  const id=await page.evaluate(recipe=>window.__qaMessages.find(m=>m.type==='task_started'&&m.role==='alina'&&m.command.recipe===recipe).taskId,recipe);
+  await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),id,{timeout:45000});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.activity==='eat',undefined,{timeout:20000});
+  if(!(await page.locator('#showcase-return').isVisible())){await page.locator('#showcase-toggle').evaluate(el=>el.click());await page.locator('[data-showcase=alina]').evaluate(el=>el.click());}
+  await page.waitForTimeout(3000);const drink=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.drink);
+  assert.equal(drink.visible,recipe!=='berryCheesecake');if(drink.visible)assert.equal(drink.cold,recipe==='berrySmoothie');
+  await shot(recipe+'-eat');await cancel(id);
  }
  assert.deepEqual(errors,[]);
  console.log('CARE MOBILE VISUAL OK');

@@ -1,6 +1,12 @@
 import type {GameState,CharacterId} from './protocol';
 import {gameMinutes} from './life';
 export const CARE = {
+ bathHairWash:{label:'Мытьё волос с шампунем',group:'hairCondition',points:10,mood:7,hours:18,seconds:45},
+ bathHairMask:{label:'Мытьё и питательная маска для волос',group:'hairCondition',points:20,mood:12,hours:24,seconds:90},
+ bathHairRitual:{label:'Глубокое восстановление волос',group:'hairCondition',points:28,mood:18,hours:36,seconds:180},
+ hairDry:{label:'Сушка феном',group:'hair',points:10,mood:6,hours:12,seconds:40},
+ hairStraight:{label:'Выпрямление волос утюжком',group:'hair',points:20,mood:13,hours:24,seconds:60},
+ hairCurl:{label:'Укладка локонами',group:'hair',points:25,mood:16,hours:24,seconds:80},
  brush:{label:'Расчесать волосы',group:'hair',points:5,mood:5,hours:12,seconds:15},
  style:{label:'Повседневная укладка',group:'hair',points:15,mood:10,hours:24,seconds:40},
  fancy:{label:'Праздничная укладка',group:'hair',points:20,mood:15,hours:24,seconds:50},
@@ -28,7 +34,8 @@ export const CARE = {
 } as const;
 export type CareId=keyof typeof CARE;
 export type CareGroup=typeof CARE[CareId]['group'];
-export type CareEffect={id:CareId;until:number;noticed:boolean};
+export type CareEffect={id:CareId;until:number;noticed:boolean;appearance?:'style'|'fancy'|'hairStraight'|'hairCurl'};
+const explicitStyle=(id:unknown):id is NonNullable<CareEffect['appearance']>=>['style','fancy','hairStraight','hairCurl'].includes(id as string);
 export type VanityState=Partial<Record<CareGroup,CareEffect>>;
 export const isCare=(x:unknown):x is CareId=>typeof x==='string'&&Object.hasOwn(CARE,x);
 export const careRole=(id:CareId):CharacterId=>id.startsWith('vlad')?'vlad':'alina';
@@ -37,19 +44,19 @@ export const careScore=(s:GameState,r:CharacterId='alina')=>Math.min(100,40+care
 export const careBonuses=(s:GameState,r:CharacterId)=>{const n=careScore(s,r);return {mood:n>=95?.75:n>=80?.8:n>=60?.9:1,social:n>=95?1.25:n>=80?1.15:1};};
 export function validVanity(v:unknown,r:CharacterId='alina'):v is VanityState {
  if(!v||typeof v!=='object'||Array.isArray(v))return false;
- return Object.entries(v as Record<string,unknown>).every(([k,value])=>{if(!value||typeof value!=='object')return false;const e=value as Partial<CareEffect>;return isCare(e.id)&&careRole(e.id)===r&&CARE[e.id].group===k&&typeof e.until==='number'&&Number.isSafeInteger(e.until)&&e.until>=0&&typeof e.noticed==='boolean';});
+ return Object.entries(v as Record<string,unknown>).every(([k,value])=>{if(!value||typeof value!=='object')return false;const e=value as Partial<CareEffect>;return isCare(e.id)&&careRole(e.id)===r&&CARE[e.id].group===k&&typeof e.until==='number'&&Number.isSafeInteger(e.until)&&e.until>=0&&typeof e.noticed==='boolean'&&(e.appearance===undefined||(r==='alina'&&k==='hair'&&explicitStyle(e.appearance)));});
 }
 export const homeCare=(id:CareId)=>!id.startsWith('vladPro');
-export const bathCare=(id:CareId)=>CARE[id].group==='body';
+export const bathCare=(id:CareId)=>id.startsWith('bath');
 export const careStation=(id:CareId)=>bathCare(id)?'bathtub':careRole(id)==='vlad'?'basin':'vanity';
 export function finishCare(s:GameState,id:CareId,hours:number=CARE[id].hours){
  const r=careRole(id),effects=r==='vlad'?(s.vladCare??={}):(s.vanity??={});
  const d=CARE[id],now=gameMinutes(s.clock),old=effects[d.group];
  const fresh=!old||old.until<=now;
  const upgrade=!fresh&&CARE[old.id].points<d.points;
- if(!fresh&&CARE[old.id].points>d.points)return;
+ if(!fresh&&CARE[old.id].points>d.points){if(r==='alina'&&explicitStyle(id))old.appearance=id;return;}
  // A refresh can extend an existing effect but cannot farm mood or reset a compliment.
- const next:CareEffect={id,until:Math.max(!fresh?old.until:0,now+hours*60),noticed:fresh||upgrade?false:old.noticed};
+ const next:CareEffect={id,until:Math.max(!fresh?old.until:0,now+hours*60),noticed:fresh||upgrade?false:old.noticed,...(r==='alina'&&explicitStyle(id)?{appearance:id}:{})};
  effects[d.group]=next;
  if(fresh||upgrade)s.characters[r].mood=Math.min(100,s.characters[r].mood+(fresh?d.mood:Math.max(0,d.mood-CARE[old.id].mood)));
 }

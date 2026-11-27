@@ -1,3 +1,5 @@
+import {RECIPES} from './shared/food';
+import {recipeAvailability} from './shared/recipeAvailability';
 import {createNotifications} from './notificationsUI';
 import type {NoticeInput} from './shared/notices';
 import {residentLook} from './shared/lake';
@@ -1596,7 +1598,7 @@ function openActions(item: ItemId): void {
     if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}
     const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);
     appendAlinaCare('Уход за лицом',['skin','hydrate','serum','faceMask','lipCare']);
-    appendAlinaCare('Волосы',['brush','style','fancy']);
+    appendAlinaCare('Волосы',['brush','hairDry','style','fancy','hairStraight','hairCurl'],true);
     appendAlinaCare('Макияж',['light','evening']);
     appendAlinaCare('Руки и аромат',['handCream','perfume']);return;
   }
@@ -1617,7 +1619,8 @@ function openActions(item: ItemId): void {
   if(item==='bathtub'&&state&&active==='alina'){
     const note=document.createElement('p');note.textContent='Обычная ванна · 55 сек. / пенная · 75 сек.';actionsEl.append(note);
     for(const id of ['bathSoak','bathFoam'] as const){const b=document.createElement('button');b.className='action-button';b.type='button';b.textContent=ACTIONS[id].label;b.onclick=()=>{if(net.perform(id))actionsEl.hidden=true;};actionsEl.append(b);}
-    appendAlinaCare('SPA и уход за телом · ухоженность '+careScore(state)+'%',(Object.keys(CARE) as CareId[]).filter(bathCare),true);return;
+    appendAlinaCare('SPA и уход за телом · ухоженность '+careScore(state)+'%',(Object.keys(CARE) as CareId[]).filter(id=>bathCare(id)&&CARE[id].group==='body'),true);
+    appendAlinaCare('Мытьё и восстановление волос',['bathHairWash','bathHairMask','bathHairRitual'],true);return;
   }
   const about=document.createElement('p');
   about.className='food-empty';
@@ -1635,6 +1638,7 @@ function openActions(item: ItemId): void {
       }
     });
     actionsEl.append(tea);
+    if(state&&active){for(const id of ['blackTeaCup','greenTeaCup','fruitTeaCup','lemonHoneyTea','hotChocolate','marshmallowCocoa'] as const){const b=document.createElement('button');const available=recipeAvailability(state,active,id);b.className='action-button';b.textContent=RECIPES[id].name+' · '+(available.available?'Приготовить':available.reason);b.disabled=!available.available;b.onclick=()=>{if(net.food('cook',id))actionsEl.hidden=true;};actionsEl.append(b);}}
     return;
   }
   if (state && (item === 'table' || item === 'yardTable' || item === 'kitchen')) {

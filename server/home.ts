@@ -66,11 +66,11 @@ export function urgentHomeAction(state: GameState, role: CharacterId): TimedComm
     if(need==='energy'&&state.furnishing.soldFixtures?.includes('bed'))continue;
     if(need==='comfort'&&state.furnishing.soldFixtures?.includes('sofa'))continue;
     if(need!=='hunger')return { type: 'act', actionId: selfCare[need] };
-    const cooked = (Object.keys(RECIPES) as RecipeId[]).find(recipe => state.meals[recipe] > 0);
+    const cooked = (Object.keys(RECIPES) as RecipeId[]).sort((a,b)=>RECIPES[b].hunger-RECIPES[a].hunger).find(recipe => state.meals[recipe] > 0);
     if (cooked) return { type: 'eat', recipe: cooked };
-    const takeout = (Object.keys(TAKEOUT) as TakeoutId[]).find(item => state.takeout[item] > 0);
+    const takeout = (Object.keys(TAKEOUT) as TakeoutId[]).sort((a,b)=>TAKEOUT[b].hunger-TAKEOUT[a].hunger).find(item => state.takeout[item] > 0);
     if (takeout) return { type: 'eat_takeout', item: takeout };
-    const recipe = (Object.keys(RECIPES) as RecipeId[]).find(recipe => evaluateTask(state, role, { type: 'cook', recipe }).ok);
+    const recipe = (Object.keys(RECIPES) as RecipeId[]).sort((a,b)=>Number(RECIPES[a].hunger<40)-Number(RECIPES[b].hunger<40)).find(recipe => evaluateTask(state, role, { type: 'cook', recipe }).ok);
     if (recipe) return { type: 'cook', recipe };
   }
 }

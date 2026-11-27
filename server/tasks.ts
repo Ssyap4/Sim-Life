@@ -222,7 +222,7 @@ export function entertainmentReward(command: Entertainment, together = false, bo
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
-  if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);if(bathCare(command.care)){const c=next.characters[role];c.hygiene=100;c.comfort=Math.min(100,c.comfort+(command.care==='bathRitual'?45:35));}next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
+  if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);if(bathCare(command.care)){const c=next.characters[role];c.hygiene=command.care.startsWith('bathHair')?Math.min(100,c.hygiene+35):100;c.comfort=Math.min(100,c.comfort+(command.care.startsWith('bathHair')?15:command.care==='bathRitual'?45:35));}next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
     const pose=bedPose(state,role,'starter');
     const reason=pose&&catBedError(state,'starter:bed',pose);
