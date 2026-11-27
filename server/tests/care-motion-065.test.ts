@@ -15,6 +15,12 @@ test('care choreography has distinct phases, fades, no repeated bomb or shaving 
  assert.equal(careFrame('lipCare',6).phase,'lip');
  for(const id of ['bathRitual','hydrate','lipCare'] as const)for(let t=0;t<70;t+=.1){const f=careFrame(id,t);assert.ok(f.blend>=0&&f.blend<=1);}
 });
+test('joining an active bath resumes its actual care phase rather than dropping a second bomb',()=>{
+ const actor=new Actor('alina',[0,0]);actor.playBathCare('bathRitual');actor.syncCareElapsed(22);actor.update(1/30);
+ assert.equal(actor.careQA().phase,'shave');assert.deepEqual(actor.careQA().children,['razor']);
+ actor.syncCareElapsed(65);actor.update(1/30);assert.equal(actor.careQA().phase,'relax');assert.equal(actor.careQA().prop,false);
+ actor.finishActivity();assert.equal(actor.careQA().id,null);
+});
 test('approved Alina rig: stable cosmetic palm and tool targets plus release on cancel',async()=>{
  const b=await readFile(new URL('../../src/assets/characters/remake/alina.glb',import.meta.url));
  const loader=new GLTFLoader().register(()=>({name:'HeadlessTexture',loadTexture:async()=>new THREE.Texture()}));

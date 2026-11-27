@@ -66,3 +66,16 @@ test('live Alina bath routes to real tub, blocks concurrent use, cancellation gi
   assert.equal(careScore(files.load()),68);assert.equal(files.load().characters.alina.hygiene,100);
  }finally{sockets.forEach(w=>w.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+import {wishAtStart,fulfillWish} from '../happiness';
+import {wishesFor} from '../../src/shared/wishes';
+test('new skin care fulfils the existing skin-care wish without a duplicate reward',()=>{
+ const s=initialState();let shown=false;
+ for(let t=0;t<1440;t+=180){s.clock.minute=t;if(wishesFor(s,'alina').some(w=>w.id==='vanity-skin')){shown=true;break;}}
+ assert.ok(shown,'skin-care wish never shown');
+ const cmd={type:'vanity_care' as const,care:'hydrate' as const};
+ const wish=wishAtStart(s,'alina',cmd);assert.equal(wish?.id,'vanity-skin');
+ const r=evaluateTask(s,'alina',cmd);assert.ok(r.ok);const old=r.state.happiness.alina.points;
+ assert.ok(fulfillWish(r.state,'alina',wish,s));assert.ok(r.state.happiness.alina.points>old);
+ assert.equal(fulfillWish(r.state,'alina',wish,s),'');
+});

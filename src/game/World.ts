@@ -255,6 +255,7 @@ export class World {
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
   private careReframe:CharacterId|null=null;
+  private readonly careElapsed=new Map<CharacterId,number>();
   private yard!: ReturnType<typeof buildYard>;
   private readonly festiveTree=buildHolidayTree();
   private readonly festiveGarlands=buildHolidayGarlands();
@@ -1051,7 +1052,7 @@ export class World {
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
         if(command.type==='vanity_care'&&station!=='bathtub')actor.playVanity(command.care);
-        if(command.type==='vanity_care'&&station==='bathtub'&&this.inspected===role)this.careReframe=role;
+        if(command.type==='vanity_care'){const started=this.careElapsed.get(role);if(started!==undefined)actor.syncCareElapsed(started);if(station==='bathtub'&&this.inspected===role)this.careReframe=role;}
         return;
       }
       if(station==='furniture'){
@@ -1066,7 +1067,7 @@ export class World {
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
           actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
-        if(command.type==='vanity_care'){actor.playVanity(command.care);if(this.inspected===role)this.careReframe=role;return;}
+        if(command.type==='vanity_care'){actor.playVanity(command.care);const started=this.careElapsed.get(role);if(started!==undefined)actor.syncCareElapsed(started);if(this.inspected===role)this.careReframe=role;return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
           if(command.action==='read_book'){actor.carryBook(BOOKS[command.book!][4]);actor.playDomesticActivity('read');}
@@ -1152,6 +1153,7 @@ export class World {
 
   activateHomeTask(role: CharacterId,elapsedMs=0): void {
     const home = this.homeTasks.get(role);
+    if(home?.vanityCare||home?.station==='bathtub'){const elapsed=Math.max(0,elapsedMs/1000);this.careElapsed.set(role,elapsed);this.actors[role].syncCareElapsed(elapsed);}
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
@@ -1351,7 +1353,7 @@ export class World {
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
-    this.homeTasks.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
+    this.homeTasks.delete(role);this.careElapsed.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
     this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
@@ -3103,6 +3105,8 @@ export class World {
           actor.updateWaterAnchor(anchor,yaw);
         }
       }
+      const careTime=this.careElapsed.get(id);
+      if(careTime!==undefined){const elapsed=careTime+coffeeDt;this.careElapsed.set(id,elapsed);actor.syncCareElapsed(Math.max(0,elapsed-dt));}
       actor.update(dt,this.steering[id],this.homeTasks.get(id)?.station==='workCoffee'?coffeeDt:dt);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.

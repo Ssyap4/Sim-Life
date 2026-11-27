@@ -137,6 +137,7 @@ export class Actor {
   private readonly careGoal=new THREE.Vector3();
   private readonly careDirection=new THREE.Vector3();
   careQA(){return {id:this.vanityKind??null,phase:this.vanityKind?careFrame(this.vanityKind,this.activityTime).phase:null,elapsed:this.activityTime,prop:this.vanityProp?.visible??false,children:this.vanityProp?.visible?this.vanityProp.children.filter(c=>c.visible).map(c=>c.name):[],error:this.careContactError,blend:this.vanityKind?careFrame(this.vanityKind,this.activityTime).blend:0};}
+  syncCareElapsed(seconds:number){if(this.vanityKind&&Number.isFinite(seconds))this.activityTime=Math.max(0,seconds);}
   bathBombSample(point:THREE.Vector3):number|null{
     if(this.activity!=='bath'||!this.vanityKind?.startsWith('bath')||!this.vanityProp)return null;
     this.vanityProp.getWorldPosition(point);return this.activityTime;

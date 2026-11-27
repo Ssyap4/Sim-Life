@@ -1,5 +1,5 @@
 import { activeReward, gameReward, initialHappiness, protectNeeds, REWARDS, wishAvailable, type RewardId } from '../src/shared/happiness';
-import {bathCare} from '../src/shared/vanity';
+import {CARE,bathCare} from '../src/shared/vanity';
 import { isSkillId, skillRank } from '../src/shared/education';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { gameMinutes } from '../src/shared/life';
@@ -49,7 +49,7 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
     if(w.id==='reading'&&(command.type==='read_book'||action==='read_book'||action==='sofaRead'))return true;
     const c=w.command;
     if(!c)return false;
-    if(c.type==='vanity_care')return command.type==='vanity_care'&&command.care===c.care;
+    if(c.type==='vanity_care')return command.type==='vanity_care'&&(command.care===c.care||(w.id==='vanity-skin'&&CARE[command.care].group==='skin'));
     if(w.id==='vanity-compliment')return command.type==='together'&&command.action==='nearTalk:careLook';
     if(c.type==='act'||c.type==='furniture_use')return (c.type==='act'?c.actionId:c.action)===action;
     if(c.type==='cook'||c.type==='eat')return command.type===c.type&&'recipe' in command&&command.recipe===c.recipe;
