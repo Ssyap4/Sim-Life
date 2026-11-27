@@ -19,14 +19,18 @@ import {evaluateTask} from '../tasks';
 import {runPetRoutines,applyPetAction} from '../pets';
 import {openServerFiles} from '../storage';
 import {completeTogether,pairScenes} from '../society';
+import {applyWorld,venueTogetherTrip,spaTogetherTrip,localActivity} from '../locations';
+import {applyFurnishing} from '../furnishing';
+import {VENUE_GAMES} from '../../src/shared/venue';
+import {SPA_PASSES} from '../../src/shared/spa';
 
 const roles=['vlad','alina'] as const;
 const pets=['verdell','simba'] as const;
-function simulate(days:number,working:boolean,onePlayer:boolean){
+function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
   const dir=mkdtempSync(join(tmpdir(),'simourhome-long-play-'));
   let state=initialState();
   state.autonomy={vlad:'full',alina:'needs'};
-  const stats={days,working,onePlayer,income:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
+  const stats={days,working,onePlayer,leisure,income:0,workMinutes:0,venueVisits:0,spaVisits:0,furnitureOrders:0,takeoutOrders:0,expenseByCategory:{} as Record<string,number>,criticalNeedTicks:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
   let seed=123456;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   // Every mutation uses the real server function; use the rolling ledger's
@@ -37,7 +41,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
     let delta=0;
     for(const row of entries){
       if(row.kind==='income'){stats.income+=row.amount;delta+=row.amount;}
-      else {stats.expense+=row.amount;delta-=row.amount;}
+      else {stats.expense+=row.amount;delta-=row.amount;stats.expenseByCategory[row.category]=(stats.expenseByCategory[row.category]??0)+row.amount;}
     }
     assert.equal(next.money-state.money,delta,'cash delta must match real ledger transactions');
     assert.ok(next.revision>=state.revision);
@@ -62,6 +66,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
     assert.deepEqual(restored.activeShifts,state.activeShifts);
     assert.deepEqual(restored.relationship,state.relationship);
     assert.deepEqual(restored.education,state.education);
+    assert.deepEqual(restored.world.deliveries,state.world.deliveries);
     stats.reloads++;
     state=restored;
   }
@@ -80,7 +85,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
         if(working&&state.clock.day%2===1){
           for(const role of online){
             const shift=beginShift(state,role,role==='vlad'?'taxi':'petsitter');
-            if(shift.ok)adopt(shift.state);
+            if(shift.ok){adopt(shift.state);const job=state.activeShifts[role]!;stats.workMinutes+=job.endsAt-job.startedAt;}
           }
         }
         // Explicit player shopping, never an autonomous purchase.
@@ -142,6 +147,57 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
           }
         }
       }
+      // The spending policy is only a simulated player's choice, not a new
+      // rule in the actual game. Keep 8k cash for essentials before luxuries.
+      if(leisure&&!state.activeShifts.vlad&&state.world.places.vlad==='home'){
+        const now=gameMinutes(state.clock);
+        if(state.clock.minute===720&&state.clock.day%6===2&&state.money>=8000+1000){
+          const order=checkout(state,'vlad',[{id:'takeout:pizzaCheese',quantity:1}]);
+          if(order.ok){adopt(order.state);stats.takeoutOrders++;}
+        }
+        if(state.clock.minute===780&&state.clock.day%20===2&&state.money>=8000+2490){
+          const bought=applyFurnishing(state,'vlad',{type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'regular',quantity:1},now);
+          if(bought.ok){adopt(bought.state);stats.furnitureOrders++;}
+        }
+        for(const order of [...state.furnishing.orders])if(order.readyAt<=now){
+          const result=applyFurnishing(state,'vlad',{type:'furniture_unbox',id:order.id},now);
+          if(result.ok)adopt(result.state);
+        }
+        if(state.clock.minute===900&&online.length===2&&!state.activeShifts.alina&&
+           state.clock.day%2===0&&state.world.places.alina==='home'&&!state.world.carDriver){
+          const game={type:'together' as const,action:'venueBowling' as const};
+          let place:'venue'|'spa'|undefined;
+          if(state.clock.day%10===4&&state.money>=8000+VENUE_GAMES.venueBowling.price){
+            const trip=venueTogetherTrip(state,'vlad');
+            if(trip.ok){adopt(trip.state);place='venue';
+              const scenes=pairScenes(state,'vlad',game);
+              if(scenes){const result=completeTogether(state,'vlad',game,[...roles],0,scenes);
+                if(result.ok){adopt(result.state);stats.venueVisits++;}}
+            }
+          }else if(state.clock.day%10===8&&state.money>=8000+SPA_PASSES.pair.price){
+            const trip=spaTogetherTrip(state,'vlad','pair');
+            if(trip.ok){adopt(trip.state);place='spa';stats.spaVisits++;
+              for(const role of roles){
+                // Pair pass does not include massage; use the free lounge instead.
+                const lounge='spa-lounge-'+role[0];
+                const approach=applyWorld(state,role,{type:'approach',place:'spa',station:lounge},true);
+                if(approach.ok){adopt(approach.state);
+                  const result=localActivity(state,role,'spaLounge',lounge);
+                  if(result.ok)adopt(result.state);
+                }
+              }
+            }
+          }
+          if(place)for(const role of roles){
+            const exit=place+'-exit';
+            const approach=applyWorld(state,role,{type:'approach',place,station:exit},true);
+            assert.ok(approach.ok);adopt(approach.state);
+            const back=applyWorld(state,role,{type:'travel',place:'district',via:exit},true);
+            assert.ok(back.ok);adopt(back.state);
+          }
+          if(place){assert.deepEqual(state.world.places,{vlad:'home',alina:'home'});assert.equal(state.world.carDriver,undefined);}
+        }
+      }
       const advanced=advanceLife(state,30,online);
       expireHomeQuests(advanced);
       const settled=settleCompletedShifts(advanced);
@@ -157,7 +213,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
       assert.equal(state.savings.period,budgetPeriod(state.clock));
       assert.ok(state.ledger.length<=LEDGER_LIMIT);
       for(const role of roles)for(const need of VITAL_NEEDS){
-        const n=state.characters[role][need];assert.ok(Number.isFinite(n)&&n>=0&&n<=100,role+':'+need);
+        const n=state.characters[role][need];if(n<15&&online.includes(role))stats.criticalNeedTicks++;assert.ok(Number.isFinite(n)&&n>=0&&n<=100,role+':'+need);
       }
       for(const pet of pets){
         for(const n of [state.pets[pet].satiety,state.pets[pet].energy,state.pets[pet].bladder,state.pets[pet].happiness])assert.ok(Number.isFinite(n)&&n>=0&&n<=100);
@@ -175,6 +231,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
     assert.ok(stats.care>0);
     if(working){assert.ok(stats.shifts>0);assert.ok(stats.purchases>0);if(days>=30){assert.ok(stats.shifts>=days/3,'responsible scenario must actually sustain work');assert.ok(stats.petPurchases>0);assert.ok(stats.mealsEaten>0);assert.ok(stats.shared>0);}}
     else assert.ok(state.billing.bills.some(b=>b.paidAt===null),'no-income scenario must accrue actual debt');
+    if(leisure&&days>=30){assert.ok(stats.venueVisits>0);assert.ok(stats.spaVisits>0);assert.ok(stats.furnitureOrders>0);assert.ok(stats.takeoutOrders>0);assert.equal(state.furnishing.orders.length,0); assert.ok(state.furnishing.stored.length>0);}
     console.log('LONG_PLAY '+JSON.stringify(stats));
   }finally{rmSync(dir,{recursive:true,force:true});}
 }
@@ -183,3 +240,6 @@ test('064 smoke: two days of real server transactions',()=>simulate(2,true,false
 test('064 30 days: no income, real debt and no autonomous spending',()=>simulate(30,false,false));
 test('064 60 days: shared routine, shifts, food, pet supplies and reloads',()=>simulate(60,true,false));
 test('064 100 days: mixed online presence, recurring bills, jobs and persistence',()=>simulate(100,true,true));
+
+test('064 60 days: paid leisure, takeout, furniture and household economy',()=>simulate(60,true,false,true));
+test('064 leisure smoke: short spending policy',()=>simulate(2,true,false,true));
