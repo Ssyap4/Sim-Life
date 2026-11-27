@@ -33,6 +33,8 @@ export class NoticeQueue{
   return item;
  }
  requeue(item:Notice){this.pending.push(item);this.pending.sort((a,b)=>priority[b.kind]-priority[a.kind]||a.id-b.id);if(this.pending.length>80)this.pending.pop();}
+ // A resolved condition is no longer a live warning; preserve its history.
+ resolve(key:string){for(let i=this.pending.length-1;i>=0;i--)if(this.pending[i].key===key)this.pending.splice(i,1);this.recent.delete(key);}
  take(){return this.pending.shift();}
  outranks(a:Notice,b:Notice){return priority[a.kind]>priority[b.kind];}
  read(){this.unread=0;}

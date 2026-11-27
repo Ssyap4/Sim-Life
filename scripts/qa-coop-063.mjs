@@ -52,6 +52,7 @@ try{
  assert.equal(await v.evaluate(()=>window.__qaSockets.length),2);
  assert.equal(await v.evaluate(()=>window.__qaMute.readyState),3);
  assert.equal(await v.evaluate(()=>window.__qaState.money),await a.evaluate(()=>window.__qaState.money));
+ assert.ok(!(await v.locator('#message').textContent()).includes('Соединение потеряно'),'resolved connection warning must not remain on screen');
  await v.locator('#phone-btn').tap();await v.locator('#phone-overlay').waitFor({state:'visible'});
  await a.locator('#phone-btn').tap();await a.locator('#phone-overlay').waitFor({state:'visible'});
  await v.screenshot({path:join(out,'vlad-recovered.png')});await a.screenshot({path:join(out,'alina-continuous.png')});

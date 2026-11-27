@@ -40,5 +40,5 @@ export function createNotifications(root:HTMLElement,history:HTMLElement,bell:HT
   refreshBell();
   if(current&&queue.outranks(n,current)){queue.requeue(current);cancelTimer();current=undefined;root.replaceChildren();}
   pump();
- },close,reset(){cancelTimer();current=undefined;queue.clear();root.replaceChildren();close();refreshBell();},get visible(){return !history.hidden;}};
+ },resolve(key:string){queue.resolve(key);if(current?.key===key)dismiss();else pump();},close,reset(){cancelTimer();current=undefined;queue.clear();root.replaceChildren();close();refreshBell();},get visible(){return !history.hidden;}};
 }

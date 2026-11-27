@@ -1024,7 +1024,7 @@ const net = new LiveConnection({
     actionsEl.hidden = true;
     world.setActive(role);
     render(true);
-    if(reconnecting)notify('Связь восстановлена',{title:'Снова вместе',key:'reconnect'});
+    if(reconnecting){notifications.resolve('disconnect');notify('Связь восстановлена',{title:'Снова вместе',kind:'success',key:'reconnect'});}
     else notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
   },
   onSnapshot(household) {

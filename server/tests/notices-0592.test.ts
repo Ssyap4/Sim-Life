@@ -27,3 +27,11 @@ test('important events have navigation and longer duration',()=>{
  const a=q.add({message:'Обычное'},0)!;const b=q.add({message:'Срочно',kind:'urgent'},1)!;
  assert.ok(noticeDuration(b)>noticeDuration(a));
 });
+
+test('resolved connection warnings leave the live queue but remain in history',()=>{
+ const q=new NoticeQueue();const warning=q.add({message:'Связь потеряна',key:'disconnect',kind:'urgent'},0)!;
+ const unrelated=q.add({message:'Другое событие'},1)!;
+ q.resolve('disconnect');assert.equal(q.take(),unrelated);assert.equal(q.take(),undefined);
+ assert.ok(q.history.includes(warning));assert.equal(q.unread,2);
+ assert.ok(q.add({message:'Связь потеряна',key:'disconnect',kind:'urgent'},2));
+});
