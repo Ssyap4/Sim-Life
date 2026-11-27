@@ -1,3 +1,4 @@
+import {updateWater} from './WaterArt';
 import {isLakeMealAction,LAKE_MEAL_ACTIONS,isLakeFishAction,FISH_ACTIONS,isLakeRestAction,isLakeCareAction,isLakeLeisureAction,lakeSwimFrame,LAKE_FIRE_SEAT_OFFSET,lakeCampFor,lakeSleepAnchor} from '../shared/lake';
 import {syncLakeTents,syncLakeCutaway} from './LakeArt';
 import {WORK_COFFEE_DROP} from '../shared/workCoffee';
@@ -1965,6 +1966,7 @@ export class World {
       model.traverse(part=>{
         if(part instanceof THREE.Mesh&&!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
           part.geometry.dispose();
+        if(part instanceof THREE.Mesh&&part.name==='Oasis water surface'&&part.material instanceof THREE.ShaderMaterial)part.material.dispose();
       });
     }
     this.furnishingModels.clear();
@@ -3299,6 +3301,11 @@ export class World {
       if(v==='tree'){this.controls.target.set(-4.9,1.15,8.05);this.camera.position.set(.9,5.7,13.3);this.camera.lookAt(this.controls.target);}
       this.canvas.dataset.holidayTree=String(this.festiveTree.visible);
     }
+    if(this.cameraQA&&new URLSearchParams(location.search).get('waterFireQA')==='1'){
+      const view=this.place==='home'?{target:[-9.95,.5,8.1],eye:[-6.0,5.6,15.2]}:this.place==='spa'?{target:[-3.8,.22,-2.8],eye:[1.2,6.6,4.7]}:this.place==='park'?{target:[8.45,.42,-2.4],eye:[10.8,2.4,1.3]}:this.place==='district'?{target:[21.38,.12,21.05+DISTRICT_OFFSET_Z],eye:[24.3,4.4,25.9+DISTRICT_OFFSET_Z]}:undefined;
+      if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
+    }
+
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
       const v=this.canvas.dataset.lakeView;
       const view=v==='rental'?{target:[-10,1.2,9],eye:[-8.8,3.1,13.4]}:v==='swim'?{target:[7.8,.10,10],eye:[2.4,5.1,13.3]}:v==='dog'?{target:[-2.7,.45,8.6],eye:[-6.2,5.4,14.4]}:v==='sleep'?{target:[-4,.30,-7.7],eye:[-1.1,9.7,-2.1]}:v==='fishing'?{target:[4.45,.65,-6],eye:[.35,2.4,-2.85]}:v==='catch'?{target:[3.35,1.05,-6],eye:[5.55,1.9,-3.15]}:v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.72,-4],eye:[-4.2,3.8,2.6]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;
@@ -3331,6 +3338,8 @@ export class World {
           for(const key of keys){const result=this.stableParts.get(model,'Hobby result '+key);if(result){result.visible=key===shown;if(result.visible)for(let stage=0;stage<3;stage++){const part=this.stableParts.get(result,'Hobby stage '+stage);if(part)part.visible=elapsed>=[.35,7,17][stage];}}}
           if(this.cameraQA&&Number(this.canvas.dataset.hobbyView)===id)this.canvas.dataset.hobbyResult=shown??'';
         }
+        const water=this.stableParts.get(model,'Oasis water surface');
+        if(water instanceof THREE.Mesh&&water.material instanceof THREE.ShaderMaterial)updateWater(water.material,this.visualSeconds,1-THREE.MathUtils.smoothstep(this.sun.intensity,.35,1.9));
         const raftV=this.stableParts.get(model,'Oasis float vlad');
         if(raftV){const swim=[...this.poolMotions.entries()].some(([r,p])=>p.mode==='poolSwim'&&this.homeTasks.get(r)?.furnitureId===id);
           for(const r of ['vlad','alina'] as const){const raft=this.stableParts.get(model,'Oasis float '+r);if(raft){raft.position.y=floatBob(this.visualSeconds,r);raft.visible=!swim;}}}
@@ -3375,8 +3384,8 @@ export class World {
     if(this.place==='park'&&this.remote){
       const pivot=this.stableParts.get(this.remote.stations.get('park-swing'),'Leisure swing pivot');
       if(pivot)pivot.rotation.x=(['vlad','alina'] as const).some(r=>this.actors[r].root.visible&&this.actors[r].isParkSwing())?Math.sin(this.visualSeconds*1.7)*.15:0;
-      const flames=this.stableParts.get(this.remote.stations.get('park-fire'),'Park campfire flames');
-      if(flames){flames.visible=!!this.household&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock);flames.scale.set(1+.07*Math.sin(this.visualSeconds*7),.87+.16*Math.sin(this.visualSeconds*11),1);}
+      const fire=this.remote.stations.get('park-fire')?.userData.fire;
+      if(fire){fire.userData.setLit(!!this.household&&(this.household.world.campLitUntil??0)>clockMinutes(this.household.clock));fire.userData.animate(this.visualSeconds);}
       const shuttle=this.stableParts.get(this.remote.stations.get('park-badminton'),'Park shuttlecock');
       if(shuttle){shuttle.visible=this.badmintonStarted!==null&&[...this.pairStages.values()].some(p=>p.action==='parkBadminton'&&p.playing);if(shuttle.visible){const f=badmintonShuttle(this.visualSeconds-this.badmintonStarted!,this.homeTasks.get('vlad')?.pair?.badmintonWinner??this.homeTasks.get('alina')?.pair?.badmintonWinner);shuttle.position.set(f.x,f.y,f.z);shuttle.quaternion.setFromUnitVectors(this.frameDown,this.frameShuttleDirection.set(f.dx,f.dy,f.dz).normalize());}}
     }

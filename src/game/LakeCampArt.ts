@@ -113,7 +113,7 @@ export function buildCampFood(kind:LakeMeal){
  }
  batchRigidParts(g,true);return g;
 }
-export function buildCampFire(resources:Resources){
+export function buildCampFire(resources:Resources,includeFood=true){
  const g=new THREE.Group();g.name='Lake campfire';
  part(g,[.69,.035,.69],[0,.017,0],0x65574a,drum);
  for(let i=0;i<13;i++){const a=i*Math.PI*2/13;const m=part(g,[.13+(i%3)*.025,.11,.12],[Math.cos(a)*.57,.085,Math.sin(a)*.57],[0x77786c,0x9b9785,0x88877b][i%3],orb);m.rotation.y=a;}
@@ -122,7 +122,7 @@ export function buildCampFire(resources:Resources){
  for(let i=0;i<11;i++){const x=(i-5)*.084;rod(g,[x,.58,-.39],[x,.58,.39],.009,steel);}
  rod(g,[-.49,.58,-.4],[.49,.58,-.4],.021,steel);rod(g,[-.49,.58,.4],[.49,.58,.4],.021,steel);
  batchRigidParts(g,true);
- const food=new Map<string,THREE.Group>();for(const kind of ['fish','soup','sausages','marshmallow','potato','foil','skewers'] as const){const model=buildCampFood(kind);model.position.y=.58;model.visible=false;g.add(model);food.set(kind,model);}
+ const food=new Map<string,THREE.Group>();if(includeFood)for(const kind of ['fish','soup','sausages','marshmallow','potato','foil','skewers'] as const){const model=buildCampFood(kind);model.position.y=.58;model.visible=false;g.add(model);food.set(kind,model);}
  g.userData.setFood=(kind?:string)=>{for(const [id,m] of food)m.visible=id===kind;};
  const active=new THREE.Group();active.name='Campfire active';g.add(active);active.visible=false;
  // Three narrow intersecting flame curtains: feathered orange edges and pointed, dancing tongues.

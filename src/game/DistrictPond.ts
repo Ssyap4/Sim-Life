@@ -1,35 +1,11 @@
+import {makeWater,updateWater} from './WaterArt';
 import * as THREE from 'three';
 import { DISTRICT_POND } from '../shared/district';
 import { finish, type XYZ } from './ArtKit';
-import { painted, type LocationResources } from './LocationArt';
+import { type LocationResources } from './LocationArt';
 import { landscapeRandom, PlantBatch } from './LandscapePlants';
 
 const limestone = [0xa58f78,0xc0a889,0xb09e88,0xcbbaa0];
-
-function waterPaint(ctx: CanvasRenderingContext2D) {
-  const {width,height}=ctx.canvas;
-  const ripple=landscapeRandom(58274);
-  const water=ctx.createRadialGradient(width*.57,height*.62,width*.065,width*.5,height*.50,width*.52);
-  water.addColorStop(0,'#447d91');
-  water.addColorStop(.52,'#649eaa');
-  water.addColorStop(1,'#9bc8ba');
-  ctx.fillStyle=water;
-  ctx.fillRect(0,0,width,height);
-  for(let i=0;i<80;i++){
-    const x=ripple()*width,z=ripple()*height,w=3+ripple()*18;
-    ctx.strokeStyle=i%2?'#e0efdd3a':'#3b78893d';
-    ctx.lineWidth=.5+ripple()*.9;
-    ctx.beginPath();
-    ctx.moveTo(x-w,z);
-    ctx.quadraticCurveTo(x,z-2.9,x+w,z+.8);
-    ctx.stroke();
-  }
-  for(let i=0;i<17;i++){
-    const x=ripple()*width,z=ripple()*height;
-    ctx.fillStyle='#def0de60';
-    ctx.fillRect(x,z,2+ripple()*8,1);
-  }
-}
 
 export function buildDistrictPond(root: THREE.Group, resources: LocationResources) {
   const {x,z,radiusX, radiusZ}=DISTRICT_POND;
@@ -42,10 +18,10 @@ export function buildDistrictPond(root: THREE.Group, resources: LocationResource
   earth.scale.set(radiusX,.90,radiusZ);
   earth.position.y=.036;
   pond.add(earth);
-  const map=painted(resources,256,256,waterPaint);
-  const waterMat=new THREE.MeshStandardMaterial({map,color:map?0xffffff:0x78aaab,roughness:.62});
+  const waterMat=makeWater('pond');
   resources.materials.push(waterMat);
   const surface=new THREE.Mesh(new THREE.CircleGeometry(1,48),waterMat);
+  surface.name='District pond water';
   surface.scale.set(radiusX*.94,radiusZ*.94,1);
   surface.rotation.x=-Math.PI/2;
   surface.position.y=.100;
@@ -82,22 +58,5 @@ export function buildDistrictPond(root: THREE.Group, resources: LocationResource
   }
   plants.attach(pond,'Pond stones, reeds and water lilies');
 
-  const ripples:number[]=[];
-  for(const [rx,rz,cx,cz] of [[.37,.13,-.70,-.35],[.54,.18,.60,.33],[.73,.23,.18,-.37]]) {
-    for(let i=0;i<18;i++)for(const step of [i,i+1]){
-      const a=step/18*5.22+.65;
-      ripples.push(Math.cos(a)*rx+cx,.117,Math.sin(a)*rz+cz);
-    }
-  }
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(ripples,3));
-  const glow=new THREE.LineBasicMaterial({color:0xe3f1e4,transparent:true,opacity:.26,depthWrite:false});
-  resources.materials.push(glow);
-  const reflection=new THREE.LineSegments(geometry,glow);
-  pond.add(reflection);
-  return (seconds:number)=>{
-    reflection.position.x=Math.sin(seconds*.64)*.034;
-    reflection.position.z=Math.sin(seconds*.53)*.029;
-    glow.opacity=.25+Math.sin(seconds*1.28)*.082;
-  };
+  return {animate(seconds:number){updateWater(waterMat,seconds,waterMat.uniforms.night.value);},setNight(night:boolean){waterMat.uniforms.night.value=night?1:0;}};
 }

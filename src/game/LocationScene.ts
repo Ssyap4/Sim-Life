@@ -1,3 +1,4 @@
+import {buildCampFire} from './LakeCampArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
 import * as THREE from 'three';
 import {buildSpaWater} from './SpaWater';
@@ -364,16 +365,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     for(let i=0;i<8;i++){const a=i*Math.PI/4;const feather=shape(shuttle,[.025,.115,.024],[Math.cos(a)*.032,.075,Math.sin(a)*.032],0xf6f3ea,softCube);feather.rotation.z=-Math.cos(a)*.3;feather.rotation.x=Math.sin(a)*.3;}
     root.add(shuttle);
   } else if(kind==='campfire'){
-    shape(root,[1.45,.035,1.45],[0,.023,0],0x74664d,drum);
-    for(let i=0;i<13;i++){const a=i*Math.PI*2/13;const stone=shape(root,[.25,.18,.23],[Math.cos(a)*.58,.105,Math.sin(a)*.58],i%2?0x8b8b7e:0xaaa18f,softCube,true);stone.rotation.y=a;}
-    for(let i=0;i<5;i++){const log=shape(root,[.58,.13,.13],[0,.14+(i%2)*.09,0],0x5d4230,softCube);log.rotation.y=i*Math.PI/5;}
-    const flames=new THREE.Group();flames.name='Park campfire flames';flames.visible=false;
-    for(let i=0;i<5;i++){const a=i*2.4;shape(flames,[.23,.52-i*.047,.22],[Math.cos(a)*.15,.39,Math.sin(a)*.15],i%2?0xffad36:0xe95a2d,orb);}
-    shape(flames,[.20,.32,.19],[0,.34,0],0xffe59a,orb);
-    root.add(flames);
-    for(const x of [-.49,.49])shape(root,[.045,.75,.045],[x,.39,0],0x444740,drum);
-    shape(root,[1.08,.045,.045],[0,.77,0],0x444740,cube);
-    shape(root,[.52,.045,.44],[0,.47,0],0x444740,cube);
+    const fire=buildCampFire({textures,materials},false);
+    fire.name='Park campfire';root.add(fire);root.userData.fire=fire;
   } else if (kind === 'dine') {
     shape(root, [1.38,.13,.78], [0,.93,-.27], C.oak,softCube,true);
     shape(root,[.13,.79,.13],[0,.46,-.27],C.walnut,drum);

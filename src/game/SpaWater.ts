@@ -1,3 +1,4 @@
+import {makeWater,updateWater} from './WaterArt';
 import * as THREE from 'three';
 import {cube,drum,softCube,finish,batchRigidParts} from './ArtKit';
 import {painted} from './LocationArt';
@@ -27,15 +28,8 @@ export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boole
   for(let i=0;i<3;i++)box([.88,.07+i*.07,.30],[0,.18+i*.035,d/2-.35-i*.30],0xc7d7cc);
   for(const x of [-.53,.53]){box([.045,.76,.045],[x,.58,d/2-.20],0xd3e0df,drum);box([.045,.045,.36],[x,.95,d/2-.25],0xd3e0df);}
  }
- const ripple=painted(resources,256,256,ctx=>{
-  ctx.clearRect(0,0,256,256);ctx.lineWidth=1.6;
-  for(let k=0;k<15;k++){ctx.strokeStyle='rgba(215,251,245,.18)';ctx.beginPath();for(let x=0;x<=256;x+=4){const y=k*18+5*Math.sin(x/256*Math.PI*4+k*1.7)+3*Math.sin(x/256*Math.PI*8+k);if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();}
- });
- if(ripple){ripple.wrapS=ripple.wrapT=THREE.RepeatWrapping;ripple.repeat.set(iw/3,id/3);}
- const waterMat=new THREE.MeshStandardMaterial({color:0x5bbbc5,map:null,roughness:.25,metalness:.08,transparent:true,opacity:.52,depthWrite:false,emissive:0x286f79,emissiveIntensity:.17});resources.materials.push(waterMat);
+ const waterMat=makeWater(jacuzzi?'jacuzzi':'spa');resources.materials.push(waterMat);
  const water=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),waterMat);water.name='SPA water surface';water.rotation.x=-Math.PI/2;water.position.y=waterY;root.add(water);
- const ripMat=new THREE.MeshBasicMaterial({map:ripple,color:0xe1ffff,transparent:true,opacity:ripple?.75:.05,depthWrite:false});resources.materials.push(ripMat);
- const waves=new THREE.Mesh(new THREE.PlaneGeometry(iw,id),ripMat);waves.rotation.x=-Math.PI/2;waves.position.y=waterY+.004;root.add(waves);
  const bubbleMat=new THREE.MeshBasicMaterial({color:0xd9ffff,transparent:true,opacity:.45,depthWrite:false});resources.materials.push(bubbleMat);
  const bubbles=jacuzzi?new THREE.InstancedMesh(new THREE.SphereGeometry(1,6,4),bubbleMat,56):null;
  if(bubbles){bubbles.name='SPA jacuzzi bubbles';bubbles.frustumCulled=false;root.add(bubbles);}
@@ -64,7 +58,7 @@ export function buildSpaWater(parent:THREE.Group,w:number,d:number,jacuzzi:boole
    ring.position.set(local.x,waterY+.011,local.z);ring.scale.set(radius,radius,1);
    ring.material.opacity=.46*Math.sin(age*Math.PI);
   }
-  if(ripple){ripple.offset.set((seconds*.025)%1,(seconds*.018)%1);}
+  updateWater(waterMat,seconds);
   if(bubbles){bubbles.visible=occupied; if(occupied){for(let i=0;i<bubbles.count;i++){const p=(seconds*.85+i*.173)%1;const a=i*2.399963;const r=.25+(i%9)*.055;t.position.set((i%2?-.72:.72)+Math.cos(a)*r,waterY-.10+p*.22,-.13+Math.sin(a)*r);t.scale.setScalar(.024+p*.032);t.updateMatrix();bubbles.setMatrixAt(i,t.matrix);}bubbles.instanceMatrix.needsUpdate=true;}}
  };
  batchRigidParts(root,true);

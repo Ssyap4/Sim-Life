@@ -53,7 +53,7 @@ export function createPlacementGhost(sku:string,finishId:FurnitureFinish):THREE.
     const old=child.material as THREE.MeshStandardMaterial;
     let material=copies.get(old);
     if(!material){
-      material=old.clone();
+      material=old instanceof THREE.ShaderMaterial?new THREE.MeshStandardMaterial({color:0x78bdcb}):old.clone();
       material.transparent=true;
       material.opacity=.58;
       material.depthWrite=false;

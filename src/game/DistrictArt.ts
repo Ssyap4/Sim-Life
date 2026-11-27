@@ -240,14 +240,14 @@ export function buildDistrict(root:THREE.Group,resources:LocationResources) {
   const cameraLocal=new THREE.Vector3();
   return {
     entries,bounds,
-    setNight(night:boolean) {
+    setNight(night:boolean) { animatePond.setNight(night);
       lantern.emissiveIntensity=night?1.00:.04;
       for(const material of resources.materials)if(material.userData.window&&material instanceof THREE.MeshStandardMaterial)
         material.emissiveIntensity=night?.39:0;
     },
     animate(seconds:number,camera?:THREE.Camera){
       animateWater(seconds);
-      animatePond(seconds);
+      animatePond.animate(seconds);
       if(!camera)return;
       cameraLocal.copy(camera.position);cameraLocal.z-=DISTRICT_OFFSET_Z;
       const compactLow=Boolean(camera.userData.compactLow);
