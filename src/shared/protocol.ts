@@ -246,7 +246,7 @@ export type QueuedTask = { id: number; label: string };
 
 export type ServerPacket =
   | {type:'album_image';id:string;jpeg:string}
-  | {type:'album_error';reason:string}
+  | {type:'album_error';reason:string;id?:string}
   | { type: 'study_progress'; role: CharacterId; taskId: number; elapsed: number; total: number }
   | { type: 'education_feedback'; taskId: number; correct: boolean; message: string; question?: string }
   | { type: 'education_notice'; role: CharacterId; message: string }

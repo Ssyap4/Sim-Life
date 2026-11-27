@@ -26,6 +26,6 @@ test('owned situation outfits are opt in, never purchase, manual wear disables a
  s.world.places.vlad='fitness';assert.equal(contextualLook(s,'vlad'),'trackNavy');
  s.world.places.vlad='park';assert.equal(contextualLook(s,'vlad'),'teeRetro');
  s.world.places.vlad='lake';assert.equal(residentLook(s,'vlad'),'lake-visit');assert.equal(residentLook(s,'vlad',true),'spa-visit');
- s.world.places.vlad='home';send({type:'clothing_wear',look:'teeRetro'});assert.equal(contextualLook(s,'vlad'),'teeRetro');
+ s.world.places.vlad='home';s.characters.vlad.pose='sleep';assert.equal(contextualLook(s,'vlad'),'robeNavy');s.characters.vlad.pose='idle';send({type:'clothing_wear',look:'teeRetro'});assert.equal(contextualLook(s,'vlad'),'teeRetro');
  assert.equal(s.world.wardrobe!.vlad.auto,false);assert.equal(s.world.wardrobe!.alina.auto,undefined);assert.ok(validWardrobe(s.world.wardrobe));
 });

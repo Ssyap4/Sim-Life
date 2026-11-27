@@ -761,6 +761,7 @@ function render(reset = false): void {
   if (active && world) {
     const place = state.world.places[active];
     if (world.place !== place) {
+      photoSession++;photoPanel.hidden=true;
       actionsEl.hidden = true;
       phone.close();
       skillsPanel.close();
@@ -945,12 +946,13 @@ const photoShoot=document.createElement('button');photoShoot.type='button';photo
 const photoCancel=document.createElement('button');photoCancel.type='button';photoCancel.textContent='Отмена';
 photoPanel.append(photoHint,photoShoot,photoCancel);document.querySelector('#app')!.append(photoPanel);
 let photoSession=0;
-function startPhotoMode(){if(!active||!world)return;phone.close();actionsEl.hidden=true;computer.close();locationUI.close();photoSession++;photoPanel.hidden=false;photoShoot.disabled=false;}
+function startPhotoMode(){if(!active||!world||shownRide)return;phone.close();actionsEl.hidden=true;computer.close();locationUI.close();locationUI.closeMap();toggleNeeds(false);photoSession++;photoPanel.hidden=false;photoShoot.disabled=false;}
 photoCancel.onclick=()=>{photoSession++;photoPanel.hidden=true;phone.open('album');};
 photoShoot.onclick=async()=>{if(!active||!world||photoShoot.disabled)return;const session=photoSession,r=active,place=state?.world.places[r];photoShoot.disabled=true;const jpeg=await world.capturePhoto();if(session!==photoSession)return;photoShoot.disabled=false;if(active!==r||state?.world.places[r]!==place||!jpeg){notify('Не удалось снять кадр. Попробуй ещё раз.');return;}photoPanel.hidden=true;phone.photoDraft(jpeg);};
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
+  photoSession++;photoPanel.hidden=true;
   toggleNeeds(false); actionsEl.hidden=true; phone.close(); computer.close(); skillsPanel.open();
 });
 const careerHUD = createCareerHUD(document.querySelector<HTMLElement>('#career-hud')!,command=>net.career(command),()=>phone.open('career'),{answer:(nonce,choice)=>net.answerHomeJob(nonce,choice),leave:()=>net.leaveJobEarly()});
@@ -1045,7 +1047,7 @@ const net = new LiveConnection({
     const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
   onAlbumImage(id,jpeg){phone.albumImage(id,jpeg);},
-  onAlbumError(reason){phone.albumError(reason);notify(reason,{title:'Фотоальбом',kind:'warning'});},
+  onAlbumError(reason,id){phone.albumError(reason,id);notify(reason,{title:'Фотоальбом',kind:'warning'});},
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
       const milestones = active ? household.education.characters[active].events.filter(event => event.milestone) : [];

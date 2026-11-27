@@ -61,6 +61,14 @@ def top_mesh(r, look, top, trim, style):
         f=.006*sin(4*a+19*t)*bell((t-.25)/.17)+.003*sin(7*a-15*t)
         return x+sin(a)*f,y,z+cos(a)*f
     m.lathe(shape,(0,0,0),paint,lambda t:skin('Pelvis','Chest',ramp(.015,.32,t)),rings=22,sides=25,warp=warp)
+    if style=='robe':
+        # Front hem drapes over the thighs rather than staying rigid on the pelvis.
+        # Rear hem remains largely pelvis-bound for seated silhouettes.
+        for i,(x,y,z) in enumerate(m.points):
+            if y>=h+.015:continue
+            amount=(1-ramp(h-.19,h+.015,y))*(.12+.78*ramp(-.09,.12,z))
+            right=ramp(-.085,.085,x)
+            m.weights[i]={'Pelvis':1-amount,'ThighL':amount*(1-right),'ThighR':amount*right}
     collar=[((.077*sin(a),n-.012-.006*cos(a),.070*cos(a)-.014),.0045)
             for a in [2*pi*t for t in steps(26)]]
     m.cord(collar,trim,solid('Chest'),sides=5)

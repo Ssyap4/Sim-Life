@@ -548,7 +548,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     refresh,refreshClock,
     photoDraft(jpeg:string){const view=read();if(view){album.draft(jpeg,view.role);show('album');}},
     albumImage:(id:string,jpeg:string)=>album.receive(id,jpeg),
-    albumError:(reason:string)=>album.reject(reason),
+    albumError:(reason:string,id?:string)=>album.reject(reason,id),
     messagingOpen:()=>app==='messages'&&!root.hidden,
     messageRejected:()=>chat.reject(),
     refreshRelationship() { if(app==='relationship')refresh(); },

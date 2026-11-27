@@ -44,6 +44,7 @@ try{
  for(const [p,name] of [[a,'album-alina-320'],[v,'album-vlad-390']]){
   for(let i=0;i<8;i++){const close=p.locator('.notice-close').first();if(!await close.isVisible())break;await close.evaluate(el=>el.click());}
   assert.ok(await p.locator('.family-album').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+  if(name==='album-alina-320'){const meta=await p.locator('.album-photo-info').boundingBox();assert.ok(meta&&meta.y+meta.height<=568,'caption visible on compact screen');}
   const bytes=await p.screenshot({path:join(out,name+'.jpg'),type:'jpeg',quality:75}),b=bytes.toString('base64');
   for(let i=0;i<b.length;i+=3000)console.log('QA_IMAGE '+name+' '+b.slice(i,i+3000));
  }

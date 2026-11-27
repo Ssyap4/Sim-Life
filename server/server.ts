@@ -1215,7 +1215,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
       if(message.type==='album_add'||message.type==='album_get'||message.type==='album_delete'){
         try{
-          if(message.type==='album_get'){const jpeg=album.get(state,message.id);if(!jpeg){packet(socket,{type:'album_error',reason:'Снимок недоступен'});return;}packet(socket,{type:'album_image',id:message.id as string,jpeg});return;}
+          if(message.type==='album_get'){const jpeg=album.get(state,message.id);if(!jpeg){packet(socket,{type:'album_error',reason:'Снимок недоступен',id:typeof message.id==='string'?message.id:undefined});return;}packet(socket,{type:'album_image',id:message.id as string,jpeg});return;}
           if(message.type==='album_add'){const r=album.add(state,role,message.jpeg,message.caption);if(!r.ok){packet(socket,{type:'album_error',reason:r.reason});return;}try{files.save(r.state);}catch(e){r.rollback();throw e;}state=r.state;all({type:'snapshot',state});return;}
           const r=album.remove(state,role,message.id);if(!r.ok){packet(socket,{type:'album_error',reason:r.reason});return;}files.save(r.state);state=r.state;r.cleanup();all({type:'snapshot',state});
         }catch{packet(socket,{type:'album_error',reason:'Не удалось сохранить или открыть снимок'});}return;

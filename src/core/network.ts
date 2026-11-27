@@ -22,7 +22,7 @@ export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
   onAlbumImage?(id:string,jpeg:string):void;
-  onAlbumError?(reason:string):void;
+  onAlbumError?(reason:string,id?:string):void;
   onOnline(online: CharacterId[]): void;
   onTimeStatus(status: TimeStatus): void;
   onClock(sample: ClockSample): void;
@@ -300,7 +300,7 @@ export class LiveConnection {
       } else if (packet.type === 'ready_food_spoiled' && this.authorized) {
         this.callbacks.onReadyFoodSpoiled(packet.message);
       } else if(packet.type==='album_image'&&this.authorized){this.callbacks.onAlbumImage?.(packet.id,packet.jpeg);
-      } else if(packet.type==='album_error'&&this.authorized){this.callbacks.onAlbumError?.(packet.reason);
+      } else if(packet.type==='album_error'&&this.authorized){this.callbacks.onAlbumError?.(packet.reason,packet.id);
       } else if (packet.type === 'snapshot' && this.authorized) {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {
