@@ -1,0 +1,22 @@
+/* Keep the existing HUD layout and make both camera docks use the actual
+   occupied height, not an estimate based on viewport percentage. */
+@media(max-width:640px) and (orientation:portrait){
+ #app .camera-dock:not(.camera-height-dock),#app:has(#task-panel:not([hidden])) .camera-dock:not(.camera-height-dock){
+  bottom:max(111px,calc(env(safe-area-inset-bottom) + 105px),var(--camera-height-bottom,111px));
+ }
+ #app .camera-dock .camera-reset{width:44px;height:44px;min-width:44px;min-height:44px}
+ #app .phone-info,#app .phone-grid,#app .actions,#app .location-panel{overscroll-behavior-y:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+ #app .phone-grid button{min-height:72px;line-height:1.28;padding:8px 5px}
+ #app .phone-info :is(.profile-tabs,.collection-filters) button{min-height:44px}
+ #app .phone-info :is(.collection-more,.journal-more){min-height:44px;touch-action:manipulation}
+ #app .phone-info .profile-tabs{position:sticky;top:0;z-index:2;background:#f3f5f1;padding:3px 0}
+ #app .phone-info .profile-subtabs{position:static}
+ #app .actions :is(.action-button,.food-action),#app .location-panel button{min-height:44px}
+ #app .actions,#app .location-panel{scroll-padding-bottom:16px}
+}
+@media(max-width:350px) and (orientation:portrait){
+ #app .phone-grid{gap:6px;padding:9px}
+ #app .phone-grid button{font-size:11px;min-height:70px}
+ #app .phone-info{padding:9px}
+ #app .phone-info .collection-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}

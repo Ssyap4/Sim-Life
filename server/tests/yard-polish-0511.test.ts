@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
-import {buildYard} from '../../src/game/YardArt';
+import {YARD_WARM_LAMPS,buildYard} from '../../src/game/YardArt';
 import {lawnAt,pavingCells,YARD_PAVING,YARD_SURFACE} from '../../src/game/YardLandscape';
 import {usesHomeSession} from '../homeSessions';
 import {homeSeat,HOME_FLOOR} from '../../src/shared/home';
@@ -20,8 +20,9 @@ test('lawn covers every side of house and excludes deck, driveway, interior and 
  const sectors=yard.landscape.sectors;assert.ok(sectors.length>=12&&sectors.length<=36);
  let count=0;const m=new THREE.Matrix4(),v=new THREE.Vector3();
  for(const sector of sectors){assert.ok(sector.parent?.parent&&sector instanceof THREE.InstancedMesh);assert.equal(sector.castShadow,false);for(let i=0;i<sector.count;i++){sector.getMatrixAt(i,m);v.setFromMatrixPosition(m);assert.ok(lawnAt(v.x,v.z));}count+=sector.count;}
- assert.ok(count>=6000&&count<=11000,'clumps '+count);assert.ok(count*6<=66000);
- const camera=new THREE.PerspectiveCamera();camera.position.set(0,100,0);yard.landscape.detail(camera,false);assert.ok(sectors.every(m=>!m.visible));camera.position.set(0,8,7);yard.landscape.detail(camera,false);assert.ok(sectors.some(m=>m.visible));
+ assert.ok(count>=6000&&count<=13500,'clumps '+count);assert.ok(count*9<=121500);assert.ok(sectors.every(m=>m.geometry.getAttribute('color').count===15));
+ const camera=new THREE.PerspectiveCamera();camera.position.set(0,100,0);yard.landscape.detail(camera,false);assert.ok(sectors.every(m=>!m.visible));camera.position.set(0,8,7);yard.landscape.detail(camera,false);assert.ok(sectors.some(m=>m.visible));const high=sectors.reduce((n,m)=>n+(m.visible?m.count:0),0);yard.landscape.detail(camera,true);const low=sectors.reduce((n,m)=>n+(m.visible?m.count:0),0);assert.ok(low<high);assert.ok(sectors.every(m=>m.count<=m.userData.fullCount));
+ assert.equal(YARD_WARM_LAMPS.length,2);const fixtures=scene.getObjectByName('Two courtyard fence lanterns');assert.equal(fixtures?.children.length,2);assert.equal(yard.night.visible,false);assert.equal((yard.night.getObjectByName('Lit lantern glass') as THREE.InstancedMesh).count,2);
 });
 test('paving quads share no surface area and cover the connecting lane',()=>{
  const cells=pavingCells();for(const [i,a] of cells.entries())for(const b of cells.slice(i+1))assert.ok(Math.min(a.maxX,b.maxX)-Math.max(a.minX,b.minX)<=1e-8||Math.min(a.maxZ,b.maxZ)-Math.max(a.minZ,b.minZ)<=1e-8);

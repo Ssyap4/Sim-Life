@@ -1,3 +1,4 @@
+import {PhoneRefreshGate} from './phoneRefreshGate';
 import {renderPersonalCollection} from './personalCollectionUI';
 import {collectionFor} from './shared/personalCollections';
 import {createWeekendsUI} from './weekendsUI';
@@ -109,6 +110,14 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
+  const refreshGate=new PhoneRefreshGate();let refreshPending=false,refreshTimer=0;
+  const clearRefresh=()=>{window.clearTimeout(refreshTimer);refreshTimer=0;refreshPending=false;refreshGate.reset();};
+  const queueRefresh=()=>{window.clearTimeout(refreshTimer);refreshTimer=0;if(!refreshPending||root.hidden)return;const wait=refreshGate.wait(performance.now());if(Number.isFinite(wait))refreshTimer=window.setTimeout(()=>refresh(),Math.max(32,wait+1));};
+  for(const area of [grid,info]){area.addEventListener('pointerdown',e=>{refreshGate.down(e.pointerId);},{capture:true});area.addEventListener('scroll',()=>{refreshGate.scroll(performance.now());queueRefresh();},{passive:true,capture:true});}
+  const release=(e:PointerEvent)=>{refreshGate.up(e.pointerId);queueRefresh();};
+  window.addEventListener('pointerup',release,true);window.addEventListener('pointercancel',release,true);
+  window.addEventListener('blur',()=>{refreshGate.reset();queueRefresh();});
+  document.addEventListener('visibilitychange',()=>{refreshGate.reset();queueRefresh();});
   let profileRole:CharacterId='vlad',profileKey='',profileCollection=false;
   let spaKey='',speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   let audioUnsubscribe:(()=>void)|undefined;
@@ -126,7 +135,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     return card;
   }
 
-  function refresh() {
+  function refresh(force=false) {
+    if(!force&&refreshGate.wait(performance.now())>0){refreshPending=true;queueRefresh();return;}
+    window.clearTimeout(refreshTimer);refreshTimer=0;refreshPending=false;
     const view=read();
     if(root.hidden||!view) return;
     const {state,role,online,time}=view;
@@ -279,7 +290,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         const tabs=document.createElement('div');tabs.className='profile-tabs';tabs.setAttribute('aria-label','Выбор персонажа');
         for(const who of ['vlad','alina'] as const){
           const tab=document.createElement('button');tab.type='button';tab.dataset.profileRole=who;tab.textContent=names[who]+(who===role?' · ты':'');tab.setAttribute('aria-pressed',String(who===id));
-          tab.onclick=()=>{profileRole=who;profileKey='';info.scrollTop=0;refresh();};tabs.append(tab);
+          tab.onclick=()=>{profileRole=who;profileKey='';info.scrollTop=0;refresh(true);};tabs.append(tab);
         }
         const card=document.createElement('article');card.className='resident-profile';card.dataset.profileCard=id;
         const header=document.createElement('div');header.className='profile-hero';
@@ -292,7 +303,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         const dream=document.createElement('section'),dh=document.createElement('h3'),dp=document.createElement('p');dream.className='profile-dream';dh.textContent='Мечта всей жизни';dp.textContent=p.dream;dream.append(dh,dp);
         const current=document.createElement('section'),ch=document.createElement('h3'),mood=document.createElement('p'),reflection=document.createElement('p');current.className='profile-current';ch.textContent='Сейчас';mood.textContent=emotion.emoji+' '+emotion.label+' · настроение '+Math.round(state.characters[id].mood)+'%';reflection.textContent=thought.emoji+' '+thought.text;current.append(ch,mood,reflection);
         const navigation=document.createElement('div');navigation.className='profile-tabs profile-subtabs';
-        for(const [active,label] of [[false,'О персонаже'],[true,'Коллекции']] as const){const b=document.createElement('button');b.type='button';b.dataset.profileCollection=String(active);b.textContent=label;b.setAttribute('aria-pressed',String(profileCollection===active));b.onclick=()=>{profileCollection=active;profileKey='';info.scrollTop=0;refresh();};navigation.append(b);}
+        for(const [active,label] of [[false,'О персонаже'],[true,'Коллекции']] as const){const b=document.createElement('button');b.type='button';b.dataset.profileCollection=String(active);b.textContent=label;b.setAttribute('aria-pressed',String(profileCollection===active));b.onclick=()=>{profileCollection=active;profileKey='';info.scrollTop=0;refresh(true);};navigation.append(b);}
         if(profileCollection){renderPersonalCollection(card,state,id);info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;refreshClock(view.clock);return;}
         card.append(header,section('Характер',p.traits),section('Интересы и увлечения',p.interests),dream,section('Любимый питомец',[PETS[p.pet].name]),current);
         info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;
@@ -308,7 +319,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         current.classList.add('autonomy-phone-card');
         const thought=thoughtFor(state,id),emotion=residentEmotion(state,id);
         current.querySelector('p')!.textContent=emotion.emoji+' '+emotion.label+' · '+Math.round(state.characters[id].mood)+'% · '+emotion.reason;
-        const profile=document.createElement('button');profile.type='button';profile.textContent='Открыть профиль';profile.onclick=()=>{show('profiles');profileRole=id;profileKey='';refresh();};current.append(profile);
+        const profile=document.createElement('button');profile.type='button';profile.textContent='Открыть профиль';profile.onclick=()=>{show('profiles');profileRole=id;profileKey='';refresh(true);};current.append(profile);
         const reflection=document.createElement('p');reflection.textContent=thought.emoji+' '+thought.text;current.append(reflection);
         for(const event of activeEmotions(state,id)){const line=document.createElement('small');line.style.display='block';line.textContent='• '+EVENTS[event.kind].label+' · ещё '+Math.ceil(event.until-(state.clock.day-1)*1440-state.clock.minute)+' мин.';current.append(line);}
         if(role===id){
@@ -461,7 +472,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     if(next==='furnishing'){close();openFurnishing();return;}
     const view=read();
     if (!view) return;
-    closeApps();
+    clearRefresh();closeApps();
     audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';if(next==='profiles'){profileRole=view.role;profileCollection=false;}weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
@@ -485,10 +496,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     }
     if(next==='delivery') openDelivery(view.state);
     if(next==='jobs') openJobs(view.state,view.role);
-    refresh();
+    refresh(true);
   }
 
-  function close() { closeApps(); root.hidden=true; app=null; }
+  function close() { clearRefresh();closeApps(); root.hidden=true; app=null; }
   for(const group of phoneGroups){
     const heading=document.createElement('div');heading.className='phone-group-title';heading.textContent=group.label;grid.append(heading);
     for(const id of group.ids){

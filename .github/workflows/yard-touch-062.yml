@@ -1,0 +1,36 @@
+name: SimOurHome 0.62 yard and touch audit
+on:
+  push:
+    branches: [feat/family-story-062]
+    paths:
+      - 'src/game/Yard*.ts'
+      - 'src/game/World.ts'
+      - 'src/phoneUI.ts'
+      - 'src/phoneRefreshGate.ts'
+      - 'src/mobile-refinement-062.css'
+      - 'scripts/qa-yard-touch-062.mjs'
+      - '.github/workflows/yard-touch-062.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-yard-touch-062.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: yard-touch-062
+          path: /tmp/simourhome-062-yard-touch
+          retention-days: 7

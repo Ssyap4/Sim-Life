@@ -245,16 +245,37 @@ function garden(yard: THREE.Group): THREE.Group {
   return gardenPlants;
 }
 
+// Mounted to the existing courtyard fence, entirely inside its footprint.
+export const YARD_WARM_LAMPS=[{x:-5.98,z:7.18},{x:5.98,z:5.78}] as const;
+function gardenLampFixtures(yard:THREE.Group){
+ const fixtures=new THREE.Group();fixtures.name='Two courtyard fence lanterns';
+ for(const {x,z} of YARD_WARM_LAMPS){
+  const lantern=new THREE.Group();lantern.name='Fence lantern';lantern.position.set(x,0,z);
+  shape(lantern,[.23,.13,.23],[0,.88,0],0x38413e,softCube,false,'metal');
+  shape(lantern,[.12,.18,.12],[0,1.015,0],0x39413e,cube,false,'metal');
+  shape(lantern,[.23,.29,.23],[0,1.24,0],0xe9d8b7,softCube,false,'ceramic');
+  for(const dx of [-.105,.105])for(const dz of [-.105,.105])shape(lantern,[.026,.31,.026],[dx,1.24,dz],0x323d38,cube,false,'metal');
+  shape(lantern,[.30,.05,.30],[0,1.08,0],0x303b36,softCube,false,'metal');
+  shape(lantern,[.32,.08,.32],[0,1.41,0],0x303b36,softCube,false,'metal');
+  shape(lantern,[.22,.10,.22],[0,1.49,0],0x45524a,softCube,false,'metal');
+  batchRigidParts(lantern,true);fixtures.add(lantern);
+ }
+ fixtures.traverse(o=>{o.raycast=()=>{};});yard.add(fixtures);
+}
 function eveningGarden(parent:THREE.Group){
   const glow=paintedMap('yard-lantern-pool',64,64,ctx=>{const g=ctx.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,201,115,.58)');g.addColorStop(.45,'rgba(255,181,89,.24)');g.addColorStop(1,'rgba(255,181,89,0)');ctx.fillStyle=g;ctx.fillRect(0,0,64,64);});
   const night=new THREE.Group();night.name='Warm garden lantern pools';night.visible=false;
-  if(glow){const material=new THREE.MeshBasicMaterial({map:glow,transparent:true,depthWrite:false});const positions:number[]=[],uvs:number[]=[],indices:number[]=[];for(const [x,z] of [[.48,6.15],[.48,10.95],[-4.95,8.15]]){const j=positions.length/3;positions.push(x-1.05,.017,z-1.05,x+1.05,.017,z-1.05,x+1.05,.017,z+1.05,x-1.05,.017,z+1.05);uvs.push(0,0,1,0,1,1,0,1);indices.push(j,j+2,j+1,j,j+3,j+2);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geo.setIndex(indices);const mesh=new THREE.Mesh(geo,material);mesh.raycast=()=>{};night.add(mesh);}
+  if(glow){const material=new THREE.MeshBasicMaterial({map:glow,transparent:true,depthWrite:false});const positions:number[]=[],uvs:number[]=[],indices:number[]=[];for(const [x,z] of [[.48,6.15],[.48,10.95],[-4.95,8.15],...YARD_WARM_LAMPS.map(p=>[p.x*.87,p.z])]){const j=positions.length/3;positions.push(x-1.05,.017,z-1.05,x+1.05,.017,z-1.05,x+1.05,.017,z+1.05,x-1.05,.017,z+1.05);uvs.push(0,0,1,0,1,1,0,1);indices.push(j,j+2,j+1,j,j+3,j+2);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geo.setIndex(indices);const mesh=new THREE.Mesh(geo,material);mesh.raycast=()=>{};night.add(mesh);}
   // Warm white ambience after dusk: baked pool and emissive strips, no shadow lights.
   const warm=paintedMap('lounge-warm-pool-v3',128,128,ctx=>{const g=ctx.createRadialGradient(64,64,5,64,64,64);g.addColorStop(0,'rgba(255,222,167,.62)');g.addColorStop(.55,'rgba(255,199,123,.32)');g.addColorStop(1,'rgba(255,199,123,0)');ctx.fillStyle=g;ctx.fillRect(0,0,128,128);});
   if(warm){const pool=new THREE.Mesh(plane,new THREE.MeshBasicMaterial({map:warm,transparent:true,depthWrite:false}));pool.rotation.x=-Math.PI/2;pool.scale.set(4.5,3.0,1);pool.position.set(-3.38,.023,6.77);pool.raycast=()=>{};night.add(pool);}
   const stripMat=new THREE.MeshBasicMaterial({color:0xffdfac});
   for(const z of [5.29,8.15]){const strip=new THREE.Mesh(cube,stripMat);strip.name='Warm evening strip';strip.position.set(-3.38,2.40,z);strip.scale.set(4.50,.022,.028);strip.raycast=()=>{};night.add(strip);}
   for(const x of [-5.65,-1.11]){const strip=new THREE.Mesh(cube,stripMat);strip.position.set(x,2.40,6.72);strip.scale.set(.028,.022,2.86);strip.raycast=()=>{};night.add(strip);}
+  const glowCore=new THREE.MeshBasicMaterial({color:0xffd49a});
+  const glass=new THREE.InstancedMesh(softCube,glowCore,YARD_WARM_LAMPS.length);glass.name='Lit lantern glass';glass.raycast=()=>{};const transform=new THREE.Object3D();
+  for(const [i,p] of YARD_WARM_LAMPS.entries()){transform.position.set(p.x,1.24,p.z);transform.scale.set(.234,.286,.234);transform.updateMatrix();glass.setMatrixAt(i,transform.matrix);}
+  glass.computeBoundingSphere();night.add(glass);
   parent.add(night);return night;
 }
 
@@ -272,6 +293,16 @@ export function buildYard(scene: THREE.Scene) {
   for(const [a,b] of [[plot.minX-.24,-6],[6,plot.maxX+.24]]){
     shape(yard,[b-a,.82,.14],[(a+b)/2,.41,HOME_YARD.gate.z],C.oak,cube);
   }
+  // Finish the existing outer fence instead of adding new obstacles.
+  // Caps and slender post bands stay on the original footprint.
+  for(const x of [plot.minX-.24,plot.maxX+.24]){
+    shape(yard,[.18,.065,d],[x,.848,cz],0xb8a184,cube,false,'wood');
+    for(let z=plot.minZ+.5;z<plot.maxZ;z+=2.1){
+      shape(yard,[.17,.82,.075],[x,.41,z],0x927b60,cube,false,'wood');
+    }
+  }
+  shape(yard,[w,.065,.18],[cx,.848,plot.minZ-.24],0xb8a184,cube,false,'wood');
+  for(let x=plot.minX+.8;x<plot.maxX;x+=2.1)shape(yard,[.075,.82,.17],[x,.41,plot.minZ-.24],0x927b60,cube,false,'wood');
   const grounds=new THREE.Group();grounds.name="Yard landscape";yard.add(grounds);
   const landscape=buildYardLandscape(grounds);
   const {parking}=HOME_YARD;
@@ -301,6 +332,7 @@ export function buildYard(scene: THREE.Scene) {
   shrubs.attach(yard,'Barbecue garden accents');
   const gardenPlants=garden(yard);
   fence(yard);
+  gardenLampFixtures(yard);
   batchRigidParts(yard, true);
   const night=eveningGarden(yard);
   scene.add(yard);
