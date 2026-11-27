@@ -1243,6 +1243,7 @@ export class World {
     switch(pair.motion){
       case 'breakfastServe':actor.hideFoodContainer();actor.playPartnerGesture('talk',true);break;
       case 'breakfastReceive':{if(!home.furniturePose)break;const p=home.furniturePose;const tray=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),p.yaw);const plate=this.showMeal(role,p.x+tray.x,p.y+.83,p.z+tray.z,pair.item as RecipeId);const serving=this.meals.get(role)!;serving.rotation.y=p.yaw;serving.getObjectByName('Breakfast tray')!.visible=!isHomeDrink(home.food);actor.playActivity('eat',plate,pair.item as RecipeId);break;}
+      case 'venueManual':actor.setPose('idle');if(focus)actor.faceTowards(focus);break;
       case 'venue':{
         if(pair.item==='venueUfc')actor.playConsole('ufc6');
         else if(pair.item==='venueBowling')actor.playDomesticActivity('venueBowl');

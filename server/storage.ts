@@ -1,4 +1,6 @@
 import {isHomeDrink} from '../src/shared/food';
+import {validBowlingHistory} from '../src/shared/manualBowling';
+import {validLibrary,emptyLibrary} from '../src/shared/mediaLibrary';
 import {validAlbum} from '../src/shared/familyAlbum';
 import {validFamilyMessages,emptyMessages} from '../src/shared/familyMessages';
 import {validFoodTastes} from '../src/shared/foodTastes';
@@ -90,6 +92,8 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if(state.bowlingHistory!==undefined&&!validBowlingHistory(state.bowlingHistory))return false;
+  if (state.mediaLibrary !== undefined && !validLibrary(state.mediaLibrary)) return false;
   if (state.familyAlbum !== undefined && !validAlbum(state.familyAlbum)) return false;
   if (state.familyMessages !== undefined && !validFamilyMessages(state.familyMessages)) return false;
   if (state.foodTastes !== undefined && !validFoodTastes(state.foodTastes)) return false;
@@ -427,6 +431,8 @@ export function openServerFiles(dataDir: string): ServerFiles {
         relationship: data.relationship ?? initialRelationship(),
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         personalCollections: data.personalCollections ?? {},
+        bowlingHistory:data.bowlingHistory??[],
+        mediaLibrary: data.mediaLibrary ?? emptyLibrary(),
         familyAlbum: data.familyAlbum ?? [],
         familyMessages: data.familyMessages ?? emptyMessages(),
         foodTastes: data.foodTastes ?? {},

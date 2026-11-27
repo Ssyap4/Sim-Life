@@ -48,9 +48,10 @@ import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fi
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
 import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
-type App = 'album' | 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
+type App = 'media' | 'album' | 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  media:['🎬','Медиатека'],
   album:['📷','Фотоальбом'],
   messages:['💬','Переписка'],
   weekends:['📅','Наши планы'],
@@ -74,7 +75,7 @@ const apps: Record<App,[string,string]> = {
 };
 const phoneGroups:readonly {label:string;ids:readonly App[]}[]=[
  {label:'Семья и дом',ids:['family','messages','album','profiles','relationship','pets','autonomy','home','furnishing','speakers']},
- {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','consoles','feed']},
+ {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','media','consoles','feed']},
  {label:'Работа и развитие',ids:['career','jobs','education']},
  {label:'Магазины и услуги',ids:['delivery','fitness','health','barber','spa']},
  {label:'Бюджет и связь',ids:['finance','utilities','internet','mobile','subscriptions']},
@@ -91,7 +92,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean,albumControl?:(command:AlbumCommand)=>boolean,photoCapture?:()=>void) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean,albumControl?:(command:AlbumCommand)=>boolean,photoCapture?:()=>void,openMedia?:()=>void) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -153,6 +154,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     root.dataset.owner=role;
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
     const unread=unreadMessages(state,role).length;const badge=grid.querySelector<HTMLElement>('[data-chat-unread]');if(badge){badge.hidden=!unread;badge.textContent=String(unread);}
+    if(app==='media')return;
     if(app==='messages')chat.render(state,role,online);
     if(app==='album')album.render(state,role);
     if(app==='weekends')weekends.render(state,role,online);
@@ -482,6 +484,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   }
 
   function show(next: App | null, educationView?: EducationView, room?: string, materialId?: string) {
+    if(next==='media'){close();openMedia?.();return;}
     if(next==='furnishing'){close();openFurnishing();return;}
     const view=read();
     if (!view) return;

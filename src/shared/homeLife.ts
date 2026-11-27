@@ -51,7 +51,7 @@ export type Entertainment =
   | {type:'console_play';game:import('./consoleCatalog').ConsoleGameId}
   | { type: 'youtube'; food?:import('./food').MediaFood }
   | { type: 'free_tv' }
-  | { type: 'movie'; genre: Genre; food?:import('./food').MediaFood }
+  | { type: 'movie'; genre: Genre; food?:import('./food').MediaFood; selection?:import('./mediaCatalog').MediaSelection }
   | { type: 'read_book'; book: BookId; seat?: 'officeChair' };
 export const HOME_SEATS = ['sofa','officeChair','table','yardTable'] as const;
 export type HomeSeat = (typeof HOME_SEATS)[number];

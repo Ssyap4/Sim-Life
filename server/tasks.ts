@@ -26,6 +26,8 @@ import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT,isHomeDrink,isDrinkSeat,isMediaFood,mediaFoodInfo,type MediaFood, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
+import {validSelection,mediaLabel} from '../src/shared/mediaCatalog';
+import {recordViewing} from '../src/shared/mediaLibrary';
 import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
@@ -115,7 +117,8 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     durationMs: (command.food?TV_FOOD_SECONDS:HOME_SECONDS.youtube) * 1000, resource: 'tv' };
   if (command.type === 'movie' && typeof command.genre === 'string' && own(GENRES, command.genre)) {
     const genre = command.genre as Genre;
-    return { command: { type: 'movie', genre, ...(command.food?{food:command.food as MediaFood}:{}) }, label: '🎬 Фильм · ' + GENRES[genre]+(command.food?' + '+mediaFoodInfo(command.food as MediaFood).name:''),
+    if(command.selection!==undefined&&!validSelection(command.selection,genre))return null;
+    return { command: { type: 'movie', genre, ...(command.selection?{selection:command.selection as import('../src/shared/mediaCatalog').MediaSelection}:{}), ...(command.food?{food:command.food as MediaFood}:{}) }, label: '🎬 ' + (command.selection?mediaLabel(command.selection as import('../src/shared/mediaCatalog').MediaSelection):'Фильм · '+GENRES[genre])+(command.food?' + '+mediaFoodInfo(command.food as MediaFood).name:''),
       durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
   }
   if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {
@@ -330,6 +333,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
       const need = key as keyof NeedEffects;
       needs[need] = Math.min(100, needs[need] + amount);
     }
+    if(command.type==='movie'&&command.selection)recordViewing(next,role,command.selection,together);
     if (command.type === 'read_book' && !next.readBooks[role].includes(command.book)) next.readBooks[role].push(command.book);
     next.revision++;
     return { ok: true, state: next, message: planTask(command)!.label + ' · завершено' };

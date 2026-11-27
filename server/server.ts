@@ -49,6 +49,7 @@ import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
 import {openAlbum} from './familyAlbum';
+import {markMedia} from '../src/shared/mediaLibrary';
 import {applyFamilyMessage} from '../src/shared/familyMessages';
 import {changeFoodFavorite} from '../src/shared/foodTastes';
 import { applyFoodAction } from './food';
@@ -1220,6 +1221,12 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const r=album.remove(state,role,message.id);if(!r.ok){packet(socket,{type:'album_error',reason:r.reason});return;}files.save(r.state);state=r.state;r.cleanup();all({type:'snapshot',state});
         }catch{packet(socket,{type:'album_error',reason:'Не удалось сохранить или открыть снимок'});}return;
       }
+      if(message.type==='media_mark'){
+        const result=markMedia(state,role,message);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if(result.state!==state){try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить медиатеку'});return;}state=result.state;all({type:'snapshot',state});}
+        return;
+      }
       if(message.type==='family_message_send'||message.type==='family_message_read'){
         const result=applyFamilyMessage(state,role,message);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
@@ -1361,6 +1368,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         socket.close(1000, 'Signed out');
         return;
       }
+      if(message.type==='bowling_roll'){homeTasks.bowlingRoll(role,socket,message);return;}
       if (typeof message.type==='string'&&['social_propose','social_reply','social_withdraw','social_finish'].includes(message.type)) {
         homeTasks.stopAutoConversation();homeTasks.social(role,socket,message); return;
       }

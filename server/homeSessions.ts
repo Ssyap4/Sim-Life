@@ -18,6 +18,8 @@ import {bathCare} from '../src/shared/vanity';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe,isHomeDrink,isMediaFood,mediaFoodInfo,mediaFoodKind,type MediaFood,type RecipeId,type TakeoutId } from '../src/shared/food';
 import { applyTvFood } from './food';
+import {newBowling,rollBowling,type BowlingMatch} from '../src/shared/manualBowling';
+import {validSelection,type MediaSelection} from '../src/shared/mediaCatalog';
 import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
 import { points, type CharacterId, type GameState, type ServerPacket, type TimedCommand } from '../src/shared/protocol';
@@ -55,11 +57,12 @@ type Session = {
   timer: ReturnType<typeof setTimeout>;
   cooperation?: Cooperation;
   finishedTogether?: boolean;
+  bowling?:BowlingMatch;
   freeRest?: boolean;
   study?: { material: StudyMaterial; start: number; previous: number; minutes: number;
     questions: string[]; correct: number; lastAnswer: number };
 };
-type Invite = { id: number; from: CharacterId; genre: MediaGenre; food?:MediaFood; timer: ReturnType<typeof setTimeout> };
+type Invite = { selection?:import('../src/shared/mediaCatalog').MediaSelection; id: number; from: CharacterId; genre: MediaGenre; food?:MediaFood; timer: ReturnType<typeof setTimeout> };
 type Hooks = {
   state(): GameState;
   save(state: GameState): void;
@@ -165,7 +168,7 @@ export function createHomeSessions(hooks: Hooks) {
     for(const action of familyAutoLeisure(hooks.state(),from)){
       const a=SOCIAL_BY_ID.get(action)!,command:SocialIntent={type:'together',action};
       if(!pairScenes(hooks.state(),from,command))continue;
-      if(start(['vlad','alina'],{command,label:a.title,durationMs:socialDuration(a,command,hooks.state()),resource:socialResource(a)},socket,true,{from,choice:0})){
+      if(start(['vlad','alina'],{command,label:a.title,durationMs:command.manual?300000:socialDuration(a,command,hooks.state()),resource:socialResource(a)},socket,true,{from,choice:0})){
         lastAutoFamily=now();return true;
       }
     }
@@ -392,7 +395,7 @@ export function createHomeSessions(hooks: Hooks) {
       results.push(result);
     }
     const media=session.plan.command;
-    if(session.participants.length===2&&(media.type==='movie'||media.type==='youtube')&&media.food){
+    if(session.participants.length===2&&(media.type==='movie'||media.type==='youtube')&&(media.food||media.type==='movie'&&media.selection)){
       const action=media.type==='movie'?'film':'youtube';
       addRelationship(next,SOCIAL_BY_ID.get(action)!,0);
       creditWeekendTogether(next,action);
@@ -422,7 +425,7 @@ export function createHomeSessions(hooks: Hooks) {
     const before=hooks.state(), roles=session.participants.map(p=>p.role);
     const command=session.plan.command as SocialIntent;
     const {from,choice}=session.cooperation!;
-    const result=completeTogether(before,from,command,roles,choice,socialHomes(session));
+    const result=completeTogether(before,from,command,roles,choice,socialHomes(session),true,session.bowling);
     if(!result.ok){end(session,'failed',result.reason);return;}
     if(session.finishedTogether&&roles.length===1){
       const completedMoment=session.cooperation?.moment;
@@ -470,8 +473,8 @@ export function createHomeSessions(hooks: Hooks) {
     }
     if(session.participants.some(p=>(p.restPaid??0)<1))session.timer=schedule(()=>tickRest(session),Math.min(5000,Math.max(1000,session.duration-(now()-session.activeAt))));
   }
-  function mediaCommand(genre:MediaGenre,food?:MediaFood):TimedCommand {
-    return genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
+  function mediaCommand(genre:MediaGenre,food?:MediaFood,selection?:MediaSelection):TimedCommand {
+    return genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food,selection};
   }
   function foodCount(state:GameState,food:MediaFood){
     return state.readyFood.filter(b=>b.kind===mediaFoodKind(food)&&b.item===food&&(b.kind==='takeout'||b.storage==='table')&&b.expiresAt>hooks.gameTime()).reduce((n,b)=>n+b.portions,0);
@@ -583,7 +586,8 @@ export function createHomeSessions(hooks: Hooks) {
         for (const {role,packet} of participants) {
           hooks.all({ type: 'task_active', role, taskId: packet.taskId, elapsedMs: 0 });
         }
-        if (study) {
+        if(command.type==='together'&&command.manual){session.bowling=newBowling(hooks.nextId(),cooperation!.from);hooks.all({type:'bowling_state',match:session.bowling});session.timer=schedule(()=>cancel(cooperation!.from,'Время ручной партии истекло'),300000*hooks.timeScale);}
+        else if (study) {
           study.start = hooks.gameTime();
           const tick = () => {
             const elapsed = studyElapsed(session);
@@ -678,6 +682,7 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function replay(socket: WebSocket) {
+    for(const session of new Set(sessions.values()))if(session.bowling)hooks.send(socket,{type:'bowling_state',match:session.bowling});
     if(conversation)hooks.send(socket,{type:'conversation',from:conversation.from,remainingMs:Math.max(0,conversation.until-now()),title:SOCIAL_BY_ID.get(conversation.action)!.title});
     for (const [role,session] of sessions) {
       const original = session.participants.find(p => p.role === role)!.packet;
@@ -758,7 +763,8 @@ export function createHomeSessions(hooks: Hooks) {
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
       if(!a)return error(socket,'Неизвестное совместное занятие');
       if('moment' in message&&typeof message.moment!=='string')return error(socket,'Неверный семейный момент');
-      const cmd:SocialIntent={type:'together',action:a.id,
+      if(message.manual!==undefined&&(message.manual!==true||a.id!=='venueBowling'))return error(socket,'Ручной режим пока доступен только в боулинге');
+      const cmd:SocialIntent={type:'together',action:a.id,...(message.manual===true?{manual:true}:{}),
         item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined),
         ...(typeof message.moment==='string'?{moment:message.moment}:{})};
       const reason=near?cooperationDenial(hooks.state(),role,cmd):parkSession?(contextAvailable(a,hooks.state(),role)?undefined:'Тема пока не подходит к ситуации'):cooperationDenial(hooks.state(),role,cmd);
@@ -767,8 +773,8 @@ export function createHomeSessions(hooks: Hooks) {
       if(!cook&&resource&&(reserved(resource)||hooks.resourceBusy(resource)))return error(socket,'Объект уже используется');
       const ttl=hooks.socialTtlMs??SOCIAL_TTL_MS;
       const story=cmd.moment?familyMoments(hooks.state(),role).find(m=>m.id===cmd.moment):undefined;
-      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cook?'Помочь с готовкой':story?.title??a.title,
-        text:cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
+      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cmd.manual?'🎳 Боулинг · ручная партия':cook?'Помочь с готовкой':story?.title??a.title,
+        text:cmd.manual?'Пять фреймов, каждый бросает сам. 1200 ₽ за завершённую партию.':cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
         replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:now()+ttl,remainingMs:ttl};
       socialInvite={offer,command:cmd,cookTask:cook?.id,parkSession,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
       lastProposal[role]=now();
@@ -814,18 +820,20 @@ export function createHomeSessions(hooks: Hooks) {
     if (message.type === 'movie_invite') {
       const genre = message.genre;
       if (typeof genre !== 'string' || (genre!=='youtube'&&!Object.hasOwn(GENRES, genre))) return error(socket,'Неизвестный жанр');
+      const selection=message.selection;
+      if(selection!==undefined&&(genre==='youtube'||!validSelection(selection,genre as import('../src/shared/homeLife').Genre)))return error(socket,'Неизвестный фильм или серия');
       const food=message.food;
       if(food!==undefined&&!isMediaFood(food))return error(socket,'Неизвестное блюдо');
       if(food&&foodCount(hooks.state(),food as MediaFood)<2)return error(socket,'Нужно две свежие порции');
-      const denial = taskAccessError(hooks.state(), mediaCommand(genre as MediaGenre,food as MediaFood|undefined));
+      const denial = taskAccessError(hooks.state(), mediaCommand(genre as MediaGenre,food as MediaFood|undefined,selection as MediaSelection|undefined));
       if (denial) return error(socket, denial);
       if (!hooks.socket(otherRole(role))) return error(socket,'Второй игрок пока не в сети');
       if (invite||socialInvite) return error(socket,'Другое приглашение уже ждёт ответа');
       if (!available(role) || !available(otherRole(role)) || reserved('tv') || [role,otherRole(role)].some(r=>hooks.state().world.places[r]!=='home'))
         return error(socket,'Для просмотра оба должны быть свободны дома, а телевизор — выключен');
       const id = ++nextInviteId;
-      invite = { id,from:role,genre:genre as MediaGenre,food:food as MediaFood|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
-      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre,food:invite!.food });
+      invite = { id,from:role,genre:genre as MediaGenre,selection:selection as MediaSelection|undefined,food:food as MediaFood|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
+      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre,food:invite!.food,selection:invite!.selection });
       return;
     }
     if (!invite || message.inviteId !== invite.id) return error(socket,'Это приглашение уже закрыто');
@@ -833,18 +841,23 @@ export function createHomeSessions(hooks: Hooks) {
     if (message.type !== 'movie_reply' || role === invite.from || typeof message.accept !== 'boolean')
       return error(socket,'Ответить может только приглашённый игрок');
     if (!message.accept) return closeInvite('Приглашение отклонено');
-    const {from,genre,food} = invite;
-    const denial = taskAccessError(hooks.state(), mediaCommand(genre,food));
+    const {from,genre,food,selection} = invite;
+    const denial = taskAccessError(hooks.state(), mediaCommand(genre,food,selection));
     if (denial) return closeInvite(denial);
     if (!available(from) || !available(role) || reserved('tv') || [from,role].some(r=>hooks.state().world.places[r]!=='home')) {
       closeInvite('Кто-то занят или вышел из дома. Попробуйте ещё раз'); return;
     }
     if(food&&foodCount(hooks.state(),food)<2)return closeInvite('Не осталось двух свежих порций');
-    if(!start([from,role],planTask(mediaCommand(genre,food))!,socket))
+    if(!start([from,role],planTask(mediaCommand(genre,food,selection))!,socket))
       return closeInvite('Не удалось начать совместный просмотр');
     closeInvite('Приглашение принято');
   }
 
+  function bowlingRoll(role:CharacterId,socket:WebSocket,message:Record<string,unknown>){
+    const session=sessions.get(role);if(!session?.bowling||session.activeAt===null||session.participants.length!==2)return error(socket,'Нет активной ручной партии');
+    const next=rollBowling(session.bowling,role,message);if(!next)return error(socket,'Бросок недоступен или уже принят');
+    session.bowling=next;hooks.all({type:'bowling_state',match:next});if(next.finished){clearTimer(session.timer);complete(session);}
+  }
   function recheckAccess() {
     if(conversation&&(conversationReason(conversation.from)||conversation.automatic&&!familyAutonomyReady(hooks.state())))stopConversation();
     for (const session of new Set(sessions.values())) {
@@ -900,7 +913,7 @@ export function createHomeSessions(hooks: Hooks) {
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food&&!isHomeDrink(session.participants.find(p=>p.role===role)?.packet.home?.food)))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food&&!isHomeDrink(session.participants.find(p=>p.role===role)?.packet.home?.food)))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, bowlingRoll, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

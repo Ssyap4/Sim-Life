@@ -246,7 +246,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if(station.action.kind==='venue'){
       const id=station.action.facility;
       if(id==='reception')options.append(element('small','','Оплата каждой партии только после завершения. Выберите игровую зону.'));
-      else {const g=VENUE_GAMES[id];options.append(element('small','',g.name+' · '+g.seconds+' сек. · '+formatRub(g.price)+' за двоих'));if(cafeSocial)options.append(button('Пригласить сыграть вдвоём',()=>{if(cafeSocial(id))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));}
+      else {const g=VENUE_GAMES[id];options.append(element('small','',g.name+' · '+g.seconds+' сек. · '+formatRub(g.price)+' за двоих'));if(cafeSocial){options.append(button('Наблюдать · автоигра',()=>{if(cafeSocial(id))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));if(id==='venueBowling')options.append(button('🎳 Играть вручную · 5 фреймов',()=>{if(cafeSocial('venueBowlingManual'))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));}}
+      if(id==='venueBowling'&&place.bowlingHistory?.length){const h=place.bowlingHistory;options.append(element('strong','','Ручные партии · Влад '+h.filter(r=>r.vlad>r.alina).length+' : '+h.filter(r=>r.alina>r.vlad).length+' Алина'));for(const r of h.slice(0,5))options.append(element('small','','Влад '+r.vlad+' : '+r.alina+' Алина'));}
     } else if(station.action.kind==='lake'){
       const visit=place.world.lake?.[role],access=lakeAccess(place,role);
       options.append(element('small','',access?'Билет действует ещё '+Math.ceil((visit!.until-now)/60)+' ч.':'Билет закончился'));

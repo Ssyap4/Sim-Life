@@ -63,7 +63,7 @@ import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
 import {VENUE_GAMES,isVenueGame,venueDenial} from './venue';
-export type PairMotion = 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
+export type PairMotion = 'venueManual' | 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
   'slowDance'|'dance'|'highFive'|'cuddle'|'sofaLean'|'sofaHands'|'sofaKiss'|'sofaHug'|'bedRest'|'breakfastReceive'|'breakfastServe'|'teaTogether'|'yardHookah'|'musicTogether'|'sitTalk'|'cook'|'prep'|'grill'|'eat'|'serve'|'wash'|'unpack'|'read'|'watch'|'pet'|'feed'|'stroll'|'chess'|'badminton'|'leisure';
 type Context = 'holiday'|'vanity'|'shift'|'promotion'|'achievement'|'memory'|'film'|'tired'|'lowBudget'|'hungryPet'|'readyFood'|'lowPantry'|'savings'|'overBudget'|'billDue'|'eveningUnwind'|'morningGreeting'|'nightGreeting'|'returnGreeting';
 export type ObjectActivity = 'venue' | 'console' | 'cook'|'grill'|'eat'|'takeout'|'bring'|'serve'|'dishes'|'unpack'|'tv'|'film'|'youtube'|'lesson'|'read'|
@@ -198,9 +198,9 @@ export const SOCIAL_ACTIVITIES = [...venueActivities,...giftActivities,...exchan
 export const SOCIAL_BY_ID = new Map(SOCIAL_ACTIVITIES.map(a=>[a.id,a]));
 export const CAFE_TALK_TOPICS=objects.filter(a=>a.object==='cafeTalk');
 export const SOCIAL_TTL_MS = 30_000;
-export type SocialIntent = { type:'together'; action:string; item?:string; moment?:string };
+export type SocialIntent = { type:'together'; action:string; manual?:boolean; item?:string; moment?:string };
 export type SocialCommand =
-  | {type:'social_propose';action:string;item?:string;moment?:string}
+  | {type:'social_propose';action:string;manual?:boolean;item?:string;moment?:string}
   | {type:'social_reply';inviteId:number;choice:number|null}
   | {type:'social_withdraw';inviteId:number}
   | {type:'social_finish';taskId:number};

@@ -99,6 +99,8 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  bowlingHistory?: import('./manualBowling').BowlingResult[];
+  mediaLibrary?: import('./mediaLibrary').MediaLibrary;
   familyAlbum?: import('./familyAlbum').FamilyPhoto[];
   familyMessages?: import('./familyMessages').FamilyMessages;
   foodTastes?: import('./foodTastes').FoodTastes;
@@ -205,7 +207,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | 
 
 export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | import('./familyLife').FamilyLifeCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
-  | { type: 'movie_invite'; genre: MediaGenre; food?:import('./food').MediaFood }
+  | { type: 'movie_invite'; genre: MediaGenre; food?:import('./food').MediaFood; selection?:import('./mediaCatalog').MediaSelection }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
   | { type: 'resume'; role: CharacterId; token: string }
@@ -216,6 +218,8 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | import('./manualBowling').BowlingCommand
+  | import('./mediaLibrary').MediaCommand
   | import('./familyAlbum').AlbumCommand
   | import('./familyMessages').MessageCommand
   | { type: 'food_favorite'; kind:import('./foodTastes').TasteKind; item:string; enabled:boolean }
@@ -272,7 +276,8 @@ export type ServerPacket =
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
-  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').MediaFood }
+  | {type:'bowling_state';match:import('./manualBowling').BowlingMatch}
+  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').MediaFood; selection?:import('./mediaCatalog').MediaSelection }
   | { type: 'movie_offer_closed'; inviteId: number; message: string }
   | { type: 'task_queue'; role: CharacterId; tasks: QueuedTask[] }
   | { type: 'task_active'; role: CharacterId; taskId: number; elapsedMs: number }

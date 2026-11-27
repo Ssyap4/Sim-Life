@@ -26,6 +26,7 @@ import {deliveryWasAccepted} from './core/deliveryAck';
 import { dishCount } from './shared/dirtyDishes';
 import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
+import {createBowlingUI} from './manualBowlingUI';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
 import { BOOKS, GENRES } from './shared/homeLife';
 import { createPhone } from './phoneUI';
@@ -189,6 +190,7 @@ app.innerHTML = `
   <div id="message" class="notice-stack" aria-live="polite"></div>
   <section id="notice-history" hidden aria-label="Журнал событий"><div class="notice-history-panel"><header class="notice-history-head"><strong>События дома</strong><button type="button" data-notice-close aria-label="Закрыть журнал">×</button></header><div class="notice-history-list"></div></div></section>
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
+  <section id="manual-bowling" class="manual-bowling" hidden aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
   <section id="computer-overlay" class="computer-overlay" hidden></section>
@@ -857,7 +859,7 @@ const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobi
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room),
-  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job),(kind,item,on)=>net.favoriteFood(kind,item,on));
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action:action==='venueBowlingManual'?'venueBowling':action,...(action==='venueBowlingManual'?{manual:true}:{})}),job=>net.startJob(job),(kind,item,on)=>net.favoriteFood(kind,item,on));
 
 function signOut(): void {
   resetSceneTransition();
@@ -939,7 +941,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command),command=>net.album(command),()=>startPhotoMode());
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command),command=>net.album(command),()=>startPhotoMode(),()=>entertainmentMenu.catalog());
 const photoPanel=document.createElement('div');photoPanel.className='photo-mode';photoPanel.hidden=true;
 const photoHint=document.createElement('span');photoHint.textContent='Выбери ракурс камеры';
 const photoShoot=document.createElement('button');photoShoot.type='button';photoShoot.textContent='📷 Снять';
@@ -1003,12 +1005,13 @@ function openEducation(view: EducationView, room?: string) {
   locationUI.close();
   phone.openEducation(view, room);
 }
-const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),(genre,food)=>food||genre==='youtube'?net.inviteMovie(genre,food):net.social({type:'social_propose',action:'film',item:genre}),
-  () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'),(kind,item,on)=>net.favoriteFood(kind,item,on));
+const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),(genre,food,selection)=>food||genre==='youtube'||selection?net.inviteMovie(genre,food,selection):net.social({type:'social_propose',action:'film',item:genre}),
+  () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.mediaMark(command));
 const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
+const bowlingUI=createBowlingUI(document.querySelector<HTMLElement>('#manual-bowling')!,()=>active,command=>net.bowlingRoll(command),()=>net.social({type:'social_propose',action:'venueBowling',manual:true}),()=>{if(active){const task=tasks.get(active);if(task)net.cancelTask(task.taskId);}});
 const net = new LiveConnection({
   onReady(role, household, players) {
     photoSession++;photoPanel.hidden=true;
@@ -1100,6 +1103,7 @@ const net = new LiveConnection({
     world.setTimeOfDay(displayClock.read(performance.now()));
   },
   onDisconnect() {
+    bowlingUI.close();
     photoSession++;photoPanel.hidden=true;phone.messageRejected();phone.albumError('Соединение прервано. Проверь сохранение после входа.');
     gameAudio.setPlaying(false);
     displayClock.pause(performance.now());
@@ -1200,10 +1204,12 @@ const net = new LiveConnection({
   onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
   onTvFoodDone(role,taskId){if(tasks.get(role)?.taskId===taskId)world.finishSofaFood(role);},
-  onMovieOffer(inviteId,from,genre,food) { invites.show(inviteId,names[from],genre,from===active,food); },
+  onBowlingState(match){bowlingUI.show(match);},
+  onMovieOffer(inviteId,from,genre,food,selection) { invites.show(inviteId,names[from],genre,from===active,food,selection); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
   onTaskEnded(role, taskId, outcome, message, effects) {
     const previous = tasks.get(role);
+    if(role===active&&previous?.taskId===taskId&&previous.paired?.manual)bowlingUI.complete(outcome==='completed');
     if(previous?.taskId===taskId)lastTaskNotice.set(role,{message,at:performance.now()});
     if (previous?.taskId === taskId) {
       if (outcome === 'completed') {
@@ -1247,6 +1253,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    bowlingUI.retry();
     if(phone.messagingOpen())phone.messageRejected();
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
       notify(reason,{title:'Симба мешает',kind:'warning'});

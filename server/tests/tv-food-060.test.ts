@@ -214,3 +214,19 @@ test('prepared drinks and homemade desserts work in solo and invited TV sessions
  r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'youtube',food:'blackTeaCup'});const p=[...r.packets].reverse().find(p=>p.type==='movie_offer');assert.ok(p?.type==='movie_offer');r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:p.inviteId,accept:true});r.arrive();r.advance(89999);assert.equal(r.state().meals.blackTeaCup,2);r.advance(1);assert.equal(r.state().meals.blackTeaCup,0);assert.equal(r.state().dirtyDishes.table,3);r.advance(120000);assert.equal(r.state().meals.blackTeaCup,0);
  }finally{r.s.dispose();}
 });
+
+test('068 named series invitation and food preserve identical selection and advance both histories exactly once',()=>{
+ const r=rig();const selection={id:'dark',season:1,episode:10};
+ r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'thriller',selection,food:'pizzaCheese'});
+ const offer=[...r.packets].reverse().find(p=>p.type==='movie_offer');assert.ok(offer?.type==='movie_offer');assert.deepEqual(offer.selection,selection);
+ r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:offer.inviteId,accept:true});
+ r.arrive();assert.equal(r.state().mediaLibrary?.history.vlad.length??0,0);
+ r.advance(90000);assert.equal(r.state().takeout.pizzaCheese,0);assert.equal(r.state().mediaLibrary?.history.vlad.length??0,0);
+ r.advance(30000);for(const role of ['vlad','alina'] as const){const h=r.state().mediaLibrary!.history[role];assert.equal(h.length,1);assert.equal(h[0].id,'dark');assert.equal(h[0].episode,10);assert.equal(h[0].together,true);}
+ assert.equal(r.state().relationship.memories.filter(m=>m.action==='film').length,1);
+});
+test('068 cancelling a named movie before finish never adds a completed viewing',()=>{
+ const r=rig();const plan=planTask({type:'movie',genre:'action',selection:{id:'odyssey'}})!;
+ assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));r.arrive();r.advance(30000);r.s.cancel('vlad','cancel');
+ r.advance(150000);assert.equal(r.state().mediaLibrary?.history.vlad.length??0,0);
+});
