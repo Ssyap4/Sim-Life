@@ -1,3 +1,4 @@
+import {seatTransfer,taskCadence,chewPulse,phoneStroke} from './MotionPolish';
 import {FishingProp,buildLakeFish} from './LakeFishingArt';
 import type {LakeRod,FishCatch} from '../shared/lake';
 import {venueHandFrame,type VenueGame} from '../shared/venue';
@@ -743,9 +744,10 @@ export class Actor {
     }
     const traveled = walked+poolStep+(this.activity==='badminton'||this.activity==='pingPong'?this.badmintonTravel:0);this.badmintonTravel=0;
     const sport=this.activity==='badminton'||this.activity==='pingPong';
-    const walking = (this.waypoints.length > 0 || sport || poolStep>0) && traveled > .001;
+    const finishingStep=walked>.001&&this.pose==='idle'&&!this.activity&&!this.gesture&&!this.partnerGesture;
+    const walking = (this.waypoints.length > 0 || sport || poolStep>0 || finishingStep) && traveled > .001;
     const alpha = 1 - Math.exp(-dt * 11);
-    const targetMotion=walking?(sport?1:walkMotionTarget(traveled,dt,HOME_WALK_SPEED)):0;
+    const targetMotion=walking?(sport?1:walkMotionTarget(traveled,poolStep>0?dt:pathDt,HOME_WALK_SPEED)):0;
     this.gaitBlend = THREE.MathUtils.lerp(this.gaitBlend,targetMotion,
       1-Math.exp(-dt*(targetMotion<this.gaitBlend?14:11)));
     const strideLength = walkStrideLength(this.id);
@@ -760,6 +762,7 @@ export class Actor {
     if(rest&&(this.activity==='spaMassage'||this.activity==='spaRecline')){rest.roll=0;rest.lift=0;rest.headYaw=this.activity==='spaMassage'?.34:.08;rest.headRoll=0;rest.headPitch=0;rest.chestPitch=0;for(const arm of rest.arms)Object.assign(arm,{x:-.10,y:0,z:0,bend:-.20,end:0});for(const leg of rest.legs)Object.assign(leg,{x:0,y:0,z:0,bend:.06,end:0});}
     this.seatBlend = THREE.MathUtils.lerp(this.seatBlend,seated?1:0,1-Math.exp(-dt*(walking?18:9)));
     const weightTransfer = this.seatBlend*(1-this.seatBlend)*4;
+    const transfer=seatTransfer(this.seatBlend,seated);
     const care = this.activity === 'pet' || this.activity === 'brush' || this.activity === 'feed'||this.activity==='treat'||this.activity==='bathe';
     const breath = Math.sin(t * (asleep ? 1.35 : 1.85));
     let lean = this.pose === 'work' ? 0.26 : this.activity === 'cook' ? 0.14 : care ? 0.48 : 0;
@@ -930,7 +933,7 @@ export class Actor {
           leftZ = 0.30 + meal.settle * 0.018;
           gaze = .15 + .11 * bite - .035 * meal.chew + meal.glance;
           lean = .045 + .013 * meal.chew;
-          expression = .065 + meal.chew * .095;
+          expression = .065 + chewPulse(this.mealSlow?a/2.8:a,meal.chew,this.id) * .095;
           if(this.mealSlow&&this.parkChatUntil>this.clock&&bite<.15){leftY+=.11*Math.sin(a*2.8);leftZ+=.16;expression=.18+.10*Math.sin(a*5);gaze=.015;}
           break;
         }
@@ -1583,6 +1586,9 @@ export class Actor {
       const wave=Math.max(0,Math.sin(t*2.8))*.09;
       leftY+=wave;leftZ+=wave*.6;
     }
+    if(!this.activity&&!this.gesture&&!this.partnerGesture&&!resting&&!this.carryingBook&&!this.workCoffeeCarrying&&this.pose!=='work'){
+      leftZ+=transfer.hands;rightZ+=transfer.hands;
+    }
     const eatingWith = mealUtensil(this.diningDish);
     this.spoon.visible = (this.activity === 'cook' &&
       (kitchenStep === 'whisk' || kitchenStep === 'stir')) ||
@@ -1708,16 +1714,16 @@ export class Actor {
     }
     const look = rest?rest.headYaw+(reclining?partnerYaw:0)+chatYaw:0.20 * idleLook + lead + idleHeadYaw + chatYaw + partnerYaw;
     data.head.rotation.y = THREE.MathUtils.lerp(data.head.rotation.y, look - motion * 0.061 * Math.sin(stridePhase), alpha);
-    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, (rest?rest.headPitch:gaze + 0.022 * breath - lean * 0.55 + chatNod), alpha);
+    data.head.rotation.x = THREE.MathUtils.lerp(data.head.rotation.x, (rest?rest.headPitch:gaze + 0.022 * breath - lean * 0.55 + chatNod + transfer.gaze), alpha);
     data.head.rotation.z = THREE.MathUtils.lerp(data.head.rotation.z,
       rest?rest.headRoll:0.018 * Math.sin(t * 0.73) - restlessSway * 0.4 + idleHeadRoll + partnerHead + (chatActive?chat.tilt:0) + demeanor.tilt*moodWeight, alpha);
     data.hair.rotation.y = -data.head.rotation.y * 0.16 + motion * Math.cos(stridePhase - 0.6) * 0.031 +
       (this.idleGesture === 'fixHair' ? 0.025 * idleTouch * Math.sin(this.idleGestureTime * 1.4) : 0);
     data.hair.rotation.x = -data.head.rotation.x * 0.05 + motion * Math.sin(stridePhase) * 0.031;
 
-    const taskRhythm=Math.sin(a*2.3)*.012*activityEase;
+    const taskRhythm=Math.sin(taskCadence(a,this.id,2.3))*.012*activityEase;
     data.chest.rotation.x = THREE.MathUtils.lerp(data.chest.rotation.x,
-      rest?rest.chestPitch+.011*breath:lean + motion * .025 + weightTransfer*.18 + taskRhythm,alpha);
+      rest?rest.chestPitch+.011*breath:lean + motion * .025 + transfer.lean + taskRhythm,alpha);
     data.chest.rotation.y = THREE.MathUtils.lerp(data.chest.rotation.y,
       motion * 0.055 * Math.cos(stridePhase) + idleChestYaw + partnerChestYaw, alpha);
     data.chest.rotation.z = THREE.MathUtils.lerp(data.chest.rotation.z,
@@ -1793,7 +1799,7 @@ export class Actor {
     } else if (stirring) {
       // Alternate preparation, pan work and plating by recipe rather than
       // endlessly stirring. Motions use the same two-bone IK and light props.
-      const phase = a*(kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
+      const phase = taskCadence(a,this.id,kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
       if (kitchenStep==='chop') {
         this.reach(0,this.stationTarget(stirring,.20,.115,-.09),alpha);
         this.reach(1,this.stationTarget(stirring,
@@ -1836,7 +1842,7 @@ export class Actor {
       // coat rather than moving a hand in place beside the standing resident.
       const bathing=this.activity==='bathe';
       const brushing = this.activity === 'brush'||bathing;
-      const stroke = Math.sin(a * (brushing ? 6.2 : 3.7));
+      const stroke = Math.sin(taskCadence(a,this.id,brushing?6.2:3.7));
       const lateral = brushing ? .065 : .023;
       const coat=this.activity==='pet'||this.activity==='brush';
       if(typeof this.petContact==='function')this.petContact(this.target,coat?stroke:0);
@@ -2156,7 +2162,7 @@ export class Actor {
       if(painting)this.toolContact(this.venueProp,this.stationTarget(this.pan,.14*Math.sin(t*.61),.13*Math.sin(t),0),.20,0,0,.05);
       else{this.reach(1,this.stationTarget(this.pan,.12*Math.sin(t*.55),.055+.065*Math.max(0,Math.sin(t)),0),alpha);this.reach(0,this.stationTarget(this.pan,-.13,.04,0),alpha);}
     }else if(this.pan&&this.activity==='cook'){
-      const phase=a*(kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
+      const phase=taskCadence(a,this.id,kitchenStep==='chop'?7.4:kitchenStep==='whisk'?7:3.6);
       if(this.spoon.visible){
         this.toolContact(this.spoon,this.stationTarget(this.pan,.068*Math.cos(phase),.058,.057*Math.sin(phase)),.203,0,0,-.60);
       }else if(this.props.spatula.visible){
@@ -2178,7 +2184,7 @@ export class Actor {
     }else if(this.pan&&this.activity==='prep'&&this.props.knife.visible){
       this.toolContact(this.props.knife,this.stationTarget(this.pan,.07,.025+.047*(.5+.5*Math.sin(a*7)),0),.15,-.015,0,-.22);
     }else if(this.pan&&this.activity==='grill'&&this.props.tongs.visible){
-      const swing=a*3.1;
+      const swing=taskCadence(a,this.id,3.1);
       this.toolContact(this.props.tongs,this.stationTarget(this.pan,.085*Math.sin(swing),.035+.08*Math.max(0,Math.sin(swing)),.055*Math.cos(swing)),.173,0,0,-.50);
     }else if(this.pan&&this.activity==='eat'){
       const mealTime=this.mealSlow?a/2.8:a;
@@ -2201,7 +2207,7 @@ export class Actor {
       }
       if(meal.loaded>0&&bite>.035){
         this.mealBite.visible=true;this.mealBite.position.copy(this.figure.worldToLocal(this.target.copy(this.toolTip)));
-        this.mealBite.position.y+=.008;
+        this.mealBite.position.y+=.008;this.mealBite.scale.set(.026*(.8+.2*meal.loaded),.015*(.8+.2*meal.loaded),.025*(.8+.2*meal.loaded));
       }
     }
     // Resolve handheld objects after all body offsets and pose transforms.
@@ -2226,8 +2232,7 @@ export class Actor {
       this.reach(1,phone.localToWorld(this.target.set(.012,-.018,-.095)),1,.65);
       this.aimHand(1,this.handDirection.set(0,0,1).applyQuaternion(phone.getWorldQuaternion(this.parentRotation)),1);
       if(!call){
-        const cycle=a%3.8,swipe=THREE.MathUtils.smoothstep(cycle,.8,1.05)*(1-THREE.MathUtils.smoothstep(cycle,1.75,2.1));
-        const z=THREE.MathUtils.lerp(-.035,.035,THREE.MathUtils.smoothstep(cycle,1.05,1.75));
+        const {contact:swipe,z}=phoneStroke(a,this.id);
         // The animated palm travels along the glass during a swipe, then
         // hovers above it. No independent finger joints on the shipped rig.
         phone.getWorldQuaternion(this.parentRotation);

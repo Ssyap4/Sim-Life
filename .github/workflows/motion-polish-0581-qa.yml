@@ -1,0 +1,55 @@
+name: Motion polish 0.58.1
+on:
+  push:
+    branches: [feat/motion-polish-0581]
+permissions:
+  contents: read
+jobs:
+  visual:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: seating-vlad
+            script: qa-053-seating.mjs
+            args: ''
+            out: /tmp/simlife-053-seating-vlad
+          - mode: seating-alina
+            script: qa-053-seating.mjs
+            args: android
+            out: /tmp/simlife-053-seating-alina
+          - mode: kitchen
+            script: qa-053-kitchen.mjs
+            args: ''
+            out: /tmp/simlife-053-kitchen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/${{ matrix.script }} ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: motion-${{ matrix.mode }}
+          path: ${{ matrix.out }}
+          retention-days: 7
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

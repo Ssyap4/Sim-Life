@@ -50,7 +50,7 @@ export function walkFootTarget(
   return {
     y: -legLength + pelvisDrop + motion * lift + crouch,
     z: step * motion * travelRange + crouch * .08,
-    toePitch: swing ? -.16 * motion * Math.sin(travel * Math.PI * 2) : 0,
+    toePitch: swing ? -.16 * motion * Math.sin(travel * Math.PI * 2) * Math.sin(travel * Math.PI)**.35 : 0,
     swing,
   };
 }
