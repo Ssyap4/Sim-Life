@@ -1,4 +1,5 @@
 import {isHomeDrink} from '../src/shared/food';
+import {validPoolHistory} from '../src/shared/manualPool';
 import {validHockeyHistory} from '../src/shared/manualHockey';
 import {validBowlingHistory} from '../src/shared/manualBowling';
 import {validLibrary,emptyLibrary} from '../src/shared/mediaLibrary';
@@ -93,6 +94,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if(state.poolHistory!==undefined&&!validPoolHistory(state.poolHistory))return false;
   if(state.hockeyHistory!==undefined&&!validHockeyHistory(state.hockeyHistory))return false;
   if(state.bowlingHistory!==undefined&&!validBowlingHistory(state.bowlingHistory))return false;
   if (state.mediaLibrary !== undefined && !validLibrary(state.mediaLibrary)) return false;
@@ -433,6 +435,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         relationship: data.relationship ?? initialRelationship(),
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         personalCollections: data.personalCollections ?? {},
+        poolHistory:data.poolHistory??[],
         hockeyHistory:data.hockeyHistory??[],
         bowlingHistory:data.bowlingHistory??[],
         mediaLibrary: data.mediaLibrary ?? emptyLibrary(),

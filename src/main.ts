@@ -26,6 +26,7 @@ import {deliveryWasAccepted} from './core/deliveryAck';
 import { dishCount } from './shared/dirtyDishes';
 import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
 import { PAYMENT_REMINDER_PREFIX, SERVICES, upcomingPayments, type ServiceId } from './shared/services';
+import {createPoolUI} from './manualPoolUI';
 import {createHockeyUI} from './manualHockeyUI';
 import {createBowlingUI} from './manualBowlingUI';
 import { homeLifeMenu, movieInvite } from './homeLifeUI';
@@ -191,6 +192,7 @@ app.innerHTML = `
   <div id="message" class="notice-stack" aria-live="polite"></div>
   <section id="notice-history" hidden aria-label="Журнал событий"><div class="notice-history-panel"><header class="notice-history-head"><strong>События дома</strong><button type="button" data-notice-close aria-label="Закрыть журнал">×</button></header><div class="notice-history-list"></div></div></section>
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
+  <section id="manual-pool" class="manual-bowling manual-pool" hidden aria-live="off"></section>
   <section id="manual-hockey" class="manual-bowling manual-hockey" hidden aria-live="off"></section>
   <section id="manual-bowling" class="manual-bowling" hidden aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
@@ -1015,6 +1017,7 @@ const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const bowlingUI=createBowlingUI(document.querySelector<HTMLElement>('#manual-bowling')!,()=>active,command=>net.bowlingRoll(command),()=>net.social({type:'social_propose',action:'venueBowling',manual:true}),()=>{if(active){const task=tasks.get(active);if(task)net.cancelTask(task.taskId);}});
 const hockeyUI=createHockeyUI(document.querySelector<HTMLElement>('#manual-hockey')!,()=>active,command=>net.hockeyMove(command),()=>net.social({type:'social_propose',action:'venueHockey',manual:true}),()=>{if(active){const task=tasks.get(active);if(task)net.cancelTask(task.taskId);}});
+const poolUI=createPoolUI(document.querySelector<HTMLElement>('#manual-pool')!,()=>active,command=>net.poolShot(command),()=>net.social({type:'social_propose',action:'venueBilliards',manual:true}),()=>{if(active){const task=tasks.get(active);if(task)net.cancelTask(task.taskId);}});
 const net = new LiveConnection({
   onReady(role, household, players) {
     photoSession++;photoPanel.hidden=true;
@@ -1106,7 +1109,7 @@ const net = new LiveConnection({
     world.setTimeOfDay(displayClock.read(performance.now()));
   },
   onDisconnect() {
-    bowlingUI.close();hockeyUI.close();
+    bowlingUI.close();hockeyUI.close();poolUI.close();
     photoSession++;photoPanel.hidden=true;phone.messageRejected();phone.albumError('Соединение прервано. Проверь сохранение после входа.');
     gameAudio.setPlaying(false);
     displayClock.pause(performance.now());
@@ -1207,13 +1210,14 @@ const net = new LiveConnection({
   onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
   onTvFoodDone(role,taskId){if(tasks.get(role)?.taskId===taskId)world.finishSofaFood(role);},
-  onHockeyState(match){if(!document.querySelector<HTMLElement>('#manual-bowling')!.hidden)bowlingUI.close();hockeyUI.show(match);},
-  onBowlingState(match){if(!document.querySelector<HTMLElement>('#manual-hockey')!.hidden)hockeyUI.close();bowlingUI.show(match);},
+  onPoolState(match){if(!document.querySelector<HTMLElement>('#manual-hockey')!.hidden)hockeyUI.close();if(!document.querySelector<HTMLElement>('#manual-bowling')!.hidden)bowlingUI.close();poolUI.show(match);},
+  onHockeyState(match){if(!document.querySelector<HTMLElement>('#manual-pool')!.hidden)poolUI.close();if(!document.querySelector<HTMLElement>('#manual-bowling')!.hidden)bowlingUI.close();hockeyUI.show(match);},
+  onBowlingState(match){if(!document.querySelector<HTMLElement>('#manual-pool')!.hidden)poolUI.close();if(!document.querySelector<HTMLElement>('#manual-hockey')!.hidden)hockeyUI.close();bowlingUI.show(match);},
   onMovieOffer(inviteId,from,genre,food,selection) { invites.show(inviteId,names[from],genre,from===active,food,selection); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
   onTaskEnded(role, taskId, outcome, message, effects) {
     const previous = tasks.get(role);
-    if(role===active&&previous?.taskId===taskId&&previous.paired?.manual){if(previous.paired.action==='venueHockey')hockeyUI.complete(outcome==='completed');else bowlingUI.complete(outcome==='completed');}
+    if(role===active&&previous?.taskId===taskId&&previous.paired?.manual){if(previous.paired.action==='venueBilliards')poolUI.complete(outcome==='completed');else if(previous.paired.action==='venueHockey')hockeyUI.complete(outcome==='completed');else bowlingUI.complete(outcome==='completed');}
     if(previous?.taskId===taskId)lastTaskNotice.set(role,{message,at:performance.now()});
     if (previous?.taskId === taskId) {
       if (outcome === 'completed') {
@@ -1257,7 +1261,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
-    bowlingUI.retry();
+    bowlingUI.retry();poolUI.retry();
     if(phone.messagingOpen())phone.messageRejected();
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
       notify(reason,{title:'Симба мешает',kind:'warning'});

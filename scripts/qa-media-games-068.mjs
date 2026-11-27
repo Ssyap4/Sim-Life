@@ -61,6 +61,15 @@ try{
  await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='hockey_state'&&p.match.pads.vlad.x>.12&&p.match.pads.alina.x<-.12));
  await shot(v,'hockey-vlad-390');await shot(a,'hockey-alina-320');
  await a.locator('#manual-hockey').getByRole('button',{name:'Отменить партию',exact:true}).click();await v.locator('#manual-hockey').waitFor({state:'hidden'});assert.equal(files.load().money,beforeHockey);assert.deepEqual(errors,[]);
- console.log('068 media and manual bowling mobile QA passed');
+ const beforePool=files.load().money;
+ await send(v,{type:'social_propose',action:'venueBilliards',manual:true});await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='social_pending'&&p.offer.action==='venueBilliards'));
+ const poolOffer=await a.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='social_pending'&&p.offer.action==='venueBilliards').offer.id);await send(a,{type:'social_reply',inviteId:poolOffer,choice:0});
+ await v.locator('#manual-pool').waitFor({timeout:30000});await a.locator('#manual-pool').waitFor();
+ assert.equal(await a.getByRole('button',{name:'Ударить кием'}).isDisabled(),true);
+ const felt=await v.locator('.pool-table').boundingBox();assert.ok(felt);await v.touchscreen.tap(felt.x+felt.width*.5,felt.y+felt.height*.24);
+ await shot(v,'pool-vlad-390');await shot(a,'pool-alina-320');
+ await v.getByRole('button',{name:'Ударить кием'}).click();await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='pool_state'&&p.match.sequence===1&&p.match.moving));
+ await a.locator('#manual-pool').getByRole('button',{name:'Отменить партию',exact:true}).click();await v.locator('#manual-pool').waitFor({state:'hidden'});assert.equal(files.load().money,beforePool);assert.deepEqual(errors,[]);
+ console.log('068 media, bowling, hockey and pool mobile QA passed');
 }catch(e){for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});throw e;}
 finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

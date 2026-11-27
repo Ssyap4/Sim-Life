@@ -1368,6 +1368,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         socket.close(1000, 'Signed out');
         return;
       }
+      if(message.type==='pool_shot'){homeTasks.poolInput(role,socket,message);return;}
       if(message.type==='hockey_move'){homeTasks.hockeyInput(role,socket,message);return;}
       if(message.type==='bowling_roll'){homeTasks.bowlingRoll(role,socket,message);return;}
       if (typeof message.type==='string'&&['social_propose','social_reply','social_withdraw','social_finish'].includes(message.type)) {

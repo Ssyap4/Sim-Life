@@ -527,3 +527,14 @@
 .hockey-pad.own{background:radial-gradient(circle,#78bace 0 25%,#266b91 28%)}.hockey-pad.opponent{background:radial-gradient(circle,#f1a4a0 0 25%,#a94849 28%)}
 .hockey-puck{width:9%;background:#21343e;box-shadow:0 2px 3px #0005}
 @media(max-height:600px){.hockey-table{width:min(100%,160px);max-height:51dvh}.hockey-score{font-size:18px}}
+
+.pool-table{position:relative;width:min(100%,240px,40dvh);aspect-ratio:1/2;margin:0 auto;border:10px solid #735036;border-radius:12px;box-sizing:content-box;background:radial-gradient(ellipse at center,#3e8b67,#226348);box-shadow:0 4px 8px #0003,inset 0 0 9px #0e382f;touch-action:none;user-select:none;overflow:hidden}
+.pool-pocket{position:absolute;width:15%;aspect-ratio:1;border-radius:50%;background:#172623;transform:translate(-50%,-50%);box-shadow:inset 0 0 4px #000}
+.pool-ball{position:absolute;display:grid;place-items:center;width:6.8%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;font-size:clamp(7px,2vw,10px);font-weight:750;color:#202720;box-shadow:inset -2px -2px 3px #0004,0 2px 3px #0005;pointer-events:none}
+.pool-ball:not(:empty):before{content:'';position:absolute;inset:23%;background:#fffaf0;border-radius:50%;z-index:-1}
+.pool-ball.stripe{border-top:3px solid #fffaf0;border-bottom:3px solid #fffaf0;box-sizing:border-box}
+.pool-guide,.pool-cue{position:absolute;height:0;transform-origin:0 0;pointer-events:none}
+.pool-guide{border-top:2px dashed #fff8}
+.pool-cue{height:4px;width:33%;background:linear-gradient(90deg,transparent 0 10%,#cfb37b 10% 62%,#8c552f 62%);border-radius:3px}
+.pool-ball[hidden],.pool-guide[hidden],.pool-cue[hidden]{display:none}
+@media(max-height:600px){.pool-table{width:min(100%,145px);border-width:7px}.manual-pool .bowling-controls button{min-height:36px}}
