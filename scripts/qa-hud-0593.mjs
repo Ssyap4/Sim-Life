@@ -24,6 +24,10 @@ try{
  await inject(packet);await q.waitFor();assert.equal(await q.getAttribute('open'),null);
  await q.locator('summary').click();assert.ok(await q.locator('.queued-task-row').first().isVisible());assert.match(await q.locator('.queued-task-row').first().innerText(),/^1\./);
  await inject(packet);assert.ok(await q.locator('.queued-task-row').first().isVisible());
+ await inject({...packet,tasks:[...packet.tasks,{id:3,label:'Third task'}]});
+ assert.equal(await q.locator('.queued-task-row').count(),3);assert.ok(await q.locator('.queued-task-row').last().isVisible());
+ await q.locator('summary').click();await inject(packet);assert.equal(await q.getAttribute('open'),null);
+ await q.locator('summary').click();await inject(packet);assert.ok(await q.locator('.queued-task-row').first().isVisible());
  await page.screenshot({path:join(out,'01-queue.png')});
  await inject({...packet,tasks:[]});
  await page.locator('#phone-btn').click();await page.locator('[data-phone-app=furnishing]').click();

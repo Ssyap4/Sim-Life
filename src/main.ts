@@ -375,6 +375,11 @@ function showUpcomingPayments(household: GameState): void {
 }
 const queueExpanded=new Map<CharacterId,boolean>();
 function drawTaskPanel(): void {
+  // Native details toggles are asynchronous; capture the actual DOM before rebuilding.
+  for(const section of taskPanelEl.querySelectorAll<HTMLDetailsElement>('details[data-queue-role]')){
+    const role=section.dataset.queueRole;
+    if(role==='vlad'||role==='alina')queueExpanded.set(role,section.open);
+  }
   taskPanelEl.replaceChildren();
   taskPanelEl.hidden = tasks.size === 0 && ![...waitingTasks.values()].some(rows=>rows.length);
   for (const [role, task] of [...tasks].sort(([a],[b])=>Number(b===active)-Number(a===active))) {
@@ -459,7 +464,6 @@ function drawTaskPanel(): void {
     if(!list.length)continue;
     const section=document.createElement('details');
     section.className='queued-task-list';section.dataset.queueRole=role;section.open=queueExpanded.get(role)??false;
-    section.addEventListener('toggle',()=>queueExpanded.set(role,section.open));
     const caption=document.createElement('summary');
     const count=document.createElement('strong');count.textContent=names[role]+' · очередь '+list.length+'/3';
     const preview=document.createElement('span');preview.className='queue-preview';preview.textContent='Следующее: '+list[0].label;
