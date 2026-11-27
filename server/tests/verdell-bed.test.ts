@@ -73,3 +73,15 @@ test('dog rig climbs onto the mattress and descends without moving the floor anc
  assert.ok(body.getWorldPosition(new THREE.Vector3()).y<.25);
  assert.ok(dog.root.position.equals(anchor));
 });
+test('Verdell wakes gently on the mattress before taking the stairs down',()=>{
+ const {s,stair}=setup(),site=dogBedSites(s,stair)[0];
+ const dog=new PetActor('verdell');dog.syncGround(site.approach.x,site.approach.z);
+ dog.followRoute([],'bedTogether',undefined,undefined,undefined,false,undefined,undefined,0,undefined,undefined,undefined,site);
+ for(let i=0;i<100;i++)dog.update(.05);
+ const body=dog.root.children[0],before=body.position.clone(),scale=body.scale.y;
+ dog.stop();dog.update(1/60);
+ assert.ok(body.position.distanceTo(before)<.08,'first descent frame pops');
+ assert.ok(Math.abs(body.scale.y-scale)<.04,'nap silhouette changes abruptly');
+ for(let i=0;i<100;i++)dog.update(.05);
+ assert.ok(body.position.y<.25);
+});

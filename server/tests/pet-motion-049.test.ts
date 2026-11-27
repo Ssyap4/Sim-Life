@@ -61,3 +61,28 @@ test('cat landing and descent share the same rest orientation, with continuous g
   }
  }
 });
+
+test('floor sleep enters and exits continuously without displacing either navigation root',()=>{
+ for(const id of ['verdell','simba'] as const){
+  const pet=new PetActor(id),anchor=pet.root.position.clone();
+  const probe=pet as unknown as {napWeight:number;body:{position:Vector3;scale:Vector3}};
+  pet.followRoute([],'sleep');
+  for(let i=0;i<120;i++)pet.update(1/60);
+  assert.ok(probe.napWeight>.99);
+  const height=probe.body.position.y;
+  pet.stop();pet.update(1/60);
+  assert.ok(probe.napWeight>.8,'waking should blend rather than pop');
+  assert.ok(Math.abs(probe.body.position.y-height)<.07);
+  for(let i=0;i<120;i++)pet.update(1/60);
+  assert.ok(probe.napWeight<.0001);
+  assert.deepEqual(pet.root.position.toArray(),anchor.toArray());
+ }
+});
+test('inactive house toys are not rewritten every render frame',()=>{
+ const pet=new PetActor('verdell');
+ const toy=pet.homeToys.children[0];
+ toy.position.x+=.003;
+ const before=toy.position.x;
+ for(let i=0;i<60;i++)pet.update(1/60);
+ assert.equal(toy.position.x,before);
+});

@@ -21,6 +21,9 @@ export class PetActor {
   readonly homeToys=new THREE.Group();
   private dogBed:DogBedSite|null=null;
   private dogBedLeaving=false;
+  private pendingDogBed:DogBedSite|null=null;
+  private napWeight=0;
+  private animatedToyIndex:number|undefined;
   private dogBedProgress=0;
   private bathActive=false;
   private bathLift=0;
@@ -75,6 +78,7 @@ export class PetActor {
   private fetchPickedUp=false;
   private onPetBed=false;
   private petBedHeight=0;
+  private bedLift=0;
   private scratchPost:FloorPoint | undefined;
   private hungerLevel: PetHungerLevel = 'normal';
   private ambient: PetIdleContext = {
@@ -140,7 +144,13 @@ export class PetActor {
     }
   }
   private animateHouseToys(weight:number,time:number):void{
-    for(let i=0;i<this.toys.length;i++){
+    // Only the active prop and the one just released need transform writes.
+    const active=weight>0?this.toyIndex:undefined;
+    if(active===undefined&&this.animatedToyIndex===undefined)return;
+    const indices=new Set([this.animatedToyIndex,active]);
+    this.animatedToyIndex=active;
+    for(const i of indices){
+      if(i===undefined)continue;
       const model=this.homeToys.children[i],toy=this.toys[i];
       if(!model)continue;
       model.position.set(toy.x,.015,toy.z);
@@ -237,9 +247,11 @@ export class PetActor {
     perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
     scratchPost?:FloorPoint,restSeed=0,toyIndex?:number,training?:import('../shared/dogTraining').TrainingAttempt,event?:import('../shared/petPreferences').PetEvent,dogBed?:DogBedSite): void {
     if(this.id==='verdell'){
-      if(dogBed&&this.dogBed?.stairs===dogBed.stairs&&this.dogBed.bed===dogBed.bed){this.dogBedLeaving=false;}
-      else if(this.dogBedProgress>0)this.dogBedLeaving=true;
-      else {this.dogBed=dogBed??null;this.dogBedLeaving=false;}
+      if(dogBed&&this.dogBed?.stairs===dogBed.stairs&&this.dogBed.bed===dogBed.bed){
+        this.dogBedLeaving=false;this.pendingDogBed=null;
+      }else if(this.dogBedProgress>0){
+        this.dogBedLeaving=true;this.pendingDogBed=dogBed??null;
+      }else {this.dogBed=dogBed??null;this.dogBedLeaving=false;this.pendingDogBed=null;}
     }
     this.event=event;
     this.training=training;
@@ -284,6 +296,7 @@ export class PetActor {
   }
 
   stop(): void {
+    this.pendingDogBed=null;
     if(this.dogBedProgress>0)this.dogBedLeaving=true;else this.dogBed=null;
     this.releasePerch();
     this.route = [];
@@ -378,7 +391,7 @@ export class PetActor {
     if(dogDescending){
       this.dogBedProgress=Math.max(0,this.dogBedProgress-dt/3.4);
       if(this.dogBedProgress===0){
-        this.dogBed=null;this.dogBedLeaving=false;
+        this.dogBed=this.pendingDogBed;this.pendingDogBed=null;this.dogBedLeaving=false;
         if(this.hasPendingGround){this.root.position.copy(this.pendingGround);this.hasPendingGround=false;}
       }
     }
@@ -466,7 +479,7 @@ export class PetActor {
       const delta=THREE.MathUtils.euclideanModulo(targetYaw-this.root.rotation.y+Math.PI,2*Math.PI)-Math.PI;
       this.root.rotation.y+=delta*(1-Math.exp(-dt*4.5));
     }
-    if(this.dogBed&&!this.dogBedLeaving&&!this.route.length&&!this.reaction){
+    if(this.dogBed&&!this.dogBedLeaving&&!dogDescending&&!this.route.length&&!this.reaction){
       this.dogBedProgress=Math.min(1,this.dogBedProgress+dt/3.4);
       const yaw=this.dogBed.climbYaw;
       this.root.rotation.y+=Math.atan2(Math.sin(yaw-this.root.rotation.y),Math.cos(yaw-this.root.rotation.y))*(1-Math.exp(-dt*9));
@@ -481,7 +494,7 @@ export class PetActor {
     this.reactionTime += dt;
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
-    const canIdle = !this.route.length &&
+    const canIdle = !descending&&!dogDescending&&!this.route.length &&
       (this.routine === null || this.routine === 'wander'||this.routine==='beg'||this.routine==='event') && !this.reaction && pace < .08;
     if (!canIdle) {
       this.idleGesture = null;
@@ -545,8 +558,9 @@ export class PetActor {
     if (r > 2.75) this.reaction = null;
     const weight = this.reaction ? Math.sin(Math.PI * Math.min(1, r / 2.75)) : 0;
     const toy=this.toyIndex!==undefined?this.toys[this.toyIndex]:undefined;
-    const toyPlay=toy&&this.routine==='toy'&&!this.route.length&&this.homeToys.children[this.toyIndex!]?.visible
-      &&Math.hypot(this.root.position.x-toy.x,this.root.position.z-(toy.z-(dog?.48:.39)))<.22
+    const toyApproach=toy?homeToyApproach(this.id,this.toyIndex!):undefined;
+    const toyPlay=toy&&toyApproach&&this.routine==='toy'&&!this.route.length&&this.homeToys.children[this.toyIndex!]?.visible
+      &&Math.hypot(this.root.position.x-toyApproach.x,this.root.position.z-toyApproach.z)<.22
       ?Math.min(1,this.settled*2):0;
     const toyBeat=this.settled;
     const playful = this.reaction === 'play' ? weight : toyPlay*(toy?.kind==='marfa'?.26:toy?.kind==='rope'?.48:toy?.kind==='bone'?.24:toy?.kind==='puzzle'?.12:toy?.kind==='spring'?.44:.74);
@@ -565,13 +579,14 @@ export class PetActor {
       THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;
     const curled=perched*(surface?.kind==='curl'?1:0);
     const lookout=perched*(surface?.kind==='watch'?1:0);
-    const dogBedNap=this.dogBed&&!this.dogBedLeaving?THREE.MathUtils.smoothstep(this.dogBedProgress,.86,1):0;
-    const sleeping = this.routine === 'sleep' ? settled : Math.max(curled*.92,dogBedNap);
+    const dogBedNap=this.dogBed?THREE.MathUtils.smoothstep(this.dogBedProgress,.78,1):0;
+    this.napWeight=THREE.MathUtils.damp(this.napWeight,this.routine==='sleep'?settled:0,7,dt);
+    const sleeping = Math.max(this.napWeight,curled*.92,dogBedNap);
     // Purchased soft mats need an unmistakably reclined pose, not a pet
     // standing upright with the sleep icon. Keep the old floor/sofa poses.
     const matNap=this.onPetBed&&this.routine==='sleep'?settled:0;
-    const dogNap=dog?Math.max(matNap,dogBedNap):0;
-    const catNap=!dog?matNap:0;
+    const dogNap=dog?Math.max(this.napWeight,dogBedNap):0;
+    const catNap=!dog&&!surface?this.napWeight:0;
     // The furniture chooses the actual stable skeletal pose; no frame-to-frame
     // randomization, no generic standing posture on a cushion.
     const restPoseId:CatRestPoseId|undefined=surface
@@ -583,6 +598,7 @@ export class PetActor {
     const attention = this.reaction === 'pet' || this.reaction === 'brush' ? weight : 0;
     const smooth = 1 - Math.exp(-dt * 12);
     const pulse = Math.sin(t * (dog ? 2.6 : 1.9));
+    const mealBeat=this.routine==='eat'?this.settled:r;
     const playBeat = Math.sin((toyPlay?toyBeat:r) * (dog ? 8 : 5.9));
     const lift = Math.max(0, playBeat) * playful;
     // A fetched ball starts at an actual reachable spot in WORLD space.
@@ -683,12 +699,12 @@ export class PetActor {
       eating * (dog ? 0.027 : 0.053) + nuzzle*.065
       - curled*.075;
     this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x,
-      pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(r * (dog ? 8 : 6)) * 0.09)
+      pulse * 0.018 + eating * ((dog ? 0.61 : 0.49) + Math.sin(mealBeat * (dog ? 8 : 6)) * 0.09)
         - attention * (dog ? 0.13 : 0.26) + (dog ? 0 : 0.22 * playful)
         + sniffing * .43 + grooming * .35 - stretching * .24
          + toyPlay*(toy?.kind==='ball'?.55:.30)-bark*.28-lie*.10+confused*.10 + pickup*.72 + foodLook * .37 + greeting * -.15 + tiredHungry * .12, smooth);
     this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y,
-      (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 +
+      (dog ? 0.27 : 0.38) * Math.sin(t * (dog ? 0.54 : 0.41)) ** 5 * (1-.90*eating)*(1-.9*sleeping) +
         attention * (dog ? 0.15 : -0.24) + (dog ? 0 : playBeat * 0.15 * playful)
         + watching * .24 + lookout*.28 + foodLook * .16 * Math.sin(t * 2.2) + greeting * .10
         + catInterest * Math.sin(t * 1.25) + nuzzle*.26+confused*.58*Math.sin(this.settled*1.9)-stay*.1*Math.sin(t*.54)
@@ -698,9 +714,9 @@ export class PetActor {
       + greeting * .12 + grooming * -.16 + watching * .07
       + pawWave * .11 + begging * .07 * Math.sin(this.idleTime * 4.1)
       + nuzzle*.13*Math.sin(this.idleTime*3.0) + curled*.06+confused*.29, smooth);
-    this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0)-bark*.065 - eating * (0.010 + 0.012 * Math.sin(r * 12))-(toy?.kind==='bone'?toyPlay*.025*(.5+.5*Math.sin(toyBeat*13)):0);
+    this.rig.jaw.position.y = (dog ? -0.007 * pulse : 0)-bark*.065 - eating * (0.010 + 0.012 * Math.sin(mealBeat * 12))-(toy?.kind==='bone'?toyPlay*.025*(.5+.5*Math.sin(toyBeat*13)):0);
     const ownerWag = dog && this.ambient.personNearby && this.ambient.satiety >= 25 &&
-      this.routine !== 'sleep' && this.routine !== 'eat' && this.routine !== 'toilet' ? .48 : 0;
+      this.routine !== 'sleep' && this.routine !== 'eat' && this.routine !== 'toilet' ? .48*(1-sleeping) : 0;
     this.tailPhase = (this.tailPhase + dt * (dog ? 5.2 + 7.8 * playful + 4 * ownerWag
       : 1.7 + 2.2 * playful)) % (2 * Math.PI);
     const flick = Math.sin(this.tailPhase);
@@ -846,7 +862,8 @@ export class PetActor {
         }
       }
     }
-    this.body.position.y+=matNap*this.petBedHeight/this.root.scale.y;
+    this.bedLift=THREE.MathUtils.damp(this.bedLift,matNap*this.petBedHeight,9,dt);
+    this.body.position.y+=this.bedLift/this.root.scale.y;
     if(dog&&(this.bathActive||this.bathLift>0)){
       this.bathLift=THREE.MathUtils.clamp(this.bathLift+dt*(this.bathActive?1:-1)/1.25,0,1);
       if(this.bathActive&&this.bathLift>=.95)this.bathElapsed+=dt;
@@ -858,6 +875,11 @@ export class PetActor {
       this.tail.rotation.y+=w*.28*Math.sin(this.bathElapsed*5);
       if(this.bathElapsed>17){const shake=Math.max(0,Math.sin(this.bathElapsed*1.4))**4;this.body.rotation.z+=w*shake*.055*Math.sin(this.bathElapsed*18);}
     }else if(dog&&!this.dogBed){this.body.rotation.y=0;}
+    if(this.hungerMarker?.visible){
+      this.hungerMarker.position.x=this.body.position.x;
+      this.hungerMarker.position.z=this.body.position.z;
+      this.hungerMarker.position.y+=Math.max(0,this.body.position.y-.081);
+    }
 
   }
 }

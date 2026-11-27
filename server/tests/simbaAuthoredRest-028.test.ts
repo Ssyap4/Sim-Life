@@ -104,3 +104,22 @@ test('actual Blender GLB bends its legs and reclines on sofa, bed, chair and own
   assert.ok((actor.root.children[0] as THREE.Group).scale.z<.9,'mat must use authored curl');
   assert.ok(rig.model.getObjectByName('ForeLPaw'),'mat must retain the real imported bones');
 });
+
+test('real Simba uses a skeletal curl even on a bare floor and unfolds when waking',async()=>{
+ const {actor,rig}=await realSimba();
+ actor.syncGround(0,0);
+ actor.followRoute([],'sleep');
+ for(let i=0;i<120;i++)actor.update(1/60);
+ const body=actor.root.children[0] as THREE.Group;
+ assert.ok(body.scale.z<.9);
+ actor.root.updateMatrixWorld(true);
+ for(const name of ['ForeLPaw','ForeRPaw','HindLPaw','HindRPaw']){
+  const y=rig.model.getObjectByName(name)!.getWorldPosition(new THREE.Vector3()).y;
+  assert.ok(y>-.13&&y<.25,name+' floor support '+y);
+ }
+ actor.stop();actor.update(1/60);
+ assert.ok(body.scale.z<.94,'must not unfold instantly');
+ for(let i=0;i<120;i++)actor.update(1/60);
+ assert.ok(body.scale.z>.99);
+ assert.equal(actor.root.position.y,0);
+});

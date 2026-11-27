@@ -2721,7 +2721,8 @@ export class World {
       }
       const routineKey=routine.kind+':'+routine.startedAt+':'+routine.until+':' +
         (routine.perch?.key??'')+':'+(routine.goal?.x??'')+':'+(routine.goal?.z??'')+
-        ':'+(routine.equipment?.id??'');
+        ':'+(routine.equipment?.id??'')+
+        (routine.kind==='eat'?':'+station.point.x+':'+station.point.z+':'+station.yaw:'');
       if (this.petRoutines.get(id) === routineKey) continue;
       this.petRoutines.set(id, routineKey);
       const distance = Math.max(0, clockMinutes(state.clock) - routine.startedAt) * PET_SPEED[id] / GAME_MINUTES_PER_REAL_SECOND;
@@ -2756,7 +2757,13 @@ export class World {
         const heights:number[]=[];
         for(const offset of [0,-.13,.13,-.23,.23]){
           ray.ray.origin.copy(origin).addScaledVector(sideways,offset);
-          const y=ray.intersectObject(support,true)[0]?.point.y;
+          const y=ray.intersectObject(support,true).find(hit=>{
+            for(let part:THREE.Object3D|null=hit.object;part;part=part.parent){
+              if(!part.visible)return false;
+              if(part===support)break;
+            }
+            return true;
+          })?.point.y;
           if(y!==undefined&&(!perch||Math.abs(y-expected)<.21))
             heights.push(y);
         }
