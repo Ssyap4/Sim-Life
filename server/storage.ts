@@ -1,4 +1,5 @@
 import {isHomeDrink} from '../src/shared/food';
+import {validTableHistory} from '../src/shared/manualTableGames';
 import {validPoolHistory} from '../src/shared/manualPool';
 import {validHockeyHistory} from '../src/shared/manualHockey';
 import {validBowlingHistory} from '../src/shared/manualBowling';
@@ -94,6 +95,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if(state.dartsHistory!==undefined&&!validTableHistory(state.dartsHistory,'darts')||state.jengaHistory!==undefined&&!validTableHistory(state.jengaHistory,'jenga'))return false;
   if(state.poolHistory!==undefined&&!validPoolHistory(state.poolHistory))return false;
   if(state.hockeyHistory!==undefined&&!validHockeyHistory(state.hockeyHistory))return false;
   if(state.bowlingHistory!==undefined&&!validBowlingHistory(state.bowlingHistory))return false;
@@ -435,6 +437,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         relationship: data.relationship ?? initialRelationship(),
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         personalCollections: data.personalCollections ?? {},
+        dartsHistory:data.dartsHistory??[],jengaHistory:data.jengaHistory??[],
         poolHistory:data.poolHistory??[],
         hockeyHistory:data.hockeyHistory??[],
         bowlingHistory:data.bowlingHistory??[],

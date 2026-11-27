@@ -14,6 +14,7 @@ try{
  let s=initialState();s.money=100000;s.autonomy={vlad:'off',alina:'off'};
  const paid=applyServiceCommand(s,'vlad',{type:'service_connect',service:'netflix'});assert.ok(paid.ok);s=paid.state;
  for(const role of ['vlad','alina'])Object.assign(s.characters[role],homeSeat('sofa',role).approach,{pose:'idle',energy:100});
+ s.furnishing.placed.push({id:900,sku:'leisure-darts',finish:'oak',x:10,z:8.6,rotation:0});s.furnishing.nextId=901;
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:.12,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});const errors=[];
@@ -34,6 +35,11 @@ try{
  await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.mediaLibrary?.history.vlad.some(h=>h.id==='knight'&&h.episode===1)),undefined,{timeout:30000});
  assert.equal(files.load().mediaLibrary.history.alina[0].episode,1);
  await catalog(v);await v.getByRole('button',{name:'Продолжить',exact:true}).click();await v.getByRole('button',{name:'Продолжить · С1 Э2',exact:true}).waitFor();await shot(v,'series-progress');await v.getByRole('button',{name:'Закрыть меню',exact:true}).click();
+ await send(v,{type:'social_propose',action:'leisureTogether',item:'900',manual:true});await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='social_pending'&&p.offer.action==='leisureTogether'));
+ const dartsOffer=await a.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='social_pending'&&p.offer.action==='leisureTogether').offer.id);await send(a,{type:'social_reply',inviteId:dartsOffer,choice:0});
+ await v.locator('#manual-table').waitFor({timeout:30000});await a.locator('#manual-table').waitFor();await shot(v,'darts-390');await shot(a,'darts-320');
+ await v.getByRole('button',{name:'Бросить дротик'}).click();await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='table_state'&&p.match.game==='darts'&&p.match.sequence===1));
+ await a.locator('#manual-table').getByRole('button',{name:'Отменить партию'}).click();await v.locator('#manual-table').waitFor({state:'hidden'});
  await send(v,{type:'venue_trip'});await send(a,{type:'venue_trip'});
  await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.world.places.vlad==='venue'&&p.state.world.places.alina==='venue'),undefined,{timeout:30000});
  await send(v,{type:'social_propose',action:'venueBowling',manual:true});
@@ -61,6 +67,7 @@ try{
  await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='hockey_state'&&p.match.pads.vlad.x>.12&&p.match.pads.alina.x<-.12));
  for(const p of [v,a]){
  const size=p.viewportSize(),field=await p.locator('.hockey-table').boundingBox(),cancel=await p.locator('#manual-hockey').getByRole('button',{name:'Отменить партию'}).boundingBox();assert.ok(field&&cancel);assert.ok(field.width>=size.width*.6&&field.y+field.height<=size.height&&cancel.y+cancel.height<=size.height,'hockey field and controls fit portrait');
+ assert.ok(await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#manual-hockey'),{x:field.x+field.width*.5,y:field.y+field.height*.2}),'notifications cannot intercept rink');
  await p.touchscreen.tap(field.x+field.width*.25,field.y+field.height*.2);
  }
  await shot(v,'hockey-vlad-390');await shot(a,'hockey-alina-320');
@@ -74,6 +81,11 @@ try{
  await shot(v,'pool-vlad-390');await shot(a,'pool-alina-320');
  await v.getByRole('button',{name:'Ударить кием'}).click();await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='pool_state'&&p.match.sequence===1&&p.match.moving));
  await a.locator('#manual-pool').getByRole('button',{name:'Отменить партию',exact:true}).click();await v.locator('#manual-pool').waitFor({state:'hidden'});assert.equal(files.load().money,beforePool);assert.deepEqual(errors,[]);
- console.log('068 media, bowling, hockey and pool mobile QA passed');
+ const beforeJenga=files.load().money;await send(v,{type:'social_propose',action:'venueJenga',manual:true});await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='social_pending'&&p.offer.action==='venueJenga'));
+ const jengaOffer=await a.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='social_pending'&&p.offer.action==='venueJenga').offer.id);await send(a,{type:'social_reply',inviteId:jengaOffer,choice:0});
+ await v.locator('#manual-table').waitFor({timeout:30000});await a.locator('#manual-table').waitFor();await v.locator('.jenga-block:not([disabled])').first().click();await shot(v,'jenga-390');await shot(a,'jenga-320');
+ await v.getByRole('button',{name:'Вытащить брусок'}).click();await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='table_state'&&p.match.game==='jenga'&&p.match.sequence===1));
+ await a.locator('#manual-table').getByRole('button',{name:'Отменить партию'}).click();await v.locator('#manual-table').waitFor({state:'hidden'});assert.equal(files.load().money,beforeJenga);assert.deepEqual(errors,[]);
+ console.log('068 media and all five manual games mobile QA passed');
 }catch(e){for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});throw e;}
 finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

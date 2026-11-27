@@ -502,6 +502,7 @@
 .media-catalog-card button{font-size:12px;min-height:40px;white-space:normal}
 
 .manual-bowling{position:fixed;z-index:85;left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));width:min(94vw,410px);max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box;padding:12px;border:1px solid #9fae9a;background:#fcf5e7;color:#233b36;border-radius:18px;box-shadow:0 12px 40px #132f3466;display:grid;gap:8px;touch-action:pan-y}
+#app .manual-bowling{z-index:162}
 .manual-bowling[hidden]{display:none}
 .bowling-heading{display:grid;gap:3px}.bowling-heading small{font-size:11px}
 .bowling-score{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -554,3 +555,20 @@
 .manual-hockey .bowling-status{font-size:12px;text-align:center;min-height:28px;display:grid;place-items:center}
 .manual-hockey .bowling-controls{margin-top:auto;flex-shrink:0}.manual-hockey .bowling-controls button{min-height:38px}
 @media(max-height:600px){.manual-bowling.manual-hockey{gap:4px;padding-top:6px;padding-bottom:6px}.manual-hockey .hockey-table{width:min(calc(100vw - 30px),calc((100dvh - 170px)/2));border-width:4px}.manual-hockey .hockey-score{font-size:17px}.manual-hockey .bowling-status{min-height:22px;font-size:11px}.manual-hockey .bowling-controls button{min-height:34px}}
+
+.manual-table .table-detail{font-size:12px;line-height:1.35;margin:0;text-align:center;color:#4f6257}
+.darts-board{position:relative;width:min(100%,300px,47dvh);aspect-ratio:1;margin:0 auto;touch-action:none;user-select:none;overflow:hidden;border-radius:50%;box-shadow:0 3px 12px #17292338}
+.darts-board canvas{display:block;width:100%;height:100%;pointer-events:none}
+.darts-reticle{position:absolute;width:18px;height:18px;transform:translate(-50%,-50%);border:2px solid #8ce7fc;box-shadow:0 0 0 1px #163f58,0 0 6px #fff;border-radius:50%;pointer-events:none}
+.darts-reticle[hidden]{display:none}
+.darts-reticle:before,.darts-reticle:after{content:'';position:absolute;background:#fff;left:50%;top:50%;transform:translate(-50%,-50%)}.darts-reticle:before{width:24px;height:1px}.darts-reticle:after{width:1px;height:24px}
+.jenga-tower{display:flex;flex-direction:column;align-items:center;justify-content:safe flex-end;gap:2px;padding:7px 14px;min-height:190px;max-height:42dvh;overflow-y:auto;border-radius:10px;background:linear-gradient(180deg,#eee7da,#c8b69e);box-shadow:inset 0 -7px #8f7358}
+.jenga-row{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:min(100%,200px);flex-shrink:0;height:clamp(13px,2.4dvh,22px)}
+.jenga-block{min-height:0!important;padding:0!important;border:1px solid #8d5c36!important;border-radius:3px!important;background:repeating-linear-gradient(5deg,#c9945d 0 5px,#d8ab77 6px 10px)!important;box-shadow:inset 0 1px #fff4,0 1px 2px #6545;touch-action:manipulation}
+.jenga-row:nth-child(even) .jenga-block{background:linear-gradient(100deg,#b77e4c,#d5a873,#ac7448)!important}
+.jenga-block:disabled{opacity:.65}.jenga-block.empty{visibility:hidden}.jenga-block.selected{outline:2px solid #2e8e8a;outline-offset:1px}
+.jenga-meter{height:15px;position:relative;border-radius:6px;background:linear-gradient(90deg,#ae5a4d 0 35%,#d1a462 35% 44%,#8ab59a 44% 56%,#d1a462 56% 65%,#ae5a4d 65%);margin:4px 8px}
+.jenga-meter i{position:absolute;top:-3px;height:21px;width:3px;background:#243c37;border-radius:3px;box-shadow:0 0 2px white}
+.jenga-tower.collapsed .jenga-row{animation:jenga-fall .6s forwards;transform-origin:20% 90%}.jenga-tower.collapsed .jenga-row:nth-child(odd){animation-direction:alternate;animation-name:jenga-fall-other}
+@keyframes jenga-fall{to{transform:translate(24px,60px) rotate(24deg);opacity:.5}}@keyframes jenga-fall-other{to{transform:translate(-22px,40px) rotate(-30deg);opacity:.5}}
+@media(max-height:600px){.manual-table .darts-board{width:min(100%,230px,43dvh)}.jenga-tower{min-height:135px;max-height:39dvh}.jenga-row{height:12px}.manual-table .bowling-controls button{min-height:34px}}

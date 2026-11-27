@@ -99,6 +99,8 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  dartsHistory?: import('./manualTableGames').TableResult[];
+  jengaHistory?: import('./manualTableGames').TableResult[];
   poolHistory?: import('./manualPool').PoolResult[];
   hockeyHistory?: import('./manualHockey').HockeyResult[];
   bowlingHistory?: import('./manualBowling').BowlingResult[];
@@ -220,6 +222,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | import('./manualTableGames').TableCommand
   | import('./manualPool').PoolCommand
   | import('./manualHockey').HockeyCommand
   | import('./manualBowling').BowlingCommand
@@ -280,6 +283,7 @@ export type ServerPacket =
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
+  | {type:'table_state';match:import('./manualTableGames').TableMatch}
   | {type:'pool_state';match:import('./manualPool').PoolMatch}
   | {type:'hockey_state';match:import('./manualHockey').HockeyMatch}
   | {type:'bowling_state';match:import('./manualBowling').BowlingMatch}

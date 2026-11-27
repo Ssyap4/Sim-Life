@@ -1,6 +1,7 @@
 import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {FAMILY_MEMORY_LIMIT} from '../src/shared/familyJournal';
 import {lakeTalkStation} from '../src/shared/socialLife';
+import {recordTable,type TableMatch} from '../src/shared/manualTableGames';
 import {recordPool,type PoolMatch} from '../src/shared/manualPool';
 import {recordHockey,type HockeyMatch} from '../src/shared/manualHockey';
 import {bowlingScore,recordBowling,type BowlingMatch} from '../src/shared/manualBowling';
@@ -71,7 +72,8 @@ export function validRelationship(value:unknown):value is Relationship {
 export function cooperationDenial(state:GameState,from:CharacterId,command:SocialIntent,individual=false):string|undefined {
   const a=SOCIAL_BY_ID.get(command.action);
   if (!a) return 'Неизвестное совместное занятие';
-  if(command.manual&&!['venueBowling','venueHockey','venueBilliards'].includes(command.action))return 'Ручной режим пока недоступен';
+  if(command.manual&&!['venueBowling','venueHockey','venueBilliards','venueJenga','leisureTogether'].includes(command.action))return 'Ручной режим пока недоступен';
+  if(command.manual&&command.action==='leisureTogether'&&!state.furnishing.placed.some(i=>String(i.id)===command.item&&i.sku==='leisure-darts'))return 'Для ручного дартса нужна установленная мишень';
   const restriction=socialRestriction(a,state,from,individual);
   if(restriction) return restriction;
   // Early individual finishing of a legitimately accepted shared meal happens
@@ -99,6 +101,7 @@ export function socialResource(a:SocialActivity,item?:string) { return a.object=
 import {CONSOLE_GAMES,isConsoleGame,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
 import { pairedCookingSeconds } from '../src/shared/cookingProgression';
 export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
+  if(command.manual)return command.action==='venueHockey'?90000:300000;
   if((a.object==='cook'||a.object==='grill')&&command.item&&Object.hasOwn(RECIPES,command.item))return pairedCookingSeconds(command.item as RecipeId)*1000;
   if(a.object==='console'&&isConsoleGame(command.item))return CONSOLE_GAMES[command.item].seconds*1000;
   if(a.object==='read'&&command.item&&Object.hasOwn(BOOKS,command.item))return BOOKS[command.item as BookId][3]*1000;
@@ -402,7 +405,7 @@ export function advanceSharedEvening(state:GameState,action:string,id:string|und
 }
 
 export function completeTogether(source:GameState,from:CharacterId,command:SocialIntent,
-  roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true,bowling?:BowlingMatch,hockey?:HockeyMatch,pool?:PoolMatch):EvaluatedTask{
+  roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true,bowling?:BowlingMatch,hockey?:HockeyMatch,pool?:PoolMatch,table?:TableMatch):EvaluatedTask{
   const a=SOCIAL_BY_ID.get(command.action)!;
   const denial=cooperationDenial(source,roles.length===1?roles[0]:from,command,roles.length===1);
   if(denial) return fail(denial);
@@ -426,12 +429,12 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   switch(a.object){
     case 'venue':{
       if(!isVenueGame(a.id)||roles.length!==2||!remember)return fail('Нужны оба участника');
-      const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if((command.manual?!(a.id==='venueBowling'?bowling?.finished:a.id==='venueHockey'?hockey?.finished:a.id==='venueBilliards'?pool?.finished:false):!match)||state.money<d.price)return fail('Партия недоступна');
+      const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if((command.manual?!(a.id==='venueBowling'?bowling?.finished:a.id==='venueHockey'?hockey?.finished:a.id==='venueBilliards'?pool?.finished:a.id==='venueJenga'?table?.game==='jenga'&&table.finished:false):!match)||state.money<d.price)return fail('Партия недоступна');
       state.money-=d.price;addLedger(state,from,'expense','services',d.price,'PLAY ARENA · '+d.name);
       for(const role of roles)change(state,role,{fun:d.fun,mood:d.mood,energy:d.energy,social:12});
-      const v=pool?pool.score.vlad:hockey?hockey.score.vlad:bowling?bowlingScore(bowling.frames.vlad):0,al=pool?pool.score.alina:hockey?hockey.score.alina:bowling?bowlingScore(bowling.frames.alina):0;
-      const winner=(bowling||hockey||pool)?(v===al?undefined:v>al?'vlad':'alina'):venueWinner(match!);if(winner)change(state,winner,{mood:5});const score=(bowling||hockey||pool)?v+':'+al:venueScore(a.id,match!);
-      if(bowling)recordBowling(state,bowling);if(hockey)recordHockey(state,hockey);if(pool)recordPool(state,pool);
+      const v=table?table.score.vlad:pool?pool.score.vlad:hockey?hockey.score.vlad:bowling?bowlingScore(bowling.frames.vlad):0,al=table?table.score.alina:pool?pool.score.alina:hockey?hockey.score.alina:bowling?bowlingScore(bowling.frames.alina):0;
+      const winner=(bowling||hockey||pool||table)?(v===al?undefined:v>al?'vlad':'alina'):venueWinner(match!);if(winner)change(state,winner,{mood:5});const score=(bowling||hockey||pool||table)?v+':'+al:venueScore(a.id,match!);
+      if(bowling)recordBowling(state,bowling);if(hockey)recordHockey(state,hockey);if(pool)recordPool(state,pool);if(table)recordTable(state,table);
       message=d.name+' · '+(winner==='vlad'?'Влад победил!':winner==='alina'?'Алина победила!':'Ничья!')+(score?' · '+score:'');break;
     }
     case 'breakfastBed':{
@@ -521,7 +524,9 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     case 'leisure': {
       const item=state.furnishing.placed.find(i=>String(i.id)===id),action=item&&leisureAction(item.sku,a.id);
       if(!item||!action||!LEISURE[action].paired)return fail('Предмет для досуга недоступен');
+      if(command.manual&&(!table?.finished||table.game!=='darts'||table.item!==id||roles.length!==2||!remember))return fail('Партия дартса не завершена');
       rejected=each({type:'furniture_use',furnitureId:item.id,action});
+      if(command.manual&&table&&(!rejected||rejected.ok)){recordTable(state,table);const {vlad,alina}=table.score;if(vlad!==alina)change(state,vlad>alina?'vlad':'alina',{mood:5});message='Дартс · '+vlad+':'+alina+' · '+(vlad===alina?'Ничья':vlad>alina?'Влад победил!':'Алина победила!');}
       const skill=LEISURE[action].skill;
       if((!rejected||rejected.ok)&&skill)for(const role of roles)practiceXP(state,role,'coop:leisure:'+action,skill,a.title,12,8);
       if(action==='pingPong'&&roles.length===2&&(!rejected||rejected.ok)){const winner=homes.vlad?.pair?.tennisWinner??badmintonWinner();message=winner==='vlad'?'🏆 Влад победил в настольном теннисе!':'🏆 Алина победила в настольном теннисе!';change(state,winner,{mood:5});}

@@ -39,6 +39,7 @@ export interface ConnectionCallbacks {
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void; onTvFoodDone(role:CharacterId,taskId:number):void;
+  onTableState?(match:import('../shared/manualTableGames').TableMatch):void;
   onPoolState?(match:import('../shared/manualPool').PoolMatch):void;
   onHockeyState?(match:import('../shared/manualHockey').HockeyMatch):void;
   onBowlingState?(match:import('../shared/manualBowling').BowlingMatch):void;
@@ -143,6 +144,7 @@ export class LiveConnection {
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
   inviteMovie(genre: MediaGenre,food?:import('../shared/food').MediaFood,selection?:import('../shared/mediaCatalog').MediaSelection): boolean {return this.sendAuthenticated({type:'movie_invite',genre,food,selection});}
+  tableAction(command:import('../shared/manualTableGames').TableCommand):boolean{return this.sendAuthenticated(command);}
   poolShot(command:import('../shared/manualPool').PoolCommand):boolean{return this.sendAuthenticated(command);}
   hockeyMove(command:import('../shared/manualHockey').HockeyCommand):boolean{return this.sendAuthenticated(command);}
   bowlingRoll(command:import('../shared/manualBowling').BowlingCommand):boolean{return this.sendAuthenticated(command);}
@@ -344,6 +346,7 @@ export class LiveConnection {
         this.callbacks.onTvFoodDone(packet.role,packet.taskId);
       } else if (packet.type === 'need_gain' && this.authorized) {
         this.callbacks.onNeedGain(packet.role,packet.label,packet.effects);
+      } else if(packet.type==='table_state'&&this.authorized){this.callbacks.onTableState?.(packet.match);
       } else if(packet.type==='pool_state'&&this.authorized){this.callbacks.onPoolState?.(packet.match);
       } else if(packet.type==='hockey_state'&&this.authorized){this.callbacks.onHockeyState?.(packet.match);
       } else if(packet.type==='bowling_state'&&this.authorized){this.callbacks.onBowlingState?.(packet.match);
