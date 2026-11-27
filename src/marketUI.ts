@@ -1,3 +1,4 @@
+import {tasteButton} from './foodTasteUI';
 import {isGift,giftCount,pendingGifts,GIFT_LIMIT,FAMILY_GIFTS} from './shared/gifts';
 import { serviceAvailable, SERVICE_MESSAGES } from './shared/services';
 import { findMarketProducts } from './marketSearch';
@@ -360,7 +361,7 @@ export function createMarketUI(
 }
 
 export function showTakeoutChoices(container:HTMLElement,state:GameState,
-  send:(id:TakeoutId)=>boolean, store?:(id:TakeoutId)=>boolean):void {
+  send:(id:TakeoutId)=>boolean, store?:(id:TakeoutId)=>boolean,role?:import('./shared/protocol').CharacterId,favorite?:import('./foodTasteUI').TasteSubmit):void {
   const available=Object.entries(TAKEOUT).filter(([id])=>
     state.readyFood.some(batch=>batch.kind==='takeout'&&batch.item===id&&
       batch.storage==='table'&&batch.portions>0&&batch.expiresAt>clockMinutes(state.clock)));
@@ -372,6 +373,7 @@ export function showTakeoutChoices(container:HTMLElement,state:GameState,
       ()=>send(mealId),'food-action');
     choice.title=TAKEOUT_DESCRIPTIONS[mealId];
     container.append(choice);
+    if(role&&favorite)container.append(tasteButton(state,role,'takeout',mealId,favorite));
     if(store){
       const move=button('🧊 Убрать 1 порцию в холодильник',()=>store(mealId),'food-action');
       container.append(move);

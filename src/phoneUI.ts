@@ -1,3 +1,4 @@
+import {renderFoodTastes,type TasteSubmit} from './foodTasteUI';
 import {PhoneRefreshGate} from './phoneRefreshGate';
 import {renderPersonalCollection} from './personalCollectionUI';
 import {collectionFor} from './shared/personalCollections';
@@ -84,7 +85,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -118,7 +119,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   window.addEventListener('pointerup',release,true);window.addEventListener('pointercancel',release,true);
   window.addEventListener('blur',()=>{refreshGate.reset();queueRefresh();});
   document.addEventListener('visibilitychange',()=>{refreshGate.reset();queueRefresh();});
-  let profileRole:CharacterId='vlad',profileKey='',profileCollection=false;
+  let profileRole:CharacterId='vlad',profileKey='',profileCollection:boolean|'taste'=false;
   let spaKey='',speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   let audioUnsubscribe:(()=>void)|undefined;
   const alarmTimes=new Map<number,string>();
@@ -284,7 +285,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     }
     if(app==='profiles'){
       const id=profileRole,p=PERSONALITIES[id],emotion=residentEmotion(state,id),thought=thoughtFor(state,id);
-      const key=JSON.stringify(profileCollection?[id,role,'collection',collectionFor(state,id),state.education.characters[id].xp,state.education.characters[id].studied,state.world.fishing?.record[id]]:[id,role,emotion,thought,online.includes(id),state.world.places[id],Math.round(state.characters[id].mood)]);
+      const key=JSON.stringify(profileCollection==='taste'?[id,role,'taste',state.foodTastes?.[id]?.favorites]:profileCollection?[id,role,'collection',collectionFor(state,id),state.education.characters[id].xp,state.education.characters[id].studied,state.world.fishing?.record[id]]:[id,role,emotion,thought,online.includes(id),state.world.places[id],Math.round(state.characters[id].mood)]);
       if(key!==profileKey){
         profileKey=key;const scroll=info.scrollTop;
         const tabs=document.createElement('div');tabs.className='profile-tabs';tabs.setAttribute('aria-label','Выбор персонажа');
@@ -303,7 +304,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         const dream=document.createElement('section'),dh=document.createElement('h3'),dp=document.createElement('p');dream.className='profile-dream';dh.textContent='Мечта всей жизни';dp.textContent=p.dream;dream.append(dh,dp);
         const current=document.createElement('section'),ch=document.createElement('h3'),mood=document.createElement('p'),reflection=document.createElement('p');current.className='profile-current';ch.textContent='Сейчас';mood.textContent=emotion.emoji+' '+emotion.label+' · настроение '+Math.round(state.characters[id].mood)+'%';reflection.textContent=thought.emoji+' '+thought.text;current.append(ch,mood,reflection);
         const navigation=document.createElement('div');navigation.className='profile-tabs profile-subtabs';
-        for(const [active,label] of [[false,'О персонаже'],[true,'Коллекции']] as const){const b=document.createElement('button');b.type='button';b.dataset.profileCollection=String(active);b.textContent=label;b.setAttribute('aria-pressed',String(profileCollection===active));b.onclick=()=>{profileCollection=active;profileKey='';info.scrollTop=0;refresh(true);};navigation.append(b);}
+        for(const [active,label] of [[false,'О персонаже'],[true,'Коллекции'],['taste','♥ Вкусы']] as const){const b=document.createElement('button');b.type='button';b.dataset.profileCollection=String(active);b.textContent=label;b.setAttribute('aria-pressed',String(profileCollection===active));b.onclick=()=>{profileCollection=active;profileKey='';info.scrollTop=0;refresh(true);};navigation.append(b);}
+        if(profileCollection==='taste'){renderFoodTastes(card,state,id,role,foodFavorite);info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;refreshClock(view.clock);return;}
         if(profileCollection){renderPersonalCollection(card,state,id);info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;refreshClock(view.clock);return;}
         card.append(header,section('Характер',p.traits),section('Интересы и увлечения',p.interests),dream,section('Любимый питомец',[PETS[p.pet].name]),current);
         info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;

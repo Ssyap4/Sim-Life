@@ -99,6 +99,7 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  foodTastes?: import('./foodTastes').FoodTastes;
   personalCollections?: import('./personalCollections').PersonalCollections;
   dailyHistory?: import('./dailyRoutine').DailyHistory;
   coffeeDaily: CoffeeDaily;
@@ -213,6 +214,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | { type: 'food_favorite'; kind:import('./foodTastes').TasteKind; item:string; enabled:boolean }
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }
   | { type: 'checkout'; lines: import('./market').BasketLine[] }
@@ -283,7 +285,7 @@ export function initialState(): GameState {
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
     ledger: [], weekends:{version:0}, familyLife:initialFamilyLife(), savings: initialFamilyBudget(INITIAL_CLOCK), shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
-    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {}, personalCollections: {},
+    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {}, personalCollections: {}, foodTastes: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     happiness: { vlad: initialHappiness(), alina: initialHappiness() },
     characters: {

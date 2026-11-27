@@ -1,3 +1,4 @@
+import {favoriteFood} from './foodTastes';
 import {recipeAvailability} from './recipeAvailability';
 import {isCatchRecipe} from './lake';
 import {holidayRecipeOpen} from './recipeAvailability';
@@ -168,8 +169,9 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
       add('cozy-home','🧽','Освободить стол','После еды хочется вернуть дому уют.','Помыть посуду',{type:'act',actionId:'kitchenDishes'});
   }
   const recipes=COOKING_ORDER.filter(id=>!isCatchRecipe(id)&&!isGrillRecipe(id)&&recipeAvailability(state,role,id).available&&wishAvailable(state,role,'cook-'+id));
-  const recipe=role==='alina'?recipes[Math.floor(gameMinutes(state.clock)/180)%Math.max(1,recipes.length)]:recipes[0];
-  if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),role==='alina'?'Хочется освоить или повторить интересный рецепт.':'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
+  const favorites=recipes.filter(id=>favoriteFood(state,role,'meal',id));
+  const recipe=favorites.length?favorites[Math.floor(gameMinutes(state.clock)/180)%favorites.length]:role==='alina'?recipes[Math.floor(gameMinutes(state.clock)/180)%Math.max(1,recipes.length)]:recipes[0];
+  if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),favoriteFood(state,role,'meal',recipe)?'Хочется приготовить любимый рецепт.':role==='alina'?'Хочется освоить или повторить интересный рецепт.':'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
   const recent=activeEmotions(state,role)[0]?.kind;
   const emotion=residentEmotion(state,role).id;
   if(person.energy>=35&&person.energy<=75&&(['shift','tense','tired'].includes(recent??emotion)||emotion==='tense'||emotion==='tired'))add('rest-break','🛋️','Немного отдохнуть','После дел хочется перевести дух.','Отдохнуть',furniture(state,'sofa','sofaRest'));

@@ -406,3 +406,16 @@
  .food-recipe-card .food-action small {font-size:11px;line-height:1.5}
  .food-recipe-card details p {white-space:normal;line-height:1.5}
 }
+
+/* Food tastes: separate controls from the cooking and eating commands. */
+.food-recipe-card .taste-favorite,.food-serving-card .taste-favorite,.taste-favorite{
+ min-height:44px; padding:8px 12px; font-size:12px; font-weight:800;
+ color:#77536a; background:#fff8f6; border:1px solid #e8d5dc; border-radius:9px;
+ white-space:normal; text-align:center; justify-content:center;
+}
+.food-recipe-card .taste-favorite{min-height:44px; margin:0; border-top:1px solid #e8d5dc; border-radius:0; text-align:center; align-items:center;}
+.taste-favorite[aria-pressed="true"],.food-recipe-card .taste-favorite[aria-pressed="true"]{background:#f9e3ea;color:#9a345c;border-color:#dfa5bd;}
+.taste-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:8px 0;}
+.taste-controls input,.taste-controls select{width:100%;min-width:0;min-height:44px;font-size:16px;border:1px solid #cbdccc;border-radius:9px;padding:8px;background:#fff;color:#365543;}
+.profile-subtabs:has([data-profile-collection="taste"]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;}
+.profile-subtabs:has([data-profile-collection="taste"]) button{min-width:0;white-space:normal;min-height:44px;font-size:11px;}

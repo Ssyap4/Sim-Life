@@ -937,7 +937,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1523,7 +1523,7 @@ function openPurchasedFurnitureActions(id:number):void{
         : net.food(type,recipe,type==='eat'?id:undefined);
       if(ok)actionsEl.hidden=true;
       return ok;
-    }, active!);
+    }, active!, (kind,item,on)=>net.favoriteFood(kind,item,on));
     showTakeoutChoices(actionsEl,state,product=>{
       const ok=net.eatTakeout(product,id);
       if(ok)actionsEl.hidden=true;
@@ -1532,7 +1532,7 @@ function openPurchasedFurnitureActions(id:number):void{
       const ok=net.world({type:'ready_food_move',kind:'takeout',item:product});
       if(ok)actionsEl.hidden=true;
       return ok;
-    });
+    },active!, (kind,item,on)=>net.favoriteFood(kind,item,on));
   }
   if(info.shape==='desk'){
     const pc=document.createElement('button');
@@ -1620,7 +1620,7 @@ function openActions(item: ItemId): void {
       const sent=net.food(type,id);
       if(sent){actionsEl.hidden=true;statusEl.textContent='Обрабатываем действие…';}
       return sent;
-    },active);
+    },active,(kind,item,on)=>net.favoriteFood(kind,item,on));
   }
   if(item==='basin'&&state&&active==='vlad'){const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state,'vlad')+'% · необязательные процедуры';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='vlad'&&homeCare(id))){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state,'vlad').find(e=>CARE[e.id].group===d.group);b.textContent=d.label+' · '+(old?'Обновить':'+'+d.points+'%')+' · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}}
   if(item==='bathtub'&&state&&active==='alina'){
@@ -1682,7 +1682,7 @@ function openActions(item: ItemId): void {
         statusEl.textContent = 'Обрабатываем действие…';
       }
       return sent;
-    }, active);
+    }, active,(kind,item,on)=>net.favoriteFood(kind,item,on));
   }
 
   if ((item === 'kitchen' || item === 'coffeeMaker') && state && active) {
@@ -1702,7 +1702,7 @@ function openActions(item: ItemId): void {
       const sent=net.world({type:'ready_food_move',kind:'takeout',item:id});
       if(sent)actionsEl.hidden=true;
       return sent;
-    });
+    },active??undefined,(kind,item,on)=>net.favoriteFood(kind,item,on));
 
   }
   if (item === 'bed' && state && active) addBedSleepActions();

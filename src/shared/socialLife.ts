@@ -1,3 +1,4 @@
+import {favoriteFood,favoritePriority} from './foodTastes';
 import {lakeAccess,lakeCampFor,isCatchRecipe,freshFish} from './lake';
 import {CARE_TOPICS,careTopicAvailable} from './vanity';
 import {sharedCoffeeOptions} from './coffee';
@@ -309,7 +310,7 @@ const pairItems = new Set<ObjectActivity>(['breakfastCare','breakfastBed','yardC
 export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pairItems.has(a.object);
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
   if(a.object==='console')return consoleLibrary(state).filter(id=>CONSOLE_GAMES[id].mode!=='solo'&&!consolePlayError(state,id)).map(id=>({id,label:CONSOLE_GAMES[id].name}));
-  if(a.object==='breakfastCare'||a.object==='breakfastBed')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'}));
+  if(a.object==='breakfastCare'||a.object==='breakfastBed')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).sort((a,b)=>favoritePriority(state,otherPerson(from),'meal',a,b)).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'+(favoriteFood(state,otherPerson(from),'meal',id)?' · ♡ Любимое партнёра':'')}));
   if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
   if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku,a.id);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
@@ -331,7 +332,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
       const count=a.object==='eat'?2:1;
       return recipeIds.filter(id=>state.meals[id]>=count&&
         freshPortions(state,'meal',id,a.object==='serve'?'fridge':'table')>=count)
-        .map(id=>({id,label:RECIPES[id].name}));
+        .sort((a,b)=>favoritePriority(state,otherPerson(from),'meal',a,b)).map(id=>({id,label:RECIPES[id].name+(favoriteFood(state,otherPerson(from),'meal',id)?' · ♡ Любимое партнёра':'')}));
     }
     case 'takeout':return Object.entries(TAKEOUT).filter(([id])=>
       state.takeout[id as keyof typeof TAKEOUT]>=2&&freshPortions(state,'takeout',id,'table')>=2)

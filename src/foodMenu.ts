@@ -1,3 +1,5 @@
+import {favoriteFood} from './shared/foodTastes';
+import {tasteButton,tasteLabel,type TasteSubmit} from './foodTasteUI';
 import {freshFish,isCatchRecipe} from './shared/lake';
 import { GROCERIES, RECIPES,isHomeDrink,HOME_DESSERTS, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability,holidayRecipeOpen } from './shared/recipeAvailability';
@@ -32,6 +34,7 @@ export function showFoodChoices(
   state: GameState,
   submit: (type: FoodCommand, id: IngredientId | RecipeId) => boolean,
   role: CharacterId,
+  favorite?: TasteSubmit,
 ): void {
   const heading = document.createElement('div');
   heading.className = 'food-section-heading';
@@ -78,10 +81,11 @@ export function showFoodChoices(
     const results=document.createElement('div');
     // Direct child cards participate in the shared two-column action grid.
     results.className='food-recipe-results';
-    let currentFilter:'all'|'available'|'locked'='all';
+    let currentFilter:'all'|'available'|'locked'|'favorite'='all';
+    const favorites=new Set(recipes.filter(r=>favoriteFood(state,role,'meal',r.id)).map(r=>r.id));
     const category=document.createElement('select');category.setAttribute('aria-label','Категория рецептов');for(const [v,label] of [['all','Все рецепты'],['meal','Основные блюда'],['drink','Напитки'],['dessert','Выпечка и десерты']]){const o=document.createElement('option');o.value=v;o.textContent=label;category.append(o);}category.hidden=location==='grill';category.addEventListener('change',renderRecipes);
     const buttons=([
-      ['all','Все'],['available','Готовить'],['locked','Недоступно'],
+      ['all','Все'],['available','Готовить'],['locked','Недоступно'],['favorite','♥ Любимое'],
     ] as const).map(([filter,label])=>{
       const b=document.createElement('button');
       b.type='button';b.textContent=label;
@@ -101,12 +105,12 @@ export function showFoodChoices(
         const text=(item.recipe.name+' '+ingredients).toLocaleLowerCase('ru-RU').replaceAll('ё','е');
         const kind=isHomeDrink(item.id)?'drink':HOME_DESSERTS.includes(item.id)||['pannaCotta','cremeBrulee','chocolateFondant','birthdayCake','fruitSalad','christmasApples'].includes(item.id)?'dessert':'meal';
         return (category.value==='all'||category.value===kind)&&(!query||text.includes(query))&&
-          (currentFilter==='all'||(currentFilter==='available'?item.availability.available:!item.availability.available));
+          (currentFilter==='all'||(currentFilter==='favorite'?favorites.has(item.id):currentFilter==='available'?item.availability.available:!item.availability.available));
       });
       count.textContent='По сложности ↑ · можно сейчас: '+recipes.filter(item=>item.availability.available).length+
         ' из '+recipes.length+' · показано: '+visible.length;
       buttons.forEach((b,i)=>b.setAttribute('aria-pressed',
-        String(currentFilter===(['all','available','locked'] as const)[i])));
+        String(currentFilter===(['all','available','locked','favorite'] as const)[i])));
       results.replaceChildren();
       if(!visible.length){
         const empty=document.createElement('p');
@@ -121,7 +125,7 @@ export function showFoodChoices(
         cook.type='button';cook.className='food-action';
         cook.disabled=!availability.available;
         const name=document.createElement('strong');
-        name.textContent=recipe.emoji+' '+recipe.name;
+        name.textContent=recipe.emoji+' '+recipe.name+(favorites.has(id)?' ♥':'')+(favoriteFood(state,role==='vlad'?'alina':'vlad','meal',id)?' · ♡ партнёр':'');
         const summary=document.createElement('small');
         const difficulty=COOKING_RECIPES[id];
         summary.textContent=cookingSeconds(id)+' \u0441 \u00b7 '+difficulty.tier+' · ур. '+difficulty.minLevel+' · '+
@@ -139,7 +143,7 @@ export function showFoodChoices(
             ' ×'+quantity+(state.pantry[ingredient]<quantity?
               ' (есть '+state.pantry[ingredient]+')':'')).join(' · ');
         details.append(toggle,paragraph);
-        card.append(cook,details);results.append(card);
+        card.append(cook);if(favorite){const view={...state,foodTastes:{...state.foodTastes,[role]:{favorites:[...favorites].map(x=>'meal:'+x)}}};card.append(tasteButton(view,role,'meal',id,favorite,on=>{if(on)favorites.add(id);else favorites.delete(id);renderRecipes();}));}card.append(details);results.append(card);
       }
     }
     search.addEventListener('input',renderRecipes);
@@ -163,7 +167,7 @@ export function showFoodChoices(
       const card=document.createElement('article');
       card.className='food-serving-card';
       const title=document.createElement('strong');
-      title.textContent=recipe.emoji+' '+recipe.name+' · '+stored.portions+' порц.';
+      title.textContent=recipe.emoji+' '+recipe.name+' · '+stored.portions+' порц.'+tasteLabel(state,role,'meal',id);
       const hint=document.createElement('small');
       hint.textContent='Голод +'+recipe.hunger+' · '+readyFoodRemaining(stored.expiresAt,state.clock)+
         ' · '+(stored.mixed?'Следующая порция: ':'Качество: ')+qualityLabel(stored.quality)+' · на столе портится быстрее';
@@ -171,7 +175,7 @@ export function showFoodChoices(
       actions.className='food-serving-actions';
       entry(actions,'🍽️ Съесть','1 порция · '+qualityLabel(stored.quality),false,()=>submit('eat',id));
       entry(actions,'🧊 Убрать в холодильник','1 порция · холод замедлит порчу',false,()=>submit('store',id));
-      card.append(title,hint,actions);
+      card.append(title,hint,actions);if(favorite)card.append(tasteButton(state,role,'meal',id,favorite));
       container.append(card);
     }
     if (!groups.size) {

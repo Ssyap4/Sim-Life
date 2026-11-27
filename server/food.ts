@@ -1,3 +1,4 @@
+import {applyFavoriteMeal} from '../src/shared/foodTastes';
 import {recordRecipe} from '../src/shared/personalCollections';
 import {freshFish,isCatchRecipe} from '../src/shared/lake';
 import {foodIllness} from '../src/shared/health';
@@ -74,12 +75,13 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     if(!isHomeDrink(id))foodIllness(state,role,portion.quality,random);
     recordEmotion(state,role,effect.fun<0?'mealBad':'mealGood');
     actor.mood = Math.max(0,Math.min(100,actor.mood+effect.mood));
+    const favorite=applyFavoriteMeal(state,role,'meal',id,portion.quality);
     actor.fun = Math.max(0,Math.min(100,actor.fun+effect.fun));
     actor.comfort = Math.min(100, actor.comfort + 4);
     addDirtyDish(state.dirtyDishes, isGrillRecipe(id)||command.drinkSeat==='yardTable' ? 'yardTable' : 'table');
     Object.assign(actor, { ...homeSeat(command.drinkSeat??(isGrillRecipe(id) ? 'yardTable' : 'table'), role).approach,
       pose: 'sit' as const });
-    message = names[role] + ': ' + (isHomeDrink(id)?(role==='vlad'?'выпил':'выпила'):(role==='vlad'?'поел':'поела')) + ' ' + meal.name+' · '+qualityLabel(portion.quality)+(effect.fun<0?' · настроение и досуг '+effect.fun:'');
+    message = names[role] + ': ' + (isHomeDrink(id)?(role==='vlad'?'выпил':'выпила'):(role==='vlad'?'поел':'поела')) + ' ' + meal.name+' · '+qualityLabel(portion.quality)+(effect.fun<0?' · настроение и досуг '+effect.fun:'')+(favorite>0?' · любимое блюдо +'+favorite+' настроения':'');
   }
   state.revision += 1;
   return { ok: true, state, message };
@@ -99,11 +101,12 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
   recordEmotion(state,role,'mealGood');
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);
+  const favorite=applyFavoriteMeal(state,role,'takeout',item);
   actor.comfort=Math.min(100,actor.comfort+4);
   addDirtyDish(state.dirtyDishes, 'table');
   Object.assign(actor,{...homeSeat('table',role).approach,pose:'sit' as const});
   state.revision++;
-  return {ok:true,state,message:names[role]+': '+(role==='vlad'?'поел':'поела')+' '+meal.name};
+  return {ok:true,state,message:names[role]+': '+(role==='vlad'?'поел':'поела')+' '+meal.name+(favorite>0?' · любимое блюдо +'+favorite+' настроения':'')};
 }
 
 
@@ -116,8 +119,9 @@ export function applyTvFood(source:GameState,role:CharacterId,item:MediaFood):Fo
   const meal=TAKEOUT[item as TakeoutId],actor=state.characters[role];
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);
+  const favorite=applyFavoriteMeal(state,role,'takeout',item);
   actor.comfort=Math.min(100,actor.comfort+4);
   recordEmotion(state,role,'mealGood');
   state.revision++;
-  return {ok:true,state,message:meal.name+' · порция съедена'};
+  return {ok:true,state,message:meal.name+' · порция съедена'+(favorite>0?' · любимое блюдо +'+favorite+' настроения':'')};
 }

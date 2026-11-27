@@ -48,6 +48,7 @@ import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
+import {changeFoodFavorite} from '../src/shared/foodTastes';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyFurnishing,layoutBlock,routeHitsLayout,settleLayout } from './furnishing';
@@ -1208,6 +1209,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if (message.type === 'food_favorite') {
+        const result=changeFoodFavorite(state,role,message.kind,message.item,message.enabled);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if(result.state!==state){
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить любимое блюдо'});return;}
+          state=result.state;all({type:'snapshot',state});
+        }
+        return;
+      }
       if (message.type === 'pause_toggle') {
         if (isPaused) { setPaused(false); return; }
         if (pauseRequestedBy === role) { clearPauseRequest(); announceTime(); return; }

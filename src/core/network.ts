@@ -160,6 +160,7 @@ export class LiveConnection {
   playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice,furnitureId?:number):boolean {
     return this.sendAuthenticated({type:'play_game',game,device,...(furnitureId===undefined?{}:{furnitureId})});
   }
+  favoriteFood(kind:import('../shared/foodTastes').TasteKind,item:string,enabled:boolean):boolean {return this.sendAuthenticated({type:'food_favorite',kind,item,enabled});}
   favoriteGame(game: import('../shared/computerGames').ComputerGameId,enabled:boolean):boolean {
     return this.sendAuthenticated({type:'computer_favorite',game,enabled});
   }
