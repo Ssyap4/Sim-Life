@@ -1,0 +1,39 @@
+name: Family chat 0.67 QA
+on:
+  push:
+    branches: [feat/family-messaging-067]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/family-messages-067.test.ts server/tests/food-tastes-066.test.ts server/tests/wardrobe-067.test.ts server/tests/clothing-shop-033.test.ts server/tests/wardrobe-033.test.ts server/tests/blender.test.ts
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-family-messages-067.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chat-mobile-067
+          path: /tmp/simourhome-067-chat
+          retention-days: 7

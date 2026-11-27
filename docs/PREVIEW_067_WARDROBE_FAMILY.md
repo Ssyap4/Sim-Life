@@ -1,3 +1,6 @@
 # 0.67 experimental wardrobe and family memories
 
 Owner approved twelve new outfits, opt-in context dressing, family messaging, and shared photo album. Favorite outfits and laundry rejected. Existing faces and rig retained. New garment geometry appended to approved remake assets in cloud; do not run heavy local Blender or WebGL. Auto appearance derives from synchronized state, no physical walk-to-cabinet animation. Main untouched. Messaging and photos subsequent stages.
+
+## Messaging stage
+Server persisted conversation (160 most recent messages, max 400 UTF-16 code units each), per-role read cursor, offline recipient login, authenticated sender, literal text rendering, local per-role draft, recipient notifications to chat, no economy/needs effects. Local 18/18 focused tests including real WebSocket restart. Wardrobe cloud run 46075647584 passed export/functional/48 pose captures; exported assets 2aac6ed merged. Actual idle/sit samples reviewed: robe looks too much like short tunic over shorts; olympic jacket opening too small, needs refinement. Photos not started. Main untouched.
