@@ -11,7 +11,7 @@ const profiles:Partial<Record<PlaceId,FinishProfile>>={
  electronics:{...room(0x506a7b,0x8097a4,'#486579'),right:11},
  clinic:room(0x659794,0x93b5ac,'#508a84'),
  barber:room(0xb1936c,0x755b49,'#4e4b43'),
- education:room(0x8e876c,0xb3aa94,'#688579'),
+ education:{...room(0x8e876c,0xb3aa94,'#688579'),top:2.55,rear:-4.80},
  'work-it':room(0x728a85,0x9caca8,'#536f68'),
  'work-marketing':room(0x987b83,0xba9aa1,'#987b83'),
  'work-detail':room(0x52646c,0x879697,'#52646c'),

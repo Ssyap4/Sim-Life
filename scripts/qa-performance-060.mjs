@@ -73,10 +73,10 @@ try{
  // The 0.61 audit adds the remaining active destinations. These synthetic
  // snapshots isolate rendering/resource lifetimes, not server travel rules.
  if(process.env.SIM_LOCATION_AUDIT==='1'){
-  for(const place of ['cafe','petshop','electronics','clothing','lake','fitness','spa','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic']){
+  for(const place of ['market','park','cafe','petshop','electronics','clothing','lake','fitness','spa','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic']){
    await go(place,place+'-audit');
    await page.screenshot({path:join(out,place+'-audit.png')});
-    if(['cafe','petshop','clothing','electronics','venue','fitness','spa','barber','clinic'].includes(place)){
+    if(['market','park','lake','cafe','petshop','clothing','electronics','venue','fitness','spa','barber','clinic','industrial','education','work-it','work-detail','work-marketing','work-clinic'].includes(place)){
      for(const view of ['rear','fixture']){
       await canvas.evaluate((c,v)=>c.dataset.shopDetailView=v,view);
       await page.waitForTimeout(500);

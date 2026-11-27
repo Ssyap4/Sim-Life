@@ -3381,6 +3381,15 @@ export class World {
         spa:{rear:{target:[-.8,.75,-3.5],eye:[.1,6.8,7.5]},fixture:{target:[7.4,.95,-3.3],eye:[8.9,3.5,1.6]}},
         barber:{rear:{target:[0,1.1,-3.4],eye:[.3,4.2,5.0]},fixture:{target:[-5.3,1.25,0],eye:[.4,3.7,2.8]}},
         clinic:{rear:{target:[0,1.0,-3.4],eye:[.25,4.2,5.2]},fixture:{target:[3.7,.95,-2.9],eye:[5.15,3.5,1.7]}},
+        education:{rear:{target:[0,1,-3.4],eye:[.2,4.2,5.3]},fixture:{target:[-4.25,1.05,-4.7],eye:[-2.95,2.7,-.6]}},
+        'work-it':{rear:{target:[0,1,-3.4],eye:[.2,4.2,5.3]},fixture:{target:[-3.9,1,-4.7],eye:[-2.6,2.8,-.4]}},
+        'work-detail':{rear:{target:[0,1,-3.4],eye:[.2,4.2,5.3]},fixture:{target:[2.9,.65,-1.38],eye:[4.5,3.8,3.9]}},
+        'work-marketing':{rear:{target:[0,1,-3.4],eye:[.2,4.2,5.3]},fixture:{target:[3.88,1.0,-4.7],eye:[4.85,2.9,-.3]}},
+        'work-clinic':{rear:{target:[0,1,-3.4],eye:[.2,4.2,5.3]},fixture:{target:[-3.9,1,-4.7],eye:[-2.7,2.8,-.4]}},
+        industrial:{rear:{target:[0,1.6,-2.6],eye:[.2,7.5,12]},fixture:{target:[-4.65,1.3,-.4],eye:[-2.9,3.9,5.2]}},
+        market:{rear:{target:[-5.8,1.4,-1.5],eye:[1.2,3.9,2.1]},fixture:{target:[0,.9,1.85],eye:[1.3,3.1,5.2]}},
+        park:{rear:{target:[2.52,.1,3.75],eye:[4.5,6.1,8.5]},fixture:{target:[-2.68,.1,.37],eye:[-.5,4.8,5.0]}},
+        lake:{rear:{target:[-10,.3,-8],eye:[-6.9,5.2,-2.4]},fixture:{target:[3.3,.15,4],eye:[.5,4.3,8.2]}},
       };
       const view=v?views[this.place]?.[v]:undefined;
       if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}

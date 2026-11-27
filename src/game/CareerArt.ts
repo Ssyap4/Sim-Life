@@ -202,8 +202,8 @@ export function buildCareerPlace(place: CareerPlace, root: THREE.Group, people: 
     {it:'Внутренние проекты',detail:'Приёмка и уход',marketing:'Кампании и аналитика',clinic:'Приём и наблюдение'}[id]);
   for (const x of [-.85,.86]) trim(root,[.71,.064,.16],[x,2.73,-4.784],pale);
   if (id==='detail') for (const x of [.43,2.9]) {
-    trim(root,[1.40,.09,.22],[x,2.67,-3.45],frame);
-    part(root,[1.29,.029,.16],[x,2.619,-3.45],0xf1dfb6);
+    trim(root,[1.40,.09,.22],[x,2.67,-4.70],frame);
+    part(root,[1.29,.055,.035],[x,2.67,-4.565],0xf1dfb6);
   }
   plant(root,5.18,-4.34,scheme.accent); plant(root,-5.33,3.74,scheme.accent);
   for (const [i,{x,z,w,d}] of (WORK_DECOR[place] ?? []).entries()) {
