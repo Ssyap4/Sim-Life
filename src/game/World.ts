@@ -3342,7 +3342,7 @@ export class World {
 
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('sideWallsQA')==='1'){
       const v=this.canvas.dataset.wallView;
-      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:v==='study'?{target:[7.2,1.1,-5.5],eye:[4.8,4.7,.0]}:v==='wing'?{target:[12.6,1,-1.7],eye:[19,7,5.4]}:v==='passages'?{target:[-4.35,1,.2],eye:[.2,3.8,5.8]}:undefined;
+      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:v==='study'?{target:[7.2,1.1,-5.5],eye:[4.8,4.7,.0]}:v==='wing'?{target:[12.6,1,-1.7],eye:[19,7,5.4]}:v==='passages'?{target:[-4.35,1,.2],eye:[.2,3.8,5.8]}:v==='kitchen'?{target:[.6,1.25,-6.8],eye:[3.5,4.0,-.8]}:v==='bath'?{target:[7.4,1,1.7],eye:[2.4,4.2,4.2]}:v==='wc'?{target:[-7.3,.8,3.2],eye:[-2.7,3.5,6.6]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
@@ -3353,7 +3353,10 @@ export class World {
     if(this.place==='lake'&&this.remote){const occupied=new Set<string>();for(const r of ['vlad','alina'] as const){const actor=this.actors[r];if(!actor.root.visible||actor.audioMotion().pose!=='sleep')continue;for(const [id,g] of this.remote.stations)if(g.userData.tents&&Math.hypot(actor.root.position.x-g.position.x,actor.root.position.z-g.position.z)<2.5)occupied.add(id);}syncLakeCutaway(this.remote.stations,occupied);}
         if(this.place==='home'){
       this.sideWalls.update(this.camera.position.x,this.controls.target.x);
-      if(this.cameraQA)this.canvas.dataset.sideWalls=JSON.stringify(this.sideWalls.walls.map(w=>[w.side,w.upper.visible,w.cutCap.visible]));
+      if(this.cameraQA){
+        this.canvas.dataset.sideWalls=JSON.stringify(this.sideWalls.walls.map(w=>[w.side,w.upper.visible,w.cutCap.visible]));
+        this.canvas.dataset.cottageLampLevel=String((this.cottageLamps?.bedroom.intensity??0)/10);
+      }
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }

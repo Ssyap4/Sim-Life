@@ -233,6 +233,13 @@ function makeKitchen(): THREE.Group {
     herb.blade(i%2?0x668c70:0x93a676,tip,[.043,.065,.097],a,.28);
   }
   herb.attach(kitchen,'Shelf herbs');
+  // Stacked ceramic saucers and two cups on the upper shelf, never on a work target.
+  for(let i=0;i<4;i++)round(kitchen,.104,.022,[1.15,2.216+i*.027,-.29],i%2?C.linen:C.stone,'ceramic');
+  round(kitchen,.059,.095,[1.10,2.366,-.30],0xc1926d,'ceramic');
+  const cupHandle=ring(kitchen,.039,[1.17,2.366,-.30],C.brass);
+  cupHandle.rotation.y=Math.PI/2;
+  round(kitchen,.052,.082,[1.37,2.248,-.30],C.paleSage,'ceramic');
+  ring(kitchen,.033,[1.43,2.248,-.30],C.brass).rotation.y=Math.PI/2;
   // Recessed range-hood filter, small steel rails and control lights.
   part(kitchen,[.83,.010,.19],[-.57,1.636,-.27],0x72817a,'soft',false,'metal');
   for(const x of [-.83,-.57,-.31])

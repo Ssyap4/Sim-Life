@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {HOUSE} from '../shared/home';
+import {HOUSE,COUNTER} from '../shared/home';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {cube,softCube,drum,finish,paintedMap,batchRigidParts} from './ArtKit';
 /** Visible warm practicals with a single additional shadowless light.
@@ -33,6 +33,13 @@ export function buildCottageLights(scene:THREE.Scene){
  // evening glow without extra punctual lights or shadow-map passes.
  if(map)for(const [x,z,w,d] of [[2.39,-2.22,3.5,3.0],[-2.36,1.0,3.7,3.2],[7.1,-4.4,3.0,3.0],[7.6,2.5,3.4,3.4],[-7.3,3.35,2.8,2.4],[-6.5,-3.95,4.0,4.0],[-7.0,.2,3.7,2.8],[12.62,-5.35,4.7,3.0],[12.62,-1.3,4.7,3.4],[12.62,3.1,4.7,3.4]]){
   const p=new THREE.PlaneGeometry(w,d);p.rotateX(-Math.PI/2);p.translate(x,.038,z);glowParts.push(p);
+ }
+ // Thin under-cabinet strips illuminate the existing backsplash with one
+ // painted glow batch. No extra lights, dynamic shadows or render passes.
+ for(const x of [.45,1.20,1.86]){
+  const body=new THREE.Mesh(cube,metal);body.scale.set(.55,.026,.067);body.position.set(COUNTER.x+x,1.604,COUNTER.z-.18);group.add(body);
+  const lens=new THREE.Mesh(cube,diffuser);lens.scale.set(.50,.012,.048);lens.position.set(COUNTER.x+x,1.585,COUNTER.z-.18);group.add(lens);
+  if(map)glowParts.push(new THREE.PlaneGeometry(.82,.55).translate(COUNTER.x+x,1.34,COUNTER.z-.397));
  }
  batchRigidParts(group);
  if(glowParts.length){const geo=mergeGeometries(glowParts);for(const p of glowParts)p.dispose();if(geo){const mesh=new THREE.Mesh(geo,glowMat);mesh.raycast=()=>{};glows.add(mesh);}}

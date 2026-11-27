@@ -5,6 +5,9 @@ on:
     paths:
       - 'src/game/HomeSideWalls.ts'
       - 'src/game/HomeFinish.ts'
+      - 'src/game/BathroomArt.ts'
+      - 'src/game/InteriorArt.ts'
+      - 'src/game/CottageLights.ts'
       - 'src/game/HomeStyling.ts'
       - 'src/game/HomeWing.ts'
       - 'src/game/HomeFrame.ts'

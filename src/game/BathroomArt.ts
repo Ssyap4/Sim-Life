@@ -36,6 +36,21 @@ function toilet(root: THREE.Group): void {
   part(root, [.64, .016, .23], [0, .024, .57], 0xb38672, 'fabric');
 }
 
+function showerTileMap(){
+ return paintedMap('bath-shower-tile-061',256,384,ctx=>{
+  ctx.fillStyle='#809a90';ctx.fillRect(0,0,256,384);
+  const tones=['#c9dbd1','#b9d1c5','#d6e0d3','#aac5b9'];
+  for(let row=0;row<8;row++)for(let col=-1;col<5;col++){
+   const x=col*64+(row%2)*32,y=row*48;
+   const g=ctx.createLinearGradient(0,y+1,0,y+47);
+   g.addColorStop(0,'#e1e9dc');g.addColorStop(.14,tones[(row*3+col+4)%4]);g.addColorStop(1,'#a8bfb2');
+   ctx.fillStyle=g;ctx.fillRect(x+1,y+1,62,46);
+   ctx.fillStyle='#f6f7ea55';ctx.fillRect(x+2,y+2,60,1);
+  }
+  ctx.fillStyle='#78998e';ctx.fillRect(0,142,256,5);
+  ctx.fillStyle='#e3e7d5';ctx.fillRect(0,143,256,1);
+ });
+}
 function shower(root: THREE.Group): void {
   part(root, [1.47, .078, 1.40], [0, .032, 0], porcelain);
   part(root, [1.32, .016, 1.23], [0, .074, 0], glaze, 'ceramic', cube);
@@ -53,9 +68,17 @@ function shower(root: THREE.Group): void {
     part(root, [.052, 1.96, .051], [.70, 1.03, z], C.pine, 'metal');
   }
   part(root, [.06, 2.02, 1.37], [.70, 1.05, 0], 0xacc4b7, 'ceramic', cube);
+  // One textured insert, inside the existing enclosure and behind the mixer.
+  const tile=panel(root,[.666,1.05,0],[1.35,1.99],showerTileMap(),0xb9d1c5);
+  tile.rotation.y=-Math.PI/2;
+  for(const z of [-.63,.63])part(root,[.015,2,.022],[.655,1.05,z],chrome,'metal',cube);
   part(root, [.031, 1.36, .031], [.62, 1.49, .16], chrome, 'metal', drum);
   part(root, [.29, .036, .034], [.50, 2.15, .16], chrome, 'metal');
   part(root, [.14, .036, .14], [.36, 2.12, .16], chrome, 'metal', drum);
+  // Rain head: dark nozzle plate and shallow chrome rim, above the standing rig.
+  part(root,[.133,.008,.133],[.36,2.098,.16],0x526761,'metal',drum);
+  for(const x of [-.065,0,.065])for(const z of [-.065,0,.065])
+    part(root,[.011,.008,.011],[.36+x,2.092,.16+z],chrome,'metal',drum);
   part(root, [.043, .076, .076], [.596, 1.06, .16], C.pine, 'metal');
   part(root, [.18, .047, .34], [.59, 1.26, -.34], porcelain);
   part(root, [.085, .15, .085], [.57, 1.36, -.38], C.clay, 'ceramic', drum);
@@ -123,6 +146,14 @@ function basin(root: THREE.Group): void {
   for(const side of [-1,1])part(root,[.026,.80,.022],[side*.455,1.662,-.224],chrome,'metal',cube);
   part(root,[.20,.032,.15],[-.43,.85,.12],0xb4a191,'fabric');
   part(root, [.104, .154, .10], [.46, .906, -.12], C.clay);
+  part(root,[.036,.04,.036],[.46,1.001,-.12],chrome,'metal',drum);
+  part(root,[.072,.022,.028],[.478,1.026,-.12],chrome,'metal',cube);
+  // Toothbrush cup stays at the back edge, clear of the shared wash target.
+  part(root,[.073,.115,.073],[-.44,.89,-.13],0x88a7a1,'ceramic',drum);
+  for(const [x,color] of [[-.467,C.paper],[-.414,C.pine]]){
+    part(root,[.022,.18,.022],[x,1.02,-.13],color,'ceramic',cube);
+    part(root,[.028,.051,.035],[x,1.095,-.112],porcelain,'ceramic',cube);
+  }
 }
 
 function wcBasin(root: THREE.Group): void {
