@@ -59,3 +59,10 @@ test('planner persisted on reconnect, older saves migrate, prices match real act
  assert.equal(validWeekendState({version:1,plan:{...s.weekends!.plan,done:['pool']}}),false);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('062 legacy plan activities cannot be credited when the participants are at different places',()=>{
+ const s=apply(proposal(),'alina','weekend_accept');
+ s.world.places.alina='park';creditWeekendTogether(s,'yardHookah');creditWeekendTogether(s,'consoleTogether','ufc6');
+ assert.deepEqual(s.weekends?.plan?.done,[]);
+ s.world.places.alina='home';creditWeekendTogether(s,'yardHookah');assert.deepEqual(s.weekends?.plan?.done,['hookah']);
+});

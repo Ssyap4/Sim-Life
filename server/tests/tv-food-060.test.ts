@@ -180,3 +180,28 @@ test('Sofa dining is visible to the pets only while actual food presentation is 
   r.advance(90000);assert.equal(r.s.diners().size,0);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
  }finally{r.s.dispose();}
 });
+test('062 paired film with food completes agreed cinema and the existing shared evening only when both finish',()=>{
+ const r=rig(2),s=r.state();
+ s.weekends={version:1,plan:{version:1,author:'vlad',preset:'custom',items:['film','evening'],done:[],approved:['vlad','alina'],finishVotes:[],createdAt:0}};
+ s.relationship.evening={kind:'leftovers',recipe:'omelette',phase:'unwind',startedAt:0,occasion:'ordinary'};
+ try{
+  r.invite('comedy');r.arrive();r.advance(90000);
+  assert.deepEqual(r.state().weekends!.plan!.done,[]);
+  assert.equal(r.state().relationship.evening!.phase,'unwind');
+  assert.ok(r.state().dailyHistory?.vlad?.keys.includes('breakfast'));
+  assert.ok(r.state().dailyHistory?.alina?.keys.includes('breakfast'));
+  r.advance(30000);
+  assert.deepEqual(r.state().weekends!.plan!.done,['film']);
+  assert.equal(r.state().relationship.evening!.phase,'complete');
+  assert.equal(r.state().relationship.memories.filter(m=>m.action==='homeEvening').length,1);
+ }finally{r.s.dispose();}
+});
+test('062 cancelled paired film never completes the shared plan or evening for solo remaining viewer',()=>{
+ const r=rig(2),s=r.state();
+ s.weekends={version:1,plan:{version:1,author:'vlad',preset:'custom',items:['film'],done:[],approved:['vlad','alina'],finishVotes:[],createdAt:0}};
+ s.relationship.evening={kind:'leftovers',recipe:'omelette',phase:'unwind',startedAt:0,occasion:'ordinary'};
+ try{r.invite('comedy');r.arrive();r.advance(30000);r.s.cancel('vlad','cancel');r.advance(90000);
+  assert.deepEqual(r.state().weekends!.plan!.done,[]);
+  assert.equal(r.state().relationship.evening!.phase,'unwind');
+ }finally{r.s.dispose();}
+});

@@ -27,6 +27,7 @@ import { planWalk, sampleWalk, type WalkRoute } from '../src/game/navigation';
 import { otherRole } from './social';
 import { electronicsModel } from "../src/shared/electronics";
 import { entertainmentReward, evaluateTask, planTask, type TaskPlan } from './tasks';
+import {advanceSharedEvening} from './society';
 import {creditWeekendTogether,creditWeekend} from '../src/shared/weekends';
 import {creditHobby,creditCelebration,creditLifeEvent} from '../src/shared/familyLife';
 import {recordCompletedActivity} from '../src/shared/emotions';
@@ -383,7 +384,12 @@ export function createHomeSessions(hooks: Hooks) {
     }
     const media=session.plan.command;
     if(session.participants.length===2&&(media.type==='movie'||media.type==='youtube')&&media.food){
-      addRelationship(next,SOCIAL_BY_ID.get(media.type==='movie'?'film':'youtube')!,0);
+      const action=media.type==='movie'?'film':'youtube';
+      addRelationship(next,SOCIAL_BY_ID.get(action)!,0);
+      creditWeekendTogether(next,action);
+      const celebrated=creditCelebration(next,action);
+      const evening=advanceSharedEvening(next,action,undefined);
+      for(const result of results)result.message+=evening+(celebrated.length?' · 🎉 '+celebrated.join(', '):'');
     }
     try { hooks.save(next); }
     catch { end(session, 'failed', 'Не удалось сохранить результат'); return; }
@@ -413,6 +419,7 @@ export function createHomeSessions(hooks: Hooks) {
       const completedMoment=session.cooperation?.moment;
       addRelationship(result.state,SOCIAL_BY_ID.get(command.action)!,choice,!!completedMoment);
       if(completedMoment)result.message+=momentReward(result.state,from,completedMoment);
+      result.message+=advanceSharedEvening(result.state,command.action,command.item);
     }
     if(!session.participants[0]?.packet.automatic&&(roles.length===2||session.finishedTogether)){
       creditWeekendTogether(result.state,command.action,command.item);
@@ -466,7 +473,7 @@ export function createHomeSessions(hooks: Hooks) {
     const served:Participant[]=[];
     for(const member of session.participants){
       const result=applyTvFood(next,member.role,food);
-      if(result.ok){next=result.state;served.push(member);}
+      if(result.ok){next=result.state;recordDailyCompletion(next,member.role,{type:'eat_takeout',item:food});served.push(member);}
       else error(member.socket,result.reason);
     }
     if(served.length){

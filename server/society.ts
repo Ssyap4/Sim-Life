@@ -351,6 +351,52 @@ export function parkConversation(source:GameState,from:CharacterId,topic:SocialA
   next.revision++;return next;
 }
 
+/** Advances the same existing evening after any fully completed shared activity. */
+export function advanceSharedEvening(state:GameState,action:string,id:string|undefined,roles:readonly CharacterId[]=['vlad','alina']):string {
+  let message='';const now=gameMinutes(state.clock);
+      const evening=state.relationship.evening;
+      if(evening?.phase==='prepare'&&action==='cook'&&id===evening.recipe){
+        evening.phase='dine';
+        message+=' · 🍽️ Ужин готов: пригласите друг друга к столу';
+      } else if(evening?.phase==='dine'&&action===eveningDinnerAction(evening)&&id===eveningDishId(evening)){
+        evening.phase='unwind';
+        message+=' · ✨ Теперь можно отдохнуть вдвоём';
+      } else if(evening?.phase==='unwind'&&[
+        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet','sofaMassage','sofaHug','teaTogether','yardTea',
+      ].includes(action)){
+        evening.phase='complete';
+        evening.completedAt=now;
+        const meal=eveningMealName(evening).toLowerCase();
+        const opening=evening.kind==='takeout'?'разделили доставку':
+          evening.kind==='leftovers'?'поужинали готовым блюдом':'приготовили ужин';
+        const ending=action==='film'?'посмотрели фильм':action==='tv'?'посмотрели телевизор':
+          action==='youtube'?'посмотрели видео':action==='slowDance'?'потанцевали':
+          action==='cuddle'||action==='sofaHug'?'посидели в обнимку':action==='teaTogether'||action==='yardTea'?'выпили чай вместе':
+          action==='eveningHeartTalk'?'поговорили по душам':action==='sofaMassage'?'расслабились за массажем':
+          action==='read'?'почитали рядом':
+          action==='petPlay'||action==='petPet'?'провели время с '+(PETS[id as PetId]?.name??'питомцем'):
+          'поговорили на диване';
+        // One lasting memory and extra reward per 240 game minutes; ordinary activities still work.
+        const recent=state.relationship.memories.some(m=>m.action==='homeEvening'&&now-m.at<BOND_WINDOW);
+        if(!recent) {
+          const occasion=evening.occasion==='comfort'&&evening.attentionTo?
+            ' Было важно поддержать '+(evening.attentionTo==='alina'?'Алину':'Влада')+'.':
+            evening.occasion==='rest'?' Удалось отвлечься и восстановить силы.':'';
+          state.relationship.memories.push({action:'homeEvening',group:'romance',at:now,
+            title:evening.occasion==='comfort'?'Вечер заботы':'Наш вечер вдвоём',
+            description:'Вместе '+opening+' — '+meal+', а потом '+ending+'.'+occasion});
+          state.relationship.memories=state.relationship.memories.slice(-MEMORY_LIMIT);
+          for(const member of roles)change(state,member,{mood:5,social:4,comfort:4});
+          if(evening.attentionTo==='vlad'||evening.attentionTo==='alina') {
+            if(evening.occasion==='comfort')change(state,evening.attentionTo,{mood:4,social:3});
+            if(evening.occasion==='rest')change(state,evening.attentionTo,{energy:4,comfort:3});
+          }
+        }
+        message+=recent?' · 💛 Ещё один хороший вечер вместе':' · 💛 Тёплый вечер сохранён в воспоминаниях';
+      }
+  return message;
+}
+
 export function completeTogether(source:GameState,from:CharacterId,command:SocialIntent,
   roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true):EvaluatedTask{
   const a=SOCIAL_BY_ID.get(command.action)!;
@@ -525,48 +571,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
         startedAt:now,occasion:focus,attentionTo:focus==='ordinary'?undefined:partner};
       message='Вечер запланирован · '+eveningMealName(state.relationship.evening)+
         (choice.kind==='cook'?' · приготовьте вместе':' · уже на столе, зовите друг друга ужинать');
-    } else {
-      const evening=state.relationship.evening;
-      if(evening?.phase==='prepare'&&a.id==='cook'&&id===evening.recipe){
-        evening.phase='dine';
-        message+=' · 🍽️ Ужин готов: пригласите друг друга к столу';
-      } else if(evening?.phase==='dine'&&a.id===eveningDinnerAction(evening)&&id===eveningDishId(evening)){
-        evening.phase='unwind';
-        message+=' · ✨ Теперь можно отдохнуть вдвоём';
-      } else if(evening?.phase==='unwind'&&[
-        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet','sofaMassage','sofaHug','teaTogether','yardTea',
-      ].includes(a.id)){
-        evening.phase='complete';
-        evening.completedAt=now;
-        const meal=eveningMealName(evening).toLowerCase();
-        const opening=evening.kind==='takeout'?'разделили доставку':
-          evening.kind==='leftovers'?'поужинали готовым блюдом':'приготовили ужин';
-        const ending=a.id==='film'?'посмотрели фильм':a.id==='tv'?'посмотрели телевизор':
-          a.id==='youtube'?'посмотрели видео':a.id==='slowDance'?'потанцевали':
-          a.id==='cuddle'||a.id==='sofaHug'?'посидели в обнимку':a.id==='teaTogether'||a.id==='yardTea'?'выпили чай вместе':
-          a.id==='eveningHeartTalk'?'поговорили по душам':a.id==='sofaMassage'?'расслабились за массажем':
-          a.id==='read'?'почитали рядом':
-          a.id==='petPlay'||a.id==='petPet'?'провели время с '+(PETS[id as PetId]?.name??'питомцем'):
-          'поговорили на диване';
-        // One lasting memory and extra reward per 240 game minutes; ordinary activities still work.
-        const recent=state.relationship.memories.some(m=>m.action==='homeEvening'&&now-m.at<BOND_WINDOW);
-        if(!recent) {
-          const occasion=evening.occasion==='comfort'&&evening.attentionTo?
-            ' Было важно поддержать '+(evening.attentionTo==='alina'?'Алину':'Влада')+'.':
-            evening.occasion==='rest'?' Удалось отвлечься и восстановить силы.':'';
-          state.relationship.memories.push({action:'homeEvening',group:'romance',at:now,
-            title:evening.occasion==='comfort'?'Вечер заботы':'Наш вечер вдвоём',
-            description:'Вместе '+opening+' — '+meal+', а потом '+ending+'.'+occasion});
-          state.relationship.memories=state.relationship.memories.slice(-MEMORY_LIMIT);
-          for(const member of roles)change(state,member,{mood:5,social:4,comfort:4});
-          if(evening.attentionTo==='vlad'||evening.attentionTo==='alina') {
-            if(evening.occasion==='comfort')change(state,evening.attentionTo,{mood:4,social:3});
-            if(evening.occasion==='rest')change(state,evening.attentionTo,{energy:4,comfort:3});
-          }
-        }
-        message+=recent?' · 💛 Ещё один хороший вечер вместе':' · 💛 Тёплый вечер сохранён в воспоминаниях';
-      }
-    }
+    } else message+=advanceSharedEvening(state,a.id,id,roles);
     for(const role of roles) {
       const response=role===to&&a.group==='care'?
         choice===1?{social:5,mood:2,comfort:5}:choice===2?{social:2,comfort:3}:socialEffects.care:

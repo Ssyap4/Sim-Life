@@ -77,7 +77,7 @@ export function creditWeekendTogether(s:GameState,action:string,item?:string){
  const p=s.weekends?.plan;
  if(exact&&p?.items.includes(exact)&&WEEKEND_ACTIVITIES[exact].place===s.world.places.vlad&&s.world.places.vlad===s.world.places.alina){creditWeekend(s,exact);return;}
  const id=action==='eat'&&item&&['omelette','toast','porridge','sandwich','pancakes','fruitSalad'].includes(item)?'breakfast':action==='consoleTogether'&&item==='ufc6'?'ufc':action==='walk'&&s.world.places.vlad==='park'&&s.world.places.alina==='park'&&s.world.dogWalker?'dog':map[action];
- if(id)creditWeekend(s,id);
+ if(id&&s.world.places.vlad===WEEKEND_ACTIVITIES[id].place&&s.world.places.alina===WEEKEND_ACTIVITIES[id].place)creditWeekend(s,id);
 }
 export function creditWeekendSpa(s:GameState){
  if(s.world.places.vlad==='spa'&&s.world.places.alina==='spa'&&(['vlad','alina'] as const).every(r=>s.world.spa?.[r]?.used.some(a=>a!=='spaLocker'&&a!=='spaShower')))creditWeekend(s,'spa');

@@ -1,3 +1,6 @@
+# ACTIVE OWNER POLICY - 27 Nov 2026 - FEATURE AUDIT AND POLISH
+Owner explicitly requires checking implemented code, current UI/server handlers, tests, release history and handoff before proposing features; never suggest existing features as new. See AGENTS.md and docs/FEATURE_CHECK_BEFORE_PROPOSALS.md. Current 0.62 direction: no new systems, maximize polish of what exists. Existing family savings rework deferred; deep careers remain deferred until explicitly approved. See docs/PREVIEW_062_FAMILY_STORY.md for preview history.
+
 # ACTIVE OWNER POLICY - 27 Nov 2026 - overrides ALL earlier save rules
 Until the owner explicitly declares the game complete and begins real play, all household gameplay is disposable test data. Every explicitly approved deployment to main MUST start a fresh production household: stop only production, delete its exact household.json, then start with 10000 RUB and default starter furnishings. No gameplay migration, placement retention or save backup. Never reset on ordinary restarts or documentation-only commits. Preview may be reset independently, starts 100000 RUB. Never delete access.json, trusted-devices.json, private media or credentials. Main remains separate and deploys only on explicit owner approval.
 
