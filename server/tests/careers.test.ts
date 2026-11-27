@@ -390,3 +390,30 @@ test('Two live residents share wages, keep their own tasks, vote on speed and re
     assert.ok(paid.state.careers.residents.vlad.shift);
   } finally { await server.close(); rmSync(dir,{recursive:true,force:true}); }
 });
+
+test('Remote career and ordinary actions cannot claim the same computer in either direction',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-career-resource-060-'));
+ const files=openServerFiles(dir);
+ files.save(start('marketing',0,60));
+ const nonce=files.load().careers.residents.alina.shift!.task!.nonce;
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:1,
+  lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad),a=await connect(server.port,'alina',files.access.alina);
+  v.send({type:'act',actionId:'deskGames',computer:'desktop'});
+  const gaming=await v.take('task_started',p=>p.role==='vlad'&&p.command.type==='act');
+  a.send({type:'career_approach',nonce,device:'desktop'});
+  await a.take('error',p=>p.reason.includes('занят'));
+  assert.equal(files.load().careers.residents.alina.shift!.task!.phase,'new');
+  a.send({type:'career_approach',nonce,device:'laptop'});
+  await a.take('snapshot',p=>p.state.careers.residents.alina.shift?.homeDevice==='laptop');
+  v.send({type:'cancel_task',taskId:gaming.taskId});await v.take('task_ended',p=>p.taskId===gaming.taskId);
+  v.send({type:'act',actionId:'deskGames',computer:'laptop'});
+  await v.take('error',p=>p.reason.includes('занят'));
+  v.send({type:'job_start',job:'vibeSite',device:'laptop'});
+  await v.take('error',p=>p.reason.includes('занят'));
+  assert.equal(files.load().activeShifts.vlad,undefined);
+  v.send({type:'act',actionId:'deskGames',computer:'desktop'});
+  await v.take('task_started',p=>p.role==='vlad'&&p.taskId!==gaming.taskId);
+ }finally{await server.close();rmSync(dir,{recursive:true,force:true});}
+});

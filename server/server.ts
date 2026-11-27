@@ -262,6 +262,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     isPaused = value;
     lastLifeTick = lifeNow();
     announceTime();
+    if(!value)for(const role of active.keys())if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
   };
   const leisureRoute = (role: CharacterId, now: number) => {
     const task = leisure.get(role)!;
@@ -322,6 +323,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     announceTime();
     if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
   };
+  // Remote career work and ordinary home orders share physical computers.
+  // A new remote shift may select either device; a selected device is reserved
+  // until the shift ends or its owner explicitly chooses another one.
+  const careerDevice=(role:CharacterId)=>{
+    const shift=state.careers.residents[role].shift;
+    return shift?.mode==='remote'?(shift.homeDevice??(shift.task&&shift.task.phase!=='new'?'laptop':undefined)):undefined;
+  };
+  const workingComputer=(role:CharacterId)=>state.activeShifts[role]?.homeDevice??careerDevice(role);
+  const workReserves=(role:CharacterId,resource:string|null)=>{
+    const device=workingComputer(role);
+    return !!device&&computerResource(device)===resource;
+  };
   const homeTasks = createHomeSessions({
     state: () => state, save(next) { files.save(next); state = next; },
     all, send: packet, socket: role => active.get(role),
@@ -346,7 +359,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         all({type:'snapshot',state});
       }
     }, socialTtlMs:options.socialTtlMs,
-    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource||resource==='pet:verdell'&&task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe')||Object.values(state.activeShifts).some(shift=>shift?.homeDevice&&computerResource(shift.homeDevice)===resource),
+    resourceBusy: resource => [...running.values()].some(task => task.plan.resource === resource||resource==='pet:verdell'&&task.plan.command.type==='pet_action'&&task.plan.command.action==='bathe')||(['vlad','alina'] as const).some(role=>workReserves(role,resource)),
     prepare(role, tv) {
       if (tv) for (const [other,routine] of leisure) if (routine.activity === 'tv') stopLeisure(other);
       closeStorage(role);
@@ -549,7 +562,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           if(mode==='full'&&candidate.command.type==='pet_action'&&!autoPetAvailable(state,candidate.command.pet))continue;
           const plan=planTask(candidate.command);
           if(!plan||taskAccessError(state,plan.command))continue;
-          if(idleResourceBusy(role,plan.resource))continue;
+          if(idleResourceBusy(role,plan.resource)||workReserves(otherRole(role),plan.resource))continue;
           if((plan.resource&&homeTasks.reserved(plan.resource))||
             [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
           const validation=evaluateTask(state,role,plan.command);
@@ -666,7 +679,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       if(!state.world.dogWalker)oldOptions.push('verdell');
       const oldChoices=oldOptions.filter(activity=>
         ![...leisure.values()].some(current=>current.activity===activity)&&
-        !(activity==='computer'&&Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop'))&&
+        !(activity==='computer'&&(['vlad','alina'] as const).some(role=>workReserves(role,'desk')))&&
         !homeTasks.reserved(activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity)&&
         ![...running.values()].some(task=>task.plan.resource===
           (activity==='computer'?'desk':'pet:'+activity)));
@@ -744,7 +757,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const ordered=fullIdleChoices(state,role,Math.floor(clockMinutes(state.clock)/135),recentLeisure.get(role)??[]).filter(a=>turn>0||a!=='stroll');
       let idleStarted=false;
       for(const activity of ordered){
-        if(activity==='computer'&&(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock))||Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop')))continue;
+        if(activity==='computer'&&(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock))||(['vlad','alina'] as const).some(role=>workReserves(role,'desk'))))continue;
         if(activity==='verdell'&&state.world.dogWalker)continue;
         const resource=activity==='tv'?'tv':activity==='computer'?'desk':'pet:'+activity;
         if([...leisure.values()].some(current=>current.activity===activity)||
@@ -797,7 +810,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     walkingHome.delete(role);
-    if(plan.resource && state.activeShifts[otherRole(role)]?.homeDevice && computerResource(state.activeShifts[otherRole(role)]!.homeDevice!)===plan.resource){if(!automatic) packet(socket,{type:"error",reason:"Компьютер занят домашним заказом"});return;}
+    if(workReserves(otherRole(role),plan.resource)){if(!automatic) packet(socket,{type:"error",reason:"Компьютер занят работой второго персонажа"});return;}
     const bath=plan.command.type==='pet_action'&&plan.command.action==='bathe';
     const dogCare=plan.command.type==='pet_action'&&plan.command.pet==='verdell';
     if(dogCare&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell'&&(bath||t.plan.command.action==='bathe'))||bath&&homeTasks.reserved('pet:verdell'))){if(!automatic) packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
@@ -1299,7 +1312,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         const time = Math.floor(liveGameTime());
         const occupied = running.has(role) || homeTasks.busy(role) || sleepers.has(role);
         if (message.type === 'career_start' && !occupied) { closeStorage(role); stopLeisure(role); }
-        if(message.type==='career_approach'&&careerShift?.mode==='remote'&&state.activeShifts[otherRole(role)]?.homeDevice===(message.device??'laptop')){packet(socket,{type:'error',reason:'Компьютер занят домашним заказом'});return;}
+        if(message.type==='career_approach'&&state.careers.residents[role].shift?.mode==='remote'&&(message.device===undefined||computerDevice(message.device))){
+          const resource=computerResource(message.device??'laptop'),partner=otherRole(role);
+          if(workReserves(partner,resource)||homeTasks.reserved(resource)||
+            [...running.values()].some(t=>t.role!==role&&t.plan.resource===resource)||idleResourceBusy(role,resource)){
+            packet(socket,{type:'error',reason:'Компьютер занят вторым персонажем'});return;
+          }
+        }
         const result = applyCareer(state, role, message, time, occupied, active.has(otherRole(role)));
         if (!result.ok) { packet(socket,{type:'error',reason:result.reason}); return; }
         if (message.type === 'career_start' && result.state.world.dogWalker === role) {
@@ -1650,8 +1669,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           if(!computerDevice(device)||state.world.places[role]!=='home'){packet(socket,{type:'error',reason:'Открой компьютер дома'});return;}
           const resource=computerResource(device),partner=otherRole(role);
           if(homeTasks.reserved(resource)||[...running.values()].some(t=>t.plan.resource===resource)||
-            state.activeShifts[partner]?.homeDevice===device||(device==='desktop'&&leisure.get(partner)?.activity==='computer')||
-            (state.careers.residents[partner].shift?.mode==='remote'&&(state.careers.residents[partner].shift?.homeDevice??'laptop')===device)){
+            workReserves(partner,resource)||idleResourceBusy(role,resource)){
             packet(socket,{type:'error',reason:'Компьютер занят вторым персонажем'});return;
           }
           const notebook=device==='laptop'?laptopDesk(state):undefined;

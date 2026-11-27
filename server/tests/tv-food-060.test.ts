@@ -130,3 +130,53 @@ test('Completing a shared film with food records one joint memory; replay never 
     assert.equal(r.state().relationship.memories.filter(m=>m.action==='film').length,1);
   }finally{r.s.dispose();}
 });
+test('A food invitation is not accepted when the second portion disappears while awaiting consent',()=>{
+ const r=rig(2);
+ try{
+  r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'comedy',food:'pizzaCheese'});
+  const offer=r.packets.find(p=>p.type==='movie_offer');assert.ok(offer?.type==='movie_offer');
+  assert.ok(consumeReadyFood(r.state(),'takeout','pizzaCheese'));
+  r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:offer.inviteId,accept:true});
+  const closed=r.packets.find(p=>p.type==='movie_offer_closed');
+  assert.ok(closed?.type==='movie_offer_closed');assert.match(closed.message,/порций/);
+  assert.ok(!r.s.busy('vlad')&&!r.s.busy('alina'));
+  assert.equal(r.state().takeout.pizzaCheese,1);
+  assert.ok(!r.packets.some(p=>p.type==='task_started'));
+  r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:offer.inviteId,accept:true});
+  assert.ok(!r.packets.some(p=>p.type==='task_started'));
+ }finally{r.s.dispose();}
+});
+test('Internet loss cancels both viewers immediately, releases television and prevents all delayed rewards',()=>{
+ const r=rig(2);
+ try{
+  r.invite('comedy');r.arrive();assert.equal(r.s.diners().size,2);r.advance(30000);
+  r.state().billing.services.internet.paidUntil=gameMinutes(r.state().clock);
+  r.s.recheckAccess();
+  assert.ok(!r.s.busy('vlad')&&!r.s.busy('alina'));assert.ok(!r.s.reserved('tv'));
+  assert.equal(r.packets.filter(p=>p.type==='task_ended'&&p.outcome==='cancelled').length,2);
+  assert.equal(r.s.diners().size,0);
+  r.advance(180000);assert.equal(r.state().takeout.pizzaCheese,2);
+  for(const role of ['vlad','alina'] as const){assert.equal(r.state().characters[role].hunger,10);assert.equal(r.state().characters[role].fun,5);}
+ }finally{r.s.dispose();}
+});
+test('A viewer leaving home while an invitation is pending cannot start a phantom session',()=>{
+ const r=rig(2);
+ try{
+  r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'comedy',food:'pizzaCheese'});
+  const offer=r.packets.find(p=>p.type==='movie_offer');assert.ok(offer?.type==='movie_offer');
+  r.state().world.places.vlad='market';
+  r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:offer.inviteId,accept:true});
+  assert.ok(!r.s.busy('vlad')&&!r.s.busy('alina'));
+  assert.ok(!r.packets.some(p=>p.type==='task_started'));
+  assert.equal(r.state().takeout.pizzaCheese,2);
+  const closed=r.packets.find(p=>p.type==='movie_offer_closed');assert.ok(closed?.type==='movie_offer_closed');assert.notEqual(closed.message,'Приглашение принято');
+ }finally{r.s.dispose();}
+});
+test('Sofa dining is visible to the pets only while actual food presentation is active',()=>{
+ const r=rig(2);
+ try{
+  r.invite('comedy');assert.equal(r.s.diners().size,0);
+  r.arrive();assert.equal(r.s.diners().size,2);
+  r.advance(90000);assert.equal(r.s.diners().size,0);assert.ok(r.s.busy('vlad')&&r.s.busy('alina'));
+ }finally{r.s.dispose();}
+});

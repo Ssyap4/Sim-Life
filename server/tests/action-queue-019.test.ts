@@ -147,3 +147,29 @@ test('a sleeping resident can line up two tasks without waking prematurely',asyn
     await c.take('task_ended',p=>p.taskId===second.taskId&&p.outcome==='completed');
   },state);
 });
+
+test('A queued action survives sleep completion during pause and starts once on resume',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'simlife-queue-pause-060-'));
+ const files=openServerFiles(dir),seed=initialState();
+ seed.characters.vlad.energy=48;files.save(seed);
+ let now=0;
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.02,lifeClock:{now:()=>now,tickMs:600000},
+  autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ let c:Awaited<ReturnType<typeof client>>|undefined;
+ try{
+  c=await client(server.port,files.access.vlad);
+  c.send({type:'sleep_start',mode:'half'});
+  await c.take('time_status',p=>p.status.multiplier===3&&p.status.sleepers.vlad==='half');
+  c.send({type:'act',actionId:'vladOrder'});
+  await c.take('task_queue',p=>p.tasks.length===1);
+  now+=10000;c.send({type:'pause_toggle'});
+  await c.take('time_status',p=>p.status.paused===true&&!p.status.sleepers.vlad);
+  await new Promise(r=>setTimeout(r,80));
+  assert.ok(!c.received.some(p=>p.type==='task_started'));
+  c.send({type:'pause_toggle'});
+  const next=await c.take('task_started',p=>p.command.type==='act'&&p.role==='vlad');
+  await c.take('task_ended',p=>p.taskId===next.taskId&&p.outcome==='completed');
+  await c.take('task_queue',p=>p.role==='vlad'&&p.tasks.length===0);
+  assert.ok(!c.received.some(p=>p.type==='task_started'));
+ }finally{c?.socket.terminate();await server.close();rmSync(dir,{recursive:true,force:true});}
+});

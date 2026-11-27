@@ -76,3 +76,28 @@ test('Two clients receive a shared shop checkout; failed second purchase cannot 
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('Simultaneous delivery orders and retries spend the shared final balance once',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-delivery-race-060-'));
+ const files=openServerFiles(dir),state=files.load();
+ state.money=2500;files.save(state);
+ const server=await startServer({port:0,dataDir:dir,lifeClock:{now:()=>0,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await connect(server.port,'alina',files.access.alina);sockets.push(a);
+  const sharedV=next(v,p=>p.type==='snapshot'&&p.state.world.deliveries.length===1);
+  const sharedA=next(a,p=>p.type==='snapshot'&&p.state.world.deliveries.length===1);
+  const command={type:'delivery_order',sequence:0,lines:[{id:'takeout:rollsSet',quantity:1}]};
+  v.send(JSON.stringify(command));a.send(JSON.stringify(command));
+  const [vs,as]=await Promise.all([sharedV,sharedA]);assert.deepEqual(vs,as);
+  assert.ok(vs.type==='snapshot');const winner=vs.state.world.deliveries[0].role;
+  assert.equal(vs.state.money,151);assert.equal(vs.state.ledger.length,1);
+  const winnerSocket=winner==='vlad'?v:a;
+  const rejected=next(winnerSocket,p=>p.type==='error'&&p.reason.includes('уже обработана'));
+  winnerSocket.send(JSON.stringify(command));await rejected;
+  const saved=files.load();assert.equal(saved.money,151);assert.equal(saved.world.deliveries.length,1);
+  assert.equal(saved.ledger.length,1);assert.equal(saved.world.sequence[winner],1);
+  assert.equal(saved.world.sequence[winner==='vlad'?'alina':'vlad'],0);
+ }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});

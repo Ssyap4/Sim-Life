@@ -482,7 +482,7 @@ export function createHomeSessions(hooks: Hooks) {
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false, cooperation?:Cooperation) {
     const command = plan.command;
     const food=(command.type==='movie'||command.type==='youtube')?command.food:undefined;
-    if(food&&foodCount(hooks.state(),food)<roles.length){error(initiator,'Недостаточно свежих порций доставки');return;}
+    if(food&&foodCount(hooks.state(),food)<roles.length){if(!automatic)error(initiator,'Недостаточно свежих порций доставки');return;}
     const material = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
     const denial = command.type==='together'&&cooperation?cooperationDenial(hooks.state(),cooperation.from,command):taskAccessError(hooks.state(), command);
     if (denial) { if (!automatic) error(initiator, denial); return; }
@@ -804,7 +804,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (denial) return error(socket, denial);
       if (!hooks.socket(otherRole(role))) return error(socket,'Второй игрок пока не в сети');
       if (invite||socialInvite) return error(socket,'Другое приглашение уже ждёт ответа');
-      if (!available(role) || !available(otherRole(role)) || reserved('tv'))
+      if (!available(role) || !available(otherRole(role)) || reserved('tv') || [role,otherRole(role)].some(r=>hooks.state().world.places[r]!=='home'))
         return error(socket,'Для просмотра оба должны быть свободны дома, а телевизор — выключен');
       const id = ++nextInviteId;
       invite = { id,from:role,genre:genre as MediaGenre,food:food as TakeoutId|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
@@ -819,11 +819,13 @@ export function createHomeSessions(hooks: Hooks) {
     const {from,genre,food} = invite;
     const denial = taskAccessError(hooks.state(), mediaCommand(genre,food));
     if (denial) return closeInvite(denial);
-    if (!available(from) || !available(role) || reserved('tv')) {
+    if (!available(from) || !available(role) || reserved('tv') || [from,role].some(r=>hooks.state().world.places[r]!=='home')) {
       closeInvite('Кто-то занят или вышел из дома. Попробуйте ещё раз'); return;
     }
+    if(food&&foodCount(hooks.state(),food)<2)return closeInvite('Не осталось двух свежих порций доставки');
+    if(!start([from,role],planTask(mediaCommand(genre,food))!,socket))
+      return closeInvite('Не удалось начать совместный просмотр');
     closeInvite('Приглашение принято');
-    start([from,role],planTask(mediaCommand(genre,food))!,socket);
   }
 
   function recheckAccess() {
@@ -850,7 +852,7 @@ export function createHomeSessions(hooks: Hooks) {
       const reason = session.study?.material.channel === 'academy'
         ? studyDenial(hooks.state(), member, session.study.material, hooks.gameTime())
         : taskAccessError(hooks.state(), session.plan.command);
-      if (reason) cancel(session.participants[0].role, reason);
+      if (reason) for(const participant of [...session.participants])cancel(participant.role,reason);
     }
     if (invite) {
       const reason = taskAccessError(hooks.state(), mediaCommand(invite.genre,invite.food));
@@ -881,7 +883,7 @@ export function createHomeSessions(hooks: Hooks) {
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {
