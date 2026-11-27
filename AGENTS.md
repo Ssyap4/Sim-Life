@@ -1,3 +1,6 @@
+# ACTIVE OWNER POLICY - FEATURE PROPOSALS - 27 Nov 2026
+Before proposing any feature, inspect the current code, latest handoff, relevant UI/server commands, tests and release notes; search aliases and Russian labels. Never present an implemented system as a new idea. Propose only verified missing capabilities, distinguish a new extension from an existing system, and explicitly disclose uncertainty. Respect deferred/rejected features. See docs/FEATURE_CHECK_BEFORE_PROPOSALS.md; update it as development advances. This rule applies to every future chat.
+
 # ACTIVE OWNER POLICY - 27 Nov 2026 - overrides ALL earlier save rules
 Until the owner explicitly declares the game complete and begins real play, all household gameplay is disposable test data. Every explicitly approved deployment to main MUST start a fresh production household: stop only production, delete its exact household.json, then start with 10000 RUB and default starter furnishings. No gameplay migration, placement retention or save backup. Never reset on ordinary restarts or documentation-only commits. Preview may be reset independently, starts 100000 RUB. Never delete access.json, trusted-devices.json, private media or credentials. Main remains separate and deploys only on explicit owner approval.
 
