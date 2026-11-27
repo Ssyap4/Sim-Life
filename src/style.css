@@ -1522,3 +1522,21 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .family-heritage summary{font-weight:800;cursor:pointer;min-height:36px;padding:8px 0}
 .family-heritage[open]>article{margin-top:7px;padding:8px;border-radius:9px;background:#fff9ed}
 .family-heritage[open]>p,.family-heritage[open]>h3{margin:6px 0}
+
+/* Separate resident profiles, compact mobile phone layout. */
+.profile-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:10px}
+.profile-tabs button{min-height:44px;border:1px solid #d5dfd1;border-radius:12px;background:#edf2e8;color:#354b3c;font-weight:700;white-space:normal}
+.profile-tabs button[aria-pressed=true]{background:#416b53;color:#fff;border-color:#416b53}
+.phone-info .resident-profile{padding:14px;min-width:0;overflow-wrap:anywhere}
+.profile-hero{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.profile-monogram{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border-radius:17px;background:#dce8f0;color:#31556b;font-size:26px;font-weight:800}
+[data-profile-card=alina] .profile-monogram{background:#f1dfe2;color:#8a4c60}
+.profile-hero strong{display:block;font-size:22px}
+.profile-hero small{display:block;color:#637667;font-size:11px;margin-top:3px}
+.resident-profile section{margin:0 0 13px}
+.resident-profile h3{margin:0 0 7px;font-size:13px;color:#425845}
+.profile-tags{display:flex;flex-wrap:wrap;gap:5px}
+.profile-tags span{padding:5px 8px;border-radius:8px;background:#e4ebdf;color:#334c3a;font-size:12px;max-width:100%}
+.profile-dream{padding:11px;background:#f4ead5;border-radius:11px}
+.profile-current{padding:10px;background:#e8eee5;border-radius:11px}
+@media(max-width:350px){.phone-info .resident-profile{padding:10px}.profile-hero{gap:9px}.profile-tags span{font-size:11px}.profile-dream{padding:9px}}

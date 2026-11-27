@@ -190,7 +190,7 @@ const greetings:SocialActivity[]=[
  {id:'nearTalk:goodNight',title:'Пожелать спокойной ночи',group:'care',lines:['Спокойной ночи. Хорошо отдохни.'],replies:['И тебе сладких снов.','Спокойной ночи!'],motion:'talk',seconds:20,context:'nightGreeting'},
  ];
 const careTalk:SocialActivity[]=CARE_TOPICS.map(t=>({id:t.id,title:t.title,group:'romance',lines:[t.line],replies:t.replies,motion:'talk',seconds:20,context:'vanity'}));
-export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt','favoriteDay','tomorrowTogether','homeDream','listenWithoutAdvice','shareLoad','smallVictory','weekendIdeas','ourTradition','whatILove','petDebate','vladStudio','alinaStudio','codeIdeas','hairIdeas','fishingDream','travelDream','bookIdeas'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
+export const NEARBY_TALK_TOPICS=[...careTalk,...greetings,...exchanges.filter(a=>['talk','listen','explain','laugh'].includes(a.motion)&&['day','quiet','plans','story','simba','verdell','taste','evening','mood','listen','proud','joke','tease','filmTalk','work','afterWork','tired','news','setback','weekend','learning','careerAdvice','compliment','love','flirt','favoriteDay','tomorrowTogether','homeDream','listenWithoutAdvice','shareLoad','smallVictory','weekendIdeas','ourTradition','whatILove','petDebate','vladStudio','alinaStudio','codeIdeas','hairIdeas','fishingDream','travelDream','bookIdeas','techIdeas','recipeIdeas'].includes(a.id)).map(a=>({...a,id:'nearTalk:'+a.id,seconds:a.motion==='laugh'?20:a.motion==='listen'?40:30,memorable:false}))];
 export const isNearbyTalk=(id:string)=>id.startsWith('nearTalk:')&&NEARBY_TALK_TOPICS.some(a=>a.id===id);
 const venueActivities:SocialActivity[]=Object.entries(VENUE_GAMES).map(([id,d])=>({id,title:d.name,group:'fun',lines:['Сыграем вдвоём? '+d.name+' · '+d.price+' ₽ за партию.'],replies:['Давай сыграем!','Я готов(а)!'],motion:'venue',seconds:d.seconds,object:'venue',resource:'venue:'+id,memorable:true}));
 export const SOCIAL_ACTIVITIES = [...venueActivities,...giftActivities,...exchanges,...objects,...PARK_TALK_TOPICS,...LAKE_TALK_TOPICS,...PICNIC_TALK_TOPICS,...NEARBY_TALK_TOPICS];
@@ -239,7 +239,7 @@ export function greetingAt(state:GameState,id:GreetingId){
 export function contextAvailable(a:SocialActivity,state:GameState,from:CharacterId):boolean {
   const partner=otherPerson(from);
   const topic=a.id.split(':').at(-1);
-  if(['vladStudio','codeIdeas','fishingDream'].includes(topic??'')&&from!=='vlad'||['alinaStudio','hairIdeas','bookIdeas'].includes(topic??'')&&from!=='alina')return false;
+  if(['vladStudio','codeIdeas','fishingDream','techIdeas'].includes(topic??'')&&from!=='vlad'||['alinaStudio','hairIdeas','bookIdeas','recipeIdeas'].includes(topic??'')&&from!=='alina')return false;
   switch(a.context){
     case 'holiday':return state.world.places[from]==='home'&&state.world.places[partner]==='home'&&occasionsAhead(state,0).some(o=>!o.celebrated);
     case 'vanity':return careTopicAvailable(state,from,a.id);

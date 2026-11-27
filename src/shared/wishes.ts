@@ -1,3 +1,4 @@
+import {recipeAvailability} from './recipeAvailability';
 import {isCatchRecipe} from './lake';
 import {holidayRecipeOpen} from './recipeAvailability';
 /** Contextual, actionable Sims-style wishes (no fake XP, spending or server state). */
@@ -155,8 +156,9 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     if(state.dirtyDishes.table+state.dirtyDishes.yardTable>0)
       add('cozy-home','🧽','Освободить стол','После еды хочется вернуть дому уют.','Помыть посуду',{type:'act',actionId:'kitchenDishes'});
   }
-  const recipe=COOKING_ORDER.find(id=>holidayRecipeOpen(state,id)&&!isCatchRecipe(id)&&!isGrillRecipe(id)&&COOKING_RECIPES[id].minLevel<=skillRank(state.education.characters[role].xp.cooking).level&&ingredientList(id).every(([ingredient,count])=>state.pantry[ingredient]>=count));
-  if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
+  const recipes=COOKING_ORDER.filter(id=>!isCatchRecipe(id)&&!isGrillRecipe(id)&&recipeAvailability(state,role,id).available&&wishAvailable(state,role,'cook-'+id));
+  const recipe=role==='alina'?recipes[Math.floor(gameMinutes(state.clock)/180)%Math.max(1,recipes.length)]:recipes[0];
+  if(recipe)add('cook-'+recipe,'🍳','Приготовить '+RECIPES[recipe].name.toLowerCase(),role==='alina'?'Хочется освоить или повторить интересный рецепт.':'Хочется приготовить домашнее блюдо.','Приготовить',{type:'cook',recipe});
   const recent=activeEmotions(state,role)[0]?.kind;
   const emotion=residentEmotion(state,role).id;
   if(person.energy>=35&&person.energy<=75&&(['shift','tense','tired'].includes(recent??emotion)||emotion==='tense'||emotion==='tired'))add('rest-break','🛋️','Немного отдохнуть','После дел хочется перевести дух.','Отдохнуть',furniture(state,'sofa','sofaRest'));

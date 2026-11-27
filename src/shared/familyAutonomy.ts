@@ -5,7 +5,7 @@ import {SOCIAL_BY_ID,contextAvailable,socialRestriction} from './socialLife';
 import {weatherAt} from './weather';
 
 const greetings=['nearTalk:welcomeHome','nearTalk:goodMorning','nearTalk:goodNight'] as const;
-const casual=['nearTalk:day','nearTalk:joke','nearTalk:plans','nearTalk:compliment','nearTalk:favoriteDay','nearTalk:tomorrowTogether','nearTalk:homeDream','nearTalk:weekendIdeas','nearTalk:ourTradition','nearTalk:whatILove','nearTalk:petDebate','nearTalk:vladStudio','nearTalk:alinaStudio','nearTalk:codeIdeas','nearTalk:hairIdeas','nearTalk:fishingDream','nearTalk:travelDream','nearTalk:bookIdeas'] as const;
+const casual=['nearTalk:day','nearTalk:joke','nearTalk:plans','nearTalk:compliment','nearTalk:favoriteDay','nearTalk:tomorrowTogether','nearTalk:homeDream','nearTalk:weekendIdeas','nearTalk:ourTradition','nearTalk:whatILove','nearTalk:petDebate','nearTalk:vladStudio','nearTalk:alinaStudio','nearTalk:codeIdeas','nearTalk:hairIdeas','nearTalk:fishingDream','nearTalk:travelDream','nearTalk:bookIdeas','nearTalk:techIdeas','nearTalk:recipeIdeas'] as const;
 const support=['nearTalk:listen','nearTalk:compliment','nearTalk:day','nearTalk:listenWithoutAdvice','nearTalk:shareLoad','nearTalk:smallVictory'] as const;
 export const FAMILY_ACTIONS=[...new Set([...greetings,...casual,...support,'yardRest','musicTogether','sofaTalk'])];
 const people=['vlad','alina'] as const;
@@ -25,7 +25,7 @@ export function familyAutoTopics(s:GameState,from:CharacterId):string[]{
  const needsSupport=emotion==='sad'||emotion==='tense'||emotion==='lonely';
  const day=s.clock.day,slot=Math.floor(s.clock.minute/180);
  const rotate=(xs:readonly string[])=>{const n=(day+slot+(from==='alina'?3:0))%xs.length;return [...xs.slice(n),...xs.slice(0,n)];};
- const personal=from==='vlad'?['nearTalk:vladStudio','nearTalk:codeIdeas','nearTalk:fishingDream','nearTalk:travelDream']:['nearTalk:alinaStudio','nearTalk:hairIdeas','nearTalk:bookIdeas','nearTalk:travelDream'];
+ const personal=from==='vlad'?['nearTalk:vladStudio','nearTalk:codeIdeas','nearTalk:fishingDream','nearTalk:techIdeas','nearTalk:travelDream']:['nearTalk:alinaStudio','nearTalk:hairIdeas','nearTalk:bookIdeas','nearTalk:recipeIdeas','nearTalk:travelDream'];
  const special=needsSupport?['nearTalk:listen','nearTalk:compliment','nearTalk:day',...rotate(support)]:[...greetings.slice(1),...((day+slot)%3!==0?rotate(personal):[]),...rotate(casual)];
  const list=[...new Set(['nearTalk:welcomeHome',...special])];
  const last=s.relationship.recent.at(-1)?.action;

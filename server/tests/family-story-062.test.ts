@@ -210,12 +210,18 @@ test('062 individual dreams and preferences influence real leisure without monop
 });
 test('062 personal topics are attributed to the actual character and keep shared travel available',()=>{
  const s=ready();s.clock.minute=780;
- for(const id of ['vladStudio','codeIdeas','fishingDream']){
+ for(const id of ['vladStudio','codeIdeas','fishingDream','techIdeas']){
   const a=SOCIAL_BY_ID.get('nearTalk:'+id)!;assert.ok(a);assert.ok(contextAvailable(a,s,'vlad'));assert.equal(contextAvailable(a,s,'alina'),false);
  }
- for(const id of ['alinaStudio','hairIdeas','bookIdeas']){
+ for(const id of ['alinaStudio','hairIdeas','bookIdeas','recipeIdeas']){
   const a=SOCIAL_BY_ID.get('nearTalk:'+id)!;assert.ok(a);assert.ok(contextAvailable(a,s,'alina'));assert.equal(contextAvailable(a,s,'vlad'),false);
  }
  for(const role of ['vlad','alina'] as const)assert.ok(contextAvailable(SOCIAL_BY_ID.get('nearTalk:travelDream')!,s,role));
  const before=structuredClone(s);familyAutoTopics(s,'vlad');familyAutoTopics(s,'alina');assert.deepEqual(s,before);
+});
+
+test('062 cooking and technology interests are personal and cooking has its own preference',()=>{
+ assert.ok(PERSONALITIES.vlad.interests.some(x=>x.includes('Технологии')));
+ assert.ok(PERSONALITIES.alina.interests.some(x=>x.includes('Кулинария')));
+ assert.ok(personalPreference('alina','cooking')>personalPreference('vlad','cooking'));
 });

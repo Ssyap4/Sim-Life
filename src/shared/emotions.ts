@@ -2,8 +2,8 @@ import {gameMinutes} from './life';
 import type {CharacterId,Needs,TimedCommand,GameState} from './protocol';
 export type EmotionId='happy'|'inspired'|'calm'|'tired'|'hungry'|'uncomfortable'|'lonely'|'bored'|'sad'|'tense';
 export const PERSONALITIES={
- vlad:{pet:'simba',traits:['Открытый','Логический склад ума','Целеустремлённый'],favorite:['games','study','nature','pet'],interests:['ПК и игры','Вайбкодинг и разработка','Природа и рыбалка'],dream:'Начать с небольших проектов в вайбкодинге, вырасти в разработчика, добиться большого заработка и открыть собственную студию и бизнес.'},
- alina:{pet:'verdell',traits:['Умная','Общительная','Любит быть ухоженной'],favorite:['music','social','pet','reading','care','nature','study'],interests:['Уход за собой и реконструкция волос','Книги и общение','Природа и путешествия','Верделл и животные'],dream:'Начать карьеру в реконструкции волос с нуля, стать сильным специалистом, открыть свою студию и самой управлять бизнесом.'}
+ vlad:{pet:'simba',traits:['Открытый','Логический склад ума','Целеустремлённый'],favorite:['games','study','nature','pet'],interests:['ПК и игры','Технологии и новые устройства','Вайбкодинг и разработка','Природа и рыбалка'],dream:'Начать с небольших проектов в вайбкодинге, вырасти в разработчика, добиться большого заработка и открыть собственную студию и бизнес.'},
+ alina:{pet:'verdell',traits:['Умная','Общительная','Любит быть ухоженной'],favorite:['music','social','pet','reading','care','nature','study','cooking'],interests:['Уход за собой и реконструкция волос','Книги и общение','Природа и путешествия','Верделл и животные','Кулинария и изучение новых рецептов'],dream:'Начать карьеру в реконструкции волос с нуля, стать сильным специалистом, открыть свою студию и самой управлять бизнесом.'}
 } as const;
 const info:Record<EmotionId,{label:string;emoji:string;reason:string}>={
  happy:{label:'Счастливое',emoji:'😊',reason:'Хорошее настроение и основные потребности в порядке.'},
@@ -93,11 +93,12 @@ export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedComm
   else if(['vladStudy','alinaStudy'].includes(a))recordEmotion(s,role,'study');
  }
 }
-type Preference='games'|'study'|'pet'|'music'|'social'|'rest'|'reading'|'home'|'video'|'care'|'nature'|'other';
+type Preference='games'|'study'|'pet'|'music'|'social'|'rest'|'reading'|'home'|'video'|'care'|'nature'|'cooking'|'other';
 export function leisureKind(c:TimedCommand):Preference{
  if(c.type==='play_game')return 'games';
  if(c.type==='computer_video'||c.type==='free_tv')return 'video';
  if(c.type==='read_book')return 'reading';
+ if(c.type==='cook')return 'cooking';
  if(c.type==='vanity_care')return 'care';
  if(c.type==='pet_action')return 'pet';
  if(c.type==='act'||c.type==='furniture_use'){
@@ -112,7 +113,7 @@ export function leisureKind(c:TimedCommand):Preference{
  return 'other';
 }
 export function personalPreference(role:CharacterId,kind:Preference):number{
- const weights:Record<CharacterId,Partial<Record<Preference,number>>>={vlad:{games:2.5,study:2.4,nature:1.9,video:0.6,social:0.8,pet:0.6},alina:{care:2.6,reading:2.4,social:2.1,pet:2.1,nature:1.9,study:1.7,music:1.3}};
+ const weights:Record<CharacterId,Partial<Record<Preference,number>>>={vlad:{games:2.5,study:2.4,nature:1.9,video:0.6,social:0.8,pet:0.6},alina:{care:2.6,reading:2.4,social:2.1,pet:2.1,nature:1.9,study:1.7,music:1.3,cooking:2.5}};
  return weights[role][kind]??0;
 }
 export function emotionPreference(role:CharacterId,e:EmotionId,kind:Preference):number{
@@ -141,7 +142,7 @@ export function wishEmotionPriority(id:string,role:CharacterId,e:EmotionId):numb
  if(id==='game-break')return emotionPreference(role,e,'games');
  if(id==='tea-break'||id==='rest-break')return emotionPreference(role,e,'rest');
  if(id==='cozy-home')return emotionPreference(role,e,'home');
- if(id.startsWith('cook-')&&e==='inspired')return 2;
+ if(id.startsWith('cook-'))return emotionPreference(role,e,'cooking')+(e==='inspired'?2:0);
  if(id==='reading')return emotionPreference(role,e,'reading');
  if(id.startsWith('vanity-'))return emotionPreference(role,e,'care');
  return 0;

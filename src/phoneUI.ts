@@ -40,7 +40,7 @@ import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fi
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
 import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
-type App = 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'autonomy' | BillingApp;
+type App = 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   weekends:['📅','Наши планы'],
@@ -59,10 +59,11 @@ const apps: Record<App,[string,string]> = {
   furnishing:['🛋️','Мебель и дом'],delivery:['🛍️','Доставка'],jobs:['🧰','Подработки'],calendar:['📅','Календарь'],
   family:['❤️','Семья'],pets:['🐾','Питомцы'],education:['🎓','Обучение и курсы'],
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
+  profiles:['👤','Профили'],
   autonomy:['🧠','Жизнь и привычки'],
 };
 const phoneGroups:readonly {label:string;ids:readonly App[]}[]=[
- {label:'Семья и дом',ids:['family','relationship','pets','autonomy','home','furnishing','speakers']},
+ {label:'Семья и дом',ids:['family','profiles','relationship','pets','autonomy','home','furnishing','speakers']},
  {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','consoles','feed']},
  {label:'Работа и развитие',ids:['career','jobs','education']},
  {label:'Магазины и услуги',ids:['delivery','fitness','health','barber','spa']},
@@ -106,6 +107,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
+  let profileRole:CharacterId='vlad',profileKey='';
   let spaKey='',speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   let audioUnsubscribe:(()=>void)|undefined;
   const alarmTimes=new Map<number,string>();
@@ -267,6 +269,30 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
       const card=block(phone.name,'Полистать новости, фотографии и короткие ролики. 20 сек. · досуг +'+(18+phone.bonus)+' · настроение +'+(4+phone.comfort));
       const start=document.createElement('button');start.type='button';start.textContent='Полистать ленту';start.disabled=state.world.places[role]!=='home';start.addEventListener('click',()=>{if(openFeed?.())close();});card.append(start);info.replaceChildren(card);
     }
+    if(app==='profiles'){
+      const id=profileRole,p=PERSONALITIES[id],emotion=residentEmotion(state,id),thought=thoughtFor(state,id);
+      const key=JSON.stringify([id,role,emotion,thought,online.includes(id),state.world.places[id],Math.round(state.characters[id].mood)]);
+      if(key!==profileKey){
+        profileKey=key;const scroll=info.scrollTop;
+        const tabs=document.createElement('div');tabs.className='profile-tabs';tabs.setAttribute('aria-label','Выбор персонажа');
+        for(const who of ['vlad','alina'] as const){
+          const tab=document.createElement('button');tab.type='button';tab.dataset.profileRole=who;tab.textContent=names[who]+(who===role?' · ты':'');tab.setAttribute('aria-pressed',String(who===id));
+          tab.onclick=()=>{profileRole=who;profileKey='';info.scrollTop=0;refresh();};tabs.append(tab);
+        }
+        const card=document.createElement('article');card.className='resident-profile';card.dataset.profileCard=id;
+        const header=document.createElement('div');header.className='profile-hero';
+        const mark=document.createElement('span');mark.className='profile-monogram';mark.textContent=names[id][0];
+        const identity=document.createElement('div'),name=document.createElement('strong'),status=document.createElement('small');name.textContent=names[id];status.textContent=(online.includes(id)?'В игре':'Не в сети')+' · '+PLACES[state.world.places[id]].name;identity.append(name,status);header.append(mark,identity);
+        const section=(title:string,values:readonly string[])=>{
+          const el=document.createElement('section'),heading=document.createElement('h3'),list=document.createElement('div');heading.textContent=title;list.className='profile-tags';
+          for(const value of values){const tag=document.createElement('span');tag.textContent=value;list.append(tag);}el.append(heading,list);return el;
+        };
+        const dream=document.createElement('section'),dh=document.createElement('h3'),dp=document.createElement('p');dream.className='profile-dream';dh.textContent='Мечта всей жизни';dp.textContent=p.dream;dream.append(dh,dp);
+        const current=document.createElement('section'),ch=document.createElement('h3'),mood=document.createElement('p'),reflection=document.createElement('p');current.className='profile-current';ch.textContent='Сейчас';mood.textContent=emotion.emoji+' '+emotion.label+' · настроение '+Math.round(state.characters[id].mood)+'%';reflection.textContent=thought.emoji+' '+thought.text;current.append(ch,mood,reflection);
+        card.append(header,section('Характер',p.traits),section('Интересы и увлечения',p.interests),dream,section('Любимый питомец',[PETS[p.pet].name]),current);
+        info.replaceChildren(tabs,card);info.scrollTop=scroll;
+      }
+    }
     if(app==='autonomy'){
       const scroll=info.scrollTop;
       const intro=block('🧠 Живая повседневность',
@@ -277,9 +303,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         current.classList.add('autonomy-phone-card');
         const thought=thoughtFor(state,id),emotion=residentEmotion(state,id);
         current.querySelector('p')!.textContent=emotion.emoji+' '+emotion.label+' · '+Math.round(state.characters[id].mood)+'% · '+emotion.reason;
-        const traits=document.createElement('small');traits.textContent=PERSONALITIES[id].traits.join(' · ')+' · Любимый питомец: '+(PERSONALITIES[id].pet==='simba'?'Симба':'Верделл');current.append(traits);
-        const interests=document.createElement('p');interests.textContent='Интересы: '+PERSONALITIES[id].interests.join(' · ');current.append(interests);
-        const dream=document.createElement('p');dream.className='personality-dream';dream.textContent='Мечта: '+PERSONALITIES[id].dream;current.append(dream);
+        const profile=document.createElement('button');profile.type='button';profile.textContent='Открыть профиль';profile.onclick=()=>{show('profiles');profileRole=id;profileKey='';refresh();};current.append(profile);
         const reflection=document.createElement('p');reflection.textContent=thought.emoji+' '+thought.text;current.append(reflection);
         for(const event of activeEmotions(state,id)){const line=document.createElement('small');line.style.display='block';line.textContent='• '+EVENTS[event.kind].label+' · ещё '+Math.ceil(event.until-(state.clock.day-1)*1440-state.clock.minute)+' мин.';current.append(line);}
         if(role===id){
@@ -433,13 +457,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';if(next==='profiles')profileRole=view.role;weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='holidays'&&next!=='hobbies'&&next!=='events'&&next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='holidays'&&next!=='hobbies'&&next!=='events'&&next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='profiles'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){
