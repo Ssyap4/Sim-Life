@@ -30,7 +30,13 @@ function floorPattern(ctx:CanvasRenderingContext2D,r:Rect,x:number,y:number,w:nu
   const tw=.63*sx,th=.63*sz;
   for(let j=0;j*th<h;j++)for(let i=-1;i*tw<w;i++){
    const px=x+i*tw+(j%2)*tw*.5,py=y+j*th;
-   ctx.fillStyle=tones[Math.floor(rng()*tones.length)];ctx.fillRect(px+.75,py+.75,tw-1.5,th-1.5);
+   const tone=tones[Math.floor(rng()*tones.length)];
+   ctx.fillStyle=tone;ctx.fillRect(px+.75,py+.75,tw-1.5,th-1.5);
+   ctx.save();ctx.beginPath();ctx.rect(px+1,py+1,tw-2,th-2);ctx.clip();
+   const stone=ctx.createLinearGradient(px,py,px+tw,py+th);stone.addColorStop(0,'#ffffff25');stone.addColorStop(.52,'#ffffff00');stone.addColorStop(1,'#514c4524');
+   ctx.fillStyle=stone;ctx.fillRect(px,py,tw,th);
+   for(let m=0;m<18;m++){ctx.fillStyle=m%2?'#ffffff19':'#4c544b17';ctx.fillRect(px+rng()*tw,py+rng()*th,.5+rng()*1.4,.5+rng()*1.2);}
+   ctx.strokeStyle=style==='stone'?'#9c8b751b':'#6e868b24';ctx.lineWidth=.65;ctx.beginPath();const v=py+rng()*th;ctx.moveTo(px,v);ctx.bezierCurveTo(px+tw*.35,v+4,px+tw*.6,v-4,px+tw,v+2);ctx.stroke();ctx.restore();
    ctx.fillStyle='#ffffff35';ctx.fillRect(px+1,py+1,tw-2,.75);
    for(let k=0;k<4;k++){ctx.fillStyle='#6e6a5b16';ctx.fillRect(px+2+rng()*(tw-4),py+2+rng()*(th-4),1.5,1);}
   }
@@ -41,8 +47,12 @@ function floorPattern(ctx:CanvasRenderingContext2D,r:Rect,x:number,y:number,w:nu
   for(let i=0;i*pw<w;i++)for(let j=-1;j*pl<h;j++){
    const px=x+i*pw,py=y+j*pl+(i%3)*pl/3;
    ctx.fillStyle=tones[Math.floor(rng()*tones.length)];ctx.fillRect(px+.45,py+.6,pw-.9,pl-1.2);
+   ctx.save();ctx.beginPath();ctx.rect(px+.5,py+.65,pw-1,pl-1.3);ctx.clip();
+   const grain=ctx.createLinearGradient(px,py,px+pw,py);grain.addColorStop(0,'#60492b25');grain.addColorStop(.26,'#fff6db1c');grain.addColorStop(.72,'#ffffff00');grain.addColorStop(1,'#74502f2b');ctx.fillStyle=grain;ctx.fillRect(px,py,pw,pl);
+   if(rng()<.36){const xx=px+pw*(.25+rng()*.5),yy=py+pl*(.2+rng()*.6);for(let n=0;n<3;n++){ctx.strokeStyle='#65472a33';ctx.lineWidth=.55;ctx.beginPath();ctx.ellipse(xx,yy,1+n*.7,2.1+n*2.7,.12,0,Math.PI*2);ctx.stroke();}}
+   ctx.restore();
    ctx.fillStyle='#fff0d745';ctx.fillRect(px+.7,py+1,.65,pl-2);
-   for(let k=0;k<4;k++){
+   for(let k=0;k<7;k++){
     const xx=px+2+rng()*Math.max(1,pw-4);ctx.strokeStyle=k%2?'#6b482c33':'#fff2d040';ctx.lineWidth=.55;ctx.beginPath();ctx.moveTo(xx,py+1);ctx.bezierCurveTo(xx+1.7,py+pl*.3,xx-1.6,py+pl*.7,xx,py+pl-1);ctx.stroke();
    }
   }
@@ -61,22 +71,24 @@ function floorPattern(ctx:CanvasRenderingContext2D,r:Rect,x:number,y:number,w:nu
 }
 export function cottageFloor(parent:THREE.Group,wing=false){
  const b=wing?HOUSE_WING:HOUSE,w=b.maxX-b.minX,d=b.maxZ-b.minZ;
- const map=paintedMap(wing?'cottage-wing-v3':'cottage-main-v3',wing?384:1024,wing?768:768,ctx=>{
+ const map=paintedMap(wing?'cottage-wing-v062':'cottage-main-v062',wing?384:1024,wing?768:768,ctx=>{
   const sx=ctx.canvas.width/w,sz=ctx.canvas.height/d;
   for(const [i,r] of (wing?wingRooms:cottageRooms).entries())floorPattern(ctx,r,(r.x1-b.minX)*sx,(r.z1-b.minZ)*sz,(r.x2-r.x1)*sx,(r.z2-r.z1)*sz,sx,sz,813+i*173);
  });
  const m=panel(parent,[(b.minX+b.maxX)/2,wing?.023:0,(b.minZ+b.maxZ)/2],[w,d],map,0xc5a47f);m.rotation.x=-Math.PI/2;return m;
 }
 function timberMap(){
- const map=paintedMap('solid-timber-v3',512,256,ctx=>{
+ const map=paintedMap('solid-timber-v062',512,256,ctx=>{
   const rng=random(294),tones=['#d6b38a','#c9a178','#d9b98d','#cfa77d','#e0bd95','#d2ae86','#c59b72','#dabc96'];
   for(let row=0;row<8;row++){
    const y=row*32;ctx.fillStyle='#785439';ctx.fillRect(0,y,512,32);
    const bevel=ctx.createLinearGradient(0,y+1,0,y+31);bevel.addColorStop(0,'#f3d5b2');bevel.addColorStop(.18,tones[row]);bevel.addColorStop(.8,tones[row]);bevel.addColorStop(1,'#a17b54');
    ctx.fillStyle=bevel;ctx.fillRect(0,y+1.2,512,29.6);
-   for(let k=0;k<11;k++){
+   for(let k=0;k<19;k++){
     const v=y+3+rng()*24;ctx.strokeStyle=k%3?'#80573530':'#fff1d64a';ctx.lineWidth=.6+rng()*.5;ctx.beginPath();ctx.moveTo(0,v);ctx.bezierCurveTo(140,v+Math.sin(k+row)*2.7,370,v+Math.cos(k)*2.1,512,v);ctx.stroke();
    }
+   // Subtle end-grain seams alternate on adjacent boards.
+   const seamX=(row%3)*137+50;ctx.fillStyle='#77543846';ctx.fillRect(seamX,y+2,1.2,28);ctx.fillStyle='#f9dfb633';ctx.fillRect(seamX+1.3,y+3,.8,26);
    const knotX=30+rng()*450,knotY=y+16;
    for(let j=0;j<4;j++){ctx.strokeStyle='#7f542d35';ctx.beginPath();ctx.ellipse(knotX,knotY,4+j*7,1+j*1.8,.08,0,Math.PI*2);ctx.stroke();}
   }
@@ -95,12 +107,12 @@ export function timberWall(parent:THREE.Group,size:[number,number,number],at:[nu
  const wall=new THREE.Mesh(geometry,timber);wall.scale.set(...size);wall.position.set(...at);wall.receiveShadow=true;parent.add(wall);return wall;
 }
 export function kitchenAccent(){
- return paintedMap('kitchen-accent-v3',512,128,ctx=>{
+ return paintedMap('kitchen-accent-v062',512,128,ctx=>{
   ctx.fillStyle='#6b8277';ctx.fillRect(0,0,512,128);
   for(let row=0;row<5;row++)for(let col=-1;col<16;col++){
    const x=col*38+(row%2)*19,y=row*26;
-   const g=ctx.createLinearGradient(0,y,0,y+24);g.addColorStop(0,'#d2e2d6');g.addColorStop(.24,'#a8c1af');g.addColorStop(1,'#85a99a');
-   ctx.fillStyle=g;ctx.fillRect(x+1,y+1,36,24);ctx.fillStyle='#eaf3e76b';ctx.fillRect(x+2,y+2,34,1);
+   const g=ctx.createLinearGradient(0,y,0,y+24);g.addColorStop(0,'#d2e2d6');g.addColorStop(.24,'#b8cdbb');g.addColorStop(.72,'#a0b9a7');g.addColorStop(1,'#81a18e');
+   ctx.fillStyle=g;ctx.fillRect(x+1,y+1,36,24);ctx.fillStyle='#eaf3e76b';ctx.fillRect(x+2,y+2,34,1);ctx.fillStyle='#567b6b32';ctx.fillRect(x+2,y+23,34,1);ctx.fillRect(x+35,y+3,1,20);
   }
  });
 }

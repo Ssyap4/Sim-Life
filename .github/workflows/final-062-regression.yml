@@ -1,0 +1,22 @@
+name: SimOurHome 0.62 full regression
+on:
+  push:
+    branches: [feat/family-story-062]
+    paths:
+      - '.github/workflows/final-062-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --import tsx --test --test-concurrency=2 server/tests/*.test.ts

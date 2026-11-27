@@ -34,6 +34,7 @@ try{
     reports.push({label,...report});await page.screenshot({path:join(out,label+'-'+view+'.png')});
    }
    if(label==='day'){
+    for(const view of ['kitchen','bedroom','living','bath','passages','study']){await canvas.evaluate((el,v)=>el.dataset.wallView=v,view);await page.waitForTimeout(1100);await page.screenshot({path:join(out,'home-'+view+'.png')});}
     await canvas.evaluate(el=>delete el.dataset.wallView);
     await page.locator('#camera-reset').tap();
     const up=page.locator('#camera-height-up'),reset=page.locator('#camera-reset'),phone=page.locator('#phone-btn');

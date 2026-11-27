@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/game/Yard*.ts'
       - 'src/game/World.ts'
+      - 'src/game/CottageArt.ts'
+      - 'src/game/HomeStyling.ts'
       - 'src/phoneUI.ts'
       - 'src/phoneRefreshGate.ts'
       - 'src/mobile-refinement-062.css'

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
-import { batchRigidParts, colors as C, cube, drum, finish, panel, plane, softCube, type XYZ } from './ArtKit';
+import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
 import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, HOUSE_WING } from '../shared/home';
 import { gardenView } from './ArtTextures';
 import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
@@ -120,6 +120,14 @@ function entryDoor(home: THREE.Group) {
   shape(home, cube, [width + 2 * frame + .07, .105, .19], [x, 2.40, z], C.walnut, 'wood');
   shape(home, cube, [width, .029, .34], [x, .018, z], C.oat, 'wood');
   shape(home, softCube, [1.54, .022, .52], [x, .016, z - .55], C.leaf);
+  const weave=paintedMap('entry-woven-mat-062',256,96,ctx=>{
+   ctx.fillStyle='#657f69';ctx.fillRect(0,0,256,96);
+   for(let i=0;i<256;i+=3){ctx.fillStyle=i%2?'#80947a':'#536c58';ctx.fillRect(i,0,1.2,96);}
+   for(let j=0;j<96;j+=3){ctx.fillStyle='#ced6b82c';ctx.fillRect(0,j,256,1);}
+   ctx.strokeStyle='#d5c6a0';ctx.lineWidth=3;ctx.strokeRect(7,7,242,82);
+   ctx.strokeStyle='#435d4b';ctx.lineWidth=1.5;ctx.strokeRect(12,12,232,72);
+  });
+  const mat=panel(home,[x,.028,z-.55],[1.49,.47],weave,C.leaf);mat.rotation.x=-Math.PI/2;mat.name='Woven entry mat';mat.raycast=()=>{};
   const door = new THREE.Group();
   door.position.set(x, 0, z + .07);
   const half = width / 2 - .035;
@@ -129,6 +137,8 @@ function entryDoor(home: THREE.Group) {
   }
   shape(door, cube, [.044, 2.15, .057], [0, 1.14, 0], C.pine, 'wood');
   shape(door, softCube, [.05, .26, .05], [half - .20, 1.04, .07], C.brass, 'metal');
+  for(const yy of [.27,1.93])shape(door,cube,[.06,.10,.045],[-half+.025,yy,.045],0x8e8067,'metal');
+  shape(door,cube,[.075,.15,.018],[half-.20,1.04,.038],0x806848,'metal');
   const glass = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({
     color: 0xafcfbf, transparent: true, opacity: .17, depthWrite: false, side: THREE.DoubleSide,
   }));

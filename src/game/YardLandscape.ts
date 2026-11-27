@@ -58,7 +58,7 @@ export function pavingBorderCells(cells:readonly Rect[]):Rect[]{
 }
 function repeat(map:THREE.Texture|null){if(map){map.wrapS=map.wrapT=THREE.RepeatWrapping;map.anisotropy=4;}return map;}
 function turfMap(){
- return repeat(paintedMap('yard-lawn-062',1024,1024,ctx=>{
+ return repeat(paintedMap('yard-lawn-062b',1024,1024,ctx=>{
   const n=1024,rng=landscapeRandom(86127);
   ctx.fillStyle='#648844';ctx.fillRect(0,0,n,n);
   const wrapped=(x:number,z:number,draw:(x:number,z:number)=>void)=>{for(const dx of [-n,0,n])for(const dz of [-n,0,n]){const a=x+dx,b=z+dz;if(a>=-160&&a<=n+160&&b>=-160&&b<=n+160)draw(a,b);}};
@@ -102,33 +102,33 @@ export function buildYardLandscape(parent:THREE.Group){
  // The same mesh and material serve all sectors; no alpha texture or shadows.
  const positions:number[]=[],indices:number[]=[],pigments:number[]=[];
  for(let k=0;k<3;k++){
-  const a=k*Math.PI*2/3,c=Math.cos(a),q=Math.sin(a),i=positions.length/3,h=.135+k*.018,w=.026-k*.003;
-  positions.push(-q*w,0,c*w,q*w,0,-c*w,c*.043-q*w*.45,h*.57,q*.043+c*w*.45,c*.043+q*w*.45,h*.57,q*.043-c*w*.45,c*.085,h,q*.085);
+  const a=k*Math.PI*2/3,c=Math.cos(a),q=Math.sin(a),i=positions.length/3,h=.105+k*.016,w=.012-k*.0015,root=.024+k*.009;
+  positions.push(c*root-q*w,0,q*root+c*w,c*root+q*w,0,q*root-c*w,c*(root+.024)-q*w*.57,h*.59,q*(root+.024)+c*w*.57,c*(root+.024)+q*w*.57,h*.59,q*(root+.024)-c*w*.57,c*(root+.057),h,q*(root+.057));
   indices.push(i,i+1,i+2,i+1,i+3,i+2,i+2,i+3,i+4);
-  for(const light of [.48,.48,.83,.83,1.15])pigments.push(light*.96,light,light*.87);
+  for(const light of [.74,.74,.96,.96,1.12])pigments.push(light*.96,light,light*.87);
  }
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(pigments,3));geo.setIndex(indices);geo.computeVertexNormals();
- const grassBase=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,emissive:0x253c17,emissiveIntensity:.24});
+ const grassBase=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,emissive:0x385827,emissiveIntensity:.38});
  const breeze={value:0},snowHeight={value:0},gust={value:1};
  grassBase.onBeforeCompile=shader=>{
   shader.uniforms.yardBreeze=breeze;shader.uniforms.yardSnowHeight=snowHeight;shader.uniforms.yardGust=gust;
   shader.vertexShader='uniform float yardBreeze,yardSnowHeight,yardGust;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
    float phase=instanceMatrix[3].x*.71+instanceMatrix[3].z*.49+yardBreeze*1.35;
    transformed.x+=transformed.y*transformed.y*sin(phase)*1.6*yardGust;
-   transformed.y*=1.-yardSnowHeight*.72;`);
+   transformed.y*=1.-yardSnowHeight*.94;`);
  };
- const material=seasonalMaterial(grassBase,'grass');material.customProgramCacheKey=()=> 'simlife-yard-wind-v062';
+ const material=seasonalMaterial(grassBase,'grass');material.customProgramCacheKey=()=> 'simlife-yard-wind-v062b';
  const rng=landscapeRandom(5171),sectors:THREE.InstancedMesh[]=[];
- const palette=[0x709b49,0x86ac54,0x9bbd68,0x5d8a40,0xb0c67a,0x779b50],t=new THREE.Object3D(),color=new THREE.Color();
+ const palette=[0x81a650,0x87a957,0x95b360,0x71964a,0xa0b867,0x7d9f51],t=new THREE.Object3D(),color=new THREE.Color();
  for(let x=YARD_SURFACE.minX;x<YARD_SURFACE.maxX;x+=6)for(let z=YARD_SURFACE.minZ;z<YARD_SURFACE.maxZ;z+=6){
   const points:{x:number;z:number}[]=[];
-  for(let a=x+.14;a<Math.min(x+6,YARD_SURFACE.maxX);a+=.23)for(let b=z+.14;b<Math.min(z+6,YARD_SURFACE.maxZ);b+=.23){const px=a+(rng()-.5)*.19,pz=b+(rng()-.5)*.19;if(lawnAt(px,pz))points.push({x:px,z:pz});}
+  for(let a=x+.14;a<Math.min(x+6,YARD_SURFACE.maxX);a+=.195)for(let b=z+.14;b<Math.min(z+6,YARD_SURFACE.maxZ);b+=.195){const px=a+(rng()-.5)*.16,pz=b+(rng()-.5)*.16;if(lawnAt(px,pz))points.push({x:px,z:pz});}
   if(!points.length)continue;
   // Shuffle once so reducing count at distance thins the whole sector evenly.
   for(let i=points.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[points[i],points[j]]=[points[j],points[i]];}
   const mesh=new THREE.InstancedMesh(geo,material,points.length);mesh.userData.fullCount=points.length;mesh.name='Short 3D lawn blades';mesh.raycast=()=>{};
-  for(const [i,p] of points.entries()){t.position.set(p.x,-.008,p.z);t.rotation.y=rng()*Math.PI*2;t.scale.set(.82+rng()*.52,snowPreview()?.19:.58+rng()*.64,.82+rng()*.52);t.updateMatrix();mesh.setMatrixAt(i,t.matrix);mesh.setColorAt(i,color.setHex(palette[i%palette.length]));}
+  for(const [i,p] of points.entries()){t.position.set(p.x,-.008,p.z);t.rotation.y=rng()*Math.PI*2;t.scale.set(.82+rng()*.52,snowPreview()?.08:.56+rng()*.57,.82+rng()*.52);t.updateMatrix();mesh.setMatrixAt(i,t.matrix);mesh.setColorAt(i,color.setHex(palette[i%palette.length]));}
   mesh.computeBoundingSphere();sectors.push(mesh);parent.add(mesh);
  }
- return {sectors,turfMesh,path,animate(seconds:number,snow:number,wind:number){breeze.value=seconds;snowHeight.value=THREE.MathUtils.clamp(snow,0,1);gust.value=wind;},detail(camera:THREE.Camera,low:boolean){for(const m of sectors){const distance=camera.position.distanceTo(m.boundingSphere!.center);m.visible=distance<(low?22:34);const fraction=low?(distance<12?.65:.28):(distance<15?1:distance<24?.55:.30);m.count=Math.max(1,Math.floor(m.userData.fullCount*fraction));}}};
+ return {sectors,turfMesh,path,animate(seconds:number,snow:number,wind:number){breeze.value=seconds;snowHeight.value=THREE.MathUtils.clamp(snow,0,1);gust.value=wind;},detail(camera:THREE.Camera,low:boolean){for(const m of sectors){const distance=camera.position.distanceTo(m.boundingSphere!.center);m.visible=distance<(low?22:34);const fraction=low?(distance<12?.52:.22):(distance<15?1:distance<24?.46:.23);m.count=Math.max(1,Math.floor(m.userData.fullCount*fraction*(1-snowHeight.value*.78)));}}};
 }
