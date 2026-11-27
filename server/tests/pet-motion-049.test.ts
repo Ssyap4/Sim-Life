@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {Vector3} from 'three';
 import {PetActor} from '../../src/game/PetActor';
-import {petStepPace,petPaceBlend,perchBodyYaw} from '../../src/game/PetMotion';
+import {petStepPace,petPaceBlend,perchBodyYaw,samplePetStride,dogLegAngles} from '../../src/game/PetMotion';
 import {PET_SPEED} from '../../src/shared/pets';
 
 test('pet stride weight is bounded, speed-sensitive and frame independent',()=>{
@@ -85,4 +85,32 @@ test('inactive house toys are not rewritten every render frame',()=>{
  const before=toy.position.x;
  for(let i=0;i<60;i++)pet.update(1/60);
  assert.equal(toy.position.x,before);
+});
+test('stance cancels forward body travel and swing clears the floor at 20 to 60fps',()=>{
+ for(const duty of [.52,.67]){
+  const cycle=.46,p={y:0,z:0,swing:0};
+  for(let i=1;i<40;i++){
+   const distance=cycle*duty*i/40;
+   samplePetStride(distance,cycle,duty,0,.1,p);
+   assert.ok(Math.abs(distance+p.z-cycle*duty/2)<1e-8);
+   assert.equal(p.y,0);
+  }
+  samplePetStride(cycle*(duty+(1-duty)/2),cycle,duty,0,.1,p);
+  assert.ok(p.y>.099);
+  samplePetStride(cycle,cycle,duty,0,.1,p);
+  assert.ok(Math.abs(p.z-cycle*duty/2)<1e-8&&p.y===0);
+ }
+});
+test('Verdell two-bone angles reach a real local toe target for both leg types',()=>{
+ const out={hip:0,knee:0};
+ for(const front of [true,false]){
+  const len=front?.225:.268,upper=len*.52,lower=len-upper;
+  for(const z of [-.11,-.06,0,.06,.11]){
+   const y=-len+.065;
+   dogLegAngles(y,z,len,front,out);
+   const py=-upper*Math.cos(out.hip)-lower*Math.cos(out.hip+out.knee);
+   const pz=-upper*Math.sin(out.hip)-lower*Math.sin(out.hip+out.knee);
+   assert.ok(Math.hypot(py-y,pz-z)<1e-7);
+  }
+ }
 });

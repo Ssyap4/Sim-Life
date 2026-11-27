@@ -637,14 +637,14 @@ export class World {
       .applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
     // During care, include the nearby animal instead of cropping the coat
     // out of the resident portrait. This remains an optional inspection.
-    const care=person&&['pet','brush'].includes(this.actors[subject].audioMotion().activity??'');
+    const care=person&&['pet','brush','play','treat'].includes(this.actors[subject].audioMotion().activity??'');
     let careAngle:THREE.Vector3|null=null;
     if(care){
       let nearest:PetActor|null=null,distance=1.6;
       for(const id of PET_IDS){const pet=this.pets[id],d=pet.root.position.distanceTo(subjectRoot.position);if(d<distance){nearest=pet;distance=d;}}
       if(nearest){
         bounds.union(new THREE.Box3().setFromObject(nearest.root.children[0],true));
-        careAngle=new THREE.Vector3(.86,.64,.50).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y);
+        careAngle=new THREE.Vector3(.98,.70,.28).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y);
       }
     }
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):

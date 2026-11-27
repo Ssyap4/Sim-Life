@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CAT_REST_POSES, type CatRestPoseId } from '../shared/CatRestPoses';
 import type {PetPerformance} from './PetPerformance';
+import {samplePetStride} from './PetMotion';
 
 function joint(model: THREE.Object3D, name: string): THREE.Bone {
   const bone = model.getObjectByName(name);
@@ -45,6 +46,7 @@ export class SimbaRig {
   private readonly feet: Leg[];
   private readonly scratchTarget = new THREE.Vector3();
   private readonly contactProbe = new THREE.Vector3();
+  private readonly strideProbe={y:0,z:0,swing:0};
   private readonly headRest: THREE.Vector3;
 
   constructor(readonly model: THREE.Group) {
@@ -103,10 +105,10 @@ export class SimbaRig {
       this.eyes[i].scale.y=THREE.MathUtils.clamp(eyes[i].scale.y*(1-.42*loaf),.05,1);
     }
     for(const [index,limb] of this.feet.entries()){
-      const phase=THREE.MathUtils.euclideanModulo(distance/.49+limb.offset,1);
-      const swing = phase>.64 ? (phase-.64)/.36 : 0;
-      const lift = Math.sin(Math.PI*swing)*.074*motion*(1-.98*loaf);
-      const stride=.29*(phase<.64 ? .5-phase/.64 : -.5+swing)*motion*(1-.98*loaf);
+      const gait=samplePetStride(distance,.49,.64,limb.offset,.074,this.strideProbe);
+      const gaitWeight=THREE.MathUtils.smoothstep(motion,.035,.55)*(1-.98*loaf);
+      const lift=gait.y*gaitWeight;
+      const stride=gait.z*gaitWeight;
       const wash=index===0?groom:0;
       const stroke=Math.sin(time*13+index*Math.PI/2);
       let pawY=limb.height+crouch+lift+jump*.13+wash*.26;

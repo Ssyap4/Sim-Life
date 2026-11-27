@@ -28,3 +28,27 @@ export function petDreamMotion(seconds:number,weight:number,offset=0):number{
  return MathUtils.smoothstep(t,0,.65)*(1-MathUtils.smoothstep(t,1.9,2.7))*
   Math.sin(t*16)*MathUtils.clamp(weight,0,1);
 }
+/** One distance-driven planted step. During stance the foot moves backward
+ * exactly as far as the body advances, not at a sinusoidal ground speed.
+ * The airborne return uses a cubic ease and zero lift at both endpoints. */
+export function samplePetStride(distance:number,cycle:number,duty:number,offset:number,height:number,out:{z:number;y:number;swing:number}){
+ const phase=MathUtils.euclideanModulo(distance/cycle+offset,1);
+ const span=cycle*duty;
+ if(phase<duty){
+  out.z=span*.5-phase*cycle;out.y=0;out.swing=0;
+ }else{
+  const k=(phase-duty)/(1-duty);
+  out.z=span*(MathUtils.smoothstep(k,0,1)-.5);
+  out.y=height*Math.sin(Math.PI*k)**2;out.swing=k;
+ }
+ return out;
+}
+/** Two-bone leg IK in the sagittal plane, using the dog's real hinge lengths. */
+export function dogLegAngles(y:number,z:number,length:number,front:boolean,out:{hip:number;knee:number}){
+ const upper=length*.52,lower=length-upper;
+ const r=MathUtils.clamp(Math.hypot(y,z),Math.abs(upper-lower)+.001,length-.001);
+ const bend=Math.acos(MathUtils.clamp((r*r-upper*upper-lower*lower)/(2*upper*lower),-1,1))*(front?1:-1);
+ out.hip=Math.atan2(-z,-y)-Math.atan2(lower*Math.sin(bend),upper+lower*Math.cos(bend));
+ out.knee=bend;
+ return out;
+}

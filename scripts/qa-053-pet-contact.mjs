@@ -38,6 +38,7 @@ try{
   await page.locator('#showcase-toggle').tap();await page.locator('[data-showcase='+role+']').tap();
   await page.waitForTimeout(200);await shot(action);
   await take('task_ended',p=>p.taskId===t.taskId&&p.outcome==='completed');
+  if(await page.locator('#showcase-return').isVisible())await page.locator('#showcase-return').click();
  }
  assert.deepEqual(errors,[]);
  console.log('PET_CONTACT_QA_OK',id);

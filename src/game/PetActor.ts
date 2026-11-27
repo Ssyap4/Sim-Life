@@ -9,9 +9,10 @@ import { petHungerSprite, warningTexture } from './PetHungerMarker';
 import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
-import { petStepPace, petPaceBlend, perchBodyYaw, petTurnMotion, petDreamMotion } from './PetMotion';
+import { petStepPace, petPaceBlend, perchBodyYaw, petTurnMotion, petDreamMotion, samplePetStride, dogLegAngles } from './PetMotion';
 import {newPetPerformance,samplePetPerformance,PET_PERFORMANCES} from './PetPerformance';
 import {addPetReaction,petReactionSeconds,petReactionWeight,petSocialGesture} from './PetSocialMotion';
+import {toyPhrase} from './PetToyMotion';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
@@ -32,6 +33,9 @@ export class PetActor {
   private companionYaw=0;
   private companionActive=false;
   private readonly performance=newPetPerformance();
+  private readonly walkStride={y:0,z:0,swing:0};
+  private readonly gripOffset=new THREE.Vector3();
+  private readonly legAngles={hip:0,knee:0};
   private animatedToyIndex:number|undefined;
   private dogBedProgress=0;
   private bathActive=false;
@@ -169,31 +173,35 @@ export class PetActor {
       model.scale.setScalar(1);
       for(const child of model.children){if(child.name==='Puzzle lid'){child.position.z=0;child.rotation.x=0;}if(child.name==='Feather stalk')child.rotation.set(0,0,0);}
       if(i!==this.toyIndex||!weight||!model.visible)continue;
+      const phrase=toyPhrase(time,toy.kind);
       if(toy.kind==='ball'){
-        const nudge=Math.max(0,Math.sin(time*4))*weight;
-        model.position.z+=nudge*.16;
-        model.position.x+=Math.sin(time*4)*weight*.065;
-        model.rotation.x=nudge*1.7;
-      }else if(toy.kind==='rope'){
-        const hold=THREE.MathUtils.smoothstep(Math.sin(time*1.6),-.1,.45)*weight;
-        this.head.updateWorldMatrix(true,false);
-        this.toyContact.copy(this.head.localToWorld(this.perchLocal.set(0,-.15,.34)));
+        const nudge=phrase.displaced*weight;
+        model.position.z+=nudge*.18;
+        model.position.x+=nudge*.055;
+        model.rotation.x=nudge*1.9;
+      }else if(toy.kind==='rope'||toy.kind==='bone'||toy.kind==='ring'||toy.kind==='marfa'){
+        const hold=phrase.grip*weight;
+        this.muzzleContact(this.toyContact);
+        model.rotation.y=(this.root.rotation.y+(toy.kind==='rope'?0:Math.PI/2))*hold+phrase.shake*.30*weight;
+        model.rotation.x=toy.kind==='ring'?Math.PI*.46*hold:0;
+        model.rotation.z=phrase.shake*.16*weight;
+        // A rope is held by its knot, a ring by its rim, not by their center.
+        if(toy.kind==='rope')this.gripOffset.set(-.165,.04,0);
+        else if(toy.kind==='ring')this.gripOffset.set(0,.04,-.115);
+        else if(toy.kind==='marfa')this.gripOffset.set(0,.085,.07);
+        else this.gripOffset.set(0,.055,0);
+        this.gripOffset.applyEuler(model.rotation);
+        this.toyContact.sub(this.gripOffset);
         model.position.lerp(this.toyContact,hold);
-        model.rotation.y=this.root.rotation.y+Math.sin(time*8)*hold*.55;
-        model.rotation.z=Math.sin(time*8)*hold*.18;
-      }else if(toy.kind==='bone'||toy.kind==='ring'){
-        const hold=THREE.MathUtils.smoothstep(Math.sin(time*(toy.kind==='bone'?1.1:1.65)),-.35,.35)*weight;
-        this.head.updateWorldMatrix(true,false);this.toyContact.copy(this.head.localToWorld(this.perchLocal.set(0,-.139,.365)));
-        model.position.lerp(this.toyContact,hold);model.rotation.y=this.root.rotation.y+(toy.kind==='ring'?Math.sin(time*8)*.42:Math.PI/2);
-        model.rotation.x=toy.kind==='ring'?Math.PI*.46*hold:0;model.scale.y=1-(toy.kind==='bone'?.18*hold*Math.max(0,Math.sin(time*13)):0);
+        model.scale.y=1-(toy.kind==='bone'?.10*hold*Math.max(0,Math.sin(time*13)):0);
       }else if(toy.kind==='puzzle'){
         const lids=model.children.filter(c=>c.name==='Puzzle lid');lids.forEach((lid,j)=>{lid.position.z=weight*.09*Math.max(0,Math.sin(time*2+j*Math.PI));lid.rotation.x=weight*.4*Math.max(0,Math.sin(time*2+j*Math.PI));});
       }else if(toy.kind==='mouse'){
-        const phase=time%2.5;model.position.x+=weight*.10*Math.sin(phase*3.2);model.position.z+=weight*.095*Math.max(0,Math.sin(phase*4));model.rotation.y=weight*Math.sin(phase*5)*.8;
+        const hit=phrase.displaced*weight;model.position.x+=hit*.11;model.position.z+=hit*.09;model.rotation.y=hit*.8;
       }else if(toy.kind==='spring'){
-        const hit=Math.max(0,Math.sin(time*3.8));model.position.x+=weight*.13*Math.sin(time*3.8);model.position.y+=weight*.10*hit;model.rotation.x=weight*hit*2.6;model.rotation.z=weight*Math.sin(time*5);
+        const hit=phrase.displaced;model.position.x+=weight*.13*hit;model.position.y+=weight*.10*hit;model.rotation.x=weight*hit*2.6;model.rotation.z=weight*hit*.5;
       }else if(toy.kind==='feather'){
-        const stalk=model.getObjectByName('Feather stalk');if(stalk){stalk.rotation.x=weight*.48*Math.sin(time*4.3);stalk.rotation.z=weight*.38*Math.sin(time*3.4);}
+        const stalk=model.getObjectByName('Feather stalk');if(stalk){stalk.rotation.x=weight*.48*phrase.displaced;stalk.rotation.z=weight*.38*phrase.displaced*Math.sin(time*7);}
       }else{
         // Soft toy stays on the ground while the dog noses and paws at it.
         model.position.x+=Math.sin(time*2.4)*weight*.045;
@@ -258,7 +266,7 @@ export class PetActor {
     this.idleGesture=gesture as PetIdleGesture;this.idleTime=0;
     this.idleCooldown=4;return true;
   }
-  performanceQA(){return {gesture:this.idleGesture,time:this.idleTime,turn:this.turnMotion};}
+  performanceQA(){return {gesture:this.idleGesture,time:this.idleTime,turn:this.turnMotion,routine:this.routine,settled:this.settled,gait:this.gaitPace,distance:this.distance};}
   canGreetCompanion():boolean{
     return this.clock>=this.nextCompanion&&!this.idleGesture&&!this.route.length&&!this.reaction&&
       !this.perchProgress&&!this.dogBedProgress&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&
@@ -649,9 +657,19 @@ export class PetActor {
       &&Math.hypot(this.root.position.x-toyApproach.x,this.root.position.z-toyApproach.z)<.22
       ?Math.min(1,this.settled*2):0;
     const toyBeat=this.settled;
+    const phrase=toy?toyPhrase(toyBeat,toy.kind):undefined;
+    if(toyPlay&&phrase&&dog){
+      performance.headDrop+=toyPlay*phrase.lower*.16;
+      performance.headPitch+=toyPlay*phrase.lower*.24-toyPlay*phrase.grip*.18;
+      performance.headYaw+=toyPlay*phrase.shake*.18;
+      if(toy?.kind==='ball'){
+        performance.headPitch+=toyPlay*phrase.strike*.16;
+        performance.headDrop+=toyPlay*phrase.strike*.085;
+      }
+    }
     const playful = this.reaction === 'play' ? weight : toyPlay*(toy?.kind==='marfa'?.26:toy?.kind==='rope'?.48:toy?.kind==='bone'?.24:toy?.kind==='puzzle'?.12:toy?.kind==='spring'?.44:.74);
     const catToy=!dog?toyPlay:0;const catPounce=catToy*(toy?.kind==='mouse'?Math.max(0,Math.sin(toyBeat*2.5))**3:0);
-    const catStrike=catToy*(toy?.kind==='spring'?.65+.35*Math.sin(toyBeat*3.8):toy?.kind==='feather'?.8:.8*catPounce);
+    const catStrike=catToy*(phrase?.strike??0);
     const puzzle=toy?.kind==='puzzle'?toyPlay:0;
     const scratching=!dog && this.routine==='scratch' && !this.route.length
       ? Math.min(1,this.settled*2):0;
@@ -835,6 +853,10 @@ export class PetActor {
         + watching * .14 + greeting * .07;
       ear.rotation.y = (i === 0 ? 1 : -1) * flick * (dog ? 0.06 : 0.24);
     }
+    // Blend into a planted gait only during real locomotion/turning. Rest,
+    // trained poses, toys and the stairs retain their authored joint poses.
+    const planted=dog&&!this.dogBedProgress&&!this.bathLift&&!this.parkRollTime&&!this.reaction
+      ?THREE.MathUtils.smoothstep(stepPace,.04,.48):0;
     for (let i = 0; i < this.paws.length; i++) {
       const paw = this.paws[i];
       const front = i % 2 === 0;
@@ -874,6 +896,18 @@ export class PetActor {
         const knee=this.rig.knees?.[i];
         if(knee)knee.rotation.x=(flex+performance.knee[i])*(front?1:-1);
         paw.position.y+=swing*stepPace*.075;
+        if(planted>0){
+          const localDistance=gaitTravel/this.root.scale.x;
+          const offset=THREE.MathUtils.lerp([0,.73,.5,.23][i],[0,.5,.5,0][i],trot);
+          const stride=samplePetStride(localDistance,.46,THREE.MathUtils.lerp(.67,.52,trot),
+            offset,THREE.MathUtils.lerp(.075,.12,trot),this.walkStride);
+          const z=stride.z,h=stride.y;
+          const len=front?.225:.268;
+          const angle=dogLegAngles(-len+.055+h,z,len,front,this.legAngles);
+          paw.rotation.x=THREE.MathUtils.lerp(paw.rotation.x,angle.hip,planted);
+          if(knee)knee.rotation.x=THREE.MathUtils.lerp(knee.rotation.x,angle.knee,planted);
+          paw.position.y=THREE.MathUtils.lerp(paw.position.y,len,planted);
+        }
       }
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
       paw.position.z = (dog ? (front ? .24 : -.32) : (front ? .285 : -.395)) +
@@ -893,7 +927,7 @@ export class PetActor {
     for(const ear of this.rig.ears)ear.rotation.x+=performance.ear;
     for(const eye of this.rig.eyes)eye.scale.y*=1-performance.eye;
     if(dog||!this.simbaRig){
-      this.body.position.y+=performance.y+Math.abs(Math.sin(travel*19))*pace*.027;
+      this.body.position.y+=performance.y+Math.abs(Math.sin(travel*19))*pace*.014-.055*planted;
       this.body.position.z+=performance.z;
       this.body.rotation.x+=performance.pitch+.035*pace*Math.sin(travel*19);
       this.body.rotation.z+=performance.roll+.036*pace*Math.sin(travel*9.5)-turn*.115;
@@ -959,7 +993,10 @@ export class PetActor {
         post.x-.135*Math.sin(this.root.rotation.y),.57,
         post.z-.135*Math.cos(this.root.rotation.y))):undefined;
       const toyModel=catToy?this.homeToys.children[this.toyIndex!]:undefined;
-      const toyContact=toyModel?this.body.worldToLocal(new THREE.Vector3(toyModel.position.x,toyModel.position.y+(toy?.kind==='feather'?.28:.055),toyModel.position.z)):undefined;
+      const toyContact=toyModel?this.body.worldToLocal(
+        toy?.kind==='feather'&&toyModel.getObjectByName('Feather stalk')
+          ?toyModel.getObjectByName('Feather stalk')!.localToWorld(this.toyContact.set(0,.25,0))
+          :toyModel.localToWorld(this.toyContact.set(0,.055,0))):undefined;
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
         t,gaitTravel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:stepPace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,

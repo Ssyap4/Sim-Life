@@ -87,3 +87,22 @@ test('every purchased toy moves or changes its mechanism during distinct real do
  }
  assert.equal(signatures.size,6);
 });
+
+test('Verdell grips the actual knot or rim and returns the prop when interrupted',()=>{
+ const dog=new PetActor('verdell');
+ const s=initialState(),geom=petNavigationGeometry(placeObstacles('home',s.furnishing),HOME_FLOOR);
+ for(const [kind,x,y,z] of [['rope',-.165,.04,0],['ring',0,.04,-.115]] as const){
+  const idx=homeToysFor('verdell').findIndex(t=>t.kind===kind);
+  const toy=homeToysFor('verdell')[idx],goal=homeToyApproach('verdell',idx);
+  dog.setHomeToyAvailability(geom.obstacles,geom.floor,['dog-ring']);
+  dog.root.position.set(goal.x,0,goal.z);dog.root.rotation.y=0;
+  dog.followRoute([],'toy',0,undefined,undefined,false,undefined,undefined,0,idx);
+  for(let i=0;i<120;i++)dog.update(1/60);
+  const model=dog.homeToys.children[idx];
+  const grip=model.localToWorld(new THREE.Vector3(x,y,z));
+  const mouth=dog.muzzleContact(new THREE.Vector3());
+  assert.ok(grip.distanceTo(mouth)<.006,kind+' grip gap '+grip.distanceTo(mouth));
+  dog.stop();
+  assert.ok(model.position.distanceTo(new THREE.Vector3(toy.x,.015,toy.z))<.001);
+ }
+});
