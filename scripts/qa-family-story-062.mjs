@@ -43,5 +43,16 @@ try{
  await page.locator('[data-weekend-preset=date]').click();
  await page.locator('[data-weekend-pick=dance]').waitFor();
  await page.locator('[data-weekend-propose]').scrollIntoViewIfNeeded();await page.screenshot({path:join(out,'new-plans.png')});
+ await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=autonomy]').click();
+ const profiles=page.locator('.autonomy-phone-card');
+ assert.equal(await profiles.count(),2);
+ await profiles.nth(0).getByText('Мечта:',{exact:false}).waitFor();
+ assert.match(await profiles.nth(0).innerText(),/вайбкодинг/i);
+ assert.match(await profiles.nth(1).innerText(),/реконструкци/i);
+ assert.match(await profiles.nth(1).innerText(),/Верделл/);
+ for(const width of [320,390]){
+  await page.setViewportSize({width,height:width===320?568:844});
+  for(let i=0;i<2;i++){await profiles.nth(i).scrollIntoViewIfNeeded();await page.screenshot({path:join(out,'profile-'+i+'-'+width+'.png')});assert.ok(await profiles.nth(i).evaluate(el=>el.scrollWidth<=el.clientWidth+1));}
+ }
  assert.deepEqual(errors,[]);console.log('Real mobile journal filters, pagination, and 4 viewport captures passed');
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

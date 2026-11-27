@@ -1,3 +1,4 @@
+import {CARE,careEffects,type CareId} from './vanity';
 import {isCatchRecipe} from './lake';
 import { residentEmotion, rankLeisure, PERSONALITIES } from './emotions';
 import { isNotebookDesk } from './furniture';
@@ -173,6 +174,10 @@ export function fullLeisureCandidates(state:GameState,role:CharacterId,turn:numb
     {type:'act',actionId:'tablePlan'},
     {type:'act',actionId:'bathSoak'},
   ];
+  if(role==='alina'&&state.world.places[role]==='home'&&Math.min(state.characters[role].hunger,state.characters[role].energy,state.characters[role].bladder,state.characters[role].hygiene)>50){
+    const active=careEffects(state,role);
+    for(const care of ['style','light','skin','perfume'] as CareId[])if(!active.some(e=>CARE[e.id].group===CARE[care].group))actions.push({type:'vanity_care',care});
+  }
   const offset=turn%actions.length;
   return rankLeisure([...actions.slice(offset),...actions.slice(0,offset)],role,state.characters[role],turn,residentEmotion(state,role).id);
 }
@@ -212,7 +217,7 @@ export function thoughtFor(state:GameState,role:CharacterId):{text:string;need?:
   }
   const emotion=residentEmotion(state,role);
   if(emotion.id==='sad')return {text:role==='vlad'?'Что-то день не задался. Хочется переключиться.':'Хочется немного тепла и спокойствия.',emoji:emotion.emoji};
-  if(emotion.id==='inspired')return {text:role==='vlad'?'Есть силы разобраться в чём-нибудь новом.':'Столько интересных идей, хочется попробовать!',emoji:emotion.emoji};
+  if(emotion.id==='inspired')return {text:role==='vlad'?'Есть силы разобраться в новой задаче по разработке. Каждый маленький проект — шаг к своей студии.':'Хочется освоить ещё одну технику реконструкции волос. Это шаг к собственной студии!',emoji:emotion.emoji};
   const time=dayPhase(state.clock);
   const phrase=time==='night'
     ? role==='vlad'?'Тихий вечер. Хорошо бы отдохнуть перед новым днём.':

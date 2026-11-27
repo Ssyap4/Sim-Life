@@ -278,6 +278,8 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         const thought=thoughtFor(state,id),emotion=residentEmotion(state,id);
         current.querySelector('p')!.textContent=emotion.emoji+' '+emotion.label+' · '+Math.round(state.characters[id].mood)+'% · '+emotion.reason;
         const traits=document.createElement('small');traits.textContent=PERSONALITIES[id].traits.join(' · ')+' · Любимый питомец: '+(PERSONALITIES[id].pet==='simba'?'Симба':'Верделл');current.append(traits);
+        const interests=document.createElement('p');interests.textContent='Интересы: '+PERSONALITIES[id].interests.join(' · ');current.append(interests);
+        const dream=document.createElement('p');dream.className='personality-dream';dream.textContent='Мечта: '+PERSONALITIES[id].dream;current.append(dream);
         const reflection=document.createElement('p');reflection.textContent=thought.emoji+' '+thought.text;current.append(reflection);
         for(const event of activeEmotions(state,id)){const line=document.createElement('small');line.style.display='block';line.textContent='• '+EVENTS[event.kind].label+' · ещё '+Math.ceil(event.until-(state.clock.day-1)*1440-state.clock.minute)+' мин.';current.append(line);}
         if(role===id){

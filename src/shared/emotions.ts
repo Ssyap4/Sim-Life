@@ -2,8 +2,8 @@ import {gameMinutes} from './life';
 import type {CharacterId,Needs,TimedCommand,GameState} from './protocol';
 export type EmotionId='happy'|'inspired'|'calm'|'tired'|'hungry'|'uncomfortable'|'lonely'|'bored'|'sad'|'tense';
 export const PERSONALITIES={
- vlad:{pet:'simba',traits:['Любознательный','Технический склад ума','Любит игры'],favorite:['games','study','pet']},
- alina:{pet:'verdell',traits:['Творческая','Общительная','Любит уют'],favorite:['music','social','pet','home']}
+ vlad:{pet:'simba',traits:['Открытый','Логический склад ума','Целеустремлённый'],favorite:['games','study','nature','pet'],interests:['ПК и игры','Вайбкодинг и разработка','Природа и рыбалка'],dream:'Начать с небольших проектов в вайбкодинге, вырасти в разработчика, добиться большого заработка и открыть собственную студию и бизнес.'},
+ alina:{pet:'verdell',traits:['Умная','Общительная','Любит быть ухоженной'],favorite:['music','social','pet','reading','care','nature','study'],interests:['Уход за собой и реконструкция волос','Книги и общение','Природа и путешествия','Верделл и животные'],dream:'Начать карьеру в реконструкции волос с нуля, стать сильным специалистом, открыть свою студию и самой управлять бизнесом.'}
 } as const;
 const info:Record<EmotionId,{label:string;emoji:string;reason:string}>={
  happy:{label:'Счастливое',emoji:'😊',reason:'Хорошее настроение и основные потребности в порядке.'},
@@ -50,6 +50,7 @@ export const EVENTS={
  promotion:{label:'Повышение на работе',emotion:'inspired',minutes:240},
  shift:{label:'Рабочий день завершён',emotion:'inspired',minutes:120},
  music:{label:'Музыкальный отдых',emotion:'calm',minutes:75},
+ selfCare:{label:'Приятно выглядеть ухоженно',emotion:'happy',minutes:100},
  quietMorning:{label:'Приятное начало дня',emotion:'calm',minutes:90},
  creativeSpark:{label:'Пришла интересная идея',emotion:'inspired',minutes:120},
  cozyEvening:{label:'Спокойный вечер дома',emotion:'calm',minutes:90},
@@ -76,6 +77,7 @@ export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedComm
  if(c.type==='pet_action'&&['pet','play','brush'].includes(c.action))recordEmotion(s,role,c.pet===PERSONALITIES[role].pet?'favoritePet':'pet');
  else if(c.type==='together')recordEmotion(s,role,(c.action==='breakfastCare'||c.action==='breakfastBed')?'familyBreakfast':c.action==='yardCoffee'?'familyCoffee':c.action==='nearTalk:goodMorning'?'quietMorning':c.action==='nearTalk:goodNight'?'cozyEvening':['nearTalk:listen','nearTalk:compliment','nearTalk:welcomeHome','nearTalk:listenWithoutAdvice','nearTalk:shareLoad'].includes(c.action)?'familyCare':'together');
  else if(c.type==='study')recordEmotion(s,role,'study');
+ else if(c.type==='vanity_care')recordEmotion(s,role,'selfCare');
  else if(c.type==='read_book')recordEmotion(s,role,'readingMoment');
  else if(['movie','youtube','free_tv','computer_video'].includes(c.type))recordEmotion(s,role,'movie');
  else if(c.type==='act'||c.type==='furniture_use'){
@@ -91,11 +93,12 @@ export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedComm
   else if(['vladStudy','alinaStudy'].includes(a))recordEmotion(s,role,'study');
  }
 }
-type Preference='games'|'study'|'pet'|'music'|'social'|'rest'|'reading'|'home'|'video'|'other';
+type Preference='games'|'study'|'pet'|'music'|'social'|'rest'|'reading'|'home'|'video'|'care'|'nature'|'other';
 export function leisureKind(c:TimedCommand):Preference{
  if(c.type==='play_game')return 'games';
  if(c.type==='computer_video'||c.type==='free_tv')return 'video';
  if(c.type==='read_book')return 'reading';
+ if(c.type==='vanity_care')return 'care';
  if(c.type==='pet_action')return 'pet';
  if(c.type==='act'||c.type==='furniture_use'){
   const a=c.type==='act'?c.actionId:c.action;
@@ -108,9 +111,13 @@ export function leisureKind(c:TimedCommand):Preference{
  }
  return 'other';
 }
+export function personalPreference(role:CharacterId,kind:Preference):number{
+ const weights:Record<CharacterId,Partial<Record<Preference,number>>>={vlad:{games:2.5,study:2.4,nature:1.9,video:0.6,social:0.8,pet:0.6},alina:{care:2.6,reading:2.4,social:2.1,pet:2.1,nature:1.9,study:1.7,music:1.3}};
+ return weights[role][kind]??0;
+}
 export function emotionPreference(role:CharacterId,e:EmotionId,kind:Preference):number{
  const favorite:readonly string[]=PERSONALITIES[role].favorite;
- let score=favorite.includes(kind)?1:0;
+ let score=personalPreference(role,kind)+(favorite.includes(kind)?.25:0);
  if((e==='tired'||e==='tense'||e==='uncomfortable')&&['rest','music','reading'].includes(kind))score+=4;
  if(e==='lonely'&&['social','pet'].includes(kind))score+=4;
  if(e==='bored'&&['games','music','video','pet'].includes(kind))score+=3;
@@ -136,5 +143,6 @@ export function wishEmotionPriority(id:string,role:CharacterId,e:EmotionId):numb
  if(id==='cozy-home')return emotionPreference(role,e,'home');
  if(id.startsWith('cook-')&&e==='inspired')return 2;
  if(id==='reading')return emotionPreference(role,e,'reading');
+ if(id.startsWith('vanity-'))return emotionPreference(role,e,'care');
  return 0;
 }

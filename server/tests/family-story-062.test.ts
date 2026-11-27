@@ -187,3 +187,35 @@ test('062 pet play suggested only for awake, fed, rested animals; companion chor
  const choices=companionChoices(s,'alina',dish);assert.ok(choices.length);assert.ok(choices.every(c=>planTask(c)?.resource!==planTask(dish)?.resource));
  s.autonomy.alina='needs';assert.deepEqual(companionChoices(s,'alina',dish),[]);
 });
+
+import {PERSONALITIES,personalPreference} from '../../src/shared/emotions';
+import {rankFull} from '../../src/shared/fullAutonomy';
+import {fullLeisureCandidates,thoughtFor} from '../../src/shared/autonomy';
+import {finishCare} from '../../src/shared/vanity';
+test('062 individual dreams and preferences influence real leisure without monopolizing it',()=>{
+ const s=ready();s.clock.minute=780;
+ assert.match(PERSONALITIES.vlad.dream,/вайбкодинг/);assert.match(PERSONALITIES.alina.dream,/реконструкц/);
+ assert.equal(PERSONALITIES.alina.pet,'verdell');
+ assert.ok(personalPreference('vlad','games')>personalPreference('alina','games'));
+ assert.ok(personalPreference('alina','reading')>personalPreference('vlad','reading'));
+ const opts=[{type:'play_game',game:'strategy',device:'desktop'},{type:'read_book',book:'prince'}] as const;
+ assert.equal(rankFull(s,'vlad',opts as any,[])[0].type,'play_game');
+ assert.equal(rankFull(s,'alina',opts as any,[])[0].type,'read_book');
+ assert.ok(fullLeisureCandidates(s,'alina',0).some(c=>c.type==='vanity_care'&&c.care==='style'));
+ finishCare(s,'style');assert.ok(!fullLeisureCandidates(s,'alina',0).some(c=>c.type==='vanity_care'&&c.care==='style'));
+ assert.ok(!fullLeisureCandidates(s,'vlad',0).some(c=>c.type==='vanity_care'));
+ s.characters.alina.hunger=35;assert.ok(!fullLeisureCandidates(s,'alina',0).some(c=>c.type==='vanity_care'));
+ assert.equal(thoughtFor(s,'alina').need,'hunger');
+ s.autonomy.alina='needs';assert.deepEqual(fullLeisureCandidates(s,'alina',0),[]);
+});
+test('062 personal topics are attributed to the actual character and keep shared travel available',()=>{
+ const s=ready();s.clock.minute=780;
+ for(const id of ['vladStudio','codeIdeas','fishingDream']){
+  const a=SOCIAL_BY_ID.get('nearTalk:'+id)!;assert.ok(a);assert.ok(contextAvailable(a,s,'vlad'));assert.equal(contextAvailable(a,s,'alina'),false);
+ }
+ for(const id of ['alinaStudio','hairIdeas','bookIdeas']){
+  const a=SOCIAL_BY_ID.get('nearTalk:'+id)!;assert.ok(a);assert.ok(contextAvailable(a,s,'alina'));assert.equal(contextAvailable(a,s,'vlad'),false);
+ }
+ for(const role of ['vlad','alina'] as const)assert.ok(contextAvailable(SOCIAL_BY_ID.get('nearTalk:travelDream')!,s,role));
+ const before=structuredClone(s);familyAutoTopics(s,'vlad');familyAutoTopics(s,'alina');assert.deepEqual(s,before);
+});
