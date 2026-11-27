@@ -507,3 +507,19 @@ test('Actual home order receives one automated coffee without ending or replacin
   assert.equal(delivered.state.activeShifts.vlad?.targetPay,shift.targetPay);
  }finally{await ctx.close();}
 });
+
+test('Critical toilet need beats even lower energy and fun in both active modes',async()=>{
+ for(const mode of ['needs','full'] as const){
+  const seed=initialState();seed.autonomy.vlad=mode;
+  Object.assign(seed.characters.vlad,{bladder:12,energy:9,fun:0,hunger:80,hygiene:90,social:90,comfort:90});
+  const ctx=await setup(seed,true,60,600,true);
+  try{
+   const ws=await ctx.join('vlad');
+   const start=waitFor(ws,p=>p.type==='task_started'&&p.role==='vlad'&&p.automatic===true,10000);
+   ctx.startClock();
+   const task=await start;assert.ok(task.type==='task_started');
+   assert.deepEqual(task.command,{type:'act',actionId:'toiletUse'});
+   assert.equal(openServerFiles(ctx.dir).load().money,seed.money);
+  }finally{await ctx.close();}
+ }
+});

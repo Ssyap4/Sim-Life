@@ -1,4 +1,5 @@
 import type {CharacterId,GameState,TimedCommand} from './protocol';
+import type {AutoChoice} from './autonomy';
 import type {HomeLeisure} from './home';
 import type {PetId} from './pets';
 import {leisureKind,residentEmotion} from './emotions';
@@ -43,4 +44,19 @@ export function fullIdleChoices(s:GameState,role:CharacterId,turn:number,recent:
   (a!=='stroll'||!night&&!['rain','storm','snow'].includes(w.kind))&&
   (a!=='simba'&&a!=='verdell'||autoPetAvailable(s,a))
  ).map((a,i)=>({a,score:-i*.2-recent.reduce((n,r,j)=>n+(r===a?2+j:0),0)+(a==='tv'&&e==='tired'?2:0)+(a==='stroll'&&s.characters[role].energy>75?1:0)})).sort((a,b)=>b.score-a.score).map(x=>x.a);
+}
+
+/** Rotate ways of satisfying the same need, never move a leisure choice
+ * ahead of a more urgent physical need or cook ahead of ready food. */
+export function rankCareChoices(s:GameState,role:CharacterId,choices:AutoChoice[],history:FullHistory):AutoChoice[]{
+  const groups=new Map<AutoChoice['need'],AutoChoice[]>();
+  for(const c of choices){const group=groups.get(c.need)??[];group.push(c);groups.set(c.need,group);}
+  const result:AutoChoice[]=[];
+  for(const [need,group] of groups){
+    if(need==='fun'||need==='social'||need==='comfort'){
+      const sorted=rankFull(s,role,group.map(c=>c.command),history);
+      for(const command of sorted)result.push(group.find(c=>c.command===command)!);
+    }else result.push(...group);
+  }
+  return result;
 }

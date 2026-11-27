@@ -1,7 +1,7 @@
 import {isCatchRecipe} from './lake';
 import { residentEmotion, rankLeisure, PERSONALITIES } from './emotions';
 import { isNotebookDesk } from './furniture';
-import { RECIPES, TAKEOUT, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
+import { RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { VITAL_NEEDS, dayPhase, gameMinutes, NEED_INFO, type VitalNeed } from './life';
 import { recipeAvailability } from './recipeAvailability';
 import { BOOKS, type BookId } from './homeLife';
@@ -24,6 +24,12 @@ export function validAutonomy(value: unknown): value is AutonomySettings {
   return Object.keys(v).length===2 && AUTONOMY_MODES.includes(v.vlad as AutonomyMode) &&
     AUTONOMY_MODES.includes(v.alina as AutonomyMode);
 }
+const PHYSICAL_NEEDS:readonly VitalNeed[]=['bladder','hunger','energy','hygiene'];
+export function urgentPhysicalNeed(state:GameState,role:CharacterId):VitalNeed|undefined{
+  const p=state.characters[role];
+  if(p.bladder<=15)return 'bladder';
+  return PHYSICAL_NEEDS.filter(n=>p[n]<=15).sort((a,b)=>p[a]-p[b])[0];
+}
 export interface AutoChoice {
   command: TimedCommand;
   need: VitalNeed;
@@ -37,13 +43,16 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
   const person=state.characters[role], mode=state.autonomy[role];
   const threshold=50;
   const needy=VITAL_NEEDS.filter(need=>person[need]<=threshold)
-    .sort((a,b)=>person[a]-person[b]);
+    .sort((a,b)=>{
+      const priority=(n:VitalNeed)=>n==='bladder'&&person[n]<=15?0:PHYSICAL_NEEDS.includes(n)&&person[n]<=15?1:2;
+      return priority(a)-priority(b)||person[a]-person[b];
+    });
   const candidates:AutoChoice[]=[];
   const offer=(need:VitalNeed,command:TimedCommand,reason:string)=>{
     candidates.push({need,command,reason});
   };
   const furnitureChoice=(need:VitalNeed,
-    fixture:'sofa'|'desk'|'table',action:'sofaRest'|'sofaMusic'|'sofaCall'|'deskGames'|'tableTalk',reason:string)=>{
+    fixture:'sofa'|'desk'|'table',action:'sofaRest'|'sofaMusic'|'sofaCall'|'deskGames'|'tableTalk'|'tableRest',reason:string)=>{
     if(!state.furnishing.soldFixtures?.includes(fixture)){
       offer(need,{type:'act',actionId:action},reason);
     }
@@ -88,6 +97,8 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
         break;
       case 'hygiene':
         offer(need,{type:'act',actionId:'bathShower'},'Хочется освежиться и принять душ.');
+        offer(need,{type:'act',actionId:'bathWash'},'Умоюсь, пока душ занят.');
+        offer(need,{type:'act',actionId:'kitchenWash'},'Можно освежиться у раковины.');
         break;
       case 'social':
         furnitureChoice(need,'sofa','sofaCall','Давно ни с кем не разговаривал(а).');
@@ -98,9 +109,8 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
           role==='vlad'?'Интересно, как там Симба?':'Проведаю Верделла.');
         furnitureChoice(need,'desk','deskGames','Хочется отвлечься за компьютером.');
         if(role==='alina')offer(need,{type:'act',actionId:'deskGames',computer:'laptop'},'Можно немного поиграть на ноутбуке.');
-        furnitureChoice(need,'sofa',role==='alina'?'sofaMusic':'sofaRest',
-          role==='alina'?'Хочется послушать что-нибудь приятное.':'Немного отдыха не помешает.');
-        if(role==='alina'){
+        furnitureChoice(need,'sofa','sofaMusic','Хочется послушать что-нибудь приятное.');
+        {
           if(!state.furnishing.soldFixtures?.includes('bookcase'))
             offer(need,{type:'read_book',book:'prince'},'Есть настроение почитать.');
           else for(const item of state.furnishing.placed){
@@ -119,7 +129,7 @@ export function autonomyCandidates(state: GameState, role: CharacterId): AutoCho
         break;
       case 'comfort':
         furnitureChoice(need,'sofa','sofaRest','Посижу в уютном месте.');
-        furnitureChoice(need,'table','tableTalk','Посижу за столом.');
+        furnitureChoice(need,'table','tableRest','Посижу за столом.');
         for(const item of state.furnishing.placed)if(canFurniturePerform(item,'officeChairSit'))
           offer(need,{type:'furniture_use',furnitureId:item.id,action:'officeChairSit'},'Устроюсь в удобном кресле.');
         break;
@@ -133,7 +143,7 @@ export function foodSupplyProblem(state:GameState,role:CharacterId):boolean{
   if(state.characters[role].hunger>50)return false;
   if(state.readyFood.some(b=>b.portions>0&&b.expiresAt>gameMinutes(state.clock)))return false;
   return !(Object.keys(RECIPES) as RecipeId[]).some(id=>
-    !isCatchRecipe(id)&&!isGrillRecipe(id)&&ingredientList(id).every(([ing,n])=>state.pantry[ing]>=n));
+    !isCatchRecipe(id)&&!isGrillRecipe(id)&&recipeAvailability(state,role,id).available);
 }
 
 /** Broad real full-mode actions, rotated by successful decision cycles. */

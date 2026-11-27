@@ -141,7 +141,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
     if(now-lastPopAt<16000)return;
     if(state.autonomy[role]!=='off'&&foodSupplyProblem(state,role)&&minute-(alerted.get('food')??-Infinity)>=90){
       alerted.set('food',minute);
-      showPop('🛒',name+' · Нет еды','Нужны продукты. Пополни запасы через телефон.',person.hunger,true);return;
+      showPop('🍽️',name+' · Нет доступной еды','Нет свежих порций или доступного рецепта. Проверь продукты, кулинарию и силы.',person.hunger,true);return;
     }
     const need=low.find(n=>person[n]>15&&person[n]<=(state.autonomy[role]==='off'?50:25)&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
     if(need){

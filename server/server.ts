@@ -1,4 +1,4 @@
-import {autoPetAvailable,activityIdentity,rememberFull,rankFull,fullIdleChoices,type FullHistory} from '../src/shared/fullAutonomy';
+import {autoPetAvailable,activityIdentity,rememberFull,rankFull,rankCareChoices,fullIdleChoices,type FullHistory} from '../src/shared/fullAutonomy';
 import {isLakeFishAction} from '../src/shared/lake';
 import {LAKE_PASSES,lakePass,type LakePass} from '../src/shared/lake';
 import {activeHomeWork,workCoffeeChoices,workCompanionChoices} from '../src/shared/workCoffee';
@@ -53,7 +53,7 @@ import { checkout } from './market';
 import { applyFurnishing,layoutBlock,routeHitsLayout,settleLayout } from './furnishing';
 import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
-import { autonomyCandidates, fullLeisureCandidates, AUTONOMY_MODES } from '../src/shared/autonomy';
+import { autonomyCandidates, fullLeisureCandidates, urgentPhysicalNeed, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { homeHabitCommands } from '../src/shared/personalityHabits';
 import {dailyRoutineChoices,companionChoices,dailyCompleted,recordDailyCompletion} from '../src/shared/dailyRoutine';
 import { BATH_ACTIONS, HOME_WALK_SPEED, KITCHEN_ACTIONS, KITCHEN_WORK, homeSeat,
@@ -516,7 +516,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const resident=state.characters[role];
       const energyMostUrgent=resident.energy<=Math.min(
         resident.bladder,resident.hunger,resident.hygiene);
-      if(resident.energy<=50&&energyMostUrgent){
+      const emergency=urgentPhysicalNeed(state,role);
+      if(resident.energy<=50&&energyMostUrgent&&(!emergency||emergency==='energy')){
         const chosen=selectSleepBed(state,role);
         if(chosen.ok){
           stopLeisure(role);
@@ -541,14 +542,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const mostCritical=Math.min(...(['bladder','hunger','energy','hygiene'] as const)
         .map(need=>state.characters[role][need]));
       if(now-(lastAutoCare.get(role)??0)>=careCooldownMs||mostCritical<=15){
-        for(const candidate of autonomyCandidates(state,role)){
+        const choices=autonomyCandidates(state,role);
+        for(const candidate of mode==='full'?rankCareChoices(state,role,choices,fullHistory.get(role)??[]):choices){
+          if(emergency&&!['bladder','hunger','energy','hygiene'].includes(candidate.need))continue;
           if(mode==='full'&&candidate.command.type==='pet_action'&&!autoPetAvailable(state,candidate.command.pet))continue;
           const plan=planTask(candidate.command);
           if(!plan||taskAccessError(state,plan.command))continue;
-          if(mode==='full'&&idleResourceBusy(role,plan.resource))continue;
+          if(idleResourceBusy(role,plan.resource))continue;
           if((plan.resource&&homeTasks.reserved(plan.resource))||
             [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
-          if(!evaluateTask(state,role,plan.command).ok)continue;
+          const validation=evaluateTask(state,role,plan.command);
+          if(!validation.ok)continue;
+          // Preparing food is a legitimate intermediate step.
+          const preparesFood=candidate.need==='hunger'&&(plan.command.type==='cook'||plan.command.type==='act'&&plan.command.actionId==='kitchenServe');
+          if(!preparesFood&&validation.state.characters[role][candidate.need]<=resident[candidate.need])continue;
           stopLeisure(role);
           beginTask(role,socket,plan,true);
           if(!running.has(role)&&!homeTasks.busy(role))continue;
@@ -559,6 +566,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
       }
       if(started||mode==='needs')continue;
+      if(emergency){stopLeisure(role);continue;}
       if(!leisure.has(role)&&now-(lastAutoCare.get(role)??0)>=leisureCooldownMs) {
         if(mode==='full'){
           // Alternate ordinary household chores with leisure: without this
@@ -784,14 +792,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     if (state.activeShifts[role] || running.has(role) || homeTasks.busy(role)) {
-      packet(socket, { type: 'error', reason: 'Персонаж занят. Сначала заверши или отмени текущее действие' });
+      if(!automatic) packet(socket, { type: 'error', reason: 'Персонаж занят. Сначала заверши или отмени текущее действие' });
       return;
     }
     walkingHome.delete(role);
-    if(plan.resource && state.activeShifts[otherRole(role)]?.homeDevice && computerResource(state.activeShifts[otherRole(role)]!.homeDevice!)===plan.resource){packet(socket,{type:"error",reason:"Компьютер занят домашним заказом"});return;}
+    if(plan.resource && state.activeShifts[otherRole(role)]?.homeDevice && computerResource(state.activeShifts[otherRole(role)]!.homeDevice!)===plan.resource){if(!automatic) packet(socket,{type:"error",reason:"Компьютер занят домашним заказом"});return;}
     const bath=plan.command.type==='pet_action'&&plan.command.action==='bathe';
     const dogCare=plan.command.type==='pet_action'&&plan.command.pet==='verdell';
-    if(dogCare&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell'&&(bath||t.plan.command.action==='bathe'))||bath&&homeTasks.reserved('pet:verdell'))){packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
+    if(dogCare&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell'&&(bath||t.plan.command.action==='bathe'))||bath&&homeTasks.reserved('pet:verdell'))){if(!automatic) packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
     const occupied = plan.resource && [...running.values()].find(task => task.plan.resource === plan.resource);
     if ((plan.resource && homeTasks.reserved(plan.resource)) || (plan.command.type==='local_activity'&&
         plan.command.action==='unpack'&&homeTasks.reserved('shopping'))) {
@@ -799,14 +807,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       return;
     }
     if (occupied && (automatic || !occupied.automatic)) {
-      packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
+      if(!automatic) packet(socket, { type: 'error', reason: 'Это место сейчас занято вторым игроком' });
       return;
     }
     const fitnessRoute=plan.command.type==='local_activity'&&(plan.command.action==='fitnessTrain'&&state.world.places[role]==='fitness'||plan.command.action.startsWith('spa')&&state.world.places[role]==='spa')
       ?applyWorld(state,role,{type:'approach',place:state.world.places[role],station:plan.command.station},active.has(otherRole(role))):undefined;
-    if(fitnessRoute&&!fitnessRoute.ok){packet(socket,{type:'error',reason:fitnessRoute.reason});return;}
+    if(fitnessRoute&&!fitnessRoute.ok){if(!automatic) packet(socket,{type:'error',reason:fitnessRoute.reason});return;}
     const validation = evaluateTask(fitnessRoute?.ok?fitnessRoute.state:state, role, plan.command);
-    if (!validation.ok) { packet(socket, { type: 'error', reason: validation.reason }); return; }
+    if (!validation.ok) { if(!automatic) packet(socket, { type: 'error', reason: validation.reason }); return; }
     if (occupied) stopTask(occupied.role, 'Место освободилось для игрока');
     for (const [resident, routine] of leisure) {
       const resource = routine.activity === 'computer' ? 'desk' : 'pet:' + routine.activity;
@@ -851,7 +859,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       ? Math.round(dishDistance / HOME_WALK_SPEED * 1000 + dishStops.length * 1500 + 8500) : 0;
     const personalCare = plan.command.type === 'act' && Object.hasOwn(BATH_ACTIONS, plan.command.actionId);
     const bathRoute=bath?dogBathPlan(state,role):null;
-    if(bath&&!bathRoute){packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
+    if(bath&&!bathRoute){if(!automatic) packet(socket,{type:'error',reason:'Нет свободного подхода к ванной'});return;}
     const activityMs=plan.durationMs/fitnessTaskSpeed(state,role,plan.command);
     const gymTravelMs=fitnessRoute?.ok&&fitnessRoute.path?.length?Math.ceil(pathLengthForTalk({from:position,path:fitnessRoute.path})/HOME_WALK_SPEED*1000)+1000:0;
     const duration = fitnessRoute?.ok?activityMs+gymTravelMs:cleaningRoute?activityMs+Math.ceil(pathLengthForTalk(cleaningRoute)/HOME_WALK_SPEED*1000)+2000:bathRoute?plan.durationMs+bathRoute.travelMs+5000:personalCare ? activityMs + travelBudgetMs
