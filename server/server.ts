@@ -1,3 +1,4 @@
+import {autoPetAvailable,activityIdentity,rememberFull,rankFull,fullIdleChoices,type FullHistory} from '../src/shared/fullAutonomy';
 import {isLakeFishAction} from '../src/shared/lake';
 import {LAKE_PASSES,lakePass,type LakePass} from '../src/shared/lake';
 import {activeHomeWork,workCoffeeChoices,workCompanionChoices} from '../src/shared/workCoffee';
@@ -170,7 +171,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const leisureCooldownMs=options.autonomyTiming?.leisureCooldownMs??4500;
   const leisure = new Map<CharacterId, { activity: HomeLeisure; startedAt: number; until: number; route: WalkRoute }>();
   // Keep full autonomy from repeating the same entertainment at every idle tick.
-  const recentLeisure = new Map<CharacterId, HomeLeisure>();
+  const recentLeisure = new Map<CharacterId, HomeLeisure[]>();
+  const fullHistory=new Map<CharacterId,FullHistory>();
+  const fullRetry=new Map<CharacterId,number>();
+  const leisureResource=(activity:HomeLeisure)=>activity==='computer'?'desk':activity==='tv'?'tv':activity==='simba'||activity==='verdell'?'pet:'+activity:null;
+  const idleResourceBusy=(role:CharacterId,resource:string|null)=>!!resource&&[...leisure.entries()].some(([r,l])=>r!==role&&leisureResource(l.activity)===resource);
   const fullRoutineTurn=new Map<CharacterId,number>();
   const companionUsed=new Map<CharacterId,number>();
   const workCompanionUsed=new Map<CharacterId,string>();
@@ -537,8 +542,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         .map(need=>state.characters[role][need]));
       if(now-(lastAutoCare.get(role)??0)>=careCooldownMs||mostCritical<=15){
         for(const candidate of autonomyCandidates(state,role)){
+          if(mode==='full'&&candidate.command.type==='pet_action'&&!autoPetAvailable(state,candidate.command.pet))continue;
           const plan=planTask(candidate.command);
           if(!plan||taskAccessError(state,plan.command))continue;
+          if(mode==='full'&&idleResourceBusy(role,plan.resource))continue;
           if((plan.resource&&homeTasks.reserved(plan.resource))||
             [...running.values()].some(task=>plan.resource&&task.plan.resource===plan.resource))continue;
           if(!evaluateTask(state,role,plan.command).ok)continue;
@@ -546,6 +553,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           beginTask(role,socket,plan,true);
           if(!running.has(role)&&!homeTasks.busy(role))continue;
           lastAutoCare.set(role,now);
+          if(mode==='full')fullHistory.set(role,rememberFull(fullHistory.get(role)??[],activityIdentity(candidate.command)));
           started=true;
           break;
         }
@@ -556,10 +564,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // Alternate ordinary household chores with leisure: without this
           // both residents could only repeat TV/computer/pet interactions.
           const turn=fullRoutineTurn.get(role)??0;
-          fullRoutineTurn.set(role,turn+1);
+          const remember=(command?:import('../src/shared/protocol').TimedCommand)=>{fullRoutineTurn.set(role,turn+1);if(command)fullHistory.set(role,rememberFull(fullHistory.get(role)??[],activityIdentity(command)));};
           // Keep a short natural chat window from being consumed by a new
           // solo chore. Critical needs still execute before this block.
           const partner=otherRole(role);
+          if(now<(fullRetry.get(role)??0))continue;
           const sharedWindow=active.has(partner)&&familyAutonomyReady(state)&&!running.has(partner)&&!homeTasks.busy(partner)&&!leisure.has(partner)&&!storageOpen.has(partner)&&!walkingHome.has(partner)&&(queuedTasks.get(partner)?.length??0)===0&&
             Math.floor(clockMinutes(state.clock)/125)%3===0;
           // The first idle turn preserves the established spontaneous leisure.
@@ -568,13 +577,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const peerTask=homeTasks.soloCompanionTask(partner)??(legacyPeer?.talkAt!==undefined&&now>=legacyPeer.talkAt?{id:legacyPeer.id,command:legacyPeer.plan.command}:undefined);
           const daily=dailyCompleted(state,role);
           const tryEveryday=(command:import('../src/shared/protocol').TimedCommand)=>{
+            if(command.type==='pet_action'&&!autoPetAvailable(state,command.pet))return false;
             const plan=planTask(command);
-            if(!plan||taskAccessError(state,plan.command)||
+            if(!plan||idleResourceBusy(role,plan.resource)||taskAccessError(state,plan.command)||
                plan.resource&&(homeTasks.reserved(plan.resource)||[...running.values()].some(t=>t.plan.resource===plan.resource))||
                !evaluateTask(state,role,plan.command).ok)return false;
             beginTask(role,socket,plan,true);
             if(!running.has(role)&&!homeTasks.busy(role))return false;
-            lastAutoCare.set(role,now);return true;
+            lastAutoCare.set(role,now);remember(command);return true;
           };
           const peerShift=active.has(partner)?activeHomeWork(state,partner):undefined;
           if(peerShift){
@@ -601,17 +611,17 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           }
           if(started)continue;
           if(role==='alina'&&!sharedWindow&&!daily.has('morningHair')&&turn%3===1&&state.clock.minute>=360&&state.clock.minute<720&&(!state.vanity?.hair||state.vanity.hair.until<=clockMinutes(state.clock))&&mostCritical>50){
-            const plan=planTask({type:'vanity_care',care:'brush'})!;beginTask(role,socket,plan,true);if(homeTasks.busy(role)){lastAutoCare.set(role,now);started=true;continue;}
+            const plan=planTask({type:'vanity_care',care:'brush'})!;beginTask(role,socket,plan,true);if(homeTasks.busy(role)){lastAutoCare.set(role,now);remember(plan.command);started=true;continue;}
           }
           if(turn%3===2&&!sharedWindow){
-            for(const command of fullLeisureCandidates(state,role,Math.floor(turn/3))){
+            for(const command of rankFull(state,role,fullLeisureCandidates(state,role,Math.floor(turn/3)),fullHistory.get(role)??[])){
               const plan=planTask(command);
-              if(!plan||taskAccessError(state,plan.command)||
+              if(!plan||idleResourceBusy(role,plan.resource)||taskAccessError(state,plan.command)||
                 plan.resource&&(homeTasks.reserved(plan.resource)||[...running.values()].some(t=>t.plan.resource===plan.resource))||
                 !evaluateTask(state,role,plan.command).ok)continue;
               beginTask(role,socket,plan,true);
               if(!running.has(role)&&!homeTasks.busy(role))continue;
-              lastAutoCare.set(role,now);started=true;break;
+              lastAutoCare.set(role,now);remember(plan.command);started=true;break;
             }
           }
           if(turn%3===1&&!sharedWindow){
@@ -621,7 +631,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
               habit!=='bathTeeth'||!(state.clock.minute<660?daily.has('morningTeeth'):state.clock.minute>=1200?daily.has('eveningTeeth'):false));
             for(const {habit,command} of chores){
               const plan=planTask(command);
-              if(!plan || taskAccessError(state,plan.command) ||
+              if(!plan || idleResourceBusy(role,plan.resource) || taskAccessError(state,plan.command) ||
                   plan.resource && (homeTasks.reserved(plan.resource) ||
                     [...running.values()].some(t=>t.plan.resource===plan.resource)))continue;
               if(!evaluateTask(state,role,plan.command).ok)continue;
@@ -629,7 +639,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
               if(!running.has(role)&&!homeTasks.busy(role))continue;
               lastAutoCare.set(role,now);
               // Remember *started* work, not an unavailable suggestion.
-              recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));
+              recentHomeHabits.set(role,[...recent.filter(id=>id!==habit),habit].slice(-3));remember(plan.command);
               started=true;
               break;
             }
@@ -715,20 +725,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       for(const role of available){
         leisure.set(role,{activity:'chat',startedAt:now,until:chatUntil,route:routes[role]!});
         lastAutoCare.set(role,now);
+        fullRoutineTurn.set(role,(fullRoutineTurn.get(role)??0)+1);
       }
       all({type:'home_leisure',roles:available,activity:'chat',routes});
       return;
     }
     for(const role of available){
-      const preferences:HomeLeisure[]=role==='vlad'?['computer','tv','simba','verdell','stroll']
-        : ['verdell','tv','simba','computer','stroll'];
-      const start=Math.floor(clockMinutes(state.clock)/135)%preferences.length;
-      const rotated=preferences.map((_,index)=>preferences[(start+index)%preferences.length]);
-      const recent=recentLeisure.get(role);
-      // Try a different activity first; reuse the previous one only when
-      // another entertainment option has no reachable route or is occupied.
-      const ordered=[...rotated.filter(activity=>activity!==recent),
-        ...rotated.filter(activity=>activity===recent)];
+      const turn=fullRoutineTurn.get(role)??0;
+      const ordered=fullIdleChoices(state,role,Math.floor(clockMinutes(state.clock)/135),recentLeisure.get(role)??[]).filter(a=>turn>0||a!=='stroll');
+      let idleStarted=false;
       for(const activity of ordered){
         if(activity==='computer'&&(!serviceAvailable(state.billing,'internet',clockMinutes(state.clock))||Object.values(state.activeShifts).some(s=>s?.homeDevice==='desktop')))continue;
         if(activity==='verdell'&&state.world.dogWalker)continue;
@@ -744,11 +749,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           all({type:'snapshot',state});
         }
         leisure.set(role,{activity,startedAt:now,until:now+leisureDurationMs(route),route});
-        recentLeisure.set(role,activity);
+        recentLeisure.set(role,[...(recentLeisure.get(role)??[]),activity].slice(-4));
+        fullRoutineTurn.set(role,turn+1);idleStarted=true;
         lastAutoCare.set(role,now);
         all({type:'home_leisure',roles:[role],activity,routes:{[role]:route}});
         break;
       }
+      if(!idleStarted){fullRetry.set(role,now+Math.max(500,leisureCooldownMs));fullRoutineTurn.set(role,turn+1);}
     }
   }, options.lifeClock?.tickMs ?? 4000);
   lifeTicker.unref();
@@ -1222,7 +1229,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           // A legacy idle stroll must not delay the newly selected planner.
           if(previousMode==='off'&&message.mode!=='off')stopLeisure(role);
           lastIntent.set(role,pauseTimers.now()-idleAutonomyMs);
-          lastAutoCare.set(role,0);
+          lastAutoCare.set(role,0);fullRetry.delete(role);
           all({type:'snapshot',state});
         }
         return;

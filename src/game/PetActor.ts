@@ -500,7 +500,7 @@ export class PetActor {
       if (this.idleTime >= PET_IDLE_SECONDS) {
         this.idleGesture = null;
         this.idleTime = 0;
-        this.idleCooldown = (this.id === 'verdell' ? 3.4 : 4.5) + (this.idleTurn % 3) * 1.1;
+        this.idleCooldown = (this.id === 'verdell' ? 3.4 : 4.5) + ((this.idleTurn*7)%5)*.8 + (this.ambient.energy<40?3:0);
       }
     } else {
       this.idleCooldown -= dt;

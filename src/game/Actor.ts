@@ -811,7 +811,7 @@ export class Actor {
         this.idleGesture = null;
         this.greeting=false;
         this.idleGestureTime = 0;
-        this.idleCooldown = 7.5 + (this.idleTurn % 3) * 1.8 +
+        this.idleCooldown = 6.8 + ((this.idleTurn * 7) % 5) * 1.45 +
           (this.id === 'alina' ? 1.3 : 0);
       }
     } else {

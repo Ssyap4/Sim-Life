@@ -1,3 +1,4 @@
+import {weatherAt} from '../src/shared/weather';
 import {freshFish} from '../src/shared/lake';
 import {chooseDogBed,currentDogBed,dogBedSleeping} from '../src/shared/dogBed';
 import { HOUSE_ENTRY } from '../src/shared/home';
@@ -371,10 +372,13 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     const other = state.pets[otherId].routine;
     if(kind==='wander'){
       const nav=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
-      const outdoor=PET_ROAM[target].z>HOUSE_ENTRY.z;
+      const familyFull=(['vlad','alina'] as const).some(role=>state.autonomy[role]==='full'&&state.world.places[role]==='home');
+      const weather=familyFull?weatherAt(state.clock):undefined;
+      const shelter=!!weather&&['rain','storm','snow'].includes(weather.kind);
+      const outdoor=!shelter&&PET_ROAM[target].z>HOUSE_ENTRY.z;
       const candidates=PET_ROAM.map((_,i)=>(target+i)%PET_ROAM.length).sort((a,b)=>Number((PET_ROAM[b].z>HOUSE_ENTRY.z)===outdoor)-Number((PET_ROAM[a].z>HOUSE_ENTRY.z)===outdoor));
       for(const i of candidates){
-        const goal=PET_ROAM[i];
+        const goal=PET_ROAM[i];if(shelter&&goal.z>HOUSE_ENTRY.z)continue;
         if((previous?.kind==='wander'&&previous.target===i)||(other?.kind==='wander'&&other.target===i)||Math.hypot(goal.x-pet.position.x,goal.z-pet.position.z)<.65||!pointIsClear(goal,nav.obstacles,nav.floor))continue;
         const route=planPetRoute(pet.position,goal,nav);
         if(route&&arrivesAt(route,goal)){target=i;chosenRoute=route;chosenGoal=goal;break;}

@@ -23,7 +23,7 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
   const slot=Number.isFinite(turn)?Math.abs(Math.trunc(turn)):0;
   if (state.satiety < 25 && state.bowl === 0)
     return slot % 3 === 2 ? (id === 'simba' ? 'groom' : 'sniff') : 'hungryLook';
-  if (state.energy < 27 && slot % 3 === 0) return 'stretch';
+  if (state.energy < 27) return slot%3===0?'stretch':id==='simba'?'slowBlink':'observe';
   if (id === 'verdell') {
     // He sometimes asks for attention, but mostly sniffs and explores.
     if (petCanWelcome(state) && slot%11===4) return 'happyHop';
@@ -34,7 +34,7 @@ export function choosePetIdle(id: PetId, state: PetIdleContext, turn: number): P
       'sniff','observe','pawWave','stretch','playBow','sniff','observe','stretch',
     ];
     const gesture=quiet[slot%quiet.length];
-    return gesture==='playBow' && (state.energy<48||state.happiness<47)
+    return (gesture==='playBow' && (state.energy<48||state.happiness<47)||gesture==='pawWave'&&!state.personNearby&&state.energy<45)
       ? 'observe':gesture;
   }
   // An independent cat does not nuzzle on every second idle loop.
