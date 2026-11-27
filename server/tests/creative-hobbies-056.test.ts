@@ -43,3 +43,13 @@ test('completed creative tasks grant real benefits and a personal collection, no
  assert.deepEqual(s.familyLife?.hobbies.vlad.painting?.unique,actions.slice(0,2));assert.deepEqual(s.familyLife?.hobbies.vlad.modeling?.unique,actions.slice(2));assert.equal(s.familyLife?.hobbies.alina.painting,undefined);assert.ok(validFamilyLife(s.familyLife));
  const dir=mkdtempSync(join(tmpdir(),'hobbies-056-'));try{const files=openServerFiles(dir);files.save(s);assert.deepEqual(files.load().familyLife,s.familyLife);}finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('works stay on their actual station, repeats update the display without duplicating collection',()=>{
+ const s=initialState();s.furnishing.placed=[{id:1,sku:'hobby-easel',finish:'oak',x:10.5,z:-6.4,rotation:0},{id:2,sku:'hobby-easel',finish:'oak',x:13.7,z:-6.4,rotation:0}];s.furnishing.nextId=3;
+ const work=(role:'vlad'|'alina',id:number,action:'paintLandscape'|'paintStillLife')=>creditHobby(s,role,{type:'furniture_use',furnitureId:id,action});
+ work('vlad',1,'paintLandscape');work('alina',2,'paintStillLife');assert.deepEqual(s.familyLife?.displayWorks,{'1':'paintLandscape','2':'paintStillLife'});
+ work('vlad',1,'paintStillLife');assert.equal(work('vlad',1,'paintLandscape'),'');assert.equal(s.familyLife?.displayWorks?.['1'],'paintLandscape');assert.equal(s.familyLife?.hobbies.vlad.painting?.unique.length,2);
+ const dir=mkdtempSync(join(tmpdir(),'hobby-display-'));try{const files=openServerFiles(dir);files.save(s);assert.deepEqual(files.load().familyLife?.displayWorks,s.familyLife?.displayWorks);}finally{rmSync(dir,{recursive:true,force:true});}
+ assert.ok(validFamilyLife(s.familyLife));
+ for(const a of actions){const model=buildFurnishingModel(a.startsWith('paint')?'hobby-easel':'hobby-workbench','oak');const result=model.getObjectByName('Hobby result '+a)!;for(let i=0;i<3;i++){const stage=result.getObjectByName('Hobby stage '+i);assert.ok(stage&&stage.children.length>0,a+' stage '+i);}}
+});

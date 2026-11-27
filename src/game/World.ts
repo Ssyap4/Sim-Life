@@ -3323,12 +3323,13 @@ export class World {
       for(const [id,model] of this.furnishingModels){
         const sku=model.userData.sku;
         if(sku==='hobby-easel'||sku==='hobby-workbench'){
-          const paint=sku==='hobby-easel',hobby=paint?'painting':'modeling',keys=paint?['paintLandscape','paintStillLife']:['buildCottage','buildCar'];
+          const keys=sku==='hobby-easel'?['paintLandscape','paintStillLife']:['buildCottage','buildCar'];
           const active=[...this.hobbyWorks.values()].find(w=>w.id===id);
-          const records=this.household?.familyLife?.hobbies;
-          const a=records?.vlad[hobby],b=records?.alina[hobby];const previous=(b&&(b.lastDay>=(a?.lastDay??0))?b:a)?.unique.at(-1);
-          const shown=active?(this.visualSeconds-active.start>=5?active.action:undefined):previous;
-          for(const key of keys){const result=this.stableParts.get(model,'Hobby result '+key);if(result)result.visible=key===shown;}
+          const previous=this.household?.familyLife?.displayWorks?.[String(id)];
+          const elapsed=active?this.visualSeconds-active.start:Infinity;
+          const shown=active?(elapsed>=.35?active.action:undefined):previous;
+          for(const key of keys){const result=this.stableParts.get(model,'Hobby result '+key);if(result){result.visible=key===shown;if(result.visible)for(let stage=0;stage<3;stage++){const part=this.stableParts.get(result,'Hobby stage '+stage);if(part)part.visible=elapsed>=[.35,7,17][stage];}}}
+          if(this.cameraQA&&Number(this.canvas.dataset.hobbyView)===id)this.canvas.dataset.hobbyResult=shown??'';
         }
         const raftV=this.stableParts.get(model,'Oasis float vlad');
         if(raftV){const swim=[...this.poolMotions.entries()].some(([r,p])=>p.mode==='poolSwim'&&this.homeTasks.get(r)?.furnitureId===id);

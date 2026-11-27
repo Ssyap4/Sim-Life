@@ -159,6 +159,7 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   if(command.type==='furniture_sell') {
     if(!placed&&!stored)return fail('Этого предмета нет в собственности');
     const item=placed??stored!;
+    if(next.familyLife?.displayWorks)delete next.familyLife.displayWorks[String(item.id)];
     const info=FURNITURE_BY_ID.get(item.sku)!;
     const proceeds=Math.floor(info.price*.55);
     home.stored=home.stored.filter(entry=>entry.id!==command.id);

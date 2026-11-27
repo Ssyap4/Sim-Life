@@ -28,7 +28,7 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
     row.append(day,month,button('Сохранить',()=>send({type:'family_date',id,day:Number(day.value),month:Number(month.value)})));c.append(row);nodes.push(c);
    }
   }else if(view==='hobbies'){
-   nodes.push(card('Мои увлечения','Занимайтесь любимыми делами в игре. Один зачёт за каждое хобби в игровой день; новые книги и блюда пополняют коллекцию.'));
+   nodes.push(card('Мои увлечения','Занимайтесь любимыми делами. Один зачёт за каждое хобби в игровые сутки; новые завершённые работы пополняют коллекцию.'));
    for(const id of Object.keys(HOBBIES) as Hobby[]){
     const h=HOBBIES[id],p=f.hobbies[role][id],n=p?.sessions??0,level=HOBBY_LEVELS.filter(x=>n>=x).length;
     const c=card(h.icon+' '+h.name,h.hint);c.append(make('small',(level?h.milestones[level-1]:'Начало пути')+' · Занятий: '+n+' · Разновидностей: '+(p?.unique.length??0)));
@@ -46,7 +46,7 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
    else{
     const v=LIFE_EVENTS[e.id],c=card(v.title,v.description);
     if(e.status==='open')c.append(button(v.accept,()=>send({type:'family_event',day:e.day,id:e.id,accept:true})),button(v.decline,()=>send({type:'family_event',day:e.day,id:e.id,accept:false})));
-    else c.append(make('small',eventStatus(e,s.clock.day)));
+    else {const status=make('small',eventStatus(e,s.clock.day));status.className='family-event-status';status.dataset.status=e.status;c.append(status);}
     if(e.status==='accepted'&&isGoalEvent(e.id))c.append(make('p','Выполните указанное занятие до конца игровых суток. За завершение: +8 настроения.'));
     nodes.push(c);
    }

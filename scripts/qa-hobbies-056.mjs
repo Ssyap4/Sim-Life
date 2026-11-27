@@ -27,9 +27,9 @@ try{
   await canvas.evaluate((c,id)=>c.dataset.hobbyView=String(id),id);
   await page.evaluate(c=>window.__socket.send(JSON.stringify(c)),{type:'furniture_use',furnitureId:id,action});
   await page.waitForFunction(activity=>JSON.parse(document.querySelector('#game-canvas')?.dataset.yardQA||'{}').actors?.vlad?.activity===activity,activity,{timeout:45000});
-  await page.waitForTimeout(7000);await shot('hobby-'+activity);
+  await page.waitForFunction(action=>document.querySelector('#game-canvas')?.dataset.hobbyResult===action,action,{timeout:20000});await shot('hobby-'+activity);
   await page.waitForFunction(({action,activity})=>window.__packets.some(p=>p.type==='snapshot'&&p.state.familyLife?.hobbies.vlad[activity]?.unique.includes(action)),{action,activity},{timeout:75000});
-  assert.ok(files.load().familyLife.hobbies.vlad[activity].unique.includes(action));
+  assert.ok(files.load().familyLife.hobbies.vlad[activity].unique.includes(action));assert.equal(files.load().familyLife.displayWorks[String(id)],action);await page.waitForTimeout(800);await shot('hobby-finished-'+activity);
  }
  await page.locator('#phone-btn').click();await page.locator('[data-phone-app=hobbies]').click();
  await page.getByText('В коллекции',{exact:true}).first().waitFor();await shot('hobby-collection');

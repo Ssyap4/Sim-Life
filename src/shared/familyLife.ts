@@ -52,6 +52,7 @@ export interface FamilyLifeState{
  hobbies:Record<CharacterId,Partial<Record<Hobby,HobbyProgress>>>;
  event?:EventOffer;
  eventHistory?:EventOffer[];
+ displayWorks?:Record<string,keyof typeof HOBBY_RESULTS>;
 }
 const defaultDates=()=>({vladBirthday:{month:1,day:25},alinaBirthday:{month:2,day:4}});
 export const initialFamilyLife=():FamilyLifeState=>({dates:defaultDates(),celebrated:{},hobbies:{vlad:{},alina:{}}});
@@ -68,6 +69,7 @@ export function validFamilyLife(v:unknown):v is FamilyLifeState{
  if(!Object.entries(v.dates).every(([k,d])=>PERSONAL_OCCASIONS.includes(k as PersonalOccasion)&&object(d)&&validPersonalDate(d.month,d.day)))return false;
  if(!Object.entries(v.celebrated).every(([k,d])=>member(k,OCCASIONS)&&int(d,1,10000000)))return false;
  if(Object.keys(v.hobbies).length!==2||!['vlad','alina'].every(role=>{const h=v.hobbies as Record<string,unknown>;return object(h[role])&&Object.entries(h[role]).every(([k,p])=>member(k,HOBBIES)&&object(p)&&int(p.sessions,1,1000000)&&int(p.lastDay,1,10000000)&&Array.isArray(p.unique)&&p.unique.length<=40&&p.unique.every(x=>typeof x==='string'&&x.length<=80)&&new Set(p.unique).size===p.unique.length);}))return false;
+ if(v.displayWorks!==undefined&&(!object(v.displayWorks)||Object.keys(v.displayWorks).length>10000||!Object.entries(v.displayWorks).every(([k,x])=>/^[1-9][0-9]{0,5}$/.test(k)&&member(x,HOBBY_RESULTS))))return false;
  const validEvent=(e:unknown)=>object(e)&&member(e.id,LIFE_EVENTS)&&int(e.day,1,10000000)&&['open','accepted','declined','completed'].includes(String(e.status));
  return (v.event===undefined||validEvent(v.event))&&(v.eventHistory===undefined||Array.isArray(v.eventHistory)&&v.eventHistory.length<=12&&v.eventHistory.every(validEvent));
 }
@@ -123,7 +125,8 @@ export function hobbyFor(command:TimedCommand,s?:GameState):{id:Hobby;item:strin
 /** At most one credited session per hobby per game day, no automatic farming. */
 export function creditHobby(s:GameState,role:CharacterId,command:TimedCommand):string{
  const h=hobbyFor(command,s);if(!h)return '';
- const progress=mutable(s).hobbies[role],p=progress[h.id]??{sessions:0,unique:[],lastDay:0};
+ const f=mutable(s),progress=f.hobbies[role],p=progress[h.id]??{sessions:0,unique:[],lastDay:0};
+ if(command.type==='furniture_use'&&member(command.action,HOBBY_RESULTS)&&s.furnishing.placed.some(i=>i.id===command.furnitureId&&i.sku===(h.id==='painting'?'hobby-easel':'hobby-workbench'))){(f.displayWorks??={})[String(command.furnitureId)]=command.action as keyof typeof HOBBY_RESULTS;}
  const newResult=!p.unique.includes(h.item)&&p.unique.length<40;
  if(newResult)p.unique.push(h.item);
  const result=newResult&&Object.hasOwn(HOBBY_RESULTS,h.item)?' · В коллекции: '+HOBBY_RESULTS[h.item as keyof typeof HOBBY_RESULTS].title:'';

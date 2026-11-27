@@ -8,3 +8,5 @@ Holiday atmosphere: seasonal spruce with symbolic decorative boxes replaces ordi
 Creative hobbies: purchasable easel (5900 RUB) and miniature workbench (8900 RUB) using normal delivery, placement, collision and action locks. Two themes per station; standing reach and held brush/piece, authored result geometry and personal saved collection, daily hobby progress and ordinary skill rewards. Included reusable supplies, no sale income or separate consumables yet. Production untouched.
 
 Contextual events: weather, pet attention, recent income, budget limits, purchased creative stations and time since last shared activity; randomized eligible selection, repeat cooldown, history, optional real-completion goals. No penalties, no new needs. Fixed hobby QA selector. Production unchanged.
+
+Polish: previous cloud 42/42, real hobby and shared goal scenarios passed. Staged hobby result geometry, saved result per actual furniture ID (sale removes displayed result, collection stays), clearer phone progress and event status. Old collections preserved; old saves without station results must finish a new work to display one. New focused tests 20/20. Production unchanged.
