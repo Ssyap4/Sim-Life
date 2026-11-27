@@ -72,12 +72,21 @@ export function buildYardLandscape(parent:THREE.Group){
  const turf=turfMap(),stone=stoneMap();
  const turfMesh=new THREE.Mesh(surface([YARD_SURFACE],-.008,5),seasonalMaterial(new THREE.MeshStandardMaterial({map:turf,color:turf?0xffffff:0x779b50,roughness:.98}),'lawn'));
  turfMesh.name='Continuous lawn surface';turfMesh.receiveShadow=true;turfMesh.raycast=()=>{};parent.add(turfMesh);
- const path=new THREE.Mesh(surface(pavingCells(),.012,2.4),new THREE.MeshStandardMaterial({map:stone,color:stone?0xffffff:0xb8b0a2,roughness:.87}));path.name='Continuous nonoverlapping stone paths';path.receiveShadow=true;path.raycast=()=>{};parent.add(path);
+ const path=new THREE.Mesh(surface(pavingCells(),.012,2.4),seasonalMaterial(new THREE.MeshStandardMaterial({map:stone,color:stone?0xffffff:0xb8b0a2,roughness:.87}),'paving'));path.name='Continuous nonoverlapping stone paths';path.receiveShadow=true;path.raycast=()=>{};parent.add(path);
  // Two short tapered blades per instance; no alpha texture, no shadow pass.
  const positions:number[]=[],indices:number[]=[];
  for(let k=0;k<2;k++){const a=k*Math.PI/2,c=Math.cos(a),s=Math.sin(a),i=positions.length/3;positions.push(-s*.024,0,c*.024,s*.024,0,-c*.024,c*.035-s*.012,.065,s*.035+c*.012,c*.035+s*.012,.065,s*.035-c*.012,c*.065,.102,s*.065);indices.push(i,i+1,i+2,i+1,i+3,i+2,i+2,i+3,i+4);}
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setIndex(indices);geo.computeVertexNormals();
- const material=seasonalMaterial(new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,emissive:0x344c20,emissiveIntensity:.42}),'grass');
+  const grassBase=new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide,emissive:0x344c20,emissiveIntensity:.34});
+ const breeze={value:0},snowHeight={value:0},gust={value:1};
+ grassBase.onBeforeCompile=shader=>{
+  shader.uniforms.yardBreeze=breeze;shader.uniforms.yardSnowHeight=snowHeight;shader.uniforms.yardGust=gust;
+  shader.vertexShader='uniform float yardBreeze,yardSnowHeight,yardGust;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+   float phase=instanceMatrix[3].x*.71+instanceMatrix[3].z*.49+yardBreeze*1.35;
+   transformed.x+=transformed.y*transformed.y*sin(phase)*1.6*yardGust;
+   transformed.y*=1.-yardSnowHeight*.72;`);
+ };
+ const material=seasonalMaterial(grassBase,'grass');material.customProgramCacheKey=()=> 'simlife-yard-wind-v057';
  const rng=landscapeRandom(5171),sectors:THREE.InstancedMesh[]=[];
  const palette=[0x8eab59,0x98b268,0xa2bc70,0x83a44f,0xa6be73],t=new THREE.Object3D(),color=new THREE.Color();
  for(let x=YARD_SURFACE.minX;x<YARD_SURFACE.maxX;x+=6)for(let z=YARD_SURFACE.minZ;z<YARD_SURFACE.maxZ;z+=6){
@@ -88,5 +97,5 @@ export function buildYardLandscape(parent:THREE.Group){
   for(const [i,p] of points.entries()){t.position.set(p.x,-.008,p.z);t.rotation.y=rng()*Math.PI*2;t.scale.set(.72+rng()*.5,snowPreview()?.19:.38+rng()*.52,.72+rng()*.5);t.updateMatrix();mesh.setMatrixAt(i,t.matrix);mesh.setColorAt(i,color.setHex(palette[i%palette.length]));}
   mesh.computeBoundingSphere();sectors.push(mesh);parent.add(mesh);
  }
- return {sectors,turfMesh,path,detail(camera:THREE.Camera,low:boolean){for(const m of sectors){const distance=camera.position.distanceTo(m.boundingSphere!.center);m.visible=distance<(low?20:32);}}};
+ return {sectors,turfMesh,path,animate(seconds:number,snow:number,wind:number){breeze.value=seconds;snowHeight.value=THREE.MathUtils.clamp(snow,0,1);gust.value=wind;},detail(camera:THREE.Camera,low:boolean){for(const m of sectors){const distance=camera.position.distanceTo(m.boundingSphere!.center);m.visible=distance<(low?20:32);}}};
 }

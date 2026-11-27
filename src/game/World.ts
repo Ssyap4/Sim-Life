@@ -1,3 +1,4 @@
+import {interiorLighting} from './InteriorAtmosphere';
 import {updateWater} from './WaterArt';
 import {isLakeMealAction,LAKE_MEAL_ACTIONS,isLakeFishAction,FISH_ACTIONS,isLakeRestAction,isLakeCareAction,isLakeLeisureAction,lakeSwimFrame,LAKE_FIRE_SEAT_OFFSET,lakeCampFor,lakeSleepAnchor} from '../shared/lake';
 import {syncLakeTents,syncLakeCutaway} from './LakeArt';
@@ -215,6 +216,7 @@ export class World {
   private lastFrame = performance.now();
   private paused = false;
   private visualSeconds = 0;
+  private yardSnow=0;
   private vacuumStamp=0;
   private quality: 'standard'|'high'|'low' = 'standard';
   private readonly graphics = graphicsProfile(navigator.userAgent, window.location.search);
@@ -1796,7 +1798,8 @@ export class World {
     const festiveKey=clock.day+':'+JSON.stringify(this.household?.familyLife?.dates??{});
     if(this.yard&&festiveKey!==this.festiveKey){this.festiveKey=festiveKey;const theme=this.festiveGarlands.update(clock.day,this.household??undefined);this.festiveTree.visible=theme==='winter';this.yard.gardenPlants.visible=theme!=='winter';}
     this.weather.setWeather(current.kind,this.scene,this.place);
-    applySeason(current);
+    applySeason(current,this.weather.visualKind);
+    this.yardSnow=this.weather.visualKind==='snow'?Math.max(.75,current.snow):current.snow;
     const hour = THREE.MathUtils.euclideanModulo(minute,1440);
     const phase = dayPhase({day:1,minute:hour});
     if(phase!==this.lastDayPhase) {
@@ -1857,6 +1860,11 @@ export class World {
       (this.scene.background as THREE.Color).setHex(this.place==='venue'?0x899aa4:0xb8cdc8);
       this.sun.color.setHex(0xfff1de);this.sun.intensity=1.7;this.sun.position.set(-5,11,7);
       this.ambient.color.setHex(0xe4f0ff);this.ambient.groundColor.setHex(0x9ba9a6);this.ambient.intensity=1.45;
+    }
+    const indoor=interiorLighting(this.place);
+    if(indoor){
+      this.sun.color.setHex(indoor.warm);this.sun.intensity=indoor.key;this.sun.position.set(-4,10,7);
+      this.ambient.color.setHex(0xe4edf4);this.ambient.groundColor.setHex(indoor.floor);this.ambient.intensity=indoor.fill;
     }
     this.horizon.tint(this.scene.background as THREE.Color,this.weather.haze,current.snow);
   }
@@ -3301,6 +3309,11 @@ export class World {
       if(v==='tree'){this.controls.target.set(-4.9,1.15,8.05);this.camera.position.set(.9,5.7,13.3);this.camera.lookAt(this.controls.target);}
       this.canvas.dataset.holidayTree=String(this.festiveTree.visible);
     }
+    if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){
+      const view=this.place==='home'?{target:[3,.1,1],eye:[13,22,22]}:this.place==='district'?{target:[21.38,.1,21.05+DISTRICT_OFFSET_Z],eye:[26,8,29+DISTRICT_OFFSET_Z]}:this.place==='park'?{target:[1.6,.1,-.8],eye:[7.7,10.6,12]}:this.place==='electronics'?{target:[2.5,0,-.7],eye:[8.2,12,16]}:['market','cafe','petshop','clothing','education'].includes(this.place)?{target:[0,.1,-.5],eye:[6.5,11,14]}:undefined;
+      if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
+    }
+
     if(this.cameraQA&&new URLSearchParams(location.search).get('waterFireQA')==='1'){
       const view=this.place==='home'?{target:[-9.95,.5,8.1],eye:[-6.0,5.6,15.2]}:this.place==='spa'?{target:[-3.8,.22,-2.8],eye:[1.2,6.6,4.7]}:this.place==='park'?{target:[8.45,.42,-2.4],eye:[10.8,2.4,1.3]}:this.place==='district'?{target:[21.38,.12,21.05+DISTRICT_OFFSET_Z],eye:[24.3,4.4,25.9+DISTRICT_OFFSET_Z]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
@@ -3312,7 +3325,10 @@ export class World {
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
     if(this.place==='lake'&&this.remote){const occupied=new Set<string>();for(const r of ['vlad','alina'] as const){const actor=this.actors[r];if(!actor.root.visible||actor.audioMotion().pose!=='sleep')continue;for(const [id,g] of this.remote.stations)if(g.userData.tents&&Math.hypot(actor.root.position.x-g.position.x,actor.root.position.z-g.position.z)<2.5)occupied.add(id);}syncLakeCutaway(this.remote.stations,occupied);}
-    if(this.place==='home')this.yard.landscape.detail(this.camera,this.quality==='low');
+        if(this.place==='home'){
+      this.yard.landscape.detail(this.camera,this.quality==='low');
+      this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
+    }
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){

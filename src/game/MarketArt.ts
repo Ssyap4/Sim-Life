@@ -103,6 +103,12 @@ function shelf(station: Station, resources: LocationResources): THREE.Group {
       part(root,[.035,.011,.008],[x+.023,base+.019,d*.528],0x89947c);
     }
     groceries(root,kind,row,palette,base+.047);
+    part(root,[w-.15,.025,.024],[0,base+.072,d*.48],kind==='cold'||kind==='meat'?0xb4e1da:0xe8c99a);
+    for(let i=0;i<5;i++){
+      const x=(i-2)*.294;
+      part(root,[.056,.009,.009],[x-.025,base+.021,d*.531],0x526359);
+      part(root,[.017,.017,.009],[x+.053,base+.021,d*.531],palette[(i+row)%palette.length]);
+    }
   }
   trim(root,[w,.12,d],[0,tall-.013,-.003],frame);
   part(root,[w-.095,.035,.025],[0,tall-.036,d*.51],0xe4c79b);

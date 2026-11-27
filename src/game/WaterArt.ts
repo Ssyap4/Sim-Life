@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-export type WaterKind='spa'|'jacuzzi'|'home'|'pond';
+export type WaterKind='spa'|'jacuzzi'|'home'|'pond'|'park';
 // Same world-space four-wave normal and oblique broken ripples as LakeArt.
 // No framebuffer reflection, extra render pass, or per-frame mesh rebuilding.
 export function makeWater(kind:WaterKind){
- const indoor=kind==='spa'||kind==='jacuzzi',natural=kind==='pond';
+ const indoor=kind==='spa'||kind==='jacuzzi',natural=kind==='pond'||kind==='park';
  const shallow=natural?[.23,.37,.25]:kind==='home'?[.22,.58,.61]:[.30,.64,.65];
  const deep=natural?[.025,.14,.17]:kind==='home'?[.045,.30,.39]:[.045,.34,.43];
  return new THREE.ShaderMaterial({
   uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{
-   time:{value:0},night:{value:0},natural:{value:natural?1:0},indoor:{value:indoor?1:0},
+   time:{value:0},night:{value:0},natural:{value:natural?1:0},roundBank:{value:kind==='pond'?1:0},indoor:{value:indoor?1:0},
    amplitude:{value:kind==='jacuzzi'?1.25:natural?.72:.90},
    shallow:{value:new THREE.Vector3(...shallow)},deepColor:{value:new THREE.Vector3(...deep)}
   }]),transparent:!natural,depthWrite:natural,side:THREE.DoubleSide,fog:true,
@@ -21,7 +21,7 @@ export function makeWater(kind:WaterKind){
     #include <fog_vertex>
    }`,
   fragmentShader:`
-   uniform float time,night,natural,indoor,amplitude;
+   uniform float time,night,natural,roundBank,indoor,amplitude;
    uniform vec3 shallow,deepColor;
    varying vec2 uv0;varying vec3 wp;
    #include <fog_pars_fragment>
@@ -36,7 +36,7 @@ export function makeWater(kind:WaterKind){
     vec3 v=normalize(cameraPosition-wp);
     float fresnel=pow(1.-clamp(dot(n,v),0.,1.),2.5);
     float rectEdge=min(min(uv0.x,1.-uv0.x),min(uv0.y,1.-uv0.y));
-    float edge=mix(rectEdge,(1.-length(uv0*2.-1.))*.5,natural);
+    float edge=mix(rectEdge,(1.-length(uv0*2.-1.))*.5,roundBank);
     float deep=smoothstep(.005,.22,edge);
     float caustic=pow(abs(sin(p.x*7.+a*.9)*sin(p.y*8.+b*.8)),3.);
     vec3 col=mix(shallow,deepColor,deep)+vec3(.17,.22,.19)*caustic*(.55-.27*deep);

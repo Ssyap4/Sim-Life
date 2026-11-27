@@ -1,3 +1,4 @@
+import {seasonalMaterial} from './SeasonalPalette';
 import * as THREE from 'three';
 import { batchRigidParts, colors as C, cube, plane, torus, type XYZ } from './ArtKit';
 import { lettering, painted, part, round, trim, type LocationResources } from './LocationArt';
@@ -14,7 +15,7 @@ import { buildNeighborhood } from './NeighborhoodArt';
 
 function planeSurface(root:THREE.Group,resources:LocationResources,texture:THREE.Texture|null,
   x:number,z:number,w:number,d:number,y:number,fallback:number,repeat?:number) {
-  const material=new THREE.MeshStandardMaterial({map:texture,color:texture?0xffffff:fallback,roughness:.95});
+  const material=seasonalMaterial(new THREE.MeshStandardMaterial({map:texture,color:texture?0xffffff:fallback,roughness:.95}),repeat===undefined?'ground':'paving');
   resources.materials.push(material);
   const geometry=plane.clone();
   const uv=geometry.getAttribute('uv');
@@ -85,7 +86,7 @@ function landscaping(root:THREE.Group,resources:LocationResources) {
   const trailMaterial = new THREE.MeshStandardMaterial({
     map:stone,color:stone?0xffffff:0xd4bb93,vertexColors:true,roughness:1,
   });
-  resources.materials.push(trailMaterial);
+  seasonalMaterial(trailMaterial,'paving');resources.materials.push(trailMaterial);
   const trail=new THREE.Mesh(districtTrailGeometry(),trailMaterial);
   trail.name='Curved garden walk';
   root.add(trail);

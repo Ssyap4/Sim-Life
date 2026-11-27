@@ -1,0 +1,43 @@
+name: Living world 0.57 mobile visuals
+on:
+  push:
+    branches: [feat/living-world-057]
+permissions:
+  contents: read
+jobs:
+  visual:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [home, district, park, shops-a, shops-b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-living-world-057.mjs ${{ matrix.mode }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: living-world-${{ matrix.mode }}
+          path: /tmp/simlife-world-057-${{ matrix.mode }}
+          retention-days: 7
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

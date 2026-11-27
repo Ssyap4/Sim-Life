@@ -48,5 +48,5 @@ test('seasonal materials share uniforms and preserve existing shader hooks',()=>
  const lawn=seasonalMaterial(new THREE.MeshStandardMaterial(),'lawn');
  const turf={uniforms:{},vertexShader:'',fragmentShader:'#include <color_fragment>'} as any;
  lawn.onBeforeCompile(turf,null as any);
- assert.ok(turf.fragmentShader.includes('float mask=1.0;')&&turf.fragmentShader.includes('snowCover*0.97'));
+ assert.ok(turf.fragmentShader.includes('float mask=1.0;')&&turf.fragmentShader.includes('snowCover*(.89+.08*patches)'));
 });

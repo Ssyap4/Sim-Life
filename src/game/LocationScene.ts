@@ -1,3 +1,5 @@
+import {polishShopInterior} from './InteriorAtmosphere';
+import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
 import * as THREE from 'three';
@@ -51,13 +53,13 @@ const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-5.05,3.05,1],[4.83,2.56,0],[-6
 
 function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture[]; materials:THREE.Material[]}) {
   const area={x:2.5,z:0,w:21,d:14};
-  const map=painted(resources,512,512,ctx=>{
+  const map=painted(resources,768,768,ctx=>{
     paintGround(ctx,area,[
     {x:-.08,z:-1.94,w:5.3,d:4.4,ink:[79,136,90],opacity:.54},
     {x:4.46,z:1.54,w:3.0,d:6.5,ink:[171,190,119],opacity:.67},
     ...parkTrees.map(([x,z])=>({x,z,w:2.62,d:2.5,ink:[59,98,66] as [number,number,number],opacity:.58,border:true})),
     ],90713);
-    const sx=512/area.w,sz=512/area.d;
+    const sx=ctx.canvas.width/area.w,sz=ctx.canvas.height/area.d;
     for(const [i,path] of parkPaths.entries()){
       const x=(path.x-area.x+(area.w-path.w)/2)*sx, y=(path.z+(area.d-path.d)/2)*sz;
       limestone(ctx,x,y,path.w*sx,path.d*sz,.92*sx,.48*sz,931+i*37);
@@ -91,12 +93,12 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
 
   const random=landscapeRandom(1697);
   const tufts=[];
-  for(let i=0;i<520;i++){
+  for(let i=0;i<720;i++){
     const x=2.5+(random()-.5)*20.5,z=(random()-.5)*13.5;
     if((Math.abs(x-8.4)<2.4&&Math.abs(z-2.25)<2.6)||(Math.abs(x-8.45)<1.2&&Math.abs(z+2.4)<1.2)||(Math.abs(x+4.15)<1.15&&Math.abs(z-.98)<.85))continue;
     if (parkPaths.some(p=>Math.abs(x-p.x)<p.w/2+.18&&Math.abs(z-p.z)<p.d/2+.18)||
         (Math.abs(x+.08)<1.69&&Math.abs(z+1.94)<1.38)) continue;
-    tufts.push({x,z,size:.46+random()*.72,yaw:random()*Math.PI*2,color:i%3?0x9ab96c:0x4d864d});
+    tufts.push({x,z,size:.40+random()*.68,yaw:random()*Math.PI*2,color:i%3?0x9ab96c:0x4d864d});
   }
   const grass=grassMaterial();
   resources.materials.push(grass.material);
@@ -534,6 +536,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const outdoor = place === 'park';
   const floor = new THREE.Group();
   let lakeArt:ReturnType<typeof buildLakeLandscape>|undefined;
+  let parkWater:THREE.ShaderMaterial|undefined;
   let animatePark: ((seconds:number)=>void)|undefined;
   let animateCafe: ((seconds:number)=>void)|undefined;
   root.add(floor);
@@ -678,7 +681,9 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   if (place === 'park') {
     shape(floor, [3.12, .23, 2.53], [-.08, .13, -1.94], C.limestone, softCube, true);
-    shape(floor, [2.88, .10, 2.28], [-.08, .25, -1.94], 0x79aeb4);
+    shape(floor, [2.88, .08, 2.28], [-.08, .22, -1.94], 0x527f78);
+    parkWater=makeWater('park');materials.push(parkWater);
+    const water=new THREE.Mesh(new THREE.PlaneGeometry(2.84,2.24),parkWater);water.name='Park water surface';water.rotation.x=-Math.PI/2;water.position.set(-.08,.301,-1.94);floor.add(water);
     for (const [x, z] of [[-1, -2.3], [.6, -2.5], [.93, -1.2]]) {
       shape(floor, [.15, .034, .125], [x, .313, z], C.leaf, drum);
       shape(floor, [.049, .06, .039], [x - .01, .344, z], 0xd1a6a2, orb);
@@ -688,7 +693,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     const greenery=new THREE.Group();
     greenery.name='Park landscaping';
     root.add(greenery);
-    animatePark=parkLandscaping(greenery,resources);
+    const animateLandscape=parkLandscaping(greenery,resources);animatePark=seconds=>{animateLandscape(seconds);if(parkWater)updateWater(parkWater,seconds,parkWater.uniforms.night.value);};
     for (const [x, z] of [[-1.93, -3.84], [1.87, -3.84], [2.9, 4.77]]) {
       shape(floor, [.064, 1.89, .064], [x, .95, z], C.ink, drum);
       const bulb = shape(floor, [.13, .14, .13], [x, 1.98, z], C.paper, orb) as typeof bulbs[number];
@@ -730,6 +735,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     stations.set(station.id, group);
     root.add(group);
   }
+  polishShopInterior(root,place,resources);
   root.updateMatrixWorld(true);
   const corners = ({ min, max }: THREE.Box3): XYZ[] => {
     const result: XYZ[] = [];
@@ -742,7 +748,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   return {
     root, stations, horizontal, vertical,
     animate: animateWork ?? animatePark ?? animateCafe,
-    setNight(night: boolean) { lakeArt?.setNight(night);for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
+    setNight(night: boolean) { lakeArt?.setNight(night);if(parkWater)parkWater.uniforms.night.value=night?1:0;for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {

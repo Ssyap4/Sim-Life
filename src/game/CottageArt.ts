@@ -48,11 +48,15 @@ function floorPattern(ctx:CanvasRenderingContext2D,r:Rect,x:number,y:number,w:nu
   }
  }
  // Broad edge shade baked into the floor rather than a live shadow map.
- const edge=Math.min(7,w*.08,h*.08);
+ const edge=Math.min(14,w*.10,h*.10);
  for(const [x0,y0,x1,y1] of [[x,y,x+edge,y],[x+w,y,x+w-edge,y],[x,y,x,y+edge],[x,y+h,x,y+h-edge]]){
-  const g=ctx.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,'#49362624');g.addColorStop(1,'#49362600');ctx.fillStyle=g;
+  const g=ctx.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,'#49362638');g.addColorStop(1,'#49362600');ctx.fillStyle=g;
   ctx.fillRect(Math.min(x0,x1),Math.min(y0,y1),x0===x1?w:edge,y0===y1?h:edge);
  }
+  // Broad daylight from the open-side windows, baked into the existing floor atlas.
+ const glow=ctx.createRadialGradient(x+w*.58,y+h*.76,0,x+w*.58,y+h*.76,Math.max(w,h)*.63);
+ glow.addColorStop(0,'rgba(255,239,196,.11)');glow.addColorStop(1,'rgba(255,239,196,0)');
+ ctx.fillStyle=glow;ctx.fillRect(x,y,w,h);
  ctx.restore();
 }
 export function cottageFloor(parent:THREE.Group,wing=false){

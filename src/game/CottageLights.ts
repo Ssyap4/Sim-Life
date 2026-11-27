@@ -10,7 +10,7 @@ export function buildCottageLights(scene:THREE.Scene){
  const diffuser=new THREE.MeshStandardMaterial({color:0xffe7c4,emissive:0xffb96a,emissiveIntensity:0,roughness:.8});
  const map=paintedMap('cottage-wall-glow',64,64,ctx=>{
   const g=ctx.createRadialGradient(32,32,0,32,32,32);
-  g.addColorStop(0,'rgba(255,194,105,.48)');g.addColorStop(.4,'rgba(255,184,92,.23)');g.addColorStop(1,'rgba(255,184,92,0)');
+  g.addColorStop(0,'rgba(255,218,156,.65)');g.addColorStop(.38,'rgba(255,197,122,.32)');g.addColorStop(1,'rgba(255,184,92,0)');
   ctx.fillStyle=g;ctx.fillRect(0,0,64,64);
  });
  const glowMat=new THREE.MeshBasicMaterial({map,transparent:true,opacity:0,depthWrite:false});
@@ -24,14 +24,14 @@ export function buildCottageLights(scene:THREE.Scene){
  }
  // Small ceiling-mounted fixtures leave the cutaway camera open.
  const shadeMat=new THREE.MeshStandardMaterial({color:0x8b6b48,roughness:.68,metalness:.22});
- for(const [x,y,z,wide] of [[2.39,2.75,-2.22,.44],[-2.36,2.76,1.0,.39],[7.1,2.72,-4.4,.26],[7.6,2.72,2.5,.29],[-7.3,2.72,3.35,.24]]){
+ for(const [x,y,z,wide] of [[2.39,2.75,-2.22,.44],[-2.36,2.76,1.0,.39],[7.1,2.72,-4.4,.26],[7.6,2.72,2.5,.29],[-7.3,2.72,3.35,.24],[12.62,2.72,-5.35,.31],[12.62,2.72,-1.30,.31],[12.62,2.72,3.1,.31]]){
   const rod=new THREE.Mesh(drum,metal);rod.scale.set(.018,.25,.018);rod.position.set(x,y+.18,z);group.add(rod);
   const shade=new THREE.Mesh(drum,shadeMat);shade.scale.set(wide,.11,wide);shade.position.set(x,y+.035,z);group.add(shade);
   const lamp=new THREE.Mesh(drum,diffuser);lamp.scale.set(wide*.86,.035,wide*.86);lamp.position.set(x,y-.033,z);group.add(lamp);
  }
  // Soft reflected pools give the bathrooms, study and dining table a local
  // evening glow without extra punctual lights or shadow-map passes.
- if(map)for(const [x,z,w,d] of [[2.39,-2.22,3.5,3.0],[-2.36,1.0,3.7,3.2],[7.1,-4.4,3.0,3.0],[7.6,2.5,3.4,3.4],[-7.3,3.35,2.8,2.4]]){
+ if(map)for(const [x,z,w,d] of [[2.39,-2.22,3.5,3.0],[-2.36,1.0,3.7,3.2],[7.1,-4.4,3.0,3.0],[7.6,2.5,3.4,3.4],[-7.3,3.35,2.8,2.4],[-6.5,-3.95,4.0,4.0],[-7.0,.2,3.7,2.8],[12.62,-5.35,4.7,3.0],[12.62,-1.3,4.7,3.4],[12.62,3.1,4.7,3.4]]){
   const p=new THREE.PlaneGeometry(w,d);p.rotateX(-Math.PI/2);p.translate(x,.038,z);glowParts.push(p);
  }
  batchRigidParts(group);
@@ -45,7 +45,7 @@ export function buildCottageLights(scene:THREE.Scene){
  return {group,bedroom,setLevel(level:number){
   const amount=THREE.MathUtils.clamp(level,0,1);
   diffuser.emissiveIntensity=amount*1.25;
-  glowMat.opacity=amount*.61;glows.visible=amount>.04;
+  glowMat.opacity=amount*.79;glows.visible=amount>.04;
   bedroom.intensity=amount*10;bedroom.visible=amount>.04;
  }};
 }

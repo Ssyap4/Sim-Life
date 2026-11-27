@@ -44,8 +44,8 @@ function precipitation(snow:boolean, storm:boolean) {
         float t=seconds;
         vec3 p=position;
         p.y=mod(p.y-t*${snow?'0.95':'7.2'},9.0)+tail;
-        p.x+=${snow?'sin(position.z+t*.74)*.48':'p.y*-.18'};
-        p.z+=${snow?'cos(position.x+t*.53)*.22':'p.y*.07'};
+        p.x+=${snow?'sin(position.z+t*.74)*.48+sin(t*.19)*.36':'p.y*-(.12+.05*sin(t*.65))'};
+        p.z+=${snow?'cos(position.x+t*.53)*.22':'p.y*(.06+.035*cos(t*.43))'};
         p.xz=center+mod(p.xz-center+10.0,20.0)-10.0;
         opacity=smoothstep(0.0,.4,p.y)*(1.0-smoothstep(7.6,9.0,p.y))
           *(1.0-smoothstep(7.5,10.0,max(abs(p.x-center.x),abs(p.z-center.y))));
@@ -56,7 +56,7 @@ function precipitation(snow:boolean, storm:boolean) {
       }`,
     fragmentShader:`varying float opacity;
       void main(){
-        float alpha=opacity*${snow?'(.82*(1.0-smoothstep(.23,.50,length(gl_PointCoord-.5))))':'.50'};
+        float alpha=opacity*${snow?'(.82*(1.0-smoothstep(.23,.50,length(gl_PointCoord-.5))))':'(.42+.16*fract(gl_FragCoord.x*.17))'};
         gl_FragColor=vec4(${snow?'vec3(.93,.96,1.)':'vec3(.72,.84,.91)'},alpha);
         #include <colorspace_fragment>
       }`,
@@ -101,6 +101,7 @@ export class WeatherArt {
   setWeather(kind:WeatherKind,scene:THREE.Scene,place:PlaceId){
     if(this.change(this.preview??(kind==='clear'?undefined:kind)))this.enter(scene,place);
   }
+  get visualKind():WeatherKind{return this.mode??'clear';}
   get haze(){
     if(this.mode==='fog')return .95;
     return this.mode ? skies[this.mode].cloud : .21;
