@@ -1,0 +1,9 @@
+# SimOurHome 0.67.0 — approved family memories release
+
+Production deployed and verified on 28 November 2026 after explicit owner approval. Functional release/tag v0.67.0 = 02d3d46; main fast-forward d8fd790 to 8865e80, both main and tag pushed successfully. Twelve actual outfits, optional owned context dressing, family messaging and shared photo album as described in PREVIEW_067_WARDROBE_FAMILY.md and RELEASE_067_CANDIDATE.md. No laundry or favorite outfits.
+
+Final cloud jobs verified directly: 46077509678 wardrobe success; 46077509673 focused and mobile success. Previous final local 14/14 and typecheck/build reported in candidate documentation; not rerun for deployment. No physical phone FPS measurement or exhaustive clothing intersection claim.
+
+Production D:/Sim-Life port 3111 PID 10236 at switch, protected access, health OK. Exact approved preview dist staged and SHA256-checked; old dist retained D:/Sim-Life-Backups/v067-predeploy-02d3d46/old-dist. Only production household.json reset after stopping old listener. Fresh 10000 RUB/day 1 minute 480/both home/two starter pet furnishings/no stored furnishings verified. Access.json and trusted-devices.json hashes unchanged. All 8 private MP3 and 6 private MP4 hash-match cache and live Range 206. index-DLVsisAZ.js and both new character GLBs HTTP 200. Preview port3160 PID9108 remains isolated, healthy, no codes, save untouched. The previously blocked deployment was superseded by this successful switch. Do not reset again for documentation or ordinary restart.
+
+Next 0.68 not approved. Audit code, UI, commands, tests and docs before proposing genuinely missing extensions. Preserve approved models, no new audio, no heavy local QA, deferred flagship careers, savings, VPS and mobile packaging. Owner prefers casual Russian collaboration.

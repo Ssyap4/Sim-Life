@@ -27,4 +27,4 @@ Main deployment only by explicit owner approval. Deep careers remain deferred. U
 - Twelve additional actual wardrobe sets, owned context assignments home/sleep/outdoor/sport/date, optional automatic outfit switching. No favorite outfits or laundry (explicitly rejected).
 - Actual personal resident-to-resident messages with persisted history, read receipts, unread badges, drafts and offline recipient delivery.
 - Shared photo album with actual on-demand rendered world snapshots, captions, date/place, author-only deletion and separate bounded JPEG storage.
-- These are implemented and tested on preview; production 0.66 remains unchanged because deployment tool blocked the transfer. See docs/RELEASE_067_CANDIDATE.md. Do not present these as new ideas.
+- These are implemented, tested and deployed in production 0.67. See docs/RELEASE_067.md. Do not present these as new ideas.
