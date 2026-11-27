@@ -14,7 +14,7 @@ const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page
 try{
  let s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
  for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){s.meals[recipe]=1;addReadyFood(s,'meal',recipe,1,'table',undefined,'good');}
- if(wants('media')){for(const service of ['netflix','youtube']){const r=applyServiceCommand(s,'alina',{type:'service_connect',service});assert.ok(r.ok);s=r.state;}s.furnishing.placed=[{id:1,sku:'sofa-micro',finish:'sage',x:-2.36,z:2.02,rotation:0}];}
+ if(wants('media')){for(const service of ['netflix','youtube']){const r=applyServiceCommand(s,'alina',{type:'service_connect',service});assert.ok(r.ok);s=r.state;}s.furnishing.nextId=2;s.furnishing.placed=[{id:1,sku:'sofa-micro',finish:'sage',x:-2.36,z:2.02,rotation:0}];}
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
