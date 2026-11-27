@@ -3550,6 +3550,6 @@ export class World {
       this.canvas.dataset.resourceReport=JSON.stringify({place:this.place,revision:this.household?.revision,geometries:info.memory.geometries,textures:info.memory.textures,
         calls:info.render.calls,triangles:info.render.triangles,sceneSwitchMs:this.lastSceneSwitchMs,sceneSwitches:this.sceneSwitches,programs:info.programs?.length??0,models:[...this.furnishingModels].map(([id,m])=>[id,m.uuid])});
     }
-    this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles,this.fittingStage?'fitting':this.place);
+    if(!this.graphicsLost)this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles,this.fittingStage?'fitting':this.place);
   };
 }

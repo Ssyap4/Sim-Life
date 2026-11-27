@@ -32,9 +32,10 @@ try{
  const canvas=page.locator('#game-canvas');
  const read=()=>canvas.evaluate(c=>JSON.parse(c.dataset.resourceReport||'null'));
  async function sample(place,label,revision){
-  await page.waitForFunction(({place,revision})=>{const r=JSON.parse(document.querySelector('#game-canvas').dataset.resourceReport||'null');return r?.place===place&&r.calls>0&&(revision===undefined||r.revision===revision);},{place,revision},{timeout:40000});
+  await page.waitForFunction(({place,revision})=>{const r=JSON.parse(document.querySelector('#game-canvas').dataset.resourceReport||'null');return r?.place===place&&r.calls>0&&Number.isInteger(r.revision)&&(revision===undefined||r.revision===revision);},{place,revision},{timeout:40000});
   await page.waitForTimeout(1100);
-  const r=await read();assert.equal(r.place,place);assert.ok(r.calls>0&&r.triangles>0);
+  await page.waitForFunction(()=>!document.querySelector('#world-transition')?.hasAttribute('data-pending-place'));
+  const r=await read();assert.equal(r.place,place);assert.ok(Number.isInteger(r.revision));assert.ok(r.calls>0&&r.triangles>0);
   const probe=await page.locator('.performance-probe').evaluate(p=>({scope:p.dataset.scope,sample:JSON.parse(p.dataset.sample||'null')}));
   assert.equal(probe.scope,place,'diagnostics follow the scene');
   if(probe.sample)assert.equal(probe.sample.scope,place,'no stale FPS from another scene');

@@ -26,7 +26,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|webgl|three/i.test(m.text()))errors.push(m.text());});
  await page.addInitScript(()=>{const realNow=Date.now.bind(Date);Date.now=()=>window.__qaRideTime??realNow();const Native=window.WebSocket;window.__packets=[];window.WebSocket=class extends Native{constructor(...a){super(...a);if(this.url.includes('/sync')){window.__socket=this;this.addEventListener('message',e=>{try{const p=JSON.parse(e.data);window.__packets.push(p);const r=p.type==='snapshot'&&p.state.world.carRides?.vlad;if(r&&window.__qaCaptureRide&&window.__qaCapturedRide!==r.startedAt){window.__qaCapturedRide=r.startedAt;window.__qaRideTime=r.startedAt+(r.endsAt-r.startedAt)*.19;}}catch{}});}}};});
  const send=cmd=>page.evaluate(cmd=>window.__socket.send(JSON.stringify(cmd)),cmd);
- const shot=async(name)=>{const p=join(out,name+'.jpg');await page.screenshot({path:p,type:'jpeg',quality:75,timeout:15000});const b64=readFileSync(p).toString('base64');for(let i=0;i<b64.length;i+=6000)console.log('CARQA_IMAGE '+name+' '+(i/6000)+' '+b64.slice(i,i+6000));};
+ const shot=async(name)=>{const p=join(out,name+'.jpg');await page.screenshot({path:p,type:'jpeg',quality:75,timeout:15000});if(process.env.SIM_ARTIFACT_ONLY==='1')return;const b64=readFileSync(p).toString('base64');for(let i=0;i<b64.length;i+=6000)console.log('CARQA_IMAGE '+name+' '+(i/6000)+' '+b64.slice(i,i+6000));};
  await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
@@ -49,6 +49,7 @@ try{
  assert.ok(snapshot);if(mode==='lake')assert.deepEqual(snapshot.state.world.carRides.vlad,snapshot.state.world.carRides.alina);else assert.equal(snapshot.state.world.places.alina,'home');
  await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
  assert.ok(await page.locator('#app').getAttribute('data-place')===mode);
+ await page.waitForFunction(()=>!document.querySelector('#world-transition')?.hasAttribute('data-pending-place'));
  await shot('02-arrived');
  if(mode==='market'){
    await send({type:'approach',place:'market',station:'market-exit'});
@@ -59,6 +60,7 @@ try{
    await shot('03-return');
    await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
    assert.equal(await page.locator('#app').getAttribute('data-place'),'home');
+   await page.waitForFunction(()=>!document.querySelector('#world-transition')?.hasAttribute('data-pending-place'));
  }
  assert.deepEqual(errors,[]);console.log('Car cinematic, shared timestamp, arrival and UI restored: '+mode);
 }finally{await browser?.close();buddy?.terminate();await server?.close();rmSync(dir,{recursive:true,force:true});}

@@ -110,3 +110,37 @@ test('Two phones get shared state, role ownership, persisted economy and private
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Repeated reconnects preserve the other player and the latest shared household',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'sim063-reconnect-'));
+  const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,taskTimeScale:.025,
+    lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+  const sockets:WebSocket[]=[];
+  try{
+    const keys=JSON.parse(readFileSync(join(dir,'access.json'),'utf8')) as Record<CharacterId,string>;
+    const joinRole=async(role:CharacterId)=>{
+      const socket=await connect(server.port);sockets.push(socket);
+      const ready=await login(socket,role,keys[role]);
+      assert.equal(ready.type,'ready');if(ready.type!=='ready')throw Error('not ready');
+      return {socket,ready};
+    };
+    let v=await joinRole('vlad');
+    const a=await joinRole('alina');
+    let revision=a.ready.state.revision;
+    for(let i=0;i<3;i++){
+      const left=waitFor(a.socket,p=>p.type==='online'&&p.online.length===1&&p.online[0]==='alina');
+      v.socket.terminate();await left;
+      if(i===0){
+        const changed=waitFor(a.socket,p=>p.type==='snapshot'&&p.state.revision>revision);
+        a.socket.send(JSON.stringify({type:'act',actionId:'alinaStudy'}));
+        const snapshot=await changed;assert.equal(snapshot.type,'snapshot');
+        if(snapshot.type==='snapshot')revision=snapshot.state.revision;
+      }
+      const together=waitFor(a.socket,p=>p.type==='online'&&p.online.includes('alina')&&p.online.includes('vlad'));
+      v=await joinRole('vlad');await together;
+      assert.equal(v.ready.state.revision,revision);
+      assert.equal(v.ready.state.money,10000);
+      assert.equal(a.socket.readyState,WebSocket.OPEN);
+    }
+  }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});

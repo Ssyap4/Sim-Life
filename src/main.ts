@@ -17,7 +17,7 @@ import { taskAccessError } from './shared/serviceAccess';
 import { isSleepBed } from './shared/bedSleep';
 import { FURNITURE_ACTIONS, furnitureActionList, availableFurnitureActions, type FurnitureUseAction } from './shared/furnitureUse';
 import { FURNITURE_BY_ID } from './shared/furniture';
-import { PLACES, stationById, cafeSeatAt } from './shared/locations';
+import { PLACES, stationById, cafeSeatAt, type PlaceId } from './shared/locations';
 import { formatRub } from './shared/economy';
 import { dishCount } from './shared/dirtyDishes';
 import { TABLE_READY_CAPACITY,readyFoodTableUsage } from './shared/readyFood';
@@ -710,6 +710,23 @@ function syncResidentLook(role:CharacterId):void{
   const actor=world.actors[role];
   if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
 }
+let transitionTarget:PlaceId|undefined;
+let transitionFade:Animation|undefined;
+function beginSceneTransition(place:PlaceId){
+  transitionFade?.cancel();transitionTarget=place;
+  transition.style.opacity='1';
+  transition.dataset.pendingPlace=place;
+}
+function resetSceneTransition(){
+  transitionFade?.cancel();transitionTarget=undefined;delete transition.dataset.pendingPlace;transition.style.opacity='0';
+}
+function finishSceneTransition(scope:string,drawCalls:number){
+  if(transitionTarget!==scope||drawCalls<=0)return;
+  transitionTarget=undefined;delete transition.dataset.pendingPlace;
+  transition.style.opacity='0';
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    transitionFade=transition.animate([{opacity:1},{opacity:0}],{duration:225});
+}
 let shownRide:CarRide|undefined;
 let rideTimer:number|undefined;
 function refreshCarRide():void{
@@ -722,7 +739,7 @@ function refreshCarRide():void{
   app!.classList.toggle('car-riding',!!ride);
   for(const child of Array.from(app!.children))if(child instanceof HTMLElement&&child!==screen&&child.id!=='game-canvas')child.inert=!!ride;
   world?.setCarRide(ride);
-  if(!ride){if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)transition.animate([{opacity:.85},{opacity:0}],{duration:280});return;}
+  if(!ride){if(state&&active&&world)beginSceneTransition(state.world.places[active]);return;}
   document.querySelector<HTMLElement>('#ride-destination')!.textContent=ride.to==='home'?'Возвращаемся домой':'Едем: '+PLACES[ride.to].name;
   document.querySelector<HTMLElement>('#ride-route')!.textContent=PLACES[ride.from].name+' → '+PLACES[ride.to].name;
   const tick=()=>{
@@ -745,9 +762,7 @@ function render(reset = false): void {
       computer.close();
       furnishing.close();
       focusModel(null);
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        transition.animate([{ opacity: 0.88 }, { opacity: 0 }], { duration: 225 });
-      }
+      beginSceneTransition(place);
       statusEl.textContent = PLACES[place].name;
     }
     world.syncHousehold(state, active, reset, online);
@@ -838,6 +853,7 @@ const locationUI = createLocationUI(locationPanel, mapPanel, () => world, comman
   station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job));
 
 function signOut(): void {
+  resetSceneTransition();
   gameAudio.setPlaying(false);
   net.forgetDevice();
   deliverySequence = null;
@@ -1220,7 +1236,8 @@ const net = new LiveConnection({
       phone.billingMessages([reason]);
     deliverySequence = null;
     locationUI.reject();
-    if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве')) {
+    if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве') || reason.includes('Доверие устройства истекло')) {
+      resetSceneTransition();
       authEl.hidden = false;
       active = null;
       refreshCarRide();
@@ -1236,7 +1253,7 @@ const net = new LiveConnection({
     }
   },
   onStatus(text) {
-    if (text.includes('Связь потеряна')) {
+    if (text.includes('Связь потеряна') && active) {
       notify(text,{title:'Соединение потеряно',kind:'urgent',key:'disconnect'});
       for (const role of tasks.keys()) world.cancelTimedAction(role);
       tasks.clear();
@@ -1735,7 +1752,10 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         top: top.right > center ? (top.bottom - viewport.top) / viewport.height : .08,
         bottom: bottom.left < center ? (bottom.top - viewport.top) / viewport.height : .92,
       };
-    }, characters, diagnostics?.onFrame, {
+    }, characters, (now,calls,triangles,scope)=>{
+      diagnostics?.onFrame(now,calls,triangles,scope);
+      finishSceneTransition(scope,calls);
+    }, {
       station(id) {
         if (!active) return;
         locationUI.cancelRoute();

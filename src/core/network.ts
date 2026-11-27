@@ -65,6 +65,8 @@ export class LiveConnection {
   private suspended = false;
   private hasBeenReady = false;
   private connectTimer: number | undefined;
+  private silenceTimer: number | undefined;
+  private lastPacketAt=0;
   private authorized = false;
 
   constructor(private readonly callbacks: ConnectionCallbacks) {}
@@ -197,12 +199,13 @@ export class LiveConnection {
     this.suspended = true;
     const wasReady=this.authorized;
     this.closeSocket();
-    if(wasReady)this.callbacks.onDisconnect();
+    if(wasReady){this.callbacks.onDisconnect();this.callbacks.onStatus('Связь потеряна. Повторяем подключение…');}
   }
 
   wake(): void {
     if(this.stopped || !this.role || !this.credential) return;
     this.suspended=false;
+    if(this.authorized && performance.now()-this.lastPacketAt>=20000){this.recoverSilentSocket();return;}
     if(this.socket && (this.socket.readyState===WebSocket.OPEN || this.socket.readyState===WebSocket.CONNECTING)) return;
     this.closeSocket();
     this.retryCount=0;
@@ -212,6 +215,7 @@ export class LiveConnection {
   private closeSocket(): void {
     window.clearTimeout(this.retryTimer);
     window.clearTimeout(this.connectTimer);
+    window.clearTimeout(this.silenceTimer);
     this.authorized = false;
     const socket=this.socket;
     this.socket=null;
@@ -219,6 +223,24 @@ export class LiveConnection {
       socket.onclose=null;socket.onmessage=null;socket.onopen=null;socket.onerror=null;
       socket.close();
     }
+  }
+
+  // Server clock packets arrive every two seconds, even during a game pause.
+  // Detect a half-open connection that the browser still reports as OPEN.
+  private armSilenceWatchdog():void {
+    this.lastPacketAt=performance.now();
+    window.clearTimeout(this.silenceTimer);
+    const socket=this.socket;
+    this.silenceTimer=window.setTimeout(()=>{
+      if(this.socket===socket&&this.authorized)this.recoverSilentSocket();
+    },20000);
+  }
+  private recoverSilentSocket():void {
+    if(!this.authorized||this.stopped||this.suspended)return;
+    this.closeSocket();
+    this.callbacks.onDisconnect();
+    this.callbacks.onStatus('Связь потеряна. Повторяем подключение…');
+    this.retryCount=0;this.scheduleRetry();
   }
 
   private send(value: ClientPacket): void {
@@ -251,9 +273,11 @@ export class LiveConnection {
       let packet: ServerPacket;
       try { packet = JSON.parse(event.data) as ServerPacket; }
       catch { return; }
+      if(this.authorized)this.armSilenceWatchdog();
       if (packet.type === 'ready') {
         window.clearTimeout(this.connectTimer);
         this.authorized = true;
+        this.armSilenceWatchdog();
         this.hasBeenReady = true;
         this.retryCount = 0;
         this.callbacks.onReady(packet.role, packet.state, packet.online);
@@ -324,7 +348,7 @@ export class LiveConnection {
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {
-        if(!this.authorized && this.hasBeenReady && packet.reason.includes('занят') && this.retryCount<3){
+        if(!this.authorized && this.hasBeenReady && packet.reason.includes('занят') && this.retryCount<5){
           this.closeSocket();this.scheduleRetry();return;
         }
         this.callbacks.onError(packet.reason);
@@ -338,6 +362,7 @@ export class LiveConnection {
     socket.onclose = () => {
       if(this.socket!==socket)return;
       window.clearTimeout(this.connectTimer);
+      window.clearTimeout(this.silenceTimer);
       this.socket=null;
       const wasReady=this.authorized;
       this.authorized = false;

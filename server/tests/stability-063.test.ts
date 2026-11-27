@@ -34,7 +34,7 @@ test('resume from cached page, reject stale sockets, bound authentication wait a
   try{
     net.login('vlad','example-test-code');
     const first=sockets[0];first.open();assert.equal(JSON.parse(first.sent[0]).type,'auth');
-    first.packet({type:'ready',role:'vlad',state:{},online:[]});assert.equal(ready,1);assert.equal(timers.size,0);
+    first.packet({type:'ready',role:'vlad',state:{},online:[]});assert.equal(ready,1);assert.equal(timers.size,1);
     const stale=first.onmessage!;
     net.suspend();assert.equal(disconnected,1);assert.equal(net.isReady(),false);
     net.wake();net.wake();assert.equal(sockets.length,2);
@@ -42,9 +42,13 @@ test('resume from cached page, reject stale sockets, bound authentication wait a
     const second=sockets[1];second.open();second.packet({type:'error',reason:'Этот персонаж уже занят на другом устройстве'});
     assert.equal(timers.size,1);fire();assert.equal(sockets.length,3);
     const third=sockets[2];third.open();third.packet({type:'ready',role:'vlad',state:{},online:[]});assert.equal(ready,2);
-    net.stop();net.wake();assert.equal(sockets.length,3);assert.equal(timers.size,0);
-    net.login('alina','example-test-code');assert.equal(sockets.length,4);fire();
-    assert.equal(sockets[3].readyState,3);assert.equal(timers.size,1);fire();assert.equal(sockets.length,5);
+    // A socket that stays OPEN but receives no server packets must recover.
+    third.packet({type:'clock_sync',sample:{minutes:480,multiplier:0}});
+    assert.equal(timers.size,1);fire();assert.equal(third.readyState,3);assert.equal(disconnected,2);
+    assert.equal(net.isReady(),false);assert.equal(timers.size,1);fire();assert.equal(sockets.length,4);
+    net.stop();net.wake();assert.equal(sockets.length,4);assert.equal(timers.size,0);
+    net.login('alina','example-test-code');assert.equal(sockets.length,5);fire();
+    assert.equal(sockets[4].readyState,3);assert.equal(timers.size,1);fire();assert.equal(sockets.length,6);
     net.stop();assert.equal(timers.size,0);
   }finally{net.stop();for(const [key,descriptor] of descriptors){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}}
 });
