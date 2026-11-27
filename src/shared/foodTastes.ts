@@ -1,14 +1,19 @@
+import {CAFE_MENU} from './locations';
+import {CAMP_RECIPES} from './park';
+import {INSTANT_COFFEE,COFFEE_DRINKS} from './coffee';
 import {RECIPES,TAKEOUT} from './food';
 import {gameMinutes} from './life';
 import type {CharacterId,GameState} from './protocol';
 import type {FoodQuality} from './foodQuality';
 
-export type TasteKind='meal'|'takeout';
+export type TasteKind='meal'|'takeout'|'cafe'|'coffee'|'campfire';
+export const coffeeTasteItem=(blend:string,drink?:unknown)=>typeof drink==='string'?drink:blend;
+export const favoriteBonusReady=(s:GameState,role:CharacterId)=>s.foodTastes?.[role]?.lastBonusAt===undefined||gameMinutes(s.clock)-s.foodTastes[role]!.lastBonusAt!>=180;
 export type TasteProfile={favorites:string[];lastBonusAt?:number};
 export type FoodTastes=Partial<Record<CharacterId,TasteProfile>>;
 export const tasteKey=(kind:TasteKind,item:string)=>kind+':'+item;
 export function validTasteItem(kind:unknown,item:unknown):kind is TasteKind{
- return typeof item==='string'&&(kind==='meal'?Object.hasOwn(RECIPES,item):kind==='takeout'&&Object.hasOwn(TAKEOUT,item));
+ return typeof item==='string'&&(kind==='meal'?Object.hasOwn(RECIPES,item):kind==='takeout'?Object.hasOwn(TAKEOUT,item):kind==='cafe'?Object.hasOwn(CAFE_MENU,item):kind==='campfire'?Object.hasOwn(CAMP_RECIPES,item):kind==='coffee'&&([...INSTANT_COFFEE,...COFFEE_DRINKS] as readonly string[]).includes(item));
 }
 export function validFoodTastes(value:unknown):value is FoodTastes{
  if(!value||typeof value!=='object'||Array.isArray(value))return false;

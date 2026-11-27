@@ -1,4 +1,7 @@
-import {RECIPES,TAKEOUT,isHomeDrink,HOME_DESSERTS,isShopSnack,type RecipeId} from './shared/food';
+import {CAFE_MENU} from './shared/locations';
+import {CAMP_RECIPES} from './shared/park';
+import {COFFEE_DRINKS,INSTANT_COFFEE} from './shared/coffee';
+import {GROCERIES,RECIPES,TAKEOUT,isHomeDrink,HOME_DESSERTS,isShopSnack,type RecipeId} from './shared/food';
 import {favoriteFood,type TasteKind} from './shared/foodTastes';
 import type {CharacterId,GameState} from './shared/protocol';
 export type TasteSubmit=(kind:TasteKind,item:string,enabled:boolean)=>boolean;
@@ -9,6 +12,7 @@ export function tasteButton(s:GameState,role:CharacterId,kind:TasteKind,id:strin
  b.onclick=()=>{const next=!selected;if(submit(kind,id,next)){selected=next;render();changed?.(next);}};
  render();return b;
 }
+export function tastePair(action:HTMLElement,heart:HTMLButtonElement){const row=document.createElement('div');row.className='taste-pair';row.append(action,heart);return row;}
 export function tasteLabel(s:GameState,role:CharacterId,kind:TasteKind,id:string){
  const other=role==='vlad'?'alina':'vlad';
  return (favoriteFood(s,role,kind,id)?' · ♥ Моё любимое':'')+(favoriteFood(s,other,kind,id)?' · ♡ Любит '+(other==='alina'?'Алина':'Влад'):'');
@@ -16,14 +20,14 @@ export function tasteLabel(s:GameState,role:CharacterId,kind:TasteKind,id:string
 
 type TasteView={query:string;category:string;only:boolean;limit:number};
 const views:Record<CharacterId,TasteView>={vlad:{query:'',category:'all',only:true,limit:12},alina:{query:'',category:'all',only:true,limit:12}};
-const listItems=[...Object.entries(RECIPES).map(([id,f])=>({id,kind:'meal' as const,name:f.name,emoji:f.emoji,category:isHomeDrink(id as RecipeId)?'drink':HOME_DESSERTS.includes(id as RecipeId)||['pannaCotta','cremeBrulee','chocolateFondant','birthdayCake','fruitSalad','christmasApples'].includes(id)?'sweet':'meal'})),...Object.entries(TAKEOUT).map(([id,f])=>({id,kind:'takeout' as const,name:f.name,emoji:f.emoji,category:isShopSnack(id)?'sweet':'takeout'}))];
+const listItems=[...Object.entries(RECIPES).map(([id,f])=>({id,kind:'meal' as const,name:f.name,emoji:f.emoji,category:isHomeDrink(id as RecipeId)?'drink':HOME_DESSERTS.includes(id as RecipeId)||['pannaCotta','cremeBrulee','chocolateFondant','birthdayCake','fruitSalad','christmasApples'].includes(id)?'sweet':'meal'})),...Object.entries(TAKEOUT).map(([id,f])=>({id,kind:'takeout' as const,name:f.name,emoji:f.emoji,category:isShopSnack(id)?'sweet':'takeout'})),...Object.entries(CAFE_MENU).map(([id,f])=>({id,kind:'cafe' as const,name:f.name,emoji:'🍽️',category:'cafe'})),...Object.entries(CAMP_RECIPES).map(([id,f])=>({id,kind:'campfire' as const,name:f.name,emoji:'🔥',category:'campfire'})),...INSTANT_COFFEE.filter(id=>id!=='coffee').map(id=>({id,kind:'coffee' as const,name:GROCERIES[id].name,emoji:'☕',category:'coffee'})),...COFFEE_DRINKS.map(id=>({id,kind:'coffee' as const,name:id,emoji:'☕',category:'coffee'}))];
 export function renderFoodTastes(root:HTMLElement,s:GameState,owner:CharacterId,viewer:CharacterId,submit?:TasteSubmit){
  const editable=owner===viewer&&!!submit,v=views[owner],selected=new Set(s.foodTastes?.[owner]?.favorites??[]);
  const h=document.createElement('h3');h.textContent='♥ Любимые блюда и напитки';
- const note=document.createElement('p');note.textContent=editable?'Выбирай свои вкусы сам. Хорошая любимая порция даёт до +6 настроения раз в 3 игровых часа. Плохое качество не скрывается.':'Здесь любимые блюда партнёра. Можно выбрать их для завтрака, угощения или совместного ужина.';
+ const note=document.createElement('p');note.textContent=editable?'Любимая качественная порция: до +6 настроения раз в 3 игровых часа. Выбирай свои вкусы сам.':'Здесь любимые блюда партнёра. Можно выбрать их для завтрака, угощения или совместного ужина.';
  const search=document.createElement('input');search.type='search';search.placeholder='Найти блюдо или напиток';search.setAttribute('aria-label','Поиск вкусов');search.value=v.query;
  const category=document.createElement('select');category.setAttribute('aria-label','Категория вкусов');
- for(const [id,title] of [['all','Все категории'],['meal','Домашние блюда'],['drink','Напитки'],['sweet','Десерты и перекусы'],['takeout','Готовая еда']]){const opt=document.createElement('option');opt.value=id;opt.textContent=title;category.append(opt);}category.value=v.category;
+ for(const [id,title] of [['all','Все категории'],['meal','Домашние блюда'],['drink','Напитки'],['sweet','Десерты и перекусы'],['takeout','Готовая еда'],['coffee','Кофе'],['cafe','Кафе'],['campfire','На костре']]){const opt=document.createElement('option');opt.value=id;opt.textContent=title;category.append(opt);}category.value=v.category;
  const toggle=document.createElement('button');toggle.type='button';toggle.className='collection-more';
  const count=document.createElement('small');const list=document.createElement('div');list.className='collection-list';
  const more=document.createElement('button');more.type='button';more.className='collection-more';
@@ -33,7 +37,7 @@ export function renderFoodTastes(root:HTMLElement,s:GameState,owner:CharacterId,
   count.textContent='В избранном: '+selected.size+' · найдено: '+rows.length;
   toggle.textContent=v.only?'Показать весь ассортимент':'Показать только любимое';
   list.replaceChildren();for(const x of rows.slice(0,v.limit)){
-   const row=document.createElement('div');row.className='collection-entry';const title=document.createElement('strong');title.textContent=x.emoji+' '+x.name;row.append(title);
+   const row=document.createElement('div');row.className='collection-entry taste-row';const title=document.createElement('strong');title.textContent=x.emoji+' '+x.name;row.append(title);
    if(editable){const view={...s,foodTastes:{...s.foodTastes,[owner]:{favorites:[...selected]}}};row.append(tasteButton(view,owner,x.kind,x.id,submit!,on=>{if(on)selected.add(x.kind+':'+x.id);else selected.delete(x.kind+':'+x.id);render();}));}
    else{const small=document.createElement('small');small.textContent='♥ Любимое';row.append(small);}list.append(row);
   }

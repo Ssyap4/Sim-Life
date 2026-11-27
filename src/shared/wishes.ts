@@ -1,4 +1,4 @@
-import {favoriteFood} from './foodTastes';
+import {favoriteFood,favoriteBonusReady} from './foodTastes';
 import {recipeAvailability} from './recipeAvailability';
 import {isCatchRecipe} from './lake';
 import {holidayRecipeOpen} from './recipeAvailability';
@@ -118,6 +118,13 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const pressing=sorted.filter(need=>person[need]<=50&&wishAvailable(state,role,'need-'+need)).slice(0,2);
   for(const need of pressing)wishes.push(make(need));
   if(state.world.places[role]==='park'&&state.world.dogWalker===role&&wishAvailable(state,role,'dog-walk'))wishes.push({id:'dog-walk',icon:'🐕',title:'Поиграть с Верделлом в парке',detail:'Проведи время с собакой на площадке.',cta:'К площадке',command:{type:'local_activity',action:'dog',station:'park-dog'},urgency:'calm'});
+  if(state.world.places[role]==='home'&&person.hunger<95&&person.hunger>50&&favoriteBonusReady(state,role)&&wishAvailable(state,role,'favorite-meal')){
+    const now=gameMinutes(state.clock);
+    const fresh=state.readyFood.filter(b=>b.storage==='table'&&b.portions>0&&b.expiresAt>now).sort((a,b)=>a.expiresAt-b.expiresAt);
+    const item=fresh.find((b,i)=>fresh.findIndex(x=>x.kind===b.kind&&x.item===b.item)===i&&favoriteFood(state,role,b.kind,b.item)&&b.quality!=='bad'&&b.quality!=='average'&&!(b.kind==='meal'&&isGrillRecipe(b.item as RecipeId)));
+    if(item){const meal=item.kind==='meal'?RECIPES[item.item as RecipeId]:TAKEOUT[item.item as TakeoutId];
+      wishes.push({id:'favorite-meal',icon:'♥',title:'Полакомиться любимым',detail:meal.name+' · свежая порция уже на столе.',cta:'Попробовать',command:item.kind==='meal'?{type:'eat',recipe:item.item as RecipeId}:{type:'eat_takeout',item:item.item as TakeoutId},urgency:'calm'});}
+  }
   const pet:PetId=PERSONALITIES[role].pet;
   const plans:Wish[]=[];
   const add=(id:string,icon:string,title:string,detail:string,cta:string,command:WishCommand|undefined)=>{

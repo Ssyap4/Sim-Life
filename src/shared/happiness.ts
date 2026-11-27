@@ -38,6 +38,7 @@ export function wishAvailable(state:GameState,role:CharacterId,id:string):boolea
 export function gameReward(id:string):{points:number;mood:number} {
   if(id.startsWith('need-'))return {points:5,mood:2};
   if(id.startsWith('companion-'))return {points:20,mood:6};
+  if(id==='favorite-meal')return {points:15,mood:3};
   if(id.startsWith('cook-'))return {points:25,mood:8};
   if(id.startsWith('goal-'))return {points:75,mood:15};
   if(id==='dog-walk')return {points:30,mood:8};

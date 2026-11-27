@@ -13,6 +13,8 @@ import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
 import type { LocalActivity } from './shared/locations';
 import { CAFE_TALK_TOPICS, LAKE_TALK_TOPICS, lakeTalkStation, PARK_TALK_TOPICS, PICNIC_TALK_TOPICS, contextAvailable } from './shared/socialLife';
 import { cafeSeatAt } from './shared/locations';
+import {tasteButton,tasteLabel,tastePair,type TasteSubmit} from './foodTasteUI';
+import {favoriteFood,favoritePriority} from './shared/foodTastes';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
 import { districtStation } from './shared/district';
@@ -50,7 +52,7 @@ function button(label: string, click: () => void, disabled = false) {
 export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld: () => World,
   send: (operation: WorldCommand) => boolean, cook: (recipe: RecipeId) => void, signOut: () => void,
   openEducation: (room: string, exam?: boolean) => void,
-  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean, startWarehouse?: (job:JobId)=>boolean) {
+  enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean, startWarehouse?: (job:JobId)=>boolean,favorite?:TasteSubmit) {
   let state: GameState | null = null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
@@ -445,7 +447,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           const kit=place.world.campKit?.[role];
           options.append(element('strong','','Припасы для костра'),button('Уголь + розжиг · '+(kit?.fuel??0),()=>send({type:'camp_pack',item:'fuel'}),place.pantry.charcoal<1||place.pantry.lighterFluid<1||(kit?.fuel??0)>=3));
           for(const [id,meal] of Object.entries(CAMP_RECIPES)){const item=id as CampRecipe;const ingredients=campIngredients(item);options.append(element('small','',ingredients.map(([k,n])=>GROCERIES[k].name.split(' · ')[0]+' '+place.pantry[k]+'/'+n).join(' · ')));options.append(button('Собрать: '+meal.name+' · '+(kit?.recipes[item]??0),()=>send({type:'camp_pack',item}),ingredients.some(([k,n])=>place.pantry[k]<n)||(kit?.recipes[item]??0)>=3));}
-          for(const batch of fridgeReady)options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
+          for(const batch of [...fridgeReady].sort((a,b)=>Number(favoriteFood(place,role,b.kind,b.item))-Number(favoriteFood(place,role,a.kind,a.item))))options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item)+tasteLabel(place,role,batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
         }
         if(storagePage==='ready'){
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
@@ -581,14 +583,15 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           element('small','','Сытость +'+meal.hunger+' · Настроение +'+meal.mood+' · Комфорт +'+meal.comfort+' · '+meal.minutes+' мин.'),
           button('Подтвердить заказ',()=>{const item=cafeChoice!;cafeChoice=null;transaction({type:'cafe_order',item,table:station.id,sequence:place.world.sequence[role]});},pending!==null||place.money<meal.price),
           button('Назад к меню',()=>{cafeChoice=null;draw();}));
-      }else for(const [id,meal] of Object.entries(CAFE_MENU)){
-        options.append(button(meal.name+' · '+formatRub(meal.price),()=>{cafeChoice=id as CafeItem;draw();},pending!==null||place.money<meal.price));
+      }else for(const [id,meal] of Object.entries(CAFE_MENU).sort(([a],[b])=>favoritePriority(place,role,'cafe',a,b))){
+        const choice=button(meal.name+' · '+formatRub(meal.price)+tasteLabel(place,role,'cafe',id),()=>{cafeChoice=id as CafeItem;draw();},pending!==null||place.money<meal.price);
+        options.append(favorite?tastePair(choice,tasteButton(place,role,'cafe',id,favorite)):choice);
       }
     } else if (kind === 'rest') options.append(local('Сесть на скамью', 'rest'));
     else if(kind==='swing'||kind==='picnic'){
       const partner=role==='vlad'?'alina':'vlad';const together=place.world.places[partner]==='park'&&!!cafeSocial;
       if(kind==='swing')options.append(local('Покачаться на качелях','swing'));
-      else{const food=picnicPortions(place,role)[0];options.append(element('small','',food?'Из корзины: '+picnicName(food):'В твоём отделении корзины нет еды'));if(food)options.append(local('🍽️ Поесть на пикнике · 1,5 мин','picnic'));}
+      else{const food=picnicPortions(place,role)[0];options.append(element('small','',food?'Из корзины: '+picnicName(food)+tasteLabel(place,role,food.kind,food.item):'В твоём отделении корзины нет еды'));if(food)options.append(local('🍽️ Поесть на пикнике · 1,5 мин','picnic'));}
       if(together&&cafeSocial){
         if(cafeTopicsOpen){const topics=kind==='picnic'&&[role,partner].every(r=>picnicPortions(place,r as typeof role).length)?PICNIC_TALK_TOPICS:PARK_TALK_TOPICS;for(const topic of topics.filter(t=>contextAvailable(t,place,role)))options.append(button(topic.title,()=>{if(cafeSocial(topic.id))close();}));options.append(button('Назад',()=>{cafeTopicsOpen=false;draw();}));}
         else{options.append(button(kind==='swing'?'Покачаться вдвоём':'Устроить пикник вдвоём',()=>{if(cafeSocial(kind==='swing'?'parkSwing':'picnic'))close();}));options.append(button('Поговорить ›',()=>{cafeTopicsOpen=true;draw();}));}

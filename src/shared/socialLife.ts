@@ -1,4 +1,4 @@
-import {favoriteFood,favoritePriority} from './foodTastes';
+import {coffeeTasteItem,favoriteFood,favoritePriority} from './foodTastes';
 import {lakeAccess,lakeCampFor,isCatchRecipe,freshFish} from './lake';
 import {CARE_TOPICS,careTopicAvailable} from './vanity';
 import {sharedCoffeeOptions} from './coffee';
@@ -311,7 +311,7 @@ export const needsItem=(a:SocialActivity)=>a.id==='eveningPlan'||!!a.object&&pai
 export function activityItems(a:SocialActivity,state:GameState,from:CharacterId):Item[] {
   if(a.object==='console')return consoleLibrary(state).filter(id=>CONSOLE_GAMES[id].mode!=='solo'&&!consolePlayError(state,id)).map(id=>({id,label:CONSOLE_GAMES[id].name}));
   if(a.object==='breakfastCare'||a.object==='breakfastBed')return BREAKFAST_RECIPES.filter(id=>recipeAvailability(state,from,id).available).sort((a,b)=>favoritePriority(state,otherPerson(from),'meal',a,b)).map(id=>({id,label:RECIPES[id].name+' · '+RECIPES[id].servings+' порц.'+(favoriteFood(state,otherPerson(from),'meal',id)?' · ♡ Любимое партнёра':'')}));
-  if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'}));
+  if(a.object==='yardCoffee')return sharedCoffeeOptions(state,from).sort((a,b)=>favoritePriority(state,otherPerson(from),'coffee',coffeeTasteItem(a.blend,a.drink),coffeeTasteItem(b.blend,b.drink))).map(o=>({id:o.id,label:(o.drink?o.drink+' · ':'')+GROCERIES[o.blend].name+' · +'+o.energy+'% каждому'+(favoriteFood(state,otherPerson(from),'coffee',coffeeTasteItem(o.blend,o.drink))?' · ♡ Любимое партнёра':'')}));
   if(a.object==='leisure')return state.furnishing.placed.flatMap(item=>{const action=leisureAction(item.sku,a.id);return action&&LEISURE[action].paired&&[from,otherPerson(from)].every(role=>furnitureUseLocation(state,role,item.id,action))?[{id:String(item.id),label:FURNITURE_BY_ID.get(item.sku)!.name}]:[];});
   const recipeIds=Object.keys(RECIPES) as RecipeId[];
   if(a.id==='eveningPlan') {
@@ -324,7 +324,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
     const delivery=(Object.keys(TAKEOUT) as TakeoutId[]).filter(id=>state.takeout[id]>=2&&
       freshPortions(state,'takeout',id,'table')>=2)
       .map(id=>({id:'takeout:'+id,label:'🍕 Доставка на столе · '+TAKEOUT[id].name}));
-    return [...ready,...delivery,...cooked];
+    return [...ready,...delivery,...cooked].map(o=>{const kind=o.id.startsWith('takeout:')?'takeout':'meal',id=o.id.replace(/^(leftovers|takeout):/,'');const both=favoriteFood(state,from,kind,id)&&favoriteFood(state,otherPerson(from),kind,id);return {...o,label:o.label+(both?' · ♥ Любят оба':favoriteFood(state,otherPerson(from),kind,id)?' · ♡ Любимое партнёра':favoriteFood(state,from,kind,id)?' · ♥ Моё любимое':'')};});
   }
   switch(a.object){
     case 'cook':case 'grill': return recipeIds.filter(id=>holidayRecipeOpen(state,id)&&isGrillRecipe(id)===(a.object==='grill')&&(!isCatchRecipe(id)||freshFish(state).length>0)&&ingredientList(id).every(([id,n])=>state.pantry[id]>=n)).map(id=>({id,label:RECIPES[id].name}));

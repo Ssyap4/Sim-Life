@@ -1,9 +1,10 @@
+import {tasteButton,tasteLabel,tastePair,type TasteSubmit} from './foodTasteUI';
 import { COFFEE_CUPS_PER_DAY, INSTANT_COFFEE, INSTANT_COFFEE_ENERGY, coffeeCupsToday, type CoffeeBlend, type CoffeeDrink, BEAN_COFFEE, COFFEE_DRINKS, coffeeMachineTier } from './shared/coffee';
 import { GROCERIES } from './shared/food';
 import type { CharacterId, GameState } from './shared/protocol';
 
 export function showCoffeeChoices(container: HTMLElement, state: GameState,
-  role: CharacterId, brew: (blend: CoffeeBlend,drink?:CoffeeDrink) => boolean): void {
+  role: CharacterId, brew: (blend: CoffeeBlend,drink?:CoffeeDrink) => boolean,favorite?:TasteSubmit): void {
   const used = coffeeCupsToday(state, role);
   const heading = document.createElement('strong');
   heading.className = 'food-section-heading';
@@ -22,13 +23,13 @@ export function showCoffeeChoices(container: HTMLElement, state: GameState,
     button.className = 'food-action';
     button.dataset.coffee = id;
     const title = document.createElement('strong');
-    title.textContent = GROCERIES[id].name;
+    title.textContent = GROCERIES[id].name+tasteLabel(state,role,'coffee',id);
     const subtitle = document.createElement('small');
     subtitle.textContent = 'Дома: ' + qty + ' порц. · +' + INSTANT_COFFEE_ENERGY + '% бодрости';
     button.append(title, subtitle);
     button.disabled = used >= COFFEE_CUPS_PER_DAY || qty < 1;
     button.addEventListener('click', () => brew(id));
-    container.append(button);
+    container.append(favorite?tastePair(button,tasteButton(state,role,'coffee',id,favorite)):button);
   }
   const tier=coffeeMachineTier(state,role);
   const machine=document.createElement('strong');machine.className='food-section-heading';machine.textContent='☕ Кофемашина';container.append(machine);
@@ -38,5 +39,5 @@ export function showCoffeeChoices(container: HTMLElement, state: GameState,
   for(const id of BEAN_COFFEE){const opt=document.createElement('option');opt.value=id;opt.textContent=GROCERIES[id].name+' · '+state.pantry[id]+' порц.';opt.disabled=state.pantry[id]<1;select.append(opt);}
   const first=BEAN_COFFEE.find(id=>state.pantry[id]>0);if(first)select.value=first;select.disabled=!first;container.append(select);
   const drinks=[...COFFEE_DRINKS].sort((a,b)=>Number((tier.suggestions as readonly string[]).includes(b))-Number((tier.suggestions as readonly string[]).includes(a)));
-  for(const drink of drinks){const button=document.createElement('button');button.className='food-action';button.type='button';button.textContent=drink+' · +'+tier.energy+'%';button.disabled=used>=COFFEE_CUPS_PER_DAY||!first;button.onclick=()=>brew(select.value as CoffeeBlend,drink);container.append(button);}
+  for(const drink of drinks){const button=document.createElement('button');button.className='food-action';button.type='button';button.textContent=drink+' · +'+tier.energy+'%'+tasteLabel(state,role,'coffee',drink);button.disabled=used>=COFFEE_CUPS_PER_DAY||!first;button.onclick=()=>brew(select.value as CoffeeBlend,drink);container.append(favorite?tastePair(button,tasteButton(state,role,'coffee',drink,favorite)):button);}
   }

@@ -15,7 +15,7 @@ import {autonomyCandidates} from '../../src/shared/autonomy';
 import {activityItems,SOCIAL_BY_ID} from '../../src/shared/socialLife';
 import {openServerFiles} from '../storage';
 import {startServer} from '../server';
-function mark(s:GameState,role:CharacterId,kind:'meal'|'takeout',id:string,on=true){const r=changeFoodFavorite(s,role,kind,id,on);assert.ok(r.ok);return r.state;}
+function mark(s:GameState,role:CharacterId,kind:import('../../src/shared/foodTastes').TasteKind,id:string,on=true){const r=changeFoodFavorite(s,role,kind,id,on);assert.ok(r.ok);return r.state;}
 function stock(s:GameState,kind:'meal'|'takeout',id:string,n=1,quality:'good'|'bad'|'average'|'perfect'='good'){
  if(kind==='meal')s.meals[id as keyof typeof s.meals]+=n;else s.takeout[id as keyof typeof s.takeout]+=n;
  addReadyFood(s,kind,id,n,'table',undefined,quality);
@@ -80,4 +80,43 @@ test('two actual sockets cannot write preferences on behalf of the other player'
  const second=watch(v,p=>p.type==='snapshot'&&favoriteFood(p.state,'alina','takeout','milkChocolate'));a.send(JSON.stringify({type:'food_favorite',kind:'takeout',item:'milkChocolate',enabled:true}));await second;
  assert.equal(favoriteFood(openServerFiles(dir).load(),'alina','takeout','milkChocolate'),true);
  }finally{for(const ws of sockets)ws.terminate();await server.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+import {brewCoffee} from '../coffee';
+import {localActivity} from '../locations';
+import {stationById,approachFor,CAFE_MENU} from '../../src/shared/locations';
+import {wishesFor} from '../../src/shared/wishes';
+import {wishAtStart,fulfillWish} from '../happiness';
+import {CAMP_RECIPES} from '../../src/shared/park';
+test('coffee, cafe and picnic share one resident cooldown and consume only real stock',()=>{
+ let s=mark(initialState(),'vlad','coffee','coffeeNescafeGold');s=mark(s,'vlad','cafe','cappuccino');s=mark(s,'vlad','campfire','campPotato');
+ s.pantry.coffeeNescafeGold=2;s.characters.vlad.mood=10;
+ const coffee=brewCoffee(s,'vlad','coffeeNescafeGold');assert.ok(coffee.ok);assert.equal(coffee.state.characters.vlad.mood,16);assert.equal(coffee.state.pantry.coffeeNescafeGold,1);
+ s=coffee.state;s.world.places.vlad='cafe';const table=stationById('cafe','cafe-center')!;
+ Object.assign(s.characters.vlad,approachFor(table,'vlad'),{pose:'sit',mood:10});
+ s.world.cafe.vlad={item:'cappuccino',readyAt:gameMinutes(s.clock),pickedUp:false,table:'cafe-center'};
+ const cafe=localActivity(s,'vlad','dine','cafe-center');assert.ok(cafe.ok);assert.equal(cafe.state.characters.vlad.mood,10+CAFE_MENU.cappuccino.mood);assert.equal(cafe.state.world.cafe.vlad,undefined);
+ s=cafe.state;s.clock=clockAt(gameMinutes(s.clock)+180);s.world.places.vlad='park';Object.assign(s.characters.vlad,approachFor(stationById('park','park-picnic')!,'vlad'),{mood:10});
+ s.world.picnic={portions:{vlad:[{kind:'campfire',item:'campPotato',expiresAt:gameMinutes(s.clock)+60,quality:'good'}],alina:[]}};
+ const picnic=localActivity(s,'vlad','picnic','park-picnic');assert.ok(picnic.ok);assert.equal(picnic.state.characters.vlad.mood,10+CAMP_RECIPES.campPotato.mood+8+6);assert.equal(picnic.state.world.picnic!.portions.vlad.length,0);
+ assert.equal(localActivity(picnic.state,'vlad','picnic','park-picnic').ok,false);
+});
+test('favorite wish appears only for genuine available good food and pays once daily after actual eating',()=>{
+ let s=mark(initialState(),'alina','meal','omelette');s.characters.alina.hunger=70;stock(s,'meal','omelette',2);
+ const cmd={type:'eat' as const,recipe:'omelette' as const};
+ const wish=wishAtStart(s,'alina',cmd);assert.equal(wish?.id,'favorite-meal');
+ assert.equal(fulfillWish(structuredClone(s),'alina',wish,s),'');
+ const r=applyFoodAction(s,'alina',cmd);assert.ok(r.ok);assert.match(fulfillWish(r.state,'alina',wish,s),/15/);
+ assert.equal(fulfillWish(r.state,'alina',wish,s),'');assert.equal(r.state.happiness.alina.points,15);
+ assert.ok(!wishesFor(r.state,'alina').some(w=>w.id==='favorite-meal'));
+ s=mark(initialState(),'vlad','takeout','milkChocolate');s.characters.vlad.hunger=70;stock(s,'takeout','milkChocolate');
+ assert.equal(wishAtStart(s,'vlad',{type:'eat_takeout',item:'milkChocolate'})?.id,'favorite-meal');
+ const eaten=applyTakeoutMeal(s,'vlad','milkChocolate');assert.ok(eaten.ok);
+ assert.ok(fulfillWish(eaten.state,'vlad',wishAtStart(s,'vlad',{type:'eat_takeout',item:'milkChocolate'}),s));
+});
+test('expired, bad or missing servings and full hunger do not create favorite food wishes',()=>{
+ let s=mark(initialState(),'vlad','meal','omelette');s.characters.vlad.hunger=70;stock(s,'meal','omelette',1,'bad');stock(s,'meal','omelette',1,'good');
+ assert.ok(!wishesFor(s,'vlad').some(w=>w.id==='favorite-meal'));
+ s.readyFood=[];s.meals.omelette=0;assert.ok(!wishesFor(s,'vlad').some(w=>w.id==='favorite-meal'));
+ stock(s,'meal','omelette');s.characters.vlad.hunger=100;assert.ok(!wishesFor(s,'vlad').some(w=>w.id==='favorite-meal'));
 });

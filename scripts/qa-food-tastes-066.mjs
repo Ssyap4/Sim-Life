@@ -13,6 +13,8 @@ mkdirSync(out,{recursive:true});let server,browser,page;
 try{
  let s=initialState();s.autonomy={vlad:'off',alina:'off'};
  s=changeFoodFavorite(s,'alina','meal','blackTeaCup',true).state;
+ s=changeFoodFavorite(s,'alina','coffee','Латте',true).state;
+ s=changeFoodFavorite(s,'alina','cafe','cappuccino',true).state;
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -30,13 +32,19 @@ try{
  await row.getByRole('button',{name:'♥ В избранном'}).waitFor();
  for(let i=0;i<30&&!favoriteFood(files.load(),'vlad','meal','omelette');i++)await page.waitForTimeout(100);
  assert.ok(favoriteFood(files.load(),'vlad','meal','omelette'));
- await profile.getByRole('searchbox').fill('');await profile.getByRole('button',{name:'Показать только любимое'}).click();
+ await profile.getByRole('searchbox').fill('');await profile.getByLabel('Категория вкусов').selectOption('coffee');await profile.getByRole('searchbox').fill('латте');
+ await profile.locator('.taste-row').filter({hasText:'Латте'}).getByRole('button',{name:'♡ В избранное'}).click();
+ await profile.locator('.taste-row').filter({hasText:'Латте'}).getByRole('button',{name:'♥ В избранном'}).waitFor();
+ for(let i=0;i<30&&!favoriteFood(files.load(),'vlad','coffee','Латте');i++)await page.waitForTimeout(100);assert.ok(favoriteFood(files.load(),'vlad','coffee','Латте'));
+ await profile.getByLabel('Категория вкусов').selectOption('all');await profile.getByRole('searchbox').fill('');await profile.getByRole('button',{name:'Показать только любимое'}).click();
+ for(let i=0;i<8;i++){const close=page.locator('.notice-close').first();if(!await close.isVisible())break;await close.evaluate(el=>el.click());}
  for(const [width,height] of [[320,568],[360,780],[390,844],[430,932]]){
   await page.setViewportSize({width,height});assert.ok(await profile.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'profile overflow '+width);
   const bytes=await page.screenshot({path:join(out,'own-'+width+'.jpg'),type:'jpeg',quality:75});
   if(width===390||width===320){const b=bytes.toString('base64');for(let i=0;i<b.length;i+=3000)console.log('QA_IMAGE own-'+width+' '+b.slice(i,i+3000));}
  }
  await page.locator('[data-profile-role=alina]').click();await profile.getByText('Чёрный чай',{exact:false}).waitFor();assert.equal(await profile.locator('.taste-favorite').count(),0);
- await page.screenshot({path:join(out,'partner.jpg'),type:'jpeg',quality:75});
+ await profile.getByText('Капучино',{exact:false}).waitFor();await profile.getByText('Латте',{exact:false}).waitFor();
+ const partner=await page.screenshot({path:join(out,'partner.jpg'),type:'jpeg',quality:75});const encoded=partner.toString('base64');for(let i=0;i<encoded.length;i+=3000)console.log('QA_IMAGE partner '+encoded.slice(i,i+3000));
  assert.deepEqual(errors,[]);console.log('Mobile taste profiles OK');
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

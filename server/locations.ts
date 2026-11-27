@@ -12,6 +12,7 @@ import { PURCHASABLE_FURNITURE } from '../src/shared/furniture';
 import { toyProduct,toyOwned } from '../src/shared/petToys';
 import { petFoodProduct } from '../src/shared/petShop';
 import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
+import {applyFavoriteMeal} from '../src/shared/foodTastes';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { ELECTRONICS,initialElectronics,validElectronics,isElectronicsId,installedElectronics } from '../src/shared/electronics';
 import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
@@ -860,7 +861,9 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     if (order?.pickedUp || order?.table) {
       const meal = CAFE_MENU[order.item];
       bump('hunger', meal.hunger); bump('energy', meal.energy); bump('mood', meal.mood); bump('comfort',meal.comfort);
+      const bonus=applyFavoriteMeal(next,role,'cafe',order.item);
       delete next.world.cafe[role];
+      if(bonus)return done(next,meal.name+' · любимое блюдо +'+bonus+' настроения');
     } else { bump('comfort', 8); bump('mood', 3); }
   } else if (action === 'rest') {
     bump('comfort', 14); bump('energy', 5);
@@ -883,7 +886,8 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     const meal=food.kind==='campfire'&&isCampRecipe(food.item)?CAMP_RECIPES[food.item]:food.kind==='meal'?RECIPES[food.item as keyof typeof RECIPES]:TAKEOUT[food.item as keyof typeof TAKEOUT];
     const effect=foodQualityEffect(food.quality,meal.mood+8,18);
     bump('hunger',meal.hunger);bump('mood',effect.mood);bump('fun',effect.fun);bump('comfort',8);
-    return done(next,'Пикник: '+picnicName(food));
+    const bonus=applyFavoriteMeal(next,role,food.kind,food.item,food.quality);
+    return done(next,'Пикник: '+picnicName(food)+(bonus?' · любимое блюдо +'+bonus+' настроения':''));
   } else if(action==='swing'){bump('comfort',24);bump('fun',24);bump('mood',15);bump('energy',5);
   } else if (action === 'badminton') {
     bump('fun', 25); bump('mood', 10); bump('comfort', 8); bump('energy', -3);

@@ -482,7 +482,7 @@ export function createHomeSessions(hooks: Hooks) {
     const served:Participant[]=[];
     for(const member of session.participants){
       const result=applyTvFood(next,member.role,food);
-      if(result.ok){next=result.state;recordDailyCompletion(next,member.role,mediaFoodKind(food)==='meal'?{type:'eat',recipe:food as RecipeId}:{type:'eat_takeout',item:food as TakeoutId});served.push(member);}
+      if(result.ok){const meal=mediaFoodKind(food)==='meal'?{type:'eat' as const,recipe:food as RecipeId}:{type:'eat_takeout' as const,item:food as TakeoutId};const wish=wishAtStart(next,member.role,meal);if(wish?.id==='favorite-meal')fulfillWish(result.state,member.role,wish,next);next=result.state;recordDailyCompletion(next,member.role,meal);served.push(member);}
       else error(member.socket,result.reason);
     }
     if(served.length){

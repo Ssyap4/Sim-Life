@@ -419,3 +419,11 @@
 .taste-controls input,.taste-controls select{width:100%;min-width:0;min-height:44px;font-size:16px;border:1px solid #cbdccc;border-radius:9px;padding:8px;background:#fff;color:#365543;}
 .profile-subtabs:has([data-profile-collection="taste"]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;}
 .profile-subtabs:has([data-profile-collection="taste"]) button{min-width:0;white-space:normal;min-height:44px;font-size:11px;}
+
+.taste-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px;}
+.taste-row strong{min-width:0;overflow-wrap:anywhere;}
+.taste-row .taste-favorite{min-width:96px;max-width:132px;margin:0;}
+
+.taste-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,112px);gap:6px;grid-column:1/-1;min-width:0;align-items:stretch;}
+.taste-pair>button{width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere;}
+.taste-pair .taste-favorite{min-height:44px;margin:0;}

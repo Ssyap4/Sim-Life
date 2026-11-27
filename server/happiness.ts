@@ -52,13 +52,20 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
     if(c.type==='vanity_care')return command.type==='vanity_care'&&(command.care===c.care||(w.id==='vanity-skin'&&CARE[command.care].group==='skin')||(w.id==='vanity-style'&&CARE[command.care].group==='hair'&&CARE[command.care].points>=15));
     if(w.id==='vanity-compliment')return command.type==='together'&&command.action==='nearTalk:careLook';
     if(c.type==='act'||c.type==='furniture_use')return (c.type==='act'?c.actionId:c.action)===action;
+    if(w.id==='favorite-meal'&&command.type==='together'&&['eat','takeout','bring'].includes(command.action))return (c.type==='eat'&&['eat','bring'].includes(command.action)&&command.item===c.recipe)||(c.type==='eat_takeout'&&command.action==='takeout'&&command.item===c.item);
     if(c.type==='cook'||c.type==='eat')return command.type===c.type&&'recipe' in command&&command.recipe===c.recipe;
+    if(c.type==='eat_takeout')return command.type==='eat_takeout'&&command.item===c.item;
     if(c.type==='pet_action')return command.type==='pet_action'&&command.pet===c.pet&&command.action===c.action;
     return false;
   });
 }
 export function fulfillWish(state:GameState,role:CharacterId,wish:Wish|undefined,before:GameState):string {
   if(!wish||!wishAvailable(state,role,wish.id))return '';
+  if(wish.id==='favorite-meal'){
+    const c=wish.command;if(!c||(c.type!=='eat'&&c.type!=='eat_takeout'))return '';
+    const consumed=c.type==='eat_takeout'?state.takeout[c.item]<before.takeout[c.item]:state.meals[c.recipe]<before.meals[c.recipe];
+    if(!consumed||state.foodTastes?.[role]?.lastBonusAt===before.foodTastes?.[role]?.lastBonusAt)return '';
+  }
   if(wish.id.startsWith('goal-')){const [,skill,level]=wish.id.split('-');if(!isSkillId(skill)||skillRank(state.education.characters[role].xp[skill]).level<Number(level)||skillRank(before.education.characters[role].xp[skill]).level>=Number(level))return '';}
   // A repeated course which grants no experience must not farm a learning wish.
   if(wish.id==='learn-dev'||wish.id==='learn-hair'){

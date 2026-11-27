@@ -855,7 +855,7 @@ const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobi
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room),
-  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job));
+  station => net.career({type:'career_start',via:station}), () => phone.open('career'), action=>net.social({type:'social_propose',action}),job=>net.startJob(job),(kind,item,on)=>net.favoriteFood(kind,item,on));
 
 function signOut(): void {
   resetSceneTransition();
@@ -1690,7 +1690,7 @@ function openActions(item: ItemId): void {
       const sent = net.brewCoffee(blend,drink);
       if (sent) { actionsEl.hidden = true; statusEl.textContent = '☕ Готовим кофе…'; }
       return sent;
-    });
+    },(kind,item,on)=>net.favoriteFood(kind,item,on));
   }
 
   if (item === 'table' && state) {

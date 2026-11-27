@@ -1,3 +1,4 @@
+import {applyFavoriteMeal,coffeeTasteItem} from '../src/shared/foodTastes';
 import {workCoffeeDenial,workDrinkDenial,otherResident,type WorkDrinkCommand,type WorkCoffeeCommand} from '../src/shared/workCoffee';
 import { COFFEE_CUPS_PER_DAY, INSTANT_COFFEE_ENERGY, coffeeCupsToday, type CoffeeBlend, coffeeMachineTier, validCoffeeOrder } from '../src/shared/coffee';
 import {applyFoodAction} from './food';
@@ -26,9 +27,10 @@ export function brewCoffee(source: GameState, role: CharacterId, requested: stri
   state.coffeeDaily[role] = { day: state.clock.day, cups: coffeeCupsToday(source, role) + 1 };
   state.characters[role].energy = Math.min(100, state.characters[role].energy + energy);
   Object.assign(state.characters[role], KITCHEN_WORK.coffee.position, { pose: 'idle' as const });
+  const bonus=applyFavoriteMeal(state,role,'coffee',coffeeTasteItem(id,drink));
   state.revision++;
   return { ok: true, state, message: names[role] + ': выпил(а) ' + (drink===undefined?GROCERIES[id].name:String(drink)) +
-    ' · бодрость +' + energy + '% · ' + state.coffeeDaily[role].cups + '/' + COFFEE_CUPS_PER_DAY + ' чашки за сутки' };
+    ' · бодрость +' + energy + '% · ' + state.coffeeDaily[role].cups + '/' + COFFEE_CUPS_PER_DAY + ' чашки за сутки'+(bonus?' · любимый кофе +'+bonus+' настроения':'') };
 }
 
 /** Delivery consumes the recipient's daily cup, not the giver's. Keep the
