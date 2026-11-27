@@ -851,7 +851,7 @@ const orderDelivery = (lines: BasketLine[],origin:'market'|'computer'='market') 
   deliverySequence = sequence;deliveryOrigin=origin;
   return true;
 };
-const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'));
+const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'),undefined,{role:()=>active,submit:(kind,item,on)=>net.favoriteFood(kind,item,on)});
 const locationUI = createLocationUI(locationPanel, mapPanel, () => world, command => net.world(command),
   recipe => { net.food('cook', recipe); }, signOut,
   (room, exam) => openEducation(exam ? 'exam' : 'center', room),
@@ -983,6 +983,7 @@ const computer = createComputerUI(document.querySelector<HTMLElement>('#computer
   service: command => net.service(command),
   budget: command => net.budget(command),
   checkout: lines => orderDelivery(lines,'computer'),
+  foodFavorite:(kind,item,on)=>net.favoriteFood(kind,item,on),
   furnishing:()=>furnishing.open(),
 });
 function openEducation(view: EducationView, room?: string) {
@@ -991,7 +992,7 @@ function openEducation(view: EducationView, room?: string) {
   phone.openEducation(view, room);
 }
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),(genre,food)=>food||genre==='youtube'?net.inviteMovie(genre,food):net.social({type:'social_propose',action:'film',item:genre}),
-  () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'));
+  () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'),(kind,item,on)=>net.favoriteFood(kind,item,on));
 const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
   (id,accept)=>net.answerMovie(id,accept),id=>net.withdrawMovie(id));

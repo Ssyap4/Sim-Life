@@ -81,11 +81,11 @@ export function showFoodChoices(
     const results=document.createElement('div');
     // Direct child cards participate in the shared two-column action grid.
     results.className='food-recipe-results';
-    let currentFilter:'all'|'available'|'locked'|'favorite'='all';
+    let currentFilter:'all'|'available'|'locked'|'favorite'|'partner'='all';
     const favorites=new Set(recipes.filter(r=>favoriteFood(state,role,'meal',r.id)).map(r=>r.id));
     const category=document.createElement('select');category.setAttribute('aria-label','Категория рецептов');for(const [v,label] of [['all','Все рецепты'],['meal','Основные блюда'],['drink','Напитки'],['dessert','Выпечка и десерты']]){const o=document.createElement('option');o.value=v;o.textContent=label;category.append(o);}category.hidden=location==='grill';category.addEventListener('change',renderRecipes);
     const buttons=([
-      ['all','Все'],['available','Готовить'],['locked','Недоступно'],['favorite','♥ Любимое'],
+      ['all','Все'],['available','Готовить'],['locked','Недоступно'],['favorite','♥ Любимое'],['partner','♡ Партнёра'],
     ] as const).map(([filter,label])=>{
       const b=document.createElement('button');
       b.type='button';b.textContent=label;
@@ -105,12 +105,12 @@ export function showFoodChoices(
         const text=(item.recipe.name+' '+ingredients).toLocaleLowerCase('ru-RU').replaceAll('ё','е');
         const kind=isHomeDrink(item.id)?'drink':HOME_DESSERTS.includes(item.id)||['pannaCotta','cremeBrulee','chocolateFondant','birthdayCake','fruitSalad','christmasApples'].includes(item.id)?'dessert':'meal';
         return (category.value==='all'||category.value===kind)&&(!query||text.includes(query))&&
-          (currentFilter==='all'||(currentFilter==='favorite'?favorites.has(item.id):currentFilter==='available'?item.availability.available:!item.availability.available));
+          (currentFilter==='all'||(currentFilter==='favorite'?favorites.has(item.id):currentFilter==='partner'?favoriteFood(state,role==='vlad'?'alina':'vlad','meal',item.id):currentFilter==='available'?item.availability.available:!item.availability.available));
       });
       count.textContent='По сложности ↑ · можно сейчас: '+recipes.filter(item=>item.availability.available).length+
         ' из '+recipes.length+' · показано: '+visible.length;
       buttons.forEach((b,i)=>b.setAttribute('aria-pressed',
-        String(currentFilter===(['all','available','locked','favorite'] as const)[i])));
+        String(currentFilter===(['all','available','locked','favorite','partner'] as const)[i])));
       results.replaceChildren();
       if(!visible.length){
         const empty=document.createElement('p');

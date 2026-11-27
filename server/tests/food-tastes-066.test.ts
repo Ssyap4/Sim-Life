@@ -120,3 +120,30 @@ test('expired, bad or missing servings and full hunger do not create favorite fo
  s.readyFood=[];s.meals.omelette=0;assert.ok(!wishesFor(s,'vlad').some(w=>w.id==='favorite-meal'));
  stock(s,'meal','omelette');s.characters.vlad.hunger=100;assert.ok(!wishesFor(s,'vlad').some(w=>w.id==='favorite-meal'));
 });
+
+import {favoriteProduct,productTaste,favoriteRecipeIngredients} from '../../src/shared/tasteShopping';
+import {mediaTasteOptions} from '../../src/shared/tasteMedia';
+import {MARKET_BY_ID} from '../../src/shared/market';
+test('shopping favorites map only to actual ready food and instant coffee, missing ingredients remain advisory',()=>{
+ let s=mark(initialState(),'vlad','meal','omelette');s=mark(s,'alina','takeout','milkChocolate');s=mark(s,'vlad','coffee','coffeeNescafeGold');
+ s.pantry.eggs=0;s.pantry.milk=0;const before=structuredClone(s);
+ assert.deepEqual([...favoriteRecipeIngredients(s,'vlad')].sort(),['eggs','milk']);
+ assert.equal(favoriteRecipeIngredients(s,'alina').size,0);
+ assert.equal(favoriteProduct(s,'alina',MARKET_BY_ID.get('takeout:milkChocolate')!),true);
+ assert.equal(favoriteProduct(s,'vlad',MARKET_BY_ID.get('takeout:milkChocolate')!),false);
+ assert.equal(favoriteProduct(s,'vlad',MARKET_BY_ID.get('grocery:coffeeNescafeGold')!),true);
+ assert.equal(productTaste(MARKET_BY_ID.get('grocery:eggs')!),undefined);
+ assert.deepEqual(s,before);
+ s.pantry.eggs=2;assert.deepEqual([...favoriteRecipeIngredients(s,'vlad')],['milk']);
+});
+test('media preference filters respect real fresh stock, table requirement for home drinks, and two-portion availability',()=>{
+ let s=mark(initialState(),'vlad','takeout','milkChocolate');s=mark(s,'alina','takeout','milkChocolate');s=mark(s,'alina','meal','blackTeaCup');s=mark(s,'vlad','meal','berrySmoothie');
+ stock(s,'takeout','milkChocolate',2);stock(s,'meal','blackTeaCup');stock(s,'meal','berrySmoothie');stock(s,'meal','omelette');
+ s.readyFood.find(b=>b.item==='berrySmoothie')!.storage='fridge';
+ assert.deepEqual(mediaTasteOptions(s,'vlad','both').map(x=>[x.food,x.count]),[['milkChocolate',2]]);
+ assert.deepEqual(mediaTasteOptions(s,'vlad','partner').map(x=>[x.food,x.count]),[['milkChocolate',2],['blackTeaCup',1]]);
+ assert.deepEqual(mediaTasteOptions(s,'vlad','mine').map(x=>x.food),['milkChocolate']);
+ assert.equal(mediaTasteOptions(s,'vlad').some(x=>x.food==='omelette'),false);
+ s.readyFood.find(b=>b.item==='milkChocolate')!.expiresAt=gameMinutes(s.clock);
+ assert.deepEqual(mediaTasteOptions(s,'vlad','both'),[]);
+});

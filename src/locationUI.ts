@@ -14,6 +14,7 @@ import type { LocalActivity } from './shared/locations';
 import { CAFE_TALK_TOPICS, LAKE_TALK_TOPICS, lakeTalkStation, PARK_TALK_TOPICS, PICNIC_TALK_TOPICS, contextAvailable } from './shared/socialLife';
 import { cafeSeatAt } from './shared/locations';
 import {tasteButton,tasteLabel,tastePair,type TasteSubmit} from './foodTasteUI';
+import {productTaste,favoriteProduct,favoriteRecipeIngredients} from './shared/tasteShopping';
 import {favoriteFood,favoritePriority} from './shared/foodTastes';
 import { CAFE_MENU, PLACES, STATIONS, stationById, clockMinutes, type CafeItem, type PlaceId, type Station, type WorldCommand } from './shared/locations';
 import { COURIER_NAME } from './shared/courier';
@@ -149,7 +150,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const product = marketProduct(id)!;
     const count = cart.get(id) ?? 0;
     const row = element('div', 'world-product');
-    const label = element('span', '', product.emoji + ' ' + product.name + ' · ' + formatRub(product.price));
+    const t=productTaste(product);
+    const label = element('span', '', product.emoji + ' ' + product.name + ' · ' + formatRub(product.price)+(state&&t?tasteLabel(state,role,t.kind,t.item):''));
     const control = element('span', 'world-stepper');
     const down = button('−', () => change(id, -1), count === 0 || pending !== null);
     down.setAttribute('aria-label', 'Убрать ' + product.name);
@@ -158,6 +160,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     up.dataset.product = id;
     control.append(down, element('strong', '', String(count)), up);
     row.append(label, control);
+    if(state&&t&&favorite){const heart=tasteButton(state,role,t.kind,t.item,favorite);heart.classList.add('world-taste-heart');row.append(heart);}
     return row;
   }
 
@@ -387,7 +390,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         const { categories } = station.action;
         const products = MARKET_PRODUCTS.filter(p => station.id === 'drinks'
           ? p.category==='drinks'||p.stockKey === 'tea' || p.stockKey.startsWith('coffee') || p.stockKey.startsWith('beans') : categories.includes(p.category));
-        for (const product of products) options.append(productRow(product.id));
+        const missing=favoriteRecipeIngredients(place,role);
+        for (const product of products.sort((a,b)=>Number(favoriteProduct(place,role,b))-Number(favoriteProduct(place,role,a))||Number(missing.has(b.stockKey))-Number(missing.has(a.stockKey)))) options.append(productRow(product.id));
         options.append(element('small', '', 'Выбранные товары оплачиваются на кассе.'));
       } else {
         for (const line of lines) options.append(productRow(line.id));
@@ -452,13 +456,14 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         if(storagePage==='ready'){
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
         for (const batch of fridgeReady) {
-          const name = readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"");
+          const name = readyFoodName(batch.kind, batch.item)+tasteLabel(place,role,batch.kind,batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"");
           const card=element('article','storage-food-card');
           card.append(element('strong', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
             ' · ' + batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
           card.append(button('🍽️ Достать на стол', () =>
             send({ type: 'ready_food_serve', kind: batch.kind, item: batch.item }),
             readyFoodTableUsage(place)>=TABLE_READY_CAPACITY));
+          if(favorite)card.append(tasteButton(place,role,batch.kind,batch.item,favorite));
           card.append(button('Выбросить 1 порцию', () =>
             send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'fridge' })));
           options.append(card);

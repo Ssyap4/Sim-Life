@@ -1,4 +1,6 @@
-import {tasteButton,tasteLabel,tastePair} from './foodTasteUI';
+import {favoriteProduct,productTaste,favoriteRecipeIngredients} from './shared/tasteShopping';
+import {favoriteFood} from './shared/foodTastes';
+import {tasteButton,tasteLabel,tastePair,type TasteSubmit} from './foodTasteUI';
 import {isGift,giftCount,pendingGifts,GIFT_LIMIT,FAMILY_GIFTS} from './shared/gifts';
 import { serviceAvailable, SERVICE_MESSAGES } from './shared/services';
 import { findMarketProducts } from './marketSearch';
@@ -10,12 +12,12 @@ import { formatRub } from './shared/economy';
 import { PETS, PET_BOWL_CAPACITY, PET_FOOD_MAX_REFILLS } from './shared/pets';
 import { GROCERY_DETAILS, TAKEOUT_DESCRIPTIONS, RECIPE_DESCRIPTIONS,
   FRIDGE_CAPACITY, CUPBOARD_CAPACITY, storageUsage, storageCanFit } from './shared/storageSpace';
-import type { GameState } from './shared/protocol';
+import type { CharacterId,GameState } from './shared/protocol';
 import { qualitySuffix } from './shared/foodQuality';
 import { addReadyFood, readyFoodName, readyFoodRemaining, readyFoodTableUsage, TABLE_READY_CAPACITY } from './shared/readyFood';
 
 type Tab = 'shop' | 'stock' | 'ledger';
-type Filter = 'all' | MarketCategory;
+type Filter = 'all' | 'favorite' | 'partner' | 'ingredients' | MarketCategory;
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -42,6 +44,7 @@ export function createMarketUI(
   sendCheckout: (lines: BasketLine[]) => boolean,
   openMobile: () => void,
   onClose?: () => void,
+  tastes?:{role:()=>CharacterId|null;submit:TasteSubmit},
 ): { open: (household: GameState) => void; refresh: (household: GameState) => void;
      close: () => void; acknowledge: () => void } {
   let state: GameState | null = null;
@@ -49,13 +52,14 @@ export function createMarketUI(
   let category: Filter = 'all';
   let searchQuery = '';
   let lastHouseholdView = '';
+  let lastRole:CharacterId|null=null;
   const cart = new Map<string, number>();
   // Frequent position/need snapshots must not replace a touch target while
   // someone is tapping +, scrolling, or typing into the mobile catalogue.
   const householdView=(household:GameState)=>JSON.stringify([
     household.money,household.pantry,household.meals,household.takeout,
     household.petFood,household.petBowls,household.readyFood,household.ledger,household.gifts,household.world.deliveries,
-    household.billing,Math.floor(clockMinutes(household.clock)/30),
+    household.billing,household.foodTastes?.vlad?.favorites,household.foodTastes?.alina?.favorites,tastes?.role(),Math.floor(clockMinutes(household.clock)/30),
   ]);
   function cartFit(id?:string,delta=0):boolean {
     if(!state)return false;
@@ -82,6 +86,9 @@ export function createMarketUI(
   const close = () => { root.hidden = true; root.replaceChildren(); onClose?.(); };
   function redraw(): void {
     if (!state || root.hidden) return;
+    const role=tastes?.role()??null,partner=role==='vlad'?'alina':'vlad';
+    if(lastRole!==role){lastRole=role;category='all';searchQuery='';}
+    const missing=role?favoriteRecipeIngredients(state,role):new Set<string>();
     const oldScroll = root.querySelector<HTMLElement>('.market-scroll')?.scrollTop ?? 0;
     const activeSearch = root.querySelector<HTMLInputElement>('.market-search-input');
     const keepFocus = document.activeElement === activeSearch;
@@ -110,7 +117,7 @@ export function createMarketUI(
     const scroll = el('div','market-scroll');
     if (currentTab==='shop') {
       const filters = el('div','market-filters');
-      const filtersArray: Array<[Filter,string]> = [['all','Все'],...Object.entries(MARKET_CATEGORIES) as Array<[MarketCategory,string]>];
+      const filtersArray: Array<[Filter,string]> = [['all','Все'],...(role?([['favorite','♥ Моё любимое'],['partner','♡ Любит партнёр'],['ingredients','Для любимых блюд']] as [Filter,string][]):[]),...Object.entries(MARKET_CATEGORIES) as Array<[MarketCategory,string]>];
       for (const [id,label] of filtersArray) {
         filters.append(button(label,()=>{category=id;searchQuery='';redraw();scroll.scrollTop=0;},
           'market-filter'+(category===id?' selected':'')));
@@ -149,7 +156,8 @@ export function createMarketUI(
         const line = el('div','market-product');
         line.append(el('div','market-product-icon',p.emoji));
         const description=el('div','market-description');
-        description.append(el('strong','',p.name),
+        const taste=productTaste(p);
+        description.append(el('strong','',p.name+(role&&taste?tasteLabel(state!,role,taste.kind,taste.item):'')),
           el('small','', p.kind==='gift'&&isGift(p.stockKey)?'Получено: '+giftCount(state!,p.stockKey)+' · в доставке: '+pendingGifts(state!,p.stockKey):'+'+p.quantity+' '+p.unit+' · дома: '+owned(state!,p)));
         const about=p.kind==='grocery' ? GROCERY_DETAILS[p.stockKey as keyof typeof GROCERY_DETAILS]
           : p.kind==='takeout' ? null : null;
@@ -162,6 +170,8 @@ export function createMarketUI(
             : p.kind==='gift'?'🎁 Подарки':p.kind==='takeout'?'🧊 Готовое блюдо':'🐾 Запасы питомца'));
         const pricing=el('div','market-price',formatRub(p.price));
         description.append(pricing);
+        if(role&&taste&&tastes)description.append(tasteButton(state!,role,taste.kind,taste.item,tastes.submit));
+        if(p.kind==='grocery'&&missing.has(p.stockKey))description.append(el('small','market-taste-hint','Не хватает для любимого рецепта'));
         const stepper=el('div','market-stepper');
         const amount=cart.get(p.id)??0;
         stepper.append(
@@ -173,12 +183,11 @@ export function createMarketUI(
         return line;
       };
       function updateResults() {
-        const found = searchQuery.trim()
-          ? findMarketProducts(searchQuery)
-          : MARKET_PRODUCTS.filter(p=>category==='all'||p.category===category);
+        const candidates=searchQuery.trim()?findMarketProducts(searchQuery):MARKET_PRODUCTS;
+        const found=candidates.filter(p=>category==='all'||(category==='favorite'?!!role&&favoriteProduct(state!,role,p):category==='partner'?!!role&&favoriteProduct(state!,partner,p):category==='ingredients'?p.kind==='grocery'&&missing.has(p.stockKey):p.category===category));
         grid.replaceChildren(...found.map(renderProduct));
         counter.textContent=searchQuery.trim()
-          ? 'Найдено товаров: '+found.length+' · поиск по всем категориям'
+          ? 'Найдено товаров: '+found.length+(category==='all'?' · поиск по всем категориям':' · выбранный фильтр')
           : 'Товаров: '+found.length;
         clear.disabled = !searchQuery;
         suggestions.replaceChildren();
@@ -196,12 +205,12 @@ export function createMarketUI(
         scroll.querySelector('.market-search-empty')?.remove();
         if (!found.length) {
           grid.after(el('p','market-empty market-search-empty',
-            'По запросу «'+searchQuery+'» ничего не найдено. Попробуй другое название.'));
+            category==='favorite'||category==='partner'?'Нет подходящих любимых товаров. Отметь сердечком готовую еду или кофе.':category==='ingredients'?'Для любимых рецептов сейчас нет недостающих продуктов.':'По запросу «'+searchQuery+'» ничего не найдено. Попробуй другое название.'));
         }
       }
       input.addEventListener('input',()=>{
         searchQuery=input.value;
-        if(searchQuery.trim()){
+        if(searchQuery.trim()&&!['favorite','partner','ingredients'].includes(category)){
           category='all';
           filters.querySelectorAll<HTMLButtonElement>('.market-filter').forEach((tab,i)=>{
             tab.classList.toggle('selected',i===0);
@@ -288,13 +297,13 @@ export function createMarketUI(
           ' насыпаний · миска: '+state.petBowls[petId]+'/'+PET_BOWL_CAPACITY+' порц.'));
       }
       scroll.append(el('h3','market-subtitle','📖 Что приготовить выгоднее'));
-      for (const [id,p] of Object.entries(RECIPES)) {
+      for (const [id,p] of Object.entries(RECIPES).sort(([a],[b])=>role?Number(favoriteFood(state!,role,'meal',b))-Number(favoriteFood(state!,role,'meal',a)):0)) {
         const recipeId=id as keyof GameState['meals'];
         const need=ingredientList(recipeId);
         const missing=need.filter(([ing,count])=>state!.pantry[ing]<count);
         const possible=missing.length===0;
         const row=el('div','market-stock-row market-recipe');
-        row.append(el('strong','',(possible?'✅ ':'◯ ')+p.name+' · ≈'+formatRub(recipePortionCost(recipeId))+'/порц.'),
+        row.append(el('strong','',(possible?'✅ ':'◯ ')+p.name+(role?tasteLabel(state!,role,'meal',id):'')+' · ≈'+formatRub(recipePortionCost(recipeId))+'/порц.'),
           el('small','',RECIPE_DESCRIPTIONS[recipeId]));
         if(missing.length) {
           row.append(el('small','','Не хватает: '+missing.map(([ing,count])=>GROCERIES[ing].name+' ×'+(count-state!.pantry[ing])).join(', ')));

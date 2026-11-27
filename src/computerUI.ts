@@ -39,6 +39,7 @@ type Callbacks = {
   service(command: ServiceCommand): boolean;
   budget(command: BudgetCommand): boolean;
   checkout(lines: BasketLine[]): boolean;
+  foodFavorite?:import('./foodTasteUI').TasteSubmit;
   furnishing():void;
 };
 const apps: ReadonlyArray<[ComputerApp, string, string, string]> = [
@@ -111,7 +112,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
   const billing = createBillingUI(content,callbacks.service,callbacks.budget);
   const shopRoot = section('section','market-overlay computer-market-root');
   shopRoot.hidden = true;
-  const shop = createMarketUI(shopRoot,callbacks.checkout,()=>show('mobile'),()=>show('browser'));
+  const shop = createMarketUI(shopRoot,callbacks.checkout,()=>show('mobile'),()=>show('browser'),callbacks.foodFavorite?{role:()=>callbacks.read()?.role??null,submit:callbacks.foodFavorite}:undefined);
   // The canvas opens this overlay on pointerup. A synthetic click from the
   // same touch must never activate an application underneath that finger.
   let freshPointer=false;

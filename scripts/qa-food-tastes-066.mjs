@@ -15,6 +15,8 @@ try{
  s=changeFoodFavorite(s,'alina','meal','blackTeaCup',true).state;
  s=changeFoodFavorite(s,'alina','coffee','Латте',true).state;
  s=changeFoodFavorite(s,'alina','cafe','cappuccino',true).state;
+ s=changeFoodFavorite(s,'alina','takeout','milkChocolate',true).state;
+ s.pantry.eggs=0;s.pantry.milk=0;
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -46,5 +48,26 @@ try{
  await page.locator('[data-profile-role=alina]').click();await profile.getByText('Чёрный чай',{exact:false}).waitFor();assert.equal(await profile.locator('.taste-favorite').count(),0);
  await profile.getByText('Капучино',{exact:false}).waitFor();await profile.getByText('Латте',{exact:false}).waitFor();
  const partner=await page.screenshot({path:join(out,'partner.jpg'),type:'jpeg',quality:75});const encoded=partner.toString('base64');for(let i=0;i<encoded.length;i+=3000)console.log('QA_IMAGE partner '+encoded.slice(i,i+3000));
- assert.deepEqual(errors,[]);console.log('Mobile taste profiles OK');
+ await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=delivery]').click();
+ const market=page.locator('.market-card').filter({visible:true});
+ await market.getByRole('button',{name:'♡ Любит партнёр',exact:true}).click();
+ const chocolate=market.locator('.market-product').filter({hasText:'Молочный шоколад'});
+ await chocolate.waitFor();assert.equal(await market.locator('.market-product').count(),1);
+ await chocolate.getByRole('button',{name:'♡ В избранное'}).click();
+ for(let i=0;i<30&&!favoriteFood(files.load(),'vlad','takeout','milkChocolate');i++)await page.waitForTimeout(100);
+ assert.ok(favoriteFood(files.load(),'vlad','takeout','milkChocolate'));
+ await market.getByRole('button',{name:'♥ Моё любимое',exact:true}).click();await chocolate.waitFor();
+ await market.locator('.market-search-input').fill('шоколад');assert.equal(await market.locator('.market-product').count(),1);
+ await chocolate.getByRole('button',{name:'+',exact:true}).click();
+ assert.match(await market.locator('.market-summary').innerText(),/1 уп/);
+ await market.getByRole('button',{name:'Для любимых блюд',exact:true}).click();
+ assert.equal(await market.locator('.market-product').count(),2);
+ assert.match(await market.locator('.market-products').innerText(),/Молоко/);
+ assert.match(await market.locator('.market-products').innerText(),/Яйца/);
+ assert.match(await market.locator('.market-summary').innerText(),/1 уп/);
+ for(const [width,height] of [[320,568],[390,844]]){
+  await page.setViewportSize({width,height});assert.ok(await market.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+  const shot=await page.screenshot({path:join(out,'delivery-'+width+'.jpg'),type:'jpeg',quality:75});const b=shot.toString('base64');for(let i=0;i<b.length;i+=3000)console.log('QA_IMAGE delivery-'+width+' '+b.slice(i,i+3000));
+ }
+ assert.deepEqual(errors,[]);console.log('Mobile taste profiles and delivery OK');
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

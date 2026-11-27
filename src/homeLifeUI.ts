@@ -4,7 +4,9 @@ import { taskAccessError } from './shared/serviceAccess';
 import type { BookId, Entertainment, Genre, MediaGenre } from './shared/homeLife';
 import type { CharacterId, GameState } from './shared/protocol';
 import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward } from './shared/homeLife';
-import {TAKEOUT,RECIPES,isMediaFood,mediaFoodKind,mediaFoodInfo,type MediaFood} from './shared/food';
+import {mediaFoodInfo,type MediaFood} from './shared/food';
+import {mediaTasteOptions,type MediaTasteFilter} from './shared/tasteMedia';
+import {tasteButton,type TasteSubmit} from './foodTasteUI';
 import {electronicsModel} from './shared/electronics';
 
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError,type ConsoleGameId} from './shared/consoleCatalog';
@@ -20,7 +22,7 @@ function button(label: string, click: () => void, className = 'action-button') {
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   submit: (command: Entertainment) => boolean, invite: (genre: MediaGenre,food?:MediaFood) => boolean,
   read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void,
-  education: (view: 'book' | 'tv') => void,inviteGame:(id:ConsoleGameId)=>boolean,shopGames:()=>void) {
+  education: (view: 'book' | 'tv') => void,inviteGame:(id:ConsoleGameId)=>boolean,shopGames:()=>void,favorite?:TasteSubmit) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
   const permitted = (command: Entertainment) => {
     const state = read();
@@ -46,22 +48,33 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   const mediaLabel=(label:string)=>{const el=document.createElement('div');el.className='menu-section-label';el.textContent=label;root.append(el);};
   const foodMenu=(genre:MediaGenre)=>{
     heading('🍕 Напитки и перекусы к просмотру');
-    const state=read();if(!state)return;
-    const now=clockMinutes(state.clock);
+    const state=read(),role=active();if(!state||!role)return;
     const detail=document.createElement('p');detail.className='food-empty';
-    detail.textContent='Приём пищи · 90 с. '+(genre==='youtube'?'YouTube · 90 с.':'Фильм · 120 с.')+' Выбирайте из свежих готовых порций.';
+    detail.textContent='Приём пищи · 90 с. '+(genre==='youtube'?'YouTube · 90 с.':'Фильм · 120 с.')+' Только свежие порции.';
     root.append(detail);
-    let found=false;
-    for(const [id,meal] of [...Object.entries(TAKEOUT),...Object.entries(RECIPES)]){
-      if(!isMediaFood(id))continue;const food=id;
-      const count=state.readyFood.filter(b=>b.kind===mediaFoodKind(food)&&b.item===id&&(b.kind==='takeout'||b.storage==='table')&&b.expiresAt>now).reduce((n,b)=>n+b.portions,0);
-      if(!count)continue;
-      found=true;mediaLabel(meal.emoji+' '+meal.name+' · '+count+' порц. · Сытость +'+meal.hunger);
-      const cmd:Entertainment=genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
-      root.append(button('Смотреть одному · с порцией',()=>permitted(cmd)&&send(submit(cmd))));
-      if(count>=2)root.append(button('Смотреть вдвоём · по порции',()=>permitted(cmd)&&send(invite(genre,food))));
+    const filters=document.createElement('div');filters.className='food-recipe-filter media-taste-filters';
+    const list=document.createElement('div');list.className='media-taste-list';
+    let selected:MediaTasteFilter='all';
+    const buttons=([['all','Все'],['mine','♥ Моё'],['partner','♡ Партнёра'],['both','♥ Оба']] as const).map(([id,label])=>{const b=button(label,()=>{selected=id;render();});filters.append(b);return b;});
+    const marks=new Map<string,boolean>();
+    function render(){
+      const latest=read()??state!;const view={...latest,foodTastes:{...latest.foodTastes}};
+      if(marks.size){const keys=new Set(latest.foodTastes?.[role!]?.favorites??[]);for(const [k,on] of marks){if(on)keys.add(k);else keys.delete(k);}view.foodTastes[role!]={favorites:[...keys],lastBonusAt:latest.foodTastes?.[role!]?.lastBonusAt};}
+      buttons.forEach((b,i)=>b.setAttribute('aria-pressed',String(selected===(['all','mine','partner','both'] as const)[i])));
+      const rows=mediaTasteOptions(view,role!,selected);list.replaceChildren();
+      for(const {food,kind,count,meal,mine,partner} of rows){
+        const card=document.createElement('article');card.className='media-taste-card';
+        const title=document.createElement('strong');title.textContent=meal.emoji+' '+meal.name+' · '+count+' порц.';
+        const note=document.createElement('small');note.textContent='Сытость +'+meal.hunger+(mine&&partner?' · ♥ Любят оба':mine?' · ♥ Моё любимое':partner?' · ♡ Любит партнёр':'');
+        const cmd:Entertainment=genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
+        card.append(title,note,button('Смотреть одному · с порцией',()=>permitted(cmd)&&send(submit(cmd))));
+        if(count>=2)card.append(button('Смотреть вдвоём · по порции',()=>permitted(cmd)&&send(invite(genre,food))));
+        if(favorite)card.append(tasteButton(view,role!,kind,food,favorite,on=>{marks.set(kind+':'+food,on);render();}));
+        list.append(card);
+      }
+      if(!rows.length){const empty=document.createElement('p');empty.className='food-empty';empty.textContent=selected==='all'?'Нет свежих порций. Приготовь напиток, десерт или купи перекус.':'Нет свежих порций из выбранного избранного.';list.append(empty);}
     }
-    if(!found){const empty=document.createElement('p');empty.className='food-empty';empty.textContent='Нет свежих порций. Приготовь напиток, десерт или купи перекус.';root.append(empty);}
+    root.append(filters,list);render();
     root.append(button('← Назад',()=>genre==='youtube'?backToTv():movie(genre)));
   };
   const movie = (genre: Genre) => {
