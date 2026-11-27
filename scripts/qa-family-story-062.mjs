@@ -1,3 +1,4 @@
+import {recordRecipe,recordCatch} from '../src/shared/personalCollections.ts';
 import {chromium} from 'playwright';
 import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -11,6 +12,7 @@ mkdirSync(out,{recursive:true});let server,browser;
 try{
  const s=initialState();s.clock={day:12,minute:480};s.autonomy={vlad:'off',alina:'off'};
  for(let i=0;i<30;i++)s.relationship.memories.push({at:i*480,action:i%2?'familyMoment:parkBreak':'film',group:i%2?'fun':'care',title:i%2?'Наш день в парке':'Вечер дома',description:'Провели время вдвоём.'});
+ recordRecipe(s,'alina','omelette','perfect');recordRecipe(s,'alina','omelette','good');recordCatch(s,'vlad',{species:'pike',grams:2500,expires:0});
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -61,5 +63,18 @@ try{
  assert.equal(await page.locator('[data-autonomy=alina]').count(),0);
  await page.locator('.autonomy-phone-card').nth(1).getByRole('button',{name:'Открыть профиль'}).click();
  await page.locator('[data-profile-card=alina]').waitFor();
+ await page.locator('[data-profile-collection=true]').click();
+ const recipes=page.locator('[data-collection=recipes]');
+ await recipes.locator('[data-recipe-filter=done]').click();
+ assert.equal(await recipes.locator('.collection-entry').count(),1);
+ assert.match(await recipes.locator('.collection-entry').innerText(),/Идеальное/);
+ await page.screenshot({path:join(out,'collection-alina.png')});
+ await page.locator('[data-profile-role=vlad]').click();
+ const fish=page.locator('[data-collection=fish]');
+ assert.equal(await fish.locator('[data-discovered=true]').count(),1);
+ assert.match(await fish.locator('[data-discovered=true]').innerText(),/Щука/);
+ await page.setViewportSize({width:320,height:568});
+ assert.ok(await fish.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+ await page.screenshot({path:join(out,'collection-vlad.png')});
  assert.deepEqual(errors,[]);console.log('Real mobile journal filters, pagination, and 4 viewport captures passed');
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

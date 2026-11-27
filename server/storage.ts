@@ -1,3 +1,4 @@
+import {validCollections} from '../src/shared/personalCollections';
 import {validDailyHistory} from '../src/shared/dailyRoutine';
 import {validFamilyLife,initialFamilyLife} from '../src/shared/familyLife';
 import {validWeekendState,initialWeekends} from "../src/shared/weekends";
@@ -85,6 +86,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if (state.personalCollections !== undefined && !validCollections(state.personalCollections)) return false;
   if (state.dailyHistory !== undefined && !validDailyHistory(state.dailyHistory)) return false;
   if (state.autonomy !== undefined && !validAutonomy(state.autonomy)) return false;
   if (state.education !== undefined && !validEducation(state.education)) return false;
@@ -384,6 +386,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         furnishing: savedFurnishing,
         relationship: data.relationship ?? initialRelationship(),
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
+        personalCollections: data.personalCollections ?? {},
         dailyHistory: data.dailyHistory ?? {},
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),
         pets: {

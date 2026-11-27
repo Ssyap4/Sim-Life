@@ -1,3 +1,5 @@
+import {renderPersonalCollection} from './personalCollectionUI';
+import {collectionFor} from './shared/personalCollections';
 import {createWeekendsUI} from './weekendsUI';
 import {createFamilyLifeUI} from './familyLifeUI';
 import {occasionsAhead,OCCASIONS,type FamilyLifeCommand} from './shared/familyLife';
@@ -107,7 +109,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const clock=root.querySelector<HTMLElement>('[data-phone-clock]')!;
   screen.append(delivery,jobs);
   let app: App | null = null;
-  let profileRole:CharacterId='vlad',profileKey='';
+  let profileRole:CharacterId='vlad',profileKey='',profileCollection=false;
   let spaKey='',speakerKey='',fitnessKey='',healthKey='',consoleKey='',barberKey='';
   let audioUnsubscribe:(()=>void)|undefined;
   const alarmTimes=new Map<number,string>();
@@ -271,7 +273,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     }
     if(app==='profiles'){
       const id=profileRole,p=PERSONALITIES[id],emotion=residentEmotion(state,id),thought=thoughtFor(state,id);
-      const key=JSON.stringify([id,role,emotion,thought,online.includes(id),state.world.places[id],Math.round(state.characters[id].mood)]);
+      const key=JSON.stringify(profileCollection?[id,role,'collection',collectionFor(state,id),state.education.characters[id].xp,state.education.characters[id].studied,state.world.fishing?.record[id]]:[id,role,emotion,thought,online.includes(id),state.world.places[id],Math.round(state.characters[id].mood)]);
       if(key!==profileKey){
         profileKey=key;const scroll=info.scrollTop;
         const tabs=document.createElement('div');tabs.className='profile-tabs';tabs.setAttribute('aria-label','Выбор персонажа');
@@ -289,8 +291,11 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
         };
         const dream=document.createElement('section'),dh=document.createElement('h3'),dp=document.createElement('p');dream.className='profile-dream';dh.textContent='Мечта всей жизни';dp.textContent=p.dream;dream.append(dh,dp);
         const current=document.createElement('section'),ch=document.createElement('h3'),mood=document.createElement('p'),reflection=document.createElement('p');current.className='profile-current';ch.textContent='Сейчас';mood.textContent=emotion.emoji+' '+emotion.label+' · настроение '+Math.round(state.characters[id].mood)+'%';reflection.textContent=thought.emoji+' '+thought.text;current.append(ch,mood,reflection);
+        const navigation=document.createElement('div');navigation.className='profile-tabs profile-subtabs';
+        for(const [active,label] of [[false,'О персонаже'],[true,'Коллекции']] as const){const b=document.createElement('button');b.type='button';b.dataset.profileCollection=String(active);b.textContent=label;b.setAttribute('aria-pressed',String(profileCollection===active));b.onclick=()=>{profileCollection=active;profileKey='';info.scrollTop=0;refresh();};navigation.append(b);}
+        if(profileCollection){renderPersonalCollection(card,state,id);info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;refreshClock(view.clock);return;}
         card.append(header,section('Характер',p.traits),section('Интересы и увлечения',p.interests),dream,section('Любимый питомец',[PETS[p.pet].name]),current);
-        info.replaceChildren(tabs,card);info.scrollTop=scroll;
+        info.replaceChildren(tabs,navigation,card);info.scrollTop=scroll;
       }
     }
     if(app==='autonomy'){
@@ -457,7 +462,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     closeApps();
-    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';if(next==='profiles')profileRole=view.role;weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';if(next==='profiles'){profileRole=view.role;profileCollection=false;}weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;

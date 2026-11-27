@@ -1,3 +1,4 @@
+import {recordCatch} from '../src/shared/personalCollections';
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,isLakeRestAction,LAKE_LEISURE,isLakeLeisureAction,lakeCanSwim,lakeNeedsFish,LAKE_CARE,isLakeCareAction,lakeCampFor,LAKE_FISH,FISH_ACTIONS,isLakeFishAction,validFishing,emptyFishing,freshFish,rollFish,fishLabel,LAKE_MEALS,LAKE_MEAL_ACTIONS,isLakeMealAction,lakePass,lakeTent,lakeRod,lakeVisit,lakeAccess,validLake,type LakePass} from '../src/shared/lake';
@@ -747,6 +748,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     const next=structuredClone(source),v=next.world.lake![role]!,stock=next.world.fishing??=emptyFishing(),c=next.characters[role];
     const fish=rollFish(v.rod!,clockMinutes(next.clock),Math.random,!!v.bait);c.fun=Math.min(100,c.fun+12);c.comfort=Math.min(100,c.comfort+5);
     if(!fish)return done(next,'Рыба сорвалась или не клюнула. Можно забросить снова');
+    recordCatch(next,role,fish);
     v.catch=fish;stock.record[role]=Math.max(stock.record[role]??0,fish.grams);if(!stock.species.includes(fish.species))stock.species.push(fish.species);
     c.mood=Math.min(100,c.mood+10);return done(next,'Улов: '+fishLabel(fish)+' · забрать или отпустить');
   }

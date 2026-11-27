@@ -225,3 +225,36 @@ test('062 cooking and technology interests are personal and cooking has its own 
  assert.ok(PERSONALITIES.alina.interests.some(x=>x.includes('Кулинария')));
  assert.ok(personalPreference('alina','cooking')>personalPreference('vlad','cooking'));
 });
+
+import {collectionFor,collectionSummary,validCollections} from '../../src/shared/personalCollections';
+import {applyFoodAction} from '../food';
+import {lakeTogetherTrip,localActivity,applyWorld} from '../locations';
+import {approachFor,stationById} from '../../src/shared/locations';
+test('062 recipe collections count actual successful batches with best and last quality, independent of portions',()=>{
+ let s=ready();s.pantry.eggs=4;s.pantry.milk=2;
+ const a=applyFoodAction(s,'alina',{type:'cook',recipe:'omelette'},()=>.999);if(!a.ok)assert.fail(a.reason);
+ const b=applyFoodAction(a.state,'alina',{type:'cook',recipe:'omelette'},()=>0);if(!b.ok)assert.fail(b.reason);
+ const row=collectionFor(b.state,'alina').recipes.omelette!;
+ assert.equal(row.count,2);assert.equal(row.perfect,1);assert.equal(row.best,'perfect');assert.equal(row.last,'bad');
+ assert.equal(collectionSummary(b.state,'alina').recipes,1);
+ assert.equal(collectionSummary(b.state,'vlad').batches,0);
+ assert.equal(applyFoodAction(b.state,'alina',{type:'cook',recipe:'omelette'}).ok,false);
+ assert.equal(collectionSummary(b.state,'alina').batches,2);
+ assert.ok(validCollections(b.state.personalCollections));
+ const dir=mkdtempSync(join(tmpdir(),'collection062-'));try{const f=openServerFiles(dir);f.save(b.state);assert.deepEqual(f.load().personalCollections,b.state.personalCollections);}finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('062 fishing journal records a real catch once, release does not add another, no attribution to other player',()=>{
+ let s=ready();s.money=10000;
+ const trip=lakeTogetherTrip(s,'vlad','night');if(!trip.ok)assert.fail(trip.reason);s=trip.state;
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-rental')!,'vlad'));
+ const rent=applyWorld(s,'vlad',{type:'lake_rent',category:'rod',item:'float'});if(!rent.ok)assert.fail(rent.reason);s=rent.state;
+ Object.assign(s.characters.vlad,approachFor(stationById('lake','lake-fish-1')!,'vlad'));
+ const old=Math.random;try{Math.random=()=>.10;const r=localActivity(s,'vlad','lakeFishFloat','lake-fish-1');if(!r.ok)assert.fail(r.reason);s=r.state;}finally{Math.random=old;}
+ assert.equal(collectionSummary(s,'vlad').catches,1);assert.equal(collectionSummary(s,'alina').catches,0);
+ assert.ok(collectionSummary(s,'vlad').bestGrams>0);assert.ok(validCollections(s.personalCollections));
+ assert.equal(localActivity(s,'vlad','lakeFishFloat','lake-fish-1').ok,false);
+ const release=applyWorld(s,'vlad',{type:'lake_catch',keep:false});if(!release.ok)assert.fail(release.reason);
+ assert.equal(collectionSummary(release.state,'vlad').catches,1);
+ assert.deepEqual(collectionFor(initialState(),'vlad'),{recipes:{},fish:{}});
+ assert.equal(validCollections({vlad:{recipes:{omelette:{count:1,perfect:2,best:'perfect',last:'good',at:0}},fish:{}}}),false);
+});

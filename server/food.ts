@@ -1,3 +1,4 @@
+import {recordRecipe} from '../src/shared/personalCollections';
 import {freshFish,isCatchRecipe} from '../src/shared/lake';
 import {foodIllness} from '../src/shared/health';
 import {recordEmotion} from '../src/shared/emotions';
@@ -54,6 +55,7 @@ export function applyFoodAction(source: GameState, role: CharacterId, command: F
     addReadyFood(state,'meal',id,recipe.servings,'table',undefined,quality);
     const space=storageCanFit(source,state);
     if(!space.ok)return {ok:false,reason:space.reason};
+    recordRecipe(state,role,id,quality);
     recordEmotion(state,role,quality==='bad'||quality==='average'?'cookBad':'cookGood');
     actor.energy = Math.max(0, actor.energy - effort);
     actor.mood = Math.min(100, actor.mood + 2);

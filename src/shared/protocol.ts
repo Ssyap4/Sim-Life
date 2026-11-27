@@ -97,6 +97,7 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  personalCollections?: import('./personalCollections').PersonalCollections;
   dailyHistory?: import('./dailyRoutine').DailyHistory;
   coffeeDaily: CoffeeDaily;
   characters: Record<CharacterId, CharacterState>;
