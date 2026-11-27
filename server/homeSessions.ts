@@ -879,7 +879,7 @@ export function createHomeSessions(hooks: Hooks) {
   function soloCompanionTask(role:CharacterId){
     const session=sessions.get(role);
     if(!session||session.activeAt===null||session.participants.length!==1||
-       !['console_play','free_tv','movie','youtube','cook'].includes(session.plan.command.type))return undefined;
+       !(['console_play','free_tv','movie','youtube','cook','eat','eat_takeout','read_book','play_game','computer_video'].includes(session.plan.command.type)||session.plan.command.type==='act'&&['kitchenDishes','kitchenServe','kitchenTea','deskGames','deskJournal','vladStudy','alinaStudy','vladOrder','alinaConsult'].includes(session.plan.command.actionId)))return undefined;
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }

@@ -1,3 +1,4 @@
+import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {FAMILY_MEMORY_LIMIT} from '../src/shared/familyJournal';
 import {lakeTalkStation} from '../src/shared/socialLife';
 import {VENUE_GAMES,isVenueGame,venueStation,venueWinner,venueScore} from '../src/shared/venue';
@@ -365,7 +366,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
     const home=homes[role],end=home.route.path.at(-1)??home.route.from;
     Object.assign(state.characters[role],end);
     const result=evaluateTask(state,role,c,roles.length===2&&(c.type==='movie'||c.type==='youtube'||c.type==='free_tv'));
-    if(result.ok){state=result.state;message=result.message;}
+    if(result.ok){state=result.state;recordDailyCompletion(state,role,c);message=result.message;}
     return result;
   };
   const each=(c:TimedCommand)=>{
@@ -385,7 +386,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       if(roles.length!==2||!remember)return fail('Завтрак в постели требует согласия и завершения обоих');
       rejected=run(from,{type:'cook',recipe:id as RecipeId});if(!rejected.ok)break;
       awardCooking(state,from,id as RecipeId);
-      rejected=applyFoodAction(state,to,{type:'eat',recipe:id},Math.random,true);if(!rejected.ok)break;state=rejected.state;
+      rejected=applyFoodAction(state,to,{type:'eat',recipe:id},Math.random,true);if(!rejected.ok)break;state=rejected.state;recordDailyCompletion(state,to,{type:'eat',recipe:id as RecipeId});
       change(state,to,{comfort:8});message='Завтрак в постели · '+RECIPES[id as RecipeId].name+' · '+rejected.message;break;
     }
     case 'breakfastCare':{

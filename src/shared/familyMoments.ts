@@ -1,3 +1,4 @@
+import {weatherAt} from './weather';
 import {RECIPES,TAKEOUT,type RecipeId,type TakeoutId} from './food';
 import {FAMILY_MEMORY_LIMIT} from './familyJournal';
 /** Grounded, optional two-person stories: no random popup, daily reward farming or
@@ -10,7 +11,7 @@ import type { CharacterId, GameState } from './protocol';
 import type { SocialIntent } from './socialLife';
 
 export type FamilyMomentId =
-  'afterShift'|'roughDay'|'petNeedsUs'|'shareDinner'|'goodNews'|'dishesTogether'|'simpleEvening'|'morningTea'|'quietTogether'|'petAttention'|'freshAir'|'parkBreak'|'parkGame'|'cafeDate'|'campfireTalk'|'celebrateToday';
+  'afterShift'|'roughDay'|'petNeedsUs'|'shareDinner'|'goodNews'|'dishesTogether'|'simpleEvening'|'morningTea'|'quietTogether'|'petAttention'|'freshAir'|'parkBreak'|'parkGame'|'cafeDate'|'campfireTalk'|'celebrateToday'|'prepareBreakfast'|'serveFromFridge'|'petGames'|'eveningBook'|'verandaCoffee';
 export type FamilyMoment = {
   id:FamilyMomentId; emoji:string; title:string; description:string;
   action:string; item?:string; bonus:string;
@@ -74,7 +75,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   const delivery=activityItems(SOCIAL_BY_ID.get('takeout')!,state,from)[0];
   if((food||delivery)&&[from,to].some(id=>state.characters[id].hunger<72))add({
     id:'shareDinner',emoji:'🍽️',title:'Пора за общий стол',
-    description:'На столе уже есть две свежие порции. Можно поужинать вместе — без повторной готовки.',
+    description:'На столе уже есть две свежие порции. Можно '+(state.clock.minute<660?'позавтракать':state.clock.minute<1020?'пообедать':'поужинать')+' вместе — без повторной готовки.',
     action:food?'eat':'takeout',item:(food??delivery).id,bonus:'Настоящие порции, сытость и уют за общим столом',
   });
   if(lessonMilestone(state,to,now)||Object.values(state.careers.residents[to].progress)
@@ -101,6 +102,26 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   if(lonely)add({id:'petAttention',emoji:'🐾',title:'Время для питомца',description:petName(lonely)+' хочет внимания. Побудьте рядом с питомцем вдвоём.',action:'petPet',item:lonely,bonus:'Совместная забота'});
   if(pair.some(id=>state.characters[id].social<50))add({id:'quietTogether',emoji:'💛',title:'Время друг для друга',description:'Сегодня хочется немного общения. Обнимитесь и спокойно посидите рядом.',action:'sofaHug',bonus:'Маленький момент близости'});
   if(state.clock.minute>=10*60&&state.clock.minute<20*60&&pair.some(id=>state.characters[id].fun<50))add({id:'freshAir',emoji:'🌿',title:'Перерыв во дворе',description:'Сделайте паузу в домашних делах и немного прогуляйтесь вместе на свежем воздухе.',action:'walk',bonus:'Прогулка без расходов'});
+  const morning=state.clock.minute>=360&&state.clock.minute<660;
+  const stored=activityItems(SOCIAL_BY_ID.get('serve')!,state,from)[0];
+  if(morning&&!food&&!delivery&&!stored&&pair.some(id=>state.characters[id].hunger<75)){
+    const breakfast=activityItems(SOCIAL_BY_ID.get('breakfastCare')!,state,from)[0];
+    if(breakfast)add({id:'prepareBreakfast',emoji:'🍳',title:'Приготовить завтрак с заботой',description:'Утро только начинается. Приготовьте '+breakfast.label.split(' · ')[0]+' из настоящих запасов и накройте стол.',action:'breakfastCare',item:breakfast.id,bonus:'Свежий завтрак на столе'});
+  }
+  if(!food&&!delivery&&pair.some(id=>state.characters[id].hunger<75)){
+    const ready=stored;
+    if(ready)add({id:'serveFromFridge',emoji:'🥘',title:'Пора накрывать на стол',description:'В холодильнике есть '+ready.label+'. Подайте одну свежую порцию к столу, не готовя заново.',action:'serve',item:ready.id,bonus:'Готовая еда без лишних расходов'});
+  }
+  const playful=PET_IDS.filter(id=>state.pets[id].happiness<65&&state.pets[id].energy>=50&&state.pets[id].satiety>=40&&state.pets[id].bladder>=30&&!['sleep','eat','toilet','bath','bedTogether','train','fetch'].includes(state.pets[id].routine?.kind??'')).sort((a,b)=>state.pets[a].happiness-state.pets[b].happiness).find(id=>activityItems(SOCIAL_BY_ID.get('petPlay')!,state,from).some(x=>x.id===id));
+  if(playful)add({id:'petGames',emoji:'🐾',title:'Семейная игра с питомцем',description:petName(playful)+' бодрствует и готов поиграть. Уделите время любимцу вдвоём.',action:'petPlay',item:playful,bonus:'Настроение и внимание питомцу'});
+  if(morning&&!['rain','storm','snow'].includes(weatherAt(state.clock).kind)&&pair.every(id=>state.characters[id].energy<85)){
+    const coffee=activityItems(SOCIAL_BY_ID.get('yardCoffee')!,state,from)[0];
+    if(coffee)add({id:'verandaCoffee',emoji:'☕',title:'Кофе на веранде',description:'Две настоящие порции кофе и немного времени вместе на свежем воздухе.',action:'yardCoffee',item:coffee.id,bonus:'Энергия и уют'});
+  }
+  if(state.clock.minute>=1200&&pair.every(id=>state.characters[id].energy>50)){
+    const book=activityItems(SOCIAL_BY_ID.get('read')!,state,from)[0];
+    if(book)add({id:'eveningBook',emoji:'📖',title:'Тихий вечер с книгой',description:'Перед сном можно немного почитать рядом за столом.',action:'read',item:book.id,bonus:'Спокойное время вместе'});
+  }
   add({id:'celebrateToday',emoji:'🎉',title:'Праздник вдвоём',description:'Сегодня особенный день. Поздравьте друг друга и сохраните этот момент.',action:'holidayWish',bonus:'Семейный праздник'});
   }else if(place==='park'){
     add({id:'parkBreak',emoji:'🌳',title:'Наш день в парке',description:'Остановитесь ненадолго и отдохните вместе на скамейке.',action:'parkRest',bonus:'Прогулка в семейном дневнике'});
@@ -129,7 +150,7 @@ export function completedMomentText(moment:FamilyMoment):string{
   afterShift:'После работы нашли время для спокойного разговора на диване.',
   roughDay:'Побыли рядом в непростой день, поговорили и поддержали друг друга.',
   petNeedsUs:'Вместе позаботились о кормлении: '+pet+'.',
-  shareDinner:'Поужинали вдвоём'+(meal?' — '+meal:'')+'.',
+  shareDinner:'Поели вдвоём'+(meal?' — '+meal:'')+'.',
   goodNews:'Разделили радость от хороших новостей и поздравили друг друга.',
   dishesTogether:'После еды вместе убрали посуду и навели порядок.',
   simpleEvening:'Провели тихий вечер за обычным телевизором, без лишних покупок.',
@@ -141,6 +162,11 @@ export function completedMomentText(moment:FamilyMoment):string{
   parkGame:'Сыграли в бадминтон вдвоём.',
   cafeDate:'За одним столиком в кафе поговорили о мечтах и будущем.',
   campfireTalk:'Поговорили у общего горящего костра и поблагодарили друг друга за поездку.',
+  prepareBreakfast:'Приготовили свежий завтрак'+(meal?' — '+meal:'')+' и оставили порции на столе.',
+  serveFromFridge:'Подали свежую порцию'+(meal?' — '+meal:'')+' из холодильника.',
+  petGames:'Вместе поиграли с питомцем: '+pet+'.',
+  verandaCoffee:'Выпили по чашке кофе на веранде.',
+  eveningBook:'Перед сном немного почитали рядом.',
   celebrateToday:'Поздравили друг друга с семейным праздником.'
  };
  return text[moment.id];

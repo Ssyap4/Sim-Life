@@ -83,10 +83,11 @@ export function companionChoices(s:GameState,role:CharacterId,partner:TimedComma
    Math.min(s.characters[role].hunger,s.characters[role].energy,s.characters[role].hygiene,s.characters[role].bladder)<=50)return [];
  if(partner.type==='console_play'||partner.type==='free_tv'||partner.type==='movie'||partner.type==='youtube')
   return s.furnishing.soldFixtures?.includes('sofa')?[]:[{type:'act',actionId:'sofaScroll'},{type:'act',actionId:'sofaRest'}];
- if(partner.type==='cook'&&!isGrillRecipe(partner.recipe))
+ if(partner.type==='cook'&&!isGrillRecipe(partner.recipe)||partner.type==='eat'||partner.type==='eat_takeout'||partner.type==='act'&&['kitchenDishes','kitchenServe','kitchenTea'].includes(partner.actionId))
   return s.furnishing.soldFixtures?.includes('table')?[]:[{type:'act',actionId:'tablePlan'},{type:'act',actionId:'tableRest'}];
  const computer=partner.type==='play_game'||partner.type==='computer_video'?partner.device:
    partner.type==='act'&&['deskGames','deskJournal','vladStudy','alinaStudy','vladOrder','alinaConsult'].includes(partner.actionId)?partner.computer??'desktop':undefined;
+ if(partner.type==='read_book'&&partner.seat==='officeChair'&&!s.furnishing.soldFixtures?.includes('bookcase')&&!s.furnishing.soldFixtures?.includes('sofa'))return [{type:'read_book',book:'prince'},{type:'act',actionId:'sofaRest'}];
  if(computer==='desktop'&&!s.furnishing.soldFixtures?.includes('officeChair')&&!s.furnishing.soldFixtures?.includes('bookcase'))
   return [{type:'read_book',book:'prince',seat:'officeChair'},{type:'act',actionId:'officeChairSit'}];
  return [];

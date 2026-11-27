@@ -14,11 +14,11 @@ export function journalSummary(memories:readonly SocialMemory[]){
 
 /** Read-only observations from the retained archive, never a reward or daily obligation. */
 export const FAMILY_TRADITIONS=[
- {id:'table',title:'Наш общий стол',icon:'🍽️',actions:['eat','takeout','breakfastCare','breakfastBed','familyMoment:shareDinner']},
- {id:'tea',title:'Чай и кофе вдвоём',icon:'☕',actions:['teaTogether','yardTea','yardCoffee','familyMoment:morningTea']},
+ {id:'table',title:'Наш общий стол',icon:'🍽️',actions:['eat','takeout','breakfastCare','breakfastBed','familyMoment:shareDinner','familyMoment:prepareBreakfast','familyMoment:serveFromFridge']},
+ {id:'tea',title:'Чай и кофе вдвоём',icon:'☕',actions:['teaTogether','yardTea','yardCoffee','familyMoment:morningTea','familyMoment:verandaCoffee']},
  {id:'cinema',title:'Домашнее кино',icon:'🎬',actions:['film','tv','youtube','familyMoment:simpleEvening']},
  {id:'nature',title:'Наши прогулки',icon:'🌳',actions:['walk','parkRest','parkBadminton','parkSwing','picnic','familyMoment:freshAir','familyMoment:parkBreak','familyMoment:parkGame','familyMoment:campfireTalk']},
- {id:'pets',title:'Забота о хвостатых',icon:'🐾',actions:['petPet','petPlay','petFeed','petBrush','familyMoment:petAttention','familyMoment:petNeedsUs']},
+ {id:'pets',title:'Забота о хвостатых',icon:'🐾',actions:['petPet','petPlay','petFeed','petBrush','familyMoment:petAttention','familyMoment:petNeedsUs','familyMoment:petGames']},
  {id:'romance',title:'Время для двоих',icon:'♡',actions:['homeEvening','slowDance','sofaHug','cuddle','familyMoment:quietTogether','familyMoment:cafeDate','cafeDreams']},
  {id:'weekends',title:'Семейные дни',icon:'📅',actions:[]}
 ] as const;

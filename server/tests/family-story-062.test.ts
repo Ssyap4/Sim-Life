@@ -140,3 +140,50 @@ test('062 automatic topics prioritize support, vary, stay free and respect weath
  assert.ok(NEARBY_TALK_TOPICS.some(a=>a.id==='nearTalk:listenWithoutAdvice'));
  recordCompletedActivity(s,'vlad',{type:'together',action:'nearTalk:goodMorning'});assert.equal(activeEmotions(s,'vlad')[0]?.kind,'quietMorning');
 });
+
+import {dailyCompleted,dailyRoutineChoices,companionChoices} from '../../src/shared/dailyRoutine';
+import {addReadyFood} from '../../src/shared/readyFood';
+import {planTask} from '../tasks';
+test('062 shared breakfast consumes exactly two real portions and records both routines',()=>{
+ const s=ready();s.clock.minute=480;s.meals.omelette=2;addReadyFood(s,'meal','omelette',2,'table');
+ for(const r of ['vlad','alina'] as const)s.characters[r].hunger=65;
+ const cmd={type:'together' as const,action:'eat',item:'omelette'};
+ const homes=pairScenes(s,'vlad',cmd);assert.ok(homes);
+ const result=completeTogether(s,'vlad',cmd,['vlad','alina'],0,homes);if(!result.ok)assert.fail(result.reason);
+ for(const r of ['vlad','alina'] as const){
+  assert.ok(dailyCompleted(result.state,r).has('breakfast'));
+  assert.ok(!dailyRoutineChoices(result.state,r,dailyCompleted(result.state,r)).some(x=>x.key==='breakfast'));
+ }
+ assert.equal(result.state.meals.omelette,0);assert.equal(result.state.dirtyDishes.table,2);assert.equal(result.state.money,s.money);
+ assert.equal(s.meals.omelette,2);
+});
+test('062 breakfast preparation records real cooked food, not imaginary breakfast eaten',()=>{
+ const s=ready();s.clock.minute=480;s.characters.alina.hunger=65;s.pantry.eggs=2;s.pantry.milk=1;
+ const m=familyMoments(s,'vlad').find(x=>x.id==='prepareBreakfast');assert.ok(m);
+ const cmd={type:'together' as const,action:m.action,item:m.item,moment:m.id};
+ const homes=pairScenes(s,'vlad',cmd);assert.ok(homes);
+ const result=completeTogether(s,'vlad',cmd,['vlad','alina'],0,homes);if(!result.ok)assert.fail(result.reason);
+ assert.equal(result.state.pantry.eggs,0);assert.ok(result.state.meals.omelette>=2);
+ assert.ok(!dailyCompleted(result.state,'vlad').has('breakfast'));assert.ok(!dailyCompleted(result.state,'alina').has('breakfast'));
+ assert.ok(result.state.relationship.memories.some(x=>x.action==='familyMoment:prepareBreakfast'));assert.equal(result.state.money,s.money);
+});
+test('062 fridge suggestion moves one existing fresh serving and never conjures food',()=>{
+ const s=ready();s.clock.minute=750;s.characters.alina.hunger=65;
+ s.meals.omelette=2;addReadyFood(s,'meal','omelette',2,'fridge');
+ const m=familyMoments(s,'vlad').find(x=>x.id==='serveFromFridge');assert.ok(m);
+ const cmd={type:'together' as const,action:m.action,item:m.item,moment:m.id};
+ const homes=pairScenes(s,'vlad',cmd);assert.ok(homes);
+ const result=completeTogether(s,'vlad',cmd,['vlad','alina'],0,homes);if(!result.ok)assert.fail(result.reason);
+ assert.equal(result.state.readyFood.filter(b=>b.item==='omelette'&&b.storage==='table').reduce((n,b)=>n+b.portions,0),1);
+ assert.equal(result.state.readyFood.filter(b=>b.item==='omelette'&&b.storage==='fridge').reduce((n,b)=>n+b.portions,0),1);
+ assert.equal(result.state.meals.omelette,2);assert.equal(result.state.money,s.money);
+});
+test('062 pet play suggested only for awake, fed, rested animals; companion chores reserve separate resources',()=>{
+ const s=ready();s.clock.minute=750;
+ Object.assign(s.pets.simba,{happiness:55,energy:80,satiety:80,bladder:80,routine:undefined});
+ assert.ok(familyMoments(s,'vlad').some(x=>x.id==='petGames'&&x.item==='simba'));
+ s.pets.simba.energy=20;assert.ok(!familyMoments(s,'vlad').some(x=>x.id==='petGames'&&x.item==='simba'));
+ const dish={type:'act',actionId:'kitchenDishes'} as const;
+ const choices=companionChoices(s,'alina',dish);assert.ok(choices.length);assert.ok(choices.every(c=>planTask(c)?.resource!==planTask(dish)?.resource));
+ s.autonomy.alina='needs';assert.deepEqual(companionChoices(s,'alina',dish),[]);
+});
