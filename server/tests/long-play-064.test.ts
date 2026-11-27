@@ -18,6 +18,7 @@ import {checkout} from '../market';
 import {evaluateTask} from '../tasks';
 import {runPetRoutines,applyPetAction} from '../pets';
 import {openServerFiles} from '../storage';
+import {completeTogether,pairScenes} from '../society';
 
 const roles=['vlad','alina'] as const;
 const pets=['verdell','simba'] as const;
@@ -25,7 +26,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
   const dir=mkdtempSync(join(tmpdir(),'simourhome-long-play-'));
   let state=initialState();
   state.autonomy={vlad:'full',alina:'needs'};
-  const stats={days,working,onePlayer,income:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
+  const stats={days,working,onePlayer,income:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
   let seed=123456;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   // Every mutation uses the real server function; use the rolling ledger's
@@ -59,6 +60,8 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
     assert.deepEqual(restored.furnishing,state.furnishing);
     assert.deepEqual(restored.personalCollections,state.personalCollections);
     assert.deepEqual(restored.activeShifts,state.activeShifts);
+    assert.deepEqual(restored.relationship,state.relationship);
+    assert.deepEqual(restored.education,state.education);
     stats.reloads++;
     state=restored;
   }
@@ -81,14 +84,21 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
           }
         }
         // Explicit player shopping, never an autonomous purchase.
-        if(working&&state.money>2500&&state.pantry.eggs<=4&&state.pantry.milk<3){
-          const bought=checkout(state,'vlad',[{id:'grocery:eggs',quantity:2},{id:'grocery:milk',quantity:2}]);
-          if(bought.ok){adopt(bought.state);stats.purchases++;}
-        }
-        for(const pet of pets){
-          if(working&&state.petFood[pet]<2){
-            const bought=applyPetAction(state,'vlad',pet,'buyFood');
-            if(bought.ok){adopt(bought.state);stats.purchases++;}
+        if(working){
+          // Replenish independently: an excess of eggs must not block milk.
+          for(const [item,minimum,quantity] of [['eggs',4,1],['milk',3,4]] as const){
+            if(state.pantry[item]<minimum){
+              const bought=checkout(state,'vlad',[{id:'grocery:'+item,quantity}]);
+              if(bought.ok){adopt(bought.state);stats.purchases++;}
+            }
+          }
+          // The historical pet_action buyFood is deliberately retired.
+          // Refill through the same market catalogue as the actual UI.
+          for(const pet of pets){
+            if(state.petFood[pet]<2){
+              const bought=checkout(state,'vlad',[{id:'pet:'+pet,quantity:1}]);
+              if(bought.ok){adopt(bought.state);stats.petPurchases++;}
+            }
           }
         }
       }
@@ -101,13 +111,35 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
           const result=evaluateTask(state,role,choice.command);
           if(!result.ok){stats.failedCare++;continue;}
           assert.equal(result.state.money,state.money,'autonomy must not spend cash');
-          adopt(result.state);stats.care++;break;
+          adopt(result.state);stats.care++;
+          if(choice.command.type==='cook')stats.mealsCooked++;
+          if(choice.command.type==='eat'||choice.command.type==='eat_takeout')stats.mealsEaten++;
+          break;
         }
       }
       for(const pet of pets){
         if(state.petBowls[pet]===0&&state.petFood[pet]>0){
           const result=applyPetAction(state,'vlad',pet,'feed');
           if(result.ok){adopt(result.state);stats.petCare++;}
+        }
+      }
+      // Explicit simulated player choices, not new autonomous behavior.
+      if(working&&state.clock.minute===1200&&!state.activeShifts.vlad){
+        for(const action of ['kitchenDishes','kitchenTidy'] as const){
+          const result=evaluateTask(state,'vlad',{type:'act',actionId:action});
+          if(result.ok)adopt(result.state);
+        }
+        for(const pet of pets){
+          const result=applyPetAction(state,'vlad',pet,'pet');
+          if(result.ok){adopt(result.state);stats.petCare++;}
+        }
+        if(online.length===2&&!state.activeShifts.alina){
+          const cmd={type:'together' as const,action:'softHug' as const};
+          const scenes=pairScenes(state,'vlad',cmd);
+          if(scenes){
+            const result=completeTogether(state,'vlad',cmd,roles,0,scenes);
+            if(result.ok){adopt(result.state);stats.shared++;}
+          }
         }
       }
       const advanced=advanceLife(state,30,online);
@@ -134,14 +166,14 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
       if((elapsed+30)%(5*1440)===0||elapsed+30===days*1440){
         checkpoint();
         if((elapsed+30)%(30*1440)===0||elapsed+30===days*1440){
-          stats.checkpoints.push({elapsedDays:(elapsed+30)/1440,cash:state.money,unpaid:state.billing.bills.filter(b=>b.paidAt===null).length,petSatiety:pets.map(p=>state.pets[p].satiety)});
+          stats.checkpoints.push({elapsedDays:(elapsed+30)/1440,cash:state.money,unpaid:state.billing.bills.filter(b=>b.paidAt===null).length,petSatiety:pets.map(p=>state.pets[p].satiety),petStock:pets.map(p=>state.petFood[p]),humanHunger:roles.map(r=>state.characters[r].hunger)});
         }
       }
     }
     assert.equal(state.money,10000+stats.income-stats.expense);
     assert.equal(new Set(state.billing.bills.map(b=>b.id)).size,state.billing.bills.length);
     assert.ok(stats.care>0);
-    if(working){assert.ok(stats.shifts>0);assert.ok(stats.purchases>0);}
+    if(working){assert.ok(stats.shifts>0);assert.ok(stats.purchases>0);if(days>=30){assert.ok(stats.shifts>=days/3,'responsible scenario must actually sustain work');assert.ok(stats.petPurchases>0);assert.ok(stats.mealsEaten>0);assert.ok(stats.shared>0);}}
     else assert.ok(state.billing.bills.some(b=>b.paidAt===null),'no-income scenario must accrue actual debt');
     console.log('LONG_PLAY '+JSON.stringify(stats));
   }finally{rmSync(dir,{recursive:true,force:true});}
