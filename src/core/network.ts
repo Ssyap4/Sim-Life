@@ -21,6 +21,8 @@ import type { ClockSample } from '../shared/life';
 export interface ConnectionCallbacks {
   onReady(role: CharacterId, state: GameState, online: CharacterId[]): void;
   onSnapshot(state: GameState): void;
+  onAlbumImage?(id:string,jpeg:string):void;
+  onAlbumError?(reason:string):void;
   onOnline(online: CharacterId[]): void;
   onTimeStatus(status: TimeStatus): void;
   onClock(sample: ClockSample): void;
@@ -160,6 +162,7 @@ export class LiveConnection {
   playGame(game: import('../shared/computerGames').ComputerGameId,device:import('../shared/computer').ComputerDevice,furnitureId?:number):boolean {
     return this.sendAuthenticated({type:'play_game',game,device,...(furnitureId===undefined?{}:{furnitureId})});
   }
+  album(command:import('../shared/familyAlbum').AlbumCommand):boolean{return this.sendAuthenticated(command);}
   familyMessage(command:import('../shared/familyMessages').MessageCommand):boolean{return this.sendAuthenticated(command);}
   favoriteFood(kind:import('../shared/foodTastes').TasteKind,item:string,enabled:boolean):boolean {return this.sendAuthenticated({type:'food_favorite',kind,item,enabled});}
   favoriteGame(game: import('../shared/computerGames').ComputerGameId,enabled:boolean):boolean {
@@ -296,6 +299,8 @@ export class LiveConnection {
         this.callbacks.onDeliveryArrived();
       } else if (packet.type === 'ready_food_spoiled' && this.authorized) {
         this.callbacks.onReadyFoodSpoiled(packet.message);
+      } else if(packet.type==='album_image'&&this.authorized){this.callbacks.onAlbumImage?.(packet.id,packet.jpeg);
+      } else if(packet.type==='album_error'&&this.authorized){this.callbacks.onAlbumError?.(packet.reason);
       } else if (packet.type === 'snapshot' && this.authorized) {
         this.callbacks.onSnapshot(packet.state);
       } else if (packet.type === 'online' && this.authorized) {

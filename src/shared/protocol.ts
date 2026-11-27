@@ -99,6 +99,7 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  familyAlbum?: import('./familyAlbum').FamilyPhoto[];
   familyMessages?: import('./familyMessages').FamilyMessages;
   foodTastes?: import('./foodTastes').FoodTastes;
   personalCollections?: import('./personalCollections').PersonalCollections;
@@ -215,6 +216,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | import('./familyAlbum').AlbumCommand
   | import('./familyMessages').MessageCommand
   | { type: 'food_favorite'; kind:import('./foodTastes').TasteKind; item:string; enabled:boolean }
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
@@ -243,6 +245,8 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
 export type QueuedTask = { id: number; label: string };
 
 export type ServerPacket =
+  | {type:'album_image';id:string;jpeg:string}
+  | {type:'album_error';reason:string}
   | { type: 'study_progress'; role: CharacterId; taskId: number; elapsed: number; total: number }
   | { type: 'education_feedback'; taskId: number; correct: boolean; message: string; question?: string }
   | { type: 'education_notice'; role: CharacterId; message: string }

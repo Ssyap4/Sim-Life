@@ -39,7 +39,7 @@ def top_mesh(r, look, top, trim, style):
     hoodie = style in ('hoodie','zip')
     long = hoodie or style in ('track','robe','olympic')
     ease = {'fitted': -.007, 'classic': 0, 'relaxed': .012, 'hoodie': .019, 'oversize': .030, 'cap': -.005, 'zip': .015, 'track': .010, 'polo': .006, 'graphic': .020, 'robe': .028, 'olympic': .014}[style]
-    hem = h + (-.018 if style=='oversize' else .006 if long or style=='relaxed' else .025)
+    hem = h + (-.19 if style=='robe' else -.018 if style=='oversize' else .006 if long or style=='relaxed' else .025)
     chest = .173 if w else .203
     waist = .143 if w else .166
     shape = [(hem,.199 if w else .207,.126,-.009),
@@ -47,10 +47,12 @@ def top_mesh(r, look, top, trim, style):
              (h+.157,waist,.099,-.007),(s-.135,chest,.119 if w else .127,.002),
              (s-.045,chest+.010,.108,-.007),(s+.012,.169 if w else .192,.087,-.011),
              (s+.064,.105,.069,-.012),(n,.074,.065,-.014)]
+    if style=='robe':
+        shape=[(hem,.224,.151,-.009),(h-.075,.221,.142,-.009),(h+.018,.201,.128,-.008)]+shape[1:]
     shape=[(y,x+ease*(1-ramp(s+.005,n,y)),z+ease*.65*(1-ramp(s+.005,n,y)),c) for y,x,z,c in shape]
     def paint(t,a):
         edge = max(1-ramp(.02,.09,t), ramp(.92,.99,t))
-        if style=='olympic' and cos(a)>.92 and t>.70 and abs(sin(a))<.09+.18*(t-.70)/.30:
+        if style=='olympic' and cos(a)>.76 and abs(sin(a))<.36+.18*t:
             return trim
         if style=='graphic' and cos(a)>.87 and .44<t<.72:
             return blend(top,trim,.88 if int(t*34)%3 else .35)
@@ -77,7 +79,14 @@ def top_mesh(r, look, top, trim, style):
         for side in (-1,1):
             m.cord([((side*.032,h+.205,.113),.0027),((side*.091,h+.181,.103),.0027),
                     ((side*.120,h+.100,.095),.0027)],trim,solid('Chest'),sides=5)
-    if style in ('zip','track','olympic'):
+    if style=='olympic':
+        for side in (-1,1):
+            for y0,y1 in zip([hem+.012,h+.15,s-.135,s-.045],[h+.15,s-.135,s-.045,n-.022]):
+                pts=[]
+                for y in (y0,y1):
+                    rx,rz,cz=profile(shape,y);a=.38+.14*(y-hem)/(n-hem);pts.append(((side*rx*sin(a),y,rz*cos(a)+cz+.003),.0035))
+                m.cord(pts,blend(top,trim,.35),skin('Pelvis','Chest',ramp(.015,.32,((y0+y1)/2-hem)/(n-hem))),sides=5)
+    elif style in ('zip','track'):
         # Zip seam follows the front garment profile and its skin weights.
         for y0,y1 in zip([hem+.02,h+.15,s-.135,s-.045],[h+.15,s-.135,s-.045,n-.022]):
             pts=[]
@@ -125,8 +134,8 @@ def lower_mesh(r, look, color, style):
         def fall(xx,y,z,a,t):
             shift=-side*.026*ramp(h-.125,h+.050,y)
             return xx+shift,y,z
-        short=style in ('shorts','denimshorts','sportshorts')
-        cut=h-(.235 if style=='denimshorts' else .195 if style=='sportshorts' else .205 if r.woman else .355)
+        short=style in ('shorts','denimshorts','sportshorts','robeShort')
+        cut=h-(.175 if style=='robeShort' else .235 if style=='denimshorts' else .195 if style=='sportshorts' else .205 if r.woman else .355)
         leg=shape
         if short:
             leg=[(cut,*profile(shape,cut))]+[ring for ring in shape if ring[0]>cut]

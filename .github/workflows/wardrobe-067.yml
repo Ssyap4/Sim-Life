@@ -1,8 +1,8 @@
 name: Wardrobe 0.67 cloud asset export and mobile QA
 on:
   push:
-    branches: [feat/wardrobe-family-067]
-    paths: ['art/characters/wardrobe067.py','.github/workflows/wardrobe-067.yml','scripts/qa-wardrobe-067.mjs','src/shared/previewWardrobe.ts']
+    branches: [feat/wardrobe-family-067, feat/family-messaging-067]
+    paths: ['art/characters/wardrobe.py','art/characters/wardrobe067.py','.github/workflows/wardrobe-067.yml','scripts/qa-wardrobe-067.mjs','src/shared/previewWardrobe.ts']
 permissions:
   contents: write
 jobs:
@@ -38,10 +38,10 @@ jobs:
           name: wardrobe-067-frames
           path: /tmp/simourhome-067-wardrobe
       - name: Publish new outfits to experimental branch only
-        if: success() && github.ref == 'refs/heads/feat/wardrobe-family-067'
+        if: success() && (github.ref == 'refs/heads/feat/wardrobe-family-067' || github.ref == 'refs/heads/feat/family-messaging-067')
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/assets/characters/remake/{vlad,alina}.glb art/characters/remake/{vlad,alina}.blend
           git diff --cached --quiet || git commit -m 'Export 12 new fitted wardrobe sets on approved rigs'
-          git push origin HEAD:feat/wardrobe-family-067
+          git push origin HEAD:${GITHUB_REF_NAME}

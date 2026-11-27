@@ -17,8 +17,8 @@ NEW={
  ('trackForest','45634f','303639','333e36','joggers','olympic','68715e','e6d9c6','high'),
  ('teeRetro','e4ded0','b05e49','455d76','jeans','graphic','a83f37','f0dfc8','canvas'),
  ('teeBlack','25282c','45474d','c5b7a0','trousers','relaxed','343940','d8d8d2','runner'),
- ('robeNavy','344868','50698a','344868','shorts','robe','354969','adb8ca','slipper'),
- ('robeGrey','85878d','565961','85878d','shorts','robe','64646a','c2c0c3','slipper'),
+ ('robeNavy','344868','50698a','344868','robeShort','robe','354969','adb8ca','slipper'),
+ ('robeGrey','85878d','565961','85878d','robeShort','robe','64646a','c2c0c3','slipper'),
  ],
  'alina':[
  ('pajamaRose','e9b1bf','f8e6e9','d79aaa','shorts','pajama','e2a8b8','f8e6e9','slipper'),
@@ -46,9 +46,7 @@ def special_top(r,look,top,trim,cut):
     if cut=='robe':
         m=top_mesh(r,look,top,trim,'robe')
         h,s,n=r.hip,r.shoulder,r.neck
-        # Short wrap robe with a broad tie and overlapping lapels; hem ends at upper thigh
-        shape=[(h-.105,.222,.150,-.009),(h-.045,.221,.147,-.008),(h+.018,.213,.137,-.008),(h+.092,.184,.119,-.007)]
-        m.lathe(shape,(0,0,0),lambda t,a:blend(top,trim,.17*max(0,-cos(a))),lambda t:solid('Pelvis'),rings=8,sides=28)
+        # Continuous flared hem from top_mesh, with broad tie and lapels.
         belt=[((.186*sin(a),h+.104,.124*cos(a)-.006),.009) for a in [2*pi*t for t in steps(28)]]
         m.cord(belt,trim,skin('Pelvis','Chest',.5),sides=7)
         for side in (-1,1):
@@ -59,7 +57,8 @@ def special_top(r,look,top,trim,cut):
     if cut in ('pajama','satin'):
         m=top_mesh(r,look,top,trim,'cap' if cut=='satin' else 'classic')
         h,s,n=r.hip,r.shoulder,r.neck
-        m.roughness=.54 if cut=='satin' else .89
+        m.roughness=.48 if cut=='satin' else .89
+        if cut=='satin':m.material='Satin pigment'
         # Decorative contrasting piping, short sleeves, and small front bow/buttons.
         for yy in (h+.16,h+.23,h+.30):
             m.cord([((0,yy,.128),.006),((0,yy+.004,.130),.006)],trim,solid('Chest'),sides=6)

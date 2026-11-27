@@ -3005,6 +3005,22 @@ export class World {
     bag.rotation.y = rotation.y;
   }
 
+  private photoRequest?:{resolve:(jpeg:string|null)=>void;timer:number};
+  capturePhoto():Promise<string|null>{
+    if(this.graphicsLost||document.hidden||this.fittingStage||this.carRide||this.photoRequest)return Promise.resolve(null);
+    return new Promise(resolve=>{const timer=window.setTimeout(()=>{if(this.photoRequest){this.photoRequest=undefined;resolve(null);}},1500);this.photoRequest={resolve,timer};});
+  }
+  private finishPhoto(){
+    const request=this.photoRequest;if(!request)return;this.photoRequest=undefined;window.clearTimeout(request.timer);
+    try{
+      const out=document.createElement('canvas'),scale=Math.min(1,640/Math.max(this.canvas.width,this.canvas.height));
+      out.width=Math.max(1,Math.round(this.canvas.width*scale));out.height=Math.max(1,Math.round(this.canvas.height*scale));
+      const ctx=out.getContext('2d');if(!ctx){request.resolve(null);return;}
+      ctx.drawImage(this.canvas,0,0,out.width,out.height);
+      for(const q of [.78,.62,.46,.32]){const data=out.toDataURL('image/jpeg',q),jpeg=data.split(',')[1];if(jpeg&&jpeg.length<=120000){request.resolve(jpeg);return;}}
+      request.resolve(null);
+    }catch{request.resolve(null);}
+  }
   private animate = (): void => {
     requestAnimationFrame(this.animate);
     if (this.graphicsLost) return;
@@ -3549,7 +3565,7 @@ export class World {
         const panel=document.querySelector('.clothes-fitting-panel')?.getBoundingClientRect();
         this.fittingStage.frame(canvas.width,canvas.height,panel?(panel.top-canvas.top)/canvas.height:.64);
         this.renderer.render(this.fittingStage.scene,this.fittingStage.camera);
-      }else this.renderer.render(this.scene, this.camera);
+      }else {this.renderer.render(this.scene, this.camera);this.finishPhoto();}
       if(this.graphics.android && !this.graphicsChecked && now - this.graphicsStartedAt > 4000){
         const gl=this.renderer.getContext();
         const actual=gl.getContextAttributes();

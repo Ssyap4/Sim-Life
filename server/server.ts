@@ -48,6 +48,7 @@ import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
+import {openAlbum} from './familyAlbum';
 import {applyFamilyMessage} from '../src/shared/familyMessages';
 import {changeFoodFavorite} from '../src/shared/foodTastes';
 import { applyFoodAction } from './food';
@@ -146,6 +147,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     throw new Error('Preview starting money requires a valid, isolated no-code test server');
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
+  const album=openAlbum(files.dataDir);
   const distDir = resolve(options.distDir ?? resolve('dist'));
   // Fresh preview builds can start with test spending money without changing
   // the production economy or overwriting any existing household progress.
@@ -1131,7 +1133,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const stream=createReadStream(file);
     stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
   });
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 125000 });
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {
       const tracked = socket as WebSocket & { isAlive?: boolean };
@@ -1168,6 +1170,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       catch { packet(socket, { type: 'error', reason: 'Повреждённое сообщение' }); return; }
       if (!input || typeof input !== 'object' || !('type' in input)) return;
       const message = input as Record<string, unknown>;
+      if(Buffer.byteLength(raw.toString())>8192&&(!role||message.type!=='album_add')){packet(socket,{type:'error',reason:'Слишком большое сообщение'});return;}
 
       if (!role) {
         if ((message.type !== 'auth' && message.type !== 'resume') ||
@@ -1210,6 +1213,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if(message.type==='album_add'||message.type==='album_get'||message.type==='album_delete'){
+        try{
+          if(message.type==='album_get'){const jpeg=album.get(state,message.id);if(!jpeg){packet(socket,{type:'album_error',reason:'Снимок недоступен'});return;}packet(socket,{type:'album_image',id:message.id as string,jpeg});return;}
+          if(message.type==='album_add'){const r=album.add(state,role,message.jpeg,message.caption);if(!r.ok){packet(socket,{type:'album_error',reason:r.reason});return;}try{files.save(r.state);}catch(e){r.rollback();throw e;}state=r.state;all({type:'snapshot',state});return;}
+          const r=album.remove(state,role,message.id);if(!r.ok){packet(socket,{type:'album_error',reason:r.reason});return;}files.save(r.state);state=r.state;r.cleanup();all({type:'snapshot',state});
+        }catch{packet(socket,{type:'album_error',reason:'Не удалось сохранить или открыть снимок'});}return;
+      }
       if(message.type==='family_message_send'||message.type==='family_message_read'){
         const result=applyFamilyMessage(state,role,message);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}

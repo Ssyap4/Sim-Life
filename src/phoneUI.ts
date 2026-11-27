@@ -1,3 +1,5 @@
+import {createFamilyAlbumUI} from './familyAlbumUI';
+import type {AlbumCommand} from './shared/familyAlbum';
 import {createFamilyMessageUI} from './familyMessageUI';
 import {unreadMessages,type MessageCommand} from './shared/familyMessages';
 import {renderFoodTastes,type TasteSubmit} from './foodTasteUI';
@@ -46,9 +48,10 @@ import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fi
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
 import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
-type App = 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
+type App = 'album' | 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
+  album:['📷','Фотоальбом'],
   messages:['💬','Переписка'],
   weekends:['📅','Наши планы'],
   holidays:['🎉','Праздники'],hobbies:['🎨','Хобби'],events:['✨','События'],
@@ -70,7 +73,7 @@ const apps: Record<App,[string,string]> = {
   autonomy:['🧠','Жизнь и привычки'],
 };
 const phoneGroups:readonly {label:string;ids:readonly App[]}[]=[
- {label:'Семья и дом',ids:['family','messages','profiles','relationship','pets','autonomy','home','furnishing','speakers']},
+ {label:'Семья и дом',ids:['family','messages','album','profiles','relationship','pets','autonomy','home','furnishing','speakers']},
  {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','consoles','feed']},
  {label:'Работа и развитие',ids:['career','jobs','education']},
  {label:'Магазины и услуги',ids:['delivery','fitness','health','barber','spa']},
@@ -88,7 +91,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean,albumControl?:(command:AlbumCommand)=>boolean,photoCapture?:()=>void) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -100,6 +103,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   const screen=root.querySelector<HTMLElement>('.phone-screen')!;
   const grid=root.querySelector<HTMLElement>('.phone-grid')!;
   const info=root.querySelector<HTMLElement>('.phone-info')!;
+  const album=createFamilyAlbumUI(info,c=>albumControl?.(c)??false,()=>photoCapture?.());
   const chat=createFamilyMessageUI(info,c=>messageControl?.(c)??false);
   const familyLifeUI=createFamilyLifeUI(info,c=>familyLifeControl?.(c)??false);
   const weekends=createWeekendsUI(info,c=>weekendControl?.(c)??false,id=>{const a=SOCIAL_BY_ID.get(id);if(a)social.suggest(a.group,id);},id=>{if(id==='spa'){show('spa');return;}if(id==='bowling'||id==='hockey'||id==='billiards'){if(weekendVenue?.())close();return;}close();weekendMap?.();});
@@ -150,6 +154,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     owner.textContent=names[role]+(app?' · '+apps[app][1]:'');
     const unread=unreadMessages(state,role).length;const badge=grid.querySelector<HTMLElement>('[data-chat-unread]');if(badge){badge.hidden=!unread;badge.textContent=String(unread);}
     if(app==='messages')chat.render(state,role,online);
+    if(app==='album')album.render(state,role);
     if(app==='weekends')weekends.render(state,role,online);
     if(app==='holidays'||app==='hobbies'||app==='events')familyLifeUI.render(state,role,app);
     if (app && billingApps.has(app)) billing.renderPage(state, app as BillingApp);
@@ -481,13 +486,13 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     const view=read();
     if (!view) return;
     clearRefresh();closeApps();
-    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';chat.reset();info.classList.toggle('family-chat-phone',next==='messages');if(next==='profiles'){profileRole=view.role;profileCollection=false;}weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
+    audioUnsubscribe?.();audioUnsubscribe=undefined;app=next;profileKey='';chat.reset();album.reset();info.classList.toggle('family-chat-phone',next==='messages');if(next==='profiles'){profileRole=view.role;profileCollection=false;}weekends.reset();familyLifeUI.reset();info.classList.toggle('family-life-phone',next==='holidays'||next==='hobbies'||next==='events');info.classList.toggle('weekend-phone',next==='weekends');spaKey='';barberKey='';speakerKey='';fitnessKey='';healthKey='';consoleKey='';info.classList.toggle('fitness-phone',next==='fitness'||next==='health'||next==='consoles'||next==='spa');
     if (next === 'education') education.open(educationView, room, materialId);
     if (next === 'career') career.open();
     root.hidden=false;
     back.hidden=!next;
     grid.hidden=Boolean(next);
-    info.hidden=next!=='messages'&&next!=='holidays'&&next!=='hobbies'&&next!=='events'&&next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='profiles'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
+    info.hidden=next!=='album'&&next!=='messages'&&next!=='holidays'&&next!=='hobbies'&&next!=='events'&&next!=='weekends'&&next!=='spa'&&next!=='barber'&&next!=='consoles'&&next!=='health'&&next!=='fitness'&&next!=='speakers'&&next!=='home'&&next!=='audio'&&next!=='feed'&&next!=='relationship'&&next!=='autonomy'&&next!=='profiles'&&next!=='education'&&next!=='career'&&next!=='calendar'&&next!=='family'&&next!=='pets'&&(!next||!billingApps.has(next));
     billing.reset();
     info.scrollTop=0;
     if(next==='audio'){
@@ -541,6 +546,9 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     close,
     back(){if(app!==null)show(null);else close();},
     refresh,refreshClock,
+    photoDraft(jpeg:string){const view=read();if(view){album.draft(jpeg,view.role);show('album');}},
+    albumImage:(id:string,jpeg:string)=>album.receive(id,jpeg),
+    albumError:(reason:string)=>album.reject(reason),
     messagingOpen:()=>app==='messages'&&!root.hidden,
     messageRejected:()=>chat.reject(),
     refreshRelationship() { if(app==='relationship')refresh(); },

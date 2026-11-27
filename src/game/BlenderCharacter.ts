@@ -110,13 +110,14 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
         if(material.name.includes('Hair')) {tailored.roughness=remake?.57:.71;tailored.metalness=0;}
         else if(material.name.includes('Skin')||material.name.includes('Complexion')) {tailored.roughness=remake?.76:.87;tailored.metalness=0;}
         else if(material.name.includes('Eyes')) {tailored.roughness=.23;tailored.metalness=0;}
+        else if(material.name.includes('Satin')) {tailored.roughness=.48;tailored.metalness=0;}
         else if(material.name.includes('Cloth')) {tailored.roughness=.91;tailored.metalness=0;}
         finishes.set(material,tailored);
       }
       child.material=tailored;
       // Hair and clothing carry the shadow silhouette. The dense eyelids,
       // lips and finger surfaces still receive light and shadow in the main pass.
-      child.castShadow = material.name === 'Hair pigment' || material.name === 'Cloth pigment';
+      child.castShadow = material.name === 'Hair pigment' || (material.name === 'Cloth pigment'||material.name === 'Satin pigment');
       child.receiveShadow = material.name !== 'Eyes';
       // The rest-pose bound is too small for reaching limbs. The character is
       // one scene unit, and this bound covers all supported furniture poses.

@@ -938,7 +938,16 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command),command=>net.album(command),()=>startPhotoMode());
+const photoPanel=document.createElement('div');photoPanel.className='photo-mode';photoPanel.hidden=true;
+const photoHint=document.createElement('span');photoHint.textContent='Выбери ракурс камеры';
+const photoShoot=document.createElement('button');photoShoot.type='button';photoShoot.textContent='📷 Снять';
+const photoCancel=document.createElement('button');photoCancel.type='button';photoCancel.textContent='Отмена';
+photoPanel.append(photoHint,photoShoot,photoCancel);document.querySelector('#app')!.append(photoPanel);
+let photoSession=0;
+function startPhotoMode(){if(!active||!world)return;phone.close();actionsEl.hidden=true;computer.close();locationUI.close();photoSession++;photoPanel.hidden=false;photoShoot.disabled=false;}
+photoCancel.onclick=()=>{photoSession++;photoPanel.hidden=true;phone.open('album');};
+photoShoot.onclick=async()=>{if(!active||!world||photoShoot.disabled)return;const session=photoSession,r=active,place=state?.world.places[r];photoShoot.disabled=true;const jpeg=await world.capturePhoto();if(session!==photoSession)return;photoShoot.disabled=false;if(active!==r||state?.world.places[r]!==place||!jpeg){notify('Не удалось снять кадр. Попробуй ещё раз.');return;}photoPanel.hidden=true;phone.photoDraft(jpeg);};
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1000,6 +1009,7 @@ const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const net = new LiveConnection({
   onReady(role, household, players) {
+    photoSession++;photoPanel.hidden=true;
     const reconnecting=active===role;
     selectedDesktopFurnitureId=null;
     active = role;
@@ -1034,6 +1044,8 @@ const net = new LiveConnection({
     else notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
     const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
+  onAlbumImage(id,jpeg){phone.albumImage(id,jpeg);},
+  onAlbumError(reason){phone.albumError(reason);notify(reason,{title:'Фотоальбом',kind:'warning'});},
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
       const milestones = active ? household.education.characters[active].events.filter(event => event.milestone) : [];
@@ -1086,6 +1098,7 @@ const net = new LiveConnection({
     world.setTimeOfDay(displayClock.read(performance.now()));
   },
   onDisconnect() {
+    photoSession++;photoPanel.hidden=true;phone.messageRejected();phone.albumError('Соединение прервано. Проверь сохранение после входа.');
     gameAudio.setPlaying(false);
     displayClock.pause(performance.now());
     socialInvite.clear();
@@ -1888,8 +1901,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         }
       });
     });
-    mapBtn.addEventListener('click', () => { actionsEl.hidden = true; phone.close(); locationUI.openMap(); });
+    mapBtn.addEventListener('click', () => { photoSession++;photoPanel.hidden=true;actionsEl.hidden = true; phone.close(); locationUI.openMap(); });
     phoneBtn.addEventListener('click', () => {
+      photoSession++;photoPanel.hidden=true;
       actionsEl.hidden = true;
       computer.close();
       toggleNeeds(false);
