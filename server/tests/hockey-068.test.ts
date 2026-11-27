@@ -74,3 +74,34 @@ test('two actual clients receive identical puck and paddles, cancellation costs 
  assert.equal(files.load().money,s.money);assert.equal(files.load().hockeyHistory?.length??0,0);
  }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('goal posts reject a grazing puck; clean goal serves toward conceding player',()=>{
+ const m=newHockey(7),c=hockeyControls();m.serve=0;m.puck={x:.15,y:-.95};m.velocity={x:0,y:-2};
+ stepHockey(m,c);assert.equal(m.score.vlad,0);assert.ok(m.velocity.y>0);
+ m.puck={x:.04,y:-.95};m.velocity={x:0,y:-2};stepHockey(m,c);
+ assert.equal(m.score.vlad,1);assert.equal(m.lastGoal,'vlad');assert.ok(m.velocity.y<0);assert.equal(m.serve,40);
+ for(let i=0;i<40;i++)stepHockey(m,c);assert.deepEqual(m.puck,{x:0,y:0});
+ stepHockey(m,c);assert.ok(m.puck.y<0);
+});
+test('motion swept through six substeps hits puck and stalled puck gets neutral reset',()=>{
+ const m=newHockey(3),c=hockeyControls();m.serve=0;m.pads.vlad={x:0,y:.35};m.puck={x:0,y:.18};m.velocity={x:0,y:0};
+ assert.ok(hockeyMove(m,c,'vlad',{id:3,sequence:1,x:0,y:.12}));
+ stepHockey(m,c);assert.equal(m.lastHit,'vlad');assert.ok(m.velocity.y< -1);assert.ok(Math.hypot(m.velocity.x,m.velocity.y)<=3.1);
+ const n=newHockey(4),d=hockeyControls();n.serve=0;n.velocity={x:0,y:0};n.puck={x:.23,y:.04};
+ for(let i=0;i<80;i++)stepHockey(n,d);
+ assert.equal(n.serve,28);assert.deepEqual(n.score,{vlad:0,alina:0});assert.deepEqual(n.puck,{x:0,y:0});
+});
+test('full simulated matches under changing inputs keep puck and pads bounded and scores monotonic',()=>{
+ for(let seed=1;seed<=6;seed++){
+  const m=newHockey(seed),c=hockeyControls();let previous={...m.score};
+  for(let i=0;i<3600&&!m.finished;i++){
+   if(i%4===0)for(const role of ['vlad','alina'] as const){const sign=role==='vlad'?1:-1;hockeyMove(m,c,role,{id:seed,sequence:i,x:.4*Math.sin(i*.037+seed*sign),y:sign*(.5+.39*Math.cos(i*.027+seed))});}
+   stepHockey(m,c);
+   assert.ok(Number.isFinite(m.puck.x)&&Number.isFinite(m.puck.y));assert.ok(Math.abs(m.puck.x)<=.455001&&Math.abs(m.puck.y)<=.955001);
+   assert.ok(Math.hypot(m.velocity.x,m.velocity.y)<=3.10001);
+   assert.ok(m.pads.vlad.y>=.119999&&m.pads.alina.y<=-.119999);
+   assert.ok(m.score.vlad>=previous.vlad&&m.score.alina>=previous.alina);previous={...m.score};
+  }
+  assert.ok(m.finished);
+ }
+});

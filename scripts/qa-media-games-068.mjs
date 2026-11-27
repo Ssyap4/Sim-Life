@@ -59,6 +59,10 @@ try{
  await v.locator('#manual-hockey').waitFor({timeout:30000});await a.locator('#manual-hockey').waitFor();
  for(const p of [v,a]){const field=await p.locator('.hockey-table').boundingBox();assert.ok(field);await p.touchscreen.tap(field.x+field.width*.8,field.y+field.height*.65);}
  await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='hockey_state'&&p.match.pads.vlad.x>.12&&p.match.pads.alina.x<-.12));
+ for(const p of [v,a]){
+ const size=p.viewportSize(),field=await p.locator('.hockey-table').boundingBox(),cancel=await p.locator('#manual-hockey').getByRole('button',{name:'Отменить партию'}).boundingBox();assert.ok(field&&cancel);assert.ok(field.width>=size.width*.6&&field.y+field.height<=size.height&&cancel.y+cancel.height<=size.height,'hockey field and controls fit portrait');
+ await p.touchscreen.tap(field.x+field.width*.25,field.y+field.height*.2);
+ }
  await shot(v,'hockey-vlad-390');await shot(a,'hockey-alina-320');
  await a.locator('#manual-hockey').getByRole('button',{name:'Отменить партию',exact:true}).click();await v.locator('#manual-hockey').waitFor({state:'hidden'});assert.equal(files.load().money,beforeHockey);assert.deepEqual(errors,[]);
  const beforePool=files.load().money;
