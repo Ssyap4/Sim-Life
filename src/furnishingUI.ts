@@ -12,7 +12,7 @@ import { formatRub } from './shared/economy';
 import type { GameState } from './shared/protocol';
 import { furnitureComfort } from './shared/furnitureComfort';
 import { checkFurniturePlacement, suggestFurnitureSnap } from './shared/furnishingPlacement';
-import { furnitureThumbnail } from './game/FurnitureThumbnails';
+
 import { furnitureActionList } from './shared/furnitureUse';
 
 type Tab = 'catalog'|'delivery'|'storage'|'placed';
@@ -67,6 +67,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   let quantity=1;
   let filtersExpanded=false;
   let previewObserver:IntersectionObserver|null=null;
+  let previewGeneration=0;
+  function invalidatePreviews(){previewGeneration++;previewObserver?.disconnect();previewObserver=null;}
   // Network snapshots arrive often, but an unchanged catalogue must retain
   // its real DOM buttons, focus and lazy-loaded thumbnails. Recreating cards
   // mid-click can drop taps on slower phones and older desktop machines.
@@ -104,6 +106,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     if(viewKey===lastViewKey)return;
     lastViewKey=viewKey;
     const scroll=body.scrollTop;
+    if(tab!=='catalog')invalidatePreviews();
     if(tab==='catalog')renderCatalog(state);
     else if(tab==='delivery')renderDeliveries(state);
     else if(tab==='storage')renderItems(stored,false);
@@ -181,7 +184,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   }
   function renderCards(state:GameState){
     const list=body.querySelector<HTMLElement>('[data-furnish-cards]');if(!list)return;
-    previewObserver?.disconnect();
+    invalidatePreviews();
+    const generation=previewGeneration;
     list.replaceChildren();
     const staged=new Map<Element,()=>void>();
     previewObserver=typeof IntersectionObserver==='undefined'?null:new IntersectionObserver(entries=>{
@@ -223,11 +227,12 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       const picture=document.createElement('img');
       picture.alt='3D-модель '+info.name+' · '+FURNITURE_FINISHES[previewFinish].name;
       picture.loading='lazy';
-      const load=()=>furnitureThumbnail(info.id,previewFinish).then(uri=>{
-        if(!uri||!image.isConnected)return;
+      const live=()=>generation===previewGeneration&&!root.hidden&&tab==='catalog'&&image.isConnected;
+      const load=()=>import('./game/FurnitureThumbnails').then(({furnitureThumbnail})=>furnitureThumbnail(info.id,previewFinish,live)).then(uri=>{
+        if(!uri||!live())return;
         image.replaceChildren(picture);
         picture.src=uri;
-      });
+      }).catch(()=>{});
       if(previewObserver){staged.set(image,load);previewObserver.observe(image);}
       else void load();
       const desc=node('div','furnish-card-copy','');
@@ -346,12 +351,12 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       }));
       if(isPlaced && (info.shape==='bed'||info.shape==='daybed'))
         choices.append(button('🌙 Спать на кровати',()=>{
-          root.hidden=true;
+          hideCatalog();
           callbacks.useBed(item.id);
         }));
       if(isPlaced && 'rotation' in item && furnitureActionList(item).length)
         choices.append(button('✋ Использовать',()=>{
-          root.hidden=true;
+          hideCatalog();
           callbacks.useFurniture(item.id);
         }));
       if(isPlaced)choices.append(button('📦 Убрать на склад',()=>{
@@ -366,7 +371,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   }
   function begin(item:FurnitureInstance|PlacedFurniture,rotation:Rotation){
     draft={item,rotation,target:null,pending:null,submitted:false};
-    root.hidden=true;
+    hideCatalog();
     controls.hidden=false;
     const info=FURNITURE_BY_ID.get(item.sku)!;
     placeTitle.textContent='↔ '+info.name+' · '+FURNITURE_FINISHES[item.finish].name;
@@ -433,15 +438,16 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   controls.querySelector('[data-turn-right]')!.addEventListener('click',()=>turn(1));
   controls.querySelector('[data-place-cancel]')!.addEventListener('click',cancel);
   apply.addEventListener('click',submit);
-  root.querySelector('[data-furnish-close]')!.addEventListener('click',()=>{root.hidden=true;});
+  function hideCatalog(){invalidatePreviews();lastViewKey='';root.hidden=true;}
+  root.querySelector('[data-furnish-close]')!.addEventListener('click',hideCatalog);
   tabs.forEach(button=>button.addEventListener('click',()=>{
     tab=button.dataset.tab as Tab;body.scrollTop=0;refresh();
   }));
-  root.addEventListener('click',event=>{if(event.target===root)root.hidden=true;});
+  root.addEventListener('click',event=>{if(event.target===root)hideCatalog();});
   return {
     open(next:Tab='catalog'){tab=next;root.hidden=false;controls.hidden=true;
       if(draft){callbacks.cancel();draft=null;}refresh();},
-    close(){root.hidden=true;controls.hidden=true;if(draft){callbacks.cancel();draft=null;}},
+    close(){hideCatalog();controls.hidden=true;if(draft){callbacks.cancel();draft=null;}},
     refresh,acknowledge,setTarget,
     tick(){if(!root.hidden && tab==='delivery')refresh();},
     isPlacing:()=>draft!==null,

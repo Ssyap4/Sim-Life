@@ -754,9 +754,10 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) result.push([x,y,z]);
     return result;
   };
-  const horizontal = (place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?corners(new THREE.Box3().setFromObject(root)):place === 'market' ? marketOutline
-    : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
+  // Large locations formerly walked the whole scene graph twice for the same bounds.
   const vertical = corners(new THREE.Box3().setFromObject(root));
+  const horizontal = (place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?vertical:place === 'market' ? marketOutline
+    : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   return {
     root, stations, horizontal, vertical,
     animate: animateWork ?? animatePark ?? animateCafe,

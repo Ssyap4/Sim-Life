@@ -48,6 +48,17 @@ try{
   await page.evaluate(state=>window.__socket.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'snapshot',state})})),current);
  }
  const first=await sample('home','home-initial');assert.equal(first.models.length,2);
+ if(process.env.SIM_STABILITY_AUDIT==='1'){
+  const open=async()=>{await page.locator('#phone-btn').tap();await page.locator('[data-phone-app=furnishing]').tap();await page.locator('#furnishing-overlay').waitFor({state:'visible'});};
+  await open();
+  const search=page.locator('#furnishing-overlay input[type=search]');
+  for(const q of ['стол','кровать','диван',''])await search.fill(q);
+  await page.locator('[data-furnish-close]').tap();
+  await open();await search.fill('');
+  await page.locator('.furnish-card-icon img').first().waitFor({timeout:40000});
+  await page.screenshot({path:join(out,'catalog-reopened.png')});
+  await page.locator('[data-furnish-close]').tap();
+ }
  current.furnishing.placed[1].x+=.2;await snapshot();const moved=await sample('home','moved',current.revision);
  assert.deepEqual(moved.models,first.models,'moving furniture preserves actual mesh identities');
  current.furnishing.placed=current.furnishing.placed.slice(0,1);await snapshot();
@@ -61,15 +72,21 @@ try{
  }
  // Warm the deterministic scene caches, then repeat identical scene transitions.
  const home=[];
- for(let cycle=1;cycle<=2;cycle++){
-  for(const place of ['market','park','spa'])await go(place,place+'-'+cycle);
+ for(let cycle=1;cycle<=(process.env.SIM_STABILITY_AUDIT==='1'?4:2);cycle++){
+  for(const place of (process.env.SIM_STABILITY_AUDIT==='1'?['market','park','spa','lake','electronics','petshop']:['market','park','spa']))await go(place,place+'-'+cycle);
   home.push(await go('home','home-'+cycle));
  }
- assert.deepEqual(home[1].models,home[0].models,'returning home retains furniture models');
+ for(const visit of home.slice(1))assert.deepEqual(visit.models,home[0].models,'returning home retains furniture models');
  // Persistent global caches can warm on first visit. Identical warmed visits
  // should not keep allocating geometries/textures in the WebGL renderer.
  assert.ok(home[1].geometries<=home[0].geometries+8,JSON.stringify(home));
  assert.ok(home[1].textures<=home[0].textures+8,JSON.stringify(home));
+ if(process.env.SIM_STABILITY_AUDIT==='1'){
+  const warm=home[1],last=home.at(-1);
+  for(const key of ['geometries','textures','programs'])assert.ok(last[key]<=warm[key]+8,JSON.stringify(home));
+  assert.ok(last.sceneSwitches>warm.sceneSwitches);
+  assert.ok(report.filter(r=>r.sceneSwitches>0).every(r=>Number.isFinite(r.sceneSwitchMs)&&r.sceneSwitchMs>=0));
+ }
  // The 0.61 audit adds the remaining active destinations. These synthetic
  // snapshots isolate rendering/resource lifetimes, not server travel rules.
  if(process.env.SIM_LOCATION_AUDIT==='1'){

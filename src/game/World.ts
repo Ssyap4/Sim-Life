@@ -277,6 +277,8 @@ export class World {
   private readonly cameraQA = new URLSearchParams(location.search).get('cameraQA')==='1';
   private readonly perfQA = new URLSearchParams(location.search).get('perfQA')==='1';
   private lastPerfReport=0;
+  private lastSceneSwitchMs=0;
+  private sceneSwitches=0;
   private readonly manualPairAnchor = new THREE.Vector3();
   private readonly pairCameraTarget = new THREE.Vector3();
   private readonly pairCameraEye = new THREE.Vector3();
@@ -2383,6 +2385,7 @@ export class World {
   }
 
   private switchPlace(place: PlaceId): void {
+    const switchStarted=performance.now();
     this.followingPair=false;
     this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
@@ -2470,6 +2473,8 @@ export class World {
     }
     if(this.followingPlayer)this.setFollowPlayer(true);
     this.renderer.renderLists.dispose();
+    this.lastSceneSwitchMs=performance.now()-switchStarted;
+    this.sceneSwitches++;
   }
 
   private showCareerStation(id: CharacterId, shift: CareerShift): void {
@@ -3543,7 +3548,7 @@ export class World {
       this.lastPerfReport=now;
       const info=this.renderer.info;
       this.canvas.dataset.resourceReport=JSON.stringify({place:this.place,revision:this.household?.revision,geometries:info.memory.geometries,textures:info.memory.textures,
-        calls:info.render.calls,triangles:info.render.triangles,models:[...this.furnishingModels].map(([id,m])=>[id,m.uuid])});
+        calls:info.render.calls,triangles:info.render.triangles,sceneSwitchMs:this.lastSceneSwitchMs,sceneSwitches:this.sceneSwitches,programs:info.programs?.length??0,models:[...this.furnishingModels].map(([id,m])=>[id,m.uuid])});
     }
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles,this.fittingStage?'fitting':this.place);
   };

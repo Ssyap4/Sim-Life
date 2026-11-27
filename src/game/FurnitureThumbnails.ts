@@ -1,22 +1,19 @@
 import * as THREE from 'three';
 import { buildFurnishingModel } from './FurnishingArt';
+import {disposeFurnitureModel} from './FurnitureModels';
+import {PreviewQueue} from './PreviewQueue';
 import { FURNITURE_BY_ID, type FurnitureFinish } from '../shared/furniture';
 
 // Thumbnails are rendered from the EXACT same lightweight geometry as the
 // installed piece of furniture. One short-lived offscreen WebGL context
 // creates compressed small stills; the game keeps only <img>s, not 39 canvases.
 const cache=new Map<string,string>();
-type Job={sku:string;finish:FurnitureFinish;
-  resolve:(image:string|null)=>void};
-const jobs:Job[]=[];
-let working=false;
-function releaseModel(model:THREE.Group){
-  model.traverse(part=>{
-    if(!(part instanceof THREE.Mesh))return;
-    // All generated models use batched geometry. Only these private buffers
-    // are destroyed; shared ArtKit materials and primitives stay alive.
-    if(part.geometry.getAttribute('color'))part.geometry.dispose();
-  });
+const jobs=new PreviewQueue<string>();
+let working=false,scheduled=false;
+function schedule(){
+  if(working||scheduled)return;
+  scheduled=true;
+  setTimeout(()=>{scheduled=false;if(jobs.prune())void processJobs();},0);
 }
 async function processJobs(){
   if(working)return;
@@ -38,19 +35,22 @@ async function processJobs(){
     keyLight.position.set(-4,7,6);
     scene.add(keyLight);
     const camera=new THREE.OrthographicCamera(-2,2,1.6,-1.6,.1,30);
-    while(jobs.length){
-      // Limit GPU work per frame, particularly when opening 39 cards on a phone.
-      for(let i=0;i<4&&jobs.length;i++){
-        const job=jobs.shift()!;
-        const key=job.sku+'/'+job.finish;
+    while(jobs.size){
+      // Yield between small batches and drop previews from abandoned views.
+      for(let i=0;i<2&&jobs.size;i++){
+        const job=jobs.take();if(!job)break;
+        const key=job.key;
         const earlier=cache.get(key);
-        if(earlier){job.resolve(earlier);continue;}
-        const model=buildFurnishingModel(job.sku,job.finish);
+        if(earlier){job.finish(earlier);continue;}
+        const [sku,finish]=key.split('/') as [string,FurnitureFinish];
+        let model:THREE.Group|undefined;
+        try{
+        model=buildFurnishingModel(sku,finish);
         scene.add(model);
         const bounds=new THREE.Box3().setFromObject(model);
         const size=new THREE.Vector3(),middle=new THREE.Vector3();
         bounds.getSize(size);bounds.getCenter(middle);
-        const shape=FURNITURE_BY_ID.get(job.sku)?.shape;
+        const shape=FURNITURE_BY_ID.get(sku)?.shape;
         const flat=shape==='rug',low=shape==='table'||shape==='bed'||shape==='ottoman';
         const span=Math.max(size.x*.77+size.z*.52,size.z*.77+size.x*.52,size.y*1.17,.42);
         const frame=span*.56;
@@ -65,28 +65,28 @@ async function processJobs(){
         // Eight finishes × 75 products could accumulate hundreds of base64 images.
         // Re-render rarely used colours rather than retaining an unbounded GPU-era cache.
         if(cache.size>140)cache.delete(cache.keys().next().value!);
-        job.resolve(data);
-        scene.remove(model);
-        releaseModel(model);
+        job.finish(data);
+        }catch{job.finish(null);}
+        finally{if(model){scene.remove(model);disposeFurnitureModel(model);}}
       }
-      if(jobs.length)await new Promise<void>(resolve=>setTimeout(resolve,0));
+      if(jobs.size)await new Promise<void>(resolve=>setTimeout(resolve,16));
     }
   }catch{
     // When WebGL is unavailable, the text/emoji fallback remains usable.
-    while(jobs.length)jobs.shift()!.resolve(null);
+    jobs.cancelAll();
   }finally{
     renderer?.dispose();
     renderer?.forceContextLoss();
     working=false;
-    if(jobs.length)void processJobs();
+    if(jobs.size)schedule();
   }
 }
-export function furnitureThumbnail(sku:string,finish:FurnitureFinish):Promise<string|null>{
+export function furnitureThumbnail(sku:string,finish:FurnitureFinish,live=()=>true):Promise<string|null>{
+  if(!live())return Promise.resolve(null);
   const key=sku+'/'+finish;
   const cached=cache.get(key);
-  if(cached)return Promise.resolve(cached);
-  return new Promise(resolve=>{
-    jobs.push({sku,finish,resolve});
-    void processJobs();
-  });
+  if(cached){cache.delete(key);cache.set(key,cached);return Promise.resolve(cached);}
+  const result=jobs.request(key,live);
+  schedule();
+  return result;
 }
