@@ -523,3 +523,39 @@ test('Critical toilet need beats even lower energy and fun in both active modes'
   }finally{await ctx.close();}
  }
 });
+test('064 automatic sleep yields to a critical toilet need without interrupting manual sleep',async()=>{
+  const seed=initialState();
+  seed.autonomy={vlad:'needs',alina:'off'};
+  for(const role of ['vlad','alina'] as const)Object.assign(seed.characters[role],{energy:10,bladder:22,hunger:95,hygiene:95});
+  const ctx=await setup(seed,true,60,2000,true);
+  try{
+    const v=await ctx.join('vlad'),a=await ctx.join('alina');
+    const manual=waitFor(a,p=>p.type==='snapshot'&&p.state.characters.alina.pose==='sleep');
+    send(a,{type:'sleep_start',mode:'full'});await manual;
+    const auto=waitFor(v,p=>p.type==='snapshot'&&p.state.characters.vlad.pose==='sleep'&&p.state.characters.vlad.sleepAutomatic===true);
+    ctx.startClock();await auto;
+    const toilet=await waitFor(v,p=>p.type==='task_started'&&p.role==='vlad'&&p.automatic===true&&p.command.type==='act'&&p.command.actionId==='toiletUse',6500);
+    assert.equal(toilet.type,'task_started');
+    const current=openServerFiles(ctx.dir).load();
+    assert.equal(current.characters.vlad.sleepAutomatic,undefined);
+    assert.equal(current.characters.alina.pose,'sleep');
+    assert.equal(current.characters.alina.sleepAutomatic,undefined);
+    assert.ok(current.characters.alina.bladder<=15);
+    assert.equal(current.money,seed.money);
+  }finally{await ctx.close();}
+});
+
+test('064 persisted automatic sleep retains its origin and can be disabled after restart',async()=>{
+  const seed=initialState();seed.autonomy.vlad='needs';
+  Object.assign(seed.characters.vlad,{energy:20,pose:'sleep',sleepingOn:'starter',sleepMode:'full',sleepAutomatic:true});
+  const ctx=await setup(seed,true,60,2000,true);
+  try{
+    const v=await ctx.join('vlad');
+    assert.equal(openServerFiles(ctx.dir).load().characters.vlad.sleepAutomatic,true);
+    const awake=waitFor(v,p=>p.type==='snapshot'&&p.state.autonomy.vlad==='off'&&p.state.characters.vlad.pose==='idle');
+    send(v,{type:'autonomy_mode',mode:'off'});await awake;
+    const saved=openServerFiles(ctx.dir).load();
+    assert.equal(saved.characters.vlad.sleepAutomatic,undefined);
+    assert.equal(saved.characters.vlad.sleepMode,undefined);
+  }finally{await ctx.close();}
+});

@@ -222,10 +222,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if(chosen.ok){
       sleeper.sleepingOn=chosen.bed.id;
       sleepers.set(resident,sleeper.sleepMode==='half'?'half':'full');
+      if(sleeper.sleepAutomatic)autoSleeping.add(resident);
     }else{
       sleeper.pose='idle';
       delete sleeper.sleepingOn;
-      delete sleeper.sleepMode;
+      delete sleeper.sleepMode;delete sleeper.sleepAutomatic;
       repairedSleep=true;
     }
   }
@@ -316,20 +317,20 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     }
   };
   const stopSleep = (role: CharacterId): void => {
-    autoSleeping.delete(role);
-    if (!sleepers.has(role)) return;
+    if (!sleepers.has(role)) {autoSleeping.delete(role);return;}
     accountTime();
     if (state.characters[role].pose === 'sleep') {
       const next = structuredClone(state);
       next.characters[role].pose = 'idle';
       delete next.characters[role].sleepingOn;
-      delete next.characters[role].sleepMode;
+      delete next.characters[role].sleepMode;delete next.characters[role].sleepAutomatic;
       next.revision++;
       try { files.save(next); state = next; }
       catch (error) { console.error('Could not save wake-up:', error); return; }
       all({ type: 'snapshot', state });
     }
     sleepers.delete(role);
+    autoSleeping.delete(role);
     sleepWishes.delete(role);
     announceTime();
     if(queuedTasks.get(role)?.length)setTimeout(()=>startNextQueued(role),0);
@@ -437,7 +438,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const spoiled = expireReadyFood(next.state);
     const sleepBefore = sleepers.size ? structuredClone(next.state) : null;
     const finishedSleeping = recoverSleep(next.state, gameMinutes, sleepers);
-    for(const role of finishedSleeping){fulfillWish(next.state,role,sleepWishes.get(role),state);sleepWishes.delete(role);}
+    // Only interrupt sleep chosen by the autonomous planner. A manual sleep
+    // order retains its explicit target, even with a low bladder need.
+    const interruptedSleeping = [...autoSleeping].filter(role=>
+      active.has(role)&&sleepers.has(role)&&!finishedSleeping.includes(role)&&
+      next.state.characters[role].pose==='sleep'&&next.state.characters[role].bladder<=15);
+    for(const role of interruptedSleeping){
+      const resident=next.state.characters[role];
+      resident.pose='idle';
+      delete resident.sleepingOn;
+      delete resident.sleepMode;delete resident.sleepAutomatic;
+    }
+    for(const role of finishedSleeping){fulfillWish(next.state,role,sleepWishes.get(role),state);}
     protectNeeds(next.state);
     const occupiedPets = new Set<PetId>();
     for (const { plan } of running.values()) if (plan.command.type === 'pet_action') occupiedPets.add(plan.command.pet);
@@ -459,7 +471,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     catch (error) { console.error('Could not save daily-life clock:', error); return false; }
     minuteCarry -= gameMinutes;
     if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
-    for (const role of finishedSleeping) { sleepers.delete(role); autoSleeping.delete(role); }
+    for (const role of [...finishedSleeping,...interruptedSleeping]) { sleepers.delete(role); autoSleeping.delete(role); sleepWishes.delete(role); }
     const careerEnded=(['vlad','alina'] as const).some(role=>state.careers.residents[role].shift&&!next.state.careers.residents[role].shift);
     if (next.completed.length||careerEnded) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
@@ -475,8 +487,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       all({ type: 'ready_food_spoiled', message: '🥀 Испортилась готовая еда: '+samples.join(', ')+
         (spoiled.length>2?' и другое':'')+' · выброшено порций: '+portions });
     }
-    if (finishedSleeping.length || next.completed.length || careerEnded || speedBefore !== timeStatus().multiplier) announceTime();
-    for(const id of finishedSleeping)if(queuedTasks.get(id)?.length)setTimeout(()=>startNextQueued(id),0);
+    if (finishedSleeping.length || interruptedSleeping.length || next.completed.length || careerEnded || speedBefore !== timeStatus().multiplier) announceTime();
+    for(const id of [...finishedSleeping,...interruptedSleeping])if(queuedTasks.get(id)?.length)setTimeout(()=>startNextQueued(id),0);
     if (arrived) all({ type: 'delivery_arrived' });
     homeTasks.recheckAccess();
     if (billingMessages.length) {
@@ -549,7 +561,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           const next=structuredClone(state);
           const sleepMode:SleepMode='full';
           Object.assign(next.characters[role],chosen.bed.approach,
-            {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode});
+            {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode,sleepAutomatic:true});
           next.revision++;
           try{
             files.save(next);
@@ -1003,6 +1015,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     const next=structuredClone(state);
     Object.assign(next.characters[role],chosen.bed.approach,
       {pose:'sleep',sleepingOn:chosen.bed.id,sleepMode:command.mode});
+    delete next.characters[role].sleepAutomatic;
     next.revision++;
     try{files.save(next)}
     catch{packet(socket,{type:'error',reason:'Не удалось сохранить начало сна'});return;}

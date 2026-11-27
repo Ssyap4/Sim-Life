@@ -21,7 +21,7 @@ export function recoverSleep(state: GameState, minutes: number,
       resident.energy = goal;
       resident.pose = 'idle';
       delete resident.sleepingOn;
-      delete resident.sleepMode;
+      delete resident.sleepMode;delete resident.sleepAutomatic;
       completed.push(role);
     }
   }

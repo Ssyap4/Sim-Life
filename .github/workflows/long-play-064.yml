@@ -39,4 +39,4 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: node --import tsx --test --test-concurrency=2 server/tests/billing.test.ts server/tests/bed-sleep-network.test.ts server/tests/careers.test.ts server/tests/locations.test.ts server/tests/autonomy.test.ts server/tests/economy-plus.test.ts
+      - run: node --import tsx --test --test-concurrency=2 server/tests/billing.test.ts server/tests/bed-sleep-network.test.ts server/tests/careers.test.ts server/tests/locations.test.ts server/tests/autonomy.test.ts server/tests/economy-plus.test.ts server/tests/time-speed.test.ts server/tests/bed-sleep.test.ts server/tests/familyAutonomy038.test.ts

@@ -228,7 +228,7 @@ const isValidState = (value: unknown): value is GameState => {
       p[key] === undefined || typeof p[key] === 'number' && Number.isFinite(p[key]) &&
         p[key] >= 0 && p[key] <= 100,
     ) && point(p, state.world?.places[role] ?? 'home',state.world?.districtLayout!==4) &&
-      ['idle', 'sit', 'sleep', 'work'].includes(p.pose);
+      ['idle', 'sit', 'sleep', 'work'].includes(p.pose) && (p.sleepAutomatic===undefined||p.sleepAutomatic===true);
   });
 };
 

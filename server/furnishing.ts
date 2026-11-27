@@ -64,7 +64,7 @@ function releaseBed(state:GameState,bed:number|'starter'){
   for(const role of ['vlad','alina'] as const){
     const person=state.characters[role];
     if(person.pose==='sleep'&&(person.sleepingOn??'starter')===bed){
-      person.pose='idle';delete person.sleepingOn;delete person.sleepMode;
+      person.pose='idle';delete person.sleepingOn;delete person.sleepMode;delete person.sleepAutomatic;
     }
   }
 }

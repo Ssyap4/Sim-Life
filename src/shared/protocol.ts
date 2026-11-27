@@ -58,6 +58,8 @@ export interface CharacterState extends Needs {
   sleepingOn?: import('./bedSleep').SleepBedId;
   /** Keeps the chosen half/full sleep goal through a server restart. */
   sleepMode?: import('./timeControl').SleepMode;
+  /** Distinguish automatic rest from an explicit player sleep order after restart. */
+  sleepAutomatic?: true;
 }
 import {initialDust,type HomeDust,type DustRoomId} from './homeDust';
 export interface GameState {
