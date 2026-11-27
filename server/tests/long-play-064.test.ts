@@ -137,7 +137,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean){
           const cmd={type:'together' as const,action:'softHug' as const};
           const scenes=pairScenes(state,'vlad',cmd);
           if(scenes){
-            const result=completeTogether(state,'vlad',cmd,roles,0,scenes);
+            const result=completeTogether(state,'vlad',cmd,[...roles],0,scenes);
             if(result.ok){adopt(result.state);stats.shared++;}
           }
         }
