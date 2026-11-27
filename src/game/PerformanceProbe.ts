@@ -11,6 +11,7 @@ export class FrameMeter {
   private previous: number | null = null;
   private started: number | null = null;
   private intervals: number[] = [];
+  private scope: string | undefined;
 
   reset(): void {
     this.previous = null;
@@ -18,7 +19,8 @@ export class FrameMeter {
     this.intervals.length = 0;
   }
 
-  record(nowMs: number, drawCalls: number, triangles: number): FrameSample | null {
+  record(nowMs: number, drawCalls: number, triangles: number, scope?: string): FrameSample | null {
+    if(scope!==this.scope){this.reset();this.scope=scope;}
     if (!Number.isFinite(nowMs)) return null;
     if (this.previous === null) {
       this.previous = nowMs;
@@ -54,6 +56,7 @@ export class FrameMeter {
 
 export function createPerformanceProbe(host: HTMLElement) {
   const meter = new FrameMeter();
+  let currentScope: string | undefined;
   const panel = document.createElement('aside');
   panel.className = 'performance-probe';
   panel.setAttribute('aria-label', 'Диагностика кадров SimOurHome');
@@ -70,10 +73,17 @@ export function createPerformanceProbe(host: HTMLElement) {
   host.append(panel);
 
   return {
-    onFrame(now: number, calls: number, triangles: number): void {
+    onFrame(now: number, calls: number, triangles: number, scope: string): void {
+      if(scope!==currentScope){
+        currentScope=scope;
+        panel.dataset.scope=scope;
+        delete panel.dataset.sample;
+        frame.textContent='FPS: ...';
+        gpu.textContent='';
+      }
       if (document.hidden) { meter.reset(); return; }
-      const sample = meter.record(now, calls, triangles);
-      if (!sample) return;
+      const sample = meter.record(now, calls, triangles, scope);
+      if (!sample) return; panel.dataset.sample=JSON.stringify({...sample,scope});
       frame.textContent = `FPS ${sample.fps.toFixed(1)} · p95 ${sample.p95Ms.toFixed(1)} мс`;
       const canvas=host.querySelector('canvas');
       const data=canvas?.dataset.gpuReport;

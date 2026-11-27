@@ -10,7 +10,7 @@ import {syncLakeCutaway} from '../../src/game/LakeArt';
 import {advanceLife} from '../life';
 import {lakeSleepAnchor,LAKE_REST} from '../../src/shared/lake';
 import {LAKE_FISH,LAKE_RODS,rollFish,validCatch,validFishing,emptyFishing,freshFish} from '../../src/shared/lake';
-import {buildLakeFish,FishingProp} from '../../src/game/LakeFishingArt';
+import {buildLakeFish,FishingProp,disposeLakeFish} from '../../src/game/LakeFishingArt';
 import {applyPetAction} from '../pets';
 import * as THREE from 'three';
 import {buildCampFood,buildDetailedTent} from '../../src/game/LakeCampArt';
@@ -254,3 +254,17 @@ test('lake trail lights turn on at night and off by day',()=>{
 });
 
 test('fire seats keep feet outside the stone ring and lake swim anchor sits near the waterline',()=>{assert.ok(LAKE_FIRE_SEAT_OFFSET-.55>.65);assert.ok(lakeSwimFrame(1,'vlad').y<.025);assert.ok(lakeSwimFrame(1,'alina').y>-.10);});
+
+test('caught fish releases its fin geometry and material once without disposing the shared body',()=>{
+ const fish=buildLakeFish('perch'),tail=fish.children[2] as THREE.Mesh,dorsal=fish.children[3] as THREE.Mesh;
+ assert.equal(tail.geometry,dorsal.geometry);assert.equal(tail.material,dorsal.material);
+ let geometry=0,material=0,body=0;
+ const shared=fish.children[0] as THREE.Mesh;
+ const onBody=()=>body++;
+ shared.geometry.addEventListener('dispose',onBody);
+ tail.geometry.addEventListener('dispose',()=>geometry++);
+ (tail.material as THREE.Material).addEventListener('dispose',()=>material++);
+ const holder=new THREE.Group();holder.add(fish);
+ try{disposeLakeFish(fish);disposeLakeFish(fish);assert.equal(geometry,1);assert.equal(material,1);assert.equal(body,0);assert.equal(holder.children.length,0);}
+ finally{shared.geometry.removeEventListener('dispose',onBody);}
+});

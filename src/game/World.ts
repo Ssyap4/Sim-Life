@@ -299,7 +299,7 @@ export class World {
     private readonly onPick: (id: ItemId | CharacterId | PetId | BowlPick) => void,
     private readonly viewBand: (inspection: boolean) => ViewBand = () => ({ top: 0.16, bottom: 0.86 }),
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
-    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number) => void,
+    private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number, scope: string) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
       dismissTap?: () => boolean; pondTap?: () => void }, simbaRig?: SimbaRig) {
     this.scene.background = new THREE.Color(0xc0c7ad);
@@ -2970,7 +2970,7 @@ export class World {
         this.roadScene??=new CarRideScene();
         this.roadScene.frame(this.carRide,this.household.clock,this.canvas.width/Math.max(1,this.canvas.height));
         this.renderer.render(this.roadScene.scene,this.roadScene.camera);
-        this.onRenderedFrame?.(now,this.renderer.info.render.calls,this.renderer.info.render.triangles);
+        this.onRenderedFrame?.(now,this.renderer.info.render.calls,this.renderer.info.render.triangles,'car-ride');
         return;
       }catch(error){console.warn('Car ride scene fallback',error);this.carRide=undefined;}
     }
@@ -3463,6 +3463,6 @@ export class World {
       this.canvas.dataset.resourceReport=JSON.stringify({place:this.place,revision:this.household?.revision,geometries:info.memory.geometries,textures:info.memory.textures,
         calls:info.render.calls,triangles:info.render.triangles,models:[...this.furnishingModels].map(([id,m])=>[id,m.uuid])});
     }
-    this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
+    this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles,this.fittingStage?'fitting':this.place);
   };
 }

@@ -2,12 +2,23 @@ import * as THREE from 'three';
 import {drum,orb,finish} from './ArtKit';
 import {LAKE_RODS,type LakeRod,type LakeFish} from '../shared/lake';
 const specs={crucian:[.30,.16,.08,0xa99c53],perch:[.33,.115,.065,0x82904e],roach:[.28,.09,.055,0xb5c4ba],bream:[.39,.19,.075,0xb3a47e],carp:[.48,.20,.10,0xa48e52],pike:[.55,.09,.06,0x718051],trout:[.43,.12,.07,0x9ca8a4],zander:[.48,.115,.065,0x89968b],catfish:[.62,.12,.09,0x696b60]} as const;
+const fishResources=new WeakMap<THREE.Group,{geometry:THREE.BufferGeometry;material:THREE.Material}>();
+/** A catch owns one fin buffer and one material shared by its tail and dorsal fin.
+ * The body uses globally cached ArtKit geometry and finishes. */
+export function disposeLakeFish(group:THREE.Group):void {
+ group.removeFromParent();
+ const owned=fishResources.get(group);
+ if(!owned)return;
+ fishResources.delete(group);
+ owned.geometry.dispose();owned.material.dispose();
+ group.clear();
+}
 export function buildLakeFish(id:LakeFish){
  const [l,h,w,c]=specs[id],g=new THREE.Group();g.name='Lake fish '+id;
  function part(geo:THREE.BufferGeometry,color:number,scale:number[],pos:number[]){const m=new THREE.Mesh(geo,finish(color,'skin'));m.scale.set(scale[0],scale[1],scale[2]);m.position.set(pos[0],pos[1],pos[2]);g.add(m);return m;}
  part(orb,c,[l*.45,h*.5,w*.5],[0,0,0]);part(orb,0xd4cab0,[l*.33,h*.24,w*.42],[-.015,-h*.19,0]);
  const fin=new THREE.BufferGeometry();fin.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,.13,.09,0,.105,0,0,.13,-.09,0],3));fin.setIndex([0,1,2,0,2,3]);fin.computeVertexNormals();
- const mat=new THREE.MeshStandardMaterial({color:c,side:THREE.DoubleSide,roughness:.7});const tail=new THREE.Mesh(fin,mat);tail.position.x=l*.40;tail.scale.setScalar(l/.43);g.add(tail);
+ const mat=new THREE.MeshStandardMaterial({color:c,side:THREE.DoubleSide,roughness:.7});fishResources.set(g,{geometry:fin,material:mat});const tail=new THREE.Mesh(fin,mat);tail.position.x=l*.40;tail.scale.setScalar(l/.43);g.add(tail);
  const dorsal=new THREE.Mesh(fin,mat);dorsal.rotation.z=Math.PI/2;dorsal.position.set(.03,h*.34,0);dorsal.scale.setScalar(.6);g.add(dorsal);
  for(const side of [-1,1]){part(orb,0xe0d5aa,[.013,.013,.008],[-l*.31,h*.13,side*w*.43]);part(orb,0x222522,[.007,.008,.006],[-l*.314,h*.13,side*w*.49]);}
  if(['perch','pike','trout','zander'].includes(id))for(let i=0;i<6;i++)for(const side of [-1,1])part(orb,id==='trout'?0x7d4c43:0x54664a,[.012,.025,.004],[-l*.20+i*l*.075,h*.15,side*w*.43]);

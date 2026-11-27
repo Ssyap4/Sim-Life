@@ -1,0 +1,41 @@
+name: SimOurHome 0.61 location audit
+on:
+  push:
+    branches: [feat/polish-061]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/performance.test.ts server/tests/furniture-performance-060.test.ts server/tests/lake-054.test.ts server/tests/locations.test.ts server/tests/location-network.test.ts server/tests/navigation.test.ts server/tests/petNavigation.test.ts
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-performance-060.mjs
+        env:
+          SIM_LOCATION_AUDIT: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: location-audit-061
+          path: /tmp/simourhome-060-performance
+          retention-days: 7

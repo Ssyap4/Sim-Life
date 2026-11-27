@@ -35,7 +35,10 @@ try{
   await page.waitForFunction(({place,revision})=>{const r=JSON.parse(document.querySelector('#game-canvas').dataset.resourceReport||'null');return r?.place===place&&r.calls>0&&(revision===undefined||r.revision===revision);},{place,revision},{timeout:40000});
   await page.waitForTimeout(1100);
   const r=await read();assert.equal(r.place,place);assert.ok(r.calls>0&&r.triangles>0);
-  report.push({label,...r,frame:await page.locator('.performance-probe').innerText()});
+  const probe=await page.locator('.performance-probe').evaluate(p=>({scope:p.dataset.scope,sample:JSON.parse(p.dataset.sample||'null')}));
+  assert.equal(probe.scope,place,'diagnostics follow the scene');
+  if(probe.sample)assert.equal(probe.sample.scope,place,'no stale FPS from another scene');
+  report.push({label,...r,frame:probe.sample});
   return r;
  }
  const current=structuredClone(s);
@@ -67,6 +70,21 @@ try{
  // should not keep allocating geometries/textures in the WebGL renderer.
  assert.ok(home[1].geometries<=home[0].geometries+8,JSON.stringify(home));
  assert.ok(home[1].textures<=home[0].textures+8,JSON.stringify(home));
+ // The 0.61 audit adds the remaining active destinations. These synthetic
+ // snapshots isolate rendering/resource lifetimes, not server travel rules.
+ if(process.env.SIM_LOCATION_AUDIT==='1'){
+  for(const place of ['cafe','petshop','electronics','clothing','lake','fitness','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic']){
+   await go(place,place+'-audit');
+   await page.screenshot({path:join(out,place+'-audit.png')});
+  }
+  await go('home','home-after-all-destinations');
+  // Simulate the partner remaining elsewhere while the local view changes.
+  current.world.places.alina='cafe';Object.assign(current.characters.alina,spawn('cafe','alina'),{pose:'idle'});
+  await snapshot();await sample('home','split-home-cafe',current.revision);
+  current.world.places.vlad='market';Object.assign(current.characters.vlad,spawn('market','vlad'),{pose:'idle'});
+  await snapshot();await sample('market','split-market-cafe',current.revision);
+  await go('home','home-after-split');
+ }
  for(const [width,height] of [[320,568],[360,780],[430,932],[390,844]]){
   await page.setViewportSize({width,height});
   await page.waitForTimeout(650);

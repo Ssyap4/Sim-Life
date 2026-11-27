@@ -1,5 +1,5 @@
 import {seatTransfer,taskCadence,chewPulse,phoneStroke} from './MotionPolish';
-import {FishingProp,buildLakeFish} from './LakeFishingArt';
+import {FishingProp,buildLakeFish,disposeLakeFish} from './LakeFishingArt';
 import type {LakeRod,FishCatch} from '../shared/lake';
 import {venueHandFrame,type VenueGame} from '../shared/venue';
 import type {ConsoleMatch} from '../shared/consoleCatalog';
@@ -121,7 +121,7 @@ export class Actor {
   private fishing?:FishingProp;
   private catchProp?:THREE.Group;
   private catchKey='';
-  showLakeCatch(fish?:FishCatch){const key=fish?fish.species+':'+fish.grams:'';if(key===this.catchKey)return;this.catchKey=key;if(this.catchProp){this.catchProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.catchProp.removeFromParent();this.catchProp=undefined;}if(fish){const g=buildLakeFish(fish.species);g.scale.setScalar(Math.min(1.7,.74+Math.sqrt(fish.grams/1000)*.24));g.rotation.z=Math.PI/2;g.position.set(.03,-.12,.025);this.rig.wrists[1].add(g);this.catchProp=g;}}
+  showLakeCatch(fish?:FishCatch){const key=fish?fish.species+':'+fish.grams:'';if(key===this.catchKey)return;this.catchKey=key;if(this.catchProp){disposeLakeFish(this.catchProp);this.catchProp=undefined;}if(fish){const g=buildLakeFish(fish.species);g.scale.setScalar(Math.min(1.7,.74+Math.sqrt(fish.grams/1000)*.24));g.rotation.z=Math.PI/2;g.position.set(.03,-.12,.025);this.rig.wrists[1].add(g);this.catchProp=g;}}
   playFishing(kind:LakeRod){this.playDomesticActivity('fishing');this.fishing=new FishingProp(kind);this.root.add(this.fishing.group);}
   private clearFishing(){this.fishing?.dispose();this.fishing=undefined;}
   private clearVenueProp(){this.clearFishing();this.venueFrame=undefined;if(this.venueProp){this.venueProp.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry!==orb&&o.geometry!==drum)o.geometry.dispose();});this.venueProp.removeFromParent();this.venueProp=undefined;}}

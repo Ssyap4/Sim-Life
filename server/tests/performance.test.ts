@@ -38,3 +38,15 @@ test('background tab pause resets sample rather than inventing low FPS', () => {
   meter.reset();
   assert.equal(meter.record(10000, 0, 0), null);
 });
+
+test('location and alternate render view changes start a fresh frame window',()=>{
+ const meter=new FrameMeter();
+ let home=null;
+ for(let i=0;i<=120;i++)home=meter.record(i*16,289,255530,'home')??home;
+ assert.ok(home);
+ assert.equal(meter.record(1940,40,90410,'market'),null);
+ for(let i=1;i<90;i++)assert.equal(meter.record(1940+i*20,40,90410,'market'),null);
+ const market=meter.record(3740,40,90410,'market');
+ assert.ok(market);assert.equal(market.fps,50);assert.equal(market.drawCalls,40);
+ assert.equal(meter.record(3760,10,500,'car-ride'),null);
+});
