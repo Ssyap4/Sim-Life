@@ -1,9 +1,10 @@
 import { serviceAvailable } from './shared/services';
 import { clockMinutes } from './shared/locations';
 import { taskAccessError } from './shared/serviceAccess';
-import type { BookId, Entertainment, Genre } from './shared/homeLife';
+import type { BookId, Entertainment, Genre, MediaGenre } from './shared/homeLife';
 import type { CharacterId, GameState } from './shared/protocol';
-import { BOOKS, GENRES, HOME_SECONDS } from './shared/homeLife';
+import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS } from './shared/homeLife';
+import {TAKEOUT,type TakeoutId} from './shared/food';
 
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError,type ConsoleGameId} from './shared/consoleCatalog';
 function button(label: string, click: () => void, className = 'action-button') {
@@ -16,7 +17,7 @@ function button(label: string, click: () => void, className = 'action-button') {
 }
 
 export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
-  submit: (command: Entertainment) => boolean, invite: (genre: Genre) => boolean,
+  submit: (command: Entertainment) => boolean, invite: (genre: MediaGenre,food?:TakeoutId) => boolean,
   read: () => GameState | null, active: () => CharacterId | null, payments: (where: 'internet' | 'subscriptions') => void,
   education: (view: 'book' | 'tv') => void,inviteGame:(id:ConsoleGameId)=>boolean,shopGames:()=>void) {
   const send = (result: boolean) => { if (result) root.hidden = true; };
@@ -42,6 +43,26 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
   };
   const backToTv=()=>{heading('Телевизор');television();};
   const mediaLabel=(label:string)=>{const el=document.createElement('div');el.className='menu-section-label';el.textContent=label;root.append(el);};
+  const foodMenu=(genre:MediaGenre)=>{
+    heading('🍕 Еда из доставки к просмотру');
+    const state=read();if(!state)return;
+    const now=clockMinutes(state.clock);
+    const detail=document.createElement('p');detail.className='food-empty';
+    detail.textContent='Приём пищи · 90 с. '+(genre==='youtube'?'YouTube · 90 с.':'Фильм · 120 с.')+' Выбирайте из уже доставленных свежих порций.';
+    root.append(detail);
+    let found=false;
+    for(const [id,meal] of Object.entries(TAKEOUT)){
+      const food=id as TakeoutId;
+      const count=state.readyFood.filter(b=>b.kind==='takeout'&&b.item===id&&b.expiresAt>now).reduce((n,b)=>n+b.portions,0);
+      if(!count)continue;
+      found=true;mediaLabel(meal.emoji+' '+meal.name+' · '+count+' порц. · Сытость +'+meal.hunger);
+      const cmd:Entertainment=genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
+      root.append(button('Смотреть и есть одному',()=>permitted(cmd)&&send(submit(cmd))));
+      if(count>=2)root.append(button('Смотреть и есть вдвоём',()=>permitted(cmd)&&send(invite(genre,food))));
+    }
+    if(!found){const empty=document.createElement('p');empty.className='food-empty';empty.textContent='Нет свежей еды из доставки. Сначала закажи и дождись курьера.';root.append(empty);}
+    root.append(button('← Назад',()=>genre==='youtube'?backToTv():movie(genre)));
+  };
   const movie = (genre: Genre) => {
     heading(GENRES[genre]);
     const detail = document.createElement('p');
@@ -50,6 +71,7 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     root.append(detail,
       button('Смотреть одному', () => permitted({type:'movie',genre}) && send(submit({type:'movie',genre}))),
       button('Смотреть вместе', () => permitted({type:'movie',genre}) && send(invite(genre))),
+      button('🍕 Смотреть с едой из доставки',()=>foodMenu(genre)),
       button('← Жанры', genres));
   };
   const genres = () => {
@@ -65,6 +87,7 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     root.append(button('📺 Телеканалы · ' + HOME_SECONDS.freeTv + ' с',
       () => send(submit({type:'free_tv'}))),button('▶️ YouTube · ' + HOME_SECONDS.youtube + ' с',
       () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
+      button('🍕 YouTube с едой из доставки',()=>foodMenu('youtube')),
       button('🎬 Netflix · фильмы',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
     mediaLabel('Игры и обучение');
     root.append(button('🎮 Игровые консоли',games),button('🎓 Передачи и курсы', () => education('tv')));
@@ -113,12 +136,12 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
 export function movieInvite(root: HTMLElement, respond: (id: number,accept: boolean) => boolean, withdraw: (id: number) => boolean) {
   let current: number | null = null;
   return {
-    show(id: number, from: string, genre: Genre, outgoing: boolean) {
+    show(id: number, from: string, genre: MediaGenre, outgoing: boolean,food?:TakeoutId) {
       current = id;
       const title=document.createElement('strong');
-      title.textContent=outgoing ? '🎬 Ждём ответа на приглашение' : '🎬 '+from+' предлагает посмотреть фильм';
+      title.textContent=outgoing ? '🎬 Ждём ответа на приглашение' : ('🎬 '+from+' предлагает '+(genre==='youtube'?'посмотреть YouTube':'посмотреть фильм')+(food?' с едой':''));
       const detail=document.createElement('small');
-      detail.textContent=GENRES[genre]+' · 2 минуты';
+      detail.textContent=(genre==='youtube'?'YouTube':GENRES[genre])+' · '+(genre==='youtube'?(food?TV_FOOD_SECONDS:HOME_SECONDS.youtube):HOME_SECONDS.movie)+' с'+(food?' · '+TAKEOUT[food].name+' · 1 порция каждому':'');
       const controls=document.createElement('div');
       if(outgoing) controls.append(button('Отозвать',() => { if (withdraw(id)) controls.remove(); }));
       else controls.append(button('Принять',() => { if(respond(id,true)) controls.remove(); }),

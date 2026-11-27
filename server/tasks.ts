@@ -26,7 +26,7 @@ import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
-import { BOOKS, GENRES, HOME_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
+import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { validCoffeeOrder, type CoffeeDrink } from '../src/shared/coffee';
@@ -108,11 +108,14 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   }
   if (command.type === 'free_tv') return { command: { type: 'free_tv' }, label: '📺 Обычные телеканалы',
     durationMs: HOME_SECONDS.freeTv * 1000, resource: 'tv' };
-  if (command.type === 'youtube') return { command: { type: 'youtube' }, label: '▶️ Смотрим YouTube',
-    durationMs: HOME_SECONDS.youtube * 1000, resource: 'tv' };
+  if (command.type === 'youtube' || command.type === 'movie') {
+    if(command.food!==undefined&&(typeof command.food!=='string'||!own(TAKEOUT,command.food)))return null;
+  }
+  if (command.type === 'youtube') return { command: { type: 'youtube', ...(command.food?{food:command.food as TakeoutId}:{}) }, label: command.food?'YouTube + '+TAKEOUT[command.food as TakeoutId].name:'▶️ Смотрим YouTube',
+    durationMs: (command.food?TV_FOOD_SECONDS:HOME_SECONDS.youtube) * 1000, resource: 'tv' };
   if (command.type === 'movie' && typeof command.genre === 'string' && own(GENRES, command.genre)) {
     const genre = command.genre as Genre;
-    return { command: { type: 'movie', genre }, label: '🎬 Фильм · ' + GENRES[genre],
+    return { command: { type: 'movie', genre, ...(command.food?{food:command.food as TakeoutId}:{}) }, label: '🎬 Фильм · ' + GENRES[genre]+(command.food?' + '+TAKEOUT[command.food as TakeoutId].name:''),
       durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
   }
   if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {

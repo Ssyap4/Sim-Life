@@ -7,7 +7,7 @@ export const GENRES = {
   horror: '👻 Хоррор', drama: '🎭 Драма', crime: '🕵️ Криминал',
   thriller: '🔪 Триллер', action: '💥 Боевик', comedy: '😂 Комедия', romance: '❤️ Мелодрама',
 } as const;
-export type Genre = keyof typeof GENRES;
+export type Genre = keyof typeof GENRES; export type MediaGenre = Genre|'youtube';
 export const YOUTUBE = ['pets', 'vlog', 'travel', 'tech', 'cooking'] as const;
 export type Program = Genre | (typeof YOUTUBE)[number] | 'broadcast' | 'concert' | 'lesson';
 
@@ -33,6 +33,7 @@ export type BookId = keyof typeof BOOKS;
 export const READING_SKILL_PREVIEW = { skill: 'logic', label: 'Логика', percent: 1 } as const;
 export const readingSkillLabel = () => READING_SKILL_PREVIEW.label + ' +' + READING_SKILL_PREVIEW.percent + '%';
 export const HOME_SECONDS = { teeth: 18, foamBath: 75, shower: 38, youtube: 40, movie: 120, freeTv: 60 } as const;
+export const TV_FOOD_SECONDS=90;
 export const READING_REWARD = { fun: 60, comfort: 10 } as const;
 export type NeedKey = Exclude<keyof Needs, 'skill'>;
 export type NeedEffects = Partial<Record<NeedKey, number>>;
@@ -40,9 +41,9 @@ export type NeedEffects = Partial<Record<NeedKey, number>>;
 export type Entertainment =
   | {type:'vanity_care';care:import('./vanity').CareId}
   | {type:'console_play';game:import('./consoleCatalog').ConsoleGameId}
-  | { type: 'youtube' }
+  | { type: 'youtube'; food?:import('./food').TakeoutId }
   | { type: 'free_tv' }
-  | { type: 'movie'; genre: Genre }
+  | { type: 'movie'; genre: Genre; food?:import('./food').TakeoutId }
   | { type: 'read_book'; book: BookId; seat?: 'officeChair' };
 export const HOME_SEATS = ['sofa','officeChair','table','yardTable'] as const;
 export type HomeSeat = (typeof HOME_SEATS)[number];
@@ -52,6 +53,8 @@ export type HomePresentation = {
   pickupMs?: number;
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'workCoffee' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  food?:import('./food').TakeoutId;
+  foodMs?:number;
   vanityCare?:import('./vanity').CareId;
   consoleGame?:import('./consoleCatalog').ConsoleGameId;
   consoleMatch?:import('./consoleCatalog').ConsoleMatch;

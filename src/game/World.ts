@@ -243,6 +243,8 @@ export class World {
   private activeGrillRecipe: RecipeId | undefined;
   private computerScreens!:HomeComputerScreens;
   private readonly homeTasks = new Map<CharacterId, HomePresentation>();
+  private readonly mediaFoodArrived = new Set<CharacterId>();
+  private readonly mediaFoodStarted = new Map<CharacterId,number>();
   private readonly hobbyWorks=new Map<CharacterId,{id:number;action:string;start:number}>();
   private readonly poolMotions=new Map<CharacterId,{mode:'poolFloat'|'poolSwim';started:number;wet:boolean}>();
   private readonly dishTasks = new Set<CharacterId>();
@@ -950,6 +952,20 @@ export class World {
     }
   }
 
+  private playSofaFood(role:CharacterId,home:HomePresentation):boolean {
+    const started=this.mediaFoodStarted.get(role);
+    if(!home.food||started===undefined||!this.mediaFoodArrived.has(role)||this.visualSeconds-started>=(home.foodMs??0)/1000)return false;
+    if(this.actors[role].eatingElapsed()!==null)return true;
+    const actor=this.actors[role];
+    const pose=home.furniturePose??homeSeat('sofa',role).position;
+    const yaw=home.furniturePose?.yaw??homeSeat('sofa',role).yaw;
+    const offset=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+    const plate=this.showMeal(role,pose.x+offset.x,pose.y+.83,pose.z+offset.z,home.food);
+    const serving=this.meals.get(role)!;serving.rotation.y=yaw;
+    serving.getObjectByName('Breakfast tray')!.visible=true;
+    actor.playActivity('eat',plate,home.food,true);
+    return true;
+  }
   private startHomeTask(role: CharacterId, command: TimedCommand, home: HomePresentation): boolean {
     const inCenter = home.station === 'classroom' || home.station === 'lab' || home.station === 'workshop';
     if (this.place !== (inCenter ? 'education' : 'home')) return true;
@@ -1048,14 +1064,14 @@ export class World {
           else if(command.action==='sofaCall')actor.playDomesticActivity('phone');
           else if(command.action==='sofaMusic')actor.playDomesticActivity('watch');
         }
-        if(program)actor.watch(program==='horror'?-1:program==='comedy'?1:0);
+        if(program){this.mediaFoodArrived.add(role);if(!this.playSofaFood(role,home))actor.watch(program==='horror'?-1:program==='comedy'?1:0);}
         return;
       }
       const seat = homeSeat(station,role);
       actor.setFurniturePose('sit',new THREE.Vector3().copy(seat.position),seat.yaw);
       if(home.consoleGame)actor.playConsole(home.consoleGame);
       else if (program) {
-        actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
+        this.mediaFoodArrived.add(role);if(!this.playSofaFood(role,home))actor.watch(program === 'comedy' ? 1 : program === 'horror' ? -1 : 0);
       } else if (command.type === 'read_book' || study?.channel === 'book') actor.playDomesticActivity('read');
       else if (study?.channel === 'practice') actor.playDomesticActivity('journal');
       else if (station === 'yardTable' && command.type === 'eat') {
@@ -1124,6 +1140,7 @@ export class World {
       return;
     }
     if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
+    if(home?.food){this.mediaFoodStarted.set(role,this.visualSeconds-elapsedMs/1000);this.playSofaFood(role,home);}
     if (home?.program) this.homeEffects.television(role,home.program,home.lesson);
   }
 
@@ -1310,7 +1327,7 @@ export class World {
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
-    this.homeTasks.delete(role);this.hobbyWorks.delete(role);
+    this.homeTasks.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
     this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
@@ -3060,7 +3077,15 @@ export class World {
       const elapsed = actor.eatingElapsed();
       const plate = this.meals.get(id)!;
       if (plate.visible && elapsed !== null) {
-        const scale = mealServingScale(elapsed,this.place==='park'?PICNIC_SECONDS:undefined);
+        const media=this.homeTasks.get(id);
+        const foodSeconds=media?.foodMs===undefined?undefined:media.foodMs/1000;
+        const started=this.mediaFoodStarted.get(id);
+        const mealElapsed=started===undefined?elapsed:Math.max(0,this.visualSeconds-started);
+        const scale = mealServingScale(mealElapsed,foodSeconds??(this.place==='park'?PICNIC_SECONDS:undefined));
+        if(foodSeconds!==undefined&&mealElapsed>=foodSeconds){
+          plate.visible=false;
+          actor.watch(media?.program==='comedy'?1:media?.program==='horror'?-1:0);
+        }
         plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }

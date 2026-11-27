@@ -103,3 +103,18 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
   state.revision++;
   return {ok:true,state,message:names[role]+': '+(role==='vlad'?'поел':'поела')+' '+meal.name};
 }
+
+
+/** Delivery meal consumed on the sofa, without teleporting the resident to the dining table. */
+export function applyTvFood(source:GameState,role:CharacterId,item:TakeoutId):FoodResult{
+  if(!owns(TAKEOUT,item)||source.world.places[role]!=='home')return {ok:false,reason:'Еда недоступна'};
+  const state=structuredClone(source);
+  if(!consumeReadyFood(state,'takeout',item))return {ok:false,reason:'Свежей порции больше нет'};
+  const meal=TAKEOUT[item],actor=state.characters[role];
+  actor.hunger=Math.min(100,actor.hunger+meal.hunger);
+  actor.mood=Math.min(100,actor.mood+meal.mood);
+  actor.comfort=Math.min(100,actor.comfort+4);
+  recordEmotion(state,role,'mealGood');
+  state.revision++;
+  return {ok:true,state,message:meal.name+' · порция съедена'};
+}

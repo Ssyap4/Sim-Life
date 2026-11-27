@@ -20,7 +20,7 @@ import type { ShiftAssignment } from './jobs';
 import { INITIAL_PETS, INITIAL_PET_FOOD, INITIAL_PET_BOWLS, type PetFamily, type PetFoodStock, type PetBowlStock } from './pets';
 import { INITIAL_CLOCK, INITIAL_DAILY_NEEDS, gameMinutes, type ClockSample, type GameClock } from './life';
 import { BATH_FIXTURES, GRILL_WORK, LIBRARY_APPROACH, HOME_PLACEMENTS, KITCHEN_WORK, homeSeat, type BathFixture, type HomeLeisure } from './home';
-import type { BookId, Entertainment, Genre, HomePresentation, NeedEffects } from './homeLife';
+import type { BookId, Entertainment, MediaGenre, HomePresentation, NeedEffects } from './homeLife';
 import { initialHappiness, type HappinessState, type RewardId } from './happiness';
 import type { WalkRoute } from '../game/navigation';
 export type { PetId, PetAction } from './pets';
@@ -199,7 +199,7 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | 
 
 export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | import('./familyLife').FamilyLifeCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
-  | { type: 'movie_invite'; genre: Genre }
+  | { type: 'movie_invite'; genre: MediaGenre; food?:import('./food').TakeoutId }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
   | { type: 'resume'; role: CharacterId; token: string }
@@ -261,7 +261,7 @@ export type ServerPacket =
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
-  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: Genre }
+  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').TakeoutId }
   | { type: 'movie_offer_closed'; inviteId: number; message: string }
   | { type: 'task_queue'; role: CharacterId; tasks: QueuedTask[] }
   | { type: 'task_active'; role: CharacterId; taskId: number; elapsedMs: number }

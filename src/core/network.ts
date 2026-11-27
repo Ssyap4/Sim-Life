@@ -13,7 +13,7 @@ import type { FurnishingCommand } from '../shared/furniture';
 import type { JobId } from '../shared/jobs';
 import type { SleepMode, TimeStatus } from '../shared/timeControl';
 import type { PetId, PetAction } from '../shared/pets';
-import type { Entertainment, Genre, HomePresentation, NeedEffects } from '../shared/homeLife';
+import type { Entertainment, MediaGenre, HomePresentation, NeedEffects } from '../shared/homeLife';
 import type { HomeLeisure } from '../shared/home';
 import type { WalkRoute } from '../game/navigation';
 import type { ClockSample } from '../shared/life';
@@ -37,7 +37,7 @@ export interface ConnectionCallbacks {
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void;
-  onMovieOffer(inviteId: number, from: CharacterId, genre: Genre): void;
+  onMovieOffer(inviteId: number, from: CharacterId, genre: MediaGenre,food?:import('../shared/food').TakeoutId): void;
   onMovieOfferClosed(inviteId: number, message: string): void;
   onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
   onStorageEvent(role: CharacterId, station?: string): void;
@@ -129,7 +129,7 @@ export class LiveConnection {
   budget(command: BudgetCommand): boolean {return this.sendAuthenticated(command);}
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
-  inviteMovie(genre: Genre): boolean {return this.sendAuthenticated({type:'movie_invite',genre});}
+  inviteMovie(genre: MediaGenre,food?:import('../shared/food').TakeoutId): boolean {return this.sendAuthenticated({type:'movie_invite',genre,food});}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
   withdrawMovie(inviteId: number): boolean {return this.sendAuthenticated({type:'movie_withdraw',inviteId});}
 
@@ -267,7 +267,7 @@ export class LiveConnection {
       } else if (packet.type === 'need_gain' && this.authorized) {
         this.callbacks.onNeedGain(packet.role,packet.label,packet.effects);
       } else if (packet.type === 'movie_offer' && this.authorized) {
-        this.callbacks.onMovieOffer(packet.inviteId,packet.from,packet.genre);
+        this.callbacks.onMovieOffer(packet.inviteId,packet.from,packet.genre,packet.food);
       } else if (packet.type === 'movie_offer_closed' && this.authorized) {
         this.callbacks.onMovieOfferClosed(packet.inviteId,packet.message);
       } else if (packet.type === 'home_leisure' && this.authorized) {

@@ -31,9 +31,12 @@ jobs:
       - run: npx playwright install chromium
       - run: npm run build
       - run: node --import tsx scripts/qa-hud-0593.mjs
+      - run: node --import tsx scripts/qa-tv-food-060.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: hud-furniture
-          path: /tmp/simourhome-0593
+          path: |
+            /tmp/simourhome-0593
+            /tmp/simourhome-060-tv-food
           retention-days: 7

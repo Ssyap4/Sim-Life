@@ -14,8 +14,9 @@ import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furniture
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
-import { isGrillRecipe } from '../src/shared/food';
-import { GENRES, HOME_SEATS, YOUTUBE, type Genre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
+import { isGrillRecipe,TAKEOUT,type TakeoutId } from '../src/shared/food';
+import { applyTvFood } from './food';
+import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
 import { points, type CharacterId, type GameState, type ServerPacket, type TimedCommand } from '../src/shared/protocol';
 import { GAME_MINUTES_PER_REAL_SECOND } from '../src/shared/life';
@@ -55,7 +56,7 @@ type Session = {
   study?: { material: StudyMaterial; start: number; previous: number; minutes: number;
     questions: string[]; correct: number; lastAnswer: number };
 };
-type Invite = { id: number; from: CharacterId; genre: Genre; timer: ReturnType<typeof setTimeout> };
+type Invite = { id: number; from: CharacterId; genre: MediaGenre; food?:TakeoutId; timer: ReturnType<typeof setTimeout> };
 type Hooks = {
   state(): GameState;
   save(state: GameState): void;
@@ -449,8 +450,32 @@ export function createHomeSessions(hooks: Hooks) {
     }
     if(session.participants.some(p=>(p.restPaid??0)<1))session.timer=schedule(()=>tickRest(session),Math.min(5000,Math.max(1000,session.duration-(now()-session.activeAt))));
   }
+  function mediaCommand(genre:MediaGenre,food?:TakeoutId):TimedCommand {
+    return genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
+  }
+  function foodCount(state:GameState,food:TakeoutId){
+    return state.readyFood.filter(b=>b.kind==='takeout'&&b.item===food&&b.expiresAt>hooks.gameTime()).reduce((n,b)=>n+b.portions,0);
+  }
+  function serveMediaFood(session:Session,food:TakeoutId){
+    const before=hooks.state();
+    let next=before;
+    const served:Participant[]=[];
+    for(const member of session.participants){
+      const result=applyTvFood(next,member.role,food);
+      if(result.ok){next=result.state;served.push(member);}
+      else error(member.socket,result.reason);
+    }
+    if(served.length){
+      try{hooks.save(next);broadcastSnapshot();
+        for(const member of served)hooks.all({type:'need_gain',role:member.role,label:TAKEOUT[food].name,effects:gains(before,next,member.role)});
+      }catch{for(const member of served)error(member.socket,'Не удалось сохранить приём пищи');}
+    }
+    for(const member of session.participants)if(member.packet.home){delete member.packet.home.food;delete member.packet.home.foodMs;}
+  }
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false, cooperation?:Cooperation) {
     const command = plan.command;
+    const food=(command.type==='movie'||command.type==='youtube')?command.food:undefined;
+    if(food&&foodCount(hooks.state(),food)<roles.length){error(initiator,'Недостаточно свежих порций доставки');return;}
     const material = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
     const denial = command.type==='together'&&cooperation?cooperationDenial(hooks.state(),cooperation.from,command):taskAccessError(hooks.state(), command);
     if (denial) { if (!automatic) error(initiator, denial); return; }
@@ -498,6 +523,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (!home) { if (!automatic) error(initiator, 'Не удалось найти свободный маршрут'); return; }
       const catReason=catHomeSeatError(hooks.state(),role,home);
       if(catReason){if(!automatic)error(initiator,catReason);return;}
+      if(food){home.food=food;home.foodMs=Math.min(duration,TV_FOOD_SECONDS*1000*hooks.timeScale);if(command.type==='youtube')home.program='vlog';}
       if (study?.questions[0]) home.question = study.questions[0];
       const before = hooks.state();
       const result = material || cooperation ? undefined : evaluateTask(before, role, command, roles.length === 2);
@@ -544,7 +570,14 @@ export function createHomeSessions(hooks: Hooks) {
           };
           tick();
         } else if(session.freeRest)session.timer=schedule(()=>tickRest(session),Math.min(5000,session.duration));
-        else session.timer = schedule(() => complete(session), session.duration);
+        else if(food){
+          const mealMs=Math.min(session.duration,Math.round(TV_FOOD_SECONDS*1000*hooks.timeScale));
+          session.timer=schedule(()=>{
+            serveMediaFood(session,food);
+            const remaining=session.duration-mealMs;
+            if(remaining>0)session.timer=schedule(()=>complete(session),remaining);else complete(session);
+          },mealMs);
+        }else session.timer = schedule(() => complete(session), session.duration);
       }, Math.round(travel * hooks.timeScale)) };
     for (const participant of participants) {
       sessions.set(participant.role, session);
@@ -755,16 +788,19 @@ export function createHomeSessions(hooks: Hooks) {
   function invitation(role: CharacterId, socket: WebSocket, message: Record<string, unknown>) {
     if (message.type === 'movie_invite') {
       const genre = message.genre;
-      if (typeof genre !== 'string' || !Object.hasOwn(GENRES, genre)) return error(socket,'Неизвестный жанр');
-      const denial = taskAccessError(hooks.state(), { type: 'movie', genre: genre as Genre });
+      if (typeof genre !== 'string' || (genre!=='youtube'&&!Object.hasOwn(GENRES, genre))) return error(socket,'Неизвестный жанр');
+      const food=message.food;
+      if(food!==undefined&&(typeof food!=='string'||!Object.hasOwn(TAKEOUT,food)))return error(socket,'Неизвестное блюдо');
+      if(food&&foodCount(hooks.state(),food as TakeoutId)<2)return error(socket,'Нужно две свежие порции доставки');
+      const denial = taskAccessError(hooks.state(), mediaCommand(genre as MediaGenre,food as TakeoutId|undefined));
       if (denial) return error(socket, denial);
       if (!hooks.socket(otherRole(role))) return error(socket,'Второй игрок пока не в сети');
       if (invite||socialInvite) return error(socket,'Другое приглашение уже ждёт ответа');
       if (!available(role) || !available(otherRole(role)) || reserved('tv'))
         return error(socket,'Для просмотра оба должны быть свободны дома, а телевизор — выключен');
       const id = ++nextInviteId;
-      invite = { id,from:role,genre:genre as Genre,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
-      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre });
+      invite = { id,from:role,genre:genre as MediaGenre,food:food as TakeoutId|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
+      hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre,food:invite!.food });
       return;
     }
     if (!invite || message.inviteId !== invite.id) return error(socket,'Это приглашение уже закрыто');
@@ -772,14 +808,14 @@ export function createHomeSessions(hooks: Hooks) {
     if (message.type !== 'movie_reply' || role === invite.from || typeof message.accept !== 'boolean')
       return error(socket,'Ответить может только приглашённый игрок');
     if (!message.accept) return closeInvite('Приглашение отклонено');
-    const {from,genre} = invite;
-    const denial = taskAccessError(hooks.state(), { type: 'movie', genre });
+    const {from,genre,food} = invite;
+    const denial = taskAccessError(hooks.state(), mediaCommand(genre,food));
     if (denial) return closeInvite(denial);
     if (!available(from) || !available(role) || reserved('tv')) {
       closeInvite('Кто-то занят или вышел из дома. Попробуйте ещё раз'); return;
     }
     closeInvite('Приглашение принято');
-    start([from,role],planTask({type:'movie',genre})!,socket);
+    start([from,role],planTask(mediaCommand(genre,food))!,socket);
   }
 
   function recheckAccess() {
@@ -809,7 +845,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (reason) cancel(session.participants[0].role, reason);
     }
     if (invite) {
-      const reason = taskAccessError(hooks.state(), { type: 'movie', genre: invite.genre });
+      const reason = taskAccessError(hooks.state(), mediaCommand(invite.genre,invite.food));
       if (reason) closeInvite(reason);
     }
   }

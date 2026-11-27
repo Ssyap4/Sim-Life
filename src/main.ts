@@ -967,7 +967,7 @@ function openEducation(view: EducationView, room?: string) {
   locationUI.close();
   phone.openEducation(view, room);
 }
-const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.social({type:'social_propose',action:'film',item:genre}),
+const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),(genre,food)=>food||genre==='youtube'?net.inviteMovie(genre,food):net.social({type:'social_propose',action:'film',item:genre}),
   () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'));
 const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
 const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')!,
@@ -1151,7 +1151,7 @@ const net = new LiveConnection({
   },
   onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
-  onMovieOffer(inviteId,from,genre) { invites.show(inviteId,names[from],genre,from===active); },
+  onMovieOffer(inviteId,from,genre,food) { invites.show(inviteId,names[from],genre,from===active,food); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
   onTaskEnded(role, taskId, outcome, message, effects) {
     const previous = tasks.get(role);
