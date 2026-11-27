@@ -14,3 +14,7 @@ Before suggesting a new feature, inspect the current checked-out branch, latest 
 - Existing home journals are automatic activity/memory records. Search on 0.62 found no manual family message mailbox or authored family-journal note feature. No human recipe favorites/rating system found; pet food preferences and computer favorites are distinct. These are possible gaps, NOT approved tasks.
 
 Main deployment only by explicit owner approval. Deep careers remain deferred. Update this check with future verified systems, do not treat it as an exhaustive list of every feature.
+
+## 0.65 verified additions
+- Home beauty: 16 new Alina procedures (5 vanity, 5 body bath, 6 hair), independent hair condition/style, actual props, timed effects and replay, existing wish integration. Do not propose these as new; hair reconstruction career still deferred.
+- 10 drinks, 4 baked desserts, 7 snacks, 8 ingredients, grocery/recipe categories, ready drink transport to starter/purchased seating, films/YouTube with prepared portions, partner delivery during active starter desktop work. Current restrictions documented in RELEASE_065.md. No worker sipping animation/self-service or custom laptop delivery. Do not pitch existing content as new.

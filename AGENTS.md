@@ -1,3 +1,6 @@
+# SimOurHome 0.65.0 ? approved release
+See docs/RELEASE_065.md and docs/PREVIEW_065_HOME_CARE.md. Production D:/Sim-Life port3111 PID3356, functional tag v0.65.0 971614f, clean household 10000 RUB. Preview D:/Sim-Life-065 port3158 PID9640, isolated data. 83/83 focused tests + build passed, previous cloud all green; final media visual rerun 46071662237 pending at deployment (fixture corrected). Do not claim final captures until reviewed. No new 0.66 task approved. Preserve all active owner policies below, including explicit main approval, fresh release-only gameplay reset, no heavy local QA, deferred flagship careers and hosting/mobile packaging.
+
 # ACTIVE OWNER DECISION - FINAL RELEASE PLANS - 27 Nov 2026
 
 - Defer external hosting and mobile packaging until the game is fully finished. Keep the current local production/preview workflow until then. No hosting purchase or cloud migration now.
