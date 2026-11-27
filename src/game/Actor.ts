@@ -1,3 +1,4 @@
+import {careFrame,usesCareContact} from './CareMotion';
 import {seatTransfer,taskCadence,chewPulse,phoneStroke} from './MotionPolish';
 import {FishingProp,buildLakeFish,disposeLakeFish} from './LakeFishingArt';
 import type {LakeRod,FishCatch} from '../shared/lake';
@@ -132,26 +133,34 @@ export class Actor {
   private activeConsoleGame?:ConsoleGameId;
   private vanityKind?:import('../shared/vanity').CareId;
   private vanityProp?:THREE.Group;
+  private careContactError:number|null=null;
+  private readonly careGoal=new THREE.Vector3();
+  private readonly careDirection=new THREE.Vector3();
+  careQA(){return {id:this.vanityKind??null,phase:this.vanityKind?careFrame(this.vanityKind,this.activityTime).phase:null,elapsed:this.activityTime,prop:this.vanityProp?.visible??false,children:this.vanityProp?.visible?this.vanityProp.children.filter(c=>c.visible).map(c=>c.name):[],error:this.careContactError,blend:this.vanityKind?careFrame(this.vanityKind,this.activityTime).blend:0};}
+  bathBombSample(point:THREE.Vector3):number|null{
+    if(this.activity!=='bath'||!this.vanityKind?.startsWith('bath')||!this.vanityProp)return null;
+    this.vanityProp.getWorldPosition(point);return this.activityTime;
+  }
   playBathCare(id:import('../shared/vanity').CareId){
     this.playDomesticActivity('bath');this.vanityKind=id;
-    const g=new THREE.Group(),bomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),finish(id==='bathLavender'?0xc2a5ed:id==='bathRose'?0xe8a3c2:0xf0dfc3,'wood'));
+    const g=new THREE.Group();g.name='Held bath care';const bomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),finish(id==='bathLavender'?0xc2a5ed:id==='bathRose'?0xe8a3c2:0xf0dfc3,'wood'));
     bomb.name='bomb';g.add(bomb);
     if(id==='bathShave'||id==='bathRitual'){const razor=new THREE.Group();razor.name='razor';const handle=new THREE.Mesh(new THREE.BoxGeometry(.018,.083,.019),finish(0xd590b4,'wood'));handle.position.y=-.03;razor.add(handle);const head=new THREE.Mesh(new THREE.BoxGeometry(.05,.016,.026),finish(0xc9d2d7,'wood'));head.position.y=-.077;razor.add(head);razor.visible=false;g.add(razor);}
     if(id==='bathMilk'||id==='bathRitual'){const cream=new THREE.Mesh(new THREE.CylinderGeometry(.032,.032,.06,12),finish(0xf1dfcb,'wood'));cream.name='cream';cream.visible=false;g.add(cream);}
-    g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
+    g.position.set(0,-.025,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
   }
   playVanity(id:import('../shared/vanity').CareId){
     this.playDomesticActivity('vanity');this.vanityKind=id;
-    const g=new THREE.Group();const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
+    const g=new THREE.Group();g.name='Held vanity care';const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
     if(['brush','style','fancy','vladStyle'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
     else if(id==='vladShave'){add(.022,.105,.026,0,-.035,0,0x34404b);add(.052,.02,.027,0,-.094,0,0xb9c6cf);}
     else if(id==='perfume'||id==='vladPerfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
     else if(id==='serum'){add(.036,.077,.035,0,-.03,0,0x94b3aa);add(.02,.035,.02,0,.026,0,0xe8e0d1);}
-    else if(id==='lipCare'){add(.019,.065,.019,0,-.027,0,0xd18d9f);add(.015,.019,.015,0,.015,0,0xe4b3b0);}
+    else if(id==='lipCare'){add(.019,.065,.019,0,-.027,0,0xd18d9f);add(.015,.019,.015,0,-.068,0,0xe4b3b0);}
     else if(id==='handCream'){add(.035,.09,.024,0,-.03,0,0xd6e8df);add(.027,.018,.021,0,-.079,0,0xeff4e9);}
     else if(['skin','hydrate','faceMask'].includes(id)){add(.055,.047,.055,0,-.03,0,0xf5e6d9);add(.06,.017,.06,0,.001,0,0xbc997a);}
     else{add(.018,.09,.018,0,-.03,0,0x825561);add(.043,.045,.035,0,-.095,0,0xd9b3a4);}
-    g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
+    g.position.set(0,-.025,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
   }
   playGift(id:string,leads:boolean,target:THREE.Vector3){
     this.clearVanity();this.playPartnerGesture('gift',leads,target);const g=new THREE.Group();
@@ -160,7 +169,7 @@ export class Actor {
     else{part(.16,.085,.13,0,-.055,0,0x954a42);part(.025,.089,.136,0,-.055,0,0xe8c37c);part(.164,.089,.025,0,-.055,0,0xe8c37c);}
     g.visible=leads;g.position.set(0,-.045,.025);this.rig.wrists[this.id==='vlad'?1:0].add(g);this.vanityProp=g;
   }
-  private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;}
+  private clearVanity(){if(this.vanityProp){this.vanityProp.removeFromParent();this.vanityProp.traverse(o=>{if(o instanceof THREE.Mesh)o.geometry.dispose();});this.vanityProp=undefined;}this.vanityKind=undefined;this.careContactError=null;}
   playConsole(game:ConsoleGameId){this.playDomesticActivity('consolePlay');const sku=CONSOLE_GAMES[game].console;this.gamepads??={};let pad=this.gamepads[sku];if(!pad){pad=buildGamepad(sku);this.figure.add(pad);this.gamepads[sku]=pad;}for(const p of Object.values(this.gamepads))p.visible=p===pad;this.activePad=pad;this.activeConsoleGame=game;}
   private hideGamepad(){if(this.activePad)this.activePad.visible=false;this.activePad=undefined;this.activeConsoleGame=undefined;}
   handheldQA(){
@@ -290,6 +299,7 @@ export class Actor {
   hasFoodContainer(): boolean { return this.foodContainer.visible; }
   hasDirtyPlate(): boolean { return this.dirtyPlate.visible; }
   clearProps(): void {
+    this.clearVanity();
     this.clearWorkCoffee();
     this.loungeMouthpiece.visible=this.loungeHose.visible=this.loungeSmoke.visible=false;
     this.carryingBook = false;
@@ -698,6 +708,55 @@ export class Actor {
     this.aimHand(hand,this.handDirection,amount);
   }
 
+  private animateCareContact(a:number,alpha:number){
+    const id=this.vanityKind!,d=this.rig,prop=this.vanityProp,f=careFrame(id,a);
+    const blend=Math.min(1,f.blend*alpha*8),stroke=f.stroke;
+    this.careContactError=null;
+    if(prop){prop.visible=f.phase!=='relax'&&f.phase!=='apply'&&(f.phase!=='bodyCream'||a<38);if(this.activity==='bath')for(const c of prop.children)c.visible=c.name===(f.phase==='bomb'&&a<3.15?'bomb':f.phase==='shave'?'razor':f.phase==='bodyCream'?'cream':'');}
+    if(blend<.002)return;
+    const touch=(hand:0|1,point:THREE.Vector3,axis:THREE.Vector3,offset=.055)=>{
+      this.careGoal.copy(point);this.careDirection.copy(axis).normalize();
+      this.target.copy(this.careGoal).addScaledVector(this.careDirection,-offset);
+      this.reach(hand,this.target,blend,.70);
+      this.aimHand(hand,this.handDirection.copy(this.careDirection),blend);
+      const error=d.wrists[hand].localToWorld(this.toolTip.set(0,-offset,0)).distanceTo(this.careGoal);
+      this.careContactError=Math.max(this.careContactError??0,error);
+    };
+    if(f.phase==='bomb'){
+      d.chest.localToWorld(this.target.set(.13,this.rightArm.position.y-.28,.32+.11*f.stroke));
+      this.reach(1,this.target,blend,.65);this.aimHand(1,this.handDirection.set(0,-.72,.60).applyAxisAngle(up,this.root.rotation.y),blend);
+    }else if(f.phase==='shave'){
+      // Follow the moving knee and thigh, not a fixed spot in the bathroom.
+      const leg=this.rightLeg;
+      leg.localToWorld(this.toolSurface.set(.015,-d.thighLength*(.68+.12*stroke),.09));
+      const axis=this.toolAxis.set(0,-.86,.50).applyAxisAngle(up,this.root.rotation.y);
+      touch(1,this.toolSurface,axis,.105);
+      if(prop&&f.blend>.75)this.careContactError=prop.localToWorld(this.toolTip.set(0,-.085,0)).distanceTo(this.careGoal);
+    }else if(f.phase==='lip'){
+      d.head.localToWorld(this.toolSurface.set(.016+.020*stroke,-.134,.175));
+      // Balm points towards the lip, not through the face.
+      touch(1,this.toolSurface,this.toolAxis.set(-.10,.50,-.86).applyAxisAngle(up,this.root.rotation.y),.103);
+      if(prop&&f.blend>.75)this.careContactError=prop.localToWorld(this.toolTip.set(0,-.0775,0)).distanceTo(this.careGoal);
+    }else if(f.phase==='hold'){
+      d.chest.localToWorld(this.target.set(.12,this.rightArm.position.y-.25,.31));
+      this.reach(1,this.target,blend,.65);this.aimHand(1,this.handDirection.set(0,-.82,.38).applyAxisAngle(up,this.root.rotation.y),blend);
+    }else if(f.phase==='dispense'||id==='handCream'||f.phase==='bodyCream'){
+      d.chest.localToWorld(this.target.set(-.095,this.leftArm.position.y-.29,.33));
+      this.reach(0,this.target,blend,.62);this.aimHand(0,this.handDirection.set(.42,.12,.90).applyAxisAngle(up,this.root.rotation.y),blend);
+      d.wrists[0].localToWorld(this.toolSurface.set(0,-.052,.035));
+      this.toolSurface.y+=.028+.014*stroke;
+      touch(1,this.toolSurface,this.toolAxis.set(-.65,-.45,.38).applyAxisAngle(up,this.root.rotation.y),f.phase==='apply'||(f.phase==='bodyCream'&&a>=38)?.055:.07);
+    }else if(f.phase==='apply'){
+      // Container stays away from the face. Both bare palms follow cheek
+      // targets relative to the live head, with a small surface clearance.
+      for(const hand of [0,1] as const){
+        const side=hand===0?-1:1;
+        d.head.localToWorld(this.toolSurface.set(side*(.125+.018*stroke),-.095+.035*stroke,.166));
+        touch(hand,this.toolSurface,this.toolAxis.set(-side*.28,.63,-.72).applyAxisAngle(up,this.root.rotation.y));
+      }
+    }
+  }
+
   private readonly toolAxis=new THREE.Vector3();
   private readonly toolGoal=new THREE.Vector3();
   private readonly toolOffset=new THREE.Vector3();
@@ -1028,7 +1087,7 @@ export class Actor {
           rightZ = .26;
           gaze = -.04 + Math.sin(a * 1.3) * .06;
           lean = -.13;
-          if(this.vanityKind){const phase=a%20,opening=a<4,shaving=(this.vanityKind==='bathShave'||this.vanityKind==='bathRitual')&&a>25&&phase>12&&phase<17,creaming=(this.vanityKind==='bathMilk'||this.vanityKind==='bathRitual')&&a>35&&phase>6&&phase<10;if(this.vanityProp)for(const child of this.vanityProp.children)child.visible=child.name==='bomb'?opening:child.name==='razor'?shaving:creaming;if(opening){rightY=-.12+.05*Math.sin(a*2);rightZ=.30;leftY=-.22;gaze=.10;}else if(shaving){leftY=-.20;rightY=-.24+.035*Math.sin(a*4);rightZ=.33;gaze=.17;lean=-.04;}else if(creaming){rightY=-.10+.04*Math.sin(a*3);leftY=-.18;leftZ=.30;rightZ=.29;gaze=.08;}}
+          if(this.vanityKind){const f=careFrame(this.vanityKind,a);lean=-.25;if(f.phase==='bomb'){rightY=-.12;rightZ=.30;leftY=-.22;gaze=.10;}else if(f.phase==='shave'){lean=.18*f.blend-.25*(1-f.blend);gaze=.27*f.blend;leftY=-.18;rightY=-.29;}else if(f.phase==='bodyCream'){lean=.04;gaze=.13;leftY=-.16;rightY=-.15;}}
           break;
         case 'toilet':
           leftY = rightY = -.43;
@@ -1972,6 +2031,7 @@ export class Actor {
           .applyAxisAngle(up,this.root.rotation.y),alpha*partnerReach);
       }
     }
+    if(this.vanityKind&&usesCareContact(this.vanityKind)&&(this.activity==='vanity'||this.activity==='bath'))this.animateCareContact(a,alpha);
     // The old idle gestures only raised an elbow toward the face. Use
     // the existing two-bone IK solver to put the wrist at a meaningful
     // contact point, following the animated head/chest and their real scale.

@@ -254,6 +254,7 @@ export class World {
   private readonly dirtyVisuals: Record<DishStation, THREE.Mesh[]> = { table: [], yardTable: [] };
   private readonly taskSequence = { vlad: 0, alina: 0 };
   private inspected: CharacterId | PetId | null = null;
+  private careReframe:CharacterId|null=null;
   private yard!: ReturnType<typeof buildYard>;
   private readonly festiveTree=buildHolidayTree();
   private readonly festiveGarlands=buildHolidayGarlands();
@@ -651,7 +652,13 @@ export class World {
     }
     const bedAngle=resting||pairMotion==='bedRest'?new THREE.Vector3(.72,1.15,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):
       romanticSeat?new THREE.Vector3(.18,.55,1).applyAxisAngle(new THREE.Vector3(0,1,0),subjectRoot.rotation.y):null;
-    const vanityAngle=person&&this.homeTasks.get(subject)?.vanityCare?new THREE.Vector3(-.19,.32,.98):null;
+    const station=person?this.homeTasks.get(subject)?.station:undefined;
+    const careView=person&&this.homeTasks.get(subject)?.vanityCare;
+    const bathView=person&&station==='bathtub';
+    // Aim above the tub rim and desk top. A low portrait can look straight
+    // through the mirror, bed or bathtub shell after the seat transfer.
+    if(bathView||careView)bounds.min.y=Math.min(bounds.max.y-.15,Math.max(bounds.min.y,bathView?.63:.60));
+    const vanityAngle=bathView?new THREE.Vector3(-.95,1.12,-.38):careView?new THREE.Vector3(-.12,.85,1):null;
     const loungeAngle=person&&this.homeTasks.get(subject)?.station==='yardTable'?new THREE.Vector3(.65,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
     const catalogSeat=person&&this.homeTasks.get(subject)?.station==='furniture'&&this.homeTasks.get(subject)?.furnitureSeat;
     const catalogAngle=catalogSeat?new THREE.Vector3(.38,.48,1).applyAxisAngle(THREE.Object3D.DEFAULT_UP,subjectRoot.rotation.y):null;
@@ -670,7 +677,7 @@ export class World {
       // Both humans AND small pets need a clear line of sight. In particular,
       // a low Spitz behind the dining table otherwise shows just two ears.
       // Try alternate azimuths before a mildly raised view of the same model.
-      const directions = person
+      const directions = bathView ? [[-1,1.4,-.16],[-.65,1.4,-.8],[.35,1.5,-1],[-1,1.8,.15]] : careView ? [[.32,1.05,1],[.25,1.2,-1],[-.15,1.3,-1],[.9,1.5,.4]] : person
         ? [[-.66,.20,1],[.98,.30,.50],[-1,.38,.31],[.50,.55,-1]]
         : [[-.92,.43,.24],[.90,.55,.35],[-.8,.65,-.7],[.7,.85,-.6],
           [-.68,1.15,.3],[.45,1.30,1]];
@@ -945,7 +952,7 @@ export class World {
         new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
         toilet ? Math.PI / 2 : Math.PI);
       actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
-      if(command.type==='vanity_care'){const color=command.care==='bathLavender'?0xd7c8f1:command.care==='bathRose'?0xf5c9d9:command.care==='bathMilk'?0xfff0d7:0xeaf8ee;this.homeEffects.water('bathtub',true,color);actor.playBathCare(command.care);}
+      if(command.type==='vanity_care'){const color=command.care==='bathLavender'?0xd7c8f1:command.care==='bathRose'?0xf5c9d9:command.care==='bathMilk'?0xfff0d7:0xeaf8ee;this.homeEffects.beginBathCare(color,command.care==='bathLavender'?0xc2a5ed:command.care==='bathRose'?0xe8a3c2:0xf0dfc3);actor.playBathCare(command.care);}
       else if (action === 'bathFoam') this.homeEffects.water('bathtub',true);
     } else {
       const shower = item === 'shower';
@@ -1044,6 +1051,7 @@ export class World {
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
         if(command.type==='vanity_care'&&station!=='bathtub')actor.playVanity(command.care);
+        if(command.type==='vanity_care'&&station==='bathtub'&&this.inspected===role)this.careReframe=role;
         return;
       }
       if(station==='furniture'){
@@ -1058,7 +1066,7 @@ export class World {
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
           actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
-        if(command.type==='vanity_care'){actor.playVanity(command.care);if(this.inspected===role)this.showcase(role);return;}
+        if(command.type==='vanity_care'){actor.playVanity(command.care);if(this.inspected===role)this.careReframe=role;return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
           if(command.action==='read_book'){actor.carryBook(BOOKS[command.book!][4]);actor.playDomesticActivity('read');}
@@ -3301,6 +3309,7 @@ export class World {
       const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
       door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);
     }
+    if(this.careReframe){const role=this.careReframe,actor=this.actors[role],motion=actor.audioMotion();if(this.inspected!==role||!this.homeTasks.has(role)||!['vanity','bath'].includes(motion.activity??''))this.careReframe=null;else if(motion.activityTime>=1.15){this.careReframe=null;this.showcase(role);}}
     if (this.followSubject) {
       this.followSubject.getWorldPosition(this.followDelta);
       this.followDelta.sub(this.followPoint).multiplyScalar(1 - Math.exp(-dt * 10));
@@ -3438,7 +3447,7 @@ export class World {
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);
@@ -3477,6 +3486,7 @@ export class World {
       for(const id of PET_IDS){const visual=this.feederVisual[id];if(visual?.started===undefined||!this.household)continue;const station=feedingStation(this.household.furnishing,id);const elapsed=this.visualSeconds-visual.started;if(elapsed>=.8||visual.id!==station.item?.id)delete visual.started;
         this.bowlFood[id].forEach((piece,index)=>{const angle=index/PET_BOWL_CAPACITY*Math.PI*2,t=THREE.MathUtils.clamp((elapsed-index*.10)/.42,0,1),arc=1-t*t;piece.position.set(station.point.x+Math.cos(angle)*.075*t+Math.sin(station.yaw)*.12*(1-t),station.foodY+.14*arc,station.point.z+Math.sin(angle)*.075*t+Math.cos(station.yaw)*.12*(1-t));});}
       if(this.bathWashing)this.homeEffects.dogBath(this.pets.verdell.bathPhase);
+      const bathElapsed=this.actors.alina.bathBombSample(this.framePartPosition);if(bathElapsed!==null)this.homeEffects.updateBathCare(bathElapsed,this.framePartPosition);
       this.homeEffects.update(this.visualSeconds);
       this.computerScreens.update(this.visualSeconds);
     }

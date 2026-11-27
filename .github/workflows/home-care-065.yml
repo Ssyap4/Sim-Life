@@ -17,7 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: node --import tsx --test server/tests/home-care-065.test.ts server/tests/vanity-044.test.ts server/tests/barber-046.test.ts server/tests/dog-bath-035.test.ts server/tests/wishes-019.test.ts server/tests/needs-treats-030.test.ts
+      - run: node --import tsx --test server/tests/home-care-065.test.ts server/tests/care-motion-065.test.ts server/tests/vanity-044.test.ts server/tests/barber-046.test.ts server/tests/dog-bath-035.test.ts server/tests/wishes-019.test.ts server/tests/needs-treats-030.test.ts
   visual:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

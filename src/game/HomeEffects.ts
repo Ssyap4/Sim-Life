@@ -38,6 +38,11 @@ export class HomeEffects {
   private tvId:ElectronicsId='tvStart';
   private readonly shower: THREE.LineSegments;
   private readonly foam: THREE.InstancedMesh;
+  private readonly bathBomb: THREE.Mesh<THREE.IcosahedronGeometry,THREE.MeshStandardMaterial>;
+  private readonly bathRelease=new THREE.Vector3();
+  private readonly bathLanding=new THREE.Vector3();
+  private bathCareActive=false;
+  private bathReleaseKnown=false;
   private readonly handWater: THREE.LineSegments;
   private readonly dogWater:THREE.LineSegments;
   private readonly dogFoam:THREE.InstancedMesh;
@@ -88,6 +93,8 @@ export class HomeEffects {
     const bath = BATH_FIXTURES.bathtub.center;
     this.foam.position.set(bath.x,0,bath.z);
     this.foam.visible = false;
+    this.bathBomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),new THREE.MeshStandardMaterial({color:0xf0dfc3,roughness:.82}));
+    this.bathBomb.visible=false;scene.add(this.bathBomb);
     const sink = BATH_FIXTURES.wcBasin.center;
     this.handWater = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(-.011, .115, -.018), new THREE.Vector3(-.008, .004, .021),
@@ -118,15 +125,24 @@ export class HomeEffects {
   water(station: 'shower' | 'bathtub' | 'wcBasin', active: boolean,foamColor=0xeaf8ee) {
     if(station === 'shower') this.shower.visible = active;
     else if (station === 'wcBasin') this.handWater.visible = active;
-    else {this.foam.visible = active;(this.foam.material as THREE.MeshStandardMaterial).color.setHex(foamColor);}
+    else {this.bathCareActive=false;this.bathReleaseKnown=false;this.bathBomb.visible=false;this.foam.visible = active;(this.foam.material as THREE.MeshStandardMaterial).color.setHex(foamColor);}
   }
 
+  beginBathCare(foamColor:number,bombColor:number){this.water('bathtub',false,foamColor);this.bathCareActive=true;this.bathBomb.material.color.setHex(bombColor);this.bathBomb.scale.setScalar(1);}
+  updateBathCare(elapsed:number,hand:THREE.Vector3){
+    if(!this.bathCareActive)return;
+    const bath=BATH_FIXTURES.bathtub.center;
+    if(elapsed<3.15||!this.bathReleaseKnown){this.bathRelease.copy(hand);this.bathLanding.set(THREE.MathUtils.clamp(hand.x,bath.x-.35,bath.x+.35),.438,THREE.MathUtils.clamp(hand.z,bath.z-.68,bath.z+.68));this.bathReleaseKnown=true;}
+    this.bathBomb.visible=elapsed>=3.15&&elapsed<5.8;
+    this.foam.visible=elapsed>=3.75;
+    if(this.bathBomb.visible){const t=THREE.MathUtils.clamp((elapsed-3.15)/.60,0,1);this.bathBomb.position.lerpVectors(this.bathRelease,this.bathLanding,t*t);this.bathBomb.rotation.set(t*1.6,0,t*2.2);this.bathBomb.scale.setScalar(Math.max(.04,1-THREE.MathUtils.clamp((elapsed-3.75)/2.05,0,1)));}
+  }
   dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}
   reset() {
     stopUfcHighlight(this.context);
     this.media.clear();this.games.clear();
     this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
-    this.dogBath(null);
+    this.water('bathtub',false);this.dogBath(null);
   }
 
   update(seconds: number) {

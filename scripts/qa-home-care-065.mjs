@@ -9,9 +9,9 @@ import {startServer} from '../server/server.ts';
 const out='/tmp/simourhome-065-care';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page;
 try{
- const s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=40;
+ const s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
  openServerFiles(dir).save(s);
- server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:0.6,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
  page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -21,6 +21,7 @@ try{
  await page.locator('[data-role=alina]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  const send=cmd=>page.evaluate(c=>window.__qaSocket.send(JSON.stringify(c)),cmd);
  async function shot(name){
+  for(let i=0;i<8;i++){const close=page.locator('.notice-close').first();if(!await close.isVisible())break;await close.evaluate(el=>el.click());}
   const b=await page.screenshot({path:join(out,name+'.jpg'),type:'jpeg',quality:80});
   const data=b.toString('base64');for(let i=0;i<data.length;i+=3000)console.log('QA_IMAGE '+name+' '+data.slice(i,i+3000));
  }
@@ -33,12 +34,21 @@ try{
   if(!(await page.locator('#showcase-return').isVisible())){await page.locator('#showcase-toggle').evaluate(el=>el.click());await page.locator('[data-showcase=alina]').evaluate(el=>el.click());}
   await page.waitForTimeout(1000);return id;
  }
- async function cancel(id){await send({type:'cancel_task',taskId:id});await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='cancelled'),id,{timeout:15000});if(await page.locator('#showcase-return').isVisible())await page.locator('#showcase-return').evaluate(el=>el.click());}
+ async function cancel(id){await send({type:'cancel_task',taskId:id});await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_ended'&&m.taskId===id&&m.outcome==='cancelled'),id,{timeout:15000});await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.care?.id===null,undefined,{timeout:10000});if(await page.locator('#showcase-return').isVisible())await page.locator('#showcase-return').evaluate(el=>el.click());}
+ async function phase(care,kind,min,max){
+  await page.waitForFunction(({care,kind,min,max})=>{const q=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.care;return q?.id===care&&q.phase===kind&&q.elapsed>=min&&q.elapsed<=max;},{care,kind,min,max},{timeout:130000});
+  const q=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.care);
+  console.log('CARE_SAMPLE',care,kind,JSON.stringify(q));if(q.error!==null&&q.blend>.98)assert.ok(q.error<.08,care+' '+kind+' contact '+q.error);
+  await shot(care+'-'+kind);
+ }
  for(const care of ['hydrate','serum','faceMask','handCream','lipCare']){
-  const id=await start(care,'furniture','vanity');await shot(care);await cancel(id);
+  const id=await start(care,'furniture','vanity');await phase(care,care==='lipCare'?'lip':'apply',6,10);await cancel(id);
  }
  for(const care of ['bathLavender','bathRose','bathMilk','bathShave','bathRitual']){
-  const id=await start(care,'bathtub','bath');await shot(care);await cancel(id);
+  const id=await start(care,'bathtub','bath');await phase(care,'relax',7,13);
+  if(care==='bathShave'||care==='bathRitual')await phase(care,'shave',22,28);
+  if(care==='bathMilk'||care==='bathRitual')await phase(care,'bodyCream',40,46);
+  await cancel(id);
  }
  assert.deepEqual(errors,[]);
  console.log('CARE MOBILE VISUAL OK');
