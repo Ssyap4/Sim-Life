@@ -10,6 +10,7 @@ import { buildPetArt, simbaScale, verdellScale } from './PetArt';
 import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { petStepPace, petPaceBlend, perchBodyYaw } from './PetMotion';
+import {newPetPerformance,samplePetPerformance,PET_PERFORMANCES} from './PetPerformance';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
@@ -23,6 +24,7 @@ export class PetActor {
   private dogBedLeaving=false;
   private pendingDogBed:DogBedSite|null=null;
   private napWeight=0;
+  private readonly performance=newPetPerformance();
   private animatedToyIndex:number|undefined;
   private dogBedProgress=0;
   private bathActive=false;
@@ -233,6 +235,16 @@ export class PetActor {
   }
 
   currentIdleGesture(): PetIdleGesture | null { return this.idleGesture; }
+
+  /** Isolated visual QA, used only by the explicit camera QA URL. */
+  previewPerformanceQA(gesture:string):boolean{
+    if(!(PET_PERFORMANCES[this.id] as readonly string[]).includes(gesture)||
+      this.route.length||this.reaction||this.perchProgress||this.dogBedProgress||
+      (this.routine!==null&&this.routine!=='wander'))return false;
+    this.idleGesture=gesture as PetIdleGesture;this.idleTime=0;
+    this.idleCooldown=4;return true;
+  }
+  performanceQA(){return {gesture:this.idleGesture,time:this.idleTime};}
 
   react(action: PetAction): void {
     this.stop();
@@ -513,7 +525,7 @@ export class PetActor {
       if (this.idleTime >= PET_IDLE_SECONDS) {
         this.idleGesture = null;
         this.idleTime = 0;
-        this.idleCooldown = (this.id === 'verdell' ? 3.4 : 4.5) + ((this.idleTurn*7)%5)*.8 + (this.ambient.energy<40?3:0);
+        this.idleCooldown = (this.id === 'verdell' ? 1.8 : 2.4) + ((this.idleTurn*7)%5)*.55 + (this.ambient.energy<40?3:0);
       }
     } else {
       this.idleCooldown -= dt;
@@ -529,6 +541,11 @@ export class PetActor {
       }
     }
     const idleWeight = this.idleGesture ? petIdleWeight(this.idleTime) : 0;
+    // Undo previous additive head motion before updating the smoothed base.
+    this.head.rotation.x-=this.performance.headPitch;
+    this.head.rotation.y-=this.performance.headYaw;
+    this.head.rotation.z-=this.performance.headRoll;
+    const performance=samplePetPerformance(this.performance,this.id,this.idleGesture,this.idleTime,idleWeight);
     const greeting = this.idleGesture === 'greet' ? idleWeight : 0;
     const grooming = this.idleGesture === 'groom' ? idleWeight : 0;
     const stretching = this.idleGesture === 'stretch' ? idleWeight : 0;
@@ -749,7 +766,11 @@ export class PetActor {
       const paw = this.paws[i];
       const front = i % 2 === 0;
       const pawLift = dog ? playBeat * (front ? 0.17 : -0.20) : front ? -0.21 : 0.072;
-      paw.rotation.x = pawLift * playful + (scratching&&front ? -.68*scratching*(.55+.45*Math.sin(t*12+i*Math.PI)) : 0) + Math.sin(travel * (dog ? 16 / verdellScale : 15) + (i === 0 || i === 3 ? Math.PI : 0)) * pace * .33 +
+      const walkPhase=travel*(dog?19:15)+[0,Math.PI*.52,Math.PI,Math.PI*1.52][i];
+      const trotPhase=travel*(dog?19:15)+(i===0||i===3?Math.PI:0);
+      const trot=THREE.MathUtils.smoothstep(pace,.56,.88);
+      const gait=THREE.MathUtils.lerp(Math.sin(walkPhase),Math.sin(trotPhase),trot);
+      paw.rotation.x = pawLift * playful + (scratching&&front ? -.68*scratching*(.55+.45*Math.sin(t*12+i*Math.PI)) : 0) + gait * pace * .43 +
         sleeping * (front ? -.55 : .37) + dogNap*(front?-.43:.22) +
         catNap*(front?-.24:.10) + toilet * (front ? .02 : .31)
         + (!dog && perched ? (front?-.47:.24)*perched : 0)
@@ -773,12 +794,12 @@ export class PetActor {
         + (!dog && i < 2 ? pounce * -.045 : 0)
         + (dog && front ? .47 * begging : 0)+sit*(front?.025:.10)+lie*.12+(dog&&i===0?puzzle*.15*Math.max(0,Math.sin(toyBeat*2)):0);
       if(dog){
-        const phase=travel*19+(i===0||i===3?Math.PI:0);
-        const swing=Math.max(0,-Math.cos(phase));
+        const phase=walkPhase;
+        const swing=THREE.MathUtils.lerp(Math.max(0,-Math.cos(phase)),Math.max(0,-Math.cos(trotPhase)),trot);
         const flex=swing*pace*.60 + dogNap*.69 + sleeping*.37
           + (front ? .62*begging + .19*pawWave : .24*toilet)+sit*(front?.08:.78)+lie*(front?.65:.48);
         const knee=this.rig.knees?.[i];
-        if(knee)knee.rotation.x=flex*(front?1:-1);
+        if(knee)knee.rotation.x=(flex+performance.knee[i])*(front?1:-1);
         paw.position.y+=swing*pace*.045;
       }
       // A lifted paw reaches the cat's face, rather than twitching on the floor.
@@ -788,6 +809,26 @@ export class PetActor {
       paw.position.x = (i < 2 ? -1 : 1) * (dog ? .16 : front ? .094 : .109) +
         (!dog && i === 0 ? grooming * .04 : 0)
         - (dog && front ? (i<2?-1:1)*.048*begging : 0);
+    }
+    // These are actual joint/body channels, rather than a collection of icons
+    // or name-only idle variants. Keep the physics root fixed.
+    this.head.rotation.x+=performance.headPitch;
+    this.head.rotation.y+=performance.headYaw;
+    this.head.rotation.z+=performance.headRoll;
+    this.head.position.y-=performance.headDrop;
+    this.tail.rotation.y+=performance.tail;
+    for(const ear of this.rig.ears)ear.rotation.x+=performance.ear;
+    for(const eye of this.rig.eyes)eye.scale.y*=1-performance.eye;
+    if(dog||!this.simbaRig){
+      this.body.position.y+=performance.y+Math.abs(Math.sin(travel*19))*pace*.027;
+      this.body.position.z+=performance.z;
+      this.body.rotation.x+=performance.pitch+.035*pace*Math.sin(travel*19);
+      this.body.rotation.z+=performance.roll+.036*pace*Math.sin(travel*9.5);
+      this.rig.jaw.position.y-=performance.jaw;
+      for(let i=0;i<this.paws.length;i++){
+        const paw=this.paws[i];paw.position.y+=performance.pawY[i];
+        paw.position.z+=performance.pawZ[i];paw.rotation.x+=performance.pawPitch[i];
+      }
     }
     if(carrying){
       // The ball follows the animated muzzle through head turns, bobs and bends.
@@ -824,6 +865,10 @@ export class PetActor {
       this.body.position.set(0,
         THREE.MathUtils.lerp(groundBodyY, -(restPreset?.sink??0),restWeight),
         step*scratching+catPounce*.16);
+      this.body.position.y+=performance.y+pace*.018*Math.sin(travel*17);
+      this.body.position.z+=performance.z;
+      this.body.rotation.x+=performance.pitch;
+      this.body.rotation.z+=performance.roll+.025*pace*Math.sin(travel*9);
       if(surface&&phase>0){
         const horizontal=THREE.MathUtils.smootherstep(phase,entering?0:surface.entry==='jump'?.35:.25,1);
         const vertical=THREE.MathUtils.smootherstep(phase,.08,entering?.65:surface.entry==='jump'?.56:.82);
@@ -845,7 +890,7 @@ export class PetActor {
       const animate=(target?:THREE.Vector3)=>this.simbaRig!.pose(
         t,travel/this.root.scale.x+(entering?phase*1.4:0),entering&&phase>.02&&phase<.72?.48:pace,crouch,scratching,grooming+.54*playful+.85*pawWave,eating,
         this.tail.rotation.y-curled*2.50,rest,this.head.rotation,this.rig.ears,this.rig.eyes,
-        airborne+catPounce,rest,target,loaf,coil,restPoseId,restWeight,toyContact,catStrike,toy?.kind==='spring');
+        airborne+catPounce,rest,target,loaf,coil,restPoseId,restWeight,toyContact,catStrike,toy?.kind==='spring',performance);
       animate(contact);
       if(post){
         // The scratch target is a fixed REAL post, not a hand-waved offset.

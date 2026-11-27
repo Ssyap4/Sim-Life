@@ -3334,6 +3334,15 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('petMotionQA')==='1'){
+      const command=this.canvas.dataset.petMotion;
+      if(command){
+        delete this.canvas.dataset.petMotion;
+        const [id,gesture]=command.split(':');
+        if(id==='verdell'||id==='simba')this.pets[id].previewPerformanceQA(gesture);
+      }
+      this.canvas.dataset.petMotionState=JSON.stringify({verdell:this.pets.verdell.performanceQA(),simba:this.pets.simba.performanceQA()});
+    }
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('hobbyQA')==='1'){
       const id=Number(this.canvas.dataset.hobbyView),model=this.furnishingModels.get(id);
       if(model){const target=model.localToWorld(new THREE.Vector3(0,.95,.25));this.controls.target.copy(target);this.camera.position.copy(model.localToWorld(new THREE.Vector3(2.4,2.6,3.8)));this.camera.lookAt(target);}

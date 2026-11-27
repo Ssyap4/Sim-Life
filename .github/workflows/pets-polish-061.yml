@@ -6,6 +6,9 @@ on:
       - 'src/game/PetActor.ts'
       - 'src/game/SimbaRig.ts'
       - 'src/game/PetMotion.ts'
+      - 'src/game/PetPerformance.ts'
+      - 'src/game/PetIdle.ts'
+      - 'scripts/qa-pet-performance-061.mjs'
       - 'scripts/qa-pet-polish-061.mjs'
       - '.github/workflows/pets-polish-061.yml'
 permissions:
@@ -22,7 +25,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npx tsx --test server/tests/pet-motion-049.test.ts server/tests/pet-toys-035.test.ts server/tests/simbaAuthoredRest-028.test.ts server/tests/verdell-bed.test.ts server/tests/dog-bath-035.test.ts server/tests/expressionPets053.test.ts server/tests/pet-feeders-035.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/petMovementStress.test.ts server/tests/petPersonality.test.ts server/tests/petCommands-028.test.ts
+      - run: npx tsx --test server/tests/pet-motion-049.test.ts server/tests/pet-toys-035.test.ts server/tests/simbaAuthoredRest-028.test.ts server/tests/verdell-bed.test.ts server/tests/dog-bath-035.test.ts server/tests/expressionPets053.test.ts server/tests/pet-feeders-035.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/petMovementStress.test.ts server/tests/petPersonality.test.ts server/tests/petCommands-028.test.ts server/tests/pet-performance-061.test.ts
   visual:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -36,12 +39,15 @@ jobs:
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install chromium
       - run: npm run build
+      - run: node --import tsx scripts/qa-pet-performance-061.mjs
       - run: node --import tsx scripts/qa-pet-polish-061.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pet-polish-061
-          path: /tmp/simourhome-061-pets
+          path: |
+            /tmp/simourhome-061-pets
+            /tmp/simourhome-061-performances
           retention-days: 7
   contacts:
     runs-on: ubuntu-24.04

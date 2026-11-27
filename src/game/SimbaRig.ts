@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CAT_REST_POSES, type CatRestPoseId } from '../shared/CatRestPoses';
+import type {PetPerformance} from './PetPerformance';
 
 function joint(model: THREE.Object3D, name: string): THREE.Bone {
   const bone = model.getObjectByName(name);
@@ -69,22 +70,22 @@ export class SimbaRig {
   pose(time:number,distance:number,motion:number,crouch:number,reach:number,groom:number,eating:number,
     tailSwing:number,tailFold:number,head:THREE.Euler,ears:readonly THREE.Group[],eyes:readonly THREE.Group[],
     jump:number,rest:number,scratchContact?:THREE.Vector3,loaf=0,coil=0,
-    restPose?:CatRestPoseId,restWeight=0,toyContact?:THREE.Vector3,toyReach=0,singlePaw=false) {
+    restPose?:CatRestPoseId,restWeight=0,toyContact?:THREE.Vector3,toyReach=0,singlePaw=false,performance?:PetPerformance) {
     const breath = Math.sin(time*2.4);
     const pose=restPose?CAT_REST_POSES[restPose]:undefined;
     const settle=pose?THREE.MathUtils.clamp(restWeight,0,1):0;
     // A cat resting on a cushion lowers its head and folds the muzzle back
     // toward its chest. Bone targets are rebuilt each frame, never accumulated.
-    this.head.position.y=this.headRest.y-.036*loaf-(pose?.headDrop??0)*settle;
+    this.head.position.y=this.headRest.y-.036*loaf-(pose?.headDrop??0)*settle-(performance?.headDrop??0);
     this.head.position.z=this.headRest.z-.055*coil-.022*settle;
     this.head.rotation.set(head.x*.76+.12*loaf+(pose?.headPitch??0)*settle,
       head.y*.74+.10*coil+(pose?.headTurn??0)*settle,head.z*.74);
     this.neck.rotation.set(head.x*.24+.11*loaf+.045*settle,head.y*.26,head.z*.18);
     this.neck.position.y=.02-.095*eating-.05*rest-.035*loaf-.012*settle;
-    this.jaw.rotation.x=.12*eating*(.5+.5*Math.sin(time*12));
+    this.jaw.rotation.x=.12*eating*(.5+.5*Math.sin(time*12))+(performance?.jaw??0);
     this.spine.rotation.y=.050*motion*Math.sin(distance*12)+rest*.12+
       (pose?.spineYaw??0)*settle;
-    this.spine.rotation.x=.085*loaf+(pose?.spinePitch??0)*settle;
+    this.spine.rotation.x=.085*loaf+(pose?.spinePitch??0)*settle+(performance?.spine??0)+.025*motion*Math.sin(distance*12);
     this.chest.rotation.x=(.014*breath-.07*reach)*(1-.6*rest)+.045*loaf+.04*settle;
     for(let i=0;i<this.tail.length;i++){
       const joint = this.tail[i];
@@ -136,8 +137,11 @@ export class SimbaRig {
         this.scratchTarget.copy(toyContact);this.model.localToWorld(this.scratchTarget);limb.hip.parent!.worldToLocal(this.scratchTarget).sub(limb.hip.position);
         const hit=THREE.MathUtils.clamp(toyReach,0,1);pawY=THREE.MathUtils.lerp(pawY,this.scratchTarget.y,hit);pawZ=THREE.MathUtils.lerp(pawZ,this.scratchTarget.z,hit);
       }
+      // The skeletal cat uses actual IK targets for every new gesture.
+      pawY+=(performance?.pawY[index]??0)-(performance?.y??0);
+      pawZ+=performance?.pawZ[index]??0;
       plantPaw(limb,pawY,pawZ,
-        (lift*.8-wash*.52-(limb.front?.60*reach:0))*(1-settle));
+        (lift*.8-wash*.52-(limb.front?.60*reach:0))*(1-settle)+(performance?.pawPitch[index]??0)*.35);
       // Opposite fore/knee folds create a recognizable cat loaf silhouette.
       // Small enough not to twist paw meshes outside the cushion.
       const side=index<2?-1:1;
