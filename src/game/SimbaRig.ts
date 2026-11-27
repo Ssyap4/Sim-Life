@@ -150,6 +150,9 @@ export class SimbaRig {
     }
   }
 
+  muzzleContact(target:THREE.Vector3):THREE.Vector3{
+    return this.head.localToWorld(target.set(0,-.045,.16));
+  }
   /** Rear ankle contact in world coordinates; used only when climbing the
    * scratching post to keep the hind paws planted on the real floor. */
   hindContactHeight(): number {

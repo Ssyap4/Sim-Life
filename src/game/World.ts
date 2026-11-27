@@ -1299,7 +1299,7 @@ export class World {
         const petContact=pet ? (target:THREE.Vector3,stroke?:number)=>pet.coatContact(target,stroke) : undefined;
         if(leads) {
           actor.playPetActivity(action,petContact);
-          pet?.react(action);
+          pet?.react(action,role);
         } else {
           // Two human players take turns; otherwise the helper stood motionless
           // throughout the entire "brush together" action.
@@ -1309,7 +1309,7 @@ export class World {
             partner.finishActivity();
             if(stage.action==='petBrush')partner.playPartnerGesture('listen',true);
             actor.playPetActivity(action,petContact);
-            pet?.react(action);
+            pet?.react(action,role);
           }});
         }
         break;
@@ -1634,6 +1634,7 @@ export class World {
 
   private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
   finishTimedAction(role: CharacterId): void {
+    for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
@@ -1658,6 +1659,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
+    for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
@@ -1699,11 +1701,11 @@ export class World {
       actor.faceTowards(new THREE.Vector3(position.x,0,position.z));
       actor.playPetActivity(action==='loadFeeder'?'feed':action==='fishTreat'?'treat':action,filling
         ? new THREE.Vector3(position.x,action==='loadFeeder'?(station?.model?.height??.28)+.10:.28,position.z)
-        : (hand:THREE.Vector3,stroke?:number)=>pet.coatContact(hand,stroke));
+        : (hand:THREE.Vector3,stroke?:number)=>action==='treat'||action==='fishTreat'?pet.muzzleContact(hand):pet.coatContact(hand,stroke));
       // The animal eats during its own routine, not when the player pours food.
-      if (!filling) pet.react(action==='fishTreat'?'treat':action);
+      if (!filling) pet.react(action==='fishTreat'?'treat':action,role);
     });
-    if (!walking) { pet.react(action==='fishTreat'?'treat':action); return false; }
+    if (!walking) return false;
     ++this.socialSequence;
     return true;
   }
@@ -2712,7 +2714,7 @@ export class World {
         ? undefined : candidate;
       if (!pet.root.visible || !routine) {
         this.petRoutines.delete(id);
-        if (pet.root.visible) {
+        if (pet.root.visible&&!pet.audioMotion().reaction) {
           pet.stop();
           const position = state.pets[id].position;
           pet.syncGround(position.x,position.z);
@@ -3224,14 +3226,20 @@ export class World {
     if (this.household) {
       for (const id of PET_IDS) {
         const pet = this.household.pets[id];
-        const nearby = this.place === 'home' && (['vlad', 'alina'] as const).some(role => {
-          const resident = this.actors[role];
-          return resident.root.visible && !this.sleepingOffline.has(role) &&
-            this.household?.world.places[role] === 'home' &&
-            !this.household.activeShifts[role] && this.household.characters[role].pose !== 'sleep' &&
-            Math.hypot(resident.root.position.x - this.pets[id].root.position.x,
-              resident.root.position.z - this.pets[id].root.position.z) < 2.8;
-        });
+        let owner:THREE.Vector3|undefined,ownerGap=2.8;
+        const assigned=pet.routine&&(pet.routine.kind==='beg'||pet.routine.kind==='event'&&(pet.routine.event==='welcome'||pet.routine.event==='blink'))
+          ?pet.routine.target===0?'vlad':'alina':undefined;
+        if(this.place==='home')for(const role of ['vlad','alina'] as const){
+          if(assigned&&assigned!==role)continue;
+          const resident=this.actors[role],point=resident.root.position;
+          if(!resident.root.visible||this.sleepingOffline.has(role)||this.household.world.places[role]!=='home'||
+            this.household.activeShifts[role]||this.household.characters[role].pose==='sleep')continue;
+          const gap=Math.hypot(point.x-this.pets[id].root.position.x,point.z-this.pets[id].root.position.z);
+          if(gap<ownerGap){owner=point;ownerGap=gap;}
+        }
+        // Keep seated diners eligible, but do not greet somebody behind a wall.
+        const nearby=!!owner&&(!!assigned||segmentIsClear(this.pets[id].root.position,owner,this.petGeometry.obstacles,this.petGeometry.floor));
+        this.pets[id].lookAtOwner(nearby?owner:undefined);
         this.pets[id].setAmbient({
           satiety: pet.satiety, energy: pet.energy, happiness: pet.happiness,
           bond: pet.bond, bowl: this.household.petBowls[id], personNearby: nearby,

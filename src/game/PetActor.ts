@@ -11,6 +11,7 @@ import { createDogToy, createPetPlayToy,createShopToy } from './PetToys';
 import { petTrafficStep, PET_PET_CLEARANCE } from './PetTraffic';
 import { petStepPace, petPaceBlend, perchBodyYaw, petTurnMotion, petDreamMotion } from './PetMotion';
 import {newPetPerformance,samplePetPerformance,PET_PERFORMANCES} from './PetPerformance';
+import {addPetReaction,petReactionSeconds,petReactionWeight,petSocialGesture} from './PetSocialMotion';
 import { nearestClearPoint, pointIsClear } from './navigation';
 import { petTemporaryDetour, planPetRoute } from './PetNavigation';
 import type { FloorPoint, FloorRect } from './navigation';
@@ -64,6 +65,8 @@ export class PetActor {
   private tailPhase = 0;
   private reaction: PetAction | null = null;
   private reactionTime = 0;
+  private reactionOwner:'vlad'|'alina'|undefined;
+  private ownerLook:FloorPoint|undefined;
   private parkRollTime=0;
   private parkStick=false;
   setParkStick():void{this.parkStick=true;}
@@ -225,6 +228,11 @@ export class PetActor {
     this.ambient = context;
   }
 
+  muzzleContact(target:THREE.Vector3):THREE.Vector3{
+    if(this.simbaRig)return this.simbaRig.muzzleContact(target);
+    return this.head.localToWorld(target.set(0,-.139,.365));
+  }
+
   coatContact(target: THREE.Vector3,stroke=0): THREE.Vector3 {
     const s=THREE.MathUtils.clamp(stroke,-1,1);
     // Stroke along the pet's back, not the resident's facing axis.
@@ -274,11 +282,17 @@ export class PetActor {
     this.companionYaw=Math.atan2(other.x-this.root.position.x,other.z-this.root.position.z);
   }
 
-  react(action: PetAction): void {
+  lookAtOwner(point:FloorPoint|undefined):void{this.ownerLook=point;}
+  endOwnerReaction(role:'vlad'|'alina'):void{
+    if(this.reactionOwner!==role)return;
+    this.reactionOwner=undefined;
+    this.reaction=null;
+  }
+  react(action: PetAction,owner?:'vlad'|'alina'): void {
     this.stop();
     this.idleGesture = null;
     this.idleTime = 0;
-    this.reaction = action;
+    this.reaction = action;this.reactionOwner=owner;
     this.reactionTime = 0;
     this.playToy.visible = false;
   }
@@ -302,7 +316,7 @@ export class PetActor {
       this.perchRestPose=chooseCatRestPose(perch.catAnchor?.poses,perch.key,restSeed,perch.kind);
     }
     // A scheduled meal, sleep or walk always overrides a temporary play prop.
-    this.reaction = null;
+    this.reaction = null;this.reactionOwner=undefined;
     this.reactionTime = 0;
     this.playToy.visible = false;
     this.fetchTargetToy.visible=false;
@@ -532,6 +546,9 @@ export class PetActor {
         ? 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(this.clock * 4.2)) : 1;
     }
     this.reactionTime += dt;
+    if(this.reaction&&this.reactionTime>=petReactionSeconds(this.reaction)){
+      this.reaction=null;this.reactionOwner=undefined;
+    }
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
     const canIdle = !descending&&!dogDescending&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&!this.route.length &&
@@ -541,11 +558,11 @@ export class PetActor {
       this.idleTime = 0;
       this.idleCooldown = Math.max(this.idleCooldown, 2.0);
     } else if(this.routine==='event'&&this.event){
-      const gesture:PetIdleGesture=this.event==='welcome'?'happyHop':this.event==='blink'?'slowBlink':this.event;
+      const gesture:PetIdleGesture=this.event==='welcome'||this.event==='blink'?petSocialGesture(this.id,'welcome',this.settled):this.event;
       if(this.idleGesture!==gesture){this.idleGesture=gesture;this.idleTime=0;}
       this.idleTime=(this.idleTime+dt)%PET_IDLE_SECONDS;
     } else if(this.routine==='beg'){
-      const gesture=this.id==='verdell'?'beg':'pawWave';
+      const gesture=petSocialGesture(this.id,'beg',this.settled);
       if(this.idleGesture!==gesture){this.idleGesture=gesture;this.idleTime=0;}
       this.idleTime=(this.idleTime+dt)%PET_IDLE_SECONDS;
     } else if (this.idleGesture) {
@@ -614,8 +631,18 @@ export class PetActor {
       this.routine !== 'eat' && this.routine !== 'toilet' ? .22 : 0;
     const t = this.clock + (dog ? 0 : 1.75);
     const r = this.reactionTime;
-    if (r > 2.75) this.reaction = null;
-    const weight = this.reaction ? Math.sin(Math.PI * Math.min(1, r / 2.75)) : 0;
+    addPetReaction(performance,this.id,this.reaction,r,petReactionWeight(r,this.reaction));
+    const weight = petReactionWeight(r,this.reaction);
+    // Head tracks a real nearby owner rather than staring in a random direction.
+    // Only use this channel during social attention; never for food/sleep/routes.
+    const socialLook=this.ownerLook&&!this.route.length&&!descending&&!dogDescending&&
+      (this.routine==='beg'||this.routine==='event'&&(this.event==='welcome'||this.event==='blink')||
+        this.idleGesture==='greet'||this.idleGesture==='happyHop'||this.idleGesture==='nuzzle')?this.ownerLook:undefined;
+    if(socialLook){
+      const yaw=Math.atan2(socialLook.x-this.root.position.x,socialLook.z-this.root.position.z)-this.root.rotation.y;
+      performance.headYaw+=THREE.MathUtils.clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.62,.62)*idleWeight;
+      performance.headPitch-=.18*idleWeight;
+    }
     const toy=this.toyIndex!==undefined?this.toys[this.toyIndex]:undefined;
     const toyApproach=toy?homeToyApproach(this.id,this.toyIndex!):undefined;
     const toyPlay=toy&&toyApproach&&this.routine==='toy'&&!this.route.length&&this.homeToys.children[this.toyIndex!]?.visible
@@ -632,7 +659,7 @@ export class PetActor {
     const pickup=dog&&this.routine==='fetch'&&this.fetchSpot&&!this.fetchPickedUp
       ? 1-THREE.MathUtils.smoothstep(Math.hypot(this.root.position.x-this.fetchSpot.x,
         this.root.position.z-this.fetchSpot.z),.22,.85) : 0;
-    const eating = (this.reaction === 'feed'||this.reaction==='treat') ? weight : this.routine === 'eat' ? settled : 0;
+    const eating = this.reaction==='feed'?weight:this.reaction==='treat'?weight*.25*THREE.MathUtils.smoothstep(r,1,1.6)*(1-THREE.MathUtils.smoothstep(r,3.8,4.55)):this.routine==='eat'?settled:0;
     const surface=(descending?this.leavingPerch:this.perch);
     const perched=this.id==='simba' && surface && (descending||!this.route.length) ?
       THREE.MathUtils.smoothstep(this.perchProgress,.67,1) : 0;

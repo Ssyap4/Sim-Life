@@ -31,7 +31,7 @@ try{
  await page.goto('http://127.0.0.1:'+server.port+'/?cameraQA=1',{waitUntil:'domcontentloaded',timeout:60000});
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role='+role+']').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
- for(const action of ['pet','brush']){
+ for(const action of ['pet','brush','play','treat']){
   await send({type:'pet_action',pet:id,action});
   const t=await take('task_started',p=>p.role===role&&p.command?.action===action);
   await page.waitForFunction(({role,action})=>{const a=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors[role];return a.activity===action&&a.handheld.elapsed>.5;},{role,action},{timeout:45000});

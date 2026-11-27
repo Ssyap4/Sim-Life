@@ -8,6 +8,7 @@ import {SimbaRig} from '../../src/game/SimbaRig';
 import {PET_PERFORMANCES,newPetPerformance,samplePetPerformance} from '../../src/game/PetPerformance';
 import {choosePetIdle,petIdleWeight} from '../../src/game/PetIdle';
 import {petTurnMotion,petDreamMotion} from '../../src/game/PetMotion';
+import {petReactionSeconds,petReactionWeight,petSocialGesture,addPetReaction} from '../../src/game/PetSocialMotion';
 
 test('new performances have different time-varying joint channels and neutral boundaries',()=>{
  const p=newPetPerformance(),flat=()=>Object.values(p).flat() as number[];
@@ -102,4 +103,42 @@ test('companion invitation is a bounded visual exchange and yields to real actio
  cat.followRoute([],'eat',0);cat.update(.05);
  assert.equal(cat.currentIdleGesture(),null);assert.ok(!cat.canGreetCompanion());
  const tired=new PetActor('simba');tired.setAmbient({...context,energy:20});assert.ok(!tired.canGreetCompanion());
+});
+test('owner reactions span the care and play durations, with distinct begging and greeting phrases',()=>{
+ for(const id of ['verdell','simba'] as const){
+  for(const action of ['pet','brush','play','treat'] as const){
+   const duration=petReactionSeconds(action),pet=new PetActor(id);
+   pet.react(action,'vlad');
+   const p=newPetPerformance();
+   for(let i=0;i<Math.floor((duration-.5)*60);i++){
+    pet.update(1/60);
+    assert.equal(pet.audioMotion().reaction,action);
+   }
+   for(let i=0;i<61;i++)pet.update(1/60);
+   assert.equal(pet.audioMotion().reaction,null);
+   assert.equal(petReactionWeight(duration,action),0);
+   addPetReaction(p,id,action,1.8,1);
+   assert.ok(Object.values(p).flat().some(v=>v!==0));
+  }
+  for(const kind of ['beg','welcome'] as const){
+   assert.ok(new Set([0,3.5,7].map(t=>petSocialGesture(id,kind,t))).size>=2);
+  }
+ }
+});
+test('only the matching owner can stop a care animation; a new authoritative route wins',()=>{
+ const pet=new PetActor('verdell');
+ pet.react('play','vlad');pet.update(.5);
+ pet.endOwnerReaction('alina');assert.equal(pet.audioMotion().reaction,'play');
+ pet.endOwnerReaction('vlad');assert.equal(pet.audioMotion().reaction,null);
+ pet.react('brush','alina');pet.followRoute([],'eat',0);
+ assert.equal(pet.audioMotion().reaction,null);
+});
+test('treat animation starts with lifted muzzle and later chews rather than facing a bowl',()=>{
+ const p=newPetPerformance();
+ for(const id of ['verdell','simba'] as const){
+  samplePetPerformance(p,id,null,0,0);addPetReaction(p,id,'treat',.6,1);
+  assert.ok(p.headPitch<-.25&&p.headDrop<0);
+  samplePetPerformance(p,id,null,0,0);addPetReaction(p,id,'treat',2,1);
+  assert.ok(p.jaw>0);
+ }
 });

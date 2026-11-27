@@ -7,6 +7,8 @@ on:
       - 'src/game/SimbaRig.ts'
       - 'src/game/PetMotion.ts'
       - 'src/game/PetPerformance.ts'
+      - 'src/game/PetSocialMotion.ts'
+      - 'scripts/qa-053-pet-contact.mjs'
       - 'src/game/PetIdle.ts'
       - 'scripts/qa-pet-performance-061.mjs'
       - 'scripts/qa-pet-polish-061.mjs'
