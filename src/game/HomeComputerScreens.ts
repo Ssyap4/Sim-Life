@@ -48,7 +48,10 @@ export class HomeComputerScreens {
   hardwareGroup(device:ComputerDevice){return this.hardware[device].group;}
   /** The exact same hardware and animated texture move to a purchased desk. */
   hostDesktop(desk:THREE.Group|null):void{
-    const group=this.hardware.desktop.group;(desk??this.initialDesktop).add(group);
+    const group=this.hardware.desktop.group;
+    const host=desk??this.initialDesktop;
+    if(group.parent===host)return;
+    host.add(group);
     const layout=desk&&workstationLayout(String(desk.userData.sku));
     group.position.set(0,desk?(layout?.top??.75):1.053,layout?.z??0);
     group.scale.setScalar(desk?(layout?.scale??.82):1);
@@ -59,7 +62,9 @@ export class HomeComputerScreens {
   }
 
   hostLaptop(desk:THREE.Group|null){const group=this.hardware.laptop.group;
-    (desk??this.initialLaptop).add(group);group.position.set(0,desk?.76:.86,desk?-.24:-.105);
+    const host=desk??this.initialLaptop;
+    if(group.parent===host)return;
+    host.add(group);group.position.set(0,desk?.76:.86,desk?-.24:-.105);
     group.traverse(part=>{if(part instanceof THREE.Mesh){if(desk){delete part.userData.station;part.userData.furnitureId=desk.userData.furnitureId;}else{delete part.userData.furnitureId;part.userData.station='career-laptop';}}});
   }
   audioTask(device:ComputerDevice):ComputerScene|undefined{for(const entry of this.tasks.values())if(entry.device===device)return entry.scene;return undefined;}

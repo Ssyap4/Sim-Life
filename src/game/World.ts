@@ -89,7 +89,7 @@ import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
-import {reconcileFurnitureModels,disposeFurnitureModel} from './FurnitureModels';
+import {reconcileFurnitureModels,disposeFurnitureModel,preferredFurniture} from './FurnitureModels';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
@@ -1995,7 +1995,10 @@ export class World {
     const signature=JSON.stringify([placed,this.household?.furnishing.soldFixtures?.includes('desk')??false,this.household?.furnishing.soldFixtures?.includes('bed')??false]);
     if(signature===this.furnishingVisualKey)return;
     this.furnishingVisualKey=signature;
-    this.computerScreens.hostDesktop(null);this.computerScreens.hostLaptop(null);
+    const desktop=this.computerScreens.hardwareGroup('desktop');
+    const laptop=this.computerScreens.hardwareGroup('laptop');
+    const desktopId=desktop.parent?.userData.furnitureId as number|undefined;
+    const laptopId=laptop.parent?.userData.furnitureId as number|undefined;
     reconcileFurnitureModels(this.furnishingModels,placed,item=>{
       const model=buildFurnishingModel(item.sku,item.finish);
       model.traverse(part=>{
@@ -2007,6 +2010,9 @@ export class World {
       this.homeScene.add(model);
       return model;
     },model=>{
+      // Shared hardware must be detached before model-owned buffers are freed.
+      if(desktop.parent===model)this.computerScreens.hostDesktop(null);
+      if(laptop.parent===model)this.computerScreens.hostLaptop(null);
       const removed=new Set<THREE.Object3D>();
       model.traverse(part=>removed.add(part));
       for(let i=this.interactiveMeshes.length-1;i>=0;i--)
@@ -2021,12 +2027,12 @@ export class World {
         model.scale.y=site?site.height/.76:model.userData.originalScaleY;
       }
     });
-    const notebook=placed.find(item=>isNotebookDesk(item.sku));
-    if(notebook)this.computerScreens.hostLaptop(this.furnishingModels.get(notebook.id)!);
-    if(this.household?.furnishing.soldFixtures?.includes('desk')){
-      const replacement=placed.find(item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku));
-      if(replacement)this.computerScreens.hostDesktop(this.furnishingModels.get(replacement.id)!);
-    }
+    const notebook=preferredFurniture(placed,laptopId,item=>isNotebookDesk(item.sku));
+    const notebookModel=notebook?this.furnishingModels.get(notebook.id)!:null;
+    this.computerScreens.hostLaptop(notebookModel);
+    const replacement=this.household?.furnishing.soldFixtures?.includes('desk')
+      ?preferredFurniture(placed,desktopId,item=>FURNITURE_BY_ID.get(item.sku)?.shape==='desk'&&!isNotebookDesk(item.sku)):undefined;
+    this.computerScreens.hostDesktop(replacement?this.furnishingModels.get(replacement.id)!:null);
   }
 
   focusDesktopFurniture(id:number):void{

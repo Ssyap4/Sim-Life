@@ -4,7 +4,7 @@ import { batchRigidParts, colors as C, cube, finish, panel } from './ArtKit';
 import {gardenView} from './ArtTextures';
 import {cottageFloor,timberWall} from './CottageArt';
 import {HOME_WALL_HEIGHT} from './HomeSideWalls';
-import {addPassageFinish} from './HomeFinish';
+import {addPassageFinish,batchPassageFinishes} from './HomeFinish';
 
 // A future-ready three-room wing. The established rooms, props, action anchors,
 // and old wall coordinates are deliberately left alone.
@@ -64,6 +64,7 @@ export function buildHomeWing(scene: THREE.Scene): void {
   for(const z of HOUSE_WING.crossWalls)
     addPassageFinish(wing,{x:HOUSE_WING.crossDoor.x,z,width:HOUSE_WING.crossDoor.width},'z');
   addPassageFinish(wing,{x:HOUSE.maxX,...HOUSE_WING.connector},'x');
+  batchPassageFinishes(wing);
   batchRigidParts(wing, true);
   scene.add(wing);
 }

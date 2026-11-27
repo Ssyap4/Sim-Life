@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {reconcileFurnitureModels,disposeFurnitureModel} from '../../src/game/FurnitureModels';
+import {reconcileFurnitureModels,disposeFurnitureModel,preferredFurniture} from '../../src/game/FurnitureModels';
 import {cube,plane,torus,finish} from '../../src/game/ArtKit';
 import {createLocation} from '../../src/game/LocationScene';
 import type {PlacedFurniture} from '../../src/shared/furniture';
@@ -34,4 +34,15 @@ test('Park, lake and SPA release their instance buffers and clear station refere
   assert.ok(count>0,place);scene.dispose();assert.equal(released,count,place);assert.equal(scene.stations.size,0);assert.equal(scene.root.children.length,0);
   scene.dispose();assert.equal(released,count);
  }
+});
+test('Selected replacement desk remains selected after unrelated furniture edits and recoloring',()=>{
+ const a:PlacedFurniture={id:1,sku:'desk-oak',finish:'sage',x:0,z:0,rotation:0};
+ const b:PlacedFurniture={...a,id:2,x:3};
+ const other:PlacedFurniture={...a,id:3,sku:'bed-aurora'};
+ const accepts=(item:PlacedFurniture)=>item.sku==='desk-oak';
+ assert.equal(preferredFurniture([a,b,other],2,accepts),b);
+ const recolored={...b,finish:'oak' as const,x:4};
+ assert.equal(preferredFurniture([other,a,recolored],2,accepts),recolored);
+ assert.equal(preferredFurniture([a,other],2,accepts),a);
+ assert.equal(preferredFurniture([other],2,accepts),undefined);
 });

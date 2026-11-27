@@ -28,6 +28,13 @@ export function reconcileFurnitureModels(models:Map<number,THREE.Group>,placed:r
   }
 }
 
+/** Keep the selected workstation if it still exists; retain its identity
+ * even if its model was replaced by a finish change. */
+export function preferredFurniture(placed:readonly PlacedFurniture[],preferredId:number|undefined,
+ accepts:(item:PlacedFurniture)=>boolean):PlacedFurniture|undefined{
+ return placed.find(item=>item.id===preferredId&&accepts(item))??placed.find(accepts);
+}
+
 /** Geometry is local to the model except the art-kit primitives; surface
  * materials and painted maps are cached globally, so never dispose those. */
 export function disposeFurnitureModel(root:THREE.Object3D,ghost=false):void{

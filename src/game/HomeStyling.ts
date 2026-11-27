@@ -6,7 +6,7 @@ import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, H
 import { gardenView } from './ArtTextures';
 import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
 import {HOME_WALL_HEIGHT} from './HomeSideWalls';
-import {addPassageFinish,addRearFinish} from './HomeFinish';
+import {addPassageFinish,addRearFinish,batchPassageFinishes} from './HomeFinish';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -180,6 +180,7 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   cottageFloor(home);
   rearWall(home);
   roomPartitions(home);
+  batchPassageFinishes(home);
   addRearFinish(home);
   const entry = entryDoor(home);
 

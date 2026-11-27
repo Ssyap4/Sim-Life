@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {cube,finish,colors as C,paintedMap,panel,batchRigidParts} from './ArtKit';
 import {HOUSE,HOUSE_WING} from '../shared/home';
 
@@ -29,6 +30,30 @@ export function addPassageFinish(parent:THREE.Group,p:Passage,axis:'x'|'z'){
  batchRigidParts(frame,true);
  frame.traverse(o=>{if(o instanceof THREE.Mesh)o.raycast=()=>{};});
  parent.add(frame);return frame;
+}
+
+/** The frames never animate or take taps. Combine all of one shell's
+ * vertex-colored jamb meshes in shell-local coordinates, preserving UVs. */
+export function batchPassageFinishes(parent:THREE.Group):void{
+ const frames=parent.children.filter(o=>o.name==='Finished passage');
+ if(frames.length<2)return;
+ const parts=frames.flatMap(f=>f.children.map(m=>({f,m})));
+ if(parts.some(({m})=>!(m instanceof THREE.Mesh)||Array.isArray(m.material)))return;
+ const meshes=parts as {f:THREE.Object3D;m:THREE.Mesh}[];
+ const material=meshes[0].m.material;
+ if(meshes.some(({m})=>m.material!==material))return;
+ const sources=meshes.map(({f,m})=>{
+  f.updateMatrix();m.updateMatrix();
+  return m.geometry.clone().applyMatrix4(m.matrix).applyMatrix4(f.matrix);
+ });
+ const merged=mergeGeometries(sources);
+ sources.forEach(g=>g.dispose());
+ if(!merged)return;
+ const batch=new THREE.Mesh(merged,material);
+ batch.name='Batched finished passages';batch.receiveShadow=true;batch.raycast=()=>{};
+ for(const f of frames)parent.remove(f);
+ for(const g of new Set(meshes.map(({m})=>m.geometry)))g.dispose();
+ parent.add(batch);
 }
 
 function wallArtMap(){

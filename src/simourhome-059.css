@@ -185,3 +185,20 @@
  #app .furnish-card-icon{height:100px}
  #app .furnish-card-copy .furnish-price{font-size:14px}
 }
+
+/* Live cards use the full text column instead of a separate wide icon rail.
+   History keeps its original layout; touch targets remain 44px. */
+#app #message .notice-card{
+ position:relative;grid-template-columns:minmax(0,1fr) 44px;gap:5px;
+ padding:7px 7px 7px 9px;border-radius:10px;
+}
+#app #message .notice-symbol{
+ position:absolute;top:7px;left:9px;width:19px;height:19px;font-size:12px;
+}
+#app #message .notice-body strong{padding-left:25px;min-height:19px;font-size:12px;line-height:19px}
+#app #message .notice-body p{margin:2px 0 0;font-size:12px;line-height:1.32}
+#app #message .notice-close{width:44px;height:44px;align-self:start}
+#app #message .notice-link{margin-top:3px;min-height:44px;padding:4px 8px}
+@media(max-width:700px){
+ #app #message.notice-stack{width:min(360px,calc(100% - 20px));max-height:calc(65dvh - var(--hud-top,114px));overscroll-behavior:contain}
+}
