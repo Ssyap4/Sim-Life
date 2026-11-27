@@ -107,6 +107,12 @@ function makeSofa(): THREE.Group {
   }
   // Recessed front upholstery piping; no seat height or footprint change.
   for(const x of [-.498,.498])part(sofa,[.84,.018,.022],[x,.685,-.487],0x41665a,'square');
+  // Tailored arm-front inset and restrained welt seam; no changes to seats.
+  for(const x of [-1.15,1.15]){
+    part(sofa,[.27,.27,.012],[x,.63,-.523],0x63877a,'soft',false,'fabric');
+    for(const edge of [-.119,.119])
+      part(sofa,[.014,.23,.010],[x+edge,.63,-.533],0x41665a,'square');
+  }
   pillow(sofa, [-0.83, 0.96, -0.08], C.linen, -0.30);
   pillow(sofa, [0.84, 0.98, -0.085], C.terracotta, 0.27);
   return sofa;
@@ -150,6 +156,11 @@ function makeBed(): THREE.Group {
     const p = part(bed, [1.08, 0.21, 0.60], [x, 0.852, -0.80], C.cream, cushionGeometry, true);
     p.rotation.y = x < 0 ? 0.045 : -0.045;
   }
+  // A recessed wooden footboard panel and contrasting edge are below the
+  // mattress and sleep anchors. Quilt piping is only on the vertical edge.
+  part(bed,[2.42,.13,.024],[0,.36,1.341],C.wood,'square',false,'wood');
+  for(const y of [.304,.416])part(bed,[2.30,.012,.014],[0,y,1.358],C.woodDark,'square',false,'wood');
+  part(bed,[2.38,.014,.014],[0,.819,1.275],0xa95a50,'square');
   // Shallow decorative headboard upholstery buttons, behind the pillow zone.
   for(const x of [-.92,-.46,0,.46,.92])part(bed,[.045,.045,.014],[x,1.10,-1.084],0x9b7753,'soft');
   return bed;

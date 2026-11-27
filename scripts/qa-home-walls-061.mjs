@@ -21,7 +21,7 @@ try{
  const canvas=page.locator('#game-canvas');
  await page.waitForFunction(()=>document.querySelector('#game-canvas')?.dataset.sideWalls);
  await page.screenshot({path:join(out,'01-default.png')});
- for(const [view,west,east] of [['front',true,true],['west',false,true],['east',true,false],['bedroom',false,true],['study',true,true],['wing',true,false],['passages',true,true],['kitchen',true,true],['bath',true,true],['basin',true,true],['wc',true,true]]){
+ for(const [view,west,east] of [['front',true,true],['west',false,true],['east',true,false],['bedroom',false,true],['study',true,true],['wing',true,false],['passages',true,true],['kitchen',true,true],['bath',true,true],['basin',true,true],['wc',true,true],['living',true,true],['bed-detail',true,true]]){
   await canvas.evaluate((el,v)=>el.dataset.wallView=v,view);
   await page.waitForFunction(({west,east})=>{const el=document.querySelector('#game-canvas');const w=JSON.parse(el.dataset.sideWalls||'[]');return w[0]?.[1]===west&&w[1]?.[1]===east;},{west,east},{timeout:20000});
   await page.waitForTimeout(1000);

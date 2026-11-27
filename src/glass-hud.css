@@ -108,3 +108,28 @@
 @media(max-width:640px) and (orientation:portrait){
   #app:has(.life-pop:not([hidden])) .message{top:calc(var(--hud-top,114px) + 140px)}
 }
+
+/* 0.61: notifications are a real member of the bottom HUD, not a floating
+   overlay on top of the wishes trigger. Two text buttons may shrink on 320px. */
+#app .bottom-bar .home-buttons #notice-bell{
+  position:relative;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;
+  padding:0;display:grid;place-items:center;pointer-events:auto;
+  border:1px solid var(--glass-edge);border-radius:10px;
+  background:var(--glass-fill);color:var(--glass-ink);
+  box-shadow:var(--glass-shadow);text-shadow:0 1px 2px rgba(0,0,0,.68);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+}
+#app .bottom-bar .home-buttons #notice-bell[aria-expanded="true"]{
+  background:var(--glass-active);border-color:#b1f9d9;color:#fff;
+}
+#app #notice-bell small[hidden]{display:none!important}
+#app .bottom-bar .home-buttons #notice-bell small{
+  top:1px;right:1px;min-width:14px;height:14px;padding:2px 3px;
+  font-size:9px;line-height:10px;box-sizing:border-box;color:#fff;text-shadow:none;
+}
+@media(max-width:640px) and (orientation:portrait){
+  #app .bottom-bar .home-buttons{display:flex;flex-wrap:nowrap;gap:5px;width:100%;max-width:100%}
+  #app .bottom-bar .home-buttons :is(#phone-btn,#skills-btn){
+    flex:1 1 108px;min-width:0;max-width:118px;height:44px;padding:4px 5px;
+  }
+}

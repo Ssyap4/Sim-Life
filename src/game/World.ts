@@ -3342,7 +3342,7 @@ export class World {
 
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('sideWallsQA')==='1'){
       const v=this.canvas.dataset.wallView;
-      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:v==='study'?{target:[7.2,1.1,-5.5],eye:[4.8,4.7,.0]}:v==='wing'?{target:[12.6,1,-1.7],eye:[19,7,5.4]}:v==='passages'?{target:[-4.35,1,.2],eye:[.2,3.8,5.8]}:v==='kitchen'?{target:[2.04,1.47,-6.8],eye:[2.0,2.7,-2.8]}:v==='bath'?{target:[8.25,1.10,.5],eye:[5.5,2.9,2.8]}:v==='basin'?{target:[5.98,1.30,-.44],eye:[6.05,2.55,2.2]}:v==='wc'?{target:[-8.3,.6,3.6],eye:[-5.8,2.3,4.3]}:undefined;
+      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:v==='study'?{target:[7.2,1.1,-5.5],eye:[4.8,4.7,.0]}:v==='wing'?{target:[12.6,1,-1.7],eye:[19,7,5.4]}:v==='passages'?{target:[-4.35,1,.2],eye:[.2,3.8,5.8]}:v==='kitchen'?{target:[2.04,1.47,-6.8],eye:[2.0,2.7,-2.8]}:v==='bath'?{target:[8.25,1.10,.5],eye:[5.5,2.9,2.8]}:v==='basin'?{target:[5.98,1.30,-.44],eye:[6.05,2.55,2.2]}:v==='wc'?{target:[-8.3,.6,3.6],eye:[-5.8,2.3,4.3]}:v==='living'?{target:[-2.36,.70,1.65],eye:[.6,3.2,-2.8]}:v==='bed-detail'?{target:[-6.97,.80,-5.7],eye:[-4.9,3.0,-2.6]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){

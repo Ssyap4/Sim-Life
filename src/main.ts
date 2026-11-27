@@ -182,7 +182,6 @@ app.innerHTML = `
   <div id="world-transition" aria-hidden="true"></div>
   <section id="car-ride" aria-label="Поездка на автомобиле" hidden><div class="ride-top"><small>SimOurHome · В ДОРОГЕ</small><strong id="ride-destination"></strong></div><div class="ride-bottom"><span id="ride-route"></span><div class="ride-track" role="progressbar" aria-label="Поездка"><i id="ride-progress"></i></div><small>Загружаем локацию…</small></div></section>
   <div id="message" class="notice-stack" aria-live="polite"></div>
-  <button id="notice-bell" type="button" aria-label="Уведомления" aria-expanded="false" aria-controls="notice-history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" stroke-linecap="round" stroke-linejoin="round"/></svg><small hidden>0</small></button>
   <section id="notice-history" hidden aria-label="Журнал событий"><div class="notice-history-panel"><header class="notice-history-head"><strong>События дома</strong><button type="button" data-notice-close aria-label="Закрыть журнал">×</button></header><div class="notice-history-list"></div></div></section>
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
@@ -204,6 +203,7 @@ app.innerHTML = `
       <div class="home-buttons">
         <button id="phone-btn" class="market-btn" type="button" disabled>📱 Телефон</button>
         <button id="skills-btn" class="market-btn" type="button" disabled>📊 Навыки <small>🍲 0 ур.</small></button>
+        <button id="notice-bell" type="button" class="hud-icon-button" aria-label="Уведомления" aria-expanded="false" aria-controls="notice-history"><svg class="ui-outline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" stroke-linecap="round" stroke-linejoin="round"/></svg><small hidden>0</small></button>
         <button id="pause-btn" type="button" aria-label="Поставить игру на паузу" disabled></button>
       </div>
       <div class="tip">

@@ -130,7 +130,7 @@
 #app .notice-body small{display:block;color:#69786e;font-size:10px;margin-top:5px}
 #app .notice-close{width:36px;height:36px;border:0;background:#eaece5;color:#465b4d;border-radius:9px;font-size:21px;line-height:1}
 #app .notice-link{border:1px solid #b8cdbb;background:#eaf1e7;color:#335541;border-radius:8px;font-size:11px;font-weight:800;min-height:36px;padding:5px 10px;margin-top:7px}
-#app #notice-bell{position:fixed;right:max(12px,env(safe-area-inset-right));top:calc(max(12px,env(safe-area-inset-top)) + 95px);z-index:7;width:42px;height:42px;border-radius:12px;background:#fffdf0eb;color:#37594a;border:1px solid #d5e0d6;display:grid;place-items:center;pointer-events:auto}
+
 #app #notice-bell svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8}
 #app #notice-bell small{position:absolute;top:-5px;right:-5px;background:#b9584b;color:#fff;padding:3px 5px;border-radius:12px;font-size:10px;line-height:1}
 #app #notice-history{position:fixed;inset:0;z-index:161;background:#172e2966;display:flex;align-items:center;justify-content:center;padding:12px}
@@ -139,13 +139,13 @@
 #app .notice-history-head button{width:44px;height:44px;border:0;background:#e5ebe2;border-radius:10px;font-size:22px;color:#37594a}
 #app .notice-history-list{min-height:0;overflow:auto;overscroll-behavior:contain;display:grid;gap:8px}
 #app .notice-history-list .notice-card{box-shadow:none;grid-template-columns:30px minmax(0,1fr)}
-@media(max-width:700px){#app #message.notice-stack{top:calc(max(10px,env(safe-area-inset-top)) + 138px);right:10px;width:calc(100% - 20px)}#app #notice-bell{top:calc(max(10px,env(safe-area-inset-top)) + 105px);right:10px;width:38px;height:38px}#app .notice-card{padding:9px;gap:7px}#app .notice-close{width:44px;height:44px}#app .notice-link{min-height:44px}}
+@media(max-width:700px){#app #message.notice-stack{top:calc(max(10px,env(safe-area-inset-top)) + 138px);right:10px;width:calc(100% - 20px)}#app .notice-card{padding:9px;gap:7px}#app .notice-close{width:44px;height:44px}#app .notice-link{min-height:44px}}
 #app:has(:is(#phone-overlay,#computer-overlay,#furnishing-overlay,#market-overlay,#jobs-overlay,#car-ride):not([hidden])) #message.notice-stack{top:max(10px,env(safe-area-inset-top))}
 #app:has(:is(#phone-overlay,#computer-overlay,#furnishing-overlay,#market-overlay,#jobs-overlay,#car-ride):not([hidden])) #notice-bell{visibility:hidden}
 
 /* Use measured HUD edge instead of overlapping the map/pet controls. */
 @media(max-width:700px){
- #app #notice-bell{top:calc(var(--hud-top,114px) + 7px);right:10px;width:44px;height:44px}
+
  #app #message.notice-stack{top:calc(var(--hud-top,114px) + 57px);max-height:calc(65dvh - var(--hud-top,114px));overflow:auto}
  #app:has(:is(#phone-overlay,#computer-overlay,#furnishing-overlay,#market-overlay,#jobs-overlay,#car-ride):not([hidden])) #message.notice-stack{top:max(10px,env(safe-area-inset-top));max-height:60dvh}
 }
