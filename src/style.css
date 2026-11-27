@@ -1495,3 +1495,15 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .ride-bottom span{font-size:13px;font-weight:600}.ride-bottom small{font-size:12px;opacity:.8}.ride-track{height:5px;border-radius:6px;overflow:hidden;background:#ffffff40}.ride-track i{height:100%;width:100%;display:block;background:#d9e7ca;transform-origin:left;transform:scaleX(0);transition:transform .1s linear}
 @keyframes ride-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){#car-ride{animation:none}.ride-track i{transition:none}}
+/* Car destination menu: keep lake tickets in their own page. */
+#app .car-destination-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+#app .car-destination-options > .car-menu-note,#app .car-destination-options > .car-menu-heading,#app .car-destination-options > .car-lake-pass{grid-column:1/-1;min-width:0}
+#app .car-menu-heading{font-size:12px;color:var(--ui-muted,#687671);padding:5px 2px 1px}
+#app .car-menu-note{font-size:11px;color:var(--ui-muted,#687671);line-height:1.35}
+#app .car-destination-options > .action-button{min-width:0;min-height:44px;overflow-wrap:anywhere;line-height:1.25}
+#app .car-lake-pass{display:grid;gap:4px;padding:5px;border:1px solid var(--ui-line,#dce5dc);border-radius:10px}
+#app .car-lake-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+#app .car-lake-choices .action-button{display:grid;gap:2px;min-width:0;min-height:48px;align-content:center;line-height:1.2;overflow-wrap:anywhere}
+#app .car-lake-choices .action-button strong{font-size:12px}
+#app .car-lake-choices .action-button small{font-size:10px}
+#app .car-menu-back{flex:none;min-height:44px;min-width:44px}

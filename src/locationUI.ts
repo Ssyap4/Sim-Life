@@ -59,6 +59,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let pending: number | null = null;
   let cafeChoice: CafeItem | null = null;
   let cafeTopicsOpen=false;
+  let carPage:'destinations'|'lake'='destinations';
   let entrance: { station: string; dog: boolean; onward?: PlaceId } | null = null;
   const clothesCart=new Set<string>();
   let fittingLook:string|null=null;
@@ -75,6 +76,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     current = null;
     cafeChoice=null;
     cafeTopicsOpen=false;
+    carPage='destinations';
     panel.hidden = true;
     panel.replaceChildren();
     getWorld()?.closeStorage();
@@ -166,12 +168,17 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const station = current;
     const place = state;
     const header = element('div', 'actions-head');
-    const title = element('strong', '', station.name);
+    if(station.action.kind==='car'&&place.world.carDriver)carPage='destinations';
+    const title = element('strong', '', station.action.kind==='car'&&carPage==='lake'?PLACES.lake.name:station.name);
     const closeButton = element('button', 'close-actions', '×');
     closeButton.type = 'button';
     closeButton.setAttribute('aria-label', 'Закрыть');
     closeButton.addEventListener('click', close);
     const y = panel.scrollTop;
+    if(station.action.kind==='car'&&carPage==='lake'){
+      const back=button('← Назад',()=>{carPage='destinations';draw();panel.scrollTop=0;});
+      back.classList.add('car-menu-back');back.dataset.carPage='destinations';header.append(back);
+    }
     header.append(title, closeButton);
     panel.replaceChildren(header);
     const options = element('div', 'world-station-options');
@@ -180,11 +187,51 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const local = (label: string, action: LocalActivity) =>
       button(label, () => { if (send({ type: 'local_activity', station: station.id, action })) close(); });
     if(kind==='car'){
-      options.append(element('small','','Семейный автомобиль · поездка туда и обратно'));
-      if(place.world.carDriver)options.append(element('small','','Машина сейчас в поездке'));
-      else {for(const [id,p] of Object.entries(LAKE_PASSES)){const pass=id as LakePass;options.append(button('🏕️ '+p.name+' · один · '+formatRub(p.single),()=>{if(send({type:'car_travel',place:'lake',pass}))close();},place.money<p.single));options.append(button('🏕️ '+p.name+' · вдвоём · '+formatRub(p.pair),()=>{if(send({type:'lake_trip',pass}))close();},place.money<p.pair));options.append(button('🐾 '+p.name+' · один с Верделлом',()=>{if(send({type:'car_travel',place:'lake',pass,dog:true}))close();},place.money<p.single||!!place.world.dogWalker),button('🐾 '+p.name+' · вдвоём с Верделлом',()=>{if(send({type:'lake_trip',pass,dog:true}))close();},place.money<p.pair||!!place.world.dogWalker));}options.append(button('🎳 В PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));options.append(button('♨️ SPA · один гость · '+formatRub(SPA_PASSES.single.price),()=>{if(send({type:'car_travel',place:'spa'}))close();},place.money<SPA_PASSES.single.price));for(const pass of ['pair','package'] as const)options.append(button(SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price),()=>{if(send({type:'spa_trip',pass}))close();},place.money<SPA_PASSES[pass].price));options.append(button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));options.append(button('🏋️ В PULSE вместе',()=>{if(send({type:'fitness_trip'}))close();}));for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic',...(role==='vlad'?['barber' as const]:[])] as const)options.append(button('🚗 '+PLACES[destination].name,()=>{
-        if(send({type:'car_travel',place:destination}))close();
-      }));for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапу и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));}
+      options.classList.add('car-destination-options');
+      if(place.world.carDriver){
+        options.append(element('small','','Машина сейчас в поездке'));
+      }else if(carPage==='lake'){
+        options.classList.add('car-lake-options');
+        options.append(element('small','car-menu-note','Выбери длительность и состав поездки. Верделл едет без доплаты.'));
+        for(const [id,p] of Object.entries(LAKE_PASSES)){
+          const pass=id as LakePass;
+          const group=element('section','car-lake-pass');
+          group.dataset.lakePass=pass;
+          group.append(element('strong','car-menu-heading',p.name));
+          const choices=element('div','car-lake-choices');
+          for(const [pair,dog] of [[false,false],[true,false],[false,true],[true,true]] as const){
+            const cost=pair?p.pair:p.single;
+            const entry=button('',()=>{
+              const command:WorldCommand=pair?{type:'lake_trip',pass,...(dog?{dog:true}:{})}:{type:'car_travel',place:'lake',pass,...(dog?{dog:true}:{})};
+              if(send(command))close();
+            },place.money<cost||(dog&&!!place.world.dogWalker));
+            entry.dataset.lakeParty=pair?'pair':'single';
+            entry.dataset.lakeDog=String(dog);
+            entry.append(element('strong','',pair?'Вдвоём':'Один'),element('small','',(dog?'🐾 С Верделлом · ':'')+formatRub(cost)));
+            choices.append(entry);
+          }
+          group.append(choices);options.append(group);
+        }
+      }else{
+        options.append(element('small','car-menu-note','Куда поедем?'));
+        const heading=(label:string)=>options.append(element('strong','car-menu-heading',label));
+        const destinationButton=(destination:Extract<WorldCommand,{type:'car_travel'}>['place'])=>button(PLACES[destination].icon+' '+PLACES[destination].name,()=>{
+          if(send({type:'car_travel',place:destination}))close();
+        });
+        heading('Город');
+        for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial'] as const)options.append(destinationButton(destination));
+        heading('Отдых');
+        const lake=button('🏕️ Лесное озеро ›',()=>{carPage='lake';draw();panel.scrollTop=0;});
+        lake.dataset.carPage='lake';options.append(lake);
+        options.append(button('🎳 PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));
+        options.append(button('♨️ SPA · один · '+formatRub(SPA_PASSES.single.price),()=>{if(send({type:'car_travel',place:'spa'}))close();},place.money<SPA_PASSES.single.price));
+        for(const pass of ['pair','package'] as const)options.append(button(SPA_PASSES[pass].name+' · '+formatRub(SPA_PASSES[pass].price),()=>{if(send({type:'spa_trip',pass}))close();},place.money<SPA_PASSES[pass].price));
+        heading('Здоровье и уход');
+        options.append(destinationButton('fitness'),button('🏋️ PULSE вдвоём',()=>{if(send({type:'fitness_trip'}))close();}),destinationButton('clinic'),button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));
+        if(role==='vlad')options.append(destinationButton('barber'));
+        heading('С питомцами');
+        for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапа и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));
+      }
     } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){
       const pet=place.world.vetVisit.pet,h=petHealth(place,pet);
       options.append(element('small','',(pet==='verdell'?'Верделл':'Симба')+' · '+(h.illness?h.illness.diagnosed?PET_CONDITIONS[h.illness.id].name:'Недомогание':'Здоров')));
@@ -555,6 +602,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       current = station;
       cafeChoice=null;
       cafeTopicsOpen=false;
+      carPage='destinations';
       ingredient = null;
       panel.hidden = false;
       panel.dataset.station = station.id;

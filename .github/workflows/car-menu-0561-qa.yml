@@ -1,0 +1,28 @@
+name: Car menu 0.56.1 mobile QA
+on:
+  push:
+    branches: [feat/car-menu-0561]
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx --test server/tests/lake-054.test.ts server/tests/car-ride-055.test.ts server/tests/family-car-wishes-029.test.ts
+      - run: node --import tsx scripts/qa-car-menu-0561.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: car-menu-0561
+          path: /tmp/simlife-car-menu-0561
+          retention-days: 7
