@@ -48,7 +48,7 @@ test('Two players see long-term job status; reconnect keeps the shift; cancel pa
   const snap=await sync;
   assert.equal(snap.type,'snapshot');
   if(snap.type==='snapshot'){
-    assert.ok(snap.state.activeShifts.vlad!.hours>=14&&snap.state.activeShifts.vlad!.hours<=16);
+    assert.ok(snap.state.activeShifts.vlad!.hours>=11&&snap.state.activeShifts.vlad!.hours<=13);
     assert.equal(snap.state.money,10000);
   }
   const refused=next(v,m=>m.type==='error');

@@ -504,7 +504,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (result && !result.ok) { if (!automatic) error(initiator, result.reason); return; }
       const effects = !result ? undefined : isEntertainment(command) ? entertainmentReward(command, roles.length === 2,electronicsModel(before,role,"tv").bonus,electronicsModel(before,role,"tv").comfort)
         : command.type === 'act' && command.actionId === 'bathTeeth' ? {hygiene:20}
-        : command.type === 'act' && command.actionId === 'bathShower' ? {hygiene:75}
+        : command.type === 'act' && command.actionId === 'bathShower' ? {hygiene:80}
         : gains(before,result.state,role);
       participants.push({ wish:automatic?undefined:wishAtStart(before,role,command), role, socket: hooks.socket(role)!, arriveMs: 1000*length(home.route)/HOME_WALK_SPEED+(home.pickupMs??0)+(home.pair?.offsetMs??0),
         packet: { type: 'task_started', role, taskId: hooks.nextId(), command, label: plan.label,

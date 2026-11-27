@@ -7,7 +7,7 @@ import {findRoute} from '../../src/game/navigation';
 import {applyWorld,validWorld} from '../locations';
 import {beginShift,leaveShiftEarly} from '../jobs';
 import {JOBS} from '../../src/shared/jobs';
-test('industrial zone is separate from the trading district, both warehouses reachable, shifts unchanged',()=>{
+test('industrial zone is separate from the trading district, both warehouses reachable, balanced shifts preserved',()=>{
  const s=initialState();
  assert.equal(DISTRICT_SITES.some(x=>String(x.place)==='industrial'),false);
  for(const role of ['vlad','alina'] as const){
@@ -21,7 +21,7 @@ test('industrial zone is separate from the trading district, both warehouses rea
    assert.ok(warehouse.action.kind==='warehouse'&&warehouse.action.job===job);
    const working=beginShift(enter.state,role,job);assert.ok(working.ok);
    const shift=working.state.activeShifts[role]!;
-   assert.ok(shift.hours>=14&&shift.hours<=16);
+   assert.ok(shift.hours>=11&&shift.hours<=13);
    assert.ok(shift.targetPay!>=JOBS[job].payMin&&shift.targetPay!<=JOBS[job].payMax);
    assert.ok(leaveShiftEarly(working.state,role).ok);
   }

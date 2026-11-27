@@ -2,7 +2,7 @@ import {freshFish,isCatchRecipe} from './shared/lake';
 import { GROCERIES, RECIPES, ingredientList, isGrillRecipe, recipePortionCost, type IngredientId, type RecipeId } from './shared/food';
 import { recipeAvailability,holidayRecipeOpen } from './shared/recipeAvailability';
 import { skillRank } from './shared/education';
-import { COOKING_ORDER, COOKING_RECIPES, cookingExperience } from './shared/cookingProgression';
+import { COOKING_ORDER, COOKING_RECIPES, cookingExperience, cookingSeconds } from './shared/cookingProgression';
 import { gameMinutes } from './shared/life';
 import { qualityLabel, foodQualityChances, type FoodQuality } from './shared/foodQuality';
 import { readyFoodRemaining } from './shared/readyFood';
@@ -122,7 +122,7 @@ export function showFoodChoices(
         name.textContent=recipe.emoji+' '+recipe.name;
         const summary=document.createElement('small');
         const difficulty=COOKING_RECIPES[id];
-        summary.textContent=difficulty.tier+' · ур. '+difficulty.minLevel+' · '+
+        summary.textContent=cookingSeconds(id)+' \u0441 \u00b7 '+difficulty.tier+' · ур. '+difficulty.minLevel+' · '+
           (availability.available?'✅ Можно приготовить':'Недоступно: '+availability.reason)+
           ' · '+recipe.servings+' порц.';
         cook.append(name,summary);

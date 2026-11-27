@@ -1,6 +1,6 @@
 import { MAX_SKILL_LEVEL, skillRank, talent, type EducationProfile } from './education';
 import type { CharacterId } from './protocol';
-import type { RecipeId } from './food';
+import { isGrillRecipe, type RecipeId } from './food';
 
 /** Cooking is gated by preparation technique, not by price, portions or ingredients. */
 export const COOKING_RECIPES: Record<RecipeId, { minLevel: number; baseXP: number; tier: string }> = {
@@ -72,4 +72,11 @@ export function cookingEnergy(level: number, id: RecipeId): number {
   const required = COOKING_RECIPES[id].minLevel;
   const tier = required >= 16 ? 8 : required >= 11 ? 7 : required >= 7 ? 6 : required >= 3 ? 5 : 4;
   return Math.max(2, tier - (level >= required + 5 ? 2 : level >= required + 2 ? 1 : 0));
+}
+
+/** Base real seconds after arrival. Shared by server and recipe cards. */
+export function cookingSeconds(id: RecipeId): number {
+  const level=COOKING_RECIPES[id].minLevel;
+  const seconds=level>=17?42:level>=11?36:level>=7?30:level>=5?24:level>=2?18:12;
+  return Math.max(isGrillRecipe(id)?15:12,seconds);
 }

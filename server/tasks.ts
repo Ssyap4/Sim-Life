@@ -35,6 +35,7 @@ import { brewCoffee,finishWorkCoffee } from './coffee';
 import { applyAction } from './logic';
 import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
+import { cookingSeconds } from '../src/shared/cookingProgression';
 import { applyPetAction } from './pets';
 
 import {DUST_ROOMS,isDustRoom,initialDust} from '../src/shared/homeDust';
@@ -57,7 +58,7 @@ export const ACTION_SECONDS: Record<ActionId, number> = {
   vladOrder: 38, vladStudy: 11, deskGames: 12, deskJournal: 9,
   alinaStudy: 11, alinaConsult: 38,
   kitchenWash: 7, kitchenTidy: 12, kitchenTea: 8, kitchenDishes: 10, kitchenLeftovers: 12, kitchenServe: 16,
-  toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 15, bathWash: 5,
+  toiletUse: 5, bathShower: HOME_SECONDS.shower, bathSoak: 55, bathWash: 5,
   bathTeeth: HOME_SECONDS.teeth, bathFoam: HOME_SECONDS.foamBath, wcWash: 6,
   watchTv: 10, tvMusic: 10, yardHookahSolo:45, yardLounge:45, tableRest: 7, tableTalk: 9, tablePlan: 8,
 };
@@ -181,7 +182,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
         ...(command.type==='eat'&&typeof command.furnitureId==='number'?
           {furnitureId:command.furnitureId}:{}) },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : '🍽️ Едим: ') + RECIPES[recipe].name,
-      durationMs: command.type === 'cook' ? grill ? 15_000 : 12_000 : MEAL_EAT_SECONDS*1000,
+      durationMs: command.type === 'cook' ? cookingSeconds(recipe)*1000 : MEAL_EAT_SECONDS*1000,
       resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : null,
     };
   }
