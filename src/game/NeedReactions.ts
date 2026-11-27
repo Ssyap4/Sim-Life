@@ -2,7 +2,7 @@ import type { Needs } from '../shared/protocol';
 
 // These are visual-only, client-side reactions to the server's real needs.
 // They never change a need, interrupt an action or create a game command.
-export type NeedReaction = 'yawn' | 'hunger' | 'bladder' | 'hygiene' | 'lowMood';
+export type NeedReaction = 'yawn' | 'tired' | 'hunger' | 'bladder' | 'hygiene' | 'lowMood';
 export type ReactionNeeds = Pick<Needs, 'energy' | 'hunger' | 'bladder' | 'hygiene' | 'mood'>;
 
 export const NEED_REACTION_DURATION = 3.6;
@@ -10,12 +10,13 @@ export const NEED_REACTION_DURATION = 3.6;
 const triggers: readonly { kind: NeedReaction; key: keyof ReactionNeeds; below: number }[] = [
   { kind: 'bladder', key: 'bladder', below: 35 },
   { kind: 'yawn', key: 'energy', below: 50 },
-  { kind: 'hunger', key: 'hunger', below: 35 },
+  { kind: 'hunger', key: 'hunger', below: 30 },
   { kind: 'hygiene', key: 'hygiene', below: 24 },
   { kind: 'lowMood', key: 'mood', below: 24 },
 ];
 
 export function reactionAllowed(needs: ReactionNeeds | null, reaction: NeedReaction): boolean {
+  if(reaction==='tired')return !!needs&&Number.isFinite(needs.energy)&&needs.energy<30;
   const trigger = triggers.find(item => item.kind === reaction);
   return !!needs && !!trigger && Number.isFinite(needs[trigger.key]) &&
     needs[trigger.key] < trigger.below;
@@ -30,7 +31,10 @@ export function pickNeedReaction(needs: ReactionNeeds | null, turn: number): Nee
     .sort((a, b) => b.urgency - a.urgency);
   if (!eligible.length) return null;
   const similar = eligible.filter(item => eligible[0].urgency - item.urgency < 0.28);
-  return similar[Math.abs(Math.trunc(turn)) % similar.length].kind;
+  const step=Math.abs(Math.trunc(turn));
+  const choice=similar[step%similar.length].kind;
+  // Severe fatigue alternates with ordinary yawns without double-weighting energy.
+  return choice==='yawn'&&reactionAllowed(needs,'tired')&&Math.floor(step/similar.length)%2===0?'tired':choice;
 }
 
 /** Soft entry/exit without snapping the arms back into their resting pose. */

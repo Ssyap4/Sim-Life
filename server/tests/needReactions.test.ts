@@ -11,7 +11,7 @@ const low = (field: keyof ReactionNeeds, amount = 12): ReactionNeeds => ({ ...ok
 test('Need reactions use actual thresholds, not permanent idle loops', () => {
   assert.equal(pickNeedReaction(okay, 0), null);
   for (const [field, gesture] of [
-    ['hunger', 'hunger'], ['energy', 'yawn'], ['bladder', 'bladder'],
+    ['hunger', 'hunger'], ['energy', 'tired'], ['bladder', 'bladder'],
     ['hygiene', 'hygiene'], ['mood', 'lowMood'],
   ] as const) {
     assert.equal(pickNeedReaction(low(field), 0), gesture);
@@ -20,14 +20,14 @@ test('Need reactions use actual thresholds, not permanent idle loops', () => {
   }
   assert.equal(pickNeedReaction(low('energy', 50), 0), null);
   assert.equal(pickNeedReaction(low('energy', 49.9), 0), 'yawn');
-  assert.equal(pickNeedReaction(low('hunger', 34.9), 0), 'hunger');
+  assert.equal(pickNeedReaction(low('hunger', 29.9), 0), 'hunger');
   assert.equal(pickNeedReaction(low('mood', 24), 0), null);
 });
 
 test('Equally urgent needs rotate rather than hiding all but the first', () => {
   const both = { ...okay, energy: 4, hunger: 4 };
-  const kinds = Array.from({ length: 4 }, (_, n) => pickNeedReaction(both, n));
-  assert.deepEqual(new Set(kinds), new Set(['yawn', 'hunger']));
+  const kinds = Array.from({ length: 6 }, (_, n) => pickNeedReaction(both, n));
+  assert.deepEqual(new Set(kinds), new Set(['yawn', 'tired', 'hunger']));
   assert.equal(pickNeedReaction({ ...both, bladder: 0, hygiene: 0 }, 0), 'bladder');
 });
 
@@ -43,7 +43,7 @@ test('Gesture envelopes smoothly fade in and out to preserve normal idle pose', 
 
 test('A tired idle character can yawn and immediately yields to player movement', () => {
   const character = new Actor('vlad', [0, 0]);
-  character.setNeeds(low('energy'));
+  character.setNeeds(low('energy',40));
   for (let step = 0; step < 420; step++) character.update(1 / 60);
   const motion = character as unknown as { needReaction: string | null; rig: { head: { rotation: { x: number } } } };
   assert.equal(motion.needReaction, 'yawn');
@@ -70,4 +70,41 @@ test('Healthy stats cancel an active idle gesture without altering needs', () =>
   character.update(1 / 60);
   assert.equal(motion.needReaction, null);
   assert.equal(stats.bladder, 12, 'visual-only gestures do not mutate server needs');
+});
+
+test('064 severe hunger and tiredness begin strictly below 30 and keep ordinary yawns',()=>{
+  assert.equal(pickNeedReaction(low('hunger',30),0),null);
+  assert.equal(pickNeedReaction(low('hunger',29.9),0),'hunger');
+  assert.equal(pickNeedReaction(low('energy',30),0),'yawn');
+  assert.equal(pickNeedReaction(low('energy',29.9),0),'tired');
+  assert.equal(pickNeedReaction(low('energy',29.9),1),'yawn');
+  assert.equal(reactionAllowed(low('energy',30),'tired'),false);
+});
+test('064 both residents reach abdomen and temple; fatigue sways without moving the root',()=>{
+  for(const id of ['vlad','alina'] as const)for(const kind of ['hunger','tired'] as const){
+    const actor=new Actor(id,[2,3]);
+    const needs=low(kind==='hunger'?'hunger':'energy',18);
+    actor.setNeeds(needs);
+    const m=actor as unknown as {
+      needReactionCooldown:number;
+      rig:{head:{localToWorld(v:Vector3):Vector3},chest:{localToWorld(v:Vector3):Vector3,rotation:{z:number}},waistY:number,
+      wrists:{getWorldPosition(v:Vector3):Vector3}[]}
+    };
+    m.needReactionCooldown=0;
+    let min=Infinity,max=-Infinity;
+    for(let i=0;i<126;i++){
+      actor.update(1/60);
+      if(i>60){min=Math.min(min,m.rig.chest.rotation.z);max=Math.max(max,m.rig.chest.rotation.z);}
+    }
+    const hand=id==='vlad'?1:0,side=hand===1?1:-1;
+    const goal=kind==='hunger'?m.rig.chest.localToWorld(new Vector3(side*.145,m.rig.waistY+.18,.192)):
+      m.rig.head.localToWorld(new Vector3(side*.195,.015,.145));
+    assert.equal(actor.needReactionQA().kind,kind);
+    assert.ok(m.rig.wrists[hand].getWorldPosition(new Vector3()).distanceTo(goal)<.12,id+' '+kind+' wrist contact');
+    if(kind==='tired')assert.ok(max-min>.075,'visible fatigue sway');
+    assert.equal(actor.root.position.x,2);assert.equal(actor.root.position.z,3);
+    assert.equal(needs[kind==='hunger'?'hunger':'energy'],18);
+    actor.playActivity('eat');actor.update(1/60);
+    assert.equal(actor.needReactionQA().kind,null);
+  }
 });

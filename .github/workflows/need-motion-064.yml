@@ -1,0 +1,36 @@
+name: SimOurHome 0.64 needs motion
+on:
+  push:
+    branches: [feat/long-play-064]
+    paths:
+      - 'src/game/Actor.ts'
+      - 'src/game/NeedReactions.ts'
+      - 'src/game/World.ts'
+      - 'server/tests/needReactions.test.ts'
+      - 'server/tests/residentIdle.test.ts'
+      - 'scripts/qa-need-motion-064.mjs'
+      - '.github/workflows/need-motion-064.yml'
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx --test server/tests/needReactions.test.ts server/tests/residentIdle.test.ts
+      - run: node --import tsx scripts/qa-need-motion-064.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: needs-motion-064
+          path: /tmp/simourhome-064-need-motion
+          retention-days: 7

@@ -3360,6 +3360,9 @@ export class World {
     this.updatePanFeel();
     this.controls.update();
     if(this.manualCameraHeight)protectCameraFloor(this.camera.position,this.controls.target);
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('needMotionQA')==='1'){
+      this.canvas.dataset.needMotionState=JSON.stringify({vlad:this.actors.vlad.needReactionQA(),alina:this.actors.alina.needReactionQA()});
+    }
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('petMotionQA')==='1'){
       const command=this.canvas.dataset.petMotion;
       if(command){

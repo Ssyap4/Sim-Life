@@ -232,6 +232,7 @@ export class Actor {
     this.idleContext.partnerYaw = partnerYaw;
   }
   currentIdleGesture(): ResidentIdleGesture | null { return this.idleGesture; }
+  needReactionQA(){return {kind:this.needReaction,time:this.needReactionTime};}
   noticePartnerArrival():void {
     if(this.clock<this.nextGreeting)return;
     // A meeting may supersede an existing purely decorative hair/idle gesture,
@@ -773,7 +774,7 @@ export class Actor {
     // Idle-only, cosmetic reactions. Never steal control, stop a route or move
     // the navigation root. Reset immediately for every gameplay animation.
     const canReact = this.pose === 'idle' && !this.activity && !this.gesture && !this.partnerGesture &&
-      !this.carryingBook && this.closingBook <= 0 && !this.waypoints.length &&
+      !this.carryingBook && !this.workCoffeeCarrying && !this.catchProp && this.conversationYaw===null && this.closingBook <= 0 && !this.waypoints.length &&
       traveled < 0.0001 && motion < 0.08;
     if (!canReact) {
       this.needReaction = null;
@@ -1356,13 +1357,21 @@ export class Actor {
           expression = THREE.MathUtils.lerp(expression, 0.025, w);
           break;
         }
+        case 'tired': {
+          const phase=this.needReactionTime;
+          restlessSway=.085*Math.sin(phase*3.1)*w;
+          lean+=.105*w;
+          gaze+=.22*w;
+          expression=THREE.MathUtils.lerp(expression,.01,w);
+          break;
+        }
         case 'hunger':
           // One hand on the stomach, a brief forward glance.
           rightY = THREE.MathUtils.lerp(rightY, -0.47, w);
           rightZ = THREE.MathUtils.lerp(rightZ, 0.21, w);
           leftY = THREE.MathUtils.lerp(leftY, -0.55, w);
           gaze += 0.14 * w;
-          lean += 0.055 * w;
+          lean += (0.095 + .022*Math.sin(this.needReactionTime*3.4)) * w;
           expression = THREE.MathUtils.lerp(expression, 0.018, w);
           break;
         case 'bladder':
@@ -1705,7 +1714,7 @@ export class Actor {
       const eyePitch = resting ? 0 : this.activity === 'cook' ? 0.07 :
         this.pose === 'work' ? 0.030 + 0.046 * Math.sin(t * 1.18) :
         0.025 * Math.sin(t * 0.67) + idleEyePitch;
-      data.animateFace(dt, asleep || intimateContact>.72 || (this.needReaction === 'yawn' && needWeight > 0.60),
+      data.animateFace(dt, asleep || intimateContact>.72 || ((this.needReaction === 'yawn'||this.needReaction==='tired') && needWeight > 0.60),
         expression, eyeYaw, eyePitch, demeanor.lids*moodWeight);
     } else {
       const blinkTime = t % (this.id === 'vlad' ? 6.3 : 7.15);
@@ -1953,6 +1962,28 @@ export class Actor {
     // the existing two-bone IK solver to put the wrist at a meaningful
     // contact point, following the animated head/chest and their real scale.
     // The same code works with lightweight fallback and Blender skin rigs.
+    if (needWeight > .002 && (this.needReaction==='hunger'||this.needReaction==='tired')) {
+      const phase=this.needReactionTime;
+      const touch=residentIdleEase(phase,.25,.93)*(1-residentIdleEase(phase,2.65,3.55));
+      const hand:0|1=this.id==='vlad'?1:0;
+      const side=hand===1?1:-1;
+      if(touch>.002){
+        if(this.needReaction==='hunger'){
+          // Wrist beside the abdomen; fingers cross the front of the shirt.
+          data.chest.localToWorld(this.target.set(side*(.145+.018*Math.sin(phase*3.7)),
+            data.waistY+.18+.015*Math.sin(phase*3.7),.192));
+          this.reach(hand,this.target,Math.min(1,touch*alpha*8),.64);
+          this.aimHand(hand,this.handDirection.set(-side*.91,-.12,-.38)
+            .applyAxisAngle(up,this.root.rotation.y),Math.min(1,touch*alpha*6));
+        }else{
+          // Hand beside the temple follows the moving head rather than floating.
+          data.head.localToWorld(this.target.set(side*.195,.015,.145));
+          this.reach(hand,this.target,Math.min(1,touch*alpha*8),.76);
+          this.aimHand(hand,this.handDirection.set(-side*.22,.95,-.22)
+            .applyAxisAngle(up,this.root.rotation.y),Math.min(1,touch*alpha*6));
+        }
+      }
+    }
     if (idleTouch > 0.002 && this.idleGesture) {
       const reachBlend = Math.min(1, idleTouch * alpha * 7.4);
       const handBlend = Math.min(1, idleTouch * alpha * 4.3);
