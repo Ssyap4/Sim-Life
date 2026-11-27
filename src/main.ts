@@ -902,6 +902,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
       if(!station)return false;
       locationUI.visit(station);return true;
     }
+    if(command.type==='study')return net.education(command);
     if(command.type==='sleep_start')return net.startSleep(command.mode);
     if(command.type==='act')return net.perform(command.actionId);
     if(command.type==='furniture_use')return net.furnitureUse(command);

@@ -6,7 +6,8 @@ import { residentEmotion,wishEmotionPriority,PERSONALITIES,activeEmotions } from
 import { RECIPES, ingredientList, isGrillRecipe, type RecipeId, type TakeoutId } from './food';
 import { COOKING_RECIPES, COOKING_ORDER } from './cookingProgression';
 import { SOCIAL_BY_ID, socialRestriction } from './socialLife';
-import { SKILLS, skillRank } from './education';
+import { SKILLS, skillRank, educationalXP } from './education';
+import { MATERIALS } from './educationCatalog';
 import { gameMinutes, NEED_INFO, type VitalNeed } from './life';
 import { canFurniturePerform, type FurnitureUseAction, type FurnitureUseCommand } from './furnitureUse';
 import { isSleepBed } from './bedSleep';
@@ -20,6 +21,7 @@ export type WishCommand =
   | {type:'sleep_start';mode:'half'|'full'}
   | {type:'vanity_care';care:CareId}
   | {type:'fridge'}
+  | {type:'study';material:string}
   | {type:'together';action:'sofaTalk'|'yardRest'|'musicTogether'|'nearTalk:careLook'}
   | {type:'local_activity';action:'dog';station:'park-dog'}
   | {type:'cook'|'eat';recipe:RecipeId}
@@ -133,10 +135,19 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     }
   }
   const personalSkill=role==='vlad'?'technology':'practical';
-  const rank=skillRank(state.education.characters[role].xp[personalSkill]);
-  if(rank.next>0&&rank.next-rank.current<=15&&!state.furnishing.soldFixtures?.includes('desk'))add('goal-'+personalSkill+'-'+(rank.level+1),'🏆','Новый уровень: '+SKILLS[personalSkill][1],'Достигнуть '+(rank.level+1)+' уровня навыка.','Практиковаться',{type:'act',actionId:role==='vlad'?'vladStudy':'alinaStudy'});
+  const profile=state.education.characters[role];
+  const rank=skillRank(profile.xp[personalSkill]);
+  // Use the real free practice at the current tier, not a repeatedly used
+  // short desktop action. No purchase, travel or career starts automatically.
+  const practice=state.world.places[role]==='home'&&!state.furnishing.soldFixtures?.includes('table')
+    ? MATERIALS.find(m=>m.skill===personalSkill&&m.channel==='practice'&&!m.price&&educationalXP(m,role,profile)>0)
+    : undefined;
+  const learningCommand:WishCommand|undefined=rank.level>=20||state.world.places[role]!=='home'?undefined:practice
+    ?{type:'study',material:practice.id}:!state.furnishing.soldFixtures?.includes('desk')
+      ?{type:'act',actionId:role==='vlad'?'vladStudy':'alinaStudy'}:undefined;
+  if(rank.next>0&&rank.next-rank.current<=15&&learningCommand)add('goal-'+personalSkill+'-'+(rank.level+1),'🏆','Новый уровень: '+SKILLS[personalSkill][1],'Достигнуть '+(rank.level+1)+' уровня навыка.','Практиковаться',learningCommand);
   if(role==='vlad'){
-    add('learn-dev','💻','Освоить что-то новое','Интересно попробовать новый приём в разработке.','Учиться',!state.furnishing.soldFixtures?.includes('desk')?{type:'act',actionId:'vladStudy'}:undefined);
+    add('learn-dev','💻','Освоить что-то новое','Интересно попробовать новый приём в разработке.','Учиться',learningCommand);
     add('game-break','🎮','Вечер за игрой','Хочется отвлечься от дел и поиграть.','Поиграть',furniture(state,'desk','deskGames'));
     add('favorite-music','🎵','Включить любимую музыку','Немного музыки для хорошего настроения.','Послушать',furniture(state,'sofa','sofaMusic'));
   }else{
@@ -146,7 +157,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
       if(!effects.some(e=>e.id==='skin'))add('vanity-skin','🌸','Уделить время себе','Небольшая процедура ухода.','Уход за кожей',{type:'vanity_care',care:'skin'});
       if(careTopicAvailable(state,role,'nearTalk:careLook'))add('vanity-compliment','♡','Поделиться своим образом','Хочется услышать мнение Влада.','Спросить Влада',{type:'together',action:'nearTalk:careLook'});
     }
-    add('learn-hair','📚','Изучить новую технику ухода','Хочется разобраться в восстановлении волос.','Учиться',!state.furnishing.soldFixtures?.includes('desk')?{type:'act',actionId:'alinaStudy'}:undefined);
+    add('learn-hair','📚','Изучить новую технику ухода','Хочется разобраться в восстановлении волос.','Учиться',learningCommand);
     add('music-evening','🎵','Музыка для настроения','Хочется устроить небольшой музыкальный перерыв.','Послушать',furniture(state,'sofa','sofaMusic'));
     add('quiet-call','💬','Позвонить близким','Приятно узнать, как прошёл день у близких.','Позвонить',furniture(state,'sofa','sofaCall'));
   }
