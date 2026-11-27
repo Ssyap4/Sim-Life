@@ -56,6 +56,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   let location: PlaceId = 'home';
   let current: Station | null = null;
   let ingredient: IngredientId | null = null;
+  let storagePage:'ready'|'ingredients'|'picnic'='ready';
   let pending: number | null = null;
   let cafeChoice: CafeItem | null = null;
   let cafeTopicsOpen=false;
@@ -403,11 +404,27 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if (kind === 'fridge' || kind === 'cupboard') {
       const amount = storageUsage(place);
       const capacity = kind === 'fridge' ? amount.fridge + '/36' : amount.cupboard + '/42';
-      options.append(element('small', '', 'Занято ячеек: ' + capacity + ' · Выбери ингредиент'));
+      options.classList.add('storage-menu');
+      const used=kind==='fridge'?amount.fridge:amount.cupboard,max=kind==='fridge'?36:42;
+      const meter=element('div','storage-meter');
+      const bar=element('div','storage-meter-track'),fill=element('i');
+      fill.style.width=Math.min(100,used/max*100)+'%';bar.append(fill);
+      meter.append(element('strong','','Запасы · '+capacity),bar);options.append(meter);
+      if(kind==='fridge'){
+        if(storagePage==='picnic'&&!place.world.picnic)storagePage='ready';
+        const tabs=element('div','storage-tabs');
+        const pages:Array<['ready'|'ingredients'|'picnic',string]>=[['ready','Готовая еда'],['ingredients','Продукты']];
+        if(place.world.picnic)pages.push(['picnic','Пикник']);
+        for(const [id,label] of pages){
+          const tab=button(label,()=>{storagePage=id;ingredient=null;draw();panel.scrollTop=0;});
+          tab.dataset.storagePage=id;tab.setAttribute('aria-pressed',String(storagePage===id));tabs.append(tab);
+        }
+        options.append(tabs);
+      }
       if (kind === 'fridge') {
-        options.append(element('strong', '', '🍲 Готовая еда'));
+        if(storagePage==='ready'){options.append(element('strong','menu-section-label','🍲 Готовая еда'));
         options.append(element('small', '', 'Только продукты, действительно убранные сюда, занимают ' +
-          READY_FOOD_SLOTS + ' ячейки за порцию. Холод замедляет порчу, но не делает старую еду новой.'));
+          READY_FOOD_SLOTS + ' ячейки за порцию. Холод замедляет порчу, но не делает старую еду новой.'));}
         const groups = (location: 'fridge' | 'table') => {
           const grouped = new Map<string, ReadyFoodBatch>();
           for (const batch of place.readyFood) {
@@ -420,7 +437,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           return [...grouped.values()].sort((a,b) => a.expiresAt - b.expiresAt);
         };
         const fridgeReady = groups('fridge');
-        if(place.world.picnic){
+        if(storagePage==='picnic'&&place.world.picnic){
           const mine=picnicPortions(place,role),count=picnicPortions(place,'vlad').length+picnicPortions(place,'alina').length;
           options.append(element('strong','','🧺 Корзина для пикника · '+count+'/'+PICNIC_CAPACITY));
           options.append(element('small','','Твои порции хранятся отдельно. Еда вне холодильника портится быстрее.'));
@@ -430,32 +447,39 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           for(const [id,meal] of Object.entries(CAMP_RECIPES)){const item=id as CampRecipe;const ingredients=campIngredients(item);options.append(element('small','',ingredients.map(([k,n])=>GROCERIES[k].name.split(' · ')[0]+' '+place.pantry[k]+'/'+n).join(' · ')));options.append(button('Собрать: '+meal.name+' · '+(kit?.recipes[item]??0),()=>send({type:'camp_pack',item}),ingredients.some(([k,n])=>place.pantry[k]<n)||(kit?.recipes[item]??0)>=3));}
           for(const batch of fridgeReady)options.append(button('В корзину: '+readyFoodName(batch.kind,batch.item),()=>send({type:'picnic_pack',kind:batch.kind,item:batch.item}),count>=PICNIC_CAPACITY));
         }
+        if(storagePage==='ready'){
         if (!fridgeReady.length) options.append(element('small', '', 'Готовых блюд в холодильнике пока нет.'));
         for (const batch of fridgeReady) {
           const name = readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"");
-          options.append(element('small', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
+          const card=element('article','storage-food-card');
+          card.append(element('strong', '', (batch.kind === 'meal' ? '🍳 ' : '🍕 ') + name +
             ' · ' + batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
-          options.append(button('🍽️ Достать 1 порцию на стол', () =>
+          card.append(button('🍽️ Достать на стол', () =>
             send({ type: 'ready_food_serve', kind: batch.kind, item: batch.item }),
             readyFoodTableUsage(place)>=TABLE_READY_CAPACITY));
-          options.append(button('🗑️ Выбросить 1 порцию', () =>
+          card.append(button('Выбросить 1 порцию', () =>
             send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'fridge' })));
+          options.append(card);
         }
         const onTable = groups('table');
         if (onTable.length) {
           options.append(element('strong', '', '🍽️ Готовая еда на столе · ' +
             readyFoodTableUsage(place) + '/' + TABLE_READY_CAPACITY));
           for (const batch of onTable) {
-            options.append(element('small', '', readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"") + ' · ' +
+            const card=element('article','storage-food-card');
+            card.append(element('strong', '', readyFoodName(batch.kind, batch.item)+(batch.kind==="meal"?" · Следующая: "+qualityLabel(batch.quality):"") + ' · ' +
               batch.portions + ' порц. · ' + readyFoodRemaining(batch.expiresAt, place.clock)));
-            options.append(button('🧊 Убрать 1 порцию в холодильник', () =>
+            card.append(button('🧊 Убрать в холодильник', () =>
               send({ type: 'ready_food_move', kind: batch.kind, item: batch.item }),
               storageUsage(place).fridge + READY_FOOD_SLOTS > FRIDGE_CAPACITY));
-            options.append(button('🗑️ Выбросить 1 порцию со стола', () =>
+            card.append(button('Выбросить 1 порцию', () =>
               send({ type: 'ready_food_discard', kind: batch.kind, item: batch.item, storage: 'table' })));
+            options.append(card);
           }
         }
       }
+      }
+      if(kind==='cupboard'||storagePage==='ingredients'){
       const ingredients = (Object.entries(place.pantry) as [IngredientId, number][])
         .filter(([id, qty]) => qty > 0 && GROCERY_DETAILS[id].area === kind);
       for (const [id, qty] of ingredients) options.append(button(
@@ -473,6 +497,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
             !needed.every(([item, qty]) => place.pantry[item] >= qty)));
         }
         if (!count) options.append(element('small', '', 'Для этого продукта пока нет рецепта.'));
+      }
       }
     } else if (kind === 'parcel'||kind==='courier') {
       if (!place.world.deliveries.length) options.append(element('small', '', 'У двери нет заказов.'));
@@ -604,6 +629,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       cafeTopicsOpen=false;
       carPage='destinations';
       ingredient = null;
+      storagePage=station.action.kind==='cupboard'?'ingredients':'ready';
       panel.hidden = false;
       panel.dataset.station = station.id;
       if(station.action.kind==='fitting'){

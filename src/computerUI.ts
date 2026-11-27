@@ -409,10 +409,19 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
       );
     }
   }
-  for(const [id,emoji,name,description] of apps) {
-    const tile=button(emoji+' '+name,()=>show(id),description);
-    tile.classList.add('computer-icon');tile.dataset.computerApp=id;
-    desktop.append(tile);
+  const groups:readonly [string,readonly ComputerApp[]][]=[
+    ['Работа и развитие',['career','study','mail','notes']],
+    ['Досуг',['games','video']],
+    ['Дом и сервисы',['browser','shop','furnishing','finance']],
+  ];
+  for(const [label,ids] of groups){
+    desktop.append(section('div','computer-group-title',label));
+    for(const id of ids){
+      const [,emoji,name,description]=apps.find(app=>app[0]===id)!;
+      const tile=button(emoji+' '+name,()=>show(id),description);
+      tile.classList.add('computer-icon');tile.dataset.computerApp=id;
+      desktop.append(tile);
+    }
   }
   closeButton.addEventListener('click',close);
   root.querySelector('[data-computer-back]')!.addEventListener('click',()=>show(null));

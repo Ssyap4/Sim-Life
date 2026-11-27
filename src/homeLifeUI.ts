@@ -40,6 +40,8 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     root.append(alert);
     return false;
   };
+  const backToTv=()=>{heading('Телевизор');television();};
+  const mediaLabel=(label:string)=>{const el=document.createElement('div');el.className='menu-section-label';el.textContent=label;root.append(el);};
   const movie = (genre: Genre) => {
     heading(GENRES[genre]);
     const detail = document.createElement('p');
@@ -55,18 +57,20 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     const grid = document.createElement('div');
     grid.className = 'genre-grid';
     for(const [genre,name] of Object.entries(GENRES)) grid.append(button(name,() => movie(genre as Genre)));
-    root.append(grid);
+    root.append(grid,button('← Телевизор',backToTv));
   };
-  const games=()=>{heading('🎮 Игровая библиотека');const state=read();if(!state)return;for(const id of consoleLibrary(state)){const g=CONSOLE_GAMES[id],error=consolePlayError(state,id);const detail=document.createElement('p');detail.textContent=g.name+' · '+g.seconds+' с'+(error?' · '+error:'');root.append(detail);if(!error){if(g.mode!=='coop')root.append(button('Играть одному',()=>send(submit({type:'console_play',game:id}))));if(g.mode!=='solo')root.append(button('Играть вместе',()=>send(inviteGame(id))));}}root.append(button('Магазин игр',()=>{root.hidden=true;shopGames();}));};
+  const games=()=>{heading('🎮 Игровая библиотека');const state=read();if(!state)return;for(const id of consoleLibrary(state)){const g=CONSOLE_GAMES[id],error=consolePlayError(state,id);const detail=document.createElement('p');detail.textContent=g.name+' · '+g.seconds+' с'+(error?' · '+error:'');root.append(detail);if(!error){if(g.mode!=='coop')root.append(button('Играть одному',()=>send(submit({type:'console_play',game:id}))));if(g.mode!=='solo')root.append(button('Играть вместе',()=>send(inviteGame(id))));}}root.append(button('Магазин игр',()=>{root.hidden=true;shopGames();}),button('← Телевизор',backToTv));};
+  function television(){
+    mediaLabel('Смотреть');
+    root.append(button('📺 Телеканалы · ' + HOME_SECONDS.freeTv + ' с',
+      () => send(submit({type:'free_tv'}))),button('▶️ YouTube · ' + HOME_SECONDS.youtube + ' с',
+      () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
+      button('🎬 Netflix · фильмы',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
+    mediaLabel('Игры и обучение');
+    root.append(button('🎮 Игровые консоли',games),button('🎓 Передачи и курсы', () => education('tv')));
+  }
   return {
-    television() {
-      root.append(button('🎮 Игровые консоли',games));
-      root.append(button('🎓 Образовательные передачи и курсы', () => education('tv')));
-      root.append(button('📺 Смотреть обычные телеканалы · ' + HOME_SECONDS.freeTv + ' с',
-        () => send(submit({type:'free_tv'}))),button('▶️ Смотреть YouTube · ' + HOME_SECONDS.youtube + ' с',
-        () => permitted({type:'youtube'}) && send(submit({type:'youtube'}))),
-        button('🎬 Смотреть Netflix',() => {if (permitted({type:'movie',genre:'comedy'})) genres();}));
-    },
+    television,
     genres,
     library(seat?: 'officeChair') {
       heading(seat ? '📚 Почитать в кресле' : '📚 Домашняя библиотека');

@@ -78,9 +78,9 @@ export function showFoodChoices(
     const results=document.createElement('div');
     // Direct child cards participate in the shared two-column action grid.
     results.className='food-recipe-results';
-    let currentFilter:'all'|'available'='all';
+    let currentFilter:'all'|'available'|'locked'='all';
     const buttons=([
-      ['all','Все рецепты'],['available','Можно приготовить'],
+      ['all','Все'],['available','Готовить'],['locked','Недоступно'],
     ] as const).map(([filter,label])=>{
       const b=document.createElement('button');
       b.type='button';b.textContent=label;
@@ -99,12 +99,12 @@ export function showFoodChoices(
         const ingredients=ingredientList(item.id).map(([ingredient])=>GROCERIES[ingredient].name).join(' ');
         const text=(item.recipe.name+' '+ingredients).toLocaleLowerCase('ru-RU').replaceAll('ё','е');
         return (!query||text.includes(query))&&
-          (currentFilter==='all'||item.availability.available);
+          (currentFilter==='all'||(currentFilter==='available'?item.availability.available:!item.availability.available));
       });
       count.textContent='По сложности ↑ · можно сейчас: '+recipes.filter(item=>item.availability.available).length+
         ' из '+recipes.length+' · показано: '+visible.length;
       buttons.forEach((b,i)=>b.setAttribute('aria-pressed',
-        String(currentFilter===(i===0?'all':'available'))));
+        String(currentFilter===(['all','available','locked'] as const)[i])));
       results.replaceChildren();
       if(!visible.length){
         const empty=document.createElement('p');
@@ -124,15 +124,14 @@ export function showFoodChoices(
         const difficulty=COOKING_RECIPES[id];
         summary.textContent=difficulty.tier+' · ур. '+difficulty.minLevel+' · '+
           (availability.available?'✅ Можно приготовить':'Недоступно: '+availability.reason)+
-          ' · 🍲 +'+cookingExperience(state.education.characters[role],role,id)+' XP'+
-          ' · '+recipe.servings+' порц. · ≈'+recipePortionCost(id)+' ₽/порция';
+          ' · '+recipe.servings+' порц.';
         cook.append(name,summary);
         cook.addEventListener('click',()=>submit('cook',id));
         const details=document.createElement('details');
         const toggle=document.createElement('summary');
         toggle.textContent='📋 Состав и описание блюда';
         const paragraph=document.createElement('p');
-        paragraph.textContent=RECIPE_DESCRIPTIONS[id]+' · Нужно: '+(isCatchRecipe(id)?'🐟 Улов ×1 (есть '+freshFish(state).length+') · ':'')+
+        paragraph.textContent=RECIPE_DESCRIPTIONS[id]+' · +'+cookingExperience(state.education.characters[role],role,id)+' XP · ≈'+recipePortionCost(id)+' ₽/порция · Нужно: '+(isCatchRecipe(id)?'🐟 Улов ×1 (есть '+freshFish(state).length+') · ':'')+
           ingredientList(id).map(([ingredient,quantity])=>
             GROCERIES[ingredient].emoji+' '+GROCERIES[ingredient].name.split(' · ')[0]+
             ' ×'+quantity+(state.pantry[ingredient]<quantity?

@@ -181,7 +181,16 @@ export function renderPetChoices(
   actions.unshift({action:'toy',icon:'🧸',hint:'Питомец идёт к купленной игрушке. Повтори, чтобы сменить её.',disabled:!toys.length||stats.satiety<40||stats.bladder<35||stats.energy<45});
   actions.unshift({action:'treat',icon:'🦴',hint:'+30 сытости · +12 настроение · +8 привязанность · осталось '+treatsRemaining(stats,state.clock.day)+'/3',disabled:treatsRemaining(stats,state.clock.day)<=0});
   if(selected==='simba')actions.unshift({action:'fishTreat',icon:'🐟',hint:'Приготовленная рыба без костей · сытость и настроение 100 · привязанность +35 · улов '+freshFish(state).length,disabled:!freshFish(state).length||state.world.fishing?.treatDay===state.clock.day});
-  for (const row of actions) {
+  const groups:readonly [string,readonly PetAction[]][]=[
+    ['Забота и кормление',['feed','loadFeeder','treat','fishTreat','pet','brush','bathe']],
+    ['Игры и общение',['call','play','fetch','toy']],
+    ['Отдых и привычки',['mat','bedTogether','leaveBed','perch','scratch']],
+  ];
+  for(const [label,ids] of groups){
+    const rows=actions.filter(row=>ids.includes(row.action));
+    if(!rows.length)continue;
+    const heading=document.createElement('div');heading.className='menu-section-label';heading.textContent=label;container.append(heading);
+    for(const row of rows){
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'food-action pet-action';
@@ -193,5 +202,6 @@ export function renderPetChoices(
     button.append(title, hint);
     button.addEventListener('click', () => send(selected, row.action));
     container.appendChild(button);
+    }
   }
 }

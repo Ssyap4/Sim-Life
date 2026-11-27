@@ -1,0 +1,39 @@
+name: SimOurHome interaction UI 0.59.1
+on:
+  push:
+    branches: [feat/interaction-ui-0591]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-interaction-0591.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: interaction-ui
+          path: /tmp/simourhome-0591
+          retention-days: 7
