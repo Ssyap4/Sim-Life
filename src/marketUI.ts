@@ -90,6 +90,7 @@ export function createMarketUI(
     if(lastRole!==role){lastRole=role;category='all';searchQuery='';}
     const missing=role?favoriteRecipeIngredients(state,role):new Set<string>();
     const oldScroll = root.querySelector<HTMLElement>('.market-scroll')?.scrollTop ?? 0;
+    const oldFilterScroll=root.querySelector<HTMLElement>('.market-filters')?.scrollLeft??0;
     const activeSearch = root.querySelector<HTMLInputElement>('.market-search-input');
     const keepFocus = document.activeElement === activeSearch;
     const caret = keepFocus ? activeSearch?.selectionStart ?? searchQuery.length : 0;
@@ -119,8 +120,8 @@ export function createMarketUI(
       const filters = el('div','market-filters');
       const filtersArray: Array<[Filter,string]> = [['all','Все'],...(role?([['favorite','♥ Моё любимое'],['partner','♡ Любит партнёр'],['ingredients','Для любимых блюд']] as [Filter,string][]):[]),...Object.entries(MARKET_CATEGORIES) as Array<[MarketCategory,string]>];
       for (const [id,label] of filtersArray) {
-        filters.append(button(label,()=>{category=id;searchQuery='';redraw();scroll.scrollTop=0;},
-          'market-filter'+(category===id?' selected':'')));
+        const tab=button(label,()=>{category=id;searchQuery='';redraw();root.querySelector<HTMLElement>('.market-scroll')?.scrollTo({top:0});},'market-filter'+(category===id?' selected':''));
+        tab.setAttribute('aria-pressed',String(category===id));filters.append(tab);
       }
       const searchBar = el('div','market-search');
       const searchLabel = el('label','market-search-label','🔎 Быстрый поиск продуктов');
@@ -213,7 +214,7 @@ export function createMarketUI(
         if(searchQuery.trim()&&!['favorite','partner','ingredients'].includes(category)){
           category='all';
           filters.querySelectorAll<HTMLButtonElement>('.market-filter').forEach((tab,i)=>{
-            tab.classList.toggle('selected',i===0);
+            tab.classList.toggle('selected',i===0);tab.setAttribute('aria-pressed',String(i===0));
           });
         }
         updateResults();
@@ -337,6 +338,8 @@ export function createMarketUI(
     }
     root.append(panel);
     root.querySelector<HTMLElement>('.market-scroll')?.scrollTo({top:oldScroll});
+    const strip=root.querySelector<HTMLElement>('.market-filters'),selected=strip?.querySelector<HTMLElement>('.selected');
+    if(strip&&selected){strip.scrollLeft=oldFilterScroll;const bounds=strip.getBoundingClientRect(),item=selected.getBoundingClientRect();if(item.right>bounds.right)strip.scrollLeft+=item.right-bounds.right+8;else if(item.left<bounds.left)strip.scrollLeft-=bounds.left-item.left+8;}
     if(keepFocus && currentTab==='shop'){
       const field=root.querySelector<HTMLInputElement>('.market-search-input');
       field?.focus({preventScroll:true});

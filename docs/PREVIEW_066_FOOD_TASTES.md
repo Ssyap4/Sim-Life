@@ -7,3 +7,5 @@ Cafe menu, coffee styles/instant blends, campfire recipes and packed picnic food
 
 ## Stage 3
 Personal and partner favorite filters in phone and computer delivery, missing ingredients for personal favorite recipes, catalog marks for ready food and instant coffee, favorites prioritized in actual supermarket shelves. No automatic purchases or recipe order changes. Kitchen partner filter, refrigerator marks, and TV/YouTube filters for mine/partner/both with actual fresh stock counts; 2 portions required for invitation. Stage 2 cloud run 46073801254 passed both jobs; 320/390/partner profile screenshots reviewed visually. Stage 3 mobile delivery QA extended.
+
+Stage 3 cloud run 46074160260: both jobs successful. Actual delivery 320/390 captures reviewed; active filter was partially clipped by horizontal scroll reset. Final adjustment preserves strip position and reveals selected category after redraw.

@@ -18,3 +18,7 @@ Main deployment only by explicit owner approval. Deep careers remain deferred. U
 ## 0.65 verified additions
 - Home beauty: 16 new Alina procedures (5 vanity, 5 body bath, 6 hair), independent hair condition/style, actual props, timed effects and replay, existing wish integration. Do not propose these as new; hair reconstruction career still deferred.
 - 10 drinks, 4 baked desserts, 7 snacks, 8 ingredients, grocery/recipe categories, ready drink transport to starter/purchased seating, films/YouTube with prepared portions, partner delivery during active starter desktop work. Current restrictions documented in RELEASE_065.md. No worker sipping animation/self-service or custom laptop delivery. Do not pitch existing content as new.
+
+## 0.66 verified additions
+- Personal food tastes: independent editable profiles, read-only partner tastes, recipe and ready food marks, cafe/coffee/picnic/campfire integration, shared cooldown, real consumption wishes, grocery/delivery/TV filters, ingredient suggestions, partner breakfast/serving options. Do not propose these as new. See RELEASE_066.md.
+- Owner explicitly rejected laundry, including optional version. Do not reopen.

@@ -67,6 +67,8 @@ try{
  assert.match(await market.locator('.market-summary').innerText(),/1 уп/);
  for(const [width,height] of [[320,568],[390,844]]){
   await page.setViewportSize({width,height});assert.ok(await market.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+  await market.getByRole('button',{name:'Для любимых блюд',exact:true}).click();
+  assert.ok(await market.locator('.market-filters').evaluate(el=>{const a=el.getBoundingClientRect(),b=el.querySelector('.selected').getBoundingClientRect();return b.left>=a.left-2&&b.right<=a.right+2;}),'selected filter visible');
   const shot=await page.screenshot({path:join(out,'delivery-'+width+'.jpg'),type:'jpeg',quality:75});const b=shot.toString('base64');for(let i=0;i<b.length;i+=3000)console.log('QA_IMAGE delivery-'+width+' '+b.slice(i,i+3000));
  }
  assert.deepEqual(errors,[]);console.log('Mobile taste profiles and delivery OK');
