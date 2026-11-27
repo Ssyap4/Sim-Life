@@ -26,4 +26,5 @@ export function addLedger(state: GameState, actor: LedgerEntry['actor'], kind: L
     }
   }
 }
-export const formatRub = (n: number): string => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
+const rubFormatter=new Intl.NumberFormat('ru-RU');
+export const formatRub = (n: number): string => rubFormatter.format(n) + ' ₽';

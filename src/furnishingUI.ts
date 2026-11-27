@@ -84,6 +84,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     return control;
   };
   function refresh(){
+    if(root.hidden)return;
     const state=callbacks.read();if(!state)return;
     tabs.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tab===tab)));
     const {orders,stored,placed}=state.furnishing;
@@ -96,7 +97,6 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     });
     status.textContent='💳 Баланс: '+formatRub(state.money)+
       ' · 📦 Готово посылок: '+ready;
-    if(root.hidden)return;
     const viewKey=JSON.stringify(tab==='catalog'?['catalog',state.money]:
       tab==='delivery'?['delivery',orders,Math.floor(callbacks.minute())]:
       tab==='storage'?['storage',stored]:

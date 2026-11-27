@@ -174,7 +174,7 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
     box(6.3,.91,.20,0,.455,-2.14,0xe7ede6,'ceramic');
     // Clear acrylic front with a pale rim, no opaque lid or lane dividers.
     const glass=box(6.08,.76,.11,0,.43,1.50,0x51b9ce,'ceramic');
-    glass.material=new THREE.MeshStandardMaterial({color:0x53b8cc,transparent:true,opacity:.32,roughness:.19,depthWrite:false});
+    glass.name='Oasis pool glass';glass.material=new THREE.MeshStandardMaterial({color:0x53b8cc,transparent:true,opacity:.32,roughness:.19,depthWrite:false});
     box(6.32,.11,.20,0,.89,1.50,0xf5f2e7,'ceramic',true);
     for(const x of [-3.12,3.12])box(.26,.10,3.85,x,.89,cz,0xf5f2e7,'ceramic',true);
     box(6.32,.10,.24,0,.89,-2.14,0xf5f2e7,'ceramic',true);

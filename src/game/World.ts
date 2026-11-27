@@ -82,12 +82,13 @@ import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproac
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
-import { batchRigidParts, cube, softCube, orb, drum, finish } from './ArtKit';
+import { batchRigidParts, cube, softCube, drum, finish } from './ArtKit';
 import { FittingStage } from './FittingStage';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
 import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
+import {reconcileFurnitureModels,disposeFurnitureModel} from './FurnitureModels';
 import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
@@ -272,6 +273,8 @@ export class World {
   private followingPair = false;
   private manualCameraHeight = false;
   private readonly cameraQA = new URLSearchParams(location.search).get('cameraQA')==='1';
+  private readonly perfQA = new URLSearchParams(location.search).get('perfQA')==='1';
+  private lastPerfReport=0;
   private readonly manualPairAnchor = new THREE.Vector3();
   private readonly pairCameraTarget = new THREE.Vector3();
   private readonly pairCameraEye = new THREE.Vector3();
@@ -1990,27 +1993,8 @@ export class World {
     if(signature===this.furnishingVisualKey)return;
     this.furnishingVisualKey=signature;
     this.computerScreens.hostDesktop(null);this.computerScreens.hostLaptop(null);
-    for(const model of this.furnishingModels.values()){
-      model.traverse(part=>{
-        const at=this.interactiveMeshes.indexOf(part);
-        if(at!==-1)this.interactiveMeshes.splice(at,1);
-      });
-      model.removeFromParent();
-      model.traverse(part=>{
-        if(part instanceof THREE.Mesh&&!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
-          part.geometry.dispose();
-        if(part instanceof THREE.Mesh&&part.name==='Oasis water surface'&&part.material instanceof THREE.ShaderMaterial)part.material.dispose();
-      });
-    }
-    this.furnishingModels.clear();
-    for(const item of placed){
+    reconcileFurnitureModels(this.furnishingModels,placed,item=>{
       const model=buildFurnishingModel(item.sku,item.finish);
-      model.position.set(item.x,isSurfaceDevice(item.sku)&&this.household?(speakerHeight(this.household.furnishing,item)??.01):.01,item.z);
-      model.rotation.y=item.rotation*Math.PI/2;
-      if(item.sku==='pet-bed-stairs'&&this.household){
-        const site=dogBedSites(this.household,item)[0];if(site)model.scale.y=site.height/.76;
-      }
-      model.userData.furnitureId=item.id;model.userData.sku=item.sku;
       model.traverse(part=>{
         if(part instanceof THREE.Mesh){
           part.userData.furnitureId=item.id;
@@ -2018,8 +2002,22 @@ export class World {
         }
       });
       this.homeScene.add(model);
-      this.furnishingModels.set(item.id,model);
-    }
+      return model;
+    },model=>{
+      const removed=new Set<THREE.Object3D>();
+      model.traverse(part=>removed.add(part));
+      for(let i=this.interactiveMeshes.length-1;i>=0;i--)
+        if(removed.has(this.interactiveMeshes[i]))this.interactiveMeshes.splice(i,1);
+      model.removeFromParent();
+      disposeFurnitureModel(model);
+    },(model,item)=>{
+      model.position.set(item.x,isSurfaceDevice(item.sku)&&this.household?(speakerHeight(this.household.furnishing,item)??.01):.01,item.z);
+      model.rotation.y=item.rotation*Math.PI/2;
+      if(item.sku==='pet-bed-stairs'&&this.household){
+        const site=dogBedSites(this.household,item)[0];
+        model.scale.y=site?site.height/.76:model.userData.originalScaleY;
+      }
+    });
     const notebook=placed.find(item=>isNotebookDesk(item.sku));
     if(notebook)this.computerScreens.hostLaptop(this.furnishingModels.get(notebook.id)!);
     if(this.household?.furnishing.soldFixtures?.includes('desk')){
@@ -2123,17 +2121,7 @@ export class World {
     if(!this.furnishingGhost)return;
     const ghost=this.furnishingGhost;
     ghost.removeFromParent();
-    ghost.traverse(part=>{
-      if(part instanceof THREE.LineSegments){
-        part.geometry.dispose();
-        (part.material as THREE.Material).dispose();
-      }
-      if(part instanceof THREE.Mesh){
-        if(!([cube,softCube,orb,drum] as THREE.BufferGeometry[]).includes(part.geometry))
-          part.geometry.dispose();
-        (part.material as THREE.Material).dispose();
-      }
-    });
+    disposeFurnitureModel(ghost,true);
     this.furnishingGhost=null;this.speakerGhost=false;
     this.furnishingFootprint=null;
     this.furnishingOutline=null;
@@ -3468,6 +3456,12 @@ export class World {
       this.graphicsLost = true;
       console.error('WebGL rendering failed', error);
       showGraphicsProblem(this.canvas, 'Видеодрайвер прервал отрисовку.');
+    }
+    if(this.perfQA&&now-this.lastPerfReport>=500){
+      this.lastPerfReport=now;
+      const info=this.renderer.info;
+      this.canvas.dataset.resourceReport=JSON.stringify({place:this.place,revision:this.household?.revision,geometries:info.memory.geometries,textures:info.memory.textures,
+        calls:info.render.calls,triangles:info.render.triangles,models:[...this.furnishingModels].map(([id,m])=>[id,m.uuid])});
     }
     this.onRenderedFrame?.(now, this.renderer.info.render.calls, this.renderer.info.render.triangles);
   };

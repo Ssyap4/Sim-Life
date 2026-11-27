@@ -752,13 +752,16 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {
+        // InstancedMesh owns instanceMatrix/instanceColor GPU buffers in
+        // addition to its geometry. Geometry.dispose alone cannot free them.
+        if(object instanceof THREE.InstancedMesh)object.dispose();
         if ((object instanceof THREE.Mesh || object instanceof THREE.LineSegments) && !shared.has(object.geometry))
           geometries.add(object.geometry);
       });
       for (const geometry of geometries) geometry.dispose();
-      for (const map of textures) map.dispose();
-      for (const material of materials) material.dispose();
-      root.clear();
+      for (const map of new Set(textures)) map.dispose();
+      for (const material of new Set(materials)) material.dispose();
+      root.clear();stations.clear();textures.length=0;materials.length=0;bulbs.length=0;
     },
   };
 }

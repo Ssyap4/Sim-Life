@@ -32,6 +32,7 @@ jobs:
       - run: npm run build
       - run: node --import tsx scripts/qa-hud-0593.mjs
       - run: node --import tsx scripts/qa-tv-food-060.mjs
+      - run: node --import tsx scripts/qa-performance-060.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -39,4 +40,5 @@ jobs:
           path: |
             /tmp/simourhome-0593
             /tmp/simourhome-060-tv-food
+            /tmp/simourhome-060-performance
           retention-days: 7

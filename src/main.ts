@@ -793,7 +793,7 @@ function render(reset = false): void {
   renderTimePanel();
   if (active) skillsBtn.querySelector('small')!.textContent = '🍲 '+skillRank(state.education.characters[active].xp.cooking).level+' ур.';
   document.querySelector<HTMLElement>('#money')!.textContent =
-    new Intl.NumberFormat('ru-RU').format(state.money) + ' ₽';
+    formatRub(state.money);
   document.querySelector<HTMLElement>('#online-note')!.textContent =
     online.length + ' из 2 игроков онлайн';
   const used=storageUsage(state);
@@ -1704,7 +1704,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
     const characters = useBlender ? await import('./game/BlenderCharacter')
       .then(async ({ loadResidents }) => {
         const look=new URLSearchParams(location.search).get('outfit')??'signature';
-        const { outfitChoices }=await import('./game/Wardrobe');
+
         return loadResidents(look==='tee'?['alina-tee-upper']:outfitChoices(look),params.get('characters')==='legacy');
       })
       .catch((err: unknown) => {

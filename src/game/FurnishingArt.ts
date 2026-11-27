@@ -58,7 +58,7 @@ export function createPlacementGhost(sku:string,finishId:FurnitureFinish):THREE.
       material.opacity=.58;
       material.depthWrite=false;
       material.emissive.setHex(0x173b2c);
-      copies.set(old,material);
+      copies.set(old,material);if(old instanceof THREE.ShaderMaterial||child.name==='Oasis pool glass')old.dispose();
     }
     child.material=material;
   });
