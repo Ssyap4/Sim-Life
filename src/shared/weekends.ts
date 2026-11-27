@@ -18,6 +18,15 @@ export const WEEKEND_ACTIVITIES={
  hockey:{title:'Аэрохоккей',icon:'🏒',place:'venue',hint:'PLAY ARENA · одна совместная партия.',min:VENUE_GAMES.venueHockey.price,max:VENUE_GAMES.venueHockey.price},
  dog:{title:'Прогулка с Верделлом',icon:'🐾',place:'park',hint:'Возьмите Верделла и прогуляйтесь вместе в парке.',min:0,max:0},
  picnic:{title:'Пикник в парке',icon:'🧺',place:'park',hint:'Положите свежую еду для обоих в корзину.',min:0,max:0},
+ tea:{title:'Чай вдвоём',icon:'☕',place:'home',hint:'Две порции чая, общий стол.',min:0,max:0},
+ dinner:{title:'Ужин за общим столом',icon:'🍽️',place:'home',hint:'Две свежие порции домашней еды или доставки. Сначала приготовьте или закажите.',min:0,max:0},
+ film:{title:'Вечер кино',icon:'🎬',place:'home',hint:'Совместный фильм, оплаченный интернет и Netflix.',min:0,max:0},
+ dance:{title:'Медленный танец',icon:'♡',place:'home',hint:'Потанцуйте вдвоём дома.',min:0,max:0},
+ pets:{title:'Поиграть с питомцем',icon:'🐾',place:'home',hint:'Выберите Верделла или Симбу и поиграйте вдвоём.',min:0,max:0},
+ bench:{title:'Отдых в парке',icon:'🌳',place:'park',hint:'Посидите вдвоём на скамейке.',min:0,max:0},
+ badminton:{title:'Бадминтон',icon:'🏸',place:'park',hint:'Сыграйте совместную партию.',min:0,max:0},
+ cafeTalk:{title:'Разговор в кафе',icon:'💬',place:'cafe',hint:'Сядьте за один столик и помечтайте вместе. Заказы оплачиваются отдельно.',min:0,max:0},
+ campfire:{title:'Разговор у костра',icon:'🔥',place:'lake',hint:'Нужен доступ к озеру и общий горящий костёр. Вход и топливо отдельно.',min:0,max:0},
  coffee:{title:'Кофе во дворе',icon:'☕',place:'home',hint:'Две порции кофе, свободный дневной лимит.',min:0,max:0},
 } as const;
 export type WeekendActivity=keyof typeof WEEKEND_ACTIVITIES;
@@ -26,6 +35,10 @@ export const WEEKEND_PRESETS={
  romance:{title:'Романтический день',icon:'❤️',items:['spa','cafe','evening']},
  active:{title:'Активный отдых',icon:'🎳',items:['bowling','billiards','hockey']},
  walk:{title:'Семейная прогулка',icon:'🌳',items:['dog','picnic','coffee']},
+ quiet:{title:'Тихий день дома',icon:'☕',items:['tea','pets','dinner','evening']},
+ date:{title:'Вечер для двоих',icon:'♡',items:['dinner','dance','film']},
+ green:{title:'День на свежем воздухе',icon:'🌳',items:['bench','badminton','picnic']},
+ lakeDay:{title:'Время на природе',icon:'🔥',items:['campfire','coffee','evening']},
  custom:{title:'Свой сценарий',icon:'📅',items:[]},
 } as const satisfies Record<string,{title:string;icon:string;items:readonly WeekendActivity[]}>;
 export type WeekendPreset=keyof typeof WEEKEND_PRESETS;
@@ -59,6 +72,10 @@ export function creditWeekend(s:GameState,id:WeekendActivity){
 }
 export function creditWeekendTogether(s:GameState,action:string,item?:string){
  const map:Record<string,WeekendActivity>={breakfastCare:'breakfast',breakfastBed:'breakfast',grill:'grill',yardHookah:'hookah',poolSwimTogether:'pool',cafeMeal:'cafe',cuddle:'evening',sofaTalk:'evening',film:'evening',musicTogether:'evening',venueBowling:'bowling',venueBilliards:'billiards',venueHockey:'hockey',picnic:'picnic',yardCoffee:'coffee'};
+ const extra:Partial<Record<string,WeekendActivity>>={teaTogether:'tea',yardTea:'tea',eat:'dinner',takeout:'dinner',film:'film',slowDance:'dance',petPlay:'pets',parkRest:'bench',parkBadminton:'badminton',cafeDreams:'cafeTalk','lakeTalk:gratitude':'campfire'};
+ const exact=extra[action];
+ const p=s.weekends?.plan;
+ if(exact&&p?.items.includes(exact)&&WEEKEND_ACTIVITIES[exact].place===s.world.places.vlad&&s.world.places.vlad===s.world.places.alina){creditWeekend(s,exact);return;}
  const id=action==='eat'&&item&&['omelette','toast','porridge','sandwich','pancakes','fruitSalad'].includes(item)?'breakfast':action==='consoleTogether'&&item==='ufc6'?'ufc':action==='walk'&&s.world.places.vlad==='park'&&s.world.places.alina==='park'&&s.world.dogWalker?'dog':map[action];
  if(id)creditWeekend(s,id);
 }

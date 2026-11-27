@@ -531,7 +531,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
         evening.phase='unwind';
         message+=' · ✨ Теперь можно отдохнуть вдвоём';
       } else if(evening?.phase==='unwind'&&[
-        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet','sofaMassage',
+        'film','tv','youtube','cuddle','sofaTalk','slowDance','eveningHeartTalk','read','petPlay','petPet','sofaMassage','sofaHug','teaTogether','yardTea',
       ].includes(a.id)){
         evening.phase='complete';
         evening.completedAt=now;
@@ -540,7 +540,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
           evening.kind==='leftovers'?'поужинали готовым блюдом':'приготовили ужин';
         const ending=a.id==='film'?'посмотрели фильм':a.id==='tv'?'посмотрели телевизор':
           a.id==='youtube'?'посмотрели видео':a.id==='slowDance'?'потанцевали':
-          a.id==='cuddle'?'посидели в обнимку':
+          a.id==='cuddle'||a.id==='sofaHug'?'посидели в обнимку':a.id==='teaTogether'||a.id==='yardTea'?'выпили чай вместе':
           a.id==='eveningHeartTalk'?'поговорили по душам':a.id==='sofaMassage'?'расслабились за массажем':
           a.id==='read'?'почитали рядом':
           a.id==='petPlay'||a.id==='petPet'?'провели время с '+(PETS[id as PetId]?.name??'питомцем'):

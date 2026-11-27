@@ -1512,6 +1512,13 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .family-journal,.journal-list{display:grid;gap:8px;min-width:0}
 .journal-heading{background:#e8eee1;border:1px solid #d5dfd1;border-radius:12px;padding:12px;display:grid;gap:5px}
 .journal-heading small{font-size:10px;letter-spacing:.08em}
-.journal-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.journal-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.journal-filters .social-button:first-child{grid-column:1/-1}
+.journal-filters .social-button{min-height:36px;padding:4px 3px;font-size:11px}
 .journal-day{font-size:12px;color:#597468;margin:7px 0 0;padding:4px 2px;border-bottom:1px solid #d7e1d3}
 .journal-list .relationship-event{overflow-wrap:anywhere}
+
+.family-heritage{display:grid;gap:7px;border:1px solid #d5dfd1;background:#f4f6ed;border-radius:12px;padding:10px}
+.family-heritage summary{font-weight:800;cursor:pointer;min-height:36px;padding:8px 0}
+.family-heritage[open]>article{margin-top:7px;padding:8px;border-radius:9px;background:#fff9ed}
+.family-heritage[open]>p,.family-heritage[open]>h3{margin:6px 0}

@@ -1,4 +1,4 @@
-import {JOURNAL_FILTERS,JOURNAL_PAGE_SIZE,journalEntries,journalSummary,type JournalFilter} from './shared/familyJournal';
+import {JOURNAL_FILTERS,JOURNAL_PAGE_SIZE,journalEntries,journalSummary,familyTraditions,familyHighlights,type JournalFilter} from './shared/familyJournal';
 import { familyMoments, type FamilyMomentId } from './shared/familyMoments';
 import {
   activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
@@ -133,6 +133,10 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     } else {
       story.append(button('📺 Посмотреть ТВ вдвоём',()=>suggest('fun','tv')));
       story.append(button('💛 Поговорить по душам',()=>suggest('care','eveningHeartTalk')));
+      for(const id of ['film','sofaHug','slowDance','teaTogether']){
+        const a=SOCIAL_BY_ID.get(id)!;
+        if(!socialRestriction(a,state,role))story.append(button(a.title,()=>suggest(a.group,id)));
+      }
       if(activityItems(SOCIAL_BY_ID.get('petPlay')!,state,role).length)
         story.append(button('🐾 Поиграть с питомцем',()=>suggest('home','petPlay')));
     }
@@ -142,7 +146,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   const moments=familyMoments(state,role);
   if(moments.length){
     const momentCards=node('section','','relationship-moments');
-    momentCards.append(node('p','Сегодня дома есть повод сделать что-нибудь друг для друга.','relationship-moment-intro'));
+    momentCards.append(node('p','Сегодня есть повод сделать что-нибудь друг для друга.','relationship-moment-intro'));
     for(const moment of moments){
       const card=node('article','','relationship-event relationship-moment');
       card.append(node('strong',moment.emoji+' '+moment.title),node('p',moment.description));
@@ -163,6 +167,24 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     suggestions.append(button(SOCIAL_GROUPS[a.group][0]+' '+a.title,()=>suggest(a.group,a.id)));
   }
   if(suggestions.childElementCount)pane.append(node('h3','Что сделать вместе'),suggestions);
+  const traditions=familyTraditions(p.memories),highlights=familyHighlights(p.memories);
+  const heritage=node('details','','family-heritage');
+  heritage.open=root.querySelector<HTMLDetailsElement>('.family-heritage')?.open??false;
+  const summary=node('summary','Наши традиции и памятные дни');
+  heritage.append(summary,node('p','История по сохранённым записям. Никаких обязательных целей и наград.'));
+  if(!traditions.length)heritage.append(node('p','Проводите время вместе — здесь появятся любимые занятия.'));
+  for(const t of traditions){
+    const c=node('article','','relationship-event');
+    c.append(node('strong',t.icon+' '+t.title),node('p',t.established?'Уже стало вашей традицией':'Маленькая семейная привычка'),node('small','Отмечено в '+t.days+' разных игровых днях · последний раз '+clockLabel(clockAt(t.last!))));
+    heritage.append(c);
+  }
+  if(highlights.length){
+    heritage.append(node('h3','Первые памятные моменты в архиве'));
+    for(const h of highlights){
+      const c=node('article','','relationship-event');c.append(node('strong',h.title),node('small',clockLabel(clockAt(h.memory.at))),node('p',h.memory.title));heritage.append(c);
+    }
+  }
+  pane.append(heritage);
   const recent=node('ul','','relationship-recent');
   const memories=new Set(p.memories.map(m=>m.at+'|'+m.action));
   for(const e of p.recent.slice().reverse()){

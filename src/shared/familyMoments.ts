@@ -1,3 +1,4 @@
+import {RECIPES,TAKEOUT,type RecipeId,type TakeoutId} from './food';
 import {FAMILY_MEMORY_LIMIT} from './familyJournal';
 /** Grounded, optional two-person stories: no random popup, daily reward farming or
  * invented food. Existing server-authoritative tasks supply every physical action.
@@ -120,13 +121,37 @@ export function momentDenial(state:GameState,from:CharacterId,command:SocialInte
     return 'Этот семейный момент сейчас недоступен. Проверьте свежие предложения.';
 }
 
+/** Store the completed moment, not a copy of the proposed invitation. */
+export function completedMomentText(moment:FamilyMoment):string{
+ const pet=moment.item==='verdell'||moment.item==='simba'?PETS[moment.item].name:'питомец';
+ const meal=moment.action==='takeout'?TAKEOUT[moment.item as TakeoutId]?.name:RECIPES[moment.item as RecipeId]?.name;
+ const text:Record<FamilyMomentId,string>={
+  afterShift:'После работы нашли время для спокойного разговора на диване.',
+  roughDay:'Побыли рядом в непростой день, поговорили и поддержали друг друга.',
+  petNeedsUs:'Вместе позаботились о кормлении: '+pet+'.',
+  shareDinner:'Поужинали вдвоём'+(meal?' — '+meal:'')+'.',
+  goodNews:'Разделили радость от хороших новостей и поздравили друг друга.',
+  dishesTogether:'После еды вместе убрали посуду и навели порядок.',
+  simpleEvening:'Провели тихий вечер за обычным телевизором, без лишних покупок.',
+  morningTea:'Заварили две кружки чая и спокойно посидели вместе.',
+  quietTogether:'Обнялись на диване и уделили время друг другу.',
+  petAttention:'Вместе уделили внимание питомцу: '+pet+'.',
+  freshAir:'Сделали перерыв в домашних делах и прогулялись вдвоём.',
+  parkBreak:'Отдохнули рядом на парковой скамейке.',
+  parkGame:'Сыграли в бадминтон вдвоём.',
+  cafeDate:'За одним столиком в кафе поговорили о мечтах и будущем.',
+  campfireTalk:'Поговорили у общего горящего костра и поблагодарили друг друга за поездку.',
+  celebrateToday:'Поздравили друг друга с семейным праздником.'
+ };
+ return text[moment.id];
+}
 export function momentReward(state:GameState,from:CharacterId,moment:FamilyMoment):string {
   // The server captured this fully validated moment BEFORE the real task. By now
   // the food may be eaten and the bowl full, so never re-evaluate its old trigger.
   const now=gameMinutes(state.clock),to=otherPerson(from);
   state.relationship.memories.push({
     action:FAMILY_MOMENT_PREFIX+moment.id,group:SOCIAL_BY_ID.get(moment.action)?.group??'care',at:now,
-    title:moment.title,description:moment.description+' '+moment.bonus+'.',
+    title:moment.title,description:completedMomentText(moment),
   });
   state.relationship.memories=state.relationship.memories.slice(-FAMILY_MEMORY_LIMIT);
   // Keep small contextual gains only when the moment is completed by both;
