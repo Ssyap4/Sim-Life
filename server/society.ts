@@ -90,9 +90,9 @@ export function cooperationDenial(state:GameState,from:CharacterId,command:Socia
 const petActions:Record<string,Exclude<PetAction,'buyFood'|'call'|'perch'|'fetch'|'mat'|'scratch'|'toy'|import('../src/shared/dogTraining').DogTrainingAction>>={petPlay:'play',petFeed:'feed',petPet:'pet',petBrush:'brush'};
 export function socialResource(a:SocialActivity,item?:string) { return a.object==='leisure'?'furniture:'+item:petActions[a.id]?'pet:'+item:a.resource??null; }
 import {CONSOLE_GAMES,isConsoleGame,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
-import { cookingSeconds } from '../src/shared/cookingProgression';
+import { pairedCookingSeconds } from '../src/shared/cookingProgression';
 export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
-  if(a.object==='cook'&&command.item&&Object.hasOwn(RECIPES,command.item))return Math.max(10,Math.ceil(cookingSeconds(command.item as RecipeId)*.8))*1000;
+  if(a.object==='cook'&&command.item&&Object.hasOwn(RECIPES,command.item))return pairedCookingSeconds(command.item as RecipeId)*1000;
   if(a.object==='console'&&isConsoleGame(command.item))return CONSOLE_GAMES[command.item].seconds*1000;
   if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku,a.id);if(action)return LEISURE[action].seconds*1000;}
   return 1000*(a.object==='lesson'?Math.max(10,(MATERIAL_BY_ID.get(command.item!)?.minutes??10)*2):a.seconds);

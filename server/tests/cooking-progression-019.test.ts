@@ -124,15 +124,15 @@ import {SOCIAL_BY_ID} from '../../src/shared/socialLife';
 test('Every recipe uses shared complexity-based timing for solo and paired cooking',()=>{
   for(const id of COOKING_ORDER){
     const solo=cookingSeconds(id);
-    assert.ok(solo>=12&&solo<=42);
+    assert.ok(solo>=30&&solo<=60);
     assert.equal(planTask({type:'cook',recipe:id})?.durationMs,solo*1000);
     const pair=socialDuration(SOCIAL_BY_ID.get('cook')!,{type:'together',action:'cook',item:id});
-    assert.equal(pair,Math.max(10,Math.ceil(solo*.8))*1000);
+    assert.equal(pair,Math.max(10,Math.ceil((solo-18)*.8))*1000);
     assert.ok(pair<solo*1000);
     assert.equal(planTask({type:'eat',recipe:id})?.durationMs,32000);
   }
-  assert.equal(cookingSeconds('omelette'),12);
-  assert.equal(cookingSeconds('beefWellington'),42);
+  assert.equal(cookingSeconds('omelette'),30);
+  assert.equal(cookingSeconds('beefWellington'),60);
   assert.ok(cookingSeconds('chickenRice')>cookingSeconds('omelette'));
   assert.ok(cookingSeconds('grillSteak')>cookingSeconds('grillVegetables'));
 });

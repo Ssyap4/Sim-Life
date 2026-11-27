@@ -153,5 +153,5 @@ test('all home and cafe meal plans use a shared 32-second duration',()=>{
     assert.equal(planTask(command)?.durationMs,32000);
   }
   for(const action of ['eat','takeout','bring','cafeMeal'])assert.equal(SOCIAL_BY_ID.get(action)?.seconds,32);
-  assert.equal(planTask({type:'cook',recipe:'omelette'})?.durationMs,12000);
+  assert.equal(planTask({type:'cook',recipe:'omelette'})?.durationMs,30000);
 });

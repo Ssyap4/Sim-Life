@@ -75,8 +75,15 @@ export function cookingEnergy(level: number, id: RecipeId): number {
 }
 
 /** Base real seconds after arrival. Shared by server and recipe cards. */
-export function cookingSeconds(id: RecipeId): number {
+function baseCookingSeconds(id: RecipeId): number {
   const level=COOKING_RECIPES[id].minLevel;
   const seconds=level>=17?42:level>=11?36:level>=7?30:level>=5?24:level>=2?18:12;
   return Math.max(isGrillRecipe(id)?15:12,seconds);
+}
+/** Solo preparation includes extra time for doing all the work alone. */
+export function cookingSeconds(id: RecipeId): number {
+  return baseCookingSeconds(id)+18;
+}
+export function pairedCookingSeconds(id: RecipeId): number {
+  return Math.max(10,Math.ceil(baseCookingSeconds(id)*.8));
 }
