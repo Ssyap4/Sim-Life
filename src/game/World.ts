@@ -2438,7 +2438,7 @@ export class World {
     this.grillCooking = false;
     this.kitchenCooking=false;
     this.kitchenEffects.root.visible=false;
-    this.homeTasks.clear();this.hobbyWorks.clear();this.poolMotions.clear();
+    this.homeTasks.clear();this.hobbyWorks.clear();this.poolMotions.clear();this.mediaFoodArrived.clear();this.mediaFoodStarted.clear();
     this.neighborhoodView=false;
     this.frameDistrictResident();
     this.neighborBodies=[];

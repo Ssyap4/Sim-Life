@@ -13,7 +13,7 @@ import {startServer} from '../server/server.ts';
 const out='/tmp/simourhome-061-toys';mkdirSync(out,{recursive:true});
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
 try{
- for(const mode of ['toys','walk']){
+ for(const [mode,focus] of [['toys',null],['walk','verdell'],['walk','simba']]){
   const dir=mkdtempSync(join(tmpdir(),'toy-contact-061-'));let server,page;
   try{
    const s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};
@@ -25,6 +25,8 @@ try{
     if('id' in toy)pet.ownedToys=[toy.id];
     if(mode==='toys'){
      pet.routine={kind:'toy',target:index,goal,startedAt:780,until:840,route:{from:goal,path:[]}};
+    }else if(id!==focus){
+     delete pet.routine;
     }else{
      const target=PET_ROAM.reduce((best,p,i)=>Math.hypot(p.x-goal.x,p.z-goal.z)>Math.hypot(PET_ROAM[best].x-goal.x,PET_ROAM[best].z-goal.z)?i:best,0);
      const route=planPetRoute(goal,PET_ROAM[target],geometry);assert.ok(route);
@@ -39,13 +41,14 @@ try{
    await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
    await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
    for(const id of ['verdell','simba']){
+    if(focus&&id!==focus)continue;
     await page.locator('#showcase-toggle').click();await page.locator('[data-showcase='+id+']').click();
     await page.waitForFunction(({id,mode})=>{const p=JSON.parse(document.querySelector('#game-canvas').dataset.petMotionState||'{}')[id];return mode==='toys'?p?.routine==='toy'&&p.settled%4.8>1.3&&p.settled%4.8<3.0:p?.gait>.4;},{id,mode},{timeout:20000});
     for(let i=0;i<3;i++){await page.screenshot({path:join(out,mode+'-'+id+'-'+i+'.png')});await page.waitForTimeout(140);}
     await page.locator('#showcase-return').click();
    }
-   assert.deepEqual(errors,[]);
-  }finally{await page?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
+   assert.deepEqual(errors,[]);console.log('captured',mode,focus??'both');
+  }catch(e){if(page){console.error(mode,focus,await page.locator('#game-canvas').getAttribute('data-pet-motion-state').catch(()=>null));await page.screenshot({path:join(out,mode+'-'+focus+'-failure.png')}).catch(()=>{});}throw e;}finally{await page?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
  }
  console.log('PET GAIT AND TOY CONTACT VISUAL OK');
 }finally{await browser.close();}

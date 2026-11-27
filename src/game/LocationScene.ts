@@ -1,4 +1,5 @@
 import {polishShopInterior} from './InteriorAtmosphere';
+import {addLocationFinish} from './LocationFinish061';
 import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
@@ -736,6 +737,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     root.add(group);
   }
   polishShopInterior(root,place,resources);
+  addLocationFinish(root,place,resources);
   root.updateMatrixWorld(true);
   const corners = ({ min, max }: THREE.Box3): XYZ[] => {
     const result: XYZ[] = [];
