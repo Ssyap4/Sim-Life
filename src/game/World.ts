@@ -82,6 +82,7 @@ import { PETS, PET_IDS, PET_SPEED, PET_BOWL_CAPACITY, petHungerLevel, petApproac
 import { findRoute, nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear, type FloorRect, type WalkRoute } from './navigation';
 import { ACTIONS, itemNames, points, type ItemId as SharedItemId, type ActionId, type CharacterId, type SocialKind, type GameState, type TimedCommand } from '../shared/protocol';
 import { decorateHome } from './HomeStyling';
+import {buildHomeSideWalls} from './HomeSideWalls';
 import { batchRigidParts, cube, softCube, drum, finish } from './ArtKit';
 import { FittingStage } from './FittingStage';
 import { inspectionFrame, type ViewBand } from './InspectionFrame';
@@ -140,6 +141,7 @@ export const objectNames = itemNames;
 export class World {
   scene = new THREE.Scene();
   private readonly homeScene = this.scene;
+  private sideWalls!:ReturnType<typeof buildHomeSideWalls>;
   private readonly neighbors = new NeighborPeople();
   private district: ReturnType<typeof createHomeDistrict>|null=null;
   private neighborMinute = 0;
@@ -1935,6 +1937,7 @@ export class World {
     if(this.kitchenCurtains)this.register('kitchenWindow',this.kitchenCurtains,points.kitchenWindow);
     this.cottageLamps=buildCottageLights(this.scene);
     buildHomeWing(this.scene);
+    this.sideWalls=buildHomeSideWalls(this.scene);
     this.yard = buildYard(this.scene);
     this.homeScene.add(this.festiveTree,this.festiveGarlands.root);
     this.familyCar=buildFamilyCar();
@@ -3337,6 +3340,11 @@ export class World {
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
 
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('sideWallsQA')==='1'){
+      const v=this.canvas.dataset.wallView;
+      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:undefined;
+      if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
+    }
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
       const v=this.canvas.dataset.lakeView;
       const view=v==='rental'?{target:[-10,1.2,9],eye:[-8.8,3.1,13.4]}:v==='swim'?{target:[7.8,.10,10],eye:[2.4,5.1,13.3]}:v==='dog'?{target:[-2.7,.45,8.6],eye:[-6.2,5.4,14.4]}:v==='sleep'?{target:[-4,.30,-7.7],eye:[-1.1,9.7,-2.1]}:v==='fishing'?{target:[4.45,.65,-6],eye:[.35,2.4,-2.85]}:v==='catch'?{target:[3.35,1.05,-6],eye:[5.55,1.9,-3.15]}:v==='camp'?{target:[-4,.65,-6],eye:[-1.6,3.8,.7]}:v==='fire'?{target:[-4,.72,-4],eye:[-4.2,3.8,2.6]}:v==='shore'?{target:[8.4,.10,-3],eye:[1.1,5.3,3.1]}:v==='water'?{target:[13,.04,1.5],eye:[3.8,6.1,9.2]}:undefined;
@@ -3344,6 +3352,8 @@ export class World {
     }
     if(this.place==='lake'&&this.remote){const occupied=new Set<string>();for(const r of ['vlad','alina'] as const){const actor=this.actors[r];if(!actor.root.visible||actor.audioMotion().pose!=='sleep')continue;for(const [id,g] of this.remote.stations)if(g.userData.tents&&Math.hypot(actor.root.position.x-g.position.x,actor.root.position.z-g.position.z)<2.5)occupied.add(id);}syncLakeCutaway(this.remote.stations,occupied);}
         if(this.place==='home'){
+      this.sideWalls.update(this.camera.position.x,this.controls.target.x);
+      if(this.cameraQA)this.canvas.dataset.sideWalls=JSON.stringify(this.sideWalls.walls.map(w=>[w.side,w.upper.visible,w.cutCap.visible]));
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }

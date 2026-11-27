@@ -1,0 +1,34 @@
+name: SimOurHome 0.61 home walls visual
+on:
+  push:
+    branches: [feat/polish-061]
+    paths:
+      - 'src/game/HomeSideWalls.ts'
+      - 'src/game/HomeStyling.ts'
+      - 'src/game/HomeWing.ts'
+      - 'src/game/HomeFrame.ts'
+      - 'scripts/qa-home-walls-061.mjs'
+      - '.github/workflows/home-walls-061.yml'
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-home-walls-061.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: home-walls-061
+          path: /tmp/simourhome-061-walls
+          retention-days: 7

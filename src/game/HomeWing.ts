@@ -3,6 +3,7 @@ import { HOUSE_WING, HOUSE } from '../shared/home';
 import { batchRigidParts, colors as C, cube, finish, panel } from './ArtKit';
 import {gardenView} from './ArtTextures';
 import {cottageFloor,timberWall} from './CottageArt';
+import {HOME_WALL_HEIGHT} from './HomeSideWalls';
 
 // A future-ready three-room wing. The established rooms, props, action anchors,
 // and old wall coordinates are deliberately left alone.
@@ -40,7 +41,7 @@ export function buildHomeWing(scene: THREE.Scene): void {
   }
   cottageFloor(wing,true);
   // Rear exterior behind the new rooms, with a tall window and a light sill.
-  const windows=[11.28,13.72],half=.90,bottom=1.30,top=2.78,height=2.84;
+  const windows=[11.28,13.72],half=.90,bottom=1.30,top=2.78,height=HOME_WALL_HEIGHT;
   let edge=minX;
   for(const x of windows){
     const left=x-half,right=x+half;
@@ -58,11 +59,7 @@ export function buildHomeWing(scene: THREE.Scene): void {
     edge=right;
   }
   timberWall(wing,[maxX-edge,height,.19],[(edge+maxX)/2,height/2,minZ]);
-  // Exterior posts hint at future windows but don't enclose the cutaway camera.
-  for (const z of [-6.75, -3.05, .50, 4.18]) {
-    timberWall(wing,[.24,.95,.21],[maxX,.47,z]);
-    add(.31, .058, .27, maxX, .97, z, C.walnut);
-  }
+  add(width,.10,.30,centerX,HOME_WALL_HEIGHT,minZ,C.paper);
   // Three open passageways are readable as doorframes from the overhead view.
   for (const z of HOUSE_WING.crossWalls) {
     const left = HOUSE_WING.crossDoor.x - HOUSE_WING.crossDoor.width / 2;

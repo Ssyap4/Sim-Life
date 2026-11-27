@@ -5,6 +5,7 @@ import { batchRigidParts, colors as C, cube, drum, finish, panel, plane, softCub
 import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, HOUSE_WING } from '../shared/home';
 import { gardenView } from './ArtTextures';
 import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
+import {HOME_WALL_HEIGHT} from './HomeSideWalls';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -19,7 +20,7 @@ function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ
 
 function rearWall(home: THREE.Group): void {
   const z = HOUSE.minZ;
-  const height = 3.16;
+  const height = HOME_WALL_HEIGHT;
   const center = HOME_PLACEMENTS.bed.x;
   const left = center - 1.66;
   const right = center + 1.66;
@@ -83,6 +84,9 @@ function rearWall(home: THREE.Group): void {
 
 function roomPartitions(home: THREE.Group): void {
   for (const wall of HOME_WALLS) {
+    // The true outer east wall is drawn once by HomeSideWalls. The old
+    // main/wing connector is an internal partition with its existing doorway.
+    if(Math.abs((wall.minX+wall.maxX)/2-HOUSE_WING.maxX)<.01)continue;
     const width = wall.maxX - wall.minX;
     const depth = wall.maxZ - wall.minZ;
     const x = (wall.minX + wall.maxX) / 2;
@@ -92,22 +96,6 @@ function roomPartitions(home: THREE.Group): void {
     shape(home, cube, [width + .028, .054, depth + .028], [x, height, z], C.walnut, 'wood');
     // Skirting remains inside the original wall volume plus its existing trim.
     shape(home,cube,[width+.018,.09,depth+.018],[x,.045,z],0x795638,'wood');
-  }
-  // Deep rear and far side walls establish the volume. The viewer-facing sides are cut away.
-  for (const side of [-1, 1]) {
-    const x = side * HOUSE.maxX;
-    const height = side < 0 ? 1.22 : .54;
-    const segments = side < 0 ? [[HOUSE.minZ, HOUSE.maxZ]] : [
-      [HOUSE.minZ, HOUSE_WING.connector.z - HOUSE_WING.connector.width / 2],
-      [HOUSE_WING.connector.z + HOUSE_WING.connector.width / 2, HOUSE.maxZ],
-    ];
-    for (const [minZ, maxZ] of segments) {
-      const span = maxZ - minZ;
-      const mid = (minZ + maxZ) / 2;
-      timberWall(home,[.22,height,span],[x,height/2,mid]);
-      shape(home, cube, [.27, .07, span], [x, height, mid], C.walnut, 'wood');
-      shape(home,cube,[.25,.10,span],[x,.05,mid],C.walnut,'wood');
-    }
   }
   for (const [key, { x, z, width }] of Object.entries(HOME_DOORS)) {
     shape(home, cube, [.40, .024, width], [x, .018, z], C.oat, 'wood');

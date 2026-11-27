@@ -12,7 +12,7 @@ export const houseOutline: readonly Vertex[] = [-1, 1].flatMap(side => {
   const edge = side < 0 ? -wing : HOUSE_WING.maxX + .25;
   return [
     [edge, -.63, rear], [edge, -.63, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, -.63, yardFront],
-    [edge, 3.22, rear], [edge, 1.24, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, .96, yardFront],
+    [edge, 3.22, rear], [edge, 3.22, front], [side<0?HOME_FLOOR.minX:HOME_FLOOR.maxX, .96, yardFront],
   ];
 });
 export const playOutline: readonly Vertex[] = [-1, 1].flatMap(side => {
