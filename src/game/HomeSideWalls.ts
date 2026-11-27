@@ -19,7 +19,7 @@ function trim(group:THREE.Group,x:number,y:number,z:number,span:number,color:num
 }
 export function buildHomeSideWalls(scene:THREE.Scene){
  const walls=(['west','east'] as const).map(side=>{
-  const x=edge(side),start=HOUSE.minZ+(side=== 'west'?.12:.095),end=HOUSE.maxZ,span=end-start,z=(start+end)/2;
+  const x=edge(side),start=HOUSE.minZ+.12,end=HOUSE.maxZ,span=end-start,z=(start+end)/2;
   const root=new THREE.Group();root.name='Timber side '+side;
   const low=new THREE.Group(),upper=new THREE.Group(),cutCap=new THREE.Group();
   low.name='Side base '+side;upper.name='Side upper '+side;cutCap.name='Side cut cap '+side;

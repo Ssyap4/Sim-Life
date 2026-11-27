@@ -4,6 +4,7 @@ import { batchRigidParts, colors as C, cube, finish, panel } from './ArtKit';
 import {gardenView} from './ArtTextures';
 import {cottageFloor,timberWall} from './CottageArt';
 import {HOME_WALL_HEIGHT} from './HomeSideWalls';
+import {addPassageFinish} from './HomeFinish';
 
 // A future-ready three-room wing. The established rooms, props, action anchors,
 // and old wall coordinates are deliberately left alone.
@@ -45,9 +46,9 @@ export function buildHomeWing(scene: THREE.Scene): void {
   let edge=minX;
   for(const x of windows){
     const left=x-half,right=x+half;
-    timberWall(wing,[left-edge,height,.19],[(edge+left)/2,height/2,minZ]);
-    timberWall(wing,[half*2,bottom,.19],[x,bottom/2,minZ]);
-    timberWall(wing,[half*2,height-top,.19],[x,(top+height)/2,minZ]);
+    timberWall(wing,[left-edge,height,.24],[(edge+left)/2,height/2,minZ]);
+    timberWall(wing,[half*2,bottom,.24],[x,bottom/2,minZ]);
+    timberWall(wing,[half*2,height-top,.24],[x,(top+height)/2,minZ]);
     panel(wing,[x,2.04,minZ-.12],[1.84,1.52],gardenView(),C.sky,.20);
     for(const side of [-1,0,1])add(.09,1.53,.15,x+side*half,2.04,minZ+.10,C.paper);
     add(1.88,.075,.15,x,2.13,minZ+.10,C.paper);
@@ -58,20 +59,11 @@ export function buildHomeWing(scene: THREE.Scene): void {
       add(.085,1.46,.075,x+side*(.86-i*.075),2.04,minZ+.27+.023*(i%2),i%2?0xe7c5a1:0xd7ab80,'fabric');
     edge=right;
   }
-  timberWall(wing,[maxX-edge,height,.19],[(edge+maxX)/2,height/2,minZ]);
+  timberWall(wing,[maxX-edge,height,.24],[(edge+maxX)/2,height/2,minZ]);
   add(width,.10,.30,centerX,HOME_WALL_HEIGHT,minZ,C.paper);
-  // Three open passageways are readable as doorframes from the overhead view.
-  for (const z of HOUSE_WING.crossWalls) {
-    const left = HOUSE_WING.crossDoor.x - HOUSE_WING.crossDoor.width / 2;
-    const right = HOUSE_WING.crossDoor.x + HOUSE_WING.crossDoor.width / 2;
-    for (const x of [left, right]) add(.10, 1.11, .15, x, .555, z, C.paper);
-    add(HOUSE_WING.crossDoor.width, .065, .16, HOUSE_WING.crossDoor.x, 1.12, z, C.walnut);
-  }
-  const { z, width: doorWidth } = HOUSE_WING.connector;
-  for (const side of [-1, 1]) {
-    add(.12, 1.13, .15, HOUSE.maxX, .565, z + side * doorWidth / 2, C.paper);
-  }
-  add(.21, .06, doorWidth, HOUSE.maxX, .025, z, C.oat);
+  for(const z of HOUSE_WING.crossWalls)
+    addPassageFinish(wing,{x:HOUSE_WING.crossDoor.x,z,width:HOUSE_WING.crossDoor.width},'z');
+  addPassageFinish(wing,{x:HOUSE.maxX,...HOUSE_WING.connector},'x');
   batchRigidParts(wing, true);
   scene.add(wing);
 }

@@ -6,6 +6,7 @@ import { COUNTER, HOME_DOORS, HOME_PLACEMENTS, HOME_WALLS, HOUSE, HOUSE_ENTRY, H
 import { gardenView } from './ArtTextures';
 import { cottageFloor,timberWall,kitchenAccent } from './CottageArt';
 import {HOME_WALL_HEIGHT} from './HomeSideWalls';
+import {addPassageFinish,addRearFinish} from './HomeFinish';
 
 function shape(parent: THREE.Object3D, geometry: THREE.BufferGeometry, size: XYZ, position: XYZ,
   color: number, finishType: Parameters<typeof finish>[1] = 'fabric', caster = false): THREE.Mesh {
@@ -87,6 +88,7 @@ function roomPartitions(home: THREE.Group): void {
     // The true outer east wall is drawn once by HomeSideWalls. The old
     // main/wing connector is an internal partition with its existing doorway.
     if(Math.abs((wall.minX+wall.maxX)/2-HOUSE_WING.maxX)<.01)continue;
+    if(wall.minX>=HOUSE.maxX-.001&&Math.abs((wall.minZ+wall.maxZ)/2-HOUSE.minZ)<.01)continue;
     const width = wall.maxX - wall.minX;
     const depth = wall.maxZ - wall.minZ;
     const x = (wall.minX + wall.maxX) / 2;
@@ -98,11 +100,7 @@ function roomPartitions(home: THREE.Group): void {
     shape(home,cube,[width+.018,.09,depth+.018],[x,.045,z],0x795638,'wood');
   }
   for (const [key, { x, z, width }] of Object.entries(HOME_DOORS)) {
-    shape(home, cube, [.40, .024, width], [x, .018, z], C.oat, 'wood');
-    for (const side of [-1, 1]) {
-      shape(home, softCube, [.25, .96, .103], [x, .48, z + side * width / 2], C.walnut, 'wood');
-      shape(home,cube,[.265,.85,.026],[x,.48,z+side*(width/2+.048)],C.oat,'wood');
-    }
+    addPassageFinish(home,{x,z,width},'x');
     if (key === 'toilet') {
       // The open leaf is parked flush to the WC partition, beside the passage.
       shape(home, softCube, [.09, 1.91, .78], [x - .18, .97, z - width / 2 - .37], C.pine, 'wood');
@@ -182,6 +180,7 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   cottageFloor(home);
   rearWall(home);
   roomPartitions(home);
+  addRearFinish(home);
   const entry = entryDoor(home);
 
   const wx=-3.12,wz=HOUSE.minZ;

@@ -4,6 +4,7 @@ on:
     branches: [feat/polish-061]
     paths:
       - 'src/game/HomeSideWalls.ts'
+      - 'src/game/HomeFinish.ts'
       - 'src/game/HomeStyling.ts'
       - 'src/game/HomeWing.ts'
       - 'src/game/HomeFrame.ts'

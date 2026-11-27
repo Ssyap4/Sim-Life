@@ -3342,7 +3342,7 @@ export class World {
 
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('sideWallsQA')==='1'){
       const v=this.canvas.dataset.wallView;
-      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:undefined;
+      const view=v==='west'?{target:[-5,1,-1],eye:[-21,8,7]}:v==='east'?{target:[11,1,-1],eye:[26,8,7]}:v==='front'?{target:[3,0,-1],eye:[3,21,24]}:v==='bedroom'?{target:[-7,1,-4],eye:[-13,3,-.4]}:v==='study'?{target:[7.2,1.1,-5.5],eye:[4.8,4.7,.0]}:v==='wing'?{target:[12.6,1,-1.7],eye:[19,7,5.4]}:v==='passages'?{target:[-4.35,1,.2],eye:[.2,3.8,5.8]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
     }
     if(this.cameraQA&&this.place==='lake'&&new URLSearchParams(location.search).get('lakeQA')==='1'){
