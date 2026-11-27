@@ -18,7 +18,7 @@ export class GameClockDisplay {
   sync(sample: ClockSample, now: number): void {
     const displayed = this.read(now);
     const difference = sample.minutes - displayed;
-    const continuous = this.sampled && now - this.receipt <= 3 * CLOCK_SYNC_MS && Math.abs(difference) < 2;
+    const continuous = sample.multiplier>0 && this.speed>0 && this.sampled && now - this.receipt <= 3 * CLOCK_SYNC_MS && Math.abs(difference) < 2;
     this.minutes = continuous ? displayed : sample.minutes;
     this.receipt = now;
     this.speed = sample.multiplier * GAME_MINUTES_PER_REAL_SECOND / 1000;

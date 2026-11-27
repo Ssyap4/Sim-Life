@@ -55,3 +55,12 @@ test('display calendar covers every actual date without altering the simulated d
   assert.equal(displayDate({day:33,minute:576}).day,25);
   assert.equal(displayDate({day:34,minute:432}).day,4);
 });
+test('Server pause samples freeze the display immediately, including a small network correction',()=>{
+ const display=new GameClockDisplay();
+ display.reset(100,0);display.sync({minutes:100,multiplier:3},0);
+ display.sync({minutes:102.5,multiplier:0},2000);
+ assert.equal(display.read(2000),102.5);
+ assert.equal(display.read(30000),102.5);
+ display.sync({minutes:102.5,multiplier:1},30000);
+ assert.equal(display.read(32000),103.5);
+});

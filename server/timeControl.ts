@@ -15,8 +15,8 @@ export function recoverSleep(state: GameState, minutes: number,
     const grade=installed?furnitureComfort(installed.sku):3;
     const multiplier=installed?sleepRecoveryMultiplier(installed.sku):1;
     resident.energy = Math.min(goal,
-      Math.round((resident.energy + SLEEP_ENERGY_GAIN_PER_GAME_MINUTE * minutes * multiplier * fitnessBonuses(state,role).sleepGain * sleepHealthMultiplier(state,role)) * 100) / 100);
-    resident.comfort=Math.min(100,Math.round((resident.comfort+minutes*(.025+.013*grade))*100)/100);
+      Math.round((resident.energy + SLEEP_ENERGY_GAIN_PER_GAME_MINUTE * minutes * multiplier * fitnessBonuses(state,role).sleepGain * sleepHealthMultiplier(state,role)) * 1_000_000) / 1_000_000);
+    resident.comfort=Math.min(100,Math.round((resident.comfort+minutes*(.025+.013*grade))*1_000_000)/1_000_000);
     if (resident.energy >= goal) {
       resident.energy = goal;
       resident.pose = 'idle';

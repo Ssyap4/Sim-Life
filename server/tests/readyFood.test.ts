@@ -288,3 +288,18 @@ test('The server clock makes food spoil once and broadcasts the same warning to 
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('Late table collection discards expired takeaway immediately but keeps paid groceries',()=>{
+ const ordered=successful(applyWorld(initialState(),'vlad',{type:'delivery_order',sequence:0,
+  lines:[{id:'takeout:pizzaCheese',quantity:1},{id:'grocery:milk',quantity:1}]}));
+ const parcel=ordered.world.deliveries[0];
+ const late=receive(moveClock(ordered,parcel.readyAt-gameMinutes(ordered.clock)+TABLE_SHELF_MINUTES),'vlad');
+ const result=applyWorld(late,'vlad',{type:'delivery_claim',id:parcel.id,storage:'table'});
+ assert.ok(result.ok);assert.match(result.message,/Испортившихся порций выброшено: 2/);
+ assert.equal(result.state.takeout.pizzaCheese,0);assert.equal(result.state.readyFood.length,0);
+ assert.equal(result.state.pantry.milk,1);assert.equal(result.state.money,ordered.money);
+ assert.equal(result.state.world.deliveries.length,0);
+ // A timely refrigerator choice retains the previous deadline policy.
+ const cold=applyWorld(late,'vlad',{type:'delivery_claim',id:parcel.id,storage:'fridge'});
+ assert.ok(cold.ok);assert.equal(cold.state.takeout.pizzaCheese,2);
+});

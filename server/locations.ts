@@ -570,7 +570,11 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     let spoiled = 0;
     const freshLines = order.lines.filter(line => {
       const item = marketProduct(line.id);
-      if (item?.kind !== 'takeout' || now < order.readyAt + 2 * MINUTES_PER_DAY) return true;
+      if(item?.kind!=='takeout')return true;
+      // Preserve the original arrival timestamp, but never insert a portion
+      // whose selected storage lifetime has already elapsed.
+      const shelf=storage==='table'?tableShelfMinutes(item.stockKey):2*MINUTES_PER_DAY;
+      if(now<order.readyAt+shelf)return true;
       spoiled += item.quantity * line.quantity;
       return false;
     });

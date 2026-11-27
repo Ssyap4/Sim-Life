@@ -256,7 +256,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   };
   const setPaused = (value: boolean) => {
     if (value === isPaused) return;
-    accountTime(); // settle the previous clock rate before freezing it
+    if(value)commitLife();else accountTime(); // commit whole elapsed minutes at the old rate
     clearPauseRequest();
     if (value) pauseTimers.pause(); else pauseTimers.resume();
     isPaused = value;
@@ -436,7 +436,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     minuteCarry -= gameMinutes;
     if (sleepBefore) for (const role of sleepers.keys()) needsEvent(role,'🌙 Сон',sleepBefore,next.state);
     for (const role of finishedSleeping) { sleepers.delete(role); autoSleeping.delete(role); }
-    if (next.completed.length) shiftVotes.clear();
+    const careerEnded=(['vlad','alina'] as const).some(role=>state.careers.residents[role].shift&&!next.state.careers.residents[role].shift);
+    if (next.completed.length||careerEnded) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
       d.readyAt <= clockMinutes(next.state.clock));
     state = next.state;
@@ -450,7 +451,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       all({ type: 'ready_food_spoiled', message: '🥀 Испортилась готовая еда: '+samples.join(', ')+
         (spoiled.length>2?' и другое':'')+' · выброшено порций: '+portions });
     }
-    if (finishedSleeping.length || next.completed.length || speedBefore !== timeStatus().multiplier) announceTime();
+    if (finishedSleeping.length || next.completed.length || careerEnded || speedBefore !== timeStatus().multiplier) announceTime();
     for(const id of finishedSleeping)if(queuedTasks.get(id)?.length)setTimeout(()=>startNextQueued(id),0);
     if (arrived) all({ type: 'delivery_arrived' });
     homeTasks.recheckAccess();
@@ -965,6 +966,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         (homeTasks.busy(role)&&!homeTasks.automatic(role))){
       packet(socket,{type:'error',reason:'Для сна нужно находиться дома и закончить текущее дело'});return;
     }
+    commitLife();
     if(state.characters[role].energy>=sleepTarget(command.mode)){
       packet(socket,{type:'error',reason:'Энергия уже достигла выбранной отметки'});return;
     }
@@ -1144,7 +1146,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         }
         role = requested;
         if (active.size === 0) lastLifeTick = lifeNow();
-        else accountTime();
+        else commitLife();
         active.set(role, socket);
         lastIntent.set(role, pauseTimers.now());
         packet(socket, { type: 'ready', role, state, online: online() });
@@ -1243,6 +1245,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'shift_speed') {
+        commitLife();
         if (typeof message.enabled !== 'boolean') {
           packet(socket, { type: 'error', reason: 'Неверный режим скорости' }); return;
         }
@@ -1267,6 +1270,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if (message.type === 'sleep_stop') {
         if (!sleepers.has(role)) { packet(socket, { type: 'error', reason: 'Персонаж не спит' }); return; }
+        commitLife();
         stopSleep(role);
         lastIntent.set(role, pauseTimers.now());
         return;
@@ -1546,8 +1550,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'job_cancel' || message.type === 'job_leave_early') {
-        // Legacy job_cancel messages are treated as early departure with fair partial pay.
-        accountTime();
+        // Settle all elapsed whole minutes before calculating proportional pay.
+        // If the shift ended in that interval, its normal payout is definitive.
+        const hadShift=!!state.activeShifts[role];
+        commitLife();
+        if(hadShift&&!state.activeShifts[role])return;
         const result=leaveShiftEarly(state,role);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         const billingMessages = settleFamilyServices(result.state, result.state.money > state.money);
@@ -1734,7 +1741,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         stopLeisure(role);
         stopTask(role, names[role] + ': действие отменено из-за отключения');
         homeTasks.closeInvite('Игрок отключился');
-        if (active.size === 1) commitLife(); else accountTime();
+        commitLife();
         fitnessTripOffer=undefined;
         active.delete(role);
         if (pauseRequestedBy === role) {clearPauseRequest();announceTime();}
