@@ -1705,6 +1705,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       .then(async ({ loadResidents }) => {
         const look=new URLSearchParams(location.search).get('outfit')??'signature';
 
+        const { outfitChoices }=await import('./game/Wardrobe');
         return loadResidents(look==='tee'?['alina-tee-upper']:outfitChoices(look),params.get('characters')==='legacy');
       })
       .catch((err: unknown) => {
