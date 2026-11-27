@@ -40,9 +40,11 @@ test('An atomic mixed basket purchases groceries, takeaway and pet supplies with
   assert.equal(result.state.pantry.bread,11);
   assert.equal(result.state.takeout.pizzaCheese,2);
   assert.equal(result.state.petFood.verdell,12);
-  assert.equal(result.state.ledger.length,1);
-  assert.equal(result.state.ledger[0].amount,1640);
-  assert.equal(result.state.ledger[0].actor,'vlad');
+  assert.equal(result.state.ledger.length,3);
+  assert.deepEqual(result.state.ledger.map(e=>[e.category,e.amount]),[['groceries',140],['takeout',850],['pets',650]]);
+  assert.equal(result.state.ledger.reduce((n,e)=>n+e.amount,0),1640);
+  assert.ok(result.state.ledger.every(e=>e.actor==='vlad'));
+  assert.deepEqual(result.state.savings.spent,{groceries:140,takeout:850,pets:650});
   assert.equal(result.state.revision,1);
   assert.equal(original.money,10000);
   assert.equal(original.takeout.pizzaCheese,0);

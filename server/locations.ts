@@ -28,7 +28,7 @@ import { addLedger } from '../src/shared/economy';
 import { findRoute, nearestClearPoint, pointIsClear } from '../src/game/navigation';
 import { isCareerPlace } from '../src/shared/careers';
 import { unoccupiedDestination } from '../src/game/residentCollision';
-import { checkout, grantCart, quoteCart } from './market';
+import { checkout, grantCart, quoteCart, recordCartExpense } from './market';
 import { pausePetRoutine } from './pets';
 import { CAMP_RECIPES, campIngredients, isCampRecipe, isParkDogAction } from '../src/shared/park';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, validPicnicBasket, cleanPicnic, picnicName } from '../src/shared/picnic';
@@ -525,10 +525,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
       const id = 'D-' + role + '-' + next.world.sequence[role]++;
       next.money -= cost;
       next.world.deliveries.push({ id, role, lines: quote.lines, cost, readyAt: now + DELIVERY_MINUTES });
-      const giftCost=quote.lines.reduce((n,l)=>{const p=marketProduct(l.id)!;return n+(p.kind==='gift'?p.price*l.quantity:0);},0);
-      if(giftCost)addLedger(next,role,'expense','gifts',giftCost+(giftCost===quote.cost?DELIVERY_FEE:0),'Подарки · '+id);
-      if(giftCost!==quote.cost)addLedger(next, role, 'expense', 'groceries', cost-giftCost,
-        'Доставка ' + id + ' · ' + quote.units + ' уп. · товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE + ' ₽');
+      recordCartExpense(next, role, quote.lines, {id,fee:DELIVERY_FEE});
       return done(next, 'Заказ оплачен: товары ' + quote.cost + ' ₽ + доставка ' + DELIVERY_FEE +
         ' ₽ = ' + cost + ' ₽. Курьер будет через ' + DELIVERY_MINUTES + ' игровых мин.');
     }

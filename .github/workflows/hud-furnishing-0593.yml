@@ -1,7 +1,7 @@
 name: SimOurHome HUD and furniture 0.59.3
 on:
   push:
-    branches: [feat/hud-furnishing-0593]
+    branches: [feat/hud-furnishing-0593, feat/polish-060]
 permissions:
   contents: read
 jobs:
