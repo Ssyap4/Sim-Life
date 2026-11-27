@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sim-Life — проверка графики</title><style>
+<title>SimOurHome — проверка графики</title><style>
 :root{font-family:system-ui,sans-serif;color:#243d30;background:#f2f5ed}body{margin:0;padding:18px;max-width:650px}h1{font-size:23px;margin:4px 0}p{font-size:14px;line-height:1.5}
 article{padding:12px;border-radius:12px;background:white;margin:12px 0;box-shadow:0 2px 10px #16392616}
 strong{font-size:19px}.ok{color:#16713b}.bad{color:#a62c24}.muted{color:#596b61}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}button,a{display:inline-block;padding:10px;margin:3px;border:0;border-radius:9px;background:#365f46;color:white;font-size:14px;text-decoration:none}
 canvas{width:64px;height:64px;border:1px solid #ccc;margin:4px}#extra{font-size:12px;word-break:break-all}
 </style></head><body>
-<h1>Sim-Life: проверка графики</h1>
+<h1>SimOurHome: проверка графики</h1>
 <p>Проверка графики Android без запуска игры. Сохранения и аккаунт не затрагиваются. Сделай снимок результатов.</p>
 <article><strong id="summary">Checking graphics...</strong><p id="hint"></p></article>
 <article><b>WebGL 2</b><pre id="two">Checking...</pre><b>WebGL 1</b><pre id="one">Checking...</pre></article>
@@ -55,10 +55,10 @@ if(statusDetails.includes('web page caused context loss and was blocked')){
  hint.textContent='Chrome сообщил о блокировке 3D после потери графического контекста. Это НЕ означает, что видеочип не поддерживает WebGL. Закрой вкладки с игрой, полностью останови Chrome и заново открой эту проверку. Если не помогло — перезагрузи телефон или открой проверку в Firefox. Не запускай игру раньше проверки.';
 }else if(results.two!=='UNAVAILABLE'){
  summary.textContent='WebGL 2: AVAILABLE';summary.className='ok';
- hint.textContent='Your browser can create WebGL 2. If Sim-Life is blank, the issue may be scene rendering or GPU instability rather than missing WebGL 2.';
+ hint.textContent='Your browser can create WebGL 2. If SimOurHome is blank, the issue may be scene rendering or GPU instability rather than missing WebGL 2.';
 }else if(results.one!=='UNAVAILABLE'){
  summary.textContent='WebGL 2: NOT SUPPORTED';summary.className='bad';
- hint.textContent='WebGL 1 works, but Sim-Life uses Three.js 0.187 and requires WebGL 2. This phone/browser cannot launch the current 3D renderer.';
+ hint.textContent='WebGL 1 works, but SimOurHome uses Three.js 0.187 and requires WebGL 2. This phone/browser cannot launch the current 3D renderer.';
 }else{
  summary.textContent='WebGL 1 и 2: недоступны сейчас';summary.className='bad';
  hint.textContent='Браузер не создаёт графический контекст. Проверь обновление Chrome и Android System WebView; попробуй Firefox. Пока нельзя утверждать, что железо не поддерживает WebGL.';

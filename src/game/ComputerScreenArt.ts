@@ -228,12 +228,12 @@ export function drawComputerScene(c:CanvasRenderingContext2D,scene:ComputerScene
     for(let i=0;i<7;i++){
       dot(c,33+i*37,42+Math.sin(t*.43+i)*6,12+(i%2)*3,scene.role==='alina'?'#a781b251':'#66b5c13a');
     }
-    label(c,'Sim-Life OS',35,86,'#e4f3fa',19,true);
+    label(c,'SimOurHome OS',35,86,'#e4f3fa',19,true);
     label(c,scene.role==='vlad'?'Рабочий стол Влада':'Рабочий стол Алины',36,105,'#c5dbe6',9);
   }
   paint(c,'#0b1c2bd9',0,0,256,21);
   dot(c,12,11,4,scene.role==='alina'?'#e9aabc':'#8de1de');
-  label(c,'Sim-Life OS',22,14,'#f3f6fa',9,true);
+  label(c,'SimOurHome OS',22,14,'#f3f6fa',9,true);
   const modeLabel=scene.mode==='game'?'ИГРЫ':scene.mode==='video'?'ВИДЕО':scene.mode==='code'?'РАЗРАБОТКА':
     scene.mode==='hair'?'КЛИЕНТЫ':scene.mode==='study'?'ОБУЧЕНИЕ':scene.mode==='browser'?'ИНТЕРНЕТ':
     scene.mode==='mail'?'ПОЧТА':scene.mode==='notes'?'ЗАМЕТКИ':'РАБОЧИЙ СТОЛ';

@@ -82,9 +82,9 @@ const section = (tag: keyof HTMLElementTagNameMap, className: string, text?: str
 
 /** One shell, two physical devices, personal data and server-owned sessions. */
 export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
-  root.innerHTML = `<section class="computer-case" role="dialog" aria-modal="true" aria-label="Sim-Life OS">
+  root.innerHTML = `<section class="computer-case" role="dialog" aria-modal="true" aria-label="SimOurHome OS">
     <header class="computer-topbar">
-      <div class="computer-brand"><span class="computer-logo">✦</span><span><strong>Sim-Life OS</strong><small data-computer-device></small></span></div>
+      <div class="computer-brand"><span class="computer-logo">✦</span><span><strong>SimOurHome OS</strong><small data-computer-device></small></span></div>
       <div class="computer-title"><strong data-computer-user></strong><small>Личный рабочий стол</small></div>
       <button type="button" data-computer-close aria-label="Закрыть компьютер">×</button>
     </header>
@@ -98,7 +98,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
         <div class="computer-window-body"></div>
       </section>
     </main>
-    <footer class="computer-taskbar"><span>✦ Sim-Life OS</span><span data-computer-session></span></footer>
+    <footer class="computer-taskbar"><span>✦ SimOurHome OS</span><span data-computer-session></span></footer>
   </section>`;
   const desktop = root.querySelector<HTMLElement>('.computer-apps')!;
   const windowEl = root.querySelector<HTMLElement>('.computer-window')!;
@@ -327,7 +327,7 @@ export function createComputerUI(root: HTMLElement, callbacks: Callbacks) {
     if(signature===videoSignature)return;
     videoSignature=signature;
     content.replaceChildren();
-    panel('▶️ Видеотека Sim-Life','Три коротких ролика с движением на экране. Для просмотра нужен домашний интернет.');
+    panel('▶️ Видеотека SimOurHome','Три коротких ролика с движением на экране. Для просмотра нужен домашний интернет.');
     const layout=section('div','computer-game-layout');
     const list=section('div','computer-game-list');
     for(const [id,clip] of Object.entries(VIDEO_CLIPS) as [VideoClipId,typeof VIDEO_CLIPS[VideoClipId]][]){

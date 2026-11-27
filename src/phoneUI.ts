@@ -61,6 +61,15 @@ const apps: Record<App,[string,string]> = {
   career:['💼','Работа и карьера'],relationship:['♥','Мы вместе'],
   autonomy:['🧠','Жизнь и привычки'],
 };
+const phoneGroups:readonly {label:string;ids:readonly App[]}[]=[
+ {label:'Семья и дом',ids:['family','relationship','pets','autonomy','home','furnishing','speakers']},
+ {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','consoles','feed']},
+ {label:'Работа и развитие',ids:['career','jobs','education']},
+ {label:'Магазины и услуги',ids:['delivery','fitness','health','barber','spa']},
+ {label:'Бюджет и связь',ids:['finance','utilities','internet','mobile','subscriptions']},
+ {label:'Настройки',ids:['audio']},
+];
+
 type View = {state:GameState;role:CharacterId;online:CharacterId[];time:TimeStatus;clock:GameClock};
 
 export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTMLElement,
@@ -449,7 +458,10 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   }
 
   function close() { closeApps(); root.hidden=true; app=null; }
-  for(const [id,[icon,title]] of Object.entries(apps)) {
+  for(const group of phoneGroups){
+    const heading=document.createElement('div');heading.className='phone-group-title';heading.textContent=group.label;grid.append(heading);
+    for(const id of group.ids){
+    const [icon,title]=apps[id];
     const button=document.createElement('button');
     button.type='button';
     const tile=document.createElement('span');
@@ -458,6 +470,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
     button.dataset.phoneApp=id;
     button.addEventListener('click',()=>show(id as App));
     grid.append(button);
+    }
   }
   back.addEventListener('click',()=>show(null));
   closeButton.addEventListener('click',close);

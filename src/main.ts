@@ -48,6 +48,7 @@ import './visual-polish-020.css';
 import './mobile-controls-020.css';
 import './mobile-ux-020.css';
 import './district-minimal-021.css';
+import './simourhome-059.css';
 import { installMobileInput } from './mobileInput';
 import { installMobileBack } from './mobileBack';
 import { subtleHaptic, installTouchFeedback } from './mobileHaptics';
@@ -126,13 +127,13 @@ let world: World;
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing app element');
 app.innerHTML = `
-  <canvas id="game-canvas" aria-label="Дом Sim-Life: интерактивная 3D-сцена"></canvas>
+  <canvas id="game-canvas" aria-label="Дом SimOurHome: интерактивная 3D-сцена"></canvas>
   <div class="vignette"></div>
   <header class="top-ui">
     <div class="brand-row">
       <div class="brand">
         <div class="brand-icon" aria-hidden="true">⌂</div>
-        <div><span class="brand-kicker">СИМУЛЯТОР ЖИЗНИ</span><h1>SIM LIFE</h1></div>
+        <div><span class="brand-kicker">СИМУЛЯТОР ЖИЗНИ</span><h1>SimOurHome</h1></div>
       </div>
       <div class="version">ДОМ · РАЙОН</div>
     </div>
@@ -177,7 +178,7 @@ app.innerHTML = `
   <aside id="thought-dock" class="thought-dock" aria-label="Мысли и желания персонажей" hidden></aside>
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
-  <section id="car-ride" aria-label="Поездка на автомобиле" hidden><div class="ride-top"><small>SIM LIFE · В ДОРОГЕ</small><strong id="ride-destination"></strong></div><div class="ride-bottom"><span id="ride-route"></span><div class="ride-track" role="progressbar" aria-label="Поездка"><i id="ride-progress"></i></div><small>Загружаем локацию…</small></div></section>
+  <section id="car-ride" aria-label="Поездка на автомобиле" hidden><div class="ride-top"><small>SimOurHome · В ДОРОГЕ</small><strong id="ride-destination"></strong></div><div class="ride-bottom"><span id="ride-route"></span><div class="ride-track" role="progressbar" aria-label="Поездка"><i id="ride-progress"></i></div><small>Загружаем локацию…</small></div></section>
   <div id="message" class="message" aria-live="polite"></div>
   <aside id="payment-notice" class="payment-notice" hidden>
     <span role="status"></span><button type="button">К платежам</button>
@@ -211,30 +212,41 @@ app.innerHTML = `
       <div class="footer-row"><span>Наш семейный дом</span><span id="online-note">Ожидание сервера</span></div>
     </div>
   </footer>
-  <section id="auth" class="auth-screen" aria-labelledby="auth-title">
-    <form id="auth-form" class="auth-card">
-      <span class="auth-emblem">⌂</span>
-      <div class="brand-kicker">SIM LIFE · НАШ ДОМ</div>
-      <h2 id="auth-title">С возвращением домой</h2>
-      <p>У каждого свой персонаж, но один дом, семейный бюджет и общий прогресс.</p>
-      <div class="role-choices">
-        <button data-role="vlad" class="role-option selected" type="button">💻 <b>Влад</b><span>Разработчик</span></button>
-        <button data-role="alina" class="role-option" type="button">🌸 <b>Алина</b><span>Мастер реконструкции</span></button>
+  <section id="auth" class="auth-screen home-title-screen" aria-labelledby="auth-title">
+    <div class="title-scenery" aria-hidden="true"><span class="title-scenery-label">ВАША ОБЩАЯ ИСТОРИЯ</span><span class="title-scenery-caption">Каждый день — маленькая новая глава.</span></div>
+    <form id="auth-form" class="auth-card title-menu">
+      <header class="title-brand">
+        <svg class="title-logo" aria-hidden="true" viewBox="0 0 64 64"><path d="M9 29 32 10 55 29M16 25v29h32V25M26 54V38h12v16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M25 25c0-6 7-7 7-1 0-6 7-5 7 1 0 5-7 9-7 9s-7-4-7-9Z" fill="currentColor"/><path d="M7 56h50" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div class="title-edition">СЕМЕЙНЫЙ СИМУЛЯТОР ЖИЗНИ</div>
+        <h2 id="auth-title"><span>Sim</span>OurHome</h2>
+        <p class="title-tagline">Наш дом. Наша жизнь.</p>
+      </header>
+      <div class="title-rule"><span>ВЕРНУТЬСЯ В СВОЙ МИР</span></div>
+      <div class="title-family">Влад, Алина, Верделл и Симба</div>
+      <div class="role-choices" role="group" aria-label="Выбор персонажа">
+        <button data-role="vlad" class="role-option selected" type="button" aria-pressed="true"><span class="title-resident-mark" aria-hidden="true">В</span><span class="title-resident-text"><b>Влад</b><span>Разработчик</span></span><i class="title-check" aria-hidden="true"></i></button>
+        <button data-role="alina" class="role-option" type="button" aria-pressed="false"><span class="title-resident-mark" aria-hidden="true">А</span><span class="title-resident-text"><b>Алина</b><span>Реконструкция волос</span></span><i class="title-check" aria-hidden="true"></i></button>
       </div>
       <label for="access-code">Личный код персонажа</label>
-      <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Введи личный код" autocomplete="off" required />
+      <input id="access-code" name="access-code" type="password" minlength="12" maxlength="48" placeholder="Код персонажа" autocomplete="off" required />
       <label class="remember-device"><input type="checkbox" id="remember-device"> Запомнить вход на этом устройстве</label>
-      <button class="enter-button" type="submit" disabled>Войти в общий дом</button>
-      <p class="auth-status" id="auth-status">Выбери персонажа и введи личный код</p>
-      <small>Ваш общий дом доступен в домашней сети.</small>
+      <button class="enter-button" type="submit" disabled>Продолжить за Влада</button>
+      <p class="auth-status" id="auth-status" role="status" aria-live="polite">Готовим ваш мир…</p>
+      <details class="title-settings"><summary>Настройки музыки</summary><label class="title-volume"><span>Громкость</span><input id="title-volume" type="range" min="0" max="100" step="5" aria-label="Громкость музыки"><output id="title-volume-value"></output></label></details>
+      <footer class="title-footer"><span>Один дом · две жизни</span><span>0.59</span></footer>
     </form>
   </section>
-  <div class="rotate-notice">Для Sim-Life поверни телефон вертикально ↻</div>
+  <div class="rotate-notice">Для SimOurHome поверни телефон вертикально ↻</div>
 `;
 
 installMobileInput(app);
 installTouchFeedback(app);
 gameAudio.install(app);
+const titleVolume=document.querySelector<HTMLInputElement>('#title-volume')!;
+const titleVolumeValue=document.querySelector<HTMLOutputElement>('#title-volume-value')!;
+const syncTitleVolume=()=>{titleVolume.value=String(Math.round(gameAudio.volume*100));titleVolumeValue.value=titleVolume.value+'%';};
+syncTitleVolume();gameAudio.subscribe(syncTitleVolume);
+titleVolume.addEventListener('input',()=>gameAudio.setVolume(Number(titleVolume.value)/100));
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas')!;
 const actionsEl = document.querySelector<HTMLDivElement>('#actions')!;
@@ -1783,12 +1795,13 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       button.addEventListener('click', () => {
         selectedRole = button.dataset.role === 'alina' ? 'alina' : 'vlad';
         document.querySelectorAll('.role-option').forEach((item) =>
-          item.classList.toggle('selected', item === button),
+          {item.classList.toggle('selected', item === button);item.setAttribute('aria-pressed',String(item===button));},
         );
+        document.querySelector<HTMLButtonElement>('.enter-button')!.textContent=selectedRole==='vlad'?'Продолжить за Влада':'Продолжить за Алину';
       });
     });
     window.addEventListener('pagehide', () => net.stop());
-    document.querySelector<HTMLButtonElement>('.enter-button')!.disabled = false;
+
     showStatus('Подключаемся к дому…');
     try{
       const health=await fetch('/health',{cache:'no-store'});
@@ -1800,11 +1813,12 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
           document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;
           accessInput.hidden=true;
           document.querySelector<HTMLElement>('.remember-device')!.hidden=true;
-          document.querySelector<HTMLButtonElement>('.enter-button')!.textContent='Войти без кода';
+
           authStatusEl.textContent='Выбери героя, чтобы вернуться домой';
         }else authStatusEl.textContent='Выбери персонажа и введи личный код';
       }
     }catch{authStatusEl.textContent='Выбери персонажа и введи личный код';}
+    document.querySelector<HTMLButtonElement>('.enter-button')!.disabled=false;
     const remembered = localPreviewNoCodes?null:trustedDevice();
     if (remembered) net.resume(remembered.role, remembered.token);
   } catch (error) {

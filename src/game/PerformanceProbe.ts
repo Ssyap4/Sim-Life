@@ -56,9 +56,9 @@ export function createPerformanceProbe(host: HTMLElement) {
   const meter = new FrameMeter();
   const panel = document.createElement('aside');
   panel.className = 'performance-probe';
-  panel.setAttribute('aria-label', 'Диагностика кадров Sim-Life');
+  panel.setAttribute('aria-label', 'Диагностика кадров SimOurHome');
   const heading = document.createElement('strong');
-  heading.textContent = 'Sim-Life · Тест FPS';
+  heading.textContent = 'SimOurHome · Тест FPS';
   const frame = document.createElement('div');
   frame.textContent = 'Сбор кадров…';
   const gpu = document.createElement('div');

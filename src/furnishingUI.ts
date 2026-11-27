@@ -32,7 +32,7 @@ type Callbacks = {
 
 export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbacks:Callbacks) {
   root.innerHTML=`<section class="furnish-case" role="dialog" aria-modal="true" aria-label="Мебель и обустройство">
-    <header class="furnish-head"><div><small>Sim-Life · НАШ ДОМ</small><h2>🛋️ Мебель и интерьер</h2></div>
+    <header class="furnish-head"><div><small>SimOurHome · НАШ ДОМ</small><h2>🛋️ Мебель и интерьер</h2></div>
       <button type="button" data-furnish-close aria-label="Закрыть">×</button></header>
     <nav class="furnish-tabs" aria-label="Разделы магазина">
       <button data-tab="catalog">🛍️ Каталог</button>

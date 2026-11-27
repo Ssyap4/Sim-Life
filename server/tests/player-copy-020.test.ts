@@ -9,14 +9,14 @@ test('user-facing home copy never mentions old development releases or private f
   const text=content('src/main.ts');
   assert.doesNotMatch(text,/0\.16|ВИЗУАЛЬНЫЙ ПРЕДПРОСМОТР|Тестовая версия:|Код из server-data|Коды созданы на компьютере/);
   assert.match(text,/СИМУЛЯТОР ЖИЗНИ/);
-  assert.match(text,/<h1>SIM LIFE<\/h1>/);
+  assert.match(text,/<h1>SimOurHome<\/h1>/);
   assert.match(text,/Выбери героя, чтобы вернуться домой/);
 });
 test('phone and thought lessons explain current autonomy rather than old version numbers',()=>{
   for(const filename of ['src/phoneUI.ts','src/shared/thoughtHelp.ts'])
     assert.doesNotMatch(content(filename),/(?:как в|поведение) 0\.\d+/);
 });
-test('package and lockfile versions mark the current 0.58 release',()=>{
-  assert.equal(JSON.parse(content('package.json')).version,'0.58.0');
-  assert.equal(JSON.parse(content('package-lock.json')).version,'0.58.0');
+test('package and lockfile versions mark the current 0.59 release',()=>{
+  assert.equal(JSON.parse(content('package.json')).version,'0.59.0');
+  assert.equal(JSON.parse(content('package-lock.json')).version,'0.59.0');
 });
