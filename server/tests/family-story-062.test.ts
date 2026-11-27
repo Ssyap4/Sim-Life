@@ -258,3 +258,16 @@ test('062 fishing journal records a real catch once, release does not add anothe
  assert.deepEqual(collectionFor(initialState(),'vlad'),{recipes:{},fish:{}});
  assert.equal(validCollections({vlad:{recipes:{omelette:{count:1,perfect:2,best:'perfect',last:'good',at:0}},fish:{}}}),false);
 });
+
+test('062 legacy missing collection field normalizes once to the same shape as a new household without inventing progress',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'collection-migration-062-'));
+ try{
+  const fresh=initialState(),old=structuredClone(fresh);delete old.personalCollections;
+  old.money=34567;fresh.money=34567;
+  const f=openServerFiles(dir);f.save(old);
+  const loaded=f.load();assert.deepEqual(loaded,fresh);
+  assert.deepEqual(loaded.personalCollections,{});f.save(loaded);
+  assert.deepEqual(openServerFiles(dir).load(),fresh);
+  assert.notEqual(initialState().personalCollections,initialState().personalCollections);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

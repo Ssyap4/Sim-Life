@@ -4,6 +4,8 @@ on:
     branches: [feat/family-story-062]
     paths:
       - '.github/workflows/final-062-regression.yml'
+      - 'src/shared/protocol.ts'
+      - 'server/storage.ts'
   workflow_dispatch:
 permissions:
   contents: read

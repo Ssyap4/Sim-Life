@@ -281,7 +281,7 @@ export function initialState(): GameState {
     takeout: { ...EMPTY_TAKEOUT }, readyFood: [], dirtyDishes: { ...EMPTY_DIRTY_DISHES },
     ledger: [], weekends:{version:0}, familyLife:initialFamilyLife(), savings: initialFamilyBudget(INITIAL_CLOCK), shiftDays: { vlad: 0, alina: 0 }, activeShifts: {},
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
-    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {},
+    computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {}, personalCollections: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
     happiness: { vlad: initialHappiness(), alina: initialHappiness() },
     characters: {
