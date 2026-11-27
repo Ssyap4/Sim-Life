@@ -14,7 +14,7 @@ import { isSleepBed } from './bedSleep';
 import type { CharacterId, GameState, ActionId } from './protocol';
 import { wishAvailable } from './happiness';
 import type { PetId } from './pets';
-import {careEffects,careTopicAvailable,type CareId} from './vanity';
+import {CARE,careEffects,careTopicAvailable,type CareId} from './vanity';
 
 export type WishCommand =
   | {type:'act';actionId:ActionId}
@@ -154,7 +154,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
     if(state.world.places.alina==='home'){
       const effects=careEffects(state);
       if(!effects.some(e=>e.id==='style'||e.id==='fancy'))add('vanity-style','✨','Сделать красивую укладку','Хочется уделить немного времени себе.','Сделать укладку',{type:'vanity_care',care:'style'});
-      if(!effects.some(e=>e.id==='skin'))add('vanity-skin','🌸','Уделить время себе','Небольшая процедура ухода.','Уход за кожей',{type:'vanity_care',care:'skin'});
+      if(!effects.some(e=>CARE[e.id].group==='skin'))add('vanity-skin','🌸','Уделить время себе','Небольшая процедура ухода.','Уход за кожей',{type:'vanity_care',care:'skin'});
       if(careTopicAvailable(state,role,'nearTalk:careLook'))add('vanity-compliment','♡','Поделиться своим образом','Хочется услышать мнение Влада.','Спросить Влада',{type:'together',action:'nearTalk:careLook'});
     }
     add('learn-hair','📚','Изучить новую технику ухода','Хочется разобраться в восстановлении волос.','Учиться',learningCommand);

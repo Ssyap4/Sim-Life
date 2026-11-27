@@ -115,10 +115,10 @@ export class HomeEffects {
     this.lastScreen = -1;
   }
 
-  water(station: 'shower' | 'bathtub' | 'wcBasin', active: boolean) {
+  water(station: 'shower' | 'bathtub' | 'wcBasin', active: boolean,foamColor=0xeaf8ee) {
     if(station === 'shower') this.shower.visible = active;
     else if (station === 'wcBasin') this.handWater.visible = active;
-    else this.foam.visible = active;
+    else {this.foam.visible = active;(this.foam.material as THREE.MeshStandardMaterial).color.setHex(foamColor);}
   }
 
   dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}

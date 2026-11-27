@@ -7,6 +7,16 @@ export const CARE = {
  light:{label:'Лёгкий макияж',group:'makeup',points:15,mood:10,hours:24,seconds:35},
  evening:{label:'Вечерний макияж',group:'makeup',points:25,mood:20,hours:24,seconds:50},
  skin:{label:'Уход за кожей',group:'skin',points:10,mood:10,hours:24,seconds:30},
+ hydrate:{label:'Увлажняющий крем',group:'skin',points:15,mood:12,hours:24,seconds:36},
+ serum:{label:'Сыворотка и крем для лица',group:'skin',points:20,mood:15,hours:24,seconds:48},
+ faceMask:{label:'Питательная маска для лица',group:'skin',points:25,mood:18,hours:24,seconds:65},
+ lipCare:{label:'Бальзам и уход за губами',group:'lips',points:5,mood:4,hours:12,seconds:18},
+ handCream:{label:'Увлажняющий крем для рук',group:'hands',points:5,mood:4,hours:12,seconds:22},
+ bathLavender:{label:'Ванна с лавандовой бомбочкой',group:'body',points:15,mood:12,hours:18,seconds:95},
+ bathRose:{label:'Ванна с розовой бомбочкой',group:'body',points:15,mood:12,hours:18,seconds:95},
+ bathMilk:{label:'Молочная ванна и увлажнение',group:'body',points:20,mood:15,hours:24,seconds:110},
+ bathShave:{label:'Ванна и комплексное бритьё',group:'body',points:22,mood:16,hours:24,seconds:125},
+ bathRitual:{label:'Комплексный SPA-уход в ванной',group:'body',points:28,mood:20,hours:24,seconds:165},
  perfume:{label:'Нанести парфюм',group:'scent',points:10,mood:5,hours:12,seconds:8},
  vladShave:{label:'Побриться',group:'skin',points:20,mood:10,hours:24,seconds:30},
  vladStyle:{label:'Уложить волосы',group:'hair',points:20,mood:10,hours:24,seconds:25},
@@ -30,6 +40,8 @@ export function validVanity(v:unknown,r:CharacterId='alina'):v is VanityState {
  return Object.entries(v as Record<string,unknown>).every(([k,value])=>{if(!value||typeof value!=='object')return false;const e=value as Partial<CareEffect>;return isCare(e.id)&&careRole(e.id)===r&&CARE[e.id].group===k&&typeof e.until==='number'&&Number.isSafeInteger(e.until)&&e.until>=0&&typeof e.noticed==='boolean';});
 }
 export const homeCare=(id:CareId)=>!id.startsWith('vladPro');
+export const bathCare=(id:CareId)=>CARE[id].group==='body';
+export const careStation=(id:CareId)=>bathCare(id)?'bathtub':careRole(id)==='vlad'?'basin':'vanity';
 export function finishCare(s:GameState,id:CareId,hours:number=CARE[id].hours){
  const r=careRole(id),effects=r==='vlad'?(s.vladCare??={}):(s.vanity??={});
  const d=CARE[id],now=gameMinutes(s.clock),old=effects[d.group];

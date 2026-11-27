@@ -1,5 +1,5 @@
 import {isLakeMealAction,LAKE_MEAL_ACTIONS,LAKE_MEALS,isLakeRestAction,LAKE_REST,isLakeCareAction,LAKE_CARE,isLakeLeisureAction,LAKE_LEISURE,isLakeFishAction,FISH_ACTIONS,LAKE_RODS} from '../src/shared/lake';
-import {CARE,isCare,finishCare,careRole,homeCare} from '../src/shared/vanity';
+import {CARE,isCare,finishCare,careRole,homeCare,bathCare,careStation} from '../src/shared/vanity';
 import {laptopDesk,laptopWorkplace} from '../src/shared/furnitureUse';
 import {isNotebookDesk,RETIRED_DINING} from '../src/shared/furniture';
 import { seatingComfortBonus } from '../src/shared/furnitureComfort';
@@ -68,7 +68,7 @@ const own = (obj: object, key: string): boolean => Object.prototype.hasOwnProper
 /** A data-based schedule for existing activities. All real effects are applied at finish. */
 import {CONSOLE_GAMES,isConsoleGame} from '../src/shared/consoleCatalog';
 export function planTask(command: Record<string, unknown>): TaskPlan | null {
-  if(command.type==='vanity_care'&&isCare(command.care)&&homeCare(command.care)){const care=command.care;return {command:{type:'vanity_care',care},label:CARE[care].label,durationMs:CARE[care].seconds*1000,resource:careRole(care)==='vlad'?'basin':'vanity'};}
+  if(command.type==='vanity_care'&&isCare(command.care)&&homeCare(command.care)){const care=command.care;return {command:{type:'vanity_care',care},label:CARE[care].label,durationMs:CARE[care].seconds*1000,resource:careStation(care)};}
   if(command.type==='console_play'&&isConsoleGame(command.game)){const game=command.game,g=CONSOLE_GAMES[game];if(g.mode==='coop')return null;return {command:{type:'console_play',game},label:'🎮 '+g.name,durationMs:g.seconds*1000,resource:'tv'};}
   if(command.type==='furniture_use'){
     if(!Number.isSafeInteger(command.furnitureId)||typeof command.action!=='string'||
@@ -222,7 +222,7 @@ export function entertainmentReward(command: Entertainment, together = false, bo
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
-  if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
+  if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);if(bathCare(command.care)){const c=next.characters[role];c.hygiene=100;c.comfort=Math.min(100,c.comfort+(command.care==='bathRitual'?45:35));}next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
     const pose=bedPose(state,role,'starter');
     const reason=pose&&catBedError(state,'starter:bed',pose);

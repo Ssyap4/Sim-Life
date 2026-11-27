@@ -1,4 +1,5 @@
 import { activeReward, gameReward, initialHappiness, protectNeeds, REWARDS, wishAvailable, type RewardId } from '../src/shared/happiness';
+import {bathCare} from '../src/shared/vanity';
 import { isSkillId, skillRank } from '../src/shared/education';
 import { MATERIAL_BY_ID } from '../src/shared/educationCatalog';
 import { gameMinutes } from '../src/shared/life';
@@ -41,7 +42,7 @@ export function wishAtStart(state:GameState,role:CharacterId,command:CompletedCo
       if(command.type==='act'&&command.actionId==='alinaStudy')return true;
     if(w.need==='hunger')return ['eat','eat_takeout'].includes(command.type);
     if(w.need==='energy')return command.type==='sleep_start'||['bedSleep','bedNap','sofaRest'].includes(action);
-    if(w.need==='hygiene')return ['bathShower','bathSoak','bathFoam','bathWash','bathTeeth'].includes(action);
+    if(w.need==='hygiene')return (command.type==='vanity_care'&&bathCare(command.care))||['bathShower','bathSoak','bathFoam','bathWash','bathTeeth'].includes(action);
     if(w.id==='dog-walk')return command.type==='local_activity'&&command.action==='dog';
     if(w.id==='together-time')return command.type==='together'&&(['sofaTalk','yardRest','musicTogether','breakfastCare','breakfastBed','yardCoffee','teaTogether','yardTea','bedRest','cuddle'].includes(command.action)||command.action.startsWith('nearTalk:'));
     if(w.id==='game-break'&&(command.type==='play_game'||action==='deskGames'))return true;

@@ -1,7 +1,7 @@
 import {createNotifications} from './notificationsUI';
 import type {NoticeInput} from './shared/notices';
 import {residentLook} from './shared/lake';
-import {CARE,careScore,careEffects,careRole,homeCare,type CareId} from './shared/vanity';
+import {CARE,careScore,careEffects,careRole,homeCare,bathCare,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
@@ -1565,6 +1565,20 @@ function openDirtyDishes():void{
   const note=document.createElement('p');note.className='food-empty';note.textContent='Грязных тарелок: '+count+'. Персонаж соберёт посуду и помоет её у раковины.';actionsEl.append(note);
   const wash=document.createElement('button');wash.className='action-button';wash.textContent='🫧 Собрать и помыть · '+count+' шт.';wash.disabled=!count;wash.onclick=()=>{if(net.perform('kitchenDishes'))actionsEl.hidden=true;};actionsEl.append(wash);
 }
+function appendAlinaCare(title:string,ids:CareId[],allowWeaker=false){
+  if(!state)return;
+  const heading=document.createElement('p');heading.className='food-empty';heading.textContent=title;actionsEl.append(heading);
+  const effects=careEffects(state);
+  for(const id of ids){
+    const d=CARE[id],old=effects.find(e=>CARE[e.id].group===d.group);
+    const delta=Math.max(0,Math.min(100-careScore(state),d.points-(old?CARE[old.id].points:0)));
+    const weaker=!!old&&CARE[old.id].points>d.points;
+    const b=document.createElement('button');b.type='button';b.className='action-button';b.dataset.care=id;
+    b.textContent=d.label+' · '+d.seconds+' сек. · '+(delta?'+'+delta+'%':weaker?'Эффект уже сильнее':old?'Обновить эффект':'Без прибавки')+' · '+d.hours+' ч.';
+    b.disabled=weaker&&!allowWeaker;
+    b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);
+  }
+}
 function openActions(item: ItemId): void {
   locationUI.close();
   if (!active || !net.isReady()) {
@@ -1577,7 +1591,15 @@ function openActions(item: ItemId): void {
     phone.open('delivery');
     return;
   }
-  if(item==='vanity'){showActionMenu('✨ Туалетный столик');if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='alina')){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state).find(e=>CARE[e.id].group===d.group);const delta=Math.max(0,Math.min(100-careScore(state),d.points-(old?CARE[old.id].points:0)));b.textContent=d.label+' · '+(delta?'+'+delta+'%':old?.id===id?'Обновить':'Без прибавки')+' · '+d.hours+' ч.';b.disabled=!!old&&CARE[old.id].points>d.points;b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}return;}
+  if(item==='vanity'){
+    showActionMenu('✨ Туалетный столик');
+    if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}
+    const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);
+    appendAlinaCare('Уход за лицом',['skin','hydrate','serum','faceMask','lipCare']);
+    appendAlinaCare('Волосы',['brush','style','fancy']);
+    appendAlinaCare('Макияж',['light','evening']);
+    appendAlinaCare('Руки и аромат',['handCream','perfume']);return;
+  }
   if (item==='bookcase') { entertainmentMenu.library(); return; }
   showActionMenu((item === 'delivery' ? itemNames.delivery : itemNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
@@ -1592,6 +1614,11 @@ function openActions(item: ItemId): void {
     },active);
   }
   if(item==='basin'&&state&&active==='vlad'){const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state,'vlad')+'% · необязательные процедуры';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='vlad'&&homeCare(id))){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state,'vlad').find(e=>CARE[e.id].group===d.group);b.textContent=d.label+' · '+(old?'Обновить':'+'+d.points+'%')+' · '+d.hours+' ч.';b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}}
+  if(item==='bathtub'&&state&&active==='alina'){
+    const note=document.createElement('p');note.textContent='Обычная ванна · 55 сек. / пенная · 75 сек.';actionsEl.append(note);
+    for(const id of ['bathSoak','bathFoam'] as const){const b=document.createElement('button');b.className='action-button';b.type='button';b.textContent=ACTIONS[id].label;b.onclick=()=>{if(net.perform(id))actionsEl.hidden=true;};actionsEl.append(b);}
+    appendAlinaCare('SPA и уход за телом · ухоженность '+careScore(state)+'%',(Object.keys(CARE) as CareId[]).filter(bathCare),true);return;
+  }
   const about=document.createElement('p');
   about.className='food-empty';
   about.textContent=HOME_OBJECT_DETAILS[item];

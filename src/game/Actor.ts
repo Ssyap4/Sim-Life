@@ -132,13 +132,24 @@ export class Actor {
   private activeConsoleGame?:ConsoleGameId;
   private vanityKind?:import('../shared/vanity').CareId;
   private vanityProp?:THREE.Group;
+  playBathCare(id:import('../shared/vanity').CareId){
+    this.playDomesticActivity('bath');this.vanityKind=id;
+    const g=new THREE.Group(),bomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),finish(id==='bathLavender'?0xc2a5ed:id==='bathRose'?0xe8a3c2:0xf0dfc3,'wood'));
+    bomb.name='bomb';g.add(bomb);
+    if(id==='bathShave'||id==='bathRitual'){const razor=new THREE.Group();razor.name='razor';const handle=new THREE.Mesh(new THREE.BoxGeometry(.018,.083,.019),finish(0xd590b4,'wood'));handle.position.y=-.03;razor.add(handle);const head=new THREE.Mesh(new THREE.BoxGeometry(.05,.016,.026),finish(0xc9d2d7,'wood'));head.position.y=-.077;razor.add(head);razor.visible=false;g.add(razor);}
+    if(id==='bathMilk'||id==='bathRitual'){const cream=new THREE.Mesh(new THREE.CylinderGeometry(.032,.032,.06,12),finish(0xf1dfcb,'wood'));cream.name='cream';cream.visible=false;g.add(cream);}
+    g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
+  }
   playVanity(id:import('../shared/vanity').CareId){
     this.playDomesticActivity('vanity');this.vanityKind=id;
     const g=new THREE.Group();const add=(w:number,h:number,d:number,x:number,y:number,z:number,color:number)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),finish(color,'wood'));m.position.set(x,y,z);g.add(m);};
     if(['brush','style','fancy','vladStyle'].includes(id)){add(.025,.105,.025,0,-.025,0,0x855845);add(.06,.075,.035,0,-.105,0,0xc89087);for(let i=0;i<4;i++)add(.008,.035,.009,(i-1.5)*.014,-.105,.024,0x6e4b40);}
     else if(id==='vladShave'){add(.022,.105,.026,0,-.035,0,0x34404b);add(.052,.02,.027,0,-.094,0,0xb9c6cf);}
     else if(id==='perfume'||id==='vladPerfume'){add(.065,.085,.042,0,-.035,0,0xd9a8b4);add(.028,.026,.025,0,.02,0,0xc5a36c);}
-    else if(id==='skin'){add(.055,.047,.055,0,-.03,0,0xf5e6d9);add(.06,.017,.06,0,.001,0,0xbc997a);}
+    else if(id==='serum'){add(.036,.077,.035,0,-.03,0,0x94b3aa);add(.02,.035,.02,0,.026,0,0xe8e0d1);}
+    else if(id==='lipCare'){add(.019,.065,.019,0,-.027,0,0xd18d9f);add(.015,.019,.015,0,.015,0,0xe4b3b0);}
+    else if(id==='handCream'){add(.035,.09,.024,0,-.03,0,0xd6e8df);add(.027,.018,.021,0,-.079,0,0xeff4e9);}
+    else if(['skin','hydrate','faceMask'].includes(id)){add(.055,.047,.055,0,-.03,0,0xf5e6d9);add(.06,.017,.06,0,.001,0,0xbc997a);}
     else{add(.018,.09,.018,0,-.03,0,0x825561);add(.043,.045,.035,0,-.095,0,0xd9b3a4);}
     g.position.set(0,-.035,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
   }
@@ -957,7 +968,9 @@ export class Actor {
           if(id==='brush'||id==='style'||id==='fancy'||id==='vladStyle'){rightY=.19+.15*cycle;rightZ=.10+.045*Math.cos(a*2.6);leftY=-.22+.13*lift;leftZ=.22;armSpread=.22;gaze=.04;}
           else if(id==='perfume'||id==='vladPerfume'){rightY=-.02+.13*lift;rightZ=.26;leftY=-.23;gaze=.06;}
           else if(id==='vladShave'){rightY=.065+.07*cycle;rightZ=.18+.015*Math.cos(a*3);leftY=-.28;gaze=.04;}
-          else if(id==='skin'){rightY=.07+.08*cycle;rightZ=.18;leftY=.04-.08*cycle;leftZ=.18;gaze=.04;}
+          else if(id==='handCream'){rightY=-.12+.05*cycle;leftY=-.12-.05*cycle;leftZ=rightZ=.29;gaze=.16;}
+          else if(id==='lipCare'){rightY=.055+.025*cycle;rightZ=.19;leftY=-.24;gaze=.05;}
+          else if(id==='skin'||id==='hydrate'||id==='serum'||id==='faceMask'){rightY=.07+.08*cycle;rightZ=.18;leftY=.04-.08*cycle;leftZ=.18;gaze=.04;}
           else {rightY=.10+.055*cycle;rightZ=.17+.015*Math.cos(a*3.4);leftY=-.24;gaze=.02;}
           lean=.02;break;
         }
@@ -1015,6 +1028,7 @@ export class Actor {
           rightZ = .26;
           gaze = -.04 + Math.sin(a * 1.3) * .06;
           lean = -.13;
+          if(this.vanityKind){const phase=a%20,opening=a<4,shaving=(this.vanityKind==='bathShave'||this.vanityKind==='bathRitual')&&a>25&&phase>12&&phase<17,creaming=(this.vanityKind==='bathMilk'||this.vanityKind==='bathRitual')&&a>35&&phase>6&&phase<10;if(this.vanityProp)for(const child of this.vanityProp.children)child.visible=child.name==='bomb'?opening:child.name==='razor'?shaving:creaming;if(opening){rightY=-.12+.05*Math.sin(a*2);rightZ=.30;leftY=-.22;gaze=.10;}else if(shaving){leftY=-.20;rightY=-.24+.035*Math.sin(a*4);rightZ=.33;gaze=.17;lean=-.04;}else if(creaming){rightY=-.10+.04*Math.sin(a*3);leftY=-.18;leftZ=.30;rightZ=.29;gaze=.08;}}
           break;
         case 'toilet':
           leftY = rightY = -.43;

@@ -945,7 +945,8 @@ export class World {
         new THREE.Vector3(center.x + (toilet ? .18 : 0), toilet ? -.22 : -.36, center.z + (toilet ? 0 : .25)),
         toilet ? Math.PI / 2 : Math.PI);
       actor.playDomesticActivity(toilet ? 'toilet' : 'bath');
-      if (action === 'bathFoam') this.homeEffects.water('bathtub',true);
+      if(command.type==='vanity_care'){const color=command.care==='bathLavender'?0xd7c8f1:command.care==='bathRose'?0xf5c9d9:command.care==='bathMilk'?0xfff0d7:0xeaf8ee;this.homeEffects.water('bathtub',true,color);actor.playBathCare(command.care);}
+      else if (action === 'bathFoam') this.homeEffects.water('bathtub',true);
     } else {
       const shower = item === 'shower';
       const hands = item === 'wcBasin';
@@ -1042,7 +1043,7 @@ export class World {
       }
       if (station === 'basin' || station === 'wcBasin' || station === 'shower' || station === 'toilet' || station === 'bathtub') {
         this.bathroomPose(role,station,command);
-        if(command.type==='vanity_care')actor.playVanity(command.care);
+        if(command.type==='vanity_care'&&station!=='bathtub')actor.playVanity(command.care);
         return;
       }
       if(station==='furniture'){

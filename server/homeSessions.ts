@@ -13,6 +13,7 @@ import { LEISURE, isLeisureAction, isFreeLeisureRest, FREE_REST_SECONDS, freeRes
 import { furnitureUseLocation, FURNITURE_ACTIONS } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
+import {bathCare} from '../src/shared/vanity';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe,TAKEOUT,type TakeoutId } from '../src/shared/food';
 import { applyTvFood } from './food';
@@ -204,7 +205,7 @@ export function createHomeSessions(hooks: Hooks) {
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
     if(command.type==='serve_work_coffee'){const route=workCoffeeRoute(hooks.state(),role);return route&&{...route,station:'workCoffee'};}
-    if(command.type==='vanity_care'){if(role==='vlad'){const route=walk(from,BATH_FIXTURES.basin.approach);return route&&{route,station:'basin'};}if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
+    if(command.type==='vanity_care'){if(role==='alina'&&bathCare(command.care)){const route=walk(from,BATH_FIXTURES.bathtub.approach);return route&&{route,station:'bathtub'};}if(role==='vlad'){const route=walk(from,BATH_FIXTURES.basin.approach);return route&&{route,station:'basin'};}if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
       const table=hooks.state().furnishing.placed.find(p=>p.id===command.furnitureId);
