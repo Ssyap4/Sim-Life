@@ -6,7 +6,7 @@ import {CAFE_MENU,STATIONS,type PlaceId} from '../shared/locations';
 import {PET_SHOP_FOOD} from '../shared/petShop';
 import {ELECTRONICS,electronicsFor} from '../shared/electronics';
 
-type Label={position:XYZ;size:[number,number];title:string;lines:string[];color:string;angle?:number};
+export type Label={position:XYZ;size:[number,number];title:string;lines:string[];color:string;angle?:number};
 const colors={cream:0xf2e5d0,wood:0x9d7753,dark:0x514b43,green:0x6a927f,steel:0x79949f};
 const rub=(price:number)=>price.toLocaleString('ru-RU')+' ₽';
 const supported=['cafe','petshop','clothing','electronics'] as const;
@@ -15,7 +15,7 @@ export function isDetailedShop(place:PlaceId):place is DetailedShop{return (supp
 
 /** The entire location's signage uses one atlas and one draw call.
  * These are decorative, not a second catalog or a second checkout. */
-function signs(g:THREE.Group,labels:Label[],resources:LocationResources){
+export function signs(g:THREE.Group,labels:Label[],resources:LocationResources){
  if(!labels.length)return;
  const cols=4,rows=Math.ceil(labels.length/cols),cw=256,ch=128;
  const map=painted(resources,cols*cw,rows*ch,ctx=>{

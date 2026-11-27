@@ -1,6 +1,7 @@
 import {polishShopInterior} from './InteriorAtmosphere';
 import {addLocationFinish} from './LocationFinish061';
 import {addShopDetail} from './ShopDetail061';
+import {addLeisureDetail} from './LeisureDetail061';
 import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
@@ -606,8 +607,9 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor,[5.6,.026,13.5],[11.75,.012,0],0xb8c7c6,cube);
     shape(floor,[.16,2.65,13.8],[14.92,1.32,0],0x52636a,cube);
     sign(floor,'РАЗДЕВАЛКИ · ДУШ',2.45,-6.81,5.0,C.paper,textures,materials);floor.children.at(-1)!.position.x=11.75;
-    for(const x of [-6,-2,2,6,10,14])for(const z of [-5.8,1.0,5.2]){
-      shape(floor,[1.2,.08,.16],[x,2.68,z],0xf8e9ce,cube);
+    for(const x of [-6,-2,2,6,10,14]){
+      shape(floor,[1.2,.10,.18],[x,2.68,-6.78],0x63767b,cube);
+      shape(floor,[1.10,.065,.045],[x,2.68,-6.67],0xf8e9ce,cube);
     }
     for(const x of [-8.1,8.0])shape(floor,[.14,1.65,.10],[x,.83,-6.76],0x17272d,cube);
     const clerk=marketCashier(resources,{title:'Администратор',color:0x167d78,shirt:0xeeeeee,animated:true});clerk.position.set(-6.7,0,6.37);clerk.rotation.y=Math.PI;root.add(clerk);
@@ -743,6 +745,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   polishShopInterior(root,place,resources);
   addLocationFinish(root,place,resources);
   addShopDetail(root,place,resources);
+  addLeisureDetail(root,place,resources);
   root.updateMatrixWorld(true);
   const corners = ({ min, max }: THREE.Box3): XYZ[] => {
     const result: XYZ[] = [];
