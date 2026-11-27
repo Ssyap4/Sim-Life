@@ -7,7 +7,7 @@ import {VACUUM_MODELS,isVacuumSku,type VacuumSku} from './shared/vacuumCatalog';
 import { ELECTRONICS, electronicsFor, electronicsBenefit, installedElectronics, type ElectronicsId } from './shared/electronics';
 import { qualityLabel } from './shared/foodQuality';
 import { JOBS, type JobId } from './shared/jobs';
-import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice } from './shared/previewWardrobe';
+import { PREVIEW_LOOKS, defaultWardrobe, outfitPrice, contextualLook, OUTFIT_CONTEXTS, OUTFIT_LABELS } from './shared/previewWardrobe';
 import { PICNIC_BASKET_PRICE, PICNIC_CAPACITY, picnicPortions, picnicName } from './shared/picnic';
 import { CAMP_RECIPES, type CampRecipe, campIngredients } from './shared/park';
 import type { LocalActivity } from './shared/locations';
@@ -354,8 +354,18 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const personal=(place.world.wardrobe??defaultWardrobe())[role];
       const catalog=PREVIEW_LOOKS[role];
       if(kind==='wardrobe'){
+        const worn=contextualLook(place,role);
+        options.append(element('strong','','Переодевание по ситуации'),button(personal.auto?'Авто: включено · отключить':'Авто: выключено · включить',()=>send({type:'clothing_auto',enabled:!personal.auto})));
+        options.append(element('small','','Выбери купленный комплект для каждой ситуации. Без выбора остаётся ручной наряд. Ручная смена отключает авто.'));
+        for(const context of OUTFIT_CONTEXTS){
+          const row=element('label','outfit-context');row.append(element('strong','',OUTFIT_LABELS[context]));
+          const select=element('select','');select.setAttribute('aria-label',OUTFIT_LABELS[context]);const empty=element('option','','Без смены');empty.value='';select.append(empty);
+          for(const [id,label] of catalog.filter(([id])=>personal.owned.includes(id))){const opt=element('option','',label);opt.value=id;select.append(opt);}
+          select.value=personal.contexts?.[context]??'';select.onchange=()=>send({type:'clothing_context',context,look:select.value||null});row.append(select);options.append(row);
+        }
+        options.append(element('strong','','Ручная смена'));
         for(const [look,label] of catalog.filter(([id])=>personal.owned.includes(id)))
-          options.append(button(label+(personal.worn===look?' · На тебе':''),()=>send({type:'clothing_wear',look}),personal.worn===look));
+          options.append(button(label+(worn===look?' · На тебе':''),()=>send({type:'clothing_wear',look}),worn===look&&!personal.auto));
       }else if(kind==='clothes-rack'){
         if(station.id!=='clothes-'+role)options.append(element('small','','Выбери свой отдел одежды.'));
         else for(const [look,label] of catalog.filter(([id])=>id!=='signature')){

@@ -37,8 +37,8 @@ def top_mesh(r, look, top, trim, style):
     h,s,n = r.hip,r.shoulder,r.neck
     w = r.woman
     hoodie = style in ('hoodie','zip')
-    long = hoodie or style=='track'
-    ease = {'fitted': -.007, 'classic': 0, 'relaxed': .012, 'hoodie': .019, 'oversize': .030, 'cap': -.005, 'zip': .015, 'track': .010, 'polo': .006, 'graphic': .020}[style]
+    long = hoodie or style in ('track','robe','olympic')
+    ease = {'fitted': -.007, 'classic': 0, 'relaxed': .012, 'hoodie': .019, 'oversize': .030, 'cap': -.005, 'zip': .015, 'track': .010, 'polo': .006, 'graphic': .020, 'robe': .028, 'olympic': .014}[style]
     hem = h + (-.018 if style=='oversize' else .006 if long or style=='relaxed' else .025)
     chest = .173 if w else .203
     waist = .143 if w else .166
@@ -50,6 +50,8 @@ def top_mesh(r, look, top, trim, style):
     shape=[(y,x+ease*(1-ramp(s+.005,n,y)),z+ease*.65*(1-ramp(s+.005,n,y)),c) for y,x,z,c in shape]
     def paint(t,a):
         edge = max(1-ramp(.02,.09,t), ramp(.92,.99,t))
+        if style=='olympic' and cos(a)>.92 and t>.70 and abs(sin(a))<.09+.18*(t-.70)/.30:
+            return trim
         if style=='graphic' and cos(a)>.87 and .44<t<.72:
             return blend(top,trim,.88 if int(t*34)%3 else .35)
         return blend(top,trim,.45*edge+.12*max(0,-cos(a))+.04*sin(a*13+t*13)**2)
@@ -75,7 +77,7 @@ def top_mesh(r, look, top, trim, style):
         for side in (-1,1):
             m.cord([((side*.032,h+.205,.113),.0027),((side*.091,h+.181,.103),.0027),
                     ((side*.120,h+.100,.095),.0027)],trim,solid('Chest'),sides=5)
-    if style in ('zip','track'):
+    if style in ('zip','track','olympic'):
         # Zip seam follows the front garment profile and its skin weights.
         for y0,y1 in zip([hem+.02,h+.15,s-.135,s-.045],[h+.15,s-.135,s-.045,n-.022]):
             pts=[]

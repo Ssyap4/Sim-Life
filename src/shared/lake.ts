@@ -117,7 +117,8 @@ export function validLake(v:unknown):v is LakeState{
 }
 export function lakeAccess(s:GameState,r:CharacterId){const v=s.world.lake?.[r];return s.world.places[r]==='lake'&&!!v&&v.until>gameMinutes(s.clock);}
 export function lakeVisit(pass:LakePass,now:number):LakeVisit{return {pass,until:now+LAKE_PASSES[pass].minutes};}
-export function residentLook(s:Pick<GameState,'world'>,r:CharacterId,water=false):string{
- return s.world.places[r]==='lake'?(water?'spa-visit':'lake-visit'):water?'spa-visit':s.world.wardrobe?.[r].worn??'signature';
+import {contextualLook} from './previewWardrobe';
+export function residentLook(s:Pick<GameState,'world'>&Partial<Pick<GameState,'characters'>>,r:CharacterId,water=false):string{
+ return s.world.places[r]==='lake'?(water?'spa-visit':'lake-visit'):water?'spa-visit':contextualLook(s,r);
 }
 export const LAKE_LOOKS={vlad:'cargo',alina:'cozy'} as const;

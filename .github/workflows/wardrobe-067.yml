@@ -1,0 +1,47 @@
+name: Wardrobe 0.67 cloud asset export and mobile QA
+on:
+  push:
+    branches: [feat/wardrobe-family-067]
+    paths: ['art/characters/wardrobe067.py','.github/workflows/wardrobe-067.yml','scripts/qa-wardrobe-067.mjs','src/shared/previewWardrobe.ts']
+permissions:
+  contents: write
+jobs:
+  wardrobe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install bpy==4.5.3
+      - run: |
+          python art/characters/wardrobe067.py -- vlad
+          python art/characters/wardrobe067.py -- alina
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/wardrobe-067.test.ts server/tests/wardrobe-033.test.ts server/tests/clothing-shop-033.test.ts server/tests/blender.test.ts
+      - run: npm run build
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: |
+          npx vite --host 127.0.0.1 --port 4173 >/tmp/wardrobe-vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/qa-wardrobe-033.html >/dev/null && break; sleep 1; done
+          node scripts/qa-wardrobe-067.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wardrobe-067-frames
+          path: /tmp/simourhome-067-wardrobe
+      - name: Publish new outfits to experimental branch only
+        if: success() && github.ref == 'refs/heads/feat/wardrobe-family-067'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/assets/characters/remake/{vlad,alina}.glb art/characters/remake/{vlad,alina}.blend
+          git diff --cached --quiet || git commit -m 'Export 12 new fitted wardrobe sets on approved rigs'
+          git push origin HEAD:feat/wardrobe-family-067

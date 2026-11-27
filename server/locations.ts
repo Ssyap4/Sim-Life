@@ -15,7 +15,7 @@ import { PET_FOOD_MAX_REFILLS } from '../src/shared/pets';
 import {applyFavoriteMeal} from '../src/shared/foodTastes';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { ELECTRONICS,initialElectronics,validElectronics,isElectronicsId,installedElectronics } from '../src/shared/electronics';
-import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS } from '../src/shared/previewWardrobe';
+import { defaultWardrobe, isPreviewLook, outfitPrice, validWardrobe, PREVIEW_LOOKS, OUTFIT_CONTEXTS, type OutfitContext } from '../src/shared/previewWardrobe';
 import { courierVisit, COURIER_NAME, COURIER_INDEX } from '../src/shared/courier';
 import { districtPoint, inHomeGrounds } from '../src/shared/district';
 import { NEIGHBORS, neighborPose } from '../src/shared/neighbors';
@@ -138,7 +138,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 }
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
-  'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -288,6 +288,16 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     next.money-=model.price;addLedger(next,role,'expense','electronics',model.price,model.name);
     return done(next,'Куплено и установлено: '+model.name);
   }
+  if(command.type==='clothing_auto'||command.type==='clothing_context'){
+    if(place!=='home'||!['wardrobe-alina','wardrobe-vlad'].some(id=>at(source,role,stationById('home',id))))return fail('Подойди к шкафу дома');
+    const next=structuredClone(source),p=(next.world.wardrobe??=defaultWardrobe())[role];
+    if(command.type==='clothing_auto'){if(typeof command.enabled!=='boolean')return fail('Неверный режим');p.auto=command.enabled;}
+    else{if(typeof command.context!=='string'||!(OUTFIT_CONTEXTS as readonly string[]).includes(command.context))return fail('Неизвестная ситуация');
+      const context=command.context as OutfitContext;if(command.look!==null&&(typeof command.look!=='string'||!p.owned.includes(command.look)))return fail('Сначала купи комплект');
+      if(command.look===null)delete p.contexts?.[context];else(p.contexts??={})[context]=command.look;
+    }
+    return done(next,'Настройки переодевания сохранены');
+  }
   if(command.type==='clothing_buy'||command.type==='clothing_wear'){
     const look=command.look;
     if(typeof look!=='string'||!isPreviewLook(role,look))return fail('Такого комплекта нет');
@@ -306,7 +316,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     }
     if(place!=='home'||!['wardrobe-alina','wardrobe-vlad'].some(id=>at(source,role,stationById('home',id))))return fail('Подойди к шкафу дома');
     if(!personal.owned.includes(look))return fail('Сначала купи комплект');
-    personal.worn=look;
+    personal.worn=look;personal.auto=false;
     return done(next,'Наряд изменён');
   }
   if(command.type==='lake_dog_treat'){
