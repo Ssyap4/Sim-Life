@@ -515,3 +515,15 @@
 .bowling-ball{position:absolute;bottom:8%;width:29px;height:29px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#8bc2d4,#315b89 48%,#172b4d);box-shadow:0 4px 5px #0005;transform:translateX(-50%)}
 .bowling-controls{display:grid;gap:5px}.bowling-slider{display:grid;gap:2px;font-size:12px}.bowling-slider input{width:100%;height:34px;accent-color:#4b745b;touch-action:pan-x}.bowling-status{font-size:13px;font-weight:650;margin:0}.bowling-roll{background:#cfdfc8}
 @media(max-height:600px){.manual-bowling{padding:9px;gap:5px}.bowling-lane{height:20dvh;min-height:90px}.bowling-slider input{height:28px}.bowling-controls button{min-height:36px}}
+
+.hockey-score{font-size:22px;font-weight:750;text-align:center;letter-spacing:.02em}
+.hockey-clock{text-align:center;font-size:12px;color:#516c60}
+.hockey-table{position:relative;overflow:hidden;width:min(100%,260px,43dvh);aspect-ratio:1/2;max-height:62dvh;margin:0 auto;border:5px solid #264c5d;border-radius:20px;box-sizing:border-box;background:linear-gradient(180deg,#edf6fa,#d1e8ed 50%,#edf6fa);touch-action:none;user-select:none;box-shadow:inset 0 0 0 2px #87abb6}
+.hockey-center{position:absolute;top:50%;width:100%;border-top:2px solid #aa8580}
+.hockey-center:after{content:'';position:absolute;top:0;left:50%;width:38%;aspect-ratio:1;border:2px solid #aa8580;border-radius:50%;transform:translate(-50%,-50%)}
+.hockey-goal{position:absolute;left:33%;width:34%;height:4%;background:#345963;border-radius:5px}.hockey-goal.top{top:0}.hockey-goal.bottom{bottom:0}
+.hockey-pad,.hockey-puck{position:absolute;transform:translate(-50%,-50%);border-radius:50%;aspect-ratio:1;pointer-events:none}
+.hockey-pad{width:16%;border:2px solid #ffffff99;box-sizing:border-box;box-shadow:0 3px 4px #223a4b55,inset 0 0 0 5px #ffffff22}
+.hockey-pad.own{background:radial-gradient(circle,#78bace 0 25%,#266b91 28%)}.hockey-pad.opponent{background:radial-gradient(circle,#f1a4a0 0 25%,#a94849 28%)}
+.hockey-puck{width:9%;background:#21343e;box-shadow:0 2px 3px #0005}
+@media(max-height:600px){.hockey-table{width:min(100%,160px);max-height:51dvh}.hockey-score{font-size:18px}}

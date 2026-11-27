@@ -39,6 +39,7 @@ export interface ConnectionCallbacks {
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void; onTvFoodDone(role:CharacterId,taskId:number):void;
+  onHockeyState?(match:import('../shared/manualHockey').HockeyMatch):void;
   onBowlingState?(match:import('../shared/manualBowling').BowlingMatch):void;
   onMovieOffer(inviteId: number, from: CharacterId, genre: MediaGenre,food?:import('../shared/food').MediaFood,selection?:import('../shared/mediaCatalog').MediaSelection): void;
   onMovieOfferClosed(inviteId: number, message: string): void;
@@ -141,6 +142,7 @@ export class LiveConnection {
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
   inviteMovie(genre: MediaGenre,food?:import('../shared/food').MediaFood,selection?:import('../shared/mediaCatalog').MediaSelection): boolean {return this.sendAuthenticated({type:'movie_invite',genre,food,selection});}
+  hockeyMove(command:import('../shared/manualHockey').HockeyCommand):boolean{return this.sendAuthenticated(command);}
   bowlingRoll(command:import('../shared/manualBowling').BowlingCommand):boolean{return this.sendAuthenticated(command);}
   mediaMark(command:import('../shared/mediaLibrary').MediaCommand):boolean{return this.sendAuthenticated(command);}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
@@ -340,6 +342,7 @@ export class LiveConnection {
         this.callbacks.onTvFoodDone(packet.role,packet.taskId);
       } else if (packet.type === 'need_gain' && this.authorized) {
         this.callbacks.onNeedGain(packet.role,packet.label,packet.effects);
+      } else if(packet.type==='hockey_state'&&this.authorized){this.callbacks.onHockeyState?.(packet.match);
       } else if(packet.type==='bowling_state'&&this.authorized){this.callbacks.onBowlingState?.(packet.match);
       } else if (packet.type === 'movie_offer' && this.authorized) {
         this.callbacks.onMovieOffer(packet.inviteId,packet.from,packet.genre,packet.food,packet.selection);

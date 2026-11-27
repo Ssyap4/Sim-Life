@@ -40,7 +40,7 @@ try{
  await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='social_pending'&&p.offer.action==='venueBowling'));
  const offer=await a.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='social_pending'&&p.offer.action==='venueBowling').offer.id);
  await send(a,{type:'social_reply',inviteId:offer,choice:0});
- await v.locator('.manual-bowling').waitFor({timeout:30000});await a.locator('.manual-bowling').waitFor();
+ await v.locator('#manual-bowling').waitFor({timeout:30000});await a.locator('#manual-bowling').waitFor();
  await shot(v,'bowling-vlad-390');await shot(a,'bowling-alina-320');
  let m=await v.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='bowling_state').match);
  for(let i=0;i<30&&!m.finished;i++){
@@ -51,7 +51,16 @@ try{
  m=await v.evaluate(seq=>window.__qaPackets.findLast(p=>p.type==='bowling_state'&&p.match.sequence===seq).match,seq);
  }
  assert.ok(m.finished);await v.getByRole('button',{name:'Реванш',exact:true}).waitFor();assert.equal(files.load().bowlingHistory.length,1);assert.equal(files.load().bowlingHistory[0].vlad,150);
- await shot(v,'bowling-finish');assert.deepEqual(errors,[]);
+ await shot(v,'bowling-finish');
+ await v.locator('#manual-bowling').getByRole('button',{name:'Закрыть',exact:true}).click();await a.locator('#manual-bowling').getByRole('button',{name:'Закрыть',exact:true}).click();
+ const beforeHockey=files.load().money;
+ await send(v,{type:'social_propose',action:'venueHockey',manual:true});await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='social_pending'&&p.offer.action==='venueHockey'));
+ const hockeyOffer=await a.evaluate(()=>window.__qaPackets.findLast(p=>p.type==='social_pending'&&p.offer.action==='venueHockey').offer.id);await send(a,{type:'social_reply',inviteId:hockeyOffer,choice:0});
+ await v.locator('#manual-hockey').waitFor({timeout:30000});await a.locator('#manual-hockey').waitFor();
+ for(const p of [v,a]){const field=await p.locator('.hockey-table').boundingBox();assert.ok(field);await p.touchscreen.tap(field.x+field.width*.8,field.y+field.height*.65);}
+ await v.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='hockey_state'&&p.match.pads.vlad.x>.12&&p.match.pads.alina.x<-.12));
+ await shot(v,'hockey-vlad-390');await shot(a,'hockey-alina-320');
+ await a.locator('#manual-hockey').getByRole('button',{name:'Отменить партию',exact:true}).click();await v.locator('#manual-hockey').waitFor({state:'hidden'});assert.equal(files.load().money,beforeHockey);assert.deepEqual(errors,[]);
  console.log('068 media and manual bowling mobile QA passed');
 }catch(e){for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});throw e;}
 finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

@@ -18,6 +18,7 @@ import {bathCare} from '../src/shared/vanity';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
 import { isGrillRecipe,isHomeDrink,isMediaFood,mediaFoodInfo,mediaFoodKind,type MediaFood,type RecipeId,type TakeoutId } from '../src/shared/food';
 import { applyTvFood } from './food';
+import {newHockey,hockeyControls,hockeyMove,stepHockey,HOCKEY_STEP,type HockeyMatch,type HockeyControls} from '../src/shared/manualHockey';
 import {newBowling,rollBowling,type BowlingMatch} from '../src/shared/manualBowling';
 import {validSelection,type MediaSelection} from '../src/shared/mediaCatalog';
 import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
@@ -58,6 +59,7 @@ type Session = {
   cooperation?: Cooperation;
   finishedTogether?: boolean;
   bowling?:BowlingMatch;
+  hockey?:HockeyMatch;hockeyControls?:HockeyControls;
   freeRest?: boolean;
   study?: { material: StudyMaterial; start: number; previous: number; minutes: number;
     questions: string[]; correct: number; lastAnswer: number };
@@ -168,7 +170,7 @@ export function createHomeSessions(hooks: Hooks) {
     for(const action of familyAutoLeisure(hooks.state(),from)){
       const a=SOCIAL_BY_ID.get(action)!,command:SocialIntent={type:'together',action};
       if(!pairScenes(hooks.state(),from,command))continue;
-      if(start(['vlad','alina'],{command,label:a.title,durationMs:command.manual?300000:socialDuration(a,command,hooks.state()),resource:socialResource(a)},socket,true,{from,choice:0})){
+      if(start(['vlad','alina'],{command,label:a.title,durationMs:socialDuration(a,command,hooks.state()),resource:socialResource(a)},socket,true,{from,choice:0})){
         lastAutoFamily=now();return true;
       }
     }
@@ -425,7 +427,7 @@ export function createHomeSessions(hooks: Hooks) {
     const before=hooks.state(), roles=session.participants.map(p=>p.role);
     const command=session.plan.command as SocialIntent;
     const {from,choice}=session.cooperation!;
-    const result=completeTogether(before,from,command,roles,choice,socialHomes(session),true,session.bowling);
+    const result=completeTogether(before,from,command,roles,choice,socialHomes(session),true,session.bowling,session.hockey);
     if(!result.ok){end(session,'failed',result.reason);return;}
     if(session.finishedTogether&&roles.length===1){
       const completedMoment=session.cooperation?.moment;
@@ -586,7 +588,10 @@ export function createHomeSessions(hooks: Hooks) {
         for (const {role,packet} of participants) {
           hooks.all({ type: 'task_active', role, taskId: packet.taskId, elapsedMs: 0 });
         }
-        if(command.type==='together'&&command.manual){session.bowling=newBowling(hooks.nextId(),cooperation!.from);hooks.all({type:'bowling_state',match:session.bowling});session.timer=schedule(()=>cancel(cooperation!.from,'Время ручной партии истекло'),300000*hooks.timeScale);}
+        if(command.type==='together'&&command.manual&&command.action==='venueHockey'){
+          session.hockey=newHockey(hooks.nextId());session.hockeyControls=hockeyControls();hooks.all({type:'hockey_state',match:session.hockey});
+          const tick=()=>{if(session.participants.some(p=>sessions.get(p.role)!==session||hooks.socket(p.role)!==p.socket||p.socket.readyState!==WebSocket.OPEN)){end(session,'cancelled','Партнёр отключился');return;}stepHockey(session.hockey!,session.hockeyControls!);if(session.hockey!.finished){hooks.all({type:'hockey_state',match:session.hockey!});complete(session);return;}if(session.hockey!.tick%2===0)hooks.all({type:'hockey_state',match:session.hockey!});session.timer=schedule(tick,HOCKEY_STEP*1000);};session.timer=schedule(tick,HOCKEY_STEP*1000);
+        }else if(command.type==='together'&&command.manual){session.bowling=newBowling(hooks.nextId(),cooperation!.from);hooks.all({type:'bowling_state',match:session.bowling});session.timer=schedule(()=>cancel(cooperation!.from,'Время ручной партии истекло'),300000*hooks.timeScale);}
         else if (study) {
           study.start = hooks.gameTime();
           const tick = () => {
@@ -682,7 +687,7 @@ export function createHomeSessions(hooks: Hooks) {
   }
 
   function replay(socket: WebSocket) {
-    for(const session of new Set(sessions.values()))if(session.bowling)hooks.send(socket,{type:'bowling_state',match:session.bowling});
+    for(const session of new Set(sessions.values())){if(session.bowling)hooks.send(socket,{type:'bowling_state',match:session.bowling});if(session.hockey)hooks.send(socket,{type:'hockey_state',match:session.hockey});}
     if(conversation)hooks.send(socket,{type:'conversation',from:conversation.from,remainingMs:Math.max(0,conversation.until-now()),title:SOCIAL_BY_ID.get(conversation.action)!.title});
     for (const [role,session] of sessions) {
       const original = session.participants.find(p => p.role === role)!.packet;
@@ -763,7 +768,7 @@ export function createHomeSessions(hooks: Hooks) {
         typeof message.action==='string'?SOCIAL_BY_ID.get(message.action):undefined;
       if(!a)return error(socket,'Неизвестное совместное занятие');
       if('moment' in message&&typeof message.moment!=='string')return error(socket,'Неверный семейный момент');
-      if(message.manual!==undefined&&(message.manual!==true||a.id!=='venueBowling'))return error(socket,'Ручной режим пока доступен только в боулинге');
+      if(message.manual!==undefined&&(message.manual!==true||!['venueBowling','venueHockey'].includes(a.id)))return error(socket,'Ручной режим пока недоступен');
       const cmd:SocialIntent={type:'together',action:a.id,...(message.manual===true?{manual:true}:{}),
         item:cook?.command.recipe??(needsItem(a)&&typeof message.item==='string'?message.item:undefined),
         ...(typeof message.moment==='string'?{moment:message.moment}:{})};
@@ -773,8 +778,8 @@ export function createHomeSessions(hooks: Hooks) {
       if(!cook&&resource&&(reserved(resource)||hooks.resourceBusy(resource)))return error(socket,'Объект уже используется');
       const ttl=hooks.socialTtlMs??SOCIAL_TTL_MS;
       const story=cmd.moment?familyMoments(hooks.state(),role).find(m=>m.id===cmd.moment):undefined;
-      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cmd.manual?'🎳 Боулинг · ручная партия':cook?'Помочь с готовкой':story?.title??a.title,
-        text:cmd.manual?'Пять фреймов, каждый бросает сам. 1200 ₽ за завершённую партию.':cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
+      const offer:SocialOffer={id:++nextInviteId,from:role,action:a.id,title:cmd.manual?a.title+' · ручная партия':cook?'Помочь с готовкой':story?.title??a.title,
+        text:cmd.manual?(a.id==='venueHockey'?'До 7 голов или 90 секунд. 650 ₽ за завершённую партию.':'Пять фреймов, каждый бросает сам. 1200 ₽ за завершённую партию.'):cook?'Я могу подготовить продукты или помочь с подачей. Присоединиться?':story?.description??socialText(a,hooks.state(),role),
         replies:cook?['Да, продолжим вместе.','Да, мне пригодится помощь с подачей.']:a.replies,expiresAt:now()+ttl,remainingMs:ttl};
       socialInvite={offer,command:cmd,cookTask:cook?.id,parkSession,timer:schedule(()=>closeSocial('expired','Время ответа истекло'),ttl)};
       lastProposal[role]=now();
@@ -853,6 +858,7 @@ export function createHomeSessions(hooks: Hooks) {
     closeInvite('Приглашение принято');
   }
 
+  function hockeyInput(role:CharacterId,socket:WebSocket,message:Record<string,unknown>){const s=sessions.get(role);if(!s?.hockey||!s.hockeyControls||s.activeAt===null||s.participants.length!==2||!s.participants.some(p=>p.role===role&&p.socket===socket))return;hockeyMove(s.hockey,s.hockeyControls,role,message);}
   function bowlingRoll(role:CharacterId,socket:WebSocket,message:Record<string,unknown>){
     const session=sessions.get(role);if(!session?.bowling||session.activeAt===null||session.participants.length!==2)return error(socket,'Нет активной ручной партии');
     const next=rollBowling(session.bowling,role,message);if(!next)return error(socket,'Бросок недоступен или уже принят');
@@ -913,7 +919,7 @@ export function createHomeSessions(hooks: Hooks) {
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food&&!isHomeDrink(session.participants.find(p=>p.role===role)?.packet.home?.food)))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, bowlingRoll, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food&&!isHomeDrink(session.participants.find(p=>p.role===role)?.packet.home?.food)))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, bowlingRoll, hockeyInput, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

@@ -1,6 +1,7 @@
 import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {FAMILY_MEMORY_LIMIT} from '../src/shared/familyJournal';
 import {lakeTalkStation} from '../src/shared/socialLife';
+import {recordHockey,type HockeyMatch} from '../src/shared/manualHockey';
 import {bowlingScore,recordBowling,type BowlingMatch} from '../src/shared/manualBowling';
 import {VENUE_GAMES,isVenueGame,venueStation,venueWinner,venueScore} from '../src/shared/venue';
 import {addLedger} from '../src/shared/economy';
@@ -69,7 +70,7 @@ export function validRelationship(value:unknown):value is Relationship {
 export function cooperationDenial(state:GameState,from:CharacterId,command:SocialIntent,individual=false):string|undefined {
   const a=SOCIAL_BY_ID.get(command.action);
   if (!a) return 'Неизвестное совместное занятие';
-  if(command.manual&&command.action!=='venueBowling')return 'Ручной режим пока доступен только в боулинге';
+  if(command.manual&&!['venueBowling','venueHockey'].includes(command.action))return 'Ручной режим пока недоступен';
   const restriction=socialRestriction(a,state,from,individual);
   if(restriction) return restriction;
   // Early individual finishing of a legitimately accepted shared meal happens
@@ -400,7 +401,7 @@ export function advanceSharedEvening(state:GameState,action:string,id:string|und
 }
 
 export function completeTogether(source:GameState,from:CharacterId,command:SocialIntent,
-  roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true,bowling?:BowlingMatch):EvaluatedTask{
+  roles:CharacterId[],choice:number,homes:Record<CharacterId,HomePresentation>,remember=true,bowling?:BowlingMatch,hockey?:HockeyMatch):EvaluatedTask{
   const a=SOCIAL_BY_ID.get(command.action)!;
   const denial=cooperationDenial(source,roles.length===1?roles[0]:from,command,roles.length===1);
   if(denial) return fail(denial);
@@ -424,12 +425,12 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   switch(a.object){
     case 'venue':{
       if(!isVenueGame(a.id)||roles.length!==2||!remember)return fail('Нужны оба участника');
-      const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if((command.manual?!bowling?.finished:!match)||state.money<d.price)return fail('Партия недоступна');
+      const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if((command.manual?!(a.id==='venueBowling'?bowling?.finished:a.id==='venueHockey'?hockey?.finished:false):!match)||state.money<d.price)return fail('Партия недоступна');
       state.money-=d.price;addLedger(state,from,'expense','services',d.price,'PLAY ARENA · '+d.name);
       for(const role of roles)change(state,role,{fun:d.fun,mood:d.mood,energy:d.energy,social:12});
-      const v=bowling?bowlingScore(bowling.frames.vlad):0,al=bowling?bowlingScore(bowling.frames.alina):0;
-      const winner=bowling?(v===al?undefined:v>al?'vlad':'alina'):venueWinner(match!);if(winner)change(state,winner,{mood:5});const score=bowling?v+':'+al:venueScore(a.id,match!);
-      if(bowling)recordBowling(state,bowling);
+      const v=hockey?hockey.score.vlad:bowling?bowlingScore(bowling.frames.vlad):0,al=hockey?hockey.score.alina:bowling?bowlingScore(bowling.frames.alina):0;
+      const winner=(bowling||hockey)?(v===al?undefined:v>al?'vlad':'alina'):venueWinner(match!);if(winner)change(state,winner,{mood:5});const score=(bowling||hockey)?v+':'+al:venueScore(a.id,match!);
+      if(bowling)recordBowling(state,bowling);if(hockey)recordHockey(state,hockey);
       message=d.name+' · '+(winner==='vlad'?'Влад победил!':winner==='alina'?'Алина победила!':'Ничья!')+(score?' · '+score:'');break;
     }
     case 'breakfastBed':{

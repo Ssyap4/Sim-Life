@@ -99,6 +99,7 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  hockeyHistory?: import('./manualHockey').HockeyResult[];
   bowlingHistory?: import('./manualBowling').BowlingResult[];
   mediaLibrary?: import('./mediaLibrary').MediaLibrary;
   familyAlbum?: import('./familyAlbum').FamilyPhoto[];
@@ -218,6 +219,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | import('./manualHockey').HockeyCommand
   | import('./manualBowling').BowlingCommand
   | import('./mediaLibrary').MediaCommand
   | import('./familyAlbum').AlbumCommand
@@ -276,6 +278,7 @@ export type ServerPacket =
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
+  | {type:'hockey_state';match:import('./manualHockey').HockeyMatch}
   | {type:'bowling_state';match:import('./manualBowling').BowlingMatch}
   | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').MediaFood; selection?:import('./mediaCatalog').MediaSelection }
   | { type: 'movie_offer_closed'; inviteId: number; message: string }
