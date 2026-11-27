@@ -344,6 +344,7 @@ showcaseChoices.addEventListener('click', (event) => {
   else if (id === 'vlad' || id === 'alina' || id === 'verdell' || id === 'simba') focusModel(id);
 });
 
+import {unreadMessages} from './shared/familyMessages';
 import {humanHealth,petHealth,healthStatus} from './shared/health';
 const lastTaskNotice=new Map<CharacterId,{message:string;at:number}>();
 function taskEcho(role:CharacterId,message:string){const last=lastTaskNotice.get(role);return !!last&&last.message===message&&performance.now()-last.at<2000;}
@@ -937,7 +938,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on));
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command));
 const skillsPanel = createSkillsPanel(document.querySelector<HTMLElement>('#skills-overlay')!,
   () => state && active ? {state, role:active} : null);
 skillsBtn.addEventListener('click',()=>{
@@ -1031,6 +1032,7 @@ const net = new LiveConnection({
     render(true);
     if(reconnecting){notifications.resolve('disconnect');notify('Связь восстановлена',{title:'Снова вместе',kind:'success',key:'reconnect'});}
     else notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
+    const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
@@ -1040,8 +1042,10 @@ const net = new LiveConnection({
         event.milestone && event.at === last?.at && event.title === last?.title);
       const healthMessages:string[]=[];
       if(state&&active){const before=humanHealth(state,active).illness,after=humanHealth(household,active).illness;if(!before&&after)healthMessages.push('Недомогание · открой «Добрый доктор»');else if(before&&!after)healthMessages.push('Ты выздоровел(а)!');for(const id of PET_IDS){const old=petHealth(state,id).illness,next=petHealth(household,id).illness;if(!old&&next)healthMessages.push(PETS[id].name+' плохо себя чувствует');else if(old&&!next)healthMessages.push(PETS[id].name+' выздоровел');}}
+      const incoming=active?unreadMessages(household,active).filter(x=>x.id>=(state?.familyMessages?.nextId??1)):[];
       state = household;
       render();
+      if(incoming.length&&!phone.messagingOpen()){const last=incoming.at(-1)!;notify(last.text.slice(0,100),{title:'Сообщение · '+names[last.from],target:'messages',key:'family-message:'+last.id});}
       if (last && !known) notify(last.title);
       for(const message of healthMessages)notify(message);
       marketUI.refresh(household);
@@ -1228,6 +1232,7 @@ const net = new LiveConnection({
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
   onError(reason) {
+    if(phone.messagingOpen())phone.messageRejected();
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
       notify(reason,{title:'Симба мешает',kind:'warning'});
       phone.close();computer.close();

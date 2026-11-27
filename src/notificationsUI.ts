@@ -15,7 +15,7 @@ export function createNotifications(root:HTMLElement,history:HTMLElement,bell:HT
   const detail=document.createElement('p');detail.textContent=n.message;
   body.append(title,detail);
   if(!live){const time=document.createElement('small');time.textContent=new Date(n.time).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});body.append(time);}
-  if(n.target){const target=n.target;const b=button(({finance:'К платежам',health:'Здоровье',pets:'К питомцам',needs:'Потребности',events:'К событиям',holidays:'К праздникам',delivery:'К доставке',autonomy:'К желаниям'})[target],()=>go(target,live));b.className='notice-link';body.append(b);}
+  if(n.target){const target=n.target;const b=button(({finance:'К платежам',health:'Здоровье',pets:'К питомцам',needs:'Потребности',events:'К событиям',holidays:'К праздникам',delivery:'К доставке',autonomy:'К желаниям',messages:'К переписке'})[target],()=>go(target,live));b.className='notice-link';body.append(b);}
   el.append(symbol,body);
   if(live){const x=button('×',dismiss);x.className='notice-close';x.setAttribute('aria-label','Закрыть уведомление');el.append(x);}
   return el;

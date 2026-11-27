@@ -99,6 +99,7 @@ export interface GameState {
   computerLibrary: Record<CharacterId, ComputerLibrary>;
   relationship: Relationship;
   autonomy: AutonomySettings;
+  familyMessages?: import('./familyMessages').FamilyMessages;
   foodTastes?: import('./foodTastes').FoodTastes;
   personalCollections?: import('./personalCollections').PersonalCollections;
   dailyHistory?: import('./dailyRoutine').DailyHistory;
@@ -214,6 +215,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'act'; actionId: ActionId; computer?: import('./computer').ComputerDevice }
   | { type: 'play_game'; game: ComputerGameId; device: ComputerDevice; furnitureId?:number }
   | { type: 'computer_video'; clip: VideoClipId; device: ComputerDevice; furnitureId?:number }
+  | import('./familyMessages').MessageCommand
   | { type: 'food_favorite'; kind:import('./foodTastes').TasteKind; item:string; enabled:boolean }
   | { type: 'computer_favorite'; game: ComputerGameId; enabled: boolean }
   | { type: 'buy'; item: import('./food').IngredientId }

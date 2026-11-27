@@ -48,6 +48,7 @@ import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
+import {applyFamilyMessage} from '../src/shared/familyMessages';
 import {changeFoodFavorite} from '../src/shared/foodTastes';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
@@ -1209,6 +1210,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
 
+      if(message.type==='family_message_send'||message.type==='family_message_read'){
+        const result=applyFamilyMessage(state,role,message);
+        if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        if(result.state!==state){
+          try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить переписку'});return;}
+          state=result.state;all({type:'snapshot',state});
+        }
+        return;
+      }
       if (message.type === 'food_favorite') {
         const result=changeFoodFavorite(state,role,message.kind,message.item,message.enabled);
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}

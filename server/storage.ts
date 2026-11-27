@@ -1,4 +1,5 @@
 import {isHomeDrink} from '../src/shared/food';
+import {validFamilyMessages,emptyMessages} from '../src/shared/familyMessages';
 import {validFoodTastes} from '../src/shared/foodTastes';
 import {validCollections} from '../src/shared/personalCollections';
 import {validDailyHistory} from '../src/shared/dailyRoutine';
@@ -88,6 +89,7 @@ const isValidState = (value: unknown): value is GameState => {
   if (state.billing !== undefined && !validBilling(state.billing)) return false;
   if (state.savings !== undefined && !validFamilyBudget(state.savings)) return false;
   if (state.relationship !== undefined && !validRelationship(state.relationship)) return false;
+  if (state.familyMessages !== undefined && !validFamilyMessages(state.familyMessages)) return false;
   if (state.foodTastes !== undefined && !validFoodTastes(state.foodTastes)) return false;
   if (state.personalCollections !== undefined && !validCollections(state.personalCollections)) return false;
   if (state.dailyHistory !== undefined && !validDailyHistory(state.dailyHistory)) return false;
@@ -423,6 +425,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
         relationship: data.relationship ?? initialRelationship(),
         autonomy: data.autonomy ?? { ...INITIAL_AUTONOMY },
         personalCollections: data.personalCollections ?? {},
+        familyMessages: data.familyMessages ?? emptyMessages(),
         foodTastes: data.foodTastes ?? {},
         dailyHistory: data.dailyHistory ?? {},
         coffeeDaily: data.coffeeDaily ?? newCoffeeDaily(),

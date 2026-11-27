@@ -1,5 +1,5 @@
 export type NoticeKind='info'|'success'|'warning'|'urgent';
-export type NoticeTarget='finance'|'health'|'pets'|'needs'|'events'|'holidays'|'delivery'|'autonomy';
+export type NoticeTarget='finance'|'health'|'pets'|'needs'|'events'|'holidays'|'delivery'|'autonomy'|'messages';
 export type NoticeInput={message:string;title?:string;kind?:NoticeKind;target?:NoticeTarget;key?:string};
 export type Notice=Required<Pick<NoticeInput,'message'|'title'|'kind'|'key'>>&{id:number;time:number;target?:NoticeTarget};
 const priority:Record<NoticeKind,number>={info:0,success:1,warning:2,urgent:3};
