@@ -4,6 +4,9 @@ on:
     branches: [feat/polish-061]
     paths:
       - '.github/workflows/final-061-regression.yml'
+      - 'package.json'
+      - 'server/tests/player-copy-020.test.ts'
+      - 'server/tests/living-family-058.test.ts'
   workflow_dispatch:
 permissions:
   contents: read

@@ -28,7 +28,7 @@ test('nighttime favors existing quiet activities and excludes outdoor idle strol
  assert.ok(fullIdleChoices(s,'vlad',0,['computer','computer','computer'])[0]!=='computer');
 });
 test('tired pets never perform energetic cosmetic gestures',()=>{
- for(const id of ['verdell','simba'] as const)for(let i=0;i<32;i++)assert.ok(['stretch','observe','slowBlink'].includes(choosePetIdle(id,{energy:18,satiety:80,bond:90,happiness:90,bowl:1,personNearby:true},i)));
+ for(const id of ['verdell','simba'] as const)for(let i=0;i<32;i++)assert.ok(['stretch','observe','slowBlink','yawn','downRest'].includes(choosePetIdle(id,{energy:18,satiety:80,bond:90,happiness:90,bowl:1,personNearby:true},i)));
 });
 
 import {urgentPhysicalNeed,foodSupplyProblem} from '../../src/shared/autonomy';
