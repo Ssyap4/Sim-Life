@@ -1,3 +1,4 @@
+import {HOME_DRINK_COLORS} from '../shared/food';
 import {isHomeDrink} from '../shared/food';
 import {interiorLighting} from './InteriorAtmosphere';
 import {updateWater} from './WaterArt';
@@ -987,7 +988,7 @@ export class World {
     const offset=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
     const plate=this.showMeal(role,pose.x+offset.x,pose.y+.83,pose.z+offset.z,home.food);
     const serving=this.meals.get(role)!;serving.rotation.y=yaw;
-    serving.getObjectByName('Breakfast tray')!.visible=true;
+    serving.getObjectByName('Breakfast tray')!.visible=!isHomeDrink(home.food);
     actor.playActivity('eat',plate,home.food,true);
     return true;
   }
@@ -1005,6 +1006,7 @@ export class World {
     const current = () => this.homeTasks.get(role) === home;
     const arrive = () => {
       if (!current()) return;
+      if(home.food)actor.hideFoodContainer();
       if (station === 'classroom' || station === 'lab' || station === 'workshop') {
         const { x, z } = stationById('education', station)!.center;
         const seatX = x + (role === 'vlad' ? -.63 : .63);
@@ -1027,7 +1029,7 @@ export class World {
       if(station==='workCoffee'){
         const target=new THREE.Vector3().copy(WORK_COFFEE_DROP);
         actor.faceTowards(target);actor.playDomesticActivity('reach',target);
-        actor.carryWorkCoffee(target);return;
+        if(command.type==='serve_work_drink')actor.carryHomeDrink(command.recipe,target);else actor.carryWorkCoffee(target);return;
       }
       if (station === 'studyPractice') { actor.playDomesticActivity('stretch'); return; }
       if (station === 'kitchenCook') {
@@ -1068,6 +1070,7 @@ export class World {
           ['deskJournal','deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action)){
           actor.setFurniturePose('work',new THREE.Vector3(pose.x,pose.y,pose.z),pose.yaw,this.placedDeskKeys(home.furnitureId));
         }else actor.faceTowards(new THREE.Vector3(pose.x,0,pose.z));
+        if(command.type==='eat'&&command.drinkSeat){actor.playActivity('eat',undefined,command.recipe);return;}
         if(command.type==='vanity_care'){actor.playVanity(command.care);const started=this.careElapsed.get(role);if(started!==undefined)actor.syncCareElapsed(started);if(this.inspected===role)this.careReframe=role;return;}
         if(command.type==='read_book'||study?.channel==='book')actor.playDomesticActivity('read');
         if(command.type==='furniture_use'){
@@ -1111,17 +1114,22 @@ export class World {
         if (motion) actor.playDomesticActivity(motion);
       }
     };
-    if(command.type==='eat'&&command.drinkSeat&&pickup!==undefined){
+    if((command.type==='movie'||command.type==='youtube')&&home.food&&pickup!==undefined){
+      const food=home.food;const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);if(isHomeDrink(food))actor.carryHomeDrink(food as RecipeId);else actor.carryFoodContainer();};
+      const take=()=>{if(!current())return;const top=this.household?diningSurface(this.household):undefined;if(top){const target=new THREE.Vector3(top.x,top.height+.12,top.z);actor.faceTowards(target);actor.playDomesticActivity('reach',target);}else actor.playDomesticActivity('reach');this.preparations.set(role,{remaining:(home.pickupMs??650)/1000,next:carry});};
+      if(pickup>0)actor.walkPath(path.slice(0,pickup),take);else take();
+    }else if(command.type==='eat'&&command.drinkSeat&&pickup!==undefined){
       const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);actor.carryHomeDrink(command.recipe);};
       const take=()=>{if(!current())return;const top=this.household?diningSurface(this.household):undefined;if(top){const target=new THREE.Vector3(top.x,top.height+.12,top.z);actor.faceTowards(target);actor.playDomesticActivity('reach',target);}else actor.playDomesticActivity('reach');this.preparations.set(role,{remaining:(home.pickupMs??650)/1000,next:carry});};
       if(pickup>0)actor.walkPath(path.slice(0,pickup),take);else take();
     }else if(station==='workCoffee'&&pickup!==undefined){
-      const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);actor.carryWorkCoffee();};
+      const carry=()=>{if(!current())return;actor.walkPath(path.slice(pickup),arrive);if(command.type==='serve_work_drink')actor.carryHomeDrink(command.recipe);else actor.carryWorkCoffee();};
       const prepare=()=>{
         if(!current())return;
         if(!home.pickupMs){carry();return;}
-        const target=new THREE.Vector3().copy(KITCHEN_WORK.coffee.target);
-        actor.faceTowards(target);actor.playDomesticActivity('coffee',target);
+        const top=command.type==='serve_work_drink'&&this.household?diningSurface(this.household):undefined;
+        const target=top?new THREE.Vector3(top.x,top.height+.12,top.z):new THREE.Vector3().copy(KITCHEN_WORK.coffee.target);
+        actor.faceTowards(target);actor.playDomesticActivity(top?'reach':'coffee',target);
         this.preparations.set(role,{remaining:home.pickupMs/1000,next:carry});
       };
       if(pickup>0)actor.walkPath(path.slice(0,pickup),prepare);else prepare();
@@ -1234,7 +1242,7 @@ export class World {
     const leads=pair.from===role;
     switch(pair.motion){
       case 'breakfastServe':actor.hideFoodContainer();actor.playPartnerGesture('talk',true);break;
-      case 'breakfastReceive':{if(!home.furniturePose)break;const p=home.furniturePose;const tray=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),p.yaw);const plate=this.showMeal(role,p.x+tray.x,p.y+.83,p.z+tray.z,pair.item as RecipeId);const serving=this.meals.get(role)!;serving.rotation.y=p.yaw;serving.getObjectByName('Breakfast tray')!.visible=true;actor.playActivity('eat',plate,pair.item as RecipeId);break;}
+      case 'breakfastReceive':{if(!home.furniturePose)break;const p=home.furniturePose;const tray=new THREE.Vector3(0,0,.40).applyAxisAngle(new THREE.Vector3(0,1,0),p.yaw);const plate=this.showMeal(role,p.x+tray.x,p.y+.83,p.z+tray.z,pair.item as RecipeId);const serving=this.meals.get(role)!;serving.rotation.y=p.yaw;serving.getObjectByName('Breakfast tray')!.visible=!isHomeDrink(home.food);actor.playActivity('eat',plate,pair.item as RecipeId);break;}
       case 'venue':{
         if(pair.item==='venueUfc')actor.playConsole('ufc6');
         else if(pair.item==='venueBowling')actor.playDomesticActivity('venueBowl');
@@ -2536,7 +2544,8 @@ export class World {
     const worker=(['vlad','alina'] as const).find(id=>state.activeShifts[id]?.homeDevice==='desktop'&&state.activeShifts[id]?.coffeeServed);
     if(worker&&!state.furnishing.soldFixtures?.includes('desk')){
       if(!this.workCoffeeCup){this.workCoffeeCup=this.actors[worker==='vlad'?'alina':'vlad'].workCoffeeModel();this.homeScene.add(this.workCoffeeCup);}
-      this.workCoffeeCup.position.set(WORK_COFFEE_DROP.x,WORK_COFFEE_DROP.y+.0415,WORK_COFFEE_DROP.z);
+      const recipe=state.activeShifts[worker]?.servedDrink,cold=!!recipe&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(recipe);const cup=this.workCoffeeCup;cup.getObjectByName('Cold glass')!.visible=cold;cup.getObjectByName('Drink handle')!.visible=!cold;cup.getObjectByName('Drink vessel')!.visible=!cold;const liquid=cup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;liquid.material.color.setHex(recipe?HOME_DRINK_COLORS[recipe]??0x9b6332:0x9b6332);liquid.position.y=cold?.062:.0415;
+      this.workCoffeeCup.position.set(WORK_COFFEE_DROP.x,WORK_COFFEE_DROP.y+(cold?.062:.0415),WORK_COFFEE_DROP.z);
       this.workCoffeeCup.visible=true;
     }else if(this.workCoffeeCup)this.workCoffeeCup.visible=false;
     if(!previous||previous.clock.day!==state.clock.day||previous.clock.minute!==state.clock.minute||JSON.stringify(previous.vacuum)!==JSON.stringify(state.vacuum))this.vacuumStamp=this.visualSeconds;

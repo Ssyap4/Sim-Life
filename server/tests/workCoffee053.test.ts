@@ -52,7 +52,7 @@ function rig(){
  const h=createHomeSessions({state:()=>s,save:x=>{s=x;},all:p=>packets.push(p),send:(_,p)=>packets.push(p),socket:r=>sockets[r],busy:r=>!!s.activeShifts[r],prepare:()=>{},nextId:()=>++id,timeScale:1,gameTime:()=>gameMinutes(s.clock),now:()=>now,resourceBusy:()=>false,schedule:(cb,ms)=>{const key=++id as unknown as ReturnType<typeof setTimeout>;timers.set(key,{at:now+ms,cb});return key;},clearTimer:key=>{timers.delete(key);}});
  const advance=(ms:number)=>{const end=now+ms;while(true){const n=[...timers.entries()].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!n)break;timers.delete(n[0]);now=n[1].at;n[1].cb();}now=end;};
  const start=()=>{const c=workCoffeeChoices(s,'alina')[0];assert.ok(c);assert.ok(h.start(['alina'],planTask(c)!,sockets.alina,true));};
- return {h,packets,advance,start,state:()=>s};
+ return {h,packets,advance,start,sockets,state:()=>s};
 }
 test('real timed coffee session routes only giver and does not change recipient task; cancellation pays nothing',()=>{
  const r=rig();try{const before=structuredClone(r.state());r.start();
@@ -62,5 +62,14 @@ test('real timed coffee session routes only giver and does not change recipient 
  r.start();r.advance(120000);assert.equal(r.state().pantry.coffeeNescafeGold,1);assert.equal(r.state().activeShifts.vlad?.coffeeServed,true);
  assert.ok(r.packets.some(p=>p.type==='task_ended'&&p.role==='alina'&&p.outcome==='completed'));
  assert.deepEqual(r.state().activeShifts.vlad,{...before.activeShifts.vlad,coffeeServed:true});
+ }finally{r.h.dispose();}
+});
+
+import {addReadyFood} from '../../src/shared/readyFood';
+test('partner brings a prepared drink to an active desktop order without interrupting or paying it early',()=>{
+ const r=rig();try{const state=r.state();state.meals.berrySmoothie=2;addReadyFood(state,'meal','berrySmoothie',2,'table');const before=structuredClone(state),cmd={type:'serve_work_drink' as const,shiftStart:state.activeShifts.vlad!.startedAt,recipe:'berrySmoothie' as const};const plan=planTask(cmd)!;assert.ok(plan);
+ assert.ok(r.h.start(['alina'],plan,r.sockets.alina));const p=r.packets.find(x=>x.type==='task_started');assert.ok(p?.type==='task_started');assert.equal(p.home?.station,'workCoffee');assert.equal(p.home?.pickupMs,650);r.h.cancel('alina','manual');r.advance(120000);assert.equal(r.state().meals.berrySmoothie,2);
+ assert.ok(r.h.start(['alina'],plan,r.sockets.alina));r.advance(120000);assert.equal(r.state().meals.berrySmoothie,1);assert.deepEqual(r.state().activeShifts.vlad,{...before.activeShifts.vlad,coffeeServed:true,servedDrink:'berrySmoothie'});assert.equal(r.state().characters.vlad.pose,'work');assert.equal(r.state().characters.vlad.x,before.characters.vlad.x);assert.equal(r.state().money,before.money);assert.equal(evaluateTask(r.state(),'alina',cmd).ok,false);
+ const dir=mkdtempSync(join(tmpdir(),'work-drink-065-'));try{const files=openServerFiles(dir);files.save(r.state());assert.equal(files.load().activeShifts.vlad?.servedDrink,'berrySmoothie');}finally{rmSync(dir,{recursive:true,force:true});}
  }finally{r.h.dispose();}
 });

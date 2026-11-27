@@ -49,9 +49,9 @@ export type NeedEffects = Partial<Record<NeedKey, number>>;
 export type Entertainment =
   | {type:'vanity_care';care:import('./vanity').CareId}
   | {type:'console_play';game:import('./consoleCatalog').ConsoleGameId}
-  | { type: 'youtube'; food?:import('./food').TakeoutId }
+  | { type: 'youtube'; food?:import('./food').MediaFood }
   | { type: 'free_tv' }
-  | { type: 'movie'; genre: Genre; food?:import('./food').TakeoutId }
+  | { type: 'movie'; genre: Genre; food?:import('./food').MediaFood }
   | { type: 'read_book'; book: BookId; seat?: 'officeChair' };
 export const HOME_SEATS = ['sofa','officeChair','table','yardTable'] as const;
 export type HomeSeat = (typeof HOME_SEATS)[number];
@@ -61,7 +61,7 @@ export type HomePresentation = {
   pickupMs?: number;
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'workCoffee' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
-  food?:import('./food').TakeoutId;
+  food?:import('./food').MediaFood;
   foodMs?:number;
   vanityCare?:import('./vanity').CareId;
   consoleGame?:import('./consoleCatalog').ConsoleGameId;

@@ -188,7 +188,7 @@ export const ACTIONS = {
 } as const satisfies Record<string, ActionDefinition>;
 export type ActionId = keyof typeof ACTIONS;
 
-export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | import('./workCoffee').WorkCoffeeCommand
+export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | import('./workCoffee').WorkCoffeeCommand | import('./workCoffee').WorkDrinkCommand
   | Extract<EducationCommand, { type: 'study' }>
   | { type: 'local_activity'; action: LocalActivity; station: string }
   | { type: 'clean_room'; room: DustRoomId }
@@ -200,9 +200,9 @@ export type TimedCommand = Entertainment | FurnitureUseCommand | SocialIntent | 
   | { type: 'brew_coffee'; blend: CoffeeBlend; drink?:CoffeeDrink }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: Exclude<import('./pets').PetAction, 'buyFood' | 'call' | 'perch' | 'fetch' | 'mat' | 'scratch' | 'toy' | import('./dogTraining').DogTrainingAction> };
 
-export type ClientPacket = FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | import('./familyLife').FamilyLifeCommand | EducationCommand | CareerCommand | SocialCommand
+export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingCommand | FurnitureUseCommand | WorldCommand | Entertainment | ServiceCommand | BudgetCommand | import("./weekends").WeekendCommand | import('./familyLife').FamilyLifeCommand | EducationCommand | CareerCommand | SocialCommand
   | { type: 'happiness_buy' | 'happiness_activate'; reward: RewardId }
-  | { type: 'movie_invite'; genre: MediaGenre; food?:import('./food').TakeoutId }
+  | { type: 'movie_invite'; genre: MediaGenre; food?:import('./food').MediaFood }
   | { type: 'movie_reply'; inviteId: number; accept: boolean }
   | { type: 'movie_withdraw'; inviteId: number }
   | { type: 'resume'; role: CharacterId; token: string }
@@ -264,7 +264,7 @@ export type ServerPacket =
   | { type: 'social_closed'; inviteId: number; phase: SocialPhase; message: string; reply?: string }
   | { type: 'social_start'; kind: SocialKind; message: string }
   | { type: 'pet_event'; role: CharacterId; pet: import('./pets').PetId; action: import('./pets').PetAction; message: string }
-  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').TakeoutId }
+  | { type: 'movie_offer'; inviteId: number; from: CharacterId; genre: MediaGenre; food?:import('./food').MediaFood }
   | { type: 'movie_offer_closed'; inviteId: number; message: string }
   | { type: 'task_queue'; role: CharacterId; tasks: QueuedTask[] }
   | { type: 'task_active'; role: CharacterId; taskId: number; elapsedMs: number }

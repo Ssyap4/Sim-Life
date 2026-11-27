@@ -80,7 +80,7 @@ export class Actor {
   private gripCup(center: THREE.Vector3, alpha: number): void {
     this.cupYaw.setFromAxisAngle(up,this.root.rotation.y);
     const cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.carriedDrink??(this.activity==='eat'?this.diningDish??'':''));
-    this.cupHandleOffset.set(cold?.036:.051,0,0).applyQuaternion(this.cupYaw);
+    this.cupHandleOffset.set(cold?.050:.051,0,0).applyQuaternion(this.cupYaw);
     this.cupGripDirection.set(0,-.5,.6).normalize().applyQuaternion(this.cupYaw);
     this.target.copy(center).add(this.cupHandleOffset).addScaledVector(this.cupGripDirection,-.055);
     this.reach(1,this.target,alpha,.42);
@@ -88,7 +88,7 @@ export class Actor {
     this.rig.wrists[1].getWorldQuaternion(this.parentRotation).invert();
     this.teaCup.quaternion.copy(this.parentRotation).multiply(this.cupYaw);
     this.teaCup.position.copy(this.cupHandleOffset).applyQuaternion(this.parentRotation).negate();
-    this.teaCup.position.y-=.055;
+    this.teaCup.position.y-=.055;if(cold)this.teaCup.position.z+=.014;
   }
   private workCoffeeCarrying=false;
   private carriedDrink?:RecipeId;
@@ -150,7 +150,7 @@ export class Actor {
     this.playDomesticActivity('bath');this.vanityKind=id;
     const g=new THREE.Group();g.name='Held bath care';const bomb=new THREE.Mesh(new THREE.IcosahedronGeometry(.042,1),finish(id==='bathLavender'?0xc2a5ed:id==='bathRose'?0xe8a3c2:0xf0dfc3,'wood'));
     bomb.name='bomb';if(id.startsWith('bathHair')){bomb.geometry.dispose();const bottle=new THREE.Mesh(new THREE.CylinderGeometry(.026,.028,.09,12),finish(0xb6d4c6,'ceramic'));bottle.name='shampoo';bottle.position.y=-.02;g.add(bottle);
-      const foam=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),finish(id==='bathHairWash'?0xf7f6ef:0xf0dfcf,'ceramic'),14),dummy=new THREE.Object3D();foam.name='Hair treatment foam';for(let i=0;i<14;i++){const angle=i*2.39996;dummy.position.set(Math.sin(angle)*(.08+(i%3)*.035),.104+(i%4)*.027,-.035+Math.cos(angle)*.10);const r=.023+(i%4)*.006;dummy.scale.set(r,r*.68,r);dummy.updateMatrix();foam.setMatrixAt(i,dummy.matrix);}foam.visible=false;this.rig.head.add(foam);this.hairTreatmentFoam=foam;}else g.add(bomb);
+      const foam=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),finish(id==='bathHairWash'?0xf7f6ef:0xf0dfcf,'ceramic'),14),dummy=new THREE.Object3D();foam.name='Hair treatment foam';for(let i=0;i<14;i++){const angle=i*2.39996;dummy.position.set(Math.sin(angle)*(.08+(i%3)*.035),.104+(i%4)*.027,-.035+Math.cos(angle)*.10);const r=.014+(i%4)*.004;dummy.scale.set(r,r*.68,r);dummy.updateMatrix();foam.setMatrixAt(i,dummy.matrix);}foam.visible=false;this.rig.head.add(foam);this.hairTreatmentFoam=foam;}else g.add(bomb);
     if(id==='bathShave'||id==='bathRitual'){const razor=new THREE.Group();razor.name='razor';const handle=new THREE.Mesh(new THREE.BoxGeometry(.018,.083,.019),finish(0xd590b4,'wood'));handle.position.y=-.03;razor.add(handle);const head=new THREE.Mesh(new THREE.BoxGeometry(.05,.016,.026),finish(0xc9d2d7,'wood'));head.position.y=-.077;razor.add(head);razor.visible=false;g.add(razor);}
     if(id==='bathMilk'||id==='bathRitual'){const cream=new THREE.Mesh(new THREE.CylinderGeometry(.032,.032,.06,12),finish(0xf1dfcb,'wood'));cream.name='cream';cream.visible=false;g.add(cream);}
     g.position.set(0,-.025,.018);this.rig.wrists[1].add(g);this.vanityProp=g;
@@ -301,7 +301,7 @@ export class Actor {
   }
   workCoffeeModel(){const cup=this.teaCup.clone();cup.visible=true;cup.quaternion.identity();cup.getObjectByName('Cold glass')!.visible=false;cup.getObjectByName('Drink handle')!.visible=true;cup.getObjectByName('Drink vessel')!.visible=true;const liquid=cup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;liquid.material=liquid.material.clone();liquid.material.color.setHex(0x9b6332);liquid.position.y=.0415;return cup;}
   carryWorkCoffee(target?:THREE.Vector3):void{this.workCoffeeCarrying=true;this.workCoffeeTarget=target?.clone();}
-  carryHomeDrink(recipe:RecipeId){this.carryWorkCoffee();this.carriedDrink=recipe;}
+  carryHomeDrink(recipe:RecipeId,target?:THREE.Vector3){this.carryWorkCoffee(target);this.carriedDrink=recipe;}
   private clearWorkCoffee():void{this.carriedDrink=undefined;this.workCoffeeCarrying=false;this.workCoffeeTarget=undefined;this.teaCup.visible=false;}
   carryDirtyPlate(): void { this.dirtyPlate.visible = true; }
   carryFoodContainer(): void { this.foodContainer.visible = true; }
@@ -2249,7 +2249,7 @@ export class Actor {
       this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.19,1.12,.30).applyAxisAngle(up,this.root.rotation.y));
       if(target){
         const place=THREE.MathUtils.smoothstep(a,.08,1.05);
-        this.cupCenter.lerp(this.cupGripDirection.copy(target).add(this.cupHandleOffset.set(0,.0415,0)),place);
+        this.cupCenter.lerp(this.cupGripDirection.copy(target).add(this.cupHandleOffset.set(0,this.carriedDrink&&['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(this.carriedDrink)?.062:.0415,0)),place);
       }
       this.gripCup(this.cupCenter,alpha*.92);
     }

@@ -17,12 +17,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: node --import tsx --test server/tests/home-comfort-065.test.ts server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/market.test.ts server/tests/readyFood.test.ts server/tests/tv-food-060.test.ts server/tests/food-quality.test.ts server/tests/home-care-065.test.ts server/tests/care-motion-065.test.ts server/tests/vanity-044.test.ts server/tests/barber-046.test.ts server/tests/dog-bath-035.test.ts server/tests/wishes-019.test.ts server/tests/needs-treats-030.test.ts
+      - run: node --import tsx --test server/tests/workCoffee053.test.ts server/tests/seating053.test.ts server/tests/home-comfort-065.test.ts server/tests/cooking-progression-019.test.ts server/tests/cooking-visual.test.ts server/tests/market.test.ts server/tests/readyFood.test.ts server/tests/tv-food-060.test.ts server/tests/food-quality.test.ts server/tests/home-care-065.test.ts server/tests/care-motion-065.test.ts server/tests/vanity-044.test.ts server/tests/barber-046.test.ts server/tests/dog-bath-035.test.ts server/tests/wishes-019.test.ts server/tests/needs-treats-030.test.ts
   visual:
     strategy:
       fail-fast: false
       matrix:
-        group: [body, hair, drinks]
+        group: [body, hair, drinks, media]
     env:
       QA_GROUP: ${{ matrix.group }}
     runs-on: ubuntu-24.04

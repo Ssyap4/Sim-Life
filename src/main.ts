@@ -1,3 +1,4 @@
+import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
 import {RECIPES,isHomeDrink,type RecipeId,type DrinkSeat} from './shared/food';
 import {recipeAvailability} from './shared/recipeAvailability';
 import {createNotifications} from './notificationsUI';
@@ -1514,6 +1515,7 @@ function openPurchasedFurnitureActions(id:number):void{
     b.addEventListener('click',()=>action==='movie'?chooseMovie():action==='read_book'?chooseBook():send(action));
     actionsEl.append(b);
   }
+  if(['sofa','corner','armchair','chair','bench','ottoman','stool'].includes(info.shape))appendReadyDrinks(info.shape==='sofa'||info.shape==='corner'?'sofa':'officeChair',id);
   if(info.shape==='table'&&info.height>=.63){
     showFoodChoices(actionsEl,'table',state,(type:FoodCommand,recipe)=>{
       const ok=type==='store'
@@ -1550,6 +1552,11 @@ function openPurchasedFurnitureActions(id:number):void{
   actionsEl.append(edit);
 }
 /** Every physical computer starts a new desktop view, not the prior overlay. */
+function appendReadyDrinks(seat:DrinkSeat,furnitureId?:number){if(!state||!active)return;
+    const drinks=new Map<RecipeId,number>();for(const batch of state.readyFood){if(batch.kind==='meal'&&batch.storage==='table'&&batch.portions>0&&batch.expiresAt>gameMinutes(state.clock)&&isHomeDrink(batch.item)){const id=batch.item as RecipeId;drinks.set(id,(drinks.get(id)??0)+batch.portions);}}
+    if(drinks.size){const heading=document.createElement('p');heading.className='food-empty';heading.textContent='Готовые напитки · взять со стола';actionsEl.append(heading);for(const [id,count] of drinks){const b=document.createElement('button');b.className='action-button';b.textContent=RECIPES[id].emoji+' '+RECIPES[id].name+' · '+count+' порц.';b.onclick=()=>{if(net.food('eat',id,furnitureId,seat))actionsEl.hidden=true;};actionsEl.append(b);}}
+  }
+
 function openComputer(device:import('./shared/computer').ComputerDevice,furnitureId?:number):void {
   if(!active||!state||!net.isReady())return;
   actionsEl.hidden=true;phone.close();skillsPanel.close();furnishing.close();
@@ -1664,6 +1671,7 @@ function openActions(item: ItemId): void {
     actionsEl.append(together);
   }
   if(state&&active&&item==='yardTable'){for(const [id,label] of [['yardTea','Чай вдвоём'],['yardCoffee','Кофе вдвоём'],['yardRest','Отдых вдвоём'],['yardHookah','Кальян вдвоём']]){const b=document.createElement('button');b.className='action-button';b.textContent=label;b.onclick=()=>{if(active)openSocialActions(otherPerson(active),['yardRest','yardHookah'].includes(id)?'fun':'home',id);};actionsEl.append(b);}}
+  if(state&&active&&item==='table'){const shift=activeHomeWork(state,otherResident(active));if(shift&&!shift.coffeeServed){for(const recipe of Object.keys(RECIPES) as RecipeId[]){const c={type:'serve_work_drink' as const,shiftStart:shift.startedAt,recipe};if(workDrinkDenial(state,active,c))continue;const b=document.createElement('button');b.className='action-button';b.textContent='☕ Принести '+RECIPES[recipe].name+' к рабочему столу';b.onclick=()=>{if(net.serveWorkDrink(c))actionsEl.hidden=true;};actionsEl.append(b);}}}
   if (state && (item === 'delivery' || item === 'table' || item === 'yardTable')) {
     showFoodChoices(actionsEl, item, state, (type: FoodCommand, id) => {
       const sent = type==='store'
@@ -1698,10 +1706,7 @@ function openActions(item: ItemId): void {
 
   }
   if (item === 'bed' && state && active) addBedSleepActions();
-  if(state&&active&&['sofa','yardTable','officeChair'].includes(item)){
-    const seat=item as DrinkSeat;const drinks=new Map<RecipeId,number>();for(const batch of state.readyFood){if(batch.kind==='meal'&&batch.storage==='table'&&batch.portions>0&&batch.expiresAt>gameMinutes(state.clock)&&isHomeDrink(batch.item)){const id=batch.item as RecipeId;drinks.set(id,(drinks.get(id)??0)+batch.portions);}}
-    if(drinks.size){const heading=document.createElement('p');heading.className='food-empty';heading.textContent='Готовые напитки · взять со стола';actionsEl.append(heading);for(const [id,count] of drinks){const b=document.createElement('button');b.className='action-button';b.textContent=RECIPES[id].emoji+' '+RECIPES[id].name+' · '+count+' порц.';b.onclick=()=>{if(net.food('eat',id,undefined,seat))actionsEl.hidden=true;};actionsEl.append(b);}}
-  }
+  if(state&&active&&['sofa','yardTable','officeChair'].includes(item))appendReadyDrinks(item as DrinkSeat);
   if (item==='tv'||item==='sofa') entertainmentMenu.television();
   if (item === 'table') {
     const study = document.createElement('button');

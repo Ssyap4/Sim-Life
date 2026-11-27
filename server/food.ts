@@ -4,7 +4,7 @@ import {foodIllness} from '../src/shared/health';
 import {recordEmotion} from '../src/shared/emotions';
 import { cookingQuality, foodQualityEffect, qualityLabel } from '../src/shared/foodQuality';
 import { recipeAvailability } from '../src/shared/recipeAvailability';
-import { GROCERIES, RECIPES, TAKEOUT,isHomeDrink, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { GROCERIES, RECIPES, TAKEOUT,isHomeDrink,isMediaFood,mediaFoodKind,type MediaFood, ingredientList, isGrillRecipe, type IngredientId, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { homeSeat } from '../src/shared/home';
 import { addDirtyDish } from '../src/shared/dirtyDishes';
 import { addLedger } from '../src/shared/economy';
@@ -108,11 +108,12 @@ export function applyTakeoutMeal(source: GameState, role: CharacterId, item: str
 
 
 /** Delivery meal consumed on the sofa, without teleporting the resident to the dining table. */
-export function applyTvFood(source:GameState,role:CharacterId,item:TakeoutId):FoodResult{
-  if(!owns(TAKEOUT,item)||source.world.places[role]!=='home')return {ok:false,reason:'Еда недоступна'};
+export function applyTvFood(source:GameState,role:CharacterId,item:MediaFood):FoodResult{
+  if(!isMediaFood(item)||source.world.places[role]!=='home')return {ok:false,reason:'Еда недоступна'};
+  if(mediaFoodKind(item)==='meal'){const result=applyFoodAction(source,role,{type:'eat',recipe:item});if(result.ok){const old=source.characters[role];Object.assign(result.state.characters[role],{x:old.x,z:old.z,pose:old.pose});}return result;}
   const state=structuredClone(source);
   if(!consumeReadyFood(state,'takeout',item))return {ok:false,reason:'Свежей порции больше нет'};
-  const meal=TAKEOUT[item],actor=state.characters[role];
+  const meal=TAKEOUT[item as TakeoutId],actor=state.characters[role];
   actor.hunger=Math.min(100,actor.hunger+meal.hunger);
   actor.mood=Math.min(100,actor.mood+meal.mood);
   actor.comfort=Math.min(100,actor.comfort+4);

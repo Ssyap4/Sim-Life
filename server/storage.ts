@@ -1,3 +1,4 @@
+import {isHomeDrink} from '../src/shared/food';
 import {validCollections} from '../src/shared/personalCollections';
 import {validDailyHistory} from '../src/shared/dailyRoutine';
 import {validFamilyLife,initialFamilyLife} from '../src/shared/familyLife';
@@ -155,6 +156,7 @@ const isValidState = (value: unknown): value is GameState => {
         if(shift.homeSpeed!==undefined&&(typeof shift.homeSpeed!=="number"||!(shift.homeDevice==="desktop"?[0,10,18,25]:[0,8,15,22]).includes(shift.homeSpeed)))return false;
       }else if(shift.homeDevice!==undefined||shift.homeSpeed!==undefined)return false;
       if(shift.coffeeServed!==undefined&&(!isHomeJob(shift.job)||typeof shift.coffeeServed!=='boolean'))return false;
+      if(shift.servedDrink!==undefined&&(!isHomeJob(shift.job)||shift.homeDevice!=='desktop'||shift.coffeeServed!==true||!isHomeDrink(shift.servedDrink)))return false;
       if(!validHomeQuests(shift))return false;
       const hours=shift.hours;
       return Number.isSafeInteger(hours) &&

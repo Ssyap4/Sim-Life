@@ -5,14 +5,16 @@ import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import {initialState,points} from '../src/shared/protocol.ts';
 import {addReadyFood} from '../src/shared/readyFood.ts';
+import {applyServiceCommand} from '../server/services.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 const group=process.env.QA_GROUP??'all';const wants=name=>group==='all'||group===name;
 const out='/tmp/simourhome-065-care';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page;
 try{
- const s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
+ let s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
  for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){s.meals[recipe]=1;addReadyFood(s,'meal',recipe,1,'table',undefined,'good');}
+ if(wants('media')){for(const service of ['netflix','youtube']){const r=applyServiceCommand(s,'alina',{type:'service_connect',service});assert.ok(r.ok);s=r.state;}s.furnishing.placed=[{id:1,sku:'sofa-micro',finish:'sage',x:-2.36,z:2.02,rotation:0}];}
  openServerFiles(dir).save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -64,6 +66,19 @@ try{
   await page.waitForTimeout(3000);const drink=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.drink);
   assert.equal(drink.visible,recipe!=='berryCheesecake');if(drink.visible)assert.equal(drink.cold,recipe==='berrySmoothie');
   await shot(recipe+'-eat');await cancel(id);
+ }
+ if(wants('media'))for(const [name,command,station] of [
+  ['tea-tv',{type:'movie',genre:'comedy',food:'blackTeaCup'},'sofa'],
+  ['dessert-tv',{type:'youtube',food:'berryCheesecake'},'sofa'],
+  ['custom-sofa',{type:'eat',recipe:'berrySmoothie',drinkSeat:'sofa',furnitureId:1},'furniture']]){
+  const before=await page.evaluate(()=>window.__qaMessages.length);await send(command);
+  await page.waitForFunction(({before,command})=>window.__qaMessages.slice(before).some(m=>m.type==='task_started'&&m.role==='alina'&&m.command.type===command.type),{before,command},{timeout:20000});
+  const task=await page.evaluate(({before,command})=>window.__qaMessages.slice(before).find(m=>m.type==='task_started'&&m.role==='alina'&&m.command.type===command.type),{before,command});assert.equal(task.home.station,station);assert.equal(task.home.pickupMs,650);
+  await page.waitForFunction(id=>window.__qaMessages.some(m=>m.type==='task_active'&&m.taskId===id),task.taskId,{timeout:45000});
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.activity==='eat',undefined,{timeout:20000});
+  if(!(await page.locator('#showcase-return').isVisible())){await page.locator('#showcase-toggle').evaluate(el=>el.click());await page.locator('[data-showcase=alina]').evaluate(el=>el.click());}
+  await page.waitForTimeout(3000);const drink=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.drink);
+  assert.equal(drink.visible,name!=='dessert-tv');await shot(name);await cancel(task.taskId);
  }
  assert.deepEqual(errors,[]);
  console.log('CARE MOBILE VISUAL OK');

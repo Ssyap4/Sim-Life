@@ -205,3 +205,12 @@ test('062 cancelled paired film never completes the shared plan or evening for s
   assert.equal(r.state().relationship.evening!.phase,'unwind');
  }finally{r.s.dispose();}
 });
+
+test('prepared drinks and homemade desserts work in solo and invited TV sessions without extra portions',()=>{
+ const r=rig(0);try{
+ const s=r.state();s.meals.blackTeaCup=2;addReadyFood(s,'meal','blackTeaCup',2,'table');s.meals.brownie=1;addReadyFood(s,'meal','brownie',1,'table');
+ assert.equal(planTask({type:'movie',genre:'comedy',food:'omelette'}),null);
+ assert.ok(r.s.start(['vlad'],planTask({type:'movie',genre:'comedy',food:'brownie'})!,r.sockets.vlad));const started=r.packets.find(p=>p.type==='task_started');assert.ok(started?.type==='task_started'&&started.home?.pickup!==undefined);assert.equal(started.home.pickupMs,650);r.arrive();r.advance(90000);assert.equal(r.state().meals.brownie,0);assert.equal(r.state().dirtyDishes.table,1);assert.ok(r.s.busy('vlad'));r.advance(30000);
+ r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'youtube',food:'blackTeaCup'});const p=[...r.packets].reverse().find(p=>p.type==='movie_offer');assert.ok(p?.type==='movie_offer');r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:p.inviteId,accept:true});r.arrive();r.advance(89999);assert.equal(r.state().meals.blackTeaCup,2);r.advance(1);assert.equal(r.state().meals.blackTeaCup,0);assert.equal(r.state().dirtyDishes.table,3);r.advance(120000);assert.equal(r.state().meals.blackTeaCup,0);
+ }finally{r.s.dispose();}
+});

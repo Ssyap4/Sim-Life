@@ -6,6 +6,9 @@ import {placeObstacles} from './locations';
 import {planWalk} from '../game/navigation';
 import type {CharacterId,GameState,TimedCommand} from './protocol';
 
+import {isHomeDrink,type RecipeId} from './food';
+import {dishPickupPoint} from './diningSurface';
+export type WorkDrinkCommand={type:'serve_work_drink';shiftStart:number;recipe:RecipeId};
 export type WorkCoffeeCommand={type:'serve_work_coffee';shiftStart:number;blend:CoffeeBlend;drink?:CoffeeDrink};
 export const otherResident=(role:CharacterId):CharacterId=>role==='vlad'?'alina':'vlad';
 export function activeHomeWork(s:GameState,role:CharacterId){
@@ -39,17 +42,24 @@ export function workCoffeeDenial(s:GameState,giver:CharacterId,c:WorkCoffeeComma
  if(s.characters[recipient].energy>=85||coffeeCupsToday(s,recipient)>=COFFEE_CUPS_PER_DAY)return 'Партнёру сейчас не нужен кофе';
  if(!validCoffeeOrder(c.blend,c.drink)||s.pantry[c.blend]<1||c.drink!==undefined&&!coffeeMachineTier(s,recipient))return 'Нет подходящего кофе';
 }
-export function workCoffeeRoute(s:GameState,giver:CharacterId){
+export function workDrinkDenial(s:GameState,giver:CharacterId,c:WorkDrinkCommand):string|undefined{
+ const shift=activeHomeWork(s,otherResident(giver));
+ if(s.world.places[giver]!=='home'||s.characters[giver].pose==='sleep'||s.activeShifts[giver]||s.careers.residents[giver].shift)return 'Сейчас нельзя принести напиток';
+ if(!shift||shift.homeDevice!=='desktop'||shift.startedAt!==c.shiftStart||shift.coffeeServed||s.furnishing.soldFixtures?.includes('desk'))return 'Рабочее место изменилось или напиток уже подан';
+ if(!isHomeDrink(c.recipe)||!s.readyFood.some(b=>b.kind==='meal'&&b.item===c.recipe&&b.storage==='table'&&b.portions>0&&b.expiresAt>gameMinutes(s.clock)))return 'Нет свежего напитка на столе';
+}
+export function workCoffeeRoute(s:GameState,giver:CharacterId,prepared=false){
  const from=s.characters[giver],other=s.characters[otherResident(giver)];
  const obstacles=[...placeObstacles('home',s.furnishing),{minX:other.x-.36,maxX:other.x+.36,minZ:other.z-.36,maxZ:other.z+.36}];
- const first=planWalk(from,KITCHEN_WORK.coffee.position,obstacles,HOME_WORLD_FLOOR);
+ const pickupTarget=prepared?dishPickupPoint(s,giver):KITCHEN_WORK.coffee.position;
+ const first=planWalk(from,pickupTarget,obstacles,HOME_WORLD_FLOOR);
  if(!first)return null;
  const pickup=first.path.at(-1)??first.from;
- if(Math.hypot(pickup.x-KITCHEN_WORK.coffee.position.x,pickup.z-KITCHEN_WORK.coffee.position.z)>.05)return null;
+ if(Math.hypot(pickup.x-pickupTarget.x,pickup.z-pickupTarget.z)>.05)return null;
  const next=planWalk(pickup,WORK_COFFEE_APPROACH,obstacles,HOME_WORLD_FLOOR);
  const end=next&&(next.path.at(-1)??next.from);
  if(!end||Math.hypot(end.x-WORK_COFFEE_APPROACH.x,end.z-WORK_COFFEE_APPROACH.z)>.05)return null;
- return next?{route:{from:first.from,path:[...first.path,...next.path]},pickup:first.path.length,pickupMs:6500}:null;
+ return next?{route:{from:first.from,path:[...first.path,...next.path]},pickup:first.path.length,pickupMs:prepared?650:6500}:null;
 }
 export function workCoffeeChoices(s:GameState,giver:CharacterId):WorkCoffeeCommand[]{
  const other=otherResident(giver),shift=activeHomeWork(s,other),p=s.characters[giver];

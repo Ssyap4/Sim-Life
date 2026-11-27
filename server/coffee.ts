@@ -1,6 +1,7 @@
-import {workCoffeeDenial,otherResident,type WorkCoffeeCommand} from '../src/shared/workCoffee';
+import {workCoffeeDenial,workDrinkDenial,otherResident,type WorkDrinkCommand,type WorkCoffeeCommand} from '../src/shared/workCoffee';
 import { COFFEE_CUPS_PER_DAY, INSTANT_COFFEE_ENERGY, coffeeCupsToday, type CoffeeBlend, coffeeMachineTier, validCoffeeOrder } from '../src/shared/coffee';
-import { GROCERIES } from '../src/shared/food';
+import {applyFoodAction} from './food';
+import { GROCERIES,RECIPES } from '../src/shared/food';
 import { KITCHEN_WORK } from '../src/shared/home';
 import { names, type CharacterId, type GameState } from '../src/shared/protocol';
 
@@ -43,4 +44,11 @@ export function finishWorkCoffee(source:GameState,giver:CharacterId,command:Work
  result.state.activeShifts[recipient]!.coffeeServed=true;
  after.mood=Math.min(100,after.mood+4);
  return {ok:true,state:result.state,message:names[giver]+' · кофе для '+names[recipient]};
+}
+export function finishWorkDrink(source:GameState,giver:CharacterId,command:WorkDrinkCommand):CoffeeResult{
+ const denial=workDrinkDenial(source,giver,command);if(denial)return {ok:false,reason:denial};
+ const recipient=otherResident(giver),result=applyFoodAction(source,recipient,{type:'eat',recipe:command.recipe});if(!result.ok)return result;
+ const before=source.characters[recipient];Object.assign(result.state.characters[recipient],{x:before.x,z:before.z,pose:before.pose});
+ result.state.activeShifts[recipient]!.coffeeServed=true;result.state.activeShifts[recipient]!.servedDrink=command.recipe;
+ return {ok:true,state:result.state,message:names[giver]+' · '+RECIPES[command.recipe].name+' для '+names[recipient]};
 }

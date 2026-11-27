@@ -37,7 +37,7 @@ export interface ConnectionCallbacks {
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void; onTvFoodDone(role:CharacterId,taskId:number):void;
-  onMovieOffer(inviteId: number, from: CharacterId, genre: MediaGenre,food?:import('../shared/food').TakeoutId): void;
+  onMovieOffer(inviteId: number, from: CharacterId, genre: MediaGenre,food?:import('../shared/food').MediaFood): void;
   onMovieOfferClosed(inviteId: number, message: string): void;
   onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
   onStorageEvent(role: CharacterId, station?: string): void;
@@ -109,6 +109,7 @@ export class LiveConnection {
       ...(type==='eat'&&furnitureId!==undefined?{furnitureId}:{}),...(type==='eat'&&drinkSeat?{drinkSeat}:{}) });
   }
 
+  serveWorkDrink(command:import('../shared/workCoffee').WorkDrinkCommand):boolean{return this.sendAuthenticated(command);}
   brewCoffee(blend: CoffeeBlend,drink?:CoffeeDrink): boolean {return this.sendAuthenticated({type:'brew_coffee',blend,drink});}
 
   startJob(job:JobId,device?:import('../shared/computer').ComputerDevice):boolean {return this.sendAuthenticated({type:'job_start',job,device});}
@@ -136,7 +137,7 @@ export class LiveConnection {
   budget(command: BudgetCommand): boolean {return this.sendAuthenticated(command);}
   education(command: EducationCommand): boolean {return this.sendAuthenticated(command);}
   entertainment(command: Entertainment): boolean {return this.sendAuthenticated(command);}
-  inviteMovie(genre: MediaGenre,food?:import('../shared/food').TakeoutId): boolean {return this.sendAuthenticated({type:'movie_invite',genre,food});}
+  inviteMovie(genre: MediaGenre,food?:import('../shared/food').MediaFood): boolean {return this.sendAuthenticated({type:'movie_invite',genre,food});}
   answerMovie(inviteId: number, accept: boolean): boolean {return this.sendAuthenticated({type:'movie_reply',inviteId,accept});}
   withdrawMovie(inviteId: number): boolean {return this.sendAuthenticated({type:'movie_withdraw',inviteId});}
 

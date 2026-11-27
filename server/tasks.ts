@@ -24,14 +24,14 @@ import { PICNIC_SECONDS, isCampRecipe, isParkDogAction } from '../src/shared/par
 import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
-import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT,isHomeDrink,isDrinkSeat, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
+import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT,isHomeDrink,isDrinkSeat,isMediaFood,mediaFoodInfo,type MediaFood, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
 import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { validCoffeeOrder, type CoffeeDrink } from '../src/shared/coffee';
 import { GROCERIES } from '../src/shared/food';
-import { brewCoffee,finishWorkCoffee } from './coffee';
+import { brewCoffee,finishWorkCoffee,finishWorkDrink } from './coffee';
 import { applyAction } from './logic';
 import { electronicsModel } from "../src/shared/electronics";
 import { applyFoodAction, applyTakeoutMeal } from './food';
@@ -109,13 +109,13 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'free_tv') return { command: { type: 'free_tv' }, label: '📺 Обычные телеканалы',
     durationMs: HOME_SECONDS.freeTv * 1000, resource: 'tv' };
   if (command.type === 'youtube' || command.type === 'movie') {
-    if(command.food!==undefined&&(typeof command.food!=='string'||!own(TAKEOUT,command.food)))return null;
+    if(command.food!==undefined&&!isMediaFood(command.food))return null;
   }
-  if (command.type === 'youtube') return { command: { type: 'youtube', ...(command.food?{food:command.food as TakeoutId}:{}) }, label: command.food?'YouTube + '+TAKEOUT[command.food as TakeoutId].name:'▶️ Смотрим YouTube',
+  if (command.type === 'youtube') return { command: { type: 'youtube', ...(command.food?{food:command.food as MediaFood}:{}) }, label: command.food?'YouTube + '+mediaFoodInfo(command.food as MediaFood).name:'▶️ Смотрим YouTube',
     durationMs: (command.food?TV_FOOD_SECONDS:HOME_SECONDS.youtube) * 1000, resource: 'tv' };
   if (command.type === 'movie' && typeof command.genre === 'string' && own(GENRES, command.genre)) {
     const genre = command.genre as Genre;
-    return { command: { type: 'movie', genre, ...(command.food?{food:command.food as TakeoutId}:{}) }, label: '🎬 Фильм · ' + GENRES[genre]+(command.food?' + '+TAKEOUT[command.food as TakeoutId].name:''),
+    return { command: { type: 'movie', genre, ...(command.food?{food:command.food as MediaFood}:{}) }, label: '🎬 Фильм · ' + GENRES[genre]+(command.food?' + '+mediaFoodInfo(command.food as MediaFood).name:''),
       durationMs: HOME_SECONDS.movie * 1000, resource: 'tv' };
   }
   if (command.type === 'read_book' && typeof command.book === 'string' && own(BOOKS, command.book)) {
@@ -168,6 +168,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
           own(BATH_ACTIONS, id) ? action.item : null,
     };
   }
+  if(command.type==='serve_work_drink'&&Number.isSafeInteger(command.shiftStart)&&Number(command.shiftStart)>=0&&isHomeDrink(command.recipe))return {command:{type:'serve_work_drink',shiftStart:Number(command.shiftStart),recipe:command.recipe as RecipeId},label:'☕ Принести напиток работающему партнёру',durationMs:7000,resource:'workDrink'};
   if(command.type==='serve_work_coffee'&&Number.isSafeInteger(command.shiftStart)&&Number(command.shiftStart)>=0&&validCoffeeOrder(command.blend,command.drink))return {command:{type:'serve_work_coffee',shiftStart:Number(command.shiftStart),blend:command.blend,drink:command.drink as CoffeeDrink|undefined},label:'☕ Принести кофе работающему партнёру',durationMs:7000,resource:'kitchen'};
   if (command.type === 'brew_coffee') {
     if (!validCoffeeOrder(command.blend,command.drink)) return null;
@@ -180,7 +181,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if (typeof id !== 'string' || !own(RECIPES, id)) return null;
     const recipe = id as RecipeId;
     const grill = isGrillRecipe(recipe);
-    if(command.drinkSeat!==undefined&&(command.type!=='eat'||!isHomeDrink(recipe)||!isDrinkSeat(command.drinkSeat)||command.furnitureId!==undefined))return null;
+    if(command.drinkSeat!==undefined&&(command.type!=='eat'||!isHomeDrink(recipe)||!isDrinkSeat(command.drinkSeat)||(command.furnitureId!==undefined&&(!Number.isSafeInteger(command.furnitureId)||command.drinkSeat==='yardTable'))))return null;
     const drinkSeat=command.type==='eat'&&isDrinkSeat(command.drinkSeat)?command.drinkSeat:undefined;
     return {
       command: { type: command.type, recipe,
@@ -188,7 +189,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
           {furnitureId:command.furnitureId}:{}),...(drinkSeat?{drinkSeat}:{}) },
       label: (command.type === 'cook' ? '🍳 Готовим: ' : isHomeDrink(recipe)?'☕ Пьём: ':'🍽️ Едим: ') + RECIPES[recipe].name,
       durationMs: command.type === 'cook' ? cookingSeconds(recipe)*1000 : MEAL_EAT_SECONDS*1000,
-      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : drinkSeat==='officeChair'?'officeChair':null,
+      resource: command.type === 'cook' ? grill ? 'grill' : 'kitchen' : drinkSeat&&typeof command.furnitureId==='number'?'furniture:'+command.furnitureId:drinkSeat==='officeChair'?'officeChair':null,
     };
   }
   if (command.type === 'eat_takeout') {
@@ -356,7 +357,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   }
   if (command.type === 'pet_action') return applyPetAction(state, role, command.pet, command.action);
   if (command.type==='eat'||command.type==='eat_takeout'){
-    if(command.type==='eat'&&command.drinkSeat){if(!isHomeDrink(command.recipe)||!isDrinkSeat(command.drinkSeat)||state.world.places[role]!=='home'||state.furnishing.soldFixtures?.includes(command.drinkSeat as 'sofa'|'officeChair'))return {ok:false,reason:'Место для напитка недоступно'};return applyFoodAction(state,role,{type:'eat',recipe:command.recipe,drinkSeat:command.drinkSeat});}
+    if(command.type==='eat'&&command.drinkSeat){if(!isHomeDrink(command.recipe)||!isDrinkSeat(command.drinkSeat)||state.world.places[role]!=='home'||(command.furnitureId===undefined&&state.furnishing.soldFixtures?.includes(command.drinkSeat as 'sofa'|'officeChair')))return {ok:false,reason:'Место для напитка недоступно'};const seat=command.furnitureId===undefined?null:furnitureUseLocation(state,role,command.furnitureId,command.drinkSeat==='sofa'?'sofaRest':'officeChairSit');if(command.furnitureId!==undefined&&!seat)return {ok:false,reason:'Место для напитка недоступно'};const result=applyFoodAction(state,role,{type:'eat',recipe:command.recipe,drinkSeat:command.drinkSeat});if(result.ok&&seat)Object.assign(result.state.characters[role],seat.route.path.at(-1)??seat.route.from,{pose:'sit'});return result;}
     const purchased=command.furnitureId!==undefined||state.furnishing.soldFixtures?.includes('table');
     const location=purchased?diningLocation(state,role,command.furnitureId):null;
     if(purchased&&!location)return {ok:false,reason:'Поставь обеденный стол, к которому можно подойти'};
@@ -369,6 +370,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
     }
     return result;
   }
+  if(command.type==='serve_work_drink')return finishWorkDrink(state,role,command);
   if(command.type==='serve_work_coffee')return finishWorkCoffee(state,role,command);
   if (command.type === 'brew_coffee') return brewCoffee(state, role, command.blend,command.drink);
   return applyFoodAction(state, role, { type: command.type, recipe: command.recipe });

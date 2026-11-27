@@ -67,6 +67,9 @@ test('portable drinks have a real pickup and seat route; cancel, stale stock and
    const dest=p.home.route.path.at(-1)??p.home.route.from;const target=homeSeat(seat,'alina').approach;assert.ok(Math.hypot(dest.x-target.x,dest.z-target.z)<.06);
    assert.equal(state.meals.berrySmoothie,1);sessions.cancel('alina','cancel');assert.equal(state.meals.berrySmoothie,1);
   }
+  state.furnishing.placed=[{id:1,sku:'sofa-micro',finish:'sage',x:-2.36,z:2.02,rotation:0}];
+  const custom=planTask({type:'eat',recipe:'berrySmoothie',drinkSeat:'sofa',furnitureId:1})!;assert.equal(custom.resource,'furniture:1');assert.ok(sessions.start(['alina'],custom,sockets.alina));const p=[...packets].reverse().find(p=>p.type==='task_started'&&p.role==='alina');assert.ok(p?.type==='task_started');assert.equal(p.home?.station,'furniture');assert.equal(p.home?.furnitureId,1);assert.ok(p.home?.furnitureSeat);sessions.cancel('alina','cancel');assert.equal(state.meals.berrySmoothie,1);state.furnishing.placed=[];
+  assert.equal(evaluateTask(state,'alina',custom.command).ok,false);
   assert.equal(planTask({type:'eat',recipe:'omelette',drinkSeat:'sofa'}),null);assert.equal(planTask({type:'eat',recipe:'berrySmoothie',drinkSeat:'bed'}),null);
   const plan=planTask({type:'eat',recipe:'berrySmoothie',drinkSeat:'yardTable'})!;
   assert.ok(sessions.start(['alina'],plan,sockets.alina));assert.ok(sessions.start(['vlad'],plan,sockets.vlad));

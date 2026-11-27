@@ -16,7 +16,7 @@ import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import WebSocket from 'ws';
 import {bathCare} from '../src/shared/vanity';
 import { BATH_ACTIONS, BATH_FIXTURES, GRILL_WORK, HOME_WALK_SPEED, homeSeat, KITCHEN_WORK, LIBRARY_APPROACH } from '../src/shared/home';
-import { isGrillRecipe,isHomeDrink,TAKEOUT,type TakeoutId } from '../src/shared/food';
+import { isGrillRecipe,isHomeDrink,isMediaFood,mediaFoodInfo,mediaFoodKind,type MediaFood,type RecipeId,type TakeoutId } from '../src/shared/food';
 import { applyTvFood } from './food';
 import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
@@ -59,7 +59,7 @@ type Session = {
   study?: { material: StudyMaterial; start: number; previous: number; minutes: number;
     questions: string[]; correct: number; lastAnswer: number };
 };
-type Invite = { id: number; from: CharacterId; genre: MediaGenre; food?:TakeoutId; timer: ReturnType<typeof setTimeout> };
+type Invite = { id: number; from: CharacterId; genre: MediaGenre; food?:MediaFood; timer: ReturnType<typeof setTimeout> };
 type Hooks = {
   state(): GameState;
   save(state: GameState): void;
@@ -100,7 +100,7 @@ import {CONSOLE_GAMES,newConsoleMatch,consoleMatchWinner} from '../src/shared/co
 const isEntertainment = (c: TimedCommand) => c.type === 'movie' || c.type === 'youtube' || c.type === 'read_book' || c.type === 'free_tv' || c.type==='console_play';
 
 export function usesHomeSession(command: TimedCommand): boolean {
-  return command.type === 'serve_work_coffee' || command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
+  return command.type === 'serve_work_drink' || command.type === 'serve_work_coffee' || command.type === 'vanity_care' || command.type === 'furniture_use' || command.type === 'study' || isEntertainment(command) || command.type === 'cook' ||
     (command.type === 'eat' && (isGrillRecipe(command.recipe)||!!command.drinkSeat)) || command.type === 'act' &&
     (Object.hasOwn(BATH_ACTIONS, command.actionId) ||
       ['sofaRest','sofaMusic','sofaCall','sofaScroll','tableRest','tableTalk','tablePlan','officeChairSit','yardLounge','yardHookahSolo'].includes(command.actionId));
@@ -205,7 +205,7 @@ export function createHomeSessions(hooks: Hooks) {
     const from = { x, z };
     const walk = (origin: WalkRoute['from'], to: WalkRoute['from']) =>
       planWalk(origin, to, placeObstacles('home',hooks.state().furnishing), HOME_WORLD_FLOOR);
-    if(command.type==='serve_work_coffee'){const route=workCoffeeRoute(hooks.state(),role);return route&&{...route,station:'workCoffee'};}
+    if(command.type==='serve_work_coffee'||command.type==='serve_work_drink'){const route=workCoffeeRoute(hooks.state(),role,command.type==='serve_work_drink');return route&&{...route,station:'workCoffee'};}
     if(command.type==='vanity_care'){if(role==='alina'&&bathCare(command.care)){const route=walk(from,BATH_FIXTURES.bathtub.approach);return route&&{route,station:'bathtub'};}if(role==='vlad'){const route=walk(from,BATH_FIXTURES.basin.approach);return route&&{route,station:'basin'};}if(role!=='alina')return null;const route=walk(from,points.vanity);return route&&{route,station:'furniture',vanityCare:command.care,furniturePose:{x:points.vanity.x-.88,y:-.28,z:points.vanity.z,yaw:-Math.PI/2},furnitureSeat:true};}
     if(command.type==='furniture_use'){
       if(!Object.hasOwn(FURNITURE_ACTIONS,command.action))return null;
@@ -285,7 +285,8 @@ export function createHomeSessions(hooks: Hooks) {
       const route = walk(from, BATH_FIXTURES[station].approach);
       return route && { route, station };
     }
-    if(command.type==='eat'&&command.drinkSeat){const station=command.drinkSeat,state=hooks.state();if(state.furnishing.soldFixtures?.includes(station as 'sofa'|'officeChair'))return null;
+    if(command.type==='eat'&&command.drinkSeat){const station=command.drinkSeat,state=hooks.state();if(command.furnitureId===undefined&&state.furnishing.soldFixtures?.includes(station as 'sofa'|'officeChair'))return null;
+      if(command.furnitureId!==undefined){const seat=furnitureUseLocation(state,role,command.furnitureId,station==='sofa'?'sofaRest':'officeChairSit');if(!seat)return null;const pickup=walk(from,dishPickupPoint(state,role));const onward=pickup&&walk(pickup.path.at(-1)??pickup.from,seat.route.path.at(-1)??seat.route.from);return pickup&&onward&&{station:'furniture',furnitureId:seat.item.id,furniturePose:seat.pose,furnitureSeat:true,route:{from:pickup.from,path:[...pickup.path,...onward.path]},pickup:pickup.path.length,pickupMs:650};}
       if(station==='officeChair'&&[...sessions.values()].some(s=>s.participants.some(p=>p.packet.home?.station==='officeChair')))return null;
       const pickup=walk(from,dishPickupPoint(state,role));const onward=pickup&&walk(pickup.path.at(-1)??pickup.from,homeSeat(station,role).approach);
       return pickup&&onward&&{station,route:{from:pickup.from,path:[...pickup.path,...onward.path]},pickup:pickup.path.length,pickupMs:650};}
@@ -357,7 +358,7 @@ export function createHomeSessions(hooks: Hooks) {
       end(session, 'cancelled', 'Просмотр или занятие прервано'); return;
     }
     if(session.cooperation){completeSocial(session);return;}
-    if(session.plan.command.type==='serve_work_coffee'&&hooks.socket(otherResident(session.participants[0].role))?.readyState!==WebSocket.OPEN){end(session,'cancelled','Партнёр вышел из игры');return;}
+    if((session.plan.command.type==='serve_work_coffee'||session.plan.command.type==='serve_work_drink')&&hooks.socket(otherResident(session.participants[0].role))?.readyState!==WebSocket.OPEN){end(session,'cancelled','Партнёр вышел из игры');return;}
     const before = hooks.state();
     let next = before;
     const results: { message: string }[] = [];
@@ -469,24 +470,24 @@ export function createHomeSessions(hooks: Hooks) {
     }
     if(session.participants.some(p=>(p.restPaid??0)<1))session.timer=schedule(()=>tickRest(session),Math.min(5000,Math.max(1000,session.duration-(now()-session.activeAt))));
   }
-  function mediaCommand(genre:MediaGenre,food?:TakeoutId):TimedCommand {
+  function mediaCommand(genre:MediaGenre,food?:MediaFood):TimedCommand {
     return genre==='youtube'?{type:'youtube',food}:{type:'movie',genre,food};
   }
-  function foodCount(state:GameState,food:TakeoutId){
-    return state.readyFood.filter(b=>b.kind==='takeout'&&b.item===food&&b.expiresAt>hooks.gameTime()).reduce((n,b)=>n+b.portions,0);
+  function foodCount(state:GameState,food:MediaFood){
+    return state.readyFood.filter(b=>b.kind===mediaFoodKind(food)&&b.item===food&&(b.kind==='takeout'||b.storage==='table')&&b.expiresAt>hooks.gameTime()).reduce((n,b)=>n+b.portions,0);
   }
-  function serveMediaFood(session:Session,food:TakeoutId){
+  function serveMediaFood(session:Session,food:MediaFood){
     const before=hooks.state();
     let next=before;
     const served:Participant[]=[];
     for(const member of session.participants){
       const result=applyTvFood(next,member.role,food);
-      if(result.ok){next=result.state;recordDailyCompletion(next,member.role,{type:'eat_takeout',item:food});served.push(member);}
+      if(result.ok){next=result.state;recordDailyCompletion(next,member.role,mediaFoodKind(food)==='meal'?{type:'eat',recipe:food as RecipeId}:{type:'eat_takeout',item:food as TakeoutId});served.push(member);}
       else error(member.socket,result.reason);
     }
     if(served.length){
       try{hooks.save(next);broadcastSnapshot();
-        for(const member of served)hooks.all({type:'need_gain',role:member.role,label:TAKEOUT[food].name,effects:gains(before,next,member.role)});
+        for(const member of served)hooks.all({type:'need_gain',role:member.role,label:mediaFoodInfo(food).name,effects:gains(before,next,member.role)});
       }catch{for(const member of served)error(member.socket,'Не удалось сохранить приём пищи');}
     }
     for(const member of session.participants)if(member.packet.home){
@@ -497,7 +498,7 @@ export function createHomeSessions(hooks: Hooks) {
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false, cooperation?:Cooperation) {
     const command = plan.command;
     const food=(command.type==='movie'||command.type==='youtube')?command.food:undefined;
-    if(food&&foodCount(hooks.state(),food)<roles.length){if(!automatic)error(initiator,'Недостаточно свежих порций доставки');return;}
+    if(food&&foodCount(hooks.state(),food)<roles.length){if(!automatic)error(initiator,'Недостаточно свежих порций');return;}
     const material = command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined;
     const denial = command.type==='together'&&cooperation?cooperationDenial(hooks.state(),cooperation.from,command):taskAccessError(hooks.state(), command);
     if (denial) { if (!automatic) error(initiator, denial); return; }
@@ -541,7 +542,8 @@ export function createHomeSessions(hooks: Hooks) {
     for (const role of roles) {
       const reason = material && studyDenial(hooks.state(), role, material, hooks.gameTime());
       if (reason) { error(initiator, reason); return; }
-      const home = pair?.[role]??presentation(role, command);
+      let home = pair?.[role]??presentation(role, command);
+      if(home&&food&&mediaFoodKind(food)==='meal'){const state=hooks.state(),from=state.characters[role],obstacles=placeObstacles('home',state.furnishing),pickup=planWalk(from,dishPickupPoint(state,role),obstacles,HOME_WORLD_FLOOR);const onward=pickup&&planWalk(pickup.path.at(-1)??pickup.from,home.route.path.at(-1)??home.route.from,obstacles,HOME_WORLD_FLOOR);home=pickup&&onward?{...home,route:{from:pickup.from,path:[...pickup.path,...onward.path]},pickup:pickup.path.length,pickupMs:650}:null;}
       if (!home) { if (!automatic) error(initiator, 'Не удалось найти свободный маршрут'); return; }
       const catReason=catHomeSeatError(hooks.state(),role,home);
       if(catReason){if(!automatic)error(initiator,catReason);return;}
@@ -813,16 +815,16 @@ export function createHomeSessions(hooks: Hooks) {
       const genre = message.genre;
       if (typeof genre !== 'string' || (genre!=='youtube'&&!Object.hasOwn(GENRES, genre))) return error(socket,'Неизвестный жанр');
       const food=message.food;
-      if(food!==undefined&&(typeof food!=='string'||!Object.hasOwn(TAKEOUT,food)))return error(socket,'Неизвестное блюдо');
-      if(food&&foodCount(hooks.state(),food as TakeoutId)<2)return error(socket,'Нужно две свежие порции доставки');
-      const denial = taskAccessError(hooks.state(), mediaCommand(genre as MediaGenre,food as TakeoutId|undefined));
+      if(food!==undefined&&!isMediaFood(food))return error(socket,'Неизвестное блюдо');
+      if(food&&foodCount(hooks.state(),food as MediaFood)<2)return error(socket,'Нужно две свежие порции');
+      const denial = taskAccessError(hooks.state(), mediaCommand(genre as MediaGenre,food as MediaFood|undefined));
       if (denial) return error(socket, denial);
       if (!hooks.socket(otherRole(role))) return error(socket,'Второй игрок пока не в сети');
       if (invite||socialInvite) return error(socket,'Другое приглашение уже ждёт ответа');
       if (!available(role) || !available(otherRole(role)) || reserved('tv') || [role,otherRole(role)].some(r=>hooks.state().world.places[r]!=='home'))
         return error(socket,'Для просмотра оба должны быть свободны дома, а телевизор — выключен');
       const id = ++nextInviteId;
-      invite = { id,from:role,genre:genre as MediaGenre,food:food as TakeoutId|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
+      invite = { id,from:role,genre:genre as MediaGenre,food:food as MediaFood|undefined,timer:schedule(() => closeInvite('Время ответа истекло'),30_000) };
       hooks.all({ type:'movie_offer',inviteId:id,from:role,genre:invite!.genre,food:invite!.food });
       return;
     }
@@ -837,7 +839,7 @@ export function createHomeSessions(hooks: Hooks) {
     if (!available(from) || !available(role) || reserved('tv') || [from,role].some(r=>hooks.state().world.places[r]!=='home')) {
       closeInvite('Кто-то занят или вышел из дома. Попробуйте ещё раз'); return;
     }
-    if(food&&foodCount(hooks.state(),food)<2)return closeInvite('Не осталось двух свежих порций доставки');
+    if(food&&foodCount(hooks.state(),food)<2)return closeInvite('Не осталось двух свежих порций');
     if(!start([from,role],planTask(mediaCommand(genre,food))!,socket))
       return closeInvite('Не удалось начать совместный просмотр');
     closeInvite('Приглашение принято');
@@ -898,7 +900,7 @@ export function createHomeSessions(hooks: Hooks) {
     if(session.duration-(now()-session.activeAt)<5000)return undefined;
     return {id:session.participants[0].packet.taskId,command:session.plan.command};
   }
-  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
+  return { soloCompanionTask,autoConversation,autoFamilyLeisure,stopAutoConversation,conversationActive:()=>!!conversation, diners:()=>new Map([...sessions.entries()].filter(([role,session])=>session.activeAt!==null&&(session.plan.command.type==='eat'&&!isHomeDrink(session.plan.command.recipe)||session.plan.command.type==='eat_takeout'||session.plan.command.type==='together'&&['eat','takeout','bring'].includes(session.plan.command.action)||((session.plan.command.type==='movie'||session.plan.command.type==='youtube')&&!!session.participants.find(p=>p.role===role)?.packet.home?.food&&!isHomeDrink(session.participants.find(p=>p.role===role)?.packet.home?.food)))).map(([role,session])=>{const route=session.participants.find(p=>p.role===role)!.packet.home!.route;return [role,route.path.at(-1)??route.from] as const;})),interruptLayout,busy, reserved, blocksCat:(site:CatPerch)=>[...sessions.values()].some(session=>session.participants.some(p=>p.packet.home&&catHomeSeatOverlap(site,p.role,p.packet.home))), start, cancel, replay, invitation, social, recheckAccess, answer, checkpoint,
     automatic: (role: CharacterId) => sessions.get(role)?.participants[0]?.packet.automatic === true,
     closeInvite,
     dispose() {

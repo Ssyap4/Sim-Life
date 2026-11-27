@@ -168,6 +168,10 @@ export const TAKEOUT = {
 } as const;
 export type TakeoutId = keyof typeof TAKEOUT;
 export const HOME_DRINK_COLORS:Partial<Record<RecipeId,number>>={"blackTeaCup":10183474,"greenTeaCup":10726752,"fruitTeaCup":11949410,"lemonHoneyTea":12819523,"hotChocolate":6504242,"marshmallowCocoa":9988948,"bananaShake":16048049,"berrySmoothie":13138082,"orangeJuice":15902527,"mintLemonade":14605443};
+export type MediaFood=TakeoutId|RecipeId;
+export const isMediaFood=(id:unknown):id is MediaFood=>typeof id==='string'&&(Object.hasOwn(TAKEOUT,id)||isHomeDrink(id)||HOME_DESSERTS.includes(id as RecipeId));
+export const mediaFoodInfo=(id:MediaFood)=>Object.hasOwn(TAKEOUT,id)?TAKEOUT[id as TakeoutId]:RECIPES[id as RecipeId];
+export const mediaFoodKind=(id:MediaFood)=>Object.hasOwn(TAKEOUT,id)?'takeout' as const:'meal' as const;
 export const DRINK_SEATS=['sofa','yardTable','officeChair'] as const;
 export type DrinkSeat=typeof DRINK_SEATS[number];
 export const isDrinkSeat=(x:unknown):x is DrinkSeat=>DRINK_SEATS.includes(x as DrinkSeat);
