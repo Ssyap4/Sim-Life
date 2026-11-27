@@ -1,6 +1,9 @@
 import type {Genre} from './homeLife';
-export type MediaTitle={id:string;title:string;year:number;genre:Genre;description:string;seasons?:readonly number[]};
+export type MediaTitle={id:string;title:string;year:number;genre:Genre;description:string;runtimeMinutes?:number;seasons?:readonly number[]};
 const films=[
+ ['sunrise-reaping','Голодные игры: Рассвет жатвы',2026,'action','Молодой Хеймитч оказывается участником юбилейных Игр.'],
+ ['spider-new-day','Человек-паук: Новый день',2026,'action','Питер Паркер пытается начать новую жизнь, не отказываясь от ответственности героя.'],
+ ['disclosure-day','День разоблачения',2026,'thriller','Необычные события заставляют людей задуматься, одни ли они во Вселенной.'],
  [
   "hail-mary",
   "Проект «Аве Мария»",
@@ -452,7 +455,9 @@ const series=[["widows-bay","Widow’s Bay",2026,"horror","Мэр островн
   ]
  ]
 ] as const;
-export const MEDIA_CATALOG:readonly MediaTitle[]=[...films.map(([id,title,year,genre,description])=>({id,title,year,genre,description})),...series.map(([id,title,year,genre,description,seasons])=>({id,title,year,genre,description,seasons}))];
+// Approximate theatrical runtimes; different cuts can vary. Game playback remains 120 seconds.
+const runtime:Record<string,number>={"sunrise-reaping":158,"spider-new-day":145,"disclosure-day":145,"hail-mary":156,"odyssey":172,"prada-2":119,"michael":127,"scream-7":114,"toy-story-5":102,"mario-galaxy":98,"mandalorian":132,"rip":112,"peaky-film":114,"wuthering":136,"ready-or-not-2":108,"interstellar":169,"inception":148,"prestige":130,"dune":155,"dune2":166,"oppenheimer":180,"green-mile":189,"shawshank":142,"forrest":142,"gladiator":155,"dark-knight":152,"john-wick":101,"knives-out":130,"seven":127,"shutter-island":138,"parasite":132,"conjuring":112,"quiet-place":90,"get-out":104,"hangover":100,"intouchables":112,"grand-budapest":99,"truman":103,"lalaland":128,"notebook":123,"about-time":123,"titanic":195,"pride":129,"barbie":114,"wild-robot":102};
+export const MEDIA_CATALOG:readonly MediaTitle[]=[...films.map(([id,title,year,genre,description])=>({id,title,year,genre,description,runtimeMinutes:runtime[id]})),...series.map(([id,title,year,genre,description,seasons])=>({id,title,year,genre,description,seasons}))];
 const catalog=new Map(MEDIA_CATALOG.map(t=>[t.id,t]));
 export const mediaTitle=(id:unknown)=>typeof id==='string'?catalog.get(id):undefined;
 export type MediaSelection={id:string;season?:number;episode?:number};

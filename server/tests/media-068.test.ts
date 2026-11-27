@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initialState} from '../../src/shared/protocol';
 import {MEDIA_CATALOG,validSelection,nextEpisode} from '../../src/shared/mediaCatalog';
-import {markMedia,recordViewing,libraryFor,continueSeries,validLibrary} from '../../src/shared/mediaLibrary';
+import {markMedia,recordViewing,libraryFor,continueSeries,validLibrary,bookmarkFor,saveBookmark} from '../../src/shared/mediaLibrary';
 import {planTask,evaluateTask} from '../tasks';
 import {applyServiceCommand} from '../services';
 import {openServerFiles} from '../storage';
@@ -10,7 +10,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 test('catalog unique, movie and episode selections validated with genre',()=>{
- assert.equal(MEDIA_CATALOG.length,56);assert.equal(new Set(MEDIA_CATALOG.map(t=>t.id)).size,56);
+ assert.equal(MEDIA_CATALOG.filter(t=>!t.seasons).length,45);assert.equal(MEDIA_CATALOG.filter(t=>t.year===2026).length,20);assert.ok(MEDIA_CATALOG.filter(t=>!t.seasons).every(t=>Number.isInteger(t.runtimeMinutes)&&t.runtimeMinutes!>0));assert.equal(MEDIA_CATALOG.length,59);assert.equal(new Set(MEDIA_CATALOG.map(t=>t.id)).size,59);
  assert.ok(validSelection({id:'odyssey'},'action'));assert.ok(!validSelection({id:'odyssey',episode:1}));
  assert.ok(!validSelection({id:'__proto__'}));assert.ok(!validSelection({id:'knight',season:1,episode:7}));
  assert.deepEqual(nextEpisode({id:'dark',season:1,episode:10}),{id:'dark',season:2,episode:1});
@@ -41,4 +41,12 @@ test('history bounded and final movie removes watch-later entry',()=>{
  let s=initialState();const r=markMedia(s,'alina',{type:'media_mark',list:'watchLater',id:'odyssey',enabled:true});assert.ok(r.ok);s=r.state;
  for(let i=0;i<125;i++)recordViewing(s,'alina',{id:'odyssey'},false);
  assert.equal(libraryFor(s).history.alina.length,120);assert.deepEqual(libraryFor(s).watchLater.alina,[]);assert.ok(validLibrary(s.mediaLibrary));
+});
+
+test('bookmarks survive disk, cannot regress or award rewards, are scoped to character and exact episode',()=>{
+ const s=initialState(),selection={id:'dark',season:1,episode:2};saveBookmark(s,'vlad',selection,45.9);saveBookmark(s,'vlad',selection,22);
+ assert.equal(bookmarkFor(s,'vlad',selection),45);assert.equal(bookmarkFor(s,'alina',selection),0);assert.equal(bookmarkFor(s,'vlad',{...selection,episode:1}),0);assert.equal(libraryFor(s).history.vlad.length,0);
+ const dir=mkdtempSync(join(tmpdir(),'media068-bookmark-'));try{const files=openServerFiles(dir);files.save(s);assert.equal(bookmarkFor(files.load(),'vlad',selection),45);recordViewing(s,'vlad',selection,false);assert.equal(bookmarkFor(s,'vlad',selection),0);}finally{rmSync(dir,{recursive:true,force:true});}
+ const bad=structuredClone(libraryFor(s));bad.unfinished={vlad:[null as never],alina:[]};assert.equal(validLibrary(bad),false);
+ const legacy=structuredClone(libraryFor(s));delete legacy.unfinished;assert.ok(validLibrary(legacy));
 });

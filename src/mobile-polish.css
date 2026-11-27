@@ -572,3 +572,13 @@
 .jenga-tower.collapsed .jenga-row{animation:jenga-fall .6s forwards;transform-origin:20% 90%}.jenga-tower.collapsed .jenga-row:nth-child(odd){animation-direction:alternate;animation-name:jenga-fall-other}
 @keyframes jenga-fall{to{transform:translate(24px,60px) rotate(24deg);opacity:.5}}@keyframes jenga-fall-other{to{transform:translate(-22px,40px) rotate(-30deg);opacity:.5}}
 @media(max-height:600px){.manual-table .darts-board{width:min(100%,230px,43dvh)}.jenga-tower{min-height:135px;max-height:39dvh}.jenga-row{height:12px}.manual-table .bowling-controls button{min-height:34px}}
+
+#app .actions:has(.media-catalog){max-height:calc(100dvh - 175px);width:100%;}
+.media-illustrated{position:relative;display:block;height:auto;aspect-ratio:16/9;overflow:hidden;background:#20313b}
+.media-illustrated img{display:block;width:100%;height:100%;object-fit:cover}
+.media-illustrated span{position:absolute;top:7px;left:6px;padding:3px 6px;border-radius:4px;background:#172b37d9;color:#fff4df;font-size:9px;font-weight:800;letter-spacing:.04em}
+.media-catalog-card{padding:7px;gap:6px}.media-catalog-card strong{font-size:14px;line-height:1.2}.media-catalog-card small{font-size:11px;line-height:1.25;color:#51665a}
+.media-catalog-card p{font-size:12px;line-height:1.35}.media-progress{width:100%;height:9px;accent-color:#4c8265}
+#app .actions:has(.media-catalog) select{min-height:40px;border-radius:9px;padding:6px;background:#f5f2e9;border:1px solid #c5cec2;color:#233a34}
+#app .actions>.media-illustrated{max-height:160px;width:100%;aspect-ratio:16/9}
+@media(max-width:350px){.media-catalog-card{padding:5px}.media-catalog-card p{font-size:11px}}

@@ -1181,7 +1181,7 @@ export class World {
     }
     if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
     if(home?.food){this.mediaFoodStarted.set(role,this.visualSeconds-elapsedMs/1000);this.playSofaFood(role,home);}
-    if (home?.program) this.homeEffects.television(role,home.program,home.lesson);
+    if (home?.program) this.homeEffects.television(role,home.program,home.lesson,home.mediaSelection,this.visualSeconds-elapsedMs/1000-(home.mediaOffset??0));
   }
 
   private startPair(role:CharacterId,action:string,home:HomePresentation):boolean {

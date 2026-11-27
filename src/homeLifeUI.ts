@@ -1,5 +1,6 @@
 import {MEDIA_CATALOG,mediaTitle,mediaLabel as titleLabel,type MediaSelection,type MediaTitle} from './shared/mediaCatalog';
-import {libraryFor,continueSeries,type MediaCommand} from './shared/mediaLibrary';
+import {mediaCover} from './mediaArt';
+import {libraryFor,continueSeries,bookmarkFor,type MediaCommand} from './shared/mediaLibrary';
 import { serviceAvailable } from './shared/services';
 import { clockMinutes } from './shared/locations';
 import { taskAccessError } from './shared/serviceAccess';
@@ -85,9 +86,11 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     detail.className = 'food-empty';
     const state=read(),role=active(),hardware=state&&role?electronicsModel(state,role,'tv'):undefined;
     const reward=viewingReward({type:'movie',genre},true,hardware?.bonus??0,hardware?.comfort??0);
-    detail.textContent = '120 с · 🎲 Досуг +'+reward.fun+' · 🏡 Комфорт +'+reward.comfort+'. Вместе также ❤️ Общение +'+reward.social+' каждому.';
+    const saved=state&&role&&selection?bookmarkFor(state,role,selection):0;
+    if(selection)root.append(mediaCover(mediaTitle(selection.id)!));
+    detail.textContent = (saved?'Продолжение: '+(120-saved)+' с осталось. Вдвоём — с общей позиции. С новой едой — с начала. ':'120 с · ')+'🎲 Досуг +'+reward.fun+' · 🏡 Комфорт +'+reward.comfort+'. Вместе также ❤️ Общение +'+reward.social+' каждому.';
     root.append(detail,
-      button('Смотреть одному', () => permitted({type:'movie',genre}) && send(submit({type:'movie',genre,selection}))),
+      button(saved?'Досмотреть одному':'Смотреть одному', () => permitted({type:'movie',genre}) && send(submit({type:'movie',genre,selection}))),
       button('Смотреть вместе', () => permitted({type:'movie',genre}) && send(invite(genre,undefined,selection))),
       button('🍕 Смотреть с напитком или едой',()=>foodMenu(genre,selection)),
       button(selection?'← Медиатека':'← Жанры', selection?catalog:genres));
@@ -99,36 +102,37 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     const filters=document.createElement('div');filters.className='media-catalog-filters';
     const list=document.createElement('div');list.className='media-catalog';
     let filter='new';
+    const genre=document.createElement('select');genre.setAttribute('aria-label','Жанр');for(const [id,label] of [['all','Все жанры'],...Object.entries(GENRES)]){const o=document.createElement('option');o.value=id;o.textContent=label;genre.append(o);}
     const views=[['new','Новинки 2026'],['all','Все'],['films','Фильмы'],['series','Сериалы'],['favorites','♥ Избранное'],['watchLater','Позже'],['together','Вдвоём'],['history','История'],['continue','Продолжить']] as const;
     const render=()=>{
       const latest=read()??state,lib=libraryFor(latest),history=lib.history[role],q=search.value.toLocaleLowerCase().trim();
       filters.querySelectorAll('button').forEach((b,i)=>b.setAttribute('aria-pressed',String(views[i][0]===filter)));
       list.replaceChildren();
       if(filter==='history'){
-        for(const entry of history){const t=mediaTitle(entry.id)!;if(q&&!t.title.toLocaleLowerCase().includes(q))continue;list.append(button(titleLabel(entry)+(entry.together?' · вдвоём':''),()=>movie(t.genre,entry)));}
+        for(const entry of history){const t=mediaTitle(entry.id)!;if(genre.value!=='all'&&t.genre!==genre.value||q&&!t.title.toLocaleLowerCase().includes(q))continue;list.append(button(titleLabel(entry)+(entry.together?' · вдвоём':''),()=>movie(t.genre,entry)));}
       }else{
-        for(const t of MEDIA_CATALOG){if(q&&!t.title.toLocaleLowerCase().includes(q))continue;
-          const resume=continueSeries(latest,role,t.id),seen=history.some(h=>h.id===t.id);
-          if(filter==='new'&&t.year!==2026||filter==='films'&&t.seasons||filter==='series'&&!t.seasons||filter==='favorites'&&!lib.favorites[role].includes(t.id)||filter==='watchLater'&&!lib.watchLater[role].includes(t.id)||filter==='together'&&!lib.together.includes(t.id)||filter==='continue'&&(!resume||!seen))continue;
+        for(const t of MEDIA_CATALOG){if(genre.value!=='all'&&t.genre!==genre.value||q&&!t.title.toLocaleLowerCase().includes(q))continue;
+          const partial=lib.unfinished?.[role].find(b=>b.id===t.id),resume=continueSeries(latest,role,t.id),seen=history.some(h=>h.id===t.id);
+          if(filter==='new'&&t.year!==2026||filter==='films'&&t.seasons||filter==='series'&&!t.seasons||filter==='favorites'&&!lib.favorites[role].includes(t.id)||filter==='watchLater'&&!lib.watchLater[role].includes(t.id)||filter==='together'&&!lib.together.includes(t.id)||filter==='continue'&&!partial&&(!resume||!seen))continue;
           const card=document.createElement('article');card.className='media-catalog-card';card.dataset.genre=t.genre;
-          const art=document.createElement('div');art.className='media-cover';art.textContent=GENRES[t.genre].split(' ')[0];
+          const art=mediaCover(t);
           const title=document.createElement('strong');title.textContent=t.title;
-          const meta=document.createElement('small');meta.textContent=t.year+' · '+GENRES[t.genre]+(t.seasons?' · '+t.seasons.length+' сез. · '+t.seasons.reduce((a,b)=>a+b,0)+' эп.':' · Фильм');
+          const meta=document.createElement('small');meta.textContent=t.year+' · '+GENRES[t.genre]+(t.seasons?' · '+t.seasons.length+' сез. · '+t.seasons.reduce((a,b)=>a+b,0)+' эп.':' · '+(t.runtimeMinutes?t.runtimeMinutes+' мин':'Фильм'));
           const desc=document.createElement('p');desc.textContent=t.description;
           card.append(art,title,meta,desc,button(t.seasons?'Выбрать серию':seen?'Пересмотреть':'Открыть',()=>titleDetails(t)));
-          if(resume&&seen)card.append(button('Продолжить · С'+resume.season+' Э'+resume.episode,()=>movie(t.genre,resume)));
+          if(partial){const p=document.createElement('progress');p.className='media-progress';p.max=120;p.value=partial.seconds;p.setAttribute('aria-label','Просмотрено');card.append(p,button('Досмотреть · '+Math.floor(partial.seconds/1.2)+'%',()=>movie(t.genre,partial)));}else if(resume&&seen)card.append(button('Продолжить · С'+resume.season+' Э'+resume.episode,()=>movie(t.genre,resume)));
           list.append(card);
         }
       }
       if(!list.children.length){const p=document.createElement('p');p.textContent='Здесь пока пусто.';list.append(p);}
     };
     for(const [id,label] of views)filters.append(button(label,()=>{filter=id;render();}));
-    search.oninput=render;root.append(search,filters,list,button('← Телевизор',backToTv));render();
+    search.oninput=()=>{if(search.value.trim())filter='all';render();};genre.onchange=render;root.append(search,filters,genre,list,button('← Телевизор',backToTv));render();
   };
   const titleDetails=(t:MediaTitle)=>{
     heading(t.title+' · '+t.year);
     const state=read(),role=active();if(!state||!role)return;
-    const lib=libraryFor(state),desc=document.createElement('p');desc.textContent=t.description;root.append(desc);
+    const lib=libraryFor(state),desc=document.createElement('p');desc.textContent=t.description+(t.runtimeMinutes?' · Оригинал: '+t.runtimeMinutes+' мин.':'');root.append(mediaCover(t),desc);const partial=lib.unfinished?.[role].find(b=>b.id===t.id);if(partial)root.append(button('Досмотреть · '+Math.floor(partial.seconds/1.2)+'%',()=>movie(t.genre,partial)));
     for(const [key,label] of [['favorites','Избранное'],['watchLater','Посмотреть позже'],['together','Посмотреть вместе']] as const){
       const ids=key==='together'?lib.together:lib[key][role];let on=ids.includes(t.id);
       const b=button((on?'✓ ':'＋ ')+label,()=>{if(mark?.({type:'media_mark',list:key,id:t.id,enabled:!on})){on=!on;b.textContent=(on?'✓ ':'＋ ')+label;b.setAttribute('aria-pressed',String(on));}});b.setAttribute('aria-pressed',String(on));root.append(b);

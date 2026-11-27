@@ -127,6 +127,7 @@ interface TaskView {
   spaStation?:string;
   lakeSwim?:boolean;
   isCooking?:boolean;
+  namedMedia?:boolean;
   freeRest?:boolean;
   soloLounge?:boolean;
   pool?:boolean;
@@ -455,7 +456,7 @@ function drawTaskPanel(): void {
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'task-cancel';
-      cancel.textContent = '✕ Прервать';
+      cancel.textContent = task.namedMedia&&task.since!==null?'Ⅱ Отложить просмотр':'✕ Прервать';
       cancel.addEventListener('click', () => {
         if (net.cancelTask(task.taskId)) cancel.disabled = true;
       });
@@ -1176,7 +1177,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook', question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook',namedMedia:command.type==='movie'&&!!command.selection, question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
@@ -1195,7 +1196,7 @@ const net = new LiveConnection({
     task.since=taskNow()-elapsedMs;
     world.activateHomeTask(role,elapsedMs);
     if(role===active&&task.paired)phone.refreshRelationship();
-    if (task.material||task.freeRest) drawTaskPanel(); else updateTaskProgress();
+    if (task.material||task.freeRest||task.namedMedia) drawTaskPanel(); else updateTaskProgress();
   },
   onStudyProgress(role, taskId, elapsed, total) {
     const task = tasks.get(role);

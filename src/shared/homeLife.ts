@@ -61,6 +61,8 @@ export type HomePresentation = {
   pickupMs?: number;
   station: HomeSeat | BathFixture | 'furniture' | 'grill' | 'kitchenCook' | 'workCoffee' | 'studyDesk' | 'studyLaptop' | 'studyPractice' | 'classroom' | 'lab' | 'workshop';
   program?: Program;
+  mediaSelection?:import('./mediaCatalog').MediaSelection;
+  mediaOffset?:number;
   food?:import('./food').MediaFood;
   foodMs?:number;
   vanityCare?:import('./vanity').CareId;

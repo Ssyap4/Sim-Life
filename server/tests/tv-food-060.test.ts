@@ -230,3 +230,31 @@ test('068 cancelling a named movie before finish never adds a completed viewing'
  assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));r.arrive();r.advance(30000);r.s.cancel('vlad','cancel');
  r.advance(150000);assert.equal(r.state().mediaLibrary?.history.vlad.length??0,0);
 });
+
+test('068 interrupted named film resumes from actual seated time, reward only once',()=>{
+ const r=rig();const selection={id:'odyssey'},plan=planTask({type:'movie',genre:'action',selection})!;
+ try{
+  assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));r.arrive();r.advance(41000);r.s.cancel('vlad','break');
+  assert.equal(r.state().mediaLibrary?.unfinished?.vlad[0].seconds,41);assert.equal(r.state().mediaLibrary?.history.vlad.length,0);assert.equal(r.state().characters.vlad.fun,5);
+  assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));const p=[...r.packets].reverse().find(p=>p.type==='task_started');assert.ok(p?.type==='task_started');assert.equal(p.durationMs,79000);assert.equal(p.home?.mediaOffset,41);assert.deepEqual(p.home?.mediaSelection,selection);
+  r.arrive();r.advance(78999);assert.equal(r.state().mediaLibrary?.history.vlad.length,0);
+  r.advance(1);assert.equal(r.state().mediaLibrary?.history.vlad.length,1);assert.equal(r.state().mediaLibrary?.unfinished?.vlad.length,0);assert.equal(r.state().characters.vlad.fun,85);
+  r.advance(120000);assert.equal(r.state().mediaLibrary?.history.vlad.length,1);
+ }finally{r.s.dispose();}
+});
+test('068 paired resumes from lesser shared bookmark; food remains a new full session',()=>{
+ const r=rig();const selection={id:'dark',season:1,episode:1},plan=planTask({type:'movie',genre:'thriller',selection})!;
+ try{
+  assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));r.arrive();r.advance(52000);r.s.cancel('vlad','break');
+  assert.ok(r.s.start(['alina'],plan,r.sockets.alina));r.arrive();r.advance(32000);r.s.cancel('alina','break');
+  r.s.invitation('vlad',r.sockets.vlad,{type:'movie_invite',genre:'thriller',selection});const offer=[...r.packets].reverse().find(p=>p.type==='movie_offer');assert.ok(offer?.type==='movie_offer');
+  r.s.invitation('alina',r.sockets.alina,{type:'movie_reply',inviteId:offer.inviteId,accept:true});
+  const p=[...r.packets].reverse().find(p=>p.type==='task_started');assert.ok(p?.type==='task_started');assert.equal(p.durationMs,88000);assert.equal(p.home?.mediaOffset,32);
+  r.arrive();r.advance(10000);r.s.cancel('vlad','break');
+  assert.equal(r.state().mediaLibrary?.unfinished?.vlad[0].seconds,52);assert.equal(r.state().mediaLibrary?.unfinished?.alina[0].seconds,42);
+  const withFood=planTask({type:'movie',genre:'thriller',selection,food:'pizzaCheese'})!;
+  assert.ok(r.s.start(['vlad'],withFood,r.sockets.vlad));const f=[...r.packets].reverse().find(p=>p.type==='task_started');assert.ok(f?.type==='task_started');assert.equal(f.durationMs,120000);assert.equal(f.home?.foodMs,90000);
+  r.arrive();r.advance(90000);assert.equal(r.state().takeout.pizzaCheese,1);r.s.cancel('vlad','break');assert.equal(r.state().mediaLibrary?.unfinished?.vlad[0].seconds,90);
+  assert.ok(r.s.start(['vlad'],plan,r.sockets.vlad));r.arrive();r.advance(30000);assert.equal(r.state().takeout.pizzaCheese,1);assert.equal(r.state().mediaLibrary?.history.vlad.length,1);
+ }finally{r.s.dispose();}
+});

@@ -9,6 +9,8 @@ import type { Program } from '../shared/homeLife';
 import { GENRES } from '../shared/homeLife';
 import { SKILL_IDS, SKILLS } from '../shared/education';
 import { MATERIAL_BY_ID } from '../shared/educationCatalog';
+import {drawNamedMedia} from '../mediaArt';
+import type {MediaSelection} from '../shared/mediaCatalog';
 import { drawTvProgramMoment } from './TvProgramMoments';
 
 const themes: Record<Program, [string,string,string,string]> = {
@@ -47,6 +49,7 @@ export class HomeEffects {
   private readonly dogWater:THREE.LineSegments;
   private readonly dogFoam:THREE.InstancedMesh;
   private readonly media = new Map<string, Program>();
+  private readonly namedMedia=new Map<string,{selection:MediaSelection;start:number}>();
   private lastScreen = -1;
   private readonly games=new Map<string,{game:ConsoleGameId;start:number;match?:ConsoleMatch}>();
   console(id:string,game?:ConsoleGameId,start=0,match?:ConsoleMatch){if(game)this.games.set(id,{game,start,match});else this.games.delete(id);if(![...this.games.values()].some(g=>g.game==='ufc6'))stopUfcHighlight(this.context);this.screen.visible=this.media.size>0||this.games.size>0;this.lastScreen=-1;}
@@ -114,7 +117,8 @@ export class HomeEffects {
 
   mountTv(parent:THREE.Group){parent.add(this.tvHardware.group);this.tvHardware.group.position.y=.574;return this.tvHardware.group;}
   setTv(id:ElectronicsId){if(this.tvId===id)return;this.tvId=id;electronicsDisplay(this.tvHardware.select(id))!.add(this.screen);}
-  television(id: string, program?: Program, lesson?: string) {
+  television(id: string, program?: Program, lesson?: string, selection?:MediaSelection,start=0) {
+    if(program&&selection)this.namedMedia.set(id,{selection,start});else this.namedMedia.delete(id);
     if (lesson) this.lesson = lesson;
     if(program) this.media.set(id,program); else this.media.delete(id);
     this.screen.visible = this.media.size > 0||this.games.size>0;
@@ -139,7 +143,7 @@ export class HomeEffects {
   dogBath(phase:'lift'|'wet'|'soap'|'rinse'|null){this.dogWater.visible=phase==='wet'||phase==='rinse';this.dogFoam.visible=phase==='soap';}
   reset() {
     stopUfcHighlight(this.context);
-    this.media.clear();this.games.clear();
+    this.media.clear();this.namedMedia.clear();this.games.clear();
     this.screen.visible = this.shower.visible = this.foam.visible = this.handWater.visible = false;
     this.water('bathtub',false);this.dogBath(null);
   }
@@ -155,7 +159,7 @@ export class HomeEffects {
     if(frame === this.lastScreen) return;
     this.lastScreen = frame;
     const program = this.media.values().next().value!;
-    if(game)drawConsoleFrame(this.context,game.game,Math.max(0,seconds-game.start),game.match);else this.draw(program,seconds);
+    if(game)drawConsoleFrame(this.context,game.game,Math.max(0,seconds-game.start),game.match);else {const named=this.namedMedia.values().next().value;if(!named||!drawNamedMedia(this.context,named.selection,Math.max(0,seconds-named.start)))this.draw(program,seconds);}
     this.texture.needsUpdate = true;
   }
 

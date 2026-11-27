@@ -22,6 +22,7 @@ import {newDarts,newJenga,tableAction,TABLE_STEP,TABLE_LIMIT,type TableMatch} fr
 import {newPool,poolShot,stepPool,POOL_STEP,POOL_LIMIT,type PoolMatch} from '../src/shared/manualPool';
 import {newHockey,hockeyControls,hockeyMove,stepHockey,HOCKEY_STEP,type HockeyMatch,type HockeyControls} from '../src/shared/manualHockey';
 import {newBowling,rollBowling,type BowlingMatch} from '../src/shared/manualBowling';
+import {bookmarkFor,saveBookmark} from '../src/shared/mediaLibrary';
 import {validSelection,type MediaSelection} from '../src/shared/mediaCatalog';
 import { GENRES, HOME_SEATS, YOUTUBE, TV_FOOD_SECONDS, type MediaGenre, type HomePresentation, type HomeSeat } from '../src/shared/homeLife';
 import { approachFor, floorFor, placeObstacles, stationById, HOME_LAPTOP } from '../src/shared/locations';
@@ -61,6 +62,7 @@ type Session = {
   cooperation?: Cooperation;
   finishedTogether?: boolean;
   bowling?:BowlingMatch;
+  mediaOffset?:number;
   table?:TableMatch;
   pool?:PoolMatch;
   hockey?:HockeyMatch;hockeyControls?:HockeyControls;
@@ -534,7 +536,8 @@ export function createHomeSessions(hooks: Hooks) {
       minutes: studyMinutes(profile, material),
       questions: studyQuestions(material, profile.enrollments[material.id]?.attended ??
         profile.studied[material.id]?.completions ?? 0), correct: 0, lastAnswer: 0 };
-    const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : plan.durationMs/fitnessTaskSpeed(hooks.state(),roles[0],command)) * hooks.timeScale));
+    const mediaOffset=command.type==='movie'&&command.selection&&!food?Math.min(...roles.map(r=>bookmarkFor(hooks.state(),r,command.selection!))):0;
+    const duration = Math.max(15, Math.round((study ? study.minutes / GAME_MINUTES_PER_REAL_SECOND * 1000 : (plan.durationMs-mediaOffset*1000)/fitnessTaskSpeed(hooks.state(),roles[0],command)) * hooks.timeScale));
     const participants: Participant[] = [];
     const beforePreparation=roles.map(role=>({x:hooks.state().characters[role].x,z:hooks.state().characters[role].z}));
     for(const role of roles) hooks.prepare(role,resource==='tv');
@@ -556,6 +559,7 @@ export function createHomeSessions(hooks: Hooks) {
       if (!home) { if (!automatic) error(initiator, 'Не удалось найти свободный маршрут'); return; }
       const catReason=catHomeSeatError(hooks.state(),role,home);
       if(catReason){if(!automatic)error(initiator,catReason);return;}
+      if(command.type==='movie'&&command.selection){home.mediaSelection=command.selection;home.mediaOffset=mediaOffset;}
       if(food){home.food=food;home.foodMs=Math.min(duration,TV_FOOD_SECONDS*1000*hooks.timeScale);if(command.type==='youtube')home.program='vlog';}
       if (study?.questions[0]) home.question = study.questions[0];
       const before = hooks.state();
@@ -581,7 +585,7 @@ export function createHomeSessions(hooks: Hooks) {
     const freeRest=!automatic&&participants.every(p=>isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:p.packet.home?.pair?.item));
     const restDuration=freeRest?Math.max(15,Math.round(FREE_REST_SECONDS*1000*hooks.timeScale)):duration;
     if(freeRest)for(const p of participants){p.packet.durationMs=restDuration;p.packet.effects=freeRestReward(restAction(command,p.packet.home));}
-    const session: Session = { plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,freeRest,
+    const session: Session = { mediaOffset,plan: { ...plan, resource }, participants, started: now(), activeAt: null, study,freeRest,
       cooperation:cooperation?{...cooperation,moment:story}:undefined,
       duration:restDuration, timer: schedule(() => {
         if(cooperation&&command.type==='together'){
@@ -639,6 +643,8 @@ export function createHomeSessions(hooks: Hooks) {
   }
   function checkpoint(state: GameState, progress?: Session) {
     for (const session of progress ? [progress] : new Set(sessions.values())) {
+      const command=session.plan.command;
+      if(session.activeAt!==null&&command.type==='movie'&&command.selection){const elapsed=Math.max(0,(now()-session.activeAt)/hooks.timeScale/1000);for(const p of session.participants)saveBookmark(state,p.role,command.selection,(session.mediaOffset??0)+elapsed);}
       if (!session.study || session.activeAt === null) continue;
       const { role } = session.participants[0];
       saveBookMinutes(state, role, session.study.material, session.study.previous + studyElapsed(session));
