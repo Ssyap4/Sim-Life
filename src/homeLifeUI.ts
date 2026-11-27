@@ -3,8 +3,9 @@ import { clockMinutes } from './shared/locations';
 import { taskAccessError } from './shared/serviceAccess';
 import type { BookId, Entertainment, Genre, MediaGenre } from './shared/homeLife';
 import type { CharacterId, GameState } from './shared/protocol';
-import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS } from './shared/homeLife';
+import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward } from './shared/homeLife';
 import {TAKEOUT,type TakeoutId} from './shared/food';
+import {electronicsModel} from './shared/electronics';
 
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError,type ConsoleGameId} from './shared/consoleCatalog';
 function button(label: string, click: () => void, className = 'action-button') {
@@ -67,7 +68,9 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
     heading(GENRES[genre]);
     const detail = document.createElement('p');
     detail.className = 'food-empty';
-    detail.textContent = '120 с · 🎲 Досуг +100 · 🏡 Комфорт +15. Вместе также ❤️ Общение +100 каждому.';
+    const state=read(),role=active(),hardware=state&&role?electronicsModel(state,role,'tv'):undefined;
+    const reward=viewingReward({type:'movie',genre},true,hardware?.bonus??0,hardware?.comfort??0);
+    detail.textContent = '120 с · 🎲 Досуг +'+reward.fun+' · 🏡 Комфорт +'+reward.comfort+'. Вместе также ❤️ Общение +'+reward.social+' каждому.';
     root.append(detail,
       button('Смотреть одному', () => permitted({type:'movie',genre}) && send(submit({type:'movie',genre}))),
       button('Смотреть вместе', () => permitted({type:'movie',genre}) && send(invite(genre))),
@@ -112,8 +115,9 @@ export function homeLifeMenu(root: HTMLElement, heading: (title:string) => void,
         const authorLine=document.createElement('small');
         authorLine.textContent=author+' · '+genre;
         const reward=document.createElement('small');
-        reward.textContent=seconds+' с · 🎲 +60 · 🏡 +10';
-        reward.title='Досуг +60, комфорт +10';
+        const effects=readingReward(id as BookId);
+        reward.textContent=seconds+' с · 🎲 +'+effects.fun+' · 🏡 +'+effects.comfort;
+        reward.title='Досуг +'+effects.fun+', комфорт +'+effects.comfort;
         const book = id as BookId;
         const finished = completed.has(book);
         const open = button(finished ? 'Перечитать' : 'Читать',() => send(submit({type:'read_book',book,seat})));

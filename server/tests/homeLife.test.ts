@@ -23,7 +23,7 @@ test('Home activity durations and exact gains are independent of the shared cale
     [{type:'act',actionId:'bathShower'},38,80,0,0],
     [{type:'free_tv'},60,0,5,0],
     [{type:'youtube'},40,0,20,10],
-    ...Object.keys(GENRES).map(genre=>[{type:'movie',genre},120,0,100,15] as const),
+    ...Object.keys(GENRES).map(genre=>[{type:'movie',genre},120,0,80,15] as const),
   ] as const;
   for(const [command,seconds,hygiene,fun,comfort] of cases) {
     const plan=planTask(command);
@@ -54,4 +54,41 @@ test('Both library approaches and all reading seats are navigable inside the hom
   }
   const a=homeSeat('sofa','vlad').position,b=homeSeat('sofa','alina').position;
   assert.ok(Math.abs(a.x-b.x)>=1);
+});
+
+import {readingReward,viewingReward,type BookId} from '../../src/shared/homeLife';
+import {initialElectronics} from '../../src/shared/electronics';
+import {SOCIAL_BY_ID,type SocialIntent} from '../../src/shared/socialLife';
+import {pairScenes,completeTogether,socialDuration} from '../society';
+
+test('TV menus and both joint invitation paths share one reward formula, including upgraded hardware',()=>{
+  let state=initialState();
+  for(const service of ['netflix','youtube'] as const){
+    const r=applyServiceCommand(state,'vlad',{type:'service_connect',service});assert.ok(r.ok);state=r.state;
+  }
+  state.world.electronics={...initialElectronics(),tv:'tvOLED'};
+  for(const role of ['vlad','alina'] as const)Object.assign(state.characters[role],{fun:0,social:0,comfort:0});
+  for(const [command,social] of [
+    [{type:'movie',genre:'comedy'},{type:'together',action:'film',item:'comedy'}],
+    [{type:'youtube'},{type:'together',action:'youtube'}],
+    [{type:'free_tv'},{type:'together',action:'tv'}],
+  ] as const){
+    const expected=viewingReward(command,true,12,9);
+    const solo=evaluateTask(state,'vlad',command,true);assert.ok(solo.ok);
+    const homes=pairScenes(state,'vlad',social);assert.ok(homes);
+    const together=completeTogether(state,'vlad',social,['vlad','alina'],0,homes);assert.ok(together.ok);
+    for(const role of ['vlad','alina'] as const)for(const key of ['fun','social','comfort'] as const){
+      assert.equal(together.state.characters[role][key],expected[key]??0);
+      assert.equal(solo.state.characters.vlad[key],expected[key]??0);
+    }
+  }
+});
+test('Every shared book takes its actual reading time; shorter books earn proportionately less fun',()=>{
+  const state=initialState();
+  for(const book of Object.keys(BOOKS) as BookId[]){
+    const command:SocialIntent={type:'together',action:'read',item:book};
+    assert.equal(socialDuration(SOCIAL_BY_ID.get('read')!,command,state),BOOKS[book][3]*1000);
+    assert.equal(readingReward(book).fun,Math.round(BOOKS[book][3]/2));
+  }
+  assert.equal(readingReward('prince').fun,20);assert.equal(readingReward('master').fun,60);
 });

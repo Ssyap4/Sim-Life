@@ -298,7 +298,7 @@ test('A jointly accepted movie starts one synchronized timer and commits both ca
     for(const started of await Promise.all(starts)) {
       assert.ok(started.type==='task_started');
       assert.equal(started.durationMs,720);
-      assert.deepEqual(started.effects,{fun:100,social:100,comfort:15});
+      assert.deepEqual(started.effects,{fun:80,social:25,comfort:15});
       assert.equal(started.home?.program,'comedy');
       assert.equal(started.home?.station,'sofa');
       seats.push(started.home.route.path.at(-1));
@@ -377,7 +377,7 @@ test('Every book reaches the shelf and a physical seat before completion', async
       const task=await started;
       assert.ok(task.type==='task_started'&&task.home&&task.home.pickup);
       assert.equal(task.durationMs,record[3]*3);
-      assert.deepEqual(task.effects,{fun:60,comfort:10});
+      assert.deepEqual(task.effects,{fun:Math.round(record[3]/2),comfort:10});
       assert.deepEqual(task.home.route.path[task.home.pickup-1],LIBRARY_APPROACH);
       assert.ok(['sofa','table','yardTable'].includes(task.home.station));
       await playing;

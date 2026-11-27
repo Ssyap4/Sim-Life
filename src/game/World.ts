@@ -952,6 +952,14 @@ export class World {
     }
   }
 
+  finishSofaFood(role:CharacterId):void {
+    const home=this.homeTasks.get(role);
+    if(!home?.food)return;
+    delete home.food;delete home.foodMs;
+    this.mediaFoodStarted.delete(role);
+    this.meals.get(role)!.visible=false;
+    if(this.mediaFoodArrived.has(role))this.actors[role].watch(home.program==='comedy'?1:home.program==='horror'?-1:0);
+  }
   private playSofaFood(role:CharacterId,home:HomePresentation):boolean {
     const started=this.mediaFoodStarted.get(role);
     if(!home.food||started===undefined||!this.mediaFoodArrived.has(role)||this.visualSeconds-started>=(home.foodMs??0)/1000)return false;
@@ -3082,10 +3090,7 @@ export class World {
         const started=this.mediaFoodStarted.get(id);
         const mealElapsed=started===undefined?elapsed:Math.max(0,this.visualSeconds-started);
         const scale = mealServingScale(mealElapsed,foodSeconds??(this.place==='park'?PICNIC_SECONDS:undefined));
-        if(foodSeconds!==undefined&&mealElapsed>=foodSeconds){
-          plate.visible=false;
-          actor.watch(media?.program==='comedy'?1:media?.program==='horror'?-1:0);
-        }
+
         plate.getObjectByName('Indoor serving')!.scale.setScalar(scale);
         plate.getObjectByName('Grilled serving')!.scale.setScalar(scale);
       }

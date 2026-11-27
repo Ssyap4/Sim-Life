@@ -35,6 +35,14 @@ export const readingSkillLabel = () => READING_SKILL_PREVIEW.label + ' +' + READ
 export const HOME_SECONDS = { teeth: 18, foamBath: 75, shower: 38, youtube: 40, movie: 120, freeTv: 60 } as const;
 export const TV_FOOD_SECONDS=90;
 export const READING_REWARD = { fun: 60, comfort: 10 } as const;
+export function readingReward(book:BookId):NeedEffects {
+  return {fun:Math.round(BOOKS[book][3]/2),comfort:10};
+}
+export function viewingReward(command:Extract<Entertainment,{type:'movie'|'youtube'|'free_tv'}>,together=false,bonus=0,comfort=0):NeedEffects {
+  if(command.type==='free_tv')return {fun:5+bonus,...(comfort?{comfort}:{}),...(together?{social:8}:{})};
+  if(command.type==='youtube')return {fun:(command.food?35:20)+bonus,comfort:10+comfort,...(together?{social:12}:{})};
+  return {fun:Math.min(100,80+bonus),comfort:15+comfort,...(together?{social:25}:{})};
+}
 export type NeedKey = Exclude<keyof Needs, 'skill'>;
 export type NeedEffects = Partial<Record<NeedKey, number>>;
 

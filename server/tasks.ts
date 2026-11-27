@@ -26,7 +26,7 @@ import type { LocalActivity } from '../src/shared/locations';
 import { ACTIONS, type ActionId, type CharacterId, type GameState, type TimedCommand } from '../src/shared/protocol';
 import { MEAL_EAT_SECONDS, RECIPES, TAKEOUT, isGrillRecipe, type RecipeId, type TakeoutId } from '../src/shared/food';
 import { PETS, PET_ACTION_NAMES, type PetId, type PetAction } from '../src/shared/pets';
-import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, READING_REWARD, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
+import { BOOKS, GENRES, HOME_SECONDS, TV_FOOD_SECONDS, readingReward, viewingReward, type BookId, type Entertainment, type Genre, type NeedEffects } from '../src/shared/homeLife';
 import {DOG_BATH_SECONDS} from '../src/shared/dogBath';
 import { BATH_ACTIONS } from '../src/shared/home';
 import { validCoffeeOrder, type CoffeeDrink } from '../src/shared/coffee';
@@ -217,10 +217,8 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
 export function entertainmentReward(command: Entertainment, together = false, bonus=0, comfort=0): NeedEffects {
   if(command.type==='vanity_care')return {mood:CARE[command.care].mood};
   if(command.type==='console_play')return {fun:Math.min(100,65+bonus),mood:12,comfort:8+comfort,...(together?{social:35}:{})};
-  if (command.type === 'read_book') return READING_REWARD;
-  if (command.type === 'free_tv') return { fun: 5+bonus, ...(comfort?{comfort}:{}) };
-  if (command.type === 'youtube') return { fun: 20+bonus, comfort: 10+comfort };
-  return { fun: 100, ...(together?{social:100}:{}), comfort: 15+comfort };
+  if (command.type === 'read_book') return readingReward(command.book);
+  return viewingReward(command,together,bonus,comfort);
 }
 
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {

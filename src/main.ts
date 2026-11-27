@@ -1151,6 +1151,7 @@ const net = new LiveConnection({
   },
   onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
+  onTvFoodDone(role,taskId){if(tasks.get(role)?.taskId===taskId)world.finishSofaFood(role);},
   onMovieOffer(inviteId,from,genre,food) { invites.show(inviteId,names[from],genre,from===active,food); },
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
   onTaskEnded(role, taskId, outcome, message, effects) {

@@ -92,8 +92,9 @@ export function socialResource(a:SocialActivity,item?:string) { return a.object=
 import {CONSOLE_GAMES,isConsoleGame,newConsoleMatch,consoleMatchWinner} from '../src/shared/consoleCatalog';
 import { pairedCookingSeconds } from '../src/shared/cookingProgression';
 export function socialDuration(a:SocialActivity,command:SocialIntent,state?:GameState){
-  if(a.object==='cook'&&command.item&&Object.hasOwn(RECIPES,command.item))return pairedCookingSeconds(command.item as RecipeId)*1000;
+  if((a.object==='cook'||a.object==='grill')&&command.item&&Object.hasOwn(RECIPES,command.item))return pairedCookingSeconds(command.item as RecipeId)*1000;
   if(a.object==='console'&&isConsoleGame(command.item))return CONSOLE_GAMES[command.item].seconds*1000;
+  if(a.object==='read'&&command.item&&Object.hasOwn(BOOKS,command.item))return BOOKS[command.item as BookId][3]*1000;
   if(a.object==='leisure'&&state){const item=state.furnishing.placed.find(i=>String(i.id)===command.item),action=item&&leisureAction(item.sku,a.id);if(action)return LEISURE[action].seconds*1000;}
   return 1000*(a.object==='lesson'?Math.max(10,(MATERIAL_BY_ID.get(command.item!)?.minutes??10)*2):a.seconds);
 }
@@ -360,7 +361,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   const run=(role:CharacterId,c:TimedCommand)=>{
     const home=homes[role],end=home.route.path.at(-1)??home.route.from;
     Object.assign(state.characters[role],end);
-    const result=evaluateTask(state,role,c,false);
+    const result=evaluateTask(state,role,c,roles.length===2&&(c.type==='movie'||c.type==='youtube'||c.type==='free_tv'));
     if(result.ok){state=result.state;message=result.message;}
     return result;
   };
@@ -566,7 +567,9 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
       const response=role===to&&a.group==='care'?
         choice===1?{social:5,mood:2,comfort:5}:choice===2?{social:2,comfort:3}:socialEffects.care:
         socialEffects[a.group];
-      change(state,role,{...response,social:(response.social??0)*careBonuses(state,role).social},strength);
+      // Viewing already pays the same shared social reward as the TV invitation path.
+      if(a.object!=='film'&&a.object!=='tv'&&a.object!=='youtube')
+        change(state,role,{...response,social:(response.social??0)*careBonuses(state,role).social},strength);
     }
     if(quiz){for(const role of roles)change(state,role,{fun:3},strength);message='Угадали! '+a.replies[choice];}
     else if(a.id==='riddle'||a.id==='homelyQuiz')message='Ответ · '+a.replies[a.id==='riddle'?0:1];

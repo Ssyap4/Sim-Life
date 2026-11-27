@@ -36,7 +36,7 @@ export interface ConnectionCallbacks {
   onTaskStarted(role: CharacterId, taskId: number, label: string, durationMs: number, command: TimedCommand, automatic?: boolean, home?: HomePresentation, effects?: NeedEffects): void;
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
-  onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void;
+  onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void; onTvFoodDone(role:CharacterId,taskId:number):void;
   onMovieOffer(inviteId: number, from: CharacterId, genre: MediaGenre,food?:import('../shared/food').TakeoutId): void;
   onMovieOfferClosed(inviteId: number, message: string): void;
   onHomeLeisure(roles: CharacterId[], activity: HomeLeisure | null, routes: Partial<Record<CharacterId, WalkRoute>>): void;
@@ -264,6 +264,8 @@ export class LiveConnection {
         this.callbacks.onTaskQueue(packet.role,packet.tasks);
       } else if (packet.type === 'task_active' && this.authorized) {
         this.callbacks.onTaskActive(packet.role,packet.taskId,packet.elapsedMs);
+      } else if (packet.type === 'tv_food_done' && this.authorized) {
+        this.callbacks.onTvFoodDone(packet.role,packet.taskId);
       } else if (packet.type === 'need_gain' && this.authorized) {
         this.callbacks.onNeedGain(packet.role,packet.label,packet.effects);
       } else if (packet.type === 'movie_offer' && this.authorized) {

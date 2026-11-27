@@ -381,6 +381,10 @@ export function createHomeSessions(hooks: Hooks) {
       if(session.plan.command.type==='console_play'&&packet.home?.consoleMatch)result.message+=' · Победитель: '+consoleMatchWinner(packet.home.consoleMatch);
       results.push(result);
     }
+    const media=session.plan.command;
+    if(session.participants.length===2&&(media.type==='movie'||media.type==='youtube')&&media.food){
+      addRelationship(next,SOCIAL_BY_ID.get(media.type==='movie'?'film':'youtube')!,0);
+    }
     try { hooks.save(next); }
     catch { end(session, 'failed', 'Не удалось сохранить результат'); return; }
     broadcastSnapshot();
@@ -470,7 +474,10 @@ export function createHomeSessions(hooks: Hooks) {
         for(const member of served)hooks.all({type:'need_gain',role:member.role,label:TAKEOUT[food].name,effects:gains(before,next,member.role)});
       }catch{for(const member of served)error(member.socket,'Не удалось сохранить приём пищи');}
     }
-    for(const member of session.participants)if(member.packet.home){delete member.packet.home.food;delete member.packet.home.foodMs;}
+    for(const member of session.participants)if(member.packet.home){
+      delete member.packet.home.food;delete member.packet.home.foodMs;
+      hooks.all({type:'tv_food_done',role:member.role,taskId:member.packet.taskId});
+    }
   }
   function start(roles: CharacterId[], plan: TaskPlan, initiator: WebSocket, automatic = false, cooperation?:Cooperation) {
     const command = plan.command;
@@ -627,7 +634,8 @@ export function createHomeSessions(hooks: Hooks) {
   function cancel(role: CharacterId, message: string, taskId?: number): boolean {
     const session = sessions.get(role);
     if (!session || (taskId !== undefined && !session.participants.some(p => p.role === role && p.packet.taskId === taskId))) return false;
-    const independent=(session.freeRest||session.cooperation&&session.plan.command.type==='together'&&
+    const cmd=session.plan.command;
+    const independent=(session.freeRest||((cmd.type==='movie'||cmd.type==='youtube')&&!!cmd.food)||session.cooperation&&session.plan.command.type==='together'&&
       SOCIAL_BY_ID.get(session.plan.command.action)?.independent)&&session.activeAt!==null&&session.participants.length===2;
     const members=independent?session.participants.filter(p=>p.role===role):session.participants;
     const next = structuredClone(hooks.state());

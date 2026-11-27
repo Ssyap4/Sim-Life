@@ -49,8 +49,9 @@ test('Solo film eats one fresh delivery portion at 90s, then finishes film witho
     r.arrive();r.advance(89999);
     assert.equal(r.state().takeout.pizzaCheese,2);assert.equal(r.state().characters.vlad.hunger,10);
     r.advance(1);
+    assert.equal(r.packets.filter(p=>p.type==='tv_food_done').length,1);
     assert.equal(r.state().takeout.pizzaCheese,1);assert.equal(r.state().characters.vlad.hunger,75);assert.ok(r.s.busy('vlad'));
-    r.advance(30000);assert.ok(!r.s.busy('vlad'));assert.equal(r.state().characters.vlad.fun,100);assert.equal(r.state().takeout.pizzaCheese,1);
+    r.advance(30000);assert.ok(!r.s.busy('vlad'));assert.equal(r.state().characters.vlad.fun,85);assert.equal(r.state().takeout.pizzaCheese,1);
     r.advance(120000);assert.equal(r.state().takeout.pizzaCheese,1);
   }finally{r.s.dispose();}
 });
@@ -61,9 +62,10 @@ test('Paired YouTube requires consent and two fresh portions and settles each re
     assert.equal(r.packets.filter(p=>p.type==='task_started').length,2);
     r.advance(90000);
     assert.equal(r.state().takeout.pizzaCheese,0);
+    assert.equal(r.packets.filter(p=>p.type==='tv_food_done').length,2);
     for(const role of ['vlad','alina'] as CharacterId[]){
       assert.equal(r.state().characters[role].hunger,75);
-      assert.equal(r.state().characters[role].fun,25);
+      assert.equal(r.state().characters[role].fun,40);
       assert.ok(!r.s.busy(role));
     }
   }finally{r.s.dispose();}
@@ -85,7 +87,7 @@ test('No phantom hunger if the other player eats the last portion; playback can 
     assert.ok(r.s.start(['vlad'],planTask({type:'movie',genre:'comedy',food:'pizzaCheese'})!,r.sockets.vlad));r.arrive();
     assert.ok(consumeReadyFood(r.state(),'takeout','pizzaCheese'));r.advance(90000);
     assert.equal(r.state().characters.vlad.hunger,10);assert.ok(r.s.busy('vlad'));
-    r.advance(30000);assert.equal(r.state().characters.vlad.fun,100);
+    r.advance(30000);assert.equal(r.state().characters.vlad.fun,85);
   }finally{r.s.dispose();}
 });
 test('Sofa meal preserves position and never deducts money twice',()=>{
@@ -96,5 +98,35 @@ test('Sofa meal preserves position and never deducts money twice',()=>{
     assert.deepEqual([result.state.characters.vlad.x,result.state.characters.vlad.z,result.state.characters.vlad.pose],[p.x,p.z,p.pose]);
     assert.equal(result.state.money,before.money);assert.equal(result.state.takeout.pizzaCheese,0);
     assert.equal(applyTvFood(result.state,'vlad','pizzaCheese').ok,false);
+  }finally{r.s.dispose();}
+});
+test('One viewer can leave before eating; the partner keeps watching and consumes only their own portion',()=>{
+  const r=rig(2);
+  try{
+    r.invite('comedy');r.arrive();r.advance(30000);
+    assert.ok(r.s.cancel('vlad','cancel'));
+    assert.ok(!r.s.busy('vlad'));assert.ok(r.s.busy('alina'));
+    r.advance(60000);
+    assert.equal(r.state().takeout.pizzaCheese,1);
+    assert.equal(r.state().characters.vlad.hunger,10);
+    assert.equal(r.state().characters.alina.hunger,75);
+    assert.equal(r.packets.filter(p=>p.type==='tv_food_done').length,1);
+    r.advance(30000);assert.equal(r.state().characters.vlad.fun,5);
+    assert.equal(r.state().characters.alina.fun,85);
+    assert.equal(r.state().relationship.memories.length,0);
+  }finally{r.s.dispose();}
+});
+
+test('Completing a shared film with food records one joint memory; replay never pays the meal again',()=>{
+  const r=rig(2);
+  try{
+    r.invite('comedy');r.arrive();r.advance(90000);
+    const mark=r.packets.length;
+    r.s.replay(r.sockets.vlad);
+    const replay=r.packets.slice(mark).filter(p=>p.type==='task_started');
+    assert.equal(replay.length,2);
+    for(const p of replay){assert.equal(p.home?.food,undefined);assert.equal(p.home?.foodMs,undefined);}
+    r.advance(30000);assert.equal(r.state().takeout.pizzaCheese,0);
+    assert.equal(r.state().relationship.memories.filter(m=>m.action==='film').length,1);
   }finally{r.s.dispose();}
 });
