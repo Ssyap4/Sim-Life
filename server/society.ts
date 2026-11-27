@@ -57,7 +57,8 @@ export function validRelationship(value:unknown):value is Relationship {
       evening.completedAt===undefined));
   const validStamps=(v:unknown)=>v===undefined||!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.entries(v).every(([k,value])=>['vlad','alina'].includes(k)&&stamp(value));
   const validGifts=validStamps(r.lastGiftAt)&&validStamps(r.lastMassageAt);
-  return validGifts&&validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
+  const validGreetings=r.greetings===undefined||!!r.greetings&&typeof r.greetings==='object'&&!Array.isArray(r.greetings)&&Object.entries(r.greetings).every(([k,v])=>['nearTalk:goodMorning','nearTalk:goodNight','nearTalk:welcomeHome'].includes(k)&&stamp(v));
+  return validGreetings&&validGifts&&validEvening&&(r.lastTogether===undefined||stamp(r.lastTogether))&&Array.isArray(r.memories)&&r.memories.length<=MEMORY_LIMIT&&
     r.memories.every(m=>m&&stamp(m.at)&&typeof m.action==='string'&&['talk','care','home','romance','fun'].includes(m.group)&&
       typeof m.title==='string'&&m.title.length<=120&&typeof m.description==='string'&&m.description.length<=240)&&
     Array.isArray(r.recent)&&r.recent.length<=RECENT_LIMIT&&r.recent.every(e=>e&&stamp(e.at)&&typeof e.action==='string');
@@ -321,6 +322,7 @@ export function addRelationship(state:GameState,a:SocialActivity,choice:number,s
   const strength=same===0&&recent.length<3?1:same<2&&recent.length<5?.32:0;
   profile.recent=[...recent,{action:a.id,at:now}].slice(-RECENT_LIMIT);
   profile.lastTogether=now;
+  if(a.id==='nearTalk:goodMorning'||a.id==='nearTalk:goodNight'||a.id==='nearTalk:welcomeHome')(profile.greetings??={})[a.id]=now;
   const quiz=a.id==='riddle'?choice===0:a.id==='homelyQuiz'?choice===1:false;
   if (a.memorable&&!storyOnly&&(strength===1||!profile.memories.some(m=>m.action===a.id))&&
       !profile.memories.some(m=>m.action===a.id&&now-m.at<1440)){

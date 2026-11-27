@@ -37,7 +37,7 @@ try{
  await page.setViewportSize({width:390,height:844});
  const heritage=page.locator('.family-heritage');await heritage.locator('summary').click();
  await heritage.getByText('Наши прогулки',{exact:false}).waitFor();
- await heritage.getByText('Уже стало вашей традицией',{exact:true}).waitFor();
+ await heritage.locator('article').filter({hasText:'Наши прогулки'}).getByText('Уже стало вашей традицией',{exact:true}).waitFor();
  await heritage.scrollIntoViewIfNeeded();await page.screenshot({path:join(out,'traditions.png')});
  await page.locator('[data-phone-back]').click();await page.locator('[data-phone-app=weekends]').click();
  await page.locator('[data-weekend-preset=date]').click();

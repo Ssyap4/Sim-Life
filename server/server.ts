@@ -28,7 +28,7 @@ import { changeComputerFavorite } from './computers';
 import { applyEducation, awardActivity } from './education';
 import { serviceAvailable } from '../src/shared/services';
 import { taskAccessError } from '../src/shared/serviceAccess';
-import {familyAutonomyReady} from '../src/shared/familyAutonomy';
+import {familyAutonomyReady,familyAutoInitiator} from '../src/shared/familyAutonomy';
 import {recordCompletedActivity} from '../src/shared/emotions';
 import {applyLifeMoments} from '../src/shared/lifeMoments';
 import { rewardCommand, wishAtStart, fulfillWish } from './happiness';
@@ -704,7 +704,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       !sleepers.has(r)&&!storageOpen.has(r)&&!walkingHome.has(r)&&(queuedTasks.get(r)?.length??0)===0&&
       now-(lastIntent.get(r)??now)>=idleAutonomyMs&&(!running.has(r)||running.get(r)?.automatic)&&(!homeTasks.busy(r)||homeTasks.automatic(r)))){
       const from:CharacterId=Math.floor(clockMinutes(state.clock)/125)%2===0?'vlad':'alina';
-      if(homeTasks.autoConversation(from))return;
+      if(homeTasks.autoConversation(familyAutoInitiator(state,from)))return;
     }
     if(homeTasks.conversationActive())return;
     if(!available.length)return;

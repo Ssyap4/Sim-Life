@@ -74,7 +74,7 @@ export function validEmotionalHistory(value:unknown):boolean{
 }
 export function recordCompletedActivity(s:GameState,role:CharacterId,c:TimedCommand):void{
  if(c.type==='pet_action'&&['pet','play','brush'].includes(c.action))recordEmotion(s,role,c.pet===PERSONALITIES[role].pet?'favoritePet':'pet');
- else if(c.type==='together')recordEmotion(s,role,(c.action==='breakfastCare'||c.action==='breakfastBed')?'familyBreakfast':c.action==='yardCoffee'?'familyCoffee':['nearTalk:listen','nearTalk:compliment','nearTalk:welcomeHome'].includes(c.action)?'familyCare':'together');
+ else if(c.type==='together')recordEmotion(s,role,(c.action==='breakfastCare'||c.action==='breakfastBed')?'familyBreakfast':c.action==='yardCoffee'?'familyCoffee':c.action==='nearTalk:goodMorning'?'quietMorning':c.action==='nearTalk:goodNight'?'cozyEvening':['nearTalk:listen','nearTalk:compliment','nearTalk:welcomeHome','nearTalk:listenWithoutAdvice','nearTalk:shareLoad'].includes(c.action)?'familyCare':'together');
  else if(c.type==='study')recordEmotion(s,role,'study');
  else if(c.type==='read_book')recordEmotion(s,role,'readingMoment');
  else if(['movie','youtube','free_tv','computer_video'].includes(c.type))recordEmotion(s,role,'movie');

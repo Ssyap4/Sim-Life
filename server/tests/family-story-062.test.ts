@@ -100,3 +100,43 @@ test('062 tea can finish a planned evening, using real supplies and recording ac
  assert.match(r.state.relationship.memories.find(m=>m.action==='homeEvening')!.description,/выпили чай вместе/);
  assert.equal(r.state.money,s.money);
 });
+
+import {familyAutonomyReady,familyAutoInitiator,familyAutoTopics,familyAutoLeisure} from '../../src/shared/familyAutonomy';
+import {contextAvailable,NEARBY_TALK_TOPICS} from '../../src/shared/socialLife';
+import {newCareerProgress} from '../../src/shared/careers';
+import {gameMinutes} from '../../src/shared/life';
+import {weatherAt} from '../../src/shared/weather';
+import {recordCompletedActivity,activeEmotions} from '../../src/shared/emotions';
+const ready=()=>{const s=initialState();s.autonomy={vlad:'full',alina:'full'};for(const r of ['vlad','alina'] as const)Object.assign(s.characters[r],{hunger:90,energy:90,hygiene:90,bladder:90,comfort:90,social:90,fun:90,mood:90,pose:'idle'});return s;};
+test('062 greetings remain completed after short relationship history is pruned and persisted',()=>{
+ const s=ready(),a=SOCIAL_BY_ID.get('nearTalk:goodMorning')!;
+ s.clock.minute=370;assert.ok(contextAvailable(a,s,'vlad'));
+ addRelationship(s,a,0);s.relationship.recent=[];s.clock.minute=650;
+ assert.equal(contextAvailable(a,s,'alina'),false);assert.ok(validRelationship(s.relationship));
+ const dir=mkdtempSync(join(tmpdir(),'greetings062-'));try{const files=openServerFiles(dir);files.save(s);assert.deepEqual(files.load().relationship.greetings,s.relationship.greetings);}finally{rmSync(dir,{recursive:true,force:true});}
+ s.clock.day++;s.clock.minute=370;assert.ok(contextAvailable(a,s,'alina'));
+ assert.equal(validRelationship({...s.relationship,greetings:{bad:123}}),false);
+});
+test('062 returning worker is greeted by waiting partner, not arbitrary rotation',()=>{
+ const s=ready();s.clock.minute=1020;const progress=newCareerProgress();
+ progress.history.push({id:1,at:gameMinutes(s.clock)-10,title:'Смена завершена',text:'Домой'});
+ s.careers.residents.alina.progress.marketing=progress;
+ assert.equal(familyAutoInitiator(s,'alina'),'vlad');
+ assert.equal(familyAutoTopics(s,'vlad')[0],'nearTalk:welcomeHome');
+ addRelationship(s,SOCIAL_BY_ID.get('nearTalk:welcomeHome')!,0);
+ s.relationship.recent=[];assert.equal(contextAvailable(SOCIAL_BY_ID.get('nearTalk:welcomeHome')!,s,'vlad'),false);
+ s.autonomy.alina='needs';assert.equal(familyAutonomyReady(s),false);
+});
+test('062 automatic topics prioritize support, vary, stay free and respect weather and vital needs',()=>{
+ const s=ready();s.clock.minute=780;s.characters.alina.social=30;
+ assert.equal(familyAutoInitiator(s,'alina'),'vlad');assert.equal(familyAutoTopics(s,'vlad')[0],'nearTalk:listen');
+ const before=structuredClone(s);familyAutoTopics(s,'vlad');assert.deepEqual(s,before);
+ s.characters.alina.social=90;
+ const topics=new Set<string>();for(let day=1;day<=12;day++){s.clock.day=day;topics.add(familyAutoTopics(s,'vlad')[0]);}
+ assert.ok(topics.size>=5);
+ s.clock.minute=1300;assert.ok(!familyAutoLeisure(s,'vlad').includes('yardRest'));
+ for(let day=1;day<=36;day++){s.clock={day,minute:800};if(['rain','storm','snow'].includes(weatherAt(s.clock).kind))assert.ok(!familyAutoLeisure(s,'vlad').includes('yardRest'));}
+ s.characters.alina.hunger=50;assert.deepEqual(familyAutoTopics(s,'vlad'),[]);
+ assert.ok(NEARBY_TALK_TOPICS.some(a=>a.id==='nearTalk:listenWithoutAdvice'));
+ recordCompletedActivity(s,'vlad',{type:'together',action:'nearTalk:goodMorning'});assert.equal(activeEmotions(s,'vlad')[0]?.kind,'quietMorning');
+});
