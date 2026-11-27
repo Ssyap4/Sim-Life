@@ -62,6 +62,9 @@ export class LiveConnection {
   private retryCount = 0;
   private retryTimer: number | undefined;
   private stopped = false;
+  private suspended = false;
+  private hasBeenReady = false;
+  private connectTimer: number | undefined;
   private authorized = false;
 
   constructor(private readonly callbacks: ConnectionCallbacks) {}
@@ -76,6 +79,8 @@ export class LiveConnection {
   private connect(role: CharacterId, credential: NonNullable<LiveConnection['credential']>): void {
     this.stop();
     this.stopped = false;
+    this.suspended = false;
+    this.hasBeenReady = false;
     this.role = role;
     this.credential = credential;
     this.retryCount = 0;
@@ -180,17 +185,40 @@ export class LiveConnection {
 
   stop(): void {
     this.stopped = true;
+    this.suspended = false;
     this.credential = null;
     this.role = null;
+    this.closeSocket();
+  }
+
+  // BFCache retains the JS heap, so preserve credentials in memory only.
+  suspend(): void {
+    if(this.stopped || !this.role) return;
+    this.suspended = true;
+    const wasReady=this.authorized;
+    this.closeSocket();
+    if(wasReady)this.callbacks.onDisconnect();
+  }
+
+  wake(): void {
+    if(this.stopped || !this.role || !this.credential) return;
+    this.suspended=false;
+    if(this.socket && (this.socket.readyState===WebSocket.OPEN || this.socket.readyState===WebSocket.CONNECTING)) return;
+    this.closeSocket();
+    this.retryCount=0;
+    this.open();
+  }
+
+  private closeSocket(): void {
     window.clearTimeout(this.retryTimer);
+    window.clearTimeout(this.connectTimer);
     this.authorized = false;
-    if (this.socket) {
-      this.socket.onclose = null;
-      this.socket.onmessage = null;
-      this.socket.onopen = null;
-      this.socket.close();
+    const socket=this.socket;
+    this.socket=null;
+    if(socket){
+      socket.onclose=null;socket.onmessage=null;socket.onopen=null;socket.onerror=null;
+      socket.close();
     }
-    this.socket = null;
   }
 
   private send(value: ClientPacket): void {
@@ -198,7 +226,7 @@ export class LiveConnection {
   }
 
   private open(): void {
-    if (!this.role || this.stopped) return;
+    if (!this.role || !this.credential || this.stopped || this.suspended || this.socket) return;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = protocol + '//' + location.host + '/sync';
     this.callbacks.onStatus('Подключаемся к общему дому…');
@@ -206,6 +234,12 @@ export class LiveConnection {
     try { socket = new WebSocket(url); }
     catch { this.scheduleRetry(); return; }
     this.socket = socket;
+    this.connectTimer=window.setTimeout(()=>{
+      if(this.socket!==socket || this.authorized)return;
+      this.closeSocket();
+      this.callbacks.onStatus('Связь потеряна. Повторяем подключение…');
+      this.scheduleRetry();
+    },12000);
     socket.onopen = () => {
       if (!this.role || !this.credential || this.socket !== socket) return;
       if ('token' in this.credential) this.send({ type: 'resume', role: this.role, token: this.credential.token });
@@ -213,11 +247,14 @@ export class LiveConnection {
 
     };
     socket.onmessage = (event: MessageEvent<string>) => {
+      if(this.socket!==socket || this.stopped || this.suspended)return;
       let packet: ServerPacket;
       try { packet = JSON.parse(event.data) as ServerPacket; }
       catch { return; }
       if (packet.type === 'ready') {
+        window.clearTimeout(this.connectTimer);
         this.authorized = true;
+        this.hasBeenReady = true;
         this.retryCount = 0;
         this.callbacks.onReady(packet.role, packet.state, packet.online);
         this.callbacks.onStatus('Синхронизация активна');
@@ -287,6 +324,9 @@ export class LiveConnection {
       } else if (packet.type === 'social_start' && this.authorized) {
         this.callbacks.onSocialStart(packet.kind, packet.message);
       } else if (packet.type === 'error') {
+        if(!this.authorized && this.hasBeenReady && packet.reason.includes('занят') && this.retryCount<3){
+          this.closeSocket();this.scheduleRetry();return;
+        }
         this.callbacks.onError(packet.reason);
         if (!this.authorized && (packet.reason.includes('код') || packet.reason.includes('занят'))) {
           if (packet.reason.includes('Доверие устройства истекло')) storeTrust(null);
@@ -296,9 +336,13 @@ export class LiveConnection {
       }
     };
     socket.onclose = () => {
-      if (this.authorized) this.callbacks.onDisconnect();
+      if(this.socket!==socket)return;
+      window.clearTimeout(this.connectTimer);
+      this.socket=null;
+      const wasReady=this.authorized;
       this.authorized = false;
-      if (!this.stopped) {
+      if(wasReady)this.callbacks.onDisconnect();
+      if (!this.stopped && !this.suspended) {
         this.callbacks.onStatus('Связь потеряна. Повторное подключение…');
         this.scheduleRetry();
       }
@@ -307,7 +351,7 @@ export class LiveConnection {
   }
 
   private scheduleRetry(): void {
-    if (this.stopped) return;
+    if (this.stopped || this.suspended) return;
     const delay = Math.min(1500 * 2 ** Math.min(this.retryCount++, 4), 15000);
     window.clearTimeout(this.retryTimer);
     this.retryTimer = window.setTimeout(() => this.open(), delay);

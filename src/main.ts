@@ -62,7 +62,7 @@ import './glass-hud.css';
 import './weekends.css';
 import './family-life.css';
 import './mobile-refinement-062.css';
-import { World, objectNames } from './game/World';
+import type { World } from './game/World';
 import { LiveConnection } from './core/network';
 import { GameClockDisplay } from './core/gameClock';
 import { showFoodChoices, type FoodCommand } from './foodMenu';
@@ -235,7 +235,7 @@ app.innerHTML = `
       <button class="enter-button" type="submit" disabled>Продолжить за Влада</button>
       <p class="auth-status" id="auth-status" role="status" aria-live="polite">Готовим ваш мир…</p>
       <details class="title-settings"><summary>Настройки музыки</summary><label class="title-volume"><span>Громкость</span><input id="title-volume" type="range" min="0" max="100" step="5" aria-label="Громкость музыки"><output id="title-volume-value"></output></label></details>
-      <footer class="title-footer"><span>Один дом · две жизни</span><span>0.59</span></footer>
+      <footer class="title-footer"><span>Один дом · две жизни</span><span>0.63</span></footer>
     </form>
   </section>
   <div class="rotate-notice">Для SimOurHome поверни телефон вертикально ↻</div>
@@ -976,6 +976,7 @@ const invites = movieInvite(document.querySelector<HTMLElement>('#movie-invite')
 const feedback = needFeedback(document.querySelector<HTMLElement>('#need-gain')!);
 const net = new LiveConnection({
   onReady(role, household, players) {
+    const reconnecting=active===role;
     selectedDesktopFurnitureId=null;
     active = role;
     gameAudio.setPlaying(true);
@@ -1002,7 +1003,8 @@ const net = new LiveConnection({
     actionsEl.hidden = true;
     world.setActive(role);
     render(true);
-    notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
+    if(reconnecting)notify('Связь восстановлена',{title:'Снова вместе',key:'reconnect'});
+    else notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
@@ -1549,7 +1551,7 @@ function openActions(item: ItemId): void {
   }
   if(item==='vanity'){showActionMenu('✨ Туалетный столик');if(!state||active!=='alina'){const p=document.createElement('p');p.textContent='Личный столик Алины';actionsEl.append(p);return;}const note=document.createElement('p');note.textContent='Ухоженность '+careScore(state)+'% · процедуры действуют по игровым часам';actionsEl.append(note);for(const id of (Object.keys(CARE) as CareId[]).filter(id=>careRole(id)==='alina')){const d=CARE[id],b=document.createElement('button');b.className='action-button';const old=careEffects(state).find(e=>CARE[e.id].group===d.group);const delta=Math.max(0,Math.min(100-careScore(state),d.points-(old?CARE[old.id].points:0)));b.textContent=d.label+' · '+(delta?'+'+delta+'%':old?.id===id?'Обновить':'Без прибавки')+' · '+d.hours+' ч.';b.disabled=!!old&&CARE[old.id].points>d.points;b.onclick=()=>{if(net.entertainment({type:'vanity_care',care:id}))actionsEl.hidden=true;};actionsEl.append(b);}return;}
   if (item==='bookcase') { entertainmentMenu.library(); return; }
-  showActionMenu((item === 'delivery' ? itemNames.delivery : objectNames[item]) +
+  showActionMenu((item === 'delivery' ? itemNames.delivery : itemNames[item]) +
     (item === 'kitchen' && state ? ' · 🥚 ' + state.pantry.eggs + ' · 🍞 ' + state.pantry.bread : ''));
   // On phone screens the cooking list must be the FIRST content after the
   // heading. General hints, washing dishes and collaboration follow below.
@@ -1693,6 +1695,8 @@ function openActions(item: ItemId): void {
 async function initializeWorld(app: HTMLDivElement): Promise<void> {
   try {
     const params = new URLSearchParams(window.location.search);
+    showStatus('Загружаем 3D-мир…');
+    const worldModule = import('./game/World');
     const diagnostics = params.get('perf') === '1'
       ? await import('./game/PerformanceProbe').then(({ createPerformanceProbe }) => createPerformanceProbe(app))
       : null;
@@ -1702,18 +1706,19 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       console.warn('Не удалось загрузить модель Симбы',error);
       return undefined;
     });
-    const characters = useBlender ? await import('./game/BlenderCharacter')
+    showStatus('Загружаем персонажей и питомцев…');
+    const residents = useBlender ? import('./game/BlenderCharacter')
       .then(async ({ loadResidents }) => {
         const look=new URLSearchParams(location.search).get('outfit')??'signature';
 
-        const { outfitChoices }=await import('./game/Wardrobe');
         return loadResidents(look==='tee'?['alina-tee-upper']:outfitChoices(look),params.get('characters')==='legacy');
       })
       .catch((err: unknown) => {
         console.warn('Не удалось загрузить Blender-модели. Используем встроенные.', err);
         return {};
-      }) : {};
-    const simbaRig = await simbaModel;
+      }) : Promise.resolve({});
+    const [{World}, characters, simbaRig] = await Promise.all([worldModule, residents, simbaModel]);
+    showStatus('Обустраиваем ваш дом…');
     const modelsReadyMs = performance.now();
     world = new World(canvas, (id) => {
       if (id === 'vlad' || id === 'alina') openSocialActions(id);
@@ -1825,11 +1830,18 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         document.querySelector<HTMLButtonElement>('.enter-button')!.textContent=selectedRole==='vlad'?'Продолжить за Влада':'Продолжить за Алину';
       });
     });
-    window.addEventListener('pagehide', () => net.stop());
+    window.addEventListener('pagehide', event => { if(event.persisted) net.suspend(); else net.stop(); });
+    window.addEventListener('pageshow', event => { if(event.persisted) net.wake(); });
+    window.addEventListener('online', () => net.wake());
+    document.addEventListener('visibilitychange', () => { if(!document.hidden) net.wake(); });
 
     showStatus('Подключаемся к дому…');
     try{
-      const health=await fetch('/health',{cache:'no-store'});
+      const controller=new AbortController();
+      const timeout=window.setTimeout(()=>controller.abort(),6000);
+      let health:Response;
+      try { health=await fetch('/health',{cache:'no-store',signal:controller.signal}); }
+      finally { window.clearTimeout(timeout); }
       if(health.ok){
         const config=await health.json() as {testNoCodes?:boolean};
         localPreviewNoCodes=config.testNoCodes===true;

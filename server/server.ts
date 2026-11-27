@@ -41,7 +41,7 @@ import { applyWorld, clinicTogetherTrip, lakeTogetherTrip, spaTogetherTrip, venu
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
 import { createServer, type Server as HttpServer } from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
@@ -100,6 +100,17 @@ export interface RunningServer {
   port: number;
   close(): Promise<void>;
 }
+function acceptsGzip(header:string|undefined):boolean {
+  if(!header)return false;
+  const entries=header.toLowerCase().split(',').map(value=>{
+    const [encoding,...parameters]=value.trim().split(';');
+    const q=parameters.find(p=>p.trim().startsWith('q='));
+    return [encoding.trim(),q===undefined?1:Number(q.trim().slice(2))] as const;
+  });
+  const explicit=entries.find(([encoding])=>encoding==='gzip');
+  return (explicit?.[1]??entries.find(([encoding])=>encoding==='*')?.[1]??0)>0;
+}
+
 const types: Record<string, string> = {
   '.wav':'audio/wav', '.mp3':'audio/mpeg', '.mp4':'video/mp4',
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -1085,13 +1096,25 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       headers['content-length']=Math.max(0,end-start+1);res.writeHead(status,headers);if(req.method==='HEAD'||!size){res.end();return;}
       const stream=createReadStream(requested,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;
     }
-    const content = readFileSync(requested);
-    res.writeHead(200, {
+    // Vite fingerprints these assets; cache them between visits and stream
+    // precompressed JS/CSS without spending CPU on compression per request.
+    const hashed=/^assets[\\/][^\\/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/i.test(rel);
+    const compressible=hashed&&['.js','.css'].includes(extname(requested));
+    const compressed=compressible&&existsSync(requested+'.gz')&&acceptsGzip(req.headers['accept-encoding']);
+    const file=compressed?requested+'.gz':requested;
+    const size=statSync(file).size;
+    const headers:Record<string,string|number>={
       'content-type': types[extname(requested)] ?? 'application/octet-stream',
-      'cache-control': extname(requested) === '.html' ? 'no-store' : 'public, max-age=3600',
-      'x-content-type-options': 'nosniff',
-    });
-    if (req.method === 'HEAD') res.end(); else res.end(content);
+      'cache-control': extname(requested)==='.html'?'no-store':hashed?'public, max-age=31536000, immutable':'public, max-age=3600',
+      'x-content-type-options':'nosniff',
+      'content-length':size,
+    };
+    if(compressible)headers.vary='Accept-Encoding';
+    if(compressed)headers['content-encoding']='gzip';
+    res.writeHead(200,headers);
+    if(req.method==='HEAD'||!size){res.end();return;}
+    const stream=createReadStream(file);
+    stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
   const heartbeat = setInterval(() => {

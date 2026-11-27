@@ -9,7 +9,13 @@
   <link rel="icon" type="image/svg+xml" href="/simourhome.svg" />
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.ts"></script>
+  <style>
+    #boot-cover{position:fixed;inset:0;display:grid;place-content:center;text-align:center;padding:24px;box-sizing:border-box;background:radial-gradient(ellipse at 50% 30%,#38594b,#172e29);color:#fff4db;font:15px system-ui,sans-serif}
+    #boot-cover strong{font:46px Georgia,serif;letter-spacing:-.06em}#boot-cover strong span{color:#e8c68b}
+    #boot-cover p{color:#d9dfce;margin:18px 0}#boot-cover progress{width:min(220px,70vw);height:5px;accent-color:#e8c68b;margin:auto}
+    #boot-cover a{color:#e8c68b;min-height:44px;padding:12px}
+  </style>
+  <div id="app"><div id="boot-cover" role="status"><strong><span>Sim</span>OurHome</strong><p>Открываем ваш мир…</p><progress aria-label="Загрузка игры"></progress></div></div>
+  <script type="module" src="/src/bootstrap.ts"></script>
 </body>
 </html>
