@@ -1,0 +1,37 @@
+import {chromium} from 'playwright';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import assert from 'node:assert/strict';
+import {initialState} from '../src/shared/protocol.ts';
+import {openServerFiles} from '../server/storage.ts';
+import {startServer} from '../server/server.ts';
+const out='/tmp/simourhome-0593';mkdirSync(out,{recursive:true});
+const dir=mkdtempSync(join(tmpdir(),'hud-0593-'));let browser,server;
+try{
+ const s=initialState();s.money=10000;s.autonomy={vlad:'off',alina:'off'};
+ openServerFiles(dir).save(s);
+ server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,lifeClock:{now:()=>0,tickMs:600000}});
+ browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
+ const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>{const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(...a){super(...a);if(this.url.includes('/sync'))window.__socket=this;}};});
+ const inject=packet=>page.evaluate(packet=>window.__socket.dispatchEvent(new MessageEvent('message',{data:JSON.stringify(packet)})),packet);
+ await page.goto('http://127.0.0.1:'+server.port+'/',{waitUntil:'domcontentloaded',timeout:60000});
+ await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
+ await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
+ const q=page.locator('[data-queue-role=vlad]'),packet={type:'task_queue',role:'vlad',tasks:[{id:1,label:'Чтение'},{id:2,label:'Отдых'}]};
+ await inject(packet);await q.waitFor();assert.equal(await q.getAttribute('open'),null);
+ await q.locator('summary').click();assert.ok(await q.locator('.queued-task-row').first().isVisible());assert.match(await q.locator('.queued-task-row').first().innerText(),/^1\./);
+ await inject(packet);assert.ok(await q.locator('.queued-task-row').first().isVisible());
+ await page.screenshot({path:join(out,'01-queue.png')});
+ await inject({...packet,tasks:[]});
+ await page.locator('#phone-btn').click();await page.locator('[data-phone-app=furnishing]').click();
+ const root=page.locator('#furnishing-overlay');await root.waitFor();
+ const group=root.getByLabel('Тип мебели');await group.selectOption('sofa');assert.equal(await root.locator('.furnish-group-title').count(),1);
+ await root.getByRole('button',{name:'По бюджету'}).click();assert.equal(await root.getByRole('button',{name:'По бюджету'}).getAttribute('aria-pressed'),'true');
+ await group.selectOption('all');await page.setViewportSize({width:320,height:568});
+ assert.ok(await root.evaluate(e=>e.scrollWidth<=e.clientWidth+2));
+ await page.screenshot({path:join(out,'02-furniture-320.png')});
+ assert.deepEqual(errors,[]);console.log('HUD AND FURNITURE QA OK');
+}finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

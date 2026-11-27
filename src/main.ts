@@ -373,17 +373,19 @@ function showUpcomingPayments(household: GameState): void {
   for (const { id, due } of fresh) shownPayments.set(id, due);
   for(const payment of fresh)if(payment.amount!==null)notify(SERVICES[payment.id].name+' · '+formatRub(payment.amount)+' · в течение игрового дня',{title:'Скоро платёж',kind:'warning',target:'finance',key:'due:'+payment.id+':'+payment.due});
 }
+const queueExpanded=new Map<CharacterId,boolean>();
 function drawTaskPanel(): void {
   taskPanelEl.replaceChildren();
   taskPanelEl.hidden = tasks.size === 0 && ![...waitingTasks.values()].some(rows=>rows.length);
-  for (const [role, task] of tasks) {
+  for (const [role, task] of [...tasks].sort(([a],[b])=>Number(b===active)-Number(a===active))) {
     const box = document.createElement('div');
     box.className = 'running-task';
     box.dataset.role = role;
+    box.dataset.peer=String(role!==active);
     const top = document.createElement('div');
     top.className = 'running-task-top';
     const title = document.createElement('strong');
-    title.textContent = names[role] + ': ' + (task.automatic ? 'Самостоятельно · ' : '') + task.label;
+    title.textContent = names[role] + ' · ' + task.label+(task.automatic?' · авто':'');
     const secs = document.createElement('span');
     secs.className = 'task-seconds';
     top.append(title, secs);
@@ -393,7 +395,7 @@ function drawTaskPanel(): void {
     track.appendChild(fill);
     box.append(top, track);
     if(task.freeRest)track.setAttribute('aria-label','Начисление бонусов отдыха');
-    if (task.effects) {const chips=needChips(task.effects,false);if(task.freeRest)chips.setAttribute('aria-label','Максимальный бонус за 45 секунд отдыха');box.append(chips);}
+    if (role===active&&task.effects) {const chips=needChips(task.effects,false);if(task.freeRest)chips.setAttribute('aria-label','Максимальный бонус за 45 секунд отдыха');box.append(chips);}
     const question = task.question ? studyQuestion(task.question) : undefined;
     if ((question || task.answer) && role === active && task.since !== null) {
       const form = document.createElement('div');
@@ -453,18 +455,20 @@ function drawTaskPanel(): void {
     }
     taskPanelEl.append(box);
   }
-  for(const [role, list] of waitingTasks){
+  for(const [role, list] of [...waitingTasks].sort(([a],[b])=>Number(b===active)-Number(a===active))){
     if(!list.length)continue;
-    const section=document.createElement('div');
-    section.className='queued-task-list';
-    const caption=document.createElement('strong');
-    caption.textContent='📋 '+names[role]+' · до 3 действий';
-    section.append(caption);
+    const section=document.createElement('details');
+    section.className='queued-task-list';section.dataset.queueRole=role;section.open=queueExpanded.get(role)??false;
+    section.addEventListener('toggle',()=>queueExpanded.set(role,section.open));
+    const caption=document.createElement('summary');
+    const count=document.createElement('strong');count.textContent=names[role]+' · очередь '+list.length+'/3';
+    const preview=document.createElement('span');preview.className='queue-preview';preview.textContent='Следующее: '+list[0].label;
+    caption.append(count,preview);section.append(caption);
     for(const [index,task] of list.entries()){
       const row=document.createElement('div');
       row.className='queued-task-row';
       const label=document.createElement('span');
-      label.textContent=(index+1+(tasks.has(role)||Boolean(timeStatus.sleepers[role])?2:1))+'. '+task.label;
+      label.textContent=(index+1+(tasks.has(role)||Boolean(timeStatus.sleepers[role])?1:0))+'. '+task.label;
       row.append(label);
       if(role===active){
         const remove=document.createElement('button');
@@ -478,7 +482,7 @@ function drawTaskPanel(): void {
     if(role===active){
       const clear=document.createElement('button');
       clear.type='button';clear.className='queue-clear';
-      clear.textContent='Очистить ожидание';
+      clear.textContent='Убрать все ожидающие';
       clear.addEventListener('click',()=>{if(net.clearTaskQueue())clear.disabled=true;});
       section.append(clear);
     }
@@ -488,7 +492,7 @@ function drawTaskPanel(): void {
 }
 
 function updateTaskProgress(): void {
-  for (const [role, task] of tasks) {
+  for (const [role, task] of [...tasks].sort(([a],[b])=>Number(b===active)-Number(a===active))) {
     const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
     if (!card) continue;
     const elapsed = task.since === null ? 0 : Math.min(taskNow() - task.since, task.durationMs);
@@ -849,7 +853,7 @@ function signOut(): void {
   computer.close();
   furnishing.close();
   careerHUD.render(null,null);
-  shownPayments.clear();criticalNeeds.clear();lastTaskNotice.clear();notifications.reset();
+  shownPayments.clear();queueExpanded.clear();criticalNeeds.clear();lastTaskNotice.clear();notifications.reset();
 
 
   invites.close();

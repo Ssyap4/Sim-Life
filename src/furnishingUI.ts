@@ -61,6 +61,8 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
   let category:FurnitureCategory|'all'='all';
   let style:FurnitureStyle|'all'='all';
   let search='';
+  let groupFilter='all';
+  let affordableOnly=false;
   let finish:FurnitureFinish='oak';
   let quantity=1;
   let filtersExpanded=false;
@@ -134,6 +136,15 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     design.value=style;
     design.addEventListener('change',()=>{style=design.value as typeof style;renderCards(state);});
     filters.append(searchInput);
+    const quick=node('div','furnish-catalog-quick','');
+    const groupSelect=document.createElement('select');groupSelect.setAttribute('aria-label','Тип мебели');
+    for(const [id,label] of [['all','Все типы'],...Object.entries(FURNITURE_GROUP_LABELS)]){
+      const option=document.createElement('option');option.value=id;option.textContent=label;groupSelect.append(option);
+    }
+    groupSelect.value=groupFilter;
+    groupSelect.addEventListener('change',()=>{groupFilter=groupSelect.value;renderCards(state);});
+    const affordable=button('По бюджету',()=>{affordableOnly=!affordableOnly;affordable.setAttribute('aria-pressed',String(affordableOnly));renderCards(state);});
+    affordable.setAttribute('aria-pressed',String(affordableOnly));quick.append(groupSelect,affordable);
     const tint=document.createElement('select');tint.setAttribute('aria-label','Цвет и материал мебели');
     for(const id of FINISH_IDS){
       const option=document.createElement('option');option.value=id;option.textContent=FURNITURE_FINISHES[id].name;
@@ -151,16 +162,14 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     extra.open=window.matchMedia('(max-width:640px) and (orientation:portrait)').matches
       ? filtersExpanded : true;
     const toggle=document.createElement('summary');
-    toggle.textContent='⚙ Категория, стиль, цвет и количество';
+    toggle.textContent='Дополнительные фильтры · цвет и количество';
     const secondary=node('div','furnish-filter-options','');
     secondary.append(select,design,tint,qty);
     extra.append(toggle,secondary);
     extra.addEventListener('toggle',()=>{filtersExpanded=extra.open;});
     const list=node('div','furnish-grid','');
     list.dataset.furnishCards='';
-    body.append(filters,extra,
-      node('p','furnish-instructions','Выбери предмет и доставку. Цвет, стиль и количество меняются в фильтрах.'),
-      list);
+    body.append(filters,quick,extra,node('p','furnish-results',''),list);
     renderCards(state);
     if(focused){
       const elements=Array.from(body.querySelectorAll<HTMLInputElement|HTMLSelectElement>('input,select'));
@@ -186,7 +195,10 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     const matching=SORTED_FURNITURE_CATALOG.filter(info=>info.category!=='decor'&&
       (category==='all'||category===info.category)&&
       (style==='all'||furnitureStyle(info.id)===style)&&
+      (groupFilter==='all'||furnitureDisplayGroup(info)===groupFilter)&&
+      (!affordableOnly||info.price*quantity+Math.min(FURNITURE_DELIVERY.regular.fee,FURNITURE_DELIVERY.express.fee)<=state.money)&&
       (!query||(info.name+' '+info.description+' '+FURNITURE_CATEGORIES[info.category]).toLocaleLowerCase('ru-RU').includes(query)));
+    const result=body.querySelector<HTMLElement>('.furnish-results');if(result)result.textContent='Найдено: '+matching.length+' · '+FURNITURE_FINISHES[finish].name+' · ×'+quantity;
     if(!matching.length){list.append(node('p','furnish-empty','Ничего не найдено. Попробуй другое название.'));return;}
     const groupTotals=new Map<string,number>();
     for(const info of matching){
@@ -221,9 +233,10 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       const desc=node('div','furnish-card-copy','');
       desc.append(node('strong','',info.name),
         node('small','furnish-style',FURNITURE_STYLES[furnitureStyle(info.id)]),
-        node('small','',info.description),
-        node('small','furnish-dimensions',info.width+' × '+info.depth+' м · '+info.height+' м высота'),
         node('strong','furnish-price',formatRub(info.price*quantity)));
+      const details=document.createElement('details');details.className='furnish-item-details';
+      details.append(node('summary','','Характеристики'),node('p','',info.description),
+        node('p','furnish-dimensions',info.width+' × '+info.depth+' м · '+info.height+' м высота'));
       const grade=furnitureComfort(info.id);
       if(grade){
         const quality=node('small','furnish-comfort','Комфорт '+grade+'/5 · '+'★'.repeat(grade)+'☆'.repeat(5-grade));
@@ -244,7 +257,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
         buy.title='С учётом стоимости доставки '+formatRub(config.fee);
         purchase.append(buy);
       }
-      card.append(image,desc,purchase);list.append(card);
+      card.append(image,desc,details,purchase);list.append(card);
     }
   }
   function renderDeliveries(state:GameState){

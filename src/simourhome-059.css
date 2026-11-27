@@ -149,3 +149,39 @@
  #app #message.notice-stack{top:calc(var(--hud-top,114px) + 57px);max-height:calc(65dvh - var(--hud-top,114px));overflow:auto}
  #app:has(:is(#phone-overlay,#computer-overlay,#furnishing-overlay,#market-overlay,#jobs-overlay,#car-ride):not([hidden])) #message.notice-stack{top:max(10px,env(safe-area-inset-top));max-height:60dvh}
 }
+#app .running-task[data-peer=true]{grid-template-columns:minmax(0,1fr);gap:4px;padding:7px 10px}
+#app .running-task[data-peer=true] .running-task-top{grid-column:1}
+#app .running-task[data-peer=true] .running-task-track{grid-column:1;height:3px}
+#app .running-task-top strong{white-space:normal;overflow-wrap:anywhere;line-height:1.35;font-size:12px}
+#app .running-task-top .task-seconds{font-size:11px;max-width:45%;text-align:right}
+#app .running-task-track{height:5px}
+#app .task-cancel,#app .task-focus,#app .running-task .social-button{min-height:44px}
+#app .queued-task-list{display:block;padding:5px 8px;min-width:0}
+#app .queued-task-list>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;list-style:none}
+#app .queued-task-list>summary::-webkit-details-marker{display:none}
+#app .queued-task-list>summary:after{content:'⌄';margin-left:auto;font-size:17px}
+#app .queued-task-list[open]>summary:after{content:'⌃'}
+#app .queued-task-list .queued-task-row{margin-bottom:4px}
+#app .queued-task-row span{white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+#app .queue-clear{min-height:44px;width:100%}
+#app .queue-preview{font-weight:500;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+#app .queued-task-list[open] .queue-preview{display:none}
+#app .task-panel{max-height:min(37dvh,310px);overscroll-behavior:contain}
+#app .furnish-catalog-quick{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px;margin-bottom:8px;align-items:center}
+#app .furnish-catalog-quick select{width:100%;min-width:0;font:inherit;font-size:16px;min-height:44px;background:white;color:#37594a;border:1px solid #d5dfd4;border-radius:10px;padding:7px}
+#app .furnish-catalog-quick button{min-height:44px;font-size:11px;border:1px solid #c8d8ca;color:#37594a;border-radius:10px;background:#eef3ed;font-weight:750}
+#app .furnish-catalog-quick button[aria-pressed=true]{background:#365b4d;color:white}
+#app .furnish-results{font-size:12px;color:#526b5b;font-weight:700;margin:9px 0}
+#app .furnish-tabs button,#app .furnish-head button,#app .furnish-card-actions button,#app .furnish-line-buttons button{min-height:44px}
+#app .furnish-card-copy strong{overflow-wrap:anywhere}
+#app .furnish-item-details{font-size:11px;color:#526b5b;line-height:1.45}
+#app .furnish-item-details summary{cursor:pointer;min-height:28px;padding:5px 0;font-weight:700}
+#app .furnish-item-details p{margin:4px 0;overflow-wrap:anywhere}
+#app .furnish-card .furnish-price{font-size:15px}
+@media(max-width:640px) and (orientation:portrait){
+ #app .task-panel{max-height:min(34dvh,280px)}
+ #app .running-task{padding:7px 8px}
+ #app .running-task-top strong{font-size:11px}
+ #app .furnish-card-icon{height:100px}
+ #app .furnish-card-copy .furnish-price{font-size:14px}
+}
