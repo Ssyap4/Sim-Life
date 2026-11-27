@@ -1,3 +1,4 @@
+import {JOURNAL_FILTERS,JOURNAL_PAGE_SIZE,journalEntries,journalSummary,type JournalFilter} from './shared/familyJournal';
 import { familyMoments, type FamilyMomentId } from './shared/familyMoments';
 import {
   activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
@@ -92,6 +93,7 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
   root.append(panel);
 }
 
+const journalViews=new WeakMap<HTMLElement,{filter:JournalFilter;limit:number}>();
 export function renderRelationship(root:HTMLElement,state:GameState,role:CharacterId,suggest:(group:SocialGroup,id?:string)=>void,
   onOffer:()=>void,offered:boolean,current:string|undefined,
   offerMoment:(id:FamilyMomentId)=>void,partnerOnline:boolean){
@@ -100,6 +102,7 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   const cover=node('header','','relationship-hero');
   cover.append(node('small','ДОМ, КОТОРЫЙ МЫ ДЕЛИМ'),node('h2','Влад и Алина'),
     node('p',p.lastTogether!==undefined&&now-p.lastTogether<=1440?'Сегодня уже нашли время друг для друга.':'Вместе можно прожить даже самый обычный день.'));
+  cover.append(button('Семейный дневник ↓',()=>pane.querySelector('.family-journal')?.scrollIntoView({block:'start'})));
   pane.append(cover);
   const evening=p.evening;
   const story=node('article','','relationship-event');
@@ -169,14 +172,33 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
     if(recent.childElementCount===3)break;
   }
   if(recent.childElementCount)pane.append(node('h3','Недавно вместе'),recent);
-  pane.append(node('h3','Воспоминания'));
-  if(!p.memories.length)pane.append(node('p','Первый совместный ужин, прогулка или другой особый момент появится здесь.'));
-  for(const m of p.memories.slice().reverse()){
-    const entry=node('article','','relationship-event');
-    entry.append(node('small',clockLabel(clockAt(m.at))),node('strong',SOCIAL_GROUPS[m.group][0]+' '+m.title),
-      node('p',m.description));
-    pane.append(entry);
+  const journal=node('section','','family-journal');
+  const view=journalViews.get(root)??{filter:'all' as JournalFilter,limit:JOURNAL_PAGE_SIZE};
+  journalViews.set(root,view);
+  const labels:Record<JournalFilter,string>={all:'Все',story:'Особенные',talk:'Разговоры',care:'Забота',home:'Дом',romance:'Нежность',fun:'Отдых'};
+  function renderJournal(){
+    const stats=journalSummary(p.memories),entries=journalEntries(p.memories,view.filter);
+    const heading=node('article','','journal-heading');
+    heading.append(node('small','НАША СЕМЕЙНАЯ ИСТОРИЯ'),node('h3','Семейный дневник'),node('p',stats.entries+' записей · '+stats.days+' игровых дней · '+stats.stories+' особенных моментов'));
+    const filters=node('nav','','journal-filters');filters.setAttribute('aria-label','Раздел дневника');
+    for(const filter of JOURNAL_FILTERS){
+      const b=button(labels[filter],()=>{view.filter=filter;view.limit=JOURNAL_PAGE_SIZE;renderJournal();});
+      b.setAttribute('aria-current',String(view.filter===filter));filters.append(b);
+    }
+    const list=node('div','','journal-list');
+    let day=-1;
+    for(const m of entries.slice(0,view.limit)){
+      const clock=clockAt(m.at);
+      if(clock.day!==day){day=clock.day;list.append(node('h4','Игровой день '+day,'journal-day'));}
+      const entry=node('article','','relationship-event');
+      entry.append(node('small',clockLabel(clock)),node('strong',SOCIAL_GROUPS[m.group][0]+' '+m.title),node('p',m.description));
+      list.append(entry);
+    }
+    if(!entries.length)list.append(node('p',p.memories.length?'В этом разделе пока нет записей.':'Ваши настоящие совместные события будут появляться здесь.'));
+    journal.replaceChildren(heading,filters,list);
+    if(entries.length>view.limit)journal.append(button('Показать ещё · '+(entries.length-view.limit),()=>{view.limit+=JOURNAL_PAGE_SIZE;renderJournal();}));
   }
+  renderJournal();pane.append(journal);
   root.replaceChildren(pane);
 }
 

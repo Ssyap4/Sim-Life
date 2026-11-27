@@ -1,0 +1,39 @@
+name: Family story 0.62 QA
+on:
+  push:
+    branches: [feat/family-story-062]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/family-story-062.test.ts server/tests/social.test.ts server/tests/family-life-056.test.ts server/tests/weekends-051.test.ts server/tests/relationships-046.test.ts
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-family-story-062.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: family-story-062-mobile
+          path: /tmp/simlife-family-story-062
+          retention-days: 7

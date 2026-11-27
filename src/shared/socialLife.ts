@@ -161,7 +161,7 @@ const contexts: Record<string,Context> = {shift:'shift',promotion:'promotion',ac
   shortBudget:'lowBudget',moneyCare:'lowBudget',petHungerHelp:'hungryPet',
   readyDinner:'readyFood',foodFreshness:'readyFood',emptyShelves:'lowPantry',
   savingMilestone:'savings',overspending:'overBudget',billAlert:'billDue'};
-const special = ['comfortHug','shoulder','softHug','closeHug','kiss','cheek','slowDance','promotion','afterWork','storyGame'];
+const special = ['favoriteDay','ourTradition','whatILove','smallVictory','comfortHug','shoulder','softHug','closeHug','kiss','cheek','slowDance','promotion','afterWork','storyGame'];
 const exchanges = (Object.keys(dialogue) as (keyof typeof dialogue)[]).flatMap(group=>dialogue[group].trim().split('\n').map((row):SocialActivity=>{
   const [id,title,a,b,...replies]=row.split('|');
   const motion=patterns[id]??'talk';

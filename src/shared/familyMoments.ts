@@ -1,3 +1,4 @@
+import {FAMILY_MEMORY_LIMIT} from './familyJournal';
 /** Grounded, optional two-person stories: no random popup, daily reward farming or
  * invented food. Existing server-authoritative tasks supply every physical action.
  * A moment is offered only if the current household can actually perform it. */
@@ -8,7 +9,7 @@ import type { CharacterId, GameState } from './protocol';
 import type { SocialIntent } from './socialLife';
 
 export type FamilyMomentId =
-  'afterShift'|'roughDay'|'petNeedsUs'|'shareDinner'|'goodNews'|'dishesTogether'|'simpleEvening';
+  'afterShift'|'roughDay'|'petNeedsUs'|'shareDinner'|'goodNews'|'dishesTogether'|'simpleEvening'|'morningTea'|'quietTogether'|'petAttention'|'freshAir'|'parkBreak'|'parkGame'|'cafeDate'|'campfireTalk'|'celebrateToday';
 export type FamilyMoment = {
   id:FamilyMomentId; emoji:string; title:string; description:string;
   action:string; item?:string; bonus:string;
@@ -34,8 +35,9 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
   const to=otherPerson(from),now=gameMinutes(state.clock),day=momentDay(now);
   // Prefer the ordinary multi-person menu during an unfinished dinner story.
   const evening=state.relationship.evening;
-  if(evening&&evening.phase!=='complete')return [];
-  if(state.world.places[from]!=='home'||state.world.places[to]!=='home')return [];
+  const place=state.world.places[from];
+  if(place==='home'&&evening&&evening.phase!=='complete')return [];
+  if(place!==state.world.places[to])return [];
   const already=state.relationship.memories.filter(m=>
     m.action.startsWith(FAMILY_MOMENT_PREFIX)&&momentDay(m.at)===day).length;
   if(already>=2)return [];
@@ -47,6 +49,7 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
     if(moment.item!==undefined&&!activityItems(a,state,from).some(item=>item.id===moment.item))return;
     options.push(moment);
   };
+  if(place==='home'){
   const tired=state.characters[to];
   if(tired.mood<=38||tired.energy<=38)add({
     id:'roughDay',emoji:'💛',title:'Сегодня нужен отдых',
@@ -89,6 +92,23 @@ export function familyMoments(state:GameState,from:CharacterId):FamilyMoment[]{
     description:'Сейчас разумнее поберечь деньги. Включите обычный бесплатный канал и посидите рядом на диване.',
     action:'tv',bonus:'Отдых вдвоём, без покупок и подписок',
   });
+  const pair=[from,to];
+  if(state.clock.minute>=6*60&&state.clock.minute<11*60&&state.pantry.tea>=2)add({
+    id:'morningTea',emoji:'☕',title:'Утро без спешки',description:'Две кружки чая и немного времени друг для друга перед началом дня.',action:'teaTogether',bonus:'Уютное утро вместе',
+  });
+  const lonely=PET_IDS.filter(id=>state.pets[id].happiness<45).find(id=>activityItems(SOCIAL_BY_ID.get('petPet')!,state,from).some(x=>x.id===id));
+  if(lonely)add({id:'petAttention',emoji:'🐾',title:'Время для питомца',description:petName(lonely)+' хочет внимания. Побудьте рядом с питомцем вдвоём.',action:'petPet',item:lonely,bonus:'Совместная забота'});
+  if(pair.some(id=>state.characters[id].social<50))add({id:'quietTogether',emoji:'💛',title:'Время друг для друга',description:'Сегодня хочется немного общения. Обнимитесь и спокойно посидите рядом.',action:'sofaHug',bonus:'Маленький момент близости'});
+  if(state.clock.minute>=10*60&&state.clock.minute<20*60&&pair.some(id=>state.characters[id].fun<50))add({id:'freshAir',emoji:'🌿',title:'Перерыв во дворе',description:'Сделайте паузу в домашних делах и немного прогуляйтесь вместе на свежем воздухе.',action:'walk',bonus:'Прогулка без расходов'});
+  add({id:'celebrateToday',emoji:'🎉',title:'Праздник вдвоём',description:'Сегодня особенный день. Поздравьте друг друга и сохраните этот момент.',action:'holidayWish',bonus:'Семейный праздник'});
+  }else if(place==='park'){
+    add({id:'parkBreak',emoji:'🌳',title:'Наш день в парке',description:'Остановитесь ненадолго и отдохните вместе на скамейке.',action:'parkRest',bonus:'Прогулка в семейном дневнике'});
+    add({id:'parkGame',emoji:'🏸',title:'Дружеское соревнование',description:'Сыграйте в бадминтон вдвоём. Главное — время вместе.',action:'parkBadminton',bonus:'Совместная игра'});
+  }else if(place==='cafe'){
+    add({id:'cafeDate',emoji:'☕',title:'Свидание в кафе',description:'За общим столиком можно помечтать о будущем и обсудить планы.',action:'cafeDreams',bonus:'Воспоминание о свидании'});
+  }else if(place==='lake'){
+    add({id:'campfireTalk',emoji:'🔥',title:'Вечер у костра',description:'Пока горит общий костёр, поблагодарите друг друга за поездку.',action:'lakeTalk:gratitude',bonus:'Тёплое воспоминание о природе'});
+  }
   return options.slice(0,Math.max(0,2-already));
 }
 
@@ -105,10 +125,10 @@ export function momentReward(state:GameState,from:CharacterId,moment:FamilyMomen
   // the food may be eaten and the bowl full, so never re-evaluate its old trigger.
   const now=gameMinutes(state.clock),to=otherPerson(from);
   state.relationship.memories.push({
-    action:FAMILY_MOMENT_PREFIX+moment.id,group:'care',at:now,
+    action:FAMILY_MOMENT_PREFIX+moment.id,group:SOCIAL_BY_ID.get(moment.action)?.group??'care',at:now,
     title:moment.title,description:moment.description+' '+moment.bonus+'.',
   });
-  state.relationship.memories=state.relationship.memories.slice(-40);
+  state.relationship.memories=state.relationship.memories.slice(-FAMILY_MEMORY_LIMIT);
   // Keep small contextual gains only when the moment is completed by both;
   // the physical chore, food and pet rewards come from the existing task.
   const p=state.characters[to],q=state.characters[from];

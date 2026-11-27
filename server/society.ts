@@ -1,3 +1,4 @@
+import {FAMILY_MEMORY_LIMIT} from '../src/shared/familyJournal';
 import {lakeTalkStation} from '../src/shared/socialLife';
 import {VENUE_GAMES,isVenueGame,venueStation,venueWinner,venueScore} from '../src/shared/venue';
 import {addLedger} from '../src/shared/economy';
@@ -33,7 +34,7 @@ import { bedCapacity, selectSleepBed } from '../src/shared/bedSleep';
 import { RESIDENT_CLEARANCE } from '../src/game/residentCollision';
 
 export const BOND_WINDOW=240;
-const MEMORY_LIMIT=40, RECENT_LIMIT=48;
+const MEMORY_LIMIT=FAMILY_MEMORY_LIMIT, RECENT_LIMIT=48;
 const fail=(reason:string):EvaluatedTask=>({ok:false,reason});
 
 export function validRelationship(value:unknown):value is Relationship {

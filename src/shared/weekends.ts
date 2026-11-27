@@ -1,3 +1,4 @@
+import {FAMILY_MEMORY_LIMIT} from './familyJournal';
 import type {CharacterId,GameState} from './protocol';
 import {VENUE_GAMES} from './venue';
 import {SPA_PASSES} from './spa';
@@ -89,7 +90,7 @@ export function applyWeekend(source:GameState,actor:CharacterId,cmd:Record<strin
   p.finishVotes.push(actor);
   if(p.finishVotes.length===2){
    s.relationship.memories.push({action:'familyWeekend:'+p.preset,group:'fun',at:gameMinutes(s.clock),title:WEEKEND_PRESETS[p.preset].title,description:'Провели время вместе: '+p.done.map(id=>WEEKEND_ACTIVITIES[id].title).join(', ')+'.'});
-   s.relationship.memories=s.relationship.memories.slice(-40);delete w.plan;w.version++;
+   s.relationship.memories=s.relationship.memories.slice(-FAMILY_MEMORY_LIMIT);delete w.plan;w.version++;
    return ok('Семейный день сохранён в воспоминаниях.');
   }
   return ok('Предложено завершить день. Нужен ответ второго игрока.');
