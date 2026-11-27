@@ -1,3 +1,4 @@
+import type {NoticeInput} from './shared/notices';
 import { clockLabel, gameMinutes, NEED_INFO, VITAL_NEEDS, type VitalNeed } from './shared/life';
 import { thoughtFor, foodSupplyProblem } from './shared/autonomy';
 import { REWARDS, REWARD_IDS, activeReward, gameReward, rewardTime, type RewardId } from './shared/happiness';
@@ -43,7 +44,7 @@ function saveLocal(keyName:string,data:unknown):void{
 export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:CharacterId}|null,
   beforeOpen:()=>void,openPhone:()=>void,
   performWish:(role:CharacterId,command:WishCommand)=>boolean,
-  rewardAction:(type:'happiness_buy'|'happiness_activate',id:RewardId)=>boolean=()=>false){
+  rewardAction:(type:'happiness_buy'|'happiness_activate',id:RewardId)=>boolean=()=>false,sendNotice?:(notice:NoticeInput)=>void){
   root.innerHTML=`
     <button id="thought-trigger" class="thought-trigger" type="button" aria-expanded="false"
       aria-controls="thought-panel" aria-label="Желания персонажа">💭 <span>Желания</span></button>
@@ -119,6 +120,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
   const alerted=new Map<string,number>();
   const dismissPop=()=>{if(popTimer!==undefined)clearTimeout(popTimer);popTimer=undefined;pop.hidden=true;};
   function showPop(icon:string,title:string,body:string,value?:number,urgent=false){
+    if(sendNotice){lastPopAt=performance.now();sendNotice({title,message:body,kind:urgent?'warning':'info',target:title.includes('Нет еды')?'delivery':value===undefined?'autonomy':'needs'});return;}
     dismissPop();
     pop.querySelector('.life-pop-icon')!.textContent=icon;
     pop.querySelector('strong')!.textContent=title;
@@ -141,7 +143,7 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
       alerted.set('food',minute);
       showPop('🛒',name+' · Нет еды','Нужны продукты. Пополни запасы через телефон.',person.hunger,true);return;
     }
-    const need=low.find(n=>person[n]<=50&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
+    const need=low.find(n=>person[n]>15&&person[n]<=(state.autonomy[role]==='off'?50:25)&&minute-(alerted.get('need:'+n)??-Infinity)>=90);
     if(need){
       alerted.set('need:'+need,minute);
       const info=NEED_INFO[need],wish=wishesFor(state,role).find(w=>w.need===need),thought=thoughtFor(state,role);

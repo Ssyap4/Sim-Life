@@ -1,3 +1,5 @@
+import {createNotifications} from './notificationsUI';
+import type {NoticeInput} from './shared/notices';
 import {residentLook} from './shared/lake';
 import {CARE,careScore,careEffects,careRole,homeCare,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
@@ -96,8 +98,8 @@ let taskPauseTotal = 0;
 const taskNow = () => (taskPauseStart ?? performance.now()) - taskPauseTotal;
 let selectedRole: CharacterId = 'vlad';
 let localPreviewNoCodes=false;
-let toastTimer: number | undefined;
-let paymentNoticeTimer: number | undefined;
+
+
 const shownPayments = new Map<ServiceId, number>();
 const displayClock = new GameClockDisplay();
 let previousClockMinute = -1;
@@ -179,10 +181,9 @@ app.innerHTML = `
   <div id="map-panel" class="world-map" role="dialog" aria-label="Карта района" hidden></div>
   <div id="world-transition" aria-hidden="true"></div>
   <section id="car-ride" aria-label="Поездка на автомобиле" hidden><div class="ride-top"><small>SimOurHome · В ДОРОГЕ</small><strong id="ride-destination"></strong></div><div class="ride-bottom"><span id="ride-route"></span><div class="ride-track" role="progressbar" aria-label="Поездка"><i id="ride-progress"></i></div><small>Загружаем локацию…</small></div></section>
-  <div id="message" class="message" aria-live="polite"></div>
-  <aside id="payment-notice" class="payment-notice" hidden>
-    <span role="status"></span><button type="button">К платежам</button>
-  </aside>
+  <div id="message" class="notice-stack" aria-live="polite"></div>
+  <button id="notice-bell" type="button" aria-label="Уведомления" aria-expanded="false" aria-controls="notice-history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" stroke-linecap="round" stroke-linejoin="round"/></svg><small hidden>0</small></button>
+  <section id="notice-history" hidden aria-label="Журнал событий"><div class="notice-history-panel"><header class="notice-history-head"><strong>События дома</strong><button type="button" data-notice-close aria-label="Закрыть журнал">×</button></header><div class="notice-history-list"></div></div></section>
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
   <section id="movie-invite" class="movie-invite" hidden aria-live="polite"></section>
   <section id="phone-overlay" class="phone-overlay" hidden></section>
@@ -254,7 +255,10 @@ const taskPanelEl = document.querySelector<HTMLDivElement>('#task-panel')!;
 const timePanelEl = document.querySelector<HTMLDivElement>('#time-panel')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const messageEl = document.querySelector<HTMLDivElement>('#message')!;
-const paymentNotice = document.querySelector<HTMLElement>('#payment-notice')!;
+const notifications=createNotifications(messageEl,document.querySelector<HTMLElement>('#notice-history')!,document.querySelector<HTMLButtonElement>('#notice-bell')!,target=>{
+  actionsEl.hidden=true;locationUI.close();computer.close();phone.close();
+  if(target==='needs')toggleNeeds(true);else if(target==='pets')openPetActions();else phone.open(target);
+});
 const authEl = document.querySelector<HTMLElement>('#auth')!;
 const authStatusEl = document.querySelector<HTMLElement>('#auth-status')!;
 const accessInput = document.querySelector<HTMLInputElement>('#access-code')!;
@@ -336,27 +340,39 @@ showcaseChoices.addEventListener('click', (event) => {
 });
 
 import {humanHealth,petHealth,healthStatus} from './shared/health';
-function notify(message: string): void {
-  messageEl.textContent = message;
-  messageEl.classList.add('show');
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => messageEl.classList.remove('show'), 3600);
+const lastTaskNotice=new Map<CharacterId,{message:string;at:number}>();
+function taskEcho(role:CharacterId,message:string){const last=lastTaskNotice.get(role);return !!last&&last.message===message&&performance.now()-last.at<2000;}
+function notify(message:string,options:Omit<NoticeInput,'message'>={}):void{
+  if(active)notifications.push({message,...options});
 }
-
+const criticalNeeds=new Set<string>();
+function checkCriticalNeeds(household:GameState){
+ if(!active)return;
+ const character=household.characters[active];
+ const needs=[['hunger','Сильный голод'],['energy','Сильная усталость'],['bladder','Срочно нужен туалет'],['hygiene','Очень низкая гигиена']] as const;
+ for(const [key,label] of needs){
+  const value=character[key];
+  if(value>=35)criticalNeeds.delete(key);
+  if(value<=15&&!criticalNeeds.has(key)){
+   criticalNeeds.add(key);notify(label+' · '+Math.round(value)+'%',{title:'Критическая потребность',kind:'urgent',target:'needs',key:'need:'+key});
+  }
+ }
+ for(const pet of PET_IDS){
+  const key='pet:'+pet,value=household.pets[pet].satiety;
+  if(value>=40)criticalNeeds.delete(key);
+  if(value<=15&&!criticalNeeds.has(key)){
+   criticalNeeds.add(key);notify(PETS[pet].name+' сильно проголодался'+(household.petBowls[pet]===0?' · миска пуста.':''),{title:'Питомцу нужна помощь',kind:'urgent',target:'pets',key});
+  }
+ }
+}
 function showUpcomingPayments(household: GameState): void {
   const fresh = upcomingPayments(household.billing, gameMinutes(household.clock))
     .filter(payment => payment.amount !== null && shownPayments.get(payment.id) !== payment.due);
   const first = fresh[0];
   if (!first) return;
   for (const { id, due } of fresh) shownPayments.set(id, due);
-  paymentNotice.querySelector('span')!.textContent = fresh.length === 1 && first.amount !== null
-    ? 'В течение игрового дня · ' + SERVICES[first.id].name + ' · ' + formatRub(first.amount)
-    : 'В течение игрового дня · платежей: ' + fresh.length;
-  paymentNotice.hidden = false;
-  window.clearTimeout(paymentNoticeTimer);
-  paymentNoticeTimer = window.setTimeout(() => { paymentNotice.hidden = true; }, 9000);
+  for(const payment of fresh)if(payment.amount!==null)notify(SERVICES[payment.id].name+' · '+formatRub(payment.amount)+' · в течение игрового дня',{title:'Скоро платёж',kind:'warning',target:'finance',key:'due:'+payment.id+':'+payment.due});
 }
-
 function drawTaskPanel(): void {
   taskPanelEl.replaceChildren();
   taskPanelEl.hidden = tasks.size === 0 && ![...waitingTasks.values()].some(rows=>rows.length);
@@ -750,8 +766,7 @@ function render(reset = false): void {
     }
   }
   renderClock();
-  thoughts.refresh();
-  showUpcomingPayments(state);
+  checkCriticalNeeds(state);showUpcomingPayments(state);thoughts.refresh();
   const lowBladder = !!active && state.characters[active].bladder < LOW_BLADDER;
   needsToggleEl.classList.toggle('needs-alert', lowBladder);
   needsToggleEl.setAttribute('aria-label', lowBladder ? 'Потребности. ' + NEED_INFO.bladder.hint : 'Потребности');
@@ -834,9 +849,9 @@ function signOut(): void {
   computer.close();
   furnishing.close();
   careerHUD.render(null,null);
-  shownPayments.clear();
-  paymentNotice.hidden = true;
-  window.clearTimeout(paymentNoticeTimer);
+  shownPayments.clear();criticalNeeds.clear();lastTaskNotice.clear();notifications.reset();
+
+
   invites.close();
   socialInvite.clear();
   feedback.clear();
@@ -867,7 +882,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
     if(command.type==='eat_takeout')return net.eatTakeout(command.item);
     if(command.type==='pet_action')return net.petAction(command.pet,command.action);
     return false;
-  },(type,id)=>net.happiness(type,id));
+  },(type,id)=>net.happiness(type,id),notice=>notifications.push(notice));
 const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!,marketOverlay,jobsOverlay,
   () => state && active ? {state,role:active,online,time:timeStatus,clock:clockAt(displayClock.read(performance.now()))} : null,
   household => marketUI.open(household),(household,role) => jobsUI.open(household,role),
@@ -944,11 +959,6 @@ function openEducation(view: EducationView, room?: string) {
   locationUI.close();
   phone.openEducation(view, room);
 }
-paymentNotice.querySelector('button')!.addEventListener('click', () => {
-  paymentNotice.hidden = true;
-  actionsEl.hidden = true;
-  phone.open('finance');
-});
 const entertainmentMenu = homeLifeMenu(actionsEl,showActionMenu,command=>net.entertainment(command),genre=>net.social({type:'social_propose',action:'film',item:genre}),
   () => state, () => active, where => phone.open(where), openEducation,id=>net.social({type:'social_propose',action:'consoleTogether',item:id}),()=>phone.open('consoles'));
 const socialInvite=createSocialOffer(document.querySelector<HTMLElement>('#social-invite')!,command=>net.social(command),taskNow);
@@ -983,7 +993,7 @@ const net = new LiveConnection({
     actionsEl.hidden = true;
     world.setActive(role);
     render(true);
-    notify('🏡 С возвращением, ' + names[role] + '!');
+    notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
   },
   onSnapshot(household) {
     if (!state || household.revision >= state.revision) {
@@ -996,7 +1006,7 @@ const net = new LiveConnection({
       state = household;
       render();
       if (last && !known) notify(last.title);
-      if(healthMessages.length)notify('🏥 '+healthMessages.join(' · '));
+      for(const message of healthMessages)notify(message);
       marketUI.refresh(household);
       jobsUI.refresh(household);
     }
@@ -1051,41 +1061,41 @@ const net = new LiveConnection({
     });
   },
   onWorldEvent(role, message) {
-    if (role === active) notify(message);
+    if (role === active && !taskEcho(role,message)) notify(message);
   },
   onBillingEvent(messages) {
     const updates = messages.filter(message => !message.includes(PAYMENT_REMINDER_PREFIX));
     if (!updates.length) return;
     phone.billingMessages(updates);
-    notify(updates.length > 2 ? updates[0] + ' · ещё ' + (updates.length - 1) + ' в телефоне' : updates.join(' · '));
+    for(const message of updates)notify(message);
   },
   onReadyFoodSpoiled(message) {
-    notify(message);
+    notify(message,{title:'Еда испортилась',kind:'warning'});
   },
   onDeliveryArrived() {
-    notify('Доставка у двери дома');
+    notify('Заказ прибыл. Заберите пакеты у входа в дом.',{title:'Доставка прибыла',kind:'success'});
   },
   onAction(_role, _actionId, message) {
     statusEl.textContent = message;
-    notify(message);
+    if(_role===active&&!taskEcho(_role,message))notify(message);
   },
   onFoodEvent(_role, _action, message) {
     statusEl.textContent = message;
-    notify(message);
+    if(_role===active&&!taskEcho(_role,message))notify(message);
   },
   onStoreEvent(role,message) {
     if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();subtleHaptic('confirm');}
     statusEl.textContent=message;
-    notify(message);
+    notify(message,{title:'Покупки и доставка',kind:'success'});
   },
   onJobEvent(_role,_outcome,message) {
     statusEl.textContent=message;
-    notify(message);
+    notify(message,{title:_outcome==='started'?'Рабочая смена':'Результат работы',kind:_outcome==='started'?'info':'success'});
   },
   onPetEvent(_role, _pet, _action, message) {
     if(_action==='treat'||_action==='fishTreat')world.showPetTreat(_pet);
     statusEl.textContent = message;
-    notify(message);
+    if(_role===active&&!taskEcho(_role,message))notify(message);
   },
   onHomeLeisure(roles, activity, routes) {
     world.setHomeLeisure(roles, activity, routes);
@@ -1137,12 +1147,14 @@ const net = new LiveConnection({
   onMovieOfferClosed(inviteId,message) { invites.close(inviteId);notify(message); },
   onTaskEnded(role, taskId, outcome, message, effects) {
     const previous = tasks.get(role);
+    if(previous?.taskId===taskId)lastTaskNotice.set(role,{message,at:performance.now()});
     if (previous?.taskId === taskId) {
       if (outcome === 'completed') {
         world.finishTimedAction(role);
         feedback.show(role,previous.label,effects);
         statusEl.textContent=message;
-        if(role===active&&message.includes('✨ Желание исполнено'))notify(message.slice(message.indexOf('✨ Желание исполнено')));
+        if(role===active&&message.includes('✨ Желание исполнено'))notify(message.slice(message.indexOf('✨ Желание исполнено')),{title:'Желание исполнено',kind:'success'});
+        else if(role===active&&!previous.automatic)notify(message,{title:'Действие завершено',kind:'success'});
       }
       tasks.delete(role);
       syncResidentLook(role);
@@ -1151,14 +1163,14 @@ const net = new LiveConnection({
     }
     if (outcome !== 'completed') {
       if (previous?.taskId === taskId) world.cancelTimedAction(role);
-      if (previous?.automatic) return;
+      if (previous?.automatic||role!==active) return;
       statusEl.textContent = message;
       notify(message);
     }
   },
   onConversation(from,remainingMs,title){
     world.nearbyConversation(from,remainingMs);
-    if(remainingMs>0)notify('💬 '+title);
+    if(remainingMs>0)notify('💬 '+title,{title:'Разговор'});
   },
   onSocialOffer(offer){
     if(!active)return;
@@ -1179,6 +1191,7 @@ const net = new LiveConnection({
   },
   onError(reason) {
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
+      notify(reason,{title:'Симба мешает',kind:'warning'});
       phone.close();computer.close();
       showActionMenu('🐈 Симба');
       const note=document.createElement('p');note.className='food-empty';note.textContent=reason;actionsEl.append(note);
@@ -1206,12 +1219,13 @@ const net = new LiveConnection({
         actionsEl.hidden = true;
       authStatusEl.textContent = reason;
     } else {
-      notify(reason);
+      notify(reason,{title:'Не удалось выполнить действие',kind:'warning'});
       if (state) {marketUI.refresh(state); jobsUI.refresh(state);} // failed action: re-enable controls
     }
   },
   onStatus(text) {
     if (text.includes('Связь потеряна')) {
+      notify(text,{title:'Соединение потеряно',kind:'urgent',key:'disconnect'});
       for (const role of tasks.keys()) world.cancelTimedAction(role);
       tasks.clear();
       drawTaskPanel();
@@ -1840,6 +1854,7 @@ document.querySelector<HTMLFormElement>('#auth-form')!.addEventListener('submit'
 installMobileBack({
   root:app,
   isOpen:()=>authEl.hidden && (
+    notifications.visible ||
     !document.querySelector<HTMLElement>('#pause-sheet')!.hidden ||
     !document.querySelector<HTMLElement>('#phone-overlay')!.hidden ||
     !document.querySelector<HTMLElement>('#computer-overlay')!.hidden ||
@@ -1851,6 +1866,7 @@ installMobileBack({
     !showcaseChoices.hidden || !showcaseReturn.hidden
   ),
   closeTop:()=>{
+    if(notifications.visible){notifications.close();return;}
     const visible=(selector:string)=>!document.querySelector<HTMLElement>(selector)!.hidden;
     if(visible('#pause-sheet')){notify('Пауза общая · для продолжения нажми ▶');return;}
     if(visible('#furnishing-placement')||visible('#furnishing-overlay')){furnishing.close();return;}
