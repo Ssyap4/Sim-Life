@@ -38,7 +38,9 @@ try{
  }else await send({type:'car_travel',place:'market'});
  await page.locator('#car-ride').waitFor({state:'visible',timeout:10000});
  await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=12);
- await page.waitForTimeout(300);await shot('01-travel');
+ await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('#car-ride')).opacity)>=.99);
+ await page.evaluate(()=>window.__socket.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'billing_event',messages:['QA travel notice']})})));
+ await page.waitForTimeout(300);assert.equal(await page.locator('#message .notice-card').count(),0);await shot('01-travel');
  await page.evaluate(()=>{const r=window.__packets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad).state.world.carRides.vlad;window.__qaRideTime=r.startedAt+(r.endsAt-r.startedAt)*.59;});
  await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=58,undefined,{timeout:10000});
  await page.waitForTimeout(300);assert.ok(await page.locator('#car-ride').isVisible());await shot('01b-side');
@@ -50,6 +52,11 @@ try{
  await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
  assert.ok(await page.locator('#app').getAttribute('data-place')===mode);
  await page.waitForFunction(()=>!document.querySelector('#world-transition')?.hasAttribute('data-pending-place'));
+ await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('#world-transition')).opacity)<=.01);
+ assert.equal(await page.getByText('Вы дома',{exact:true}).count(),0);
+ await page.locator('#notice-bell').click();await page.locator('#notice-history').waitFor({state:'visible'});
+ assert.equal(await page.locator('#notice-history').getByText('QA travel notice',{exact:true}).count(),1);
+ await page.locator('#notice-history [data-notice-close]').click();
  await shot('02-arrived');
  if(['market','resort','grooming'].includes(mode)){
    const exit=mode+'-exit';await send({type:'approach',place:mode,station:exit});

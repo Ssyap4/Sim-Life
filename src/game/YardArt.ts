@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {freezeLocalTransforms} from './StaticTransforms';
 import { GRILL_RECIPES, type RecipeId } from '../shared/food';
 import { DINING_TOP, HOME_YARD, HOME_FLOOR, LOUNGE_HOOKAH_BASE, furniturePosition } from '../shared/home';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, paintedMap, plane, softCube, type XYZ } from './ArtKit';
@@ -335,6 +336,9 @@ export function buildYard(scene: THREE.Scene) {
   gardenLampFixtures(yard);
   batchRigidParts(yard, true);
   const night=eveningGarden(yard);
+  // The yard shell changes visibility and shader uniforms only; furniture
+  // and grill effects below retain their live transforms.
+  freezeLocalTransforms(yard);
   scene.add(yard);
   const furniture = grillAndTable();
   // Smoke and ember FX are visual-only overlays. Detach them from the

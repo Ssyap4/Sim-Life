@@ -50,3 +50,10 @@ test('seasonal materials share uniforms and preserve existing shader hooks',()=>
  lawn.onBeforeCompile(turf,null as any);
  assert.ok(turf.fragmentShader.includes('float mask=1.0;')&&turf.fragmentShader.includes('snowCover*(.89+.08*patches)'));
 });
+test('forecast cache is isolated from mutable clocks and returned values',()=>{
+ const clock={day:10,minute:360},first=weatherAt(clock),expected={...first};
+ first.snow=999;first.temp=999;assert.deepEqual(weatherAt(clock),expected);
+ clock.minute=721;assert.deepEqual(weatherAt(clock),weatherAt({day:10,minute:721}));
+ clock.day=28;assert.equal(weatherAt(clock).season,'winter');assert.equal(weatherAt(clock).snow,1);
+ clock.day=10;clock.minute=360;assert.deepEqual(weatherAt(clock),expected);
+});

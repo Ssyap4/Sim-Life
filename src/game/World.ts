@@ -3102,6 +3102,9 @@ export class World {
     const current = this.defaultFrame;
     this.defaultFrame = this.homeFrame(compact, band);
     const nextFrame=this.neighborhoodView ? this.neighborCameraFrame() : this.defaultFrame;
+    // The automatic fit must not be clamped by a smaller manual zoom limit
+    // on narrow screens. Keep the existing limit whenever it already fits.
+    if(this.remote&&compact)this.controls.maxDistance=Math.max(this.controls.maxDistance,nextFrame.position.distanceTo(nextFrame.target)+.01);
     if (this.cameraMove) {
       this.cameraMove = nextFrame;
     } else if (this.neighborhoodView || !current ||
@@ -3624,8 +3627,8 @@ export class World {
         this.canvas.dataset.cottageLampLevel=String((this.cottageLamps?.bedroom.intensity??0)/10);
         this.canvas.dataset.yardLamps=this.yard.night.visible?'on':'off';
       }
-      this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
+      this.yard.landscape.detail(this.camera,this.quality==='low');
     }
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,far:this.camera.far,fogFar:this.scene.fog instanceof THREE.Fog?this.scene.fog.far:null,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,entered:this.agilityAction!==undefined&&!this.agilityWaiting,exit:this.agilityQAExit,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},groomContactError:this.remote?.root.userData.groomContactError,groomAction:this.remote?.root.userData.groomAction?.action,groomStage:this.remote?.root.userData.groomAction?groomingStage(this.remote.root.userData.groomAction.action,this.remote.root.userData.groomAction.elapsed??0):undefined,pets:Object.fromEntries(PET_IDS.map(id=>[id,{visible:this.pets[id].root.visible,position:this.pets[id].root.position.toArray(),care:this.pets[id].resortCareQA()}])),resortMedia:this.remote?.root.userData.resortMedia?.id,actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA(),gamepadGrip:this.actors[r].gamepadGripError()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if(this.place==='home')this.renovationCeilings?.camera(this.camera.position,this.controls.target,this.renovationPreview);

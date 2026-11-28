@@ -202,3 +202,14 @@
 @media(max-width:700px){
  #app #message.notice-stack{width:min(360px,calc(100% - 20px));max-height:calc(65dvh - var(--hud-top,114px));overscroll-behavior:contain}
 }
+/* 0.71: compact non-urgent live cards; the history and critical details stay complete. */
+#app #message .notice-card[data-action=true]:is([data-kind=info],[data-kind=success]) .notice-body{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:5px;
+}
+#app #message .notice-card[data-action=true]:is([data-kind=info],[data-kind=success]) .notice-body strong{grid-column:1/-1}
+#app #message .notice-card:is([data-kind=info],[data-kind=success]) .notice-body p{
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;
+}
+#app #message .notice-card[data-action=true]:is([data-kind=info],[data-kind=success]) .notice-link{
+ margin-top:0;max-width:106px;white-space:normal;
+}

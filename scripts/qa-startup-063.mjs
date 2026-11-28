@@ -24,6 +24,7 @@ try{
    assert.equal(await cover.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
    await page.screenshot({path:join(out,'boot-'+width+'.png')});release();
    await page.locator('.enter-button:enabled').waitFor({timeout:90000});
+   assert.equal(await page.locator('[data-app-version]').innerText(),JSON.parse((await import('node:fs')).readFileSync('package.json','utf8')).version);
    await page.screenshot({path:join(out,'menu-'+width+'.png')});
    await page.locator('[data-role='+role+']').click();await page.locator('.enter-button').click();
    await page.locator('#auth').waitFor({state:'hidden',timeout:30000});

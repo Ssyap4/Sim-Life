@@ -1,4 +1,5 @@
 import './renovation.css';
+import {version as appVersion} from '../package.json';
 import {isDogAgility,DOG_AGILITY} from './shared/dogAgility';
 import {catManualToys,type CatPlayCommand} from './shared/petToys';
 import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
@@ -256,7 +257,7 @@ app.innerHTML = `
       <button class="enter-button" type="submit" disabled>Продолжить за Влада</button>
       <p class="auth-status" id="auth-status" role="status" aria-live="polite">Готовим ваш мир…</p>
       <details class="title-settings"><summary>Настройки музыки</summary><label class="title-volume"><span>Громкость</span><input id="title-volume" type="range" min="0" max="100" step="5" aria-label="Громкость музыки"><output id="title-volume-value"></output></label></details>
-      <footer class="title-footer"><span>Один дом · две жизни</span><span>0.63</span></footer>
+      <footer class="title-footer"><span>Один дом · две жизни</span><span data-app-version>${appVersion}</span></footer>
     </form>
   </section>
   <div class="rotate-notice">Для SimOurHome поверни телефон вертикально ↻</div>
@@ -761,15 +762,18 @@ function refreshCarRide():void{
   const screen=document.querySelector<HTMLElement>('#car-ride')!;
   screen.hidden=!ride;
   app!.classList.toggle('car-riding',!!ride);
+  notifications.setSuspended(!!ride);
   for(const child of Array.from(app!.children))if(child instanceof HTMLElement&&child!==screen&&child.id!=='game-canvas')child.inert=!!ride;
   world?.setCarRide(ride);
   if(!ride){if(state&&active&&world)beginSceneTransition(state.world.places[active]);return;}
   document.querySelector<HTMLElement>('#ride-destination')!.textContent=ride.to==='home'?'Возвращаемся домой':'Едем: '+PLACES[ride.to].name;
   document.querySelector<HTMLElement>('#ride-route')!.textContent=PLACES[ride.from].name+' → '+PLACES[ride.to].name;
+  const progress=document.querySelector<HTMLElement>('#ride-progress')!;
+  const track=screen.querySelector('.ride-track');
   const tick=()=>{
     const p=rideProgress(ride);
-    document.querySelector<HTMLElement>('#ride-progress')!.style.transform='scaleX('+p+')';
-    screen.querySelector('.ride-track')?.setAttribute('aria-valuenow',String(Math.round(p*100)));
+    progress.style.transform='scaleX('+p+')';
+    track?.setAttribute('aria-valuenow',String(Math.round(p*100)));
     if(p>=1)refreshCarRide();
   };
   rideTimer=window.setInterval(tick,80);tick();
@@ -823,7 +827,7 @@ function render(reset = false): void {
   needsToggleEl.classList.toggle('health-alert',sick);
   needsToggleEl.title = sick&&active?healthStatus(state,active):lowBladder ? NEED_INFO.bladder.hint : '';
   if(sick)needsToggleEl.setAttribute('aria-label','Потребности · недомогание');
-  world?.setTimeOfDay(gameMinutes(state.clock));
+  // syncHousehold already applies the authoritative scene clock above.
   phone.refresh();
   skillsPanel.refresh();
   computer.refresh();
@@ -1066,7 +1070,6 @@ const net = new LiveConnection({
     world.setActive(role);
     render(true);
     if(reconnecting){notifications.resolve('disconnect');notify('Связь восстановлена',{title:'Снова вместе',kind:'success',key:'reconnect'});}
-    else if(household.world.places[role]==='home')notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
     const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
   onAlbumImage(id,jpeg){phone.albumImage(id,jpeg);},
