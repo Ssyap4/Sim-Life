@@ -43,6 +43,9 @@ try{
  async function phase(care,kind,min,max){
   await page.waitForFunction(({care,kind,min,max})=>{const q=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').actors?.alina?.care;return q?.id===care&&q.phase===kind&&q.elapsed>=min&&q.elapsed<=max;},{care,kind,min,max},{timeout:130000});
   const q=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.care);
+  const privacy=await page.evaluate(()=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).actors.alina.bathPrivacy);
+  assert.equal(privacy.active,care.startsWith('bath'));
+  if(privacy.active){assert.equal(privacy.covered,3);assert.equal(privacy.garments,0);}
   console.log('CARE_SAMPLE',care,kind,JSON.stringify(q));if(q.error!==null&&q.blend>.98)assert.ok(q.error<.08,care+' '+kind+' contact '+q.error);
   await shot(care+'-'+kind);
  }

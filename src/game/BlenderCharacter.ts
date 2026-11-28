@@ -119,6 +119,7 @@ export function createBlenderCharacter(gltf: GLTF, id: CharacterId, outfit:reado
     const watch = new THREE.Mesh(new THREE.TorusGeometry(.047,.008,6,18),
       new THREE.MeshStandardMaterial({color:id==='vlad'?0x506c62:0xc9ac84,
         metalness:.34,roughness:.52}));
+    watch.userData.bathAccessory=true;
     watch.rotation.x=Math.PI/2;
     watch.position.y=.015;
     joints.WristL.add(watch);

@@ -9,6 +9,7 @@ import {CONSOLE_GAMES,type ConsoleGameId} from '../shared/consoleCatalog';
 import { HOME_JOBS } from "../shared/jobs";
 import * as THREE from 'three';
 import {sleepPosture} from './SleepPosture';
+import {BathPrivacy} from './BathPrivacy';
 import type { CharacterId, SocialKind } from '../shared/protocol';
 import type { PairMotion } from '../shared/socialLife';
 import type { PetAction } from '../shared/pets';
@@ -62,6 +63,10 @@ export class Actor {
   private readonly leftArm: THREE.Object3D;
   private readonly rightArm: THREE.Object3D;
   private readonly rig: CharacterRig;
+  private readonly bathPrivacy:BathPrivacy;
+  bathPrivacyQA(){return this.bathPrivacy.qa();}
+  suspendBathPrivacy(){this.bathPrivacy.set(false);}
+  syncBathPrivacy(){this.bathPrivacy.set(this.activity==='bath'||this.activity==='shower');}
   private readonly figureBase = new THREE.Vector3();
   private catToyGrip?:THREE.Group;
   private catToyLine?:THREE.Line;
@@ -389,7 +394,7 @@ export class Actor {
   private readonly parentRotation = new THREE.Quaternion();
   private readonly walkStep = new THREE.Vector3();
   bodyPosition(target: THREE.Vector3): THREE.Vector3 { return this.figure.getWorldPosition(target); }
-  sanitaryQA(){return {body:this.bodyPosition(new THREE.Vector3()).toArray(),root:this.root.position.toArray(),hands:this.rig.wrists.map(w=>w.getWorldPosition(new THREE.Vector3()).toArray()),head:this.rig.head.getWorldPosition(new THREE.Vector3()).toArray(),activity:this.activity,time:this.activityTime};}
+  sanitaryQA(){return {privacy:this.bathPrivacyQA(),body:this.bodyPosition(new THREE.Vector3()).toArray(),root:this.root.position.toArray(),hands:this.rig.wrists.map(w=>w.getWorldPosition(new THREE.Vector3()).toArray()),head:this.rig.head.getWorldPosition(new THREE.Vector3()).toArray(),activity:this.activity,time:this.activityTime};}
 
   constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);
@@ -407,6 +412,7 @@ export class Actor {
       leftArm: this.leftArm, rightArm: this.rightArm,
     });
 
+    this.bathPrivacy=new BathPrivacy(this.figure,this.rig,{leftArm:this.leftArm,rightArm:this.rightArm,leftLeg:this.leftLeg,rightLeg:this.rightLeg},id,!!asset);
     this.props = activityProps(this.figure,this.rig.wrists);
     const cup=new THREE.Mesh(new THREE.CylinderGeometry(.047,.036,.083,12),finish(id==='vlad'?0x87a79a:0xe2b7a4,'ceramic'));
     const liquid=new THREE.Mesh(new THREE.CircleGeometry(.039,12),finish(0x9b6332,'ceramic').clone());liquid.name='Drink liquid';liquid.rotation.x=-Math.PI/2;liquid.position.y=.0415;
@@ -520,6 +526,7 @@ export class Actor {
     this.partnerGesture = null;
     this.loungeSmoke.visible=this.loungeMouthpiece.visible=this.loungeHose.visible=false;
     this.activity = null;
+    this.bathPrivacy.set(false);
     this.clearVenueProp();
     if(this.gymDumbbells)for(const g of this.gymDumbbells)g.visible=false;
     this.cookingRecipe = undefined;
@@ -588,7 +595,7 @@ export class Actor {
     this.clearVenueProp();this.clearVanity();this.hideGamepad();
     this.carryingBook=false;this.closingBook=0;this.props.hideBook();
     this.props.phone.visible=false;
-    this.resortDrinkTint=undefined;this.activity = kind;this.mealSlow=slow;
+    this.resortDrinkTint=undefined;this.activity = kind;this.bathPrivacy.set(false);this.mealSlow=slow;
     this.pan = pan?.clone();
     this.cookingRecipe = kind === 'cook' ? recipe as RecipeId : undefined;
     this.diningDish = kind === 'eat' ? recipe : undefined;
@@ -603,6 +610,7 @@ export class Actor {
     this.clearVenueProp();
     this.props.phone.visible=false;
     this.activity = kind;
+    this.syncBathPrivacy();
     if(kind==='venueBowl'||kind==='venueCards'){const g=new THREE.Group(),prop=new THREE.Mesh(kind==='venueBowl'?orb:new THREE.BoxGeometry(1,1,1),finish(kind==='venueBowl'?(this.id==='vlad'?0x386f9c:0xc55354):0xd74c47));prop.scale.set(...(kind==='venueBowl'?[.12,.12,.12]:[.105,.014,.16]) as [number,number,number]);prop.position.set(0,-.045,.025);g.add(prop);g.visible=false;this.rig.wrists[1].add(g);this.venueProp=g;}
     if(kind==='modeling'){
       const g=new THREE.Group();g.name='Assembly piece';
@@ -643,6 +651,7 @@ export class Actor {
     this.petContact = undefined;
     if (this.activity === 'cook' || this.activity === 'bath' || this.activity === 'toilet') this.setPose('idle');
     else this.activity = null;
+    this.syncBathPrivacy();
     this.spoon.visible = false;
     this.mealBite.visible=false;
     this.teaCup.visible = false;
@@ -653,6 +662,7 @@ export class Actor {
   playPetActivity(kind: Exclude<PetAction, 'buyFood'>, petContact?: THREE.Vector3 | ((target:THREE.Vector3,stroke?:number)=>THREE.Vector3)): void {
     this.setPose('idle');
     this.activity = kind;
+    this.syncBathPrivacy();
     this.petContact = petContact instanceof THREE.Vector3 ? petContact.clone() : petContact;
     this.activityTime = 0;
   }
@@ -868,6 +878,7 @@ export class Actor {
 
   update(dt: number, steer?: Steering, pathDt = dt): void {
     this.clock += dt;
+    this.syncBathPrivacy();
     this.gestureTime += dt;
     this.activityTime += dt;
     if(this.partnerGesture)this.partnerGesture.time+=dt;

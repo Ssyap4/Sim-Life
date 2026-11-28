@@ -10,7 +10,7 @@ import {DOG_BATH_APPROACH} from '../src/shared/dogBath.ts';
 import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 const slot=process.env.QA_SLOT??'bathtub';assert.ok(Object.hasOwn(BATH_FIXTURES,slot));
-const products=SANITARY.filter(p=>p.fixture===slot),room=FIXTURE_ROOMS[slot];
+const products=process.env.QA_STOCK_ONLY=== '1'?[]:SANITARY.filter(p=>p.fixture===slot),room=FIXTURE_ROOMS[slot];
 const parking={toilet:{vlad:{x:-6,z:4.5},alina:{x:-5.5,z:3}},wcBasin:{vlad:{x:-6.5,z:4.5},alina:{x:-5,z:3.5}},shower:{vlad:{x:7,z:-.5},alina:{x:6.5,z:1.5}},bathtub:{vlad:{x:6,z:4.5},alina:{x:6,z:2.5}},basin:{vlad:{x:7.5,z:.5},alina:{x:6,z:2}}}[slot];
 const out='/tmp/simourhome-069-sanitary-'+slot;mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'sanitary-069-'));let browser,server;const pages={};
@@ -46,6 +46,9 @@ try{
   await snap(p,({role,activity})=>{const q=JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role];return q?.activity===activity&&q.time>=.7;},{role,activity},55000);
   const q=await canvas(p).evaluate((c,role)=>JSON.parse(c.dataset.sanitaryMotion||'{}')[role],role);
   assert.ok(q.body.every(Number.isFinite)&&q.head.every(Number.isFinite)&&q.hands.flat().every(Number.isFinite));
+  const privateBath=activity==='bath'||activity==='shower';
+  assert.equal(q.privacy.active,privateBath,role+' '+activity);
+  if(privateBath){assert.equal(q.privacy.covered,3);assert.equal(q.privacy.garments,0);}
   const key=role+':'+label;
   if(!sku)baselines[key]=q;else if(baselines[key]&&activity!=='bathe'){
     const b=baselines[key];assert.ok(Math.hypot(...q.root.map((x,i)=>x-b.root[i]))<.16,sku+' '+role+' anchor changed');assert.ok(Math.hypot(...q.body.map((x,i)=>x-b.body[i]))<.24,sku+' '+role+' body changed');
@@ -54,6 +57,7 @@ try{
   const ended=await p.evaluate(id=>window.__qaPackets.some(m=>m.type==='task_ended'&&m.taskId===id),id);if(!ended)await send(p,{type:'cancel_task',taskId:id});
   await snap(p,id=>window.__qaPackets.some(m=>m.type==='task_ended'&&m.taskId===id),id,20000);
   await snap(p,({role,activity})=>JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role]?.activity!==activity,{role,activity},20000);
+  await snap(p,role=>JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role]?.privacy?.active===false,role,20000);
   // A finished resident stands at the fixture approach. Vacate it before the other resident uses it.
   const goal=parking[role];await send(p,{type:'walk',place:'home',...goal});
   await snap(p,({role,goal})=>{const q=JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role];return q&&Math.hypot(q.root[0]-goal.x,q.root[2]-goal.z)<.25;},{role,goal},45000);
