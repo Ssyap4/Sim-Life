@@ -46,14 +46,14 @@ export function createMarketUI(
   onClose?: () => void,
   tastes?:{role:()=>CharacterId|null;submit:TasteSubmit},
 ): { open: (household: GameState) => void; refresh: (household: GameState) => void;
-     close: () => void; acknowledge: () => void } {
+     close: () => void; acknowledge: () => void; reject: () => void } {
   let state: GameState | null = null;
   let currentTab: Tab = 'shop';
   let category: Filter = 'all';
   let searchQuery = '';
   let lastHouseholdView = '';
   let lastRole:CharacterId|null=null;
-  const cart = new Map<string, number>();
+  const cart = new Map<string, number>();let pending=false;
   // Frequent position/need snapshots must not replace a touch target while
   // someone is tapping +, scrolling, or typing into the mobile catalogue.
   const householdView=(household:GameState)=>JSON.stringify([
@@ -176,10 +176,10 @@ export function createMarketUI(
         const stepper=el('div','market-stepper');
         const amount=cart.get(p.id)??0;
         stepper.append(
-          button('−',()=>change(p.id,-1),'market-adjust',amount===0),
+          button('−',()=>change(p.id,-1),'market-adjust',pending||amount===0),
           el('span','',String(amount)),
           button('+',()=>change(p.id,1),'market-adjust',
-            amount>=10 || owned(state!,p)+(amount+1)*p.quantity>limit(p) || !cartFit(p.id,1)));
+            pending||amount>=10 || owned(state!,p)+(amount+1)*p.quantity>limit(p) || !cartFit(p.id,1)));
         line.append(description,stepper);
         return line;
       };
@@ -252,13 +252,12 @@ export function createMarketUI(
           'После покупки: '+formatRub(state.money-total)),
         el('small','market-checkout-capacity','🧊 '+capacity.fridge+'/'+FRIDGE_CAPACITY+' · 🗄️ '+capacity.cupboard+'/'+CUPBOARD_CAPACITY +
           ' · 🍽️ стол ' + readyFoodTableUsage(after) + '/' + TABLE_READY_CAPACITY));
-      const sendBtn=button('Оформить доставку',()=>{
-        if (sendCheckout(selected)) {
-          // Keep the basket until the server acknowledges an atomic purchase.
-          sendBtn.disabled=true;
-          sendBtn.textContent='Отправлено…';
+      const sendBtn=button(pending?'Отправляем…':'Оформить доставку',()=>{
+        if (!pending&&sendCheckout(selected)) {
+          // Freeze submitted quantities across redraws until their receipt.
+          pending=true;redraw();
         }
-      },'market-order',selected.length===0 || total>state.money || !storageOkay || !mobile);
+      },'market-order',pending||selected.length===0 || total>state.money || !storageOkay || !mobile);
       footer.append(amounts,sendBtn);
       panel.append(scroll,footer);
     } else if (currentTab==='stock') {
@@ -309,6 +308,7 @@ export function createMarketUI(
         if(missing.length) {
           row.append(el('small','','Не хватает: '+missing.map(([ing,count])=>GROCERIES[ing].name+' ×'+(count-state!.pantry[ing])).join(', ')));
           row.append(button('🛒 Добавить недостающие продукты',()=>{
+            if(pending)return;
             for(const [ingredient,count] of missing){
               const pack=GROCERIES[ingredient];
               const needed=Math.ceil((count-state!.pantry[ingredient])/pack.quantity);
@@ -347,6 +347,7 @@ export function createMarketUI(
     }
   }
   function change(id: string, difference: number): void {
+    if(pending)return;
     const product=marketProduct(id);
     if (!product || !state) return;
     const current=cart.get(id)??0;
@@ -368,7 +369,8 @@ export function createMarketUI(
       lastHouseholdView=view;redraw();
     },
     close,
-    acknowledge() {cart.clear();redraw();},
+    acknowledge() {if(!pending)return;pending=false;cart.clear();redraw();},
+    reject() {if(!pending)return;pending=false;redraw();},
   };
 }
 

@@ -298,7 +298,7 @@ export type ServerPacket =
   | { type: 'tv_food_done'; role:CharacterId; taskId:number }
   | { type: 'task_started'; role: CharacterId; taskId: number; label: string; durationMs: number; command: TimedCommand; automatic?: boolean; home?: HomePresentation; effects?: NeedEffects }
   | { type: 'task_ended'; role: CharacterId; taskId: number; outcome: 'completed' | 'cancelled' | 'failed'; message: string; effects?: NeedEffects }
-  | { type: 'error'; reason: string };
+  | { type: 'error'; reason: string; deliverySequence?:number };
 
 export function initialState(): GameState {
   return {

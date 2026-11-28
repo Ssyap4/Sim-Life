@@ -1182,7 +1182,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     authDeadline.unref();
     let invalidLogins = 0;
     let deviceToken: string | null = null;
+    const sendPacket=packet;
     socket.on('message', (raw: RawData, isBinary: boolean) => {
+      let deliverySequence:number|undefined;
+      const packet=(recipient:WebSocket,value:ServerPacket)=>{
+        if(recipient===socket&&value.type==='error'&&deliverySequence!==undefined)
+          sendPacket(recipient,{...value,deliverySequence});
+        else sendPacket(recipient,value);
+      };
       if(closing)return;
       if (isBinary) { socket.close(1003, 'JSON only'); return; }
       let input: unknown;
@@ -1190,6 +1197,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       catch { packet(socket, { type: 'error', reason: 'Повреждённое сообщение' }); return; }
       if (!input || typeof input !== 'object' || !('type' in input)) return;
       const message = input as Record<string, unknown>;
+      if(role&&message.type==='delivery_order'&&typeof message.sequence==='number'&&Number.isSafeInteger(message.sequence))
+        deliverySequence=message.sequence;
       if(Buffer.byteLength(raw.toString())>8192&&(!role||message.type!=='album_add')){packet(socket,{type:'error',reason:'Слишком большое сообщение'});return;}
 
       if (!role) {

@@ -101,3 +101,33 @@ test('Simultaneous delivery orders and retries spend the shared final balance on
   assert.equal(saved.world.sequence[winner==='vlad'?'alina':'vlad'],0);
  }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+test('071 delivery rejections carry only their own sequence; unrelated errors and furniture purchases do not confirm a basket',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim071-delivery-ack-'));
+ const files=openServerFiles(dir),state=files.load();state.money=100000;state.autonomy={vlad:'off',alina:'off'};files.save(state);
+ const server=await startServer({port:0,dataDir:dir,lifeClock:{now:()=>0,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await connect(server.port,'alina',files.access.alina);sockets.push(a);
+  const unrelated=next(v,p=>p.type==='error');
+  v.send(JSON.stringify({type:'unknown'}));
+  const otherError=await unrelated;assert.equal(otherError.type,'error');assert.equal(otherError.deliverySequence,undefined);
+  const bad=next(v,p=>p.type==='error');
+  v.send(JSON.stringify({type:'delivery_order',sequence:0,lines:[{id:'grocery:invalid',quantity:1}]}));
+  const error=await bad;assert.equal(error.type,'error');assert.equal(error.deliverySequence,0);
+  assert.equal(files.load().money,100000);
+  const store=next(v,p=>p.type==='store_event');
+  v.send(JSON.stringify({type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1}));
+  await store;
+  assert.equal(files.load().world.sequence.vlad,0);
+  const command={type:'delivery_order',sequence:0,lines:[{id:'grocery:bread',quantity:1}]};
+  const vUpdate=next(v,p=>p.type==='snapshot'&&p.state.world.deliveries.some(d=>d.id==='D-vlad-0'));
+  const aUpdate=next(a,p=>p.type==='snapshot'&&p.state.world.deliveries.some(d=>d.id==='D-vlad-0'));
+  v.send(JSON.stringify(command));assert.deepEqual(await vUpdate,await aUpdate);
+  const after=files.load(),retry=next(v,p=>p.type==='error');
+  v.send(JSON.stringify(command));const rejected=await retry;
+  assert.equal(rejected.type,'error');assert.equal(rejected.deliverySequence,0);
+  assert.equal(files.load().money,after.money);
+  assert.equal(files.load().world.deliveries.length,1);
+ }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});

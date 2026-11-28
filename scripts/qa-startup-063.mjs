@@ -8,13 +8,21 @@ import {initialState} from '../src/shared/protocol.ts';
 import {openServerFiles} from '../server/storage.ts';
 const out='/tmp/simourhome-063-startup';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'sim063-'));
-const s=initialState();s.money=100000;openServerFiles(dir).save(s);const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true});
+const s=initialState();s.money=100000;s.autonomy={vlad:'off',alina:'off'};openServerFiles(dir).save(s);const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true});
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
 const errors=[],reports=[];
 try{
  for(const [width,height,role] of [[320,568,'vlad'],[390,844,'alina']]){
   const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1,isMobile:true,hasTouch:true});
   let healthRequested=false,slowModelCompleted=false,healthBeforeSlowModel=false;
+  await page.addInitScript(()=>{
+   const Native=window.WebSocket;
+   window.__qaPackets=[];
+   window.WebSocket=class extends Native{
+    constructor(...args){super(...args);if(this.url.includes('/sync')){window.__qaSocket=this;this.addEventListener('message',e=>{try{window.__qaPackets.push(JSON.parse(e.data));}catch{}});}}
+    send(data){if(window.__qaHoldDelivery&&JSON.parse(data).type==='delivery_order'){window.__qaHeldDelivery=data;return;}super.send(data);}
+   };
+  });
   const fallbackWarnings=[];
   page.on('request',req=>{if(new URL(req.url()).pathname==='/health')healthRequested=true;});
   page.on('console',m=>{if(m.type()==='warning'&&/Using previous game asset|Using built-in character/.test(m.text()))fallbackWarnings.push(m.text());});
@@ -48,7 +56,28 @@ try{
    await page.waitForFunction(async()=>Boolean((await (await fetch('/health')).json()).online),undefined,{timeout:30000});
    await page.locator('#phone-btn').tap();await page.locator('#phone-overlay').waitFor({state:'visible'});
    await page.screenshot({path:join(out,'reconnected-'+width+'.png')});
-   reports.push({width,height,role,reconnected:true});
+   if(width===390){
+    await page.locator('#phone-overlay').getByText('Доставка',{exact:true}).click();
+    const market=page.locator('#market-overlay');
+    await market.waitFor({state:'visible'});
+    await market.locator('.market-adjust:not([disabled])').filter({hasText:/^\+$/}).first().click();
+    const order=market.locator('.market-order');
+    assert.equal(await order.isEnabled(),true);
+    await page.evaluate(()=>window.__qaHoldDelivery=true);
+    await order.click();assert.equal(await order.isDisabled(),true);
+    await page.evaluate(()=>window.__qaSocket.send(JSON.stringify({type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1})));
+    await page.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='store_event'));
+    assert.equal(await order.isDisabled(),true);
+    assert.ok(await market.locator('.market-summary-count').innerText().then(s=>s.includes('1')));
+    await page.evaluate(()=>window.__qaSocket.send(JSON.stringify({type:'qa-unknown'})));
+    await page.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='error'&&p.deliverySequence===undefined));
+    assert.equal(await order.isDisabled(),true);
+    await page.evaluate(()=>{window.__qaHoldDelivery=false;window.__qaSocket.send(window.__qaHeldDelivery);});
+    await page.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.world.deliveries.some(d=>d.role==='alina')));
+    await page.waitForFunction(()=>document.querySelector('#market-overlay .market-summary-count')?.textContent?.includes('Выбери'));
+    await page.screenshot({path:join(out,'delivery-confirmed-'+width+'.png')});
+   }
+   reports.push({width,height,role,reconnected:true,delivery:width===390?'confirmed':undefined});
   }finally{await page.close();}
  }
  assert.deepEqual(errors,[]);writeFileSync(join(out,'report.json'),JSON.stringify(reports,null,2));console.log(JSON.stringify(reports));

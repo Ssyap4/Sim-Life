@@ -814,8 +814,9 @@ function render(reset = false): void {
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       const origin=deliveryOrigin,accepted=deliveryWasAccepted(state,active,deliverySequence);
-      deliverySequence = null;deliveryOrigin=null;
-      if(accepted){if(origin==='computer')computer.acknowledgeOrder(true);else marketUI.acknowledge();}
+      deliverySequence = null;deliveryOrigin=null;deliveryRole=null;
+      if(accepted){if(origin==='computer')computer.acknowledgeOrder();else marketUI.acknowledge();}
+      else if(origin==='computer')computer.rejectOrder();else marketUI.reject();
     }
   }
   renderClock();
@@ -869,11 +870,17 @@ function showStatus(text: string): void {
 }
 let deliverySequence: number | null = null;
 let deliveryOrigin:'market'|'computer'|null=null;
+let deliveryRole:CharacterId|null=null;
+function rejectDelivery(){
+  if(deliveryOrigin==='computer')computer.rejectOrder();
+  else if(deliveryOrigin==='market')marketUI.reject();
+  deliverySequence=null;deliveryOrigin=null;deliveryRole=null;
+}
 const orderDelivery = (lines: BasketLine[],origin:'market'|'computer'='market') => {
   if (!state || !active || deliverySequence !== null) return false;
   const sequence = state.world.sequence[active];
   if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
-  deliverySequence = sequence;deliveryOrigin=origin;
+  deliverySequence = sequence;deliveryOrigin=origin;deliveryRole=active;
   return true;
 };
 const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'),undefined,{role:()=>active,submit:(kind,item,on)=>net.favoriteFood(kind,item,on)});
@@ -886,7 +893,7 @@ function signOut(): void {
   resetSceneTransition();
   gameAudio.setPlaying(false);
   net.forgetDevice();
-  deliverySequence = null;deliveryOrigin=null;
+  rejectDelivery();
   active = null;
   refreshCarRide();
   state = null;
@@ -1047,7 +1054,7 @@ const net = new LiveConnection({
     state = household;
     // Resolve a delivery whose acknowledgement was interrupted using the
     // authoritative sequence. Unaccepted orders keep their unsent basket.
-    if(deliverySequence!==null&&household.world.sequence[role]<=deliverySequence){deliverySequence=null;deliveryOrigin=null;}
+    if(deliverySequence!==null&&(deliveryRole!==role||household.world.sequence[role]<=deliverySequence))rejectDelivery();
     thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
@@ -1169,7 +1176,7 @@ const net = new LiveConnection({
     if(_role===active&&!taskEcho(_role,message))notify(message);
   },
   onStoreEvent(role,message) {
-    if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();subtleHaptic('confirm');}
+    if(role===active)subtleHaptic('confirm');
     statusEl.textContent=message;
     notify(message,{title:'Покупки и доставка',kind:'success'});
   },
@@ -1281,7 +1288,8 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
-  onError(reason) {
+  onError(reason,failedDeliverySequence) {
+    if(deliverySequence!==null&&failedDeliverySequence===deliverySequence)rejectDelivery();
     bowlingUI.retry();poolUI.retry();tableUI.retry();
     if(phone.messagingOpen())phone.messageRejected();
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
@@ -1300,7 +1308,6 @@ const net = new LiveConnection({
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
-    deliverySequence = null;deliveryOrigin=null;
     locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве') || reason.includes('Доверие устройства истекло')) {
       resetSceneTransition();

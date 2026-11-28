@@ -53,7 +53,7 @@ export interface ConnectionCallbacks {
   onSocialOffer(offer:SocialOffer):void;
   onConversation?(from:CharacterId,remainingMs:number,title:string):void;
   onSocialClosed(id:number,message:string,reply?:string):void;
-  onError(message: string): void;
+  onError(message: string, deliverySequence?:number): void;
   onStatus(status: string): void;
   onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
   onWorldEvent(role: CharacterId, message: string): void;
@@ -266,6 +266,7 @@ export class LiveConnection {
       const wasReady=this.authorized;
       this.closeSocket();
       if(wasReady)this.callbacks.onDisconnect();
+      this.callbacks.onStatus('Связь потеряна. Повторяем подключение…');
       this.callbacks.onError('Команда не отправлена. Восстанавливаем соединение.');
       this.scheduleRetry();
       return false;
@@ -385,7 +386,7 @@ export class LiveConnection {
         if(!this.authorized && this.hasBeenReady && packet.reason.includes('занят') && this.retryCount<5){
           this.closeSocket();this.scheduleRetry();return;
         }
-        this.callbacks.onError(packet.reason);
+        this.callbacks.onError(packet.reason,packet.deliverySequence);
         if (!this.authorized && (packet.reason.includes('код') || packet.reason.includes('занят'))) {
           if (packet.reason.includes('Доверие устройства истекло')) storeTrust(null);
           this.callbacks.onStatus('Не удалось войти: ' + packet.reason);

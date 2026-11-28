@@ -1,12 +1,14 @@
 name: SimOurHome 0.71 technical polish
 on:
-  push:
-    branches: [feat/polish-071]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   focused:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
@@ -20,8 +22,9 @@ jobs:
       - run: npx vite build --manifest
       - run: node scripts/precompress.mjs
       - run: node scripts/audit-startup-bundle.mjs
-      - run: npx tsx --test server/tests/transport-071.test.ts server/tests/startup-071.test.ts server/tests/stability-063.test.ts server/tests/weather039.test.ts server/tests/car-ride-055.test.ts server/tests/performance.test.ts server/tests/location-network.test.ts server/tests/resort-070.test.ts server/tests/grooming-070.test.ts server/tests/network.test.ts server/tests/notices-0592.test.ts server/tests/static-transforms-071.test.ts server/tests/yard-polish-0511.test.ts server/tests/home-side-walls-061.test.ts server/tests/home-finish-061.test.ts server/tests/renovation-069.test.ts server/tests/location-frame-071.test.ts server/tests/homeFrame.test.ts
+      - run: npx tsx --test server/tests/market-network.test.ts server/tests/delivery-ack-063.test.ts server/tests/transport-071.test.ts server/tests/startup-071.test.ts server/tests/stability-063.test.ts server/tests/weather039.test.ts server/tests/car-ride-055.test.ts server/tests/performance.test.ts server/tests/location-network.test.ts server/tests/resort-070.test.ts server/tests/grooming-070.test.ts server/tests/network.test.ts server/tests/notices-0592.test.ts server/tests/static-transforms-071.test.ts server/tests/yard-polish-0511.test.ts server/tests/home-side-walls-061.test.ts server/tests/home-finish-061.test.ts server/tests/renovation-069.test.ts server/tests/location-frame-071.test.ts server/tests/homeFrame.test.ts
   gameplay:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -34,6 +37,7 @@ jobs:
       - run: node --import tsx --test --test-concurrency=2 server/tests/autonomy.test.ts server/tests/bed-sleep-network.test.ts server/tests/bed-sleep.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/living-family-058.test.ts server/tests/home-routines.test.ts server/tests/action-queue-019.test.ts server/tests/economy-plus.test.ts server/tests/billing.test.ts server/tests/time-speed.test.ts server/tests/recovery-064.test.ts server/tests/familyAutonomy038.test.ts server/tests/social.test.ts server/tests/androidGraphics-028.test.ts
       - run: node --import tsx --test --test-name-pattern='071 60 days' server/tests/long-play-064.test.ts
   motion:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -45,6 +49,7 @@ jobs:
       - run: npm ci
       - run: node --import tsx --test --test-concurrency=2 server/tests/poses.test.ts server/tests/animation053.test.ts server/tests/pairContact053.test.ts server/tests/seating053.test.ts server/tests/handheld053.test.ts server/tests/workCoffee053.test.ts server/tests/care-motion-065.test.ts server/tests/naturalSleep038.test.ts server/tests/dog-bath-035.test.ts server/tests/motion-polish-0581.test.ts server/tests/pet-motion-049.test.ts server/tests/pet-performance-061.test.ts server/tests/pets.test.ts server/tests/petTraffic.test.ts server/tests/petCommands-028.test.ts server/tests/cat-play-069.test.ts server/tests/pet-toys-035.test.ts
   browser:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'
     strategy:
       fail-fast: false
       matrix:
