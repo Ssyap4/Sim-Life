@@ -1949,7 +1949,8 @@ export class World {
           if (arrived === 2) {
             this.actors.vlad.faceTowards(this.actors.alina.root.position);
             this.actors.alina.faceTowards(this.actors.vlad.root.position);
-            const target = kind === 'highFive' ? new THREE.Vector3(0, 1.64, meeting(this.place, 'vlad').z - 0.16) : undefined;
+            const v=meeting(this.place,'vlad'),a=meeting(this.place,'alina');
+            const target = kind === 'highFive' ? new THREE.Vector3((v.x+a.x)/2,1.64,(v.z+a.z)/2-.16) : undefined;
             this.actors.vlad.playGesture(kind, target);
             this.actors.alina.playGesture(kind, target);
           }

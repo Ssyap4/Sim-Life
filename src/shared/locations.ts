@@ -51,6 +51,7 @@ export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
 export function spawn(place: PlaceId, role: CharacterId): Point {
+  if(place==='resort')return {x:-14+(role==='vlad'?-.44:.44),z:15.46};
   if(place==='fitness')return {x:role==='vlad'?-.44:.44,z:5.56};
   if (place === 'home') return role === 'vlad' ? { x: .5, z: 3.5 } : { x: 1.12, z: 3.35 };
   if (place === 'district') return districtArrival('home',role);
@@ -58,6 +59,7 @@ export function spawn(place: PlaceId, role: CharacterId): Point {
   return { x: role === 'vlad' ? .5 : 1.65, z: 4.10 };
 }
 export function meeting(place: PlaceId, role: CharacterId): Point {
+  if(place==='resort')return {x:-11+(role==='vlad'?-.42:.42),z:12.8};
   if(place==='spa')return {x:role==='vlad'?-.44:.44,z:4.04};
   if(place==='fitness')return {x:role==='vlad'?-.44:.44,z:5.00};
   if(place==='district')return districtPoint({x:role==='vlad'?-9.02:-8.18,z:-8.8});
