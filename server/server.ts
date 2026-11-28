@@ -183,7 +183,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let pauseRequestedBy: CharacterId | null = null;
   let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
-  let fitnessTripOffer:{from:CharacterId;expires:number;dog?:boolean;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`resort-${ResortPass}`|`lake-${LakePass}`}|undefined;
+  let fitnessTripOffer:{from:CharacterId;expires:number;dog?:boolean;pets?:boolean;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`resort-${ResortPass}`|`lake-${LakePass}`}|undefined;
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
   const lastAutoCare = new Map<CharacterId, number>();
@@ -1696,16 +1696,18 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(message.type==='lake_trip'&&!lakePass(message.pass)){packet(socket,{type:'error',reason:'Выбери билет клуба'});return;}
         if(message.type==='resort_trip'&&!isResortPass(message.pass)){packet(socket,{type:'error',reason:'Выбери срок аренды'});return;}
         const destination=message.type==='resort_trip'?`resort-${message.pass as ResortPass}` as const:message.type==='lake_trip'?`lake-${message.pass as LakePass}` as const:message.type==='venue_trip'?'venue':message.type==='spa_trip'?(message.pass==='pair'?'spa-pair':'spa-package'):message.type==='clinic_trip'?'clinic':'fitness',label=destination.startsWith('resort-')?'Лазурный берег · '+RESORT_PASSES[destination.slice(7) as ResortPass].name:destination.startsWith('lake-')?'Лесное озеро · '+LAKE_PASSES[destination.slice(5) as LakePass].name:destination==='venue'?'PLAY ARENA':destination==='spa-pair'?'SPA · вдвоём (3200 ₽)':destination==='spa-package'?'SPA · пакет с массажем (4900 ₽)':destination==='clinic'?'«Добрый доктор»':'PULSE Fitness';
+        if(message.type==='resort_trip'&&message.pets!==undefined&&typeof message.pets!=='boolean'){packet(socket,{type:'error',reason:'Выбери вариант аренды'});return;}
+        if(message.type==='resort_trip'&&message.pets===true&&PET_IDS.some(id=>homeTasks.reserved('pet:'+id)||[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===id))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
         const partner=otherRole(role),otherSocket=active.get(partner),now=pauseTimers.now();
         const available=(r:CharacterId)=>state.world.places[r]==='home'&&!running.has(r)&&!homeTasks.busy(r)&&!sleepers.has(r)&&!(queuedTasks.get(r)?.length)&&!state.activeShifts[r]&&!state.careers.residents[r].shift&&state.world.dogWalker!==r;
         if(!otherSocket||state.world.carDriver||!available(role)||!available(partner)){fitnessTripOffer=undefined;packet(socket,{type:'error',reason:'Для поездки вдвоём оба игрока должны быть дома, онлайн и свободны'});return;}
-        if(!fitnessTripOffer||fitnessTripOffer.expires<now||fitnessTripOffer.from===role||fitnessTripOffer.destination!==destination||!!fitnessTripOffer.dog!==(message.type==='lake_trip'&&message.dog===true)){
-          fitnessTripOffer={from:role,expires:now+60000,destination,dog:message.type==='lake_trip'&&message.dog===true};
-          packet(socket,{type:'world_event',role,message:destination.startsWith('resort-')?'Предложение отправлено. Партнёру нужно выбрать тот же срок аренды у машины.':destination.startsWith('lake-')?'Предложение отправлено. Партнёру нужно выбрать тот же билет клуба у машины.':destination==='venue'?'Предложение отправлено. Партнёру нужно выбрать поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'Предложение отправлено. Партнёру нужно выбрать тот же пакет SPA в телефоне или у машины.':'Предложение отправлено. Второму игроку нужно нажать «Поехать вдвоём» в '+label+'.'});
-          packet(otherSocket,{type:'world_event',role:partner,message:names[role]+' предлагает поехать в '+label+(destination.startsWith('resort-')?'. Выбери такой же срок аренды у машины.':destination.startsWith('lake-')?'. Выбери такой же билет клуба у машины.':destination==='venue'?'. Выбери поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'. Выбери такой же пакет SPA в телефоне или у машины для подтверждения.':'. Подтверди в телефоне: «Поехать вдвоём».')});
+        if(!fitnessTripOffer||fitnessTripOffer.expires<now||fitnessTripOffer.from===role||fitnessTripOffer.destination!==destination||!!fitnessTripOffer.pets!==(message.type==='resort_trip'&&message.pets===true)||!!fitnessTripOffer.dog!==(message.type==='lake_trip'&&message.dog===true)){
+          fitnessTripOffer={from:role,expires:now+60000,destination,pets:message.type==='resort_trip'&&message.pets===true,dog:message.type==='lake_trip'&&message.dog===true};
+          packet(socket,{type:'world_event',role,message:destination.startsWith('resort-')?'Предложение отправлено. Партнёру нужно выбрать тот же срок аренды и вариант с питомцами у машины.':destination.startsWith('lake-')?'Предложение отправлено. Партнёру нужно выбрать тот же билет клуба у машины.':destination==='venue'?'Предложение отправлено. Партнёру нужно выбрать поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'Предложение отправлено. Партнёру нужно выбрать тот же пакет SPA в телефоне или у машины.':'Предложение отправлено. Второму игроку нужно нажать «Поехать вдвоём» в '+label+'.'});
+          packet(otherSocket,{type:'world_event',role:partner,message:names[role]+' предлагает поехать в '+label+(destination.startsWith('resort-')?'. Выбери такой же срок аренды и вариант с питомцами у машины.':destination.startsWith('lake-')?'. Выбери такой же билет клуба у машины.':destination==='venue'?'. Выбери поездку в PLAY ARENA у машины.':destination.startsWith('spa-')?'. Выбери такой же пакет SPA в телефоне или у машины для подтверждения.':'. Подтверди в телефоне: «Поехать вдвоём».')});
           return;
         }
-        const result=destination.startsWith('resort-')?resortTogetherTrip(state,fitnessTripOffer.from,destination.slice(7) as ResortPass):destination.startsWith('lake-')?lakeTogetherTrip(state,fitnessTripOffer.from,destination.slice(5) as LakePass,fitnessTripOffer.dog):destination==='venue'?venueTogetherTrip(state,fitnessTripOffer.from):destination==='spa-pair'||destination==='spa-package'?spaTogetherTrip(state,fitnessTripOffer.from,destination==='spa-pair'?'pair':'package'):(destination==='clinic'?clinicTogetherTrip:fitnessTogetherTrip)(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
+        const result=destination.startsWith('resort-')?resortTogetherTrip(state,fitnessTripOffer.from,destination.slice(7) as ResortPass,fitnessTripOffer.pets):destination.startsWith('lake-')?lakeTogetherTrip(state,fitnessTripOffer.from,destination.slice(5) as LakePass,fitnessTripOffer.dog):destination==='venue'?venueTogetherTrip(state,fitnessTripOffer.from):destination==='spa-pair'||destination==='spa-package'?spaTogetherTrip(state,fitnessTripOffer.from,destination==='spa-pair'?'pair':'package'):(destination==='clinic'?clinicTogetherTrip:fitnessTogetherTrip)(state,fitnessTripOffer.from);fitnessTripOffer=undefined;
         if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
         recordCarRide(state,result.state,[role,partner]);
         try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить поездку'});return;}
@@ -1725,7 +1727,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
-      if(message.type==='car_travel'&&message.place==='work-clinic'&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
+      if(message.type==='car_travel'&&(message.place==='work-clinic'||message.place==='grooming')&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
       if(message.type==='renovation_install'){
         const fixture=coveringById(message.sku)?.fixture;
         if(fixture){
@@ -1771,7 +1773,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (message.type === 'job_start') {
-        if(state.world.vetVisit?.owner===role){packet(socket,{type:'error',reason:'Сначала вернись домой с питомцем'});return;}
+        if((state.world.vetVisit?.owner===role||state.world.groomVisit?.owner===role)){packet(socket,{type:'error',reason:'Сначала вернись домой с питомцем'});return;}
         clearQueue(role);
         commitLife();
         const home=isHomeJob(message.job), device=message.device;

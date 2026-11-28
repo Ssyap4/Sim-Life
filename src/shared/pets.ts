@@ -58,6 +58,8 @@ export interface PetState {
   lastEventAt?:number;
   feederReserve?:(string|null)[];
   cleanliness?:number;
+  groomedUntil?:number;
+  groomedService?:import('./grooming').GroomAction;
   ownedToys?:string[];
   toyPreferences?:Record<string,0|1|2|3>;
   foodQueue?:string[];

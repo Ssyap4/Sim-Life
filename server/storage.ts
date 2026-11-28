@@ -1,3 +1,4 @@
+import {isGroomAction,GROOM_SERVICES} from '../src/shared/grooming';
 import {isHomeDrink} from '../src/shared/food';
 import {validTableHistory} from '../src/shared/manualTableGames';
 import {validPoolHistory} from '../src/shared/manualPool';
@@ -222,7 +223,7 @@ const isValidState = (value: unknown): value is GameState => {
     const pet = petData[id];
     const validMeter = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100;
     const routine = pet?.routine;
-    return pet && validFurniturePreferences(pet,id) && (pet.lastEventAt===undefined||Number.isSafeInteger(pet.lastEventAt)&&pet.lastEventAt>=0) && validFeeder(pet,id) && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
+    return pet && (pet.groomedUntil===undefined&&pet.groomedService===undefined||Number.isSafeInteger(pet.groomedUntil)&&pet.groomedUntil!>=0&&isGroomAction(pet.groomedService)&&GROOM_SERVICES[pet.groomedService].pet===id) && validFurniturePreferences(pet,id) && (pet.lastEventAt===undefined||Number.isSafeInteger(pet.lastEventAt)&&pet.lastEventAt>=0) && validFeeder(pet,id) && (id==='verdell'?(pet.cleanliness===undefined||validMeter(pet.cleanliness)):pet.cleanliness===undefined) && validTraining(pet,id) && validToyExtras(pet,id) && validPetFoodExtras(pet,id,petFood?.[id]??0,petBowls?.[id]??0) && [pet.satiety, pet.happiness, pet.bond].every(validMeter) &&
       (pet.energy === undefined || validMeter(pet.energy)) && (pet.bladder === undefined || validMeter(pet.bladder)) &&
       (pet.position === undefined || point(pet.position)) && (pet.parkPosition === undefined || point(pet.parkPosition, 'park')||point(pet.parkPosition,'district')||point(pet.parkPosition,'lake')) &&
       (pet.treats===undefined||Number.isSafeInteger(pet.treats.day)&&pet.treats.day>=1&&Number.isSafeInteger(pet.treats.used)&&pet.treats.used>=0&&pet.treats.used<=3) &&

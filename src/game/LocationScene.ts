@@ -10,6 +10,7 @@ import {addLeisureDetail} from './LeisureDetail061';
 import {addWorkOutdoorDetail} from './WorkOutdoorDetail061';
 import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
+import {buildGrooming,groomingStation} from './GroomingArt';
 import {buildResort,resortStation} from './ResortArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
 import * as THREE from 'three';
@@ -577,7 +578,8 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='resort'){
+  if(place==='grooming'){animateCafe=buildGrooming(root,resources);const clerk=marketCashier(resources,{title:'Администратор',color:0x6da4a0,shirt:0xf5ebda,animated:true});clerk.position.set(-3.8,0,1.7);root.add(clerk);}
+  else if(place==='resort'){
     resortArt=buildResort(root,resources);animatePark=resortArt.animate;
     const clerk=marketCashier(resources,{title:'Лазурный берег',color:0x527e83,shirt:0xf5ebda,animated:true});clerk.position.set(-14,0,9.2);root.add(clerk);const bartender=marketCashier(resources,{title:'Бармен',color:0x614d43,shirt:0xf5ebda,animated:true});bartender.position.set(-15,.12,4.1);root.add(bartender);
   }else if(place==='lake'){
@@ -779,7 +781,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place==='resort'?resortStation(station,resources):place==='lake'?lakeStation(station,resources):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
+    const custom = place==='grooming'?groomingStation(station,resources):place==='resort'?resortStation(station,resources):place==='lake'?lakeStation(station,resources):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
           : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);

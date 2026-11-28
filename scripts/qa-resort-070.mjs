@@ -22,9 +22,9 @@ try{
  const v=await login('vlad',390,844),a=await login('alina',320,568);
  const panel=p=>p.locator('#location-panel');
  async function approach(p,place,station){await p.bringToFront();await send(p,{type:'approach',place,station});await p.locator('#location-panel[data-station='+station+']:not([hidden])').waitFor({timeout:90000});}
- await approach(v,'home','family-car');await panel(v).getByRole('button',{name:/Лазурный берег · Сутки/}).tap();await snap(v,()=>window.__qaPackets.some(p=>p.type==='world_event'&&p.message.includes('Предложение отправлено')));await approach(a,'home','family-car');await panel(a).getByRole('button',{name:/Лазурный берег · Сутки/}).tap();
+ await approach(v,'home','family-car');await approach(a,'home','family-car');await a.bringToFront();await panel(a).getByRole('button',{name:/Лазурный берег · Сутки с питомцами/}).tap();await send(v,{type:'resort_trip',pass:'night',pets:true});
  for(const p of [v,a]){await p.bringToFront();await snap(p,()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.world.places.vlad==='resort'&&p.state.world.places.alina==='resort'));await p.locator('#car-ride').waitFor({state:'hidden',timeout:90000});await snap(p,()=>JSON.parse(document.querySelector('#game-canvas').dataset.cameraPose||'{}').place==='resort');await shot(p,p===v?'arrival-390':'arrival-320');}
- assert.equal(files.load().money,81100);
+ assert.equal(files.load().money,81100);assert.deepEqual(files.load().world.resort.pets,['verdell','simba']);await snap(v,()=>Object.values(JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}').pets??{}).filter(p=>p.visible).length===2);
  simulatedNow=6000;await snap(v,()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.clock.minute>=483));await shot(v,'waiter-delivery-390');
  simulatedNow=14000;await snap(v,()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.clock.minute>=486));
  await approach(v,'resort','resort-terrace');await shot(v,'terrace-menu-390');await panel(v).getByRole('button',{name:'Позавтракать на веранде'}).tap();

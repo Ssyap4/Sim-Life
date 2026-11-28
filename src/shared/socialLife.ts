@@ -62,6 +62,7 @@ import { FURNITURE_BY_ID } from './furniture';
 import { bedCapacity } from './bedSleep';
 import { furnitureUseLocation } from './furnitureUse';
 import {CONSOLE_GAMES,consoleLibrary,consolePlayError} from './consoleCatalog';
+import {petAway} from './grooming';
 import {RESORT_MEDIA,resortMedia,resortAccess} from './resort';
 import {VENUE_GAMES,isVenueGame,venueDenial} from './venue';
 export type PairMotion = 'resortMedia' | 'venueManual' | 'venue' | 'gift'|'sofaMassage'|'console' | 'talk'|'listen'|'explain'|'laugh'|'shoulder'|'hug'|'closeHug'|'kiss'|'cheek'|'hands'|'hair'|
@@ -344,7 +345,7 @@ export function activityItems(a:SocialActivity,state:GameState,from:CharacterId)
       [from,otherPerson(from)].every(role=>skillRank(state.education.characters[role].xp[m.skill]).level>=m.min))
       .map(m=>({id:m.id,label:m.title}));
     case 'read':return Object.entries(BOOKS).map(([id,b])=>({id,label:b[0]}));
-    case 'petFeed':case 'petPlay':case 'petPet':case 'petBrush':return PET_IDS.filter(id=>!(id==='verdell'&&state.world.dogWalker)&&
+    case 'petFeed':case 'petPlay':case 'petPet':case 'petBrush':return PET_IDS.filter(id=>!petAway(state,id)&&!(id==='verdell'&&state.world.dogWalker)&&
       (a.object==='petFeed'?state.petFood[id]>0&&state.petBowls[id]===0:a.object!=='petPlay'||state.pets[id].satiety>=8))
       .map(id=>({id,label:PETS[id].name}));
     default:return [];

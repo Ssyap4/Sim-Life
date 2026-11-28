@@ -19,6 +19,7 @@ export const PLACES = {
   venue:{name:'PLAY ARENA',icon:'🎳',detail:'Боулинг, аэрохоккей, бильярд, настолки и PS5'},
   lake:{name:'Лесное озеро',icon:'🏕️',detail:'Загородный клуб, кемпинг и рыбалка'},
   spa:{name:'SPA «Лагуна»',icon:'♨️',detail:'Бассейн, джакузи, сауна и массаж'},
+  grooming:{name:'Пушистый люкс',icon:'🐾',detail:'Груминг и уход за питомцами'},
   barber:{name:'Барбершоп BRO',icon:'💈',detail:'Стрижка, бритьё и профессиональный уход'},
   clinic:{name:'Добрый доктор',icon:'🏥',detail:'Терапевт, диагностика и аптека'},
   fitness:{name:'PULSE Fitness',icon:'🏋️',detail:'Кардио, силовые тренировки и сауна'},
@@ -68,6 +69,7 @@ type SiteAction =
   | {kind:'lake';facility:'rental'|'pitch'|'fish'|'fire'|'rest'|'toilet'|'wash'|'swim'|'dog'}
   | {kind:'venue';facility:import('./venue').VenueGame|'reception'}
   | {kind:'spa'; facility:import('./spa').SpaAction|'reception'}
+  | {kind:'grooming';facility:'reception'|'care'}
   | {kind:'barber'; facility:'reception'|'chair'}
   | {kind:'clinic'; facility:string}
   | {kind:'fitness'; facility:string}
@@ -188,6 +190,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
   ],
   resort:[
     site('resort-reception','Ресепшен',-14,10,3.0,1.1,{kind:'resort',facility:'reception'}),
+    site('resort-pets','Миски и лежанки питомцев',-13,-5,2.4,1.3,{kind:'resort',facility:'pets'}),
     site('resort-bed','Кровать',-13,-11,2.8,2.8,{kind:'resort',facility:'bed'}),
     site('resort-media','Netflix и Nintendo',-7,-9,3.3,4.0,{kind:'resort',facility:'media'}),
     site('resort-bath','Раковина',-2,-12,1.3,.75,{kind:'resort',facility:'bath'}),
@@ -227,6 +230,12 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('spa-shower-v','Душ Влада',5.9,-1.7,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:5.9,z:-.65}}),
     site('spa-shower-a','Душ Алины',7.8,3.0,1.05,1.10,{kind:'spa',facility:'spaShower'},{approach:{x:7.8,z:4.07}}),
     door('spa-exit','Выход','district',0,5.8,true),
+  ],
+  grooming:[
+    site('grooming-reception','Ресепшен',-3.8,2.5,2.1,.85,{kind:'grooming',facility:'reception'}),
+    site('grooming-care','Уход за питомцем',0,-1.7,2.2,1.5,{kind:'grooming',facility:'care'}),
+    site('grooming-wait','Диван ожидания',3.6,2.4,2.2,.85,{kind:'rest'}),
+    door('grooming-exit','Выход','district',0,4.6,true),
   ],
   barber:[
     site('barber-reception','Ресепшен BRO',-3.8,2.5,2.1,.85,{kind:'barber',facility:'reception'}),
@@ -391,6 +400,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
+  if(place==='grooming')obstacles.push({minX:2.35,maxX:4.85,minZ:-3.85,maxZ:-2.75});
   if(place==='resort')obstacles.push({minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8},{minX:-15.95,maxX:-12.05,minZ:-2.34,maxZ:-1.78},{minX:-7.95,maxX:-4.05,minZ:-2.34,maxZ:-1.78},...([[-15,-12.1,.68,.65],[-11,-12.1,.68,.65],[-13,-13.6,2.8,.68],[-7,-12.9,2.4,.78],[-9.35,-12.65,.50,.50],[-2.2,-6.5,1.6,.86],[-.85,-13.28,.72,.70],[-1.6,11.65,.82,1.85],[1,11.65,.82,1.85],[3.6,11.65,.82,1.85]] as const).map(([x,z,w,d])=>({minX:x-w/2-.20,maxX:x+w/2+.20,minZ:z-d/2-.20,maxZ:z+d/2+.20})));
   if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})),...agilityObstacles(agilityPass));
@@ -458,6 +468,7 @@ export interface WorldState {
   wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
+  groomVisit?:import('./grooming').GroomVisit;
   vetVisit?:{owner:CharacterId;pet:import('./pets').PetId};
   picnic?: PicnicBasket;
   campKit?: Partial<Record<CharacterId,CampKit>>;
@@ -473,7 +484,7 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./resort').ResortAction | import('./dogAgility').DogAgilityAction | import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./grooming').GroomAction | import('./resort').ResortAction | import('./dogAgility').DogAgilityAction | import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./resort').ResortCommand
   | import('./venue').VenueCommand
@@ -503,7 +514,7 @@ export type WorldCommand =
   | { type:'clothing_buy'|'clothing_wear'; look:string }
   | {type:'clothing_auto';enabled:boolean}
   | {type:'clothing_context';context:import('./previewWardrobe').OutfitContext;look:string|null}
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'buildshop'|'industrial'|'fitness'|'clinic'|'barber'|'spa'|'lake'|'work-clinic';pass?:import('./lake').LakePass;dog?:boolean;pet?:import('./pets').PetId }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'buildshop'|'industrial'|'fitness'|'clinic'|'barber'|'grooming'|'spa'|'lake'|'work-clinic';pass?:import('./lake').LakePass;dog?:boolean;pet?:import('./pets').PetId }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

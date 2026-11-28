@@ -1,13 +1,14 @@
 import type {CharacterId,GameState,TimedCommand} from './protocol';
 import type {AutoChoice} from './autonomy';
 import type {HomeLeisure} from './home';
+import {petAway} from './grooming';
 import type {PetId} from './pets';
 import {leisureKind,residentEmotion,personalPreference,PERSONALITIES} from './emotions';
 import {weatherAt} from './weather';
 export type FullHistory={key:string;group:string}[];
 export function autoPetAvailable(s:GameState,id:PetId):boolean{
  const p=s.pets[id];
- return !(id==='verdell'&&s.world.dogWalker)&&s.world.vetVisit?.pet!==id&&
+ return !(id==='verdell'&&s.world.dogWalker)&&!petAway(s,id)&&
  p.energy>=30&&p.satiety>=25&&p.bladder>=30&&
  !['eat','sleep','toilet','bath','bedTogether','train','fetch','come','perch','scratch','toy'].includes(p.routine?.kind??'');
 }

@@ -1,3 +1,4 @@
+import {GROOM_SERVICES,groomingDenial} from './shared/grooming';
 import {renovationLampSpots} from './shared/renovationPlacement';
 import {COVERINGS,ROOMS,coveringById,compatible,renovationQuote,installedRenovation,FIXTURE_LABELS,type RoomId,type SurfaceKind,type RenovationPreview} from './shared/renovation';
 import {RESORT_PASSES,RESORT_MEALS,RESORT_ACTIONS,RESORT_GRILL,RESORT_DRINKS,RESORT_MEDIA,resortService,resortAlcoholCount,type ResortGrill,resortAccess,resortMealKey,type ResortPass,type ResortAction} from './shared/resort';
@@ -97,7 +98,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&destination!=='home')return false;
+    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='grooming'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -121,12 +122,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='spa'||id==='venue'||id==='lake'||id==='resort')&&location!==id) continue;
+      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='grooming'||id==='spa'||id==='venue'||id==='lake'||id==='resort')&&location!==id) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='grooming'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id==='home'?'Вернуться домой':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='grooming'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -286,6 +287,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         for(const destination of ['market','cafe','park','clothing','electronics','petshop','buildshop','industrial'] as const)options.append(destinationButton(destination));
         heading('Отдых');
         for(const [id,p] of Object.entries(RESORT_PASSES))options.append(button('🏝️ Лазурный берег · '+p.name+' вдвоём · '+formatRub(p.price),()=>{if(send({type:'resort_trip',pass:id as ResortPass}))close();},place.money<p.price));
+        for(const [id,p] of Object.entries(RESORT_PASSES))options.append(button('🐾 Лазурный берег · '+p.name+' с питомцами · '+formatRub(p.price),()=>{if(send({type:'resort_trip',pass:id as ResortPass,pets:true}))close();},place.money<p.price));
         const lake=button('🏕️ Лесное озеро ›',()=>{carPage='lake';draw();panel.scrollTop=0;});
         lake.dataset.carPage='lake';options.append(lake);
         options.append(button('🎳 PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));
@@ -295,6 +297,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         options.append(destinationButton('fitness'),button('🏋️ PULSE вдвоём',()=>{if(send({type:'fitness_trip'}))close();}),destinationButton('clinic'),button('🏥 В клинику вместе',()=>{if(send({type:'clinic_trip'}))close();}));
         if(role==='vlad')options.append(destinationButton('barber'));
         heading('С питомцами');
+        for(const pet of ['verdell','simba'] as const)options.append(button('🐾 Пушистый люкс · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'grooming',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));
         for(const pet of ['verdell','simba'] as const)options.append(button('🐾 В «Лапа и хвост» · '+(pet==='verdell'?'Верделл':'Симба'),()=>{if(send({type:'car_travel',place:'work-clinic',pet}))close();},pet==='verdell'&&!!place.world.dogWalker));
       }
     } else if(station.action.kind==='career'&&place.world.vetVisit?.owner===role){
@@ -302,6 +305,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       options.append(element('small','',(pet==='verdell'?'Верделл':'Симба')+' · '+(h.illness?h.illness.diagnosed?PET_CONDITIONS[h.illness.id].name:'Недомогание':'Здоров')));
       for(const a of ['vetExam','vetTreatment','vetMedicine'] as const){const s=VET_SERVICES[a];if(s.station===station.id)options.append(button(s.name+' · '+formatRub(s.price),()=>{if(send({type:'local_activity',action:a,station:station.id}))close();},!vetAvailable(place,pet,a)||place.money<s.price));}
       if(station.id!=='service'&&station.id!=='records')options.append(element('small','','Осмотр и лечение — у смотрового стола, лекарства — у стойки записей.'));
+    } else if(station.action.kind==='grooming'){
+      const visit=place.world.groomVisit;if(visit&&place.pets[visit.pet].groomedUntil!>clockMinutes(place.clock))options.append(element('small','','Ухоженный питомец · эффект до дня '+(Math.floor(place.pets[visit.pet].groomedUntil!/1440)+1)));options.append(element('small','',visit?.pet==='verdell'?'Верделл · уход за шпицем':'Симба · деликатный уход'));if(station.action.facility==='care'){for(const [id,d] of Object.entries(GROOM_SERVICES))if(visit?.pet===d.pet)options.append(button(d.name+' · '+formatRub(d.price)+' · '+d.seconds+' сек.',()=>{if(send({type:'local_activity',station:station.id,action:id as keyof typeof GROOM_SERVICES}))close();},!!groomingDenial(place,role,id as keyof typeof GROOM_SERVICES)));}else options.append(element('small','','Оплата после завершения процедуры.'));
     } else if(station.action.kind==='venue'){
       const id=station.action.facility;
       if(id==='reception')options.append(element('small','','Оплата каждой партии только после завершения. Выберите игровую зону.'));
@@ -314,7 +319,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       if(facility==='terrace'){const service=resortService(place);if(service&&!service.served)options.append(element('small','','Официант несёт блюда на веранду'));}
       if(facility==='bar'){options.append(element('strong','','Наборы для мангала · 2 порции'));for(const [id,d] of Object.entries(RESORT_GRILL))options.append(button(d.name+' · '+formatRub(d.price)+' · в запасе '+(visit?.raw?.[id as ResortGrill]??0),()=>{if(send({type:'resort_buy_meat',item:id as ResortGrill}))close();},!access||place.money<d.price||(visit?.raw?.[id as ResortGrill]??0)>=3));options.append(element('strong','','Карта напитков'));}
       if(facility==='media'){options.append(element('strong','','Netflix · включено в аренду'));for(const [id,d] of Object.entries(RESORT_MEDIA)){if(d.game)continue;const line=element('div','');line.append(button(d.name,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access),button('Вдвоём',()=>{if(cafeSocial?.(id))close();},!access));options.append(line);}options.append(element('strong','','Nintendo Switch 2 · все игры куплены'));for(const [id,d] of Object.entries(RESORT_MEDIA)){if(!d.game)continue;const line=element('div','');line.append(element('small','',d.name));if(d.solo)line.append(button('Играть',()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access));if(d.paired)line.append(button('Вдвоём',()=>{if(cafeSocial?.(id))close();},!access));options.append(line);}}
-      for(const [id,d] of Object.entries(RESORT_ACTIONS))if(d.facility===facility&&!d.media){const drink=d.drink?RESORT_DRINKS[d.drink]:undefined;const label=d.name+(d.cook?' · наборов '+(visit?.raw?.[d.cook]??0):d.eat?' · порций '+(visit?.cooked?.[d.eat]??0):drink?' · '+formatRub(drink.price):'');options.append(button(label,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access||!!d.meal&&!resortMealKey(place,role,d.meal)||!!d.cook&&(!(visit?.raw?.[d.cook])||(visit.cooked?.[d.cook]??0)>4)||!!d.eat&&!visit?.cooked?.[d.eat]||!!drink&&(place.money<drink.price||drink.alcohol&&resortAlcoholCount(place,role)>=3)));}
+      for(const [id,d] of Object.entries(RESORT_ACTIONS))if(d.facility===facility&&!d.media&&(facility!=='pets'||visit?.pets?.length)){const drink=d.drink?RESORT_DRINKS[d.drink]:undefined;const label=d.name+(d.cook?' · наборов '+(visit?.raw?.[d.cook]??0):d.eat?' · порций '+(visit?.cooked?.[d.eat]??0):drink?' · '+formatRub(drink.price):'');options.append(button(label,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access||!!d.meal&&!resortMealKey(place,role,d.meal)||!!d.cook&&(!(visit?.raw?.[d.cook])||(visit.cooked?.[d.cook]??0)>4)||!!d.eat&&!visit?.cooked?.[d.eat]||!!drink&&(place.money<drink.price||drink.alcohol&&resortAlcoholCount(place,role)>=3)));}
       if(facility==='reception'&&visit)options.append(element('small','','Выезд через '+Math.max(0,Math.ceil((visit.until-now)/60))+' игровых ч.'));
     } else if(station.action.kind==='lake'){
       const visit=place.world.lake?.[role],access=lakeAccess(place,role);

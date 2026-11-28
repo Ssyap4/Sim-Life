@@ -13,6 +13,7 @@ import { taskAccessError } from '../src/shared/serviceAccess';
 import { FURNITURE_ACTIONS, furnitureSource, furnitureUseLocation, diningLocation, type FurnitureUseCommand } from '../src/shared/furnitureUse';
 import { FURNITURE_BY_ID } from '../src/shared/furniture';
 import {isSpaAction,SPA_ACTIVITIES} from '../src/shared/spa';
+import {GROOM_SERVICES,isGroomAction} from '../src/shared/grooming';
 import {isBarberAction,BARBER_SERVICES} from '../src/shared/barber';
 import {isVetAction,VET_SERVICES,isClinicAction,CLINIC_SERVICES} from '../src/shared/health';
 import {fitnessExercise,fitnessBarItem} from '../src/shared/fitness';
@@ -132,7 +133,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
-    if(isResortAction(action)){const d=RESORT_ACTIONS[action],s=stationById('resort',command.station);if(s?.action.kind!=='resort'||s.action.facility!==d.facility||d.media&&!resortMedia(d.media)?.solo)return null;return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:d.media?'resort-tv':d.cook?'resort-grill':action==='resortWash'?'resort-wash':null};}
+    if(isResortAction(action)){const d=RESORT_ACTIONS[action],s=stationById('resort',command.station);if(s?.action.kind!=='resort'||s.action.facility!==d.facility||d.media&&!resortMedia(d.media)?.solo)return null;return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:d.facility==='pets'?'resort-pets':d.media?'resort-tv':d.cook?'resort-grill':action==='resortWash'?'resort-wash':null};}
     if(isLakeLeisureAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==LAKE_LEISURE[action].facility)return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_LEISURE[action].name,durationMs:LAKE_LEISURE[action].seconds*1000,resource:action.startsWith('lakeDog')?'lake-dog':null};}
     if(isLakeCareAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==LAKE_CARE[action].facility)return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_CARE[action].name,durationMs:LAKE_CARE[action].seconds*1000,resource:'lake-care:'+station.id};}
     if(isLakeRestAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==(action==='lakeFireRest'?'fire':'pitch'))return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_REST[action].name,durationMs:LAKE_REST[action].seconds*1000,resource:null};}
@@ -140,6 +141,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     if(isLakeMealAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!=='fire')return null;const p=LAKE_MEAL_ACTIONS[action];return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:(p.cook?LAKE_MEALS[p.meal].seconds:30)*1000,resource:p.cook?'lake-fire:'+command.station:'lake-eat:'+command.station};}
     if(isVetAction(action)){const s=VET_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'vet:'+command.station};}
     if(isSpaAction(action)){const station=stationById('spa',command.station);if(station?.action.kind!=='spa'||station.action.facility!==action)return null;return {command:{type:'local_activity',station:command.station,action},label:SPA_ACTIVITIES[action].name,durationMs:SPA_ACTIVITIES[action].seconds*1000,resource:['spaPool','spaJacuzzi','spaSauna'].includes(action)?null:'spa:'+command.station};}
+    if(isGroomAction(action)){if(command.station!=='grooming-care')return null;const d=GROOM_SERVICES[action];return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:'grooming-care'};}
     if(isBarberAction(action)){if(command.station!=='barber-chair')return null;const d=BARBER_SERVICES[action];return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:'barber-chair'};}
     if(isClinicAction(action)){const s=CLINIC_SERVICES[action];if(command.station!==s.station)return null;return {command:{type:'local_activity',station:command.station,action},label:s.name,durationMs:s.seconds*1000,resource:'clinic:'+command.station};}
     if(action==='fitnessTrain'){
