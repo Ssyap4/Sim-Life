@@ -13,7 +13,8 @@ import {CARE,careScore,careEffects,careRole,homeCare,bathCare,type CareId} from 
 import {isNotebookDesk} from './shared/furniture';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
-import { fitWardrobe, fitSpaWardrobe, fitLakeWardrobe, outfitChoices } from './game/Wardrobe';
+import {outfitChoices} from './shared/previewWardrobe';
+import {readPreviewConfig} from './core/startup';
 import { NEARBY_TALK_TOPICS } from './shared/socialLife';
 import { isFreeLeisureRest } from './shared/leisure';
 import { createSocialOffer, showSocialMenu } from './socialUI';
@@ -732,8 +733,7 @@ function syncResidentLook(role:CharacterId):void{
   if(!state||!world)return;
   const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool||state.world.places[role]==='lake'&&tasks.get(role)?.lakeSwim||state.world.places[role]==='resort'&&tasks.get(role)?.resortWater;
   const worn=residentLook(state,role,!!water);
-  const actor=world.actors[role];
-  if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+  world.setResidentLook(role,worn);
 }
 let transitionTarget:PlaceId|undefined;
 let transitionFade:Animation|undefined;
@@ -1842,6 +1842,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
   try {
     const params = new URLSearchParams(window.location.search);
     showStatus('Загружаем 3D-мир…');
+    // Overlap the bounded server handshake with all 3D asset loading.
+    const previewConfig = readPreviewConfig();
     const worldModule = import('./game/World');
     const diagnostics = params.get('perf') === '1'
       ? await import('./game/PerformanceProbe').then(({ createPerformanceProbe }) => createPerformanceProbe(app))
@@ -1989,14 +1991,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
 
     showStatus('Подключаемся к дому…');
     try{
-      const controller=new AbortController();
-      const timeout=window.setTimeout(()=>controller.abort(),6000);
-      let health:Response;
-      try { health=await fetch('/health',{cache:'no-store',signal:controller.signal}); }
-      finally { window.clearTimeout(timeout); }
-      if(health.ok){
-        const config=await health.json() as {testNoCodes?:boolean};
-        localPreviewNoCodes=config.testNoCodes===true;
+      const config=await previewConfig;
+      if(config!==null){
+        localPreviewNoCodes=config;
         if(localPreviewNoCodes){
           accessInput.required=false;
           document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;

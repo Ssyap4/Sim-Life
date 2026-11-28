@@ -1,4 +1,5 @@
 import {buildBathFixture,batchBathFixture,disposeBathMaterials} from './BathroomArt';
+import {fitWardrobe,fitSpaWardrobe,fitLakeWardrobe,outfitChoices} from './Wardrobe';
 import {buildRoomCeilings,ceilingAnchors} from './RenovationLights';
 import {coveringById} from '../shared/renovation';
 import {collectRenovation} from './RenovationArt';
@@ -576,6 +577,15 @@ export class World {
     adjustHeight(this.camera.position,this.controls.target,direction,seconds,this.controls.minPolarAngle);
     this.controls.update();
     protectCameraFloor(this.camera.position,this.controls.target);
+  }
+
+  setResidentLook(role:CharacterId,worn:string):void{
+    const actor=this.actors[role];
+    if(actor.root.userData.wornLook===worn)return;
+    if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);
+    else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);
+    else fitWardrobe(actor.root,role,outfitChoices(worn));
+    actor.root.userData.wornLook=worn;
   }
 
   setFollowPlayer(enabled: boolean): void {

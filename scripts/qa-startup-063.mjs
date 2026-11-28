@@ -14,6 +14,15 @@ const errors=[],reports=[];
 try{
  for(const [width,height,role] of [[320,568,'vlad'],[390,844,'alina']]){
   const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+  let healthRequested=false,slowModelCompleted=false,healthBeforeSlowModel=false;
+  const fallbackWarnings=[];
+  page.on('request',req=>{if(new URL(req.url()).pathname==='/health')healthRequested=true;});
+  page.on('console',m=>{if(m.type()==='warning'&&/Using previous game asset|Using built-in character/.test(m.text()))fallbackWarnings.push(m.text());});
+  if(width===320)await page.route('**/assets/vlad-*.glb',async route=>{
+   await new Promise(resolve=>setTimeout(resolve,5200));
+   healthBeforeSlowModel=healthRequested;
+   slowModelCompleted=true;await route.continue();
+  });
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|WebGL|VALIDATE_STATUS/i.test(m.text()))errors.push(m.text());});
   try{
    let release,seen;const blocked=new Promise(r=>release=r),requested=new Promise(r=>seen=r);
@@ -24,6 +33,9 @@ try{
    assert.equal(await cover.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true);
    await page.screenshot({path:join(out,'boot-'+width+'.png')});release();
    await page.locator('.enter-button:enabled').waitFor({timeout:90000});
+   assert.ok(healthRequested);
+   if(width===320){assert.ok(slowModelCompleted);assert.ok(healthBeforeSlowModel,'server health starts before slow model completes');}
+   assert.deepEqual(fallbackWarnings,[],'normal/slow connection should retain approved characters');
    assert.equal(await page.locator('[data-app-version]').innerText(),JSON.parse((await import('node:fs')).readFileSync('package.json','utf8')).version);
    await page.screenshot({path:join(out,'menu-'+width+'.png')});
    await page.locator('[data-role='+role+']').click();await page.locator('.enter-button').click();

@@ -1,3 +1,4 @@
+import {fetchModelBytes} from '../core/startup';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CAT_REST_POSES, type CatRestPoseId } from '../shared/CatRestPoses';
@@ -166,6 +167,6 @@ export class SimbaRig {
 }
 
 export async function loadSimbaRig(): Promise<SimbaRig> {
-  const gltf = await new GLTFLoader().loadAsync(new URL('../assets/pets/simba.glb',import.meta.url).href);
+  const gltf = await new GLTFLoader().parseAsync(await fetchModelBytes(new URL('../assets/pets/simba.glb',import.meta.url).href),'');
   return new SimbaRig(gltf.scene);
 }

@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import type { CharacterId } from '../shared/protocol';
 import { fitWardrobe } from './Wardrobe';
+import {fetchModelBytes} from '../core/startup';
 import type { CharacterModel } from './CharacterArt';
 
 const assets: Record<CharacterId, string> = {
@@ -18,17 +19,7 @@ const cache = new Map<string, Promise<GLTF>>();
 export function readAsset(url: string): Promise<GLTF> {
   const cached = cache.get(url);
   if (cached) return cached;
-  const request = (async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4500);
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
-    } finally {
-      clearTimeout(timeout);
-    }
-  })();
+  const request = fetchModelBytes(url).then(bytes=>new GLTFLoader().parseAsync(bytes,''));
   cache.set(url, request);
   void request.catch(() => cache.delete(url));
   return request;
