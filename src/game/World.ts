@@ -1418,6 +1418,9 @@ export class World {
       const station = stationById(this.place, command.station);
       if (!station) return false;
       const actor = this.actors[role];
+      // Agility is server-authorized at a nearby station. Do not let a short
+      // resident steering delay consume the dog's entire exercise timer.
+      if(isDogAgility(command.action))this.playParkDog(command.action,role);
       const start = () => {
         if(station.action.kind==='spa'){
  const a=station.action.facility,x=station.center.x,z=station.center.z,offset=role==='vlad'?-.44:.44;
@@ -1470,13 +1473,14 @@ export class World {
         if(isParkDogAction(command.action)){
           actor.faceTowards(isDogAgility(command.action)?new THREE.Vector3(DOG_AGILITY[command.action].x,0,DOG_AGILITY[command.action].z):this.pets.verdell.root.position);
           if(command.action!=='dogToilet')actor.playPetActivity('play');
-          this.playParkDog(command.action,role);
+          if(!isDogAgility(command.action))this.playParkDog(command.action,role);
         }
         if (command.action === 'dine' && (this.household?.world.cafe[role]?.pickedUp || this.household?.world.cafe[role]?.table===station.id)) {
           const plate=this.showMeal(role, station.center.x + (role === 'vlad' ? -.40 : .40), 1.01, station.center.z - .10,this.household?.world.cafe[role]?.item);
           actor.playActivity('eat',plate);
         }
       };
+      if(isDogAgility(command.action)&&Math.hypot(actor.root.position.x-station.center.x,actor.root.position.z-station.center.z)<1.9){start();return true;}
       if(this.household&&command.action==='dine'&&cafeSeatAt(this.household,role)?.id===station.id){start();return true;}
       return this.walkTo(role, approachFor(station, role), start);
     }
@@ -1673,7 +1677,7 @@ export class World {
   }
 
   private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
-  private endAgility(role:CharacterId){if(this.agilityOwner!==role){if(this.agilityCueOwner===role)this.agilityCueOwner=undefined;return;}const action=this.agilityAction;this.agilityOwner=undefined;this.agilityAction=undefined;this.agilityWaiting=undefined;this.agilityCueOwner=undefined;const dog=this.pets.verdell;dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;const walker=this.household?.world.dogWalker;if(this.place==='park'&&walker&&dog.root.visible){const blocks=placeObstacles('park',undefined,action),floor=floorFor('park'),start=nearestClearPoint(dog.root.position,blocks,floor),goal=nearestClearPoint(this.household?.pets.verdell.parkPosition??this.actors[walker].root.position,blocks,floor);const route=start&&goal&&findRoute(start,goal,blocks,floor);if(route?.length){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.parkDogUntil=this.visualSeconds+Math.min(16,route.reduce((n,p,i)=>n+Math.hypot(p.x-(route[i-1]?.x??start!.x),p.z-(route[i-1]?.z??start!.z)),0)/PET_SPEED.verdell+1);}}}
+  private endAgility(role:CharacterId){if(this.agilityOwner!==role){if(this.agilityCueOwner===role)this.agilityCueOwner=undefined;return;}const action=this.agilityAction;this.agilityOwner=undefined;this.agilityAction=undefined;this.agilityWaiting=undefined;this.agilityCueOwner=undefined;const dog=this.pets.verdell;dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;const walker=this.household?.world.dogWalker;if(this.place==='park'&&walker&&dog.root.visible){const blocks=placeObstacles('park'),floor=floorFor('park'),position={x:dog.root.position.x,z:dog.root.position.z};let start=nearestClearPoint(position,blocks,floor),exit:Point[]=[];if(action&&!pointIsClear(position,blocks,floor)){const course=agilityPath(action),open=placeObstacles('park',undefined,action),ends=[course[0],course.at(-1)!].filter(p=>pointIsClear(p,blocks,floor)).sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z));for(const e of ends){const p=findRoute(position,e,open,floor);if(p){exit=p;start=e;break;}}}const goal=nearestClearPoint(this.household?.pets.verdell.parkPosition??this.actors[walker].root.position,blocks,floor),tail=start&&goal&&findRoute(start,goal,blocks,floor),route=tail?[...exit,...tail]:null;if(route?.length){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');if(exit.length&&action)dog.setAgility(action);this.parkDogUntil=this.visualSeconds+Math.min(16,route.reduce((n,p,i)=>n+Math.hypot(p.x-(route[i-1]?.x??start!.x),p.z-(route[i-1]?.z??start!.z)),0)/PET_SPEED.verdell+1);}}}
   finishTimedAction(role: CharacterId): void {
     this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
@@ -2286,11 +2290,11 @@ export class World {
   private playParkDog(action:string,role:CharacterId):void{
     const dog=this.pets.verdell,actor=this.actors[role],obstacles=this.place==='park'&&isDogAgility(action)?placeObstacles('park',undefined,action):this.currentObstacles(),floor=floorFor(this.place);
     const start=nearestClearPoint(dog.root.position,obstacles,floor);if(!start)return;
+    if(this.place==='park'&&isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route&&course.slice(1).every((p,i)=>segmentIsClear(course[i],p,obstacles,floor))){this.parkDogUntil=this.visualSeconds+30;this.dogTrail=[];this.lastDogPoint=null;dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.agilityOwner=role;this.agilityAction=action;this.agilityWaiting={entry,releaseAt:this.visualSeconds+8};}return;}
     const owner=nearestClearPoint({x:actor.root.position.x-.55,z:actor.root.position.z+.35},obstacles,floor);if(!owner)return;
     const goal=nearestClearPoint({x:owner.x-2.0,z:owner.z+1.3},obstacles,floor);if(!goal)return;
     this.parkDogUntil=this.visualSeconds+(isDogAgility(action)?23:action==='dogToilet'?6:15);
     this.dogTrail=[];this.lastDogPoint=null;
-    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route&&course.slice(1).every((p,i)=>segmentIsClear(course[i],p,obstacles,floor))){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.agilityOwner=role;this.agilityAction=action;this.agilityWaiting={entry,releaseAt:this.visualSeconds+8};}return;}
     if(action==='dogRoll'){dog.parkRoll();return;}
     if(action==='dogToilet'){
       const route=findRoute(start,goal,obstacles,floor);if(route)dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'toilet');return;
@@ -3473,7 +3477,7 @@ export class World {
       if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}
     }
     if(this.cameraQA&&this.place==='home'&&this.canvas.dataset.catHandView==='wide'){const owner=this.household?.pets.simba.routine?.manualToy?.owner??'vlad',p=this.actors[owner].root.position,point=this.household?.pets.simba.routine?.manualToy?.point??p;const x=(p.x+point.x)/2,z=(p.z+point.z)/2;this.controls.target.set(x,.45,z);this.camera.position.set(x+2.3,3.8,z+4.4);this.camera.lookAt(this.controls.target);}
-    if(this.cameraQA&&this.place==='park'&&new URLSearchParams(location.search).get('agilityQA')==='1'){const action=this.canvas.dataset.agilityView;if(action==='overview'){this.controls.target.set(4.9,.12,4.0);this.camera.position.set(5.1,7.9,10.2);this.camera.lookAt(this.controls.target);}else if(isDogAgility(action)){const d=DOG_AGILITY[action];this.controls.target.set(d.x,.28,d.z);this.camera.position.set(d.x+1.75,2.4,d.z+3.1);this.camera.lookAt(this.controls.target);}}
+    if(this.cameraQA&&this.place==='park'&&new URLSearchParams(location.search).get('agilityQA')==='1'){const action=this.canvas.dataset.agilityView;if(action==='overview'){this.controls.target.set(4.9,.12,4.0);this.camera.position.set(4.9,10.5,-1.7);this.camera.lookAt(this.controls.target);}else if(isDogAgility(action)){const d=DOG_AGILITY[action];this.controls.target.set(d.x,.28,d.z);this.camera.position.set(d.x+1.25,2.8,d.z-3.1);this.camera.lookAt(this.controls.target);}}
     if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){
       const view=this.place==='home'?{target:[3,.1,1],eye:[13,22,22]}:this.place==='district'?{target:[21.38,.1,21.05+DISTRICT_OFFSET_Z],eye:[26,8,29+DISTRICT_OFFSET_Z]}:this.place==='park'?{target:[1.6,.1,-.8],eye:[7.7,10.6,12]}:this.place==='electronics'?{target:[2.5,0,-.7],eye:[8.2,12,16]}:['market','cafe','petshop','clothing','education'].includes(this.place)?{target:[0,.1,-.5],eye:[6.5,11,14]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
@@ -3505,7 +3509,7 @@ export class World {
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);
