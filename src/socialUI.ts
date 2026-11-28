@@ -263,11 +263,13 @@ export function createSocialOffer(root:HTMLElement,send:SocialSend, now:()=>numb
   }
   return {
     set(next:SocialOffer,role:CharacterId){
-      offer=next;self=role;folded=false;
+      const same=offer?.id===next.id&&self===role;
+      const unchanged=same&&offer?.title===next.title&&offer?.text===next.text&&JSON.stringify(offer?.replies)===JSON.stringify(next.replies);
+      offer=next;self=role;if(!same)folded=false;
       // Use a local, pause-aware countdown. Server expiry remains authoritative;
       // wall clocks across two phones may differ substantially.
       deadline=now()+(next.remainingMs??Math.max(0,next.expiresAt-Date.now()));
-      render();
+      if(!unchanged)render();
     },
     clear(id?:number){if(id!==undefined&&offer?.id!==id)return;window.clearInterval(timer);timer=undefined;offer=null;render();},
     get pending(){return !!offer;},

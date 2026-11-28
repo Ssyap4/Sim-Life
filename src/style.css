@@ -1081,7 +1081,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .social-card select { width: 100%; background: #fffaf0; color: #395b4d; border: 1px solid #d7e1d3;
   border-radius: 8px; padding: 7px; font: inherit; font-size: 12px; min-height: 39px; }
 .social-reason { color: #805a4e; }
-.social-invite { position: fixed; z-index: 35; top: 12%; left: 50%; transform: translateX(-50%);
+.social-invite { position: fixed; z-index: 96; top: 12%; left: 50%; transform: translateX(-50%);
   width: min(91vw, 366px); max-height: 70dvh; overflow: auto; display: grid; gap: 6px; padding: 12px;
   background: #fff9eb; color: #3c5e52; border: 1px solid #fffeed; border-radius: 15px; box-shadow: 0 9px 28px #49534b42; }
 .social-invite[hidden] { display: none; }
@@ -1089,7 +1089,7 @@ h1 { margin: -4px 0 0; color: #415745; font-weight: 900; font-size: 26px; letter
 .social-invite h3 { font-size: 16px; }
 .social-invite p,.social-invite h3 { margin: 0; }
 .social-invite p { font-size: 13px; }
-.social-invite [data-social-reply] { text-align: left; }
+.social-invite [data-social-reply] { text-align: left; min-height:44px; touch-action:manipulation; }
 .social-clock { flex: none; font-variant-numeric: tabular-nums; }
 .relationship h3,.relationship p,.relationship h2 { margin: 0; }
 .relationship h2 { font-size: 20px; }

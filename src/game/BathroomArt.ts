@@ -83,8 +83,9 @@ function shower(root: THREE.Group,design=0,color=0xacc4b7): void {
   part(root, [.29, .036, .034], [.50, 2.15, .16], chrome, 'metal');
   part(root, [design===4?.26:.14, .036, design===4?.26:.14], [.36, 2.12, .16], frame, 'metal', design===4?cube:drum);
   // Rain head: dark nozzle plate and shallow chrome rim, above the standing rig.
-  part(root,[.133,.008,.133],[.36,2.098,.16],0x526761,'metal',drum);
-  for(const x of [-.065,0,.065])for(const z of [-.065,0,.065])
+  part(root,design===4?[.248,.008,.248]:[.133,.008,.133],[.36,2.098,.16],0x526761,'metal',design===4?cube:drum);
+  const nozzleGrid=design===4?[-.09,-.045,0,.045,.09]:[-.065,0,.065];
+  for(const x of nozzleGrid)for(const z of nozzleGrid)
     part(root,[.011,.008,.011],[.36+x,2.092,.16+z],chrome,'metal',drum);
   part(root, [.043, .076, .076], [.596, 1.06, .16], C.pine, 'metal');
   part(root, [.18, design===3?.065:.047, .34], [.59, 1.26, -.34], design===3?0xd4c0a3:porcelain);

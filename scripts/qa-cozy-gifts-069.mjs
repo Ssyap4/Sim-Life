@@ -34,7 +34,7 @@ try{
  await v.locator('#phone-btn').tap();await v.locator('[data-phone-app=relationship]').tap();
  await v.locator('[data-gift-shortcut]').tap();await v.locator('[data-social-action=giftBear]').waitFor();await shot(v,'gift-menu-390');
  for(const p of [v,a])await p.locator('#game-canvas').evaluate(c=>{c.dataset.cozyGiftView='1';window.__giftPhases={};const watch=new MutationObserver(()=>{try{const d=JSON.parse(c.dataset.yardQA||'{}');for(const r of ['vlad','alina']){const g=d.actors?.[r]?.care?.gift;if(g?.id==='giftBear'&&g.visible)window.__giftPhases[r]=true;}}catch{}});watch.observe(c,{attributes:true,attributeFilter:['data-yard-q-a','data-yard-qa']});});
- await v.locator('[data-social-propose=giftBear]').tap();await a.locator('[data-social-reply="0"]').tap({timeout:20000});
+ await v.bringToFront();await v.locator('[data-social-propose=giftBear]').tap();await a.bringToFront();await a.locator('[data-social-reply="0"]').tap({timeout:35000});
  for(const p of [v,a])await p.waitForFunction(()=>{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA||'{}');return d.actors?.vlad?.care?.gift?.id==='giftBear'&&d.actors.vlad.care.gift.visible;},undefined,{timeout:45000});
  await Promise.all([shot(v,'giving-390'),shot(a,'giving-320')]);
  for(const p of [v,a])await p.waitForFunction(()=>window.__giftPhases?.alina===true,undefined,{timeout:25000});
@@ -43,5 +43,5 @@ try{
  for(const p of [v,a])await p.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.gifts?.giftBear===0),undefined,{timeout:30000});
  assert.equal(files.load().gifts?.giftBear,0);assert.equal(files.load().money,100000);assert.deepEqual(errors,[]);
  console.log('COZY GIFTS 069 MOBILE OK');
-}catch(e){for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});throw e;}
+}catch(e){for(let i=0;i<pages.length;i++){const p=pages[i];console.log('COZY_FAILURE',i,JSON.stringify(await p.evaluate(()=>({visibility:document.visibilityState,invite:document.querySelector('#social-invite')?.outerHTML,phases:window.__giftPhases,packets:window.__qaPackets.filter(m=>['task_started','task_active','task_ended','social_offer','social_closed','error'].includes(m.type)).slice(-10)})).catch(()=>null)));await p.screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});}throw e;}
 finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}
