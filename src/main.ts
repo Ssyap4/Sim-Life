@@ -1,4 +1,5 @@
 import './renovation.css';
+import {version as appVersion} from '../package.json';
 import {isDogAgility,DOG_AGILITY} from './shared/dogAgility';
 import {catManualToys,type CatPlayCommand} from './shared/petToys';
 import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
@@ -12,7 +13,8 @@ import {CARE,careScore,careEffects,careRole,homeCare,bathCare,type CareId} from 
 import {isNotebookDesk} from './shared/furniture';
 import { activeReward, rewardTime } from './shared/happiness';
 import { CAT_BLOCKED, CAT_DESCENDING, catOccupiedPerch } from './shared/catOccupancy';
-import { fitWardrobe, fitSpaWardrobe, fitLakeWardrobe, outfitChoices } from './game/Wardrobe';
+import {outfitChoices} from './shared/previewWardrobe';
+import {readPreviewConfig} from './core/startup';
 import { NEARBY_TALK_TOPICS } from './shared/socialLife';
 import { isFreeLeisureRest } from './shared/leisure';
 import { createSocialOffer, showSocialMenu } from './socialUI';
@@ -256,7 +258,7 @@ app.innerHTML = `
       <button class="enter-button" type="submit" disabled>Продолжить за Влада</button>
       <p class="auth-status" id="auth-status" role="status" aria-live="polite">Готовим ваш мир…</p>
       <details class="title-settings"><summary>Настройки музыки</summary><label class="title-volume"><span>Громкость</span><input id="title-volume" type="range" min="0" max="100" step="5" aria-label="Громкость музыки"><output id="title-volume-value"></output></label></details>
-      <footer class="title-footer"><span>Один дом · две жизни</span><span>0.63</span></footer>
+      <footer class="title-footer"><span>Один дом · две жизни</span><span data-app-version>${appVersion}</span></footer>
     </form>
   </section>
   <div class="rotate-notice">Для SimOurHome поверни телефон вертикально ↻</div>
@@ -731,8 +733,7 @@ function syncResidentLook(role:CharacterId):void{
   if(!state||!world)return;
   const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool||state.world.places[role]==='lake'&&tasks.get(role)?.lakeSwim||state.world.places[role]==='resort'&&tasks.get(role)?.resortWater;
   const worn=residentLook(state,role,!!water);
-  const actor=world.actors[role];
-  if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
+  world.setResidentLook(role,worn);
 }
 let transitionTarget:PlaceId|undefined;
 let transitionFade:Animation|undefined;
@@ -761,15 +762,18 @@ function refreshCarRide():void{
   const screen=document.querySelector<HTMLElement>('#car-ride')!;
   screen.hidden=!ride;
   app!.classList.toggle('car-riding',!!ride);
+  notifications.setSuspended(!!ride);
   for(const child of Array.from(app!.children))if(child instanceof HTMLElement&&child!==screen&&child.id!=='game-canvas')child.inert=!!ride;
   world?.setCarRide(ride);
   if(!ride){if(state&&active&&world)beginSceneTransition(state.world.places[active]);return;}
   document.querySelector<HTMLElement>('#ride-destination')!.textContent=ride.to==='home'?'Возвращаемся домой':'Едем: '+PLACES[ride.to].name;
   document.querySelector<HTMLElement>('#ride-route')!.textContent=PLACES[ride.from].name+' → '+PLACES[ride.to].name;
+  const progress=document.querySelector<HTMLElement>('#ride-progress')!;
+  const track=screen.querySelector('.ride-track');
   const tick=()=>{
     const p=rideProgress(ride);
-    document.querySelector<HTMLElement>('#ride-progress')!.style.transform='scaleX('+p+')';
-    screen.querySelector('.ride-track')?.setAttribute('aria-valuenow',String(Math.round(p*100)));
+    progress.style.transform='scaleX('+p+')';
+    track?.setAttribute('aria-valuenow',String(Math.round(p*100)));
     if(p>=1)refreshCarRide();
   };
   rideTimer=window.setInterval(tick,80);tick();
@@ -810,8 +814,9 @@ function render(reset = false): void {
     document.querySelector<HTMLElement>('#app')!.dataset.place = place;
     if (deliverySequence !== null && state.world.sequence[active] > deliverySequence) {
       const origin=deliveryOrigin,accepted=deliveryWasAccepted(state,active,deliverySequence);
-      deliverySequence = null;deliveryOrigin=null;
-      if(accepted){if(origin==='computer')computer.acknowledgeOrder(true);else marketUI.acknowledge();}
+      deliverySequence = null;deliveryOrigin=null;deliveryRole=null;
+      if(accepted){if(origin==='computer')computer.acknowledgeOrder();else marketUI.acknowledge();}
+      else if(origin==='computer')computer.rejectOrder();else marketUI.reject();
     }
   }
   renderClock();
@@ -823,7 +828,7 @@ function render(reset = false): void {
   needsToggleEl.classList.toggle('health-alert',sick);
   needsToggleEl.title = sick&&active?healthStatus(state,active):lowBladder ? NEED_INFO.bladder.hint : '';
   if(sick)needsToggleEl.setAttribute('aria-label','Потребности · недомогание');
-  world?.setTimeOfDay(gameMinutes(state.clock));
+  // syncHousehold already applies the authoritative scene clock above.
   phone.refresh();
   skillsPanel.refresh();
   computer.refresh();
@@ -865,11 +870,17 @@ function showStatus(text: string): void {
 }
 let deliverySequence: number | null = null;
 let deliveryOrigin:'market'|'computer'|null=null;
+let deliveryRole:CharacterId|null=null;
+function rejectDelivery(){
+  if(deliveryOrigin==='computer')computer.rejectOrder();
+  else if(deliveryOrigin==='market')marketUI.reject();
+  deliverySequence=null;deliveryOrigin=null;deliveryRole=null;
+}
 const orderDelivery = (lines: BasketLine[],origin:'market'|'computer'='market') => {
   if (!state || !active || deliverySequence !== null) return false;
   const sequence = state.world.sequence[active];
   if (!net.world({ type: 'delivery_order', lines, sequence })) return false;
-  deliverySequence = sequence;deliveryOrigin=origin;
+  deliverySequence = sequence;deliveryOrigin=origin;deliveryRole=active;
   return true;
 };
 const marketUI = createMarketUI(marketOverlay,orderDelivery,()=>phone.open('mobile'),undefined,{role:()=>active,submit:(kind,item,on)=>net.favoriteFood(kind,item,on)});
@@ -882,7 +893,7 @@ function signOut(): void {
   resetSceneTransition();
   gameAudio.setPlaying(false);
   net.forgetDevice();
-  deliverySequence = null;deliveryOrigin=null;
+  rejectDelivery();
   active = null;
   refreshCarRide();
   state = null;
@@ -1043,7 +1054,7 @@ const net = new LiveConnection({
     state = household;
     // Resolve a delivery whose acknowledgement was interrupted using the
     // authoritative sequence. Unaccepted orders keep their unsent basket.
-    if(deliverySequence!==null&&household.world.sequence[role]<=deliverySequence){deliverySequence=null;deliveryOrigin=null;}
+    if(deliverySequence!==null&&(deliveryRole!==role||household.world.sequence[role]<=deliverySequence))rejectDelivery();
     thoughts.onReady(role);
     displayClock.reset(gameMinutes(household.clock), performance.now());
     online = players;
@@ -1066,7 +1077,6 @@ const net = new LiveConnection({
     world.setActive(role);
     render(true);
     if(reconnecting){notifications.resolve('disconnect');notify('Связь восстановлена',{title:'Снова вместе',kind:'success',key:'reconnect'});}
-    else if(household.world.places[role]==='home')notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
     const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
   onAlbumImage(id,jpeg){phone.albumImage(id,jpeg);},
@@ -1166,7 +1176,7 @@ const net = new LiveConnection({
     if(_role===active&&!taskEcho(_role,message))notify(message);
   },
   onStoreEvent(role,message) {
-    if(role===active){marketUI.acknowledge();computer.acknowledgeOrder();subtleHaptic('confirm');}
+    if(role===active)subtleHaptic('confirm');
     statusEl.textContent=message;
     notify(message,{title:'Покупки и доставка',kind:'success'});
   },
@@ -1278,7 +1288,8 @@ const net = new LiveConnection({
     statusEl.textContent = message;
     notify(animated ? message : message + ' · анимация временно недоступна');
   },
-  onError(reason) {
+  onError(reason,failedDeliverySequence) {
+    if(deliverySequence!==null&&failedDeliverySequence===deliverySequence)rejectDelivery();
     bowlingUI.retry();poolUI.retry();tableUI.retry();
     if(phone.messagingOpen())phone.messageRejected();
     if(reason===CAT_BLOCKED||reason===CAT_DESCENDING){
@@ -1297,7 +1308,6 @@ const net = new LiveConnection({
     if(computer.visible) computer.billingMessages([reason]);
     else if (document.querySelector('#phone-overlay:not([hidden])') && !phone.educationMessage(reason))
       phone.billingMessages([reason]);
-    deliverySequence = null;deliveryOrigin=null;
     locationUI.reject();
     if (!authEl.hidden || reason.includes('Неверный код') || reason.includes('уже занят на другом устройстве') || reason.includes('Доверие устройства истекло')) {
       resetSceneTransition();
@@ -1839,6 +1849,8 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
   try {
     const params = new URLSearchParams(window.location.search);
     showStatus('Загружаем 3D-мир…');
+    // Overlap the bounded server handshake with all 3D asset loading.
+    const previewConfig = readPreviewConfig();
     const worldModule = import('./game/World');
     const diagnostics = params.get('perf') === '1'
       ? await import('./game/PerformanceProbe').then(({ createPerformanceProbe }) => createPerformanceProbe(app))
@@ -1986,14 +1998,9 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
 
     showStatus('Подключаемся к дому…');
     try{
-      const controller=new AbortController();
-      const timeout=window.setTimeout(()=>controller.abort(),6000);
-      let health:Response;
-      try { health=await fetch('/health',{cache:'no-store',signal:controller.signal}); }
-      finally { window.clearTimeout(timeout); }
-      if(health.ok){
-        const config=await health.json() as {testNoCodes?:boolean};
-        localPreviewNoCodes=config.testNoCodes===true;
+      const config=await previewConfig;
+      if(config!==null){
+        localPreviewNoCodes=config;
         if(localPreviewNoCodes){
           accessInput.required=false;
           document.querySelector<HTMLLabelElement>('label[for="access-code"]')!.hidden=true;

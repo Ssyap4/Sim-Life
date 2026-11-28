@@ -15,6 +15,17 @@ startServer({ port, host, dataDir, distDir: resolve('dist'),
   // Never change the starting balance of normal/production households.
   previewStartMoney:testNoCodes?100_000:undefined })
   .then((server) => {
+    let stopping=false;
+    const shutdown=()=>{
+      if(stopping)return;
+      stopping=true;
+      void server.close().catch(error=>{
+        console.error('Server shutdown failed:',error);
+        process.exitCode=1;
+      });
+    };
+    process.once('SIGINT',shutdown);
+    process.once('SIGTERM',shutdown);
     console.log('🏡 Sim-Life server: http://127.0.0.1:' + server.port);
     if(process.env.SIM_LIFE_TEST_NO_CODES==='1')
       console.log('🧪 TEST PREVIEW: codes disabled for both characters; trusted LAN only.');

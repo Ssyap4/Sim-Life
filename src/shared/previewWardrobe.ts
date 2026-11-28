@@ -69,3 +69,12 @@ export function validWardrobe(value:unknown):value is OwnedWardrobe{
   return !!r&&Array.isArray(r.owned)&&r.owned.includes('signature')&&r.owned.length===new Set(r.owned).size&&r.owned.every(id=>typeof id==='string'&&isPreviewLook(role,id))&&r.owned.includes(r.worn)&&(r.auto===undefined||typeof r.auto==='boolean')&&(r.contexts===undefined||!!r.contexts&&typeof r.contexts==='object'&&!Array.isArray(r.contexts)&&Object.entries(r.contexts).every(([k,v])=>(OUTFIT_CONTEXTS as readonly string[]).includes(k)&&typeof v==='string'&&r.owned.includes(v)));
  });
 }
+
+/** Pure outfit selection, shared by the UI and the deferred 3D renderer. */
+export function outfitChoices(look:string):readonly string[] {
+  if(look==='signature')return [];
+  return (['alina','vlad'] as const).filter(id=>isPreviewLook(id,look)).flatMap(id=>[
+    id+'-'+look+'-upper',id+'-'+look+'-lower',
+    id+'-'+look+'-footwear'
+  ]);
+}

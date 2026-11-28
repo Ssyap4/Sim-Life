@@ -559,3 +559,22 @@ test('064 persisted automatic sleep retains its origin and can be disabled after
     assert.equal(saved.characters.vlad.sleepMode,undefined);
   }finally{await ctx.close();}
 });
+
+test('071 automatic sleep selects another bed while partner reserves the starter',async()=>{
+ const seed=initialState();seed.money=100000;
+ seed.autonomy={vlad:'off',alina:'off'};
+ seed.furnishing.placed=[{id:1,sku:'bed-solo',finish:'ivory',x:13,z:-5.7,rotation:0}];seed.furnishing.nextId=2;
+ Object.assign(seed.characters.alina,{energy:15,hunger:95,bladder:95,hygiene:95,comfort:95,fun:95,social:95});
+ const ctx=await setup(seed,true,60,2400,true,.18);
+ try{
+  const v=await ctx.join('vlad'),a=await ctx.join('alina');
+  const started=waitFor(v,p=>p.type==='task_started'&&p.role==='vlad'&&p.command.type==='act'&&p.command.actionId==='bedMake');
+  send(v,{type:'act',actionId:'bedMake'});const task=await started;assert.equal(task.type,'task_started');
+  let ended=false;v.on('message',raw=>{const p=JSON.parse(raw.toString()) as ServerPacket;if(p.type==='task_ended'&&p.role==='vlad')ended=true;});
+  const asleep=waitFor(a,p=>p.type==='snapshot'&&p.state.characters.alina.sleepAutomatic===true,4300);
+  send(a,{type:'autonomy_mode',mode:'needs'});ctx.startClock();
+  const event=await asleep;assert.equal(event.type,'snapshot');assert.equal(event.state.characters.alina.sleepingOn,1);
+  assert.equal(ended,false,'alternative must be selected before the starter is released');
+  assert.equal(event.state.money,100000);
+ }finally{await ctx.close();}
+});

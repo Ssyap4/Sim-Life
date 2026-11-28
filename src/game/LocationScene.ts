@@ -806,7 +806,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   };
   // Large locations formerly walked the whole scene graph twice for the same bounds.
   const vertical = corners(new THREE.Box3().setFromObject(root));
-  const horizontal = (place==='resort'||place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?vertical:place === 'market' ? marketOutline
+  const horizontal = (['resort','lake','fitness','clinic','barber','electronics','spa','venue','grooming','buildshop','cafe','clothing','petshop','education'].includes(place)||isCareerPlace(place))?vertical:place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   return {
     root, stations, horizontal, vertical,

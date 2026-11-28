@@ -48,6 +48,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
+import {broadcastPacket,sendSerialized} from './transport';
 import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
@@ -123,14 +124,14 @@ const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
-  '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
+  '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
 };
 const sameCode = (a: string, b: string): boolean => {
   const supplied = Buffer.from(a), expected = Buffer.from(b);
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 };
 const packet = (socket: WebSocket, value: ServerPacket): void => {
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+  if (socket.readyState === WebSocket.OPEN) sendSerialized(socket,JSON.stringify(value));
 };
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
@@ -183,6 +184,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let pauseRequestedBy: CharacterId | null = null;
   let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
+  let closing=false;
+  let closePromise:Promise<void>|undefined;
   let fitnessTripOffer:{from:CharacterId;expires:number;dog?:boolean;pets?:boolean;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`resort-${ResortPass}`|`lake-${LakePass}`}|undefined;
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
@@ -251,7 +254,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     pauseRequestedBy,
   });
   const all = (event: ServerPacket): void => {
-    for (const socket of active.values()) packet(socket, event);
+    broadcastPacket(active.values(),event);
     // Defer until all completion bookkeeping and saves have finished.
     // This also works for homeSessions (including toilet -> hand washing).
     if(event.type==='task_ended' && (queuedTasks.get(event.role)?.length??0)>0)
@@ -567,7 +570,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         resident.bladder,resident.hunger,resident.hygiene);
       const emergency=urgentPhysicalNeed(state,role);
       if(resident.energy<=50&&energyMostUrgent&&(!emergency||emergency==='energy')){
-        const chosen=selectSleepBed(state,role);
+        const chosen=selectSleepBed(state,role,undefined,starterBedBusy(role));
         if(chosen.ok){
           stopLeisure(role);
           const next=structuredClone(state);
@@ -1008,6 +1011,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   };
   /** Sleep is an authentic, long-running action: the next queued command
    * waits for recovery or explicit waking, just like other completed tasks. */
+  function starterBedBusy(role:CharacterId):boolean{
+    return [...running.entries()].some(([owner,task])=>owner!==role&&task.plan.resource==='bed')||homeTasks.reserved('bed');
+  }
   function startSleepRequest(role:CharacterId,socket:WebSocket,
       command:{mode:SleepMode;furnitureId?:number}):void {
     if(state.world.places[role]!=='home'||state.activeShifts[role]||state.careers.residents[role].shift||
@@ -1020,7 +1026,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       packet(socket,{type:'error',reason:'Энергия уже достигла выбранной отметки'});return;
     }
     const requestedBed=command.furnitureId;
-    const chosen=selectSleepBed(state,role,requestedBed);
+    const chosen=selectSleepBed(state,role,requestedBed,starterBedBusy(role));
     if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
     closeStorage(role);
     stopLeisure(role);
@@ -1044,7 +1050,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     announceTime();
   }
   function startNextQueued(role: CharacterId): void {
-    if (isPaused) return;
+    if (isPaused||closing) return;
     if(running.has(role)||homeTasks.busy(role)||sleepers.has(role))return;
     const tasks=queuedTasks.get(role);
     if(!tasks?.length)return;
@@ -1123,9 +1129,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const stream=createReadStream(requested,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;
     }
     // Vite fingerprints these assets; cache them between visits and stream
-    // precompressed JS/CSS without spending CPU on compression per request.
+    // precompressed JS/CSS/GLB without spending CPU on compression per request.
     const hashed=/^assets[\\/][^\\/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/i.test(rel);
-    const compressible=hashed&&['.js','.css'].includes(extname(requested));
+    const compressible=hashed&&['.js','.css','.glb'].includes(extname(requested));
     const compressed=compressible&&existsSync(requested+'.gz')&&acceptsGzip(req.headers['accept-encoding']);
     const file=compressed?requested+'.gz':requested;
     const size=statSync(file).size;
@@ -1153,6 +1159,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }, 15000);
   heartbeat.unref();
   httpServer.on('upgrade', (req, socket, head) => {
+    if(closing){socket.destroy();return;}
     let url: URL;
     try { url = new URL(req.url ?? '', 'http://localhost'); }
     catch { socket.destroy(); return; }
@@ -1170,15 +1177,28 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     tracked.isAlive = true;
     socket.on('pong', () => { tracked.isAlive = true; });
     let role: CharacterId | null = null;
+    // An unauthenticated peer must not occupy a socket indefinitely.
+    const authDeadline=setTimeout(()=>socket.terminate(),15000);
+    authDeadline.unref();
     let invalidLogins = 0;
     let deviceToken: string | null = null;
+    const sendPacket=packet;
     socket.on('message', (raw: RawData, isBinary: boolean) => {
+      let deliverySequence:number|undefined;
+      const packet=(recipient:WebSocket,value:ServerPacket)=>{
+        if(recipient===socket&&value.type==='error'&&deliverySequence!==undefined)
+          sendPacket(recipient,{...value,deliverySequence});
+        else sendPacket(recipient,value);
+      };
+      if(closing)return;
       if (isBinary) { socket.close(1003, 'JSON only'); return; }
       let input: unknown;
       try { input = JSON.parse(raw.toString()); }
       catch { packet(socket, { type: 'error', reason: 'Повреждённое сообщение' }); return; }
       if (!input || typeof input !== 'object' || !('type' in input)) return;
       const message = input as Record<string, unknown>;
+      if(role&&message.type==='delivery_order'&&typeof message.sequence==='number'&&Number.isSafeInteger(message.sequence))
+        deliverySequence=message.sequence;
       if(Buffer.byteLength(raw.toString())>8192&&(!role||message.type!=='album_add')){packet(socket,{type:'error',reason:'Слишком большое сообщение'});return;}
 
       if (!role) {
@@ -1207,6 +1227,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           try { deviceToken = devices.issue(requested); }
           catch { packet(socket, { type: 'error', reason: 'Не удалось запомнить устройство. Войди без этой опции' }); return; }
         }
+        clearTimeout(authDeadline);
         role = requested;
         if (active.size === 0) lastLifeTick = lifeNow();
         else commitLife();
@@ -1609,6 +1630,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // A snack handed to a begging pet at the table is a side interaction:
       // keep the owner's 32-second meal running and charge the shared limit once.
       if(message.type==='pet_action'&&message.pet==='verdell'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
+      if(message.type==='pet_action'&&PET_IDS.some(id=>id===message.pet)&&
+        (['call','perch','fetch','mat','scratch','toy','bedTogether','leaveBed','treat'].includes(String(message.action))||isTrainingAction(message.action))&&
+        ([...running.entries()].some(([owner,t])=>owner!==role&&t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){
+        packet(socket,{type:'error',reason:'Питомец сейчас занят с другим хозяином'});return;
+      }
       if(message.type==='pet_action'&&message.action==='treat'&&PET_IDS.some(id=>id===message.pet)){
         const pet=message.pet as PetId,animal=state.pets[pet];
         const ownerEating=homeTasks.diners().has(role)||['eat','eat_takeout'].includes(running.get(role)?.plan.command.type??'');
@@ -1726,7 +1752,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(running.has(role)){queuedTasks.set(role,tagged.slice(1).map(plan=>({id:++nextQueueId,plan,label:plan.label})));publishQueue(role);}
         return;
       }
-      if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
+      if(message.type==='dog_leash'&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell')||homeTasks.reserved('pet:verdell'))){packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
       if(message.type==='car_travel'&&(message.place==='work-clinic'||message.place==='grooming')&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
       if(message.type==='renovation_install'){
         const fixture=coveringById(message.sku)?.fixture;
@@ -1865,6 +1891,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       packet(socket, { type: 'error', reason: 'Неизвестная команда' });
     });
     socket.on('close', () => {
+      clearTimeout(authDeadline);
       if (role && active.get(role) === socket) {
         clearQueue(role);
         walkingHome.delete(role);
@@ -1906,18 +1933,28 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
   return {
     httpServer, port: actualPort,
-    async close(): Promise<void> {
-      for (const task of running.values()){pauseTimers.clear(task.timer);if(task.spaTimer)pauseTimers.clear(task.spaTimer);}
-      pauseTimers.dispose();
-      clearPauseRequest();
-      running.clear();
-      homeTasks.dispose();
-      clearInterval(heartbeat);
-      clearInterval(clockSync);
-      clearInterval(lifeTicker);
-      for (const socket of wss.clients) socket.terminate();
-      await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));
-      await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
+    close(): Promise<void> {
+      if(closePromise)return closePromise;
+      closing=true;
+      closePromise=(async()=>{
+        clearInterval(heartbeat);
+        clearInterval(clockSync);
+        clearInterval(lifeTicker);
+        // Persist elapsed whole minutes, then use normal disconnect cleanup
+        // while session and timer registries still exist.
+        commitLife();
+        const httpClosed=new Promise<void>(resolveClose=>httpServer.close(()=>resolveClose()));
+        for(const role of active.keys())clearQueue(role);
+        for(const socket of wss.clients)socket.terminate();
+        await new Promise<void>(resolveClose=>wss.close(()=>resolveClose()));
+        for(const task of running.values()){pauseTimers.clear(task.timer);if(task.spaTimer)pauseTimers.clear(task.spaTimer);}
+        running.clear();
+        homeTasks.dispose();
+        pauseTimers.dispose();
+        clearPauseRequest();
+        await httpClosed;
+      })();
+      return closePromise;
     },
   };
 }

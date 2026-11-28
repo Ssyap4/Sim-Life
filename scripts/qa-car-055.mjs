@@ -31,30 +31,37 @@ try{
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  await page.evaluate(()=>{window.__qaCaptureRide=true});
- if(mode==='lake'){
+ if(mode==='resort'){ await send({type:'resort_trip',pass:'night',pets:true}); await page.waitForFunction(()=>window.__packets.some(p=>p.type==='world_event'&&p.role==='vlad'&&p.message.includes('Предложение'))); buddy.send(JSON.stringify({type:'resort_trip',pass:'night',pets:true})); }else if(mode==='grooming'){await send({type:'car_travel',place:'grooming',pet:'verdell'});}else if(mode==='lake'){
    await send({type:'lake_trip',pass:'day'});
    await page.waitForFunction(()=>window.__packets.some(p=>p.type==='world_event'&&p.message.includes('Предложение отправлено')));
    buddy.send(JSON.stringify({type:'lake_trip',pass:'day'}));
  }else await send({type:'car_travel',place:'market'});
  await page.locator('#car-ride').waitFor({state:'visible',timeout:10000});
  await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=12);
- await page.waitForTimeout(300);await shot('01-travel');
+ await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('#car-ride')).opacity)>=.99);
+ await page.evaluate(()=>window.__socket.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'billing_event',messages:['QA travel notice']})})));
+ await page.waitForTimeout(300);assert.equal(await page.locator('#message .notice-card').count(),0);await shot('01-travel');
  await page.evaluate(()=>{const r=window.__packets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad).state.world.carRides.vlad;window.__qaRideTime=r.startedAt+(r.endsAt-r.startedAt)*.59;});
  await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=58,undefined,{timeout:10000});
  await page.waitForTimeout(300);assert.ok(await page.locator('#car-ride').isVisible());await shot('01b-side');
  await page.evaluate(()=>{window.__qaCaptureRide=false;delete window.__qaRideTime;});
  const ride=await page.evaluate(()=>window.__packets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad)?.state.world.carRides.vlad);
- assert.equal(ride.to,mode);assert.equal(ride.endsAt-ride.startedAt,mode==='lake'?10000:6000);
+ assert.equal(ride.to,mode);assert.equal(ride.endsAt-ride.startedAt,mode==='lake'||mode==='resort'?10000:mode==='grooming'?8000:6000);
  const snapshot=buddyPackets.findLast(p=>p.type==='snapshot'&&p.state.world.carRides?.vlad);
- assert.ok(snapshot);if(mode==='lake')assert.deepEqual(snapshot.state.world.carRides.vlad,snapshot.state.world.carRides.alina);else assert.equal(snapshot.state.world.places.alina,'home');
+ assert.ok(snapshot);if(mode==='lake'||mode==='resort')assert.deepEqual(snapshot.state.world.carRides.vlad,snapshot.state.world.carRides.alina);else assert.equal(snapshot.state.world.places.alina,'home');
  await page.locator('#car-ride').waitFor({state:'hidden',timeout:18000});
  assert.ok(await page.locator('#app').getAttribute('data-place')===mode);
  await page.waitForFunction(()=>!document.querySelector('#world-transition')?.hasAttribute('data-pending-place'));
+ await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('#world-transition')).opacity)<=.01);
+ assert.equal(await page.getByText('Вы дома',{exact:true}).count(),0);
+ await page.locator('#notice-bell').click();await page.locator('#notice-history').waitFor({state:'visible'});
+ assert.equal(await page.locator('#notice-history').getByText('QA travel notice',{exact:true}).count(),1);
+ await page.locator('#notice-history [data-notice-close]').click();
  await shot('02-arrived');
- if(mode==='market'){
-   await send({type:'approach',place:'market',station:'market-exit'});
-   await page.waitForFunction(()=>window.__packets.some(p=>p.type==='world_path'&&p.role==='vlad'&&p.station==='market-exit'),undefined,{timeout:10000});
-   await send({type:'travel',place:'district',via:'market-exit'});
+ if(['market','resort','grooming'].includes(mode)){
+   const exit=mode+'-exit';await send({type:'approach',place:mode,station:exit});
+   await page.waitForFunction(exit=>window.__packets.some(p=>p.type==='world_path'&&p.role==='vlad'&&p.station===exit),exit,{timeout:10000});
+   await send({type:'travel',place:'district',via:exit});
    await page.locator('#car-ride').waitFor({state:'visible',timeout:10000});
    await page.waitForFunction(()=>Number(document.querySelector('.ride-track')?.getAttribute('aria-valuenow'))>=12);
    await shot('03-return');

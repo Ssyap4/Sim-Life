@@ -127,3 +127,51 @@ test('Care actions from Vlad and Alina synchronize as a single shared pet family
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('071 home pet commands cannot act on a walked dog or from another destination',()=>{
+ const s=initialState();s.money=100000;
+ s.world.dogWalker='alina';
+ for(const action of ['feed','play','pet','brush','call','mat','toy','fetch','treat','loadFeeder']){
+  const before=structuredClone(s);
+  assert.equal(applyPetAction(s,'vlad','verdell',action).ok,false,action);
+  assert.deepEqual(s,before);
+ }
+ assert.equal(applyPetAction(s,'vlad','simba','pet').ok,true);
+ s.world.dogWalker=null;s.world.places.vlad='cafe';
+ for(const action of ['feed','play','pet','brush','call','mat','treat']){
+  assert.equal(applyPetAction(s,'vlad','simba',action).ok,false,action);
+ }
+ assert.equal(applyPetAction(s,'alina','simba','pet').ok,true);
+});
+test('071 second owner cannot redirect a pet during another owners timed care',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-pet-conflict-071-'));
+ const files=openServerFiles(dir),s=initialState();s.money=100000;files.save(s);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.2,lifeClock:{now:()=>0,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await connect(server.port,'alina',files.access.alina);sockets.push(a);
+  const start=next(v,p=>p.type==='task_started'&&p.role==='vlad');
+  v.send(JSON.stringify({type:'pet_action',pet:'simba',action:'brush'}));await start;
+  const rejected=next(a,p=>p.type==='error');
+  a.send(JSON.stringify({type:'pet_action',pet:'simba',action:'call'}));await rejected;
+  const saved=files.load();assert.equal(saved.pets.simba.routine?.kind,undefined);assert.equal(saved.money,100000);
+ }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('071 leash cannot take Verdell away during a second owners care',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-pet-leash-071-'));
+ const files=openServerFiles(dir),s=initialState();s.money=100000;files.save(s);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.2,lifeClock:{now:()=>0,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await connect(server.port,'alina',files.access.alina);sockets.push(a);
+  const start=next(v,p=>p.type==='task_started'&&p.role==='vlad');
+  v.send(JSON.stringify({type:'pet_action',pet:'verdell',action:'brush'}));await start;
+  const rejected=next(a,p=>p.type==='error');
+  a.send(JSON.stringify({type:'dog_leash'}));const result=await rejected;
+  assert.equal(result.type,'error');assert.match(result.reason,/занят/);
+  assert.equal(files.load().world.dogWalker,null);
+ }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});

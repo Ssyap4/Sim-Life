@@ -28,3 +28,15 @@ test('paving quads share no surface area and cover the connecting lane',()=>{
  const cells=pavingCells();for(const [i,a] of cells.entries())for(const b of cells.slice(i+1))assert.ok(Math.min(a.maxX,b.maxX)-Math.max(a.minX,b.minX)<=1e-8||Math.min(a.maxZ,b.maxZ)-Math.max(a.minZ,b.minZ)<=1e-8);
  for(const r of YARD_PAVING)assert.ok(cells.some(c=>c.minX<=(r.minX+r.maxX)/2&&c.maxX>=(r.minX+r.maxX)/2&&c.minZ<=(r.minZ+r.maxZ)/2&&c.maxZ>=(r.minZ+r.maxZ)/2));
 });
+
+test('grass detail only recalculates on actual camera, quality or snow changes',()=>{
+ const scene=new THREE.Scene(),yard=buildYard(scene),camera=new THREE.PerspectiveCamera(),land=yard.landscape;
+ camera.position.set(0,8,7);
+ assert.equal(land.detail(camera,false),true);const before=land.sectors.map(m=>m.count);
+ assert.equal(land.detail(camera,false),false);assert.deepEqual(land.sectors.map(m=>m.count),before);
+ land.animate(3,0,2);assert.equal(land.detail(camera,false),false,'wind alone changes shader, not count');
+ land.animate(4,1,2);assert.equal(land.detail(camera,false),true);assert.ok(land.sectors.some((m,i)=>m.count<before[i]));
+ assert.equal(land.detail(camera,true),true);assert.equal(land.detail(camera,true),false);
+ camera.position.x+=1;assert.equal(land.detail(camera,true),true);
+ assert.ok(land.sectors.every(m=>!m.matrixAutoUpdate&&m.matrixWorldAutoUpdate));
+});

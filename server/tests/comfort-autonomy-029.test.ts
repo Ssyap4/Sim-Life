@@ -55,3 +55,23 @@ test('each cat house has two real rotated sockets, bounded model, stale referenc
     item.x+=.5;assert.ok(sockets.every(p=>!currentCatPerch(state.furnishing,p)));
   }
 });
+
+test('home food alerts do not follow a hungry resident into paid dining locations',()=>{
+ const state=initialState();state.money=100000;state.autonomy.vlad='full';state.characters.vlad.hunger=35;
+ for(const key of Object.keys(state.pantry) as (keyof typeof state.pantry)[])state.pantry[key]=0;
+ state.readyFood=[];for(const key of Object.keys(state.meals) as (keyof typeof state.meals)[])state.meals[key]=0;
+ assert.equal(foodSupplyProblem(state,'vlad'),true);
+ for(const place of ['resort','cafe','spa','lake','grooming','market'] as const){
+  state.world.places.vlad=place;assert.equal(foodSupplyProblem(state,'vlad'),false,place);
+ }
+ state.world.places.vlad='home';assert.equal(foodSupplyProblem(state,'vlad'),true);
+});
+test('autonomous food choices ignore expired batches and still prefer a fresh meal',()=>{
+ const state=initialState();state.money=100000;state.autonomy.vlad='needs';state.characters.vlad.hunger=35;
+ state.meals.omelette=1;addReadyFood(state,'meal','omelette',1,'table');
+ state.meals.toast=1;addReadyFood(state,'meal','toast',1,'table');
+ const toast=state.readyFood.find(b=>b.item==='toast')!;toast.expiresAt=0;
+ const choices=autonomyCandidates(state,'vlad').filter(c=>c.need==='hunger');
+ assert.deepEqual(choices[0].command,{type:'eat',recipe:'omelette'});
+ assert.ok(!choices.some(c=>c.command.type==='eat'&&c.command.recipe==='toast'));
+});

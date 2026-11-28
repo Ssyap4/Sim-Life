@@ -171,7 +171,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     return {
       command: { type: 'act', actionId, ...(computer ? { computer } : {}) }, label: action.label,
       durationMs: ACTION_SECONDS[actionId] * 1000,
-      resource: action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
+      resource: action.item === 'bed' ? 'bed' : action.item === 'toilet' || action.item === 'wcBasin' ? 'wc'
         : action.item === 'desk' ? computerResource(computer ?? 'desktop') : action.item === 'kitchen' || action.item === 'officeChair' || action.item==='kitchenWindow' ||
           own(BATH_ACTIONS, id) ? action.item : null,
     };
@@ -235,6 +235,9 @@ export function entertainmentReward(command: Entertainment, together = false, bo
 export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false, agility?:import('../src/shared/dogAgility').AgilitySupport): EvaluatedTask {
   if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);if(bathCare(command.care)){const c=next.characters[role];c.hygiene=command.care.startsWith('bathHair')?Math.min(100,c.hygiene+35):100;c.comfort=Math.min(100,c.comfort+(command.care.startsWith('bathHair')?15:command.care==='bathRitual'?45:35));}next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
+    const partner=state.characters[role==='vlad'?'alina':'vlad'];
+    if(partner.pose==='sleep'&&(partner.sleepingOn??'starter')==='starter')
+      return {ok:false,reason:'На кровати сейчас спит второй персонаж'};
     const pose=bedPose(state,role,'starter');
     const reason=pose&&catBedError(state,'starter:bed',pose);
     if(reason)return {ok:false,reason};

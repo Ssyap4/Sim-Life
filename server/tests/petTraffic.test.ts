@@ -169,3 +169,17 @@ test('Static pet is not displaced just because a person overlaps its location', 
   });
   assert.ok(pet.root.position.distanceTo(before) < .0001);
 });
+
+test('071 a lone home pet avoids people even when its companion is away',()=>{
+ for(const id of ['verdell','simba'] as const){
+  const pet=new PetActor(id);pet.root.position.set(-1.5,0,0);
+  pet.followRoute([new Vector3(1.5,0,0)],'wander');
+  const person={x:0,z:0};let closest=Infinity;
+  for(let i=0;i<800;i++){
+   pet.update(1/60,0,0,{blockers:[person],obstacles:empty,floor:area});
+   closest=Math.min(closest,petGap(pet.root.position,person));
+  }
+  assert.ok(closest>=PET_PERSON_CLEARANCE-.002,id+' person clearance '+closest);
+  assert.ok(pet.root.position.x>.6,id+' reaches goal');
+ }
+});

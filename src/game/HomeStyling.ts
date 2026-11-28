@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {freezeLocalTransforms} from './StaticTransforms';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PETS, PET_IDS } from '../shared/pets';
 import { batchRigidParts, colors as C, cube, drum, finish, paintedMap, panel, plane, softCube, type XYZ } from './ArtKit';
@@ -225,6 +226,8 @@ export function decorateHome(scene: THREE.Scene): THREE.Group {
   shape(home,cube,[5.87,.075,.052],[COUNTER.x+.15,2.58,HOUSE.minZ+.15],C.walnut,'wood');
   petNooks(home);
   batchRigidParts(home, true);
+  // Entry door, kitchen curtain leaves and sash have live transforms.
+  for(const part of home.children)if(part!==entry&&part!==curtains)freezeLocalTransforms(part);
   scene.add(home);
   return entry;
 }

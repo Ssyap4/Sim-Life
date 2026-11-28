@@ -26,11 +26,11 @@ import {SPA_PASSES} from '../../src/shared/spa';
 
 const roles=['vlad','alina'] as const;
 const pets=['verdell','simba'] as const;
-function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
+function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false,initialCash=10000){
   const dir=mkdtempSync(join(tmpdir(),'simourhome-long-play-'));
-  let state=initialState();
+  let state=initialState();state.money=initialCash;
   state.autonomy={vlad:'full',alina:'needs'};
-  const stats={days,working,onePlayer,leisure,income:0,workMinutes:0,venueVisits:0,spaVisits:0,furnitureOrders:0,takeoutOrders:0,expenseByCategory:{} as Record<string,number>,criticalNeedTicks:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
+  const stats={days,working,onePlayer,leisure,income:0,workMinutes:0,venueVisits:0,spaVisits:0,furnitureOrders:0,takeoutOrders:0,expenseByCategory:{} as Record<string,number>,criticalNeedTicks:0,criticalByNeed:{} as Record<string,number>,criticalByContext:{} as Record<string,number>,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
   let seed=123456;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   // Every mutation uses the real server function; use the rolling ledger's
@@ -213,7 +213,15 @@ function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
       assert.equal(state.savings.period,budgetPeriod(state.clock));
       assert.ok(state.ledger.length<=LEDGER_LIMIT);
       for(const role of roles)for(const need of VITAL_NEEDS){
-        const n=state.characters[role][need];if(n<15&&online.includes(role))stats.criticalNeedTicks++;assert.ok(Number.isFinite(n)&&n>=0&&n<=100,role+':'+need);
+        const n=state.characters[role][need];
+        if(n<15&&online.includes(role)){
+          stats.criticalNeedTicks++;
+          stats.criticalByNeed[need]=(stats.criticalByNeed[need]??0)+1;
+          const context=state.activeShifts[role]?'shift':state.world.places[role]!=='home'?'away':'home';
+          const key=context+':'+need;
+          stats.criticalByContext[key]=(stats.criticalByContext[key]??0)+1;
+        }
+        assert.ok(Number.isFinite(n)&&n>=0&&n<=100,role+':'+need);
       }
       for(const pet of pets){
         for(const n of [state.pets[pet].satiety,state.pets[pet].energy,state.pets[pet].bladder,state.pets[pet].happiness])assert.ok(Number.isFinite(n)&&n>=0&&n<=100);
@@ -226,12 +234,14 @@ function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
         }
       }
     }
-    assert.equal(state.money,10000+stats.income-stats.expense);
+    assert.equal(state.money,initialCash+stats.income-stats.expense);
     assert.equal(new Set(state.billing.bills.map(b=>b.id)).size,state.billing.bills.length);
     assert.ok(stats.care>0);
     if(working){assert.ok(stats.shifts>0);assert.ok(stats.purchases>0);if(days>=30){assert.ok(stats.shifts>=days/3,'responsible scenario must actually sustain work');assert.ok(stats.petPurchases>0);assert.ok(stats.mealsEaten>0);assert.ok(stats.shared>0);}}
     else assert.ok(state.billing.bills.some(b=>b.paidAt===null),'no-income scenario must accrue actual debt');
     if(leisure&&days>=30){assert.ok(stats.venueVisits>0);assert.ok(stats.spaVisits>0);assert.ok(stats.furnitureOrders>0);assert.ok(stats.takeoutOrders>0);assert.equal(state.furnishing.orders.length,0); assert.ok(state.furnishing.stored.length>0);}
+    assert.equal(Object.values(stats.criticalByNeed).reduce((a,b)=>a+b,0),stats.criticalNeedTicks);
+    assert.equal(Object.values(stats.criticalByContext).reduce((a,b)=>a+b,0),stats.criticalNeedTicks);
     console.log('LONG_PLAY '+JSON.stringify(stats));
   }finally{rmSync(dir,{recursive:true,force:true});}
 }
@@ -243,3 +253,5 @@ test('064 100 days: mixed online presence, recurring bills, jobs and persistence
 
 test('064 60 days: paid leisure, takeout, furniture and household economy',()=>simulate(60,true,false,true));
 test('064 leisure smoke: short spending policy',()=>simulate(2,true,false,true));
+
+test('071 60 days: clean 100000 RUB household, mixed presence, spending and reloads',()=>simulate(60,true,true,true,100000));

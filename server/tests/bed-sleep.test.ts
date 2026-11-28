@@ -109,3 +109,13 @@ test('real buy → unbox → replace old bedroom bed → sleep uses the purchase
  const sleeping=selectSleepBed(placed.state,'vlad',1);
  assert.ok(sleeping.ok,'the player must be able to use the replacement immediately');
 });
+
+test('short bed chores reserve the starter bed; two actual sleepers can still share it',()=>{
+ const state=initialState();state.money=100000;
+ assert.equal(selectSleepBed(state,'vlad',undefined,true).ok,false);
+ state.furnishing.placed=[placed('bed-solo',1,13,-5.7)];state.furnishing.nextId=2;
+ const alternative=selectSleepBed(state,'alina',undefined,true);
+ assert.ok(alternative.ok);assert.equal(alternative.bed.id,1);
+ state.characters.vlad.pose='sleep';state.characters.vlad.sleepingOn='starter';
+ assert.equal(selectSleepBed(state,'alina').ok,true);
+});

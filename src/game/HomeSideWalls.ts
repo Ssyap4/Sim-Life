@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {freezeLocalTransforms} from './StaticTransforms';
 import {HOUSE,HOUSE_WING} from '../shared/home';
 import {batchRigidParts,cube,finish,colors as C} from './ArtKit';
 import {timberWall} from './CottageArt';
@@ -29,7 +30,7 @@ export function buildHomeSideWalls(scene:THREE.Scene){
   trim(upper,x,HOME_WALL_HEIGHT,z,span,C.paper,.10);
   trim(cutCap,x,SIDE_CUT_HEIGHT,z,span,C.walnut,.054);
   batchRigidParts(low,true);batchRigidParts(upper,true);
-  root.add(low,upper,cutCap);scene.add(root);cutCap.visible=false;
+  root.add(low,upper,cutCap);freezeLocalTransforms(root);scene.add(root);cutCap.visible=false;
   return {side,root,upper,cutCap};
  });
  return {

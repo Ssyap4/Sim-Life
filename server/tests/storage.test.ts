@@ -9,6 +9,7 @@ import { INITIAL_DAILY_NEEDS } from '../../src/shared/life';
 import { placeObstacles } from '../../src/shared/locations';
 import { points } from '../../src/shared/protocol';
 import { openServerFiles } from '../storage';
+import {initialState} from '../../src/shared/protocol';
 
 test('Older household saves gain pantry and meal slots without losing progress', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-migration-'));
@@ -103,4 +104,14 @@ test('Old positions in new walls recover nearby and moved sleepers use the new b
     assert.equal(restarted.characters.alina.x, EAST_WALL);
     assert.equal(restarted.characters.alina.bladder, 37);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('071 fresh household with 100000 RUB is identical after first and second reload',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim071-fresh-roundtrip-'));
+ try{
+  const files=openServerFiles(dir),seed=initialState();seed.money=100000;
+  files.save(seed);
+  const loaded=files.load();assert.deepEqual(loaded,seed);
+  files.save(loaded);assert.deepEqual(files.load(),seed);
+ }finally{rmSync(dir,{recursive:true,force:true});}
 });

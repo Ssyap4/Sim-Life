@@ -137,9 +137,10 @@ export function createThoughtUI(root:HTMLElement,read:()=>{state:GameState;role:
     const person=state.characters[role];
     const low=[...VITAL_NEEDS].sort((a,b)=>person[a]-person[b]);
     for(const need of low)if(person[need]>65)alerted.delete('need:'+need);
-    if(!foodSupplyProblem(state,role))alerted.delete('food');
+    const missingFood=state.autonomy[role]!=='off'&&foodSupplyProblem(state,role);
+    if(!missingFood)alerted.delete('food');
     if(now-lastPopAt<16000)return;
-    if(state.autonomy[role]!=='off'&&foodSupplyProblem(state,role)&&minute-(alerted.get('food')??-Infinity)>=90){
+    if(missingFood&&minute-(alerted.get('food')??-Infinity)>=90){
       alerted.set('food',minute);
       showPop('🍽️',name+' · Нет доступной еды','Нет свежих порций или доступного рецепта. Проверь продукты, кулинарию и силы.',person.hunger,true);return;
     }

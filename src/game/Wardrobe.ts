@@ -1,5 +1,5 @@
 import {LAKE_LOOKS} from '../shared/lake';
-import { PREVIEW_LOOKS, isPreviewLook, previewLongSleeves } from '../shared/previewWardrobe';
+import { PREVIEW_LOOKS, outfitChoices, previewLongSleeves } from '../shared/previewWardrobe';
 import * as THREE from 'three';
 import type { Object3D } from 'three';
 import {orb,finish} from './ArtKit';
@@ -20,13 +20,7 @@ export interface Garment {
 
 export const WARDROBE_LOOKS = [...new Set([...PREVIEW_LOOKS.alina,...PREVIEW_LOOKS.vlad].map(([id])=>id))];
 export type WardrobeLook = typeof WARDROBE_LOOKS[number];
-export function outfitChoices(look:string):readonly string[] {
-  if(look==='signature')return [];
-  return (['alina','vlad'] as const).filter(id=>isPreviewLook(id,look)).flatMap(id=>[
-    id+'-'+look+'-upper',id+'-'+look+'-lower',
-    id+'-'+look+'-footwear'
-  ]);
-}
+export {outfitChoices} from '../shared/previewWardrobe';
 const NEW_GARMENTS:Garment[]=(['alina','vlad'] as const).flatMap(id=>[
   ...PREVIEW_LOOKS[id].slice(1).flatMap(([look])=>[
     {id:id+'-'+look+'-upper',name:look,slot:'upper' as const,fit:id+'-021',layers:['upper'] as const,

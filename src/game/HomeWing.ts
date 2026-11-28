@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {freezeLocalTransforms} from './StaticTransforms';
 import { HOUSE_WING, HOUSE } from '../shared/home';
 import { batchRigidParts, colors as C, cube, finish, panel } from './ArtKit';
 import {gardenView} from './ArtTextures';
@@ -66,5 +67,6 @@ export function buildHomeWing(scene: THREE.Scene): void {
   addPassageFinish(wing,{x:HOUSE.maxX,...HOUSE_WING.connector},'x');
   batchPassageFinishes(wing);
   batchRigidParts(wing, true);
+  freezeLocalTransforms(wing);
   scene.add(wing);
 }

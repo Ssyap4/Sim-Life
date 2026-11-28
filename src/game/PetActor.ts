@@ -373,6 +373,8 @@ export class PetActor {
 
   resortCareQA(){return {routine:this.routine,settled:this.settled,bedLift:this.bedLift,walking:this.route.length>0};}
   stop(): void {
+    // A companion greeting must not persist across travel or a routine reset.
+    if(this.companionActive){this.companionActive=false;this.idleGesture=null;this.idleTime=0;}
     this.pendingDogBed=null;
     if(this.dogBedProgress>0)this.dogBedLeaving=true;else this.dogBed=null;
     this.releasePerch();

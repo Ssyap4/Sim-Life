@@ -53,7 +53,7 @@ export interface ConnectionCallbacks {
   onSocialOffer(offer:SocialOffer):void;
   onConversation?(from:CharacterId,remainingMs:number,title:string):void;
   onSocialClosed(id:number,message:string,reply?:string):void;
-  onError(message: string): void;
+  onError(message: string, deliverySequence?:number): void;
   onStatus(status: string): void;
   onWorldPath(role: CharacterId, place: PlaceId, path: Point[], station?: string): void;
   onWorldEvent(role: CharacterId, message: string): void;
@@ -97,12 +97,7 @@ export class LiveConnection {
   }
 
   perform(actionId: ActionId, computer?: import('../shared/computer').ComputerDevice): boolean {
-    if (!this.authorized || this.socket?.readyState !== WebSocket.OPEN) {
-      this.callbacks.onError('Нет соединения с сервером');
-      return false;
-    }
-    this.send({ type: 'act', actionId, ...(computer ? { computer } : {}) });
-    return true;
+    return this.sendAuthenticated({type:'act',actionId,...(computer?{computer}:{})});
   }
 
   cleanRoom(room:import('../shared/homeDust').DustRoomId):boolean {return this.sendAuthenticated({type:'clean_room',room});}
@@ -199,8 +194,7 @@ export class LiveConnection {
       this.callbacks.onError('Нет соединения с сервером');
       return false;
     }
-    this.send(message);
-    return true;
+    return this.send(message);
   }
 
   stop(): void {
@@ -261,8 +255,22 @@ export class LiveConnection {
     this.retryCount=0;this.scheduleRetry();
   }
 
-  private send(value: ClientPacket): void {
-    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(value));
+  private send(value: ClientPacket): boolean {
+    const socket=this.socket;
+    if(!socket||socket.readyState!==WebSocket.OPEN)return false;
+    try{
+      if(socket.bufferedAmount>512*1024)throw new Error('Pending send buffer');
+      socket.send(JSON.stringify(value));return true;
+    }catch{
+      // Do not replay a possibly accepted purchase or action after reconnect.
+      const wasReady=this.authorized;
+      this.closeSocket();
+      if(wasReady)this.callbacks.onDisconnect();
+      this.callbacks.onStatus('Связь потеряна. Повторяем подключение…');
+      this.callbacks.onError('Команда не отправлена. Восстанавливаем соединение.');
+      this.scheduleRetry();
+      return false;
+    }
   }
 
   private open(): void {
@@ -291,8 +299,10 @@ export class LiveConnection {
       let packet: ServerPacket;
       try { packet = JSON.parse(event.data) as ServerPacket; }
       catch { return; }
+      if(!packet||typeof packet!=='object'||typeof packet.type!=='string')return;
       if(this.authorized)this.armSilenceWatchdog();
       if (packet.type === 'ready') {
+        if(this.authorized||packet.role!==this.role)return;
         window.clearTimeout(this.connectTimer);
         this.authorized = true;
         this.armSilenceWatchdog();
@@ -376,7 +386,7 @@ export class LiveConnection {
         if(!this.authorized && this.hasBeenReady && packet.reason.includes('занят') && this.retryCount<5){
           this.closeSocket();this.scheduleRetry();return;
         }
-        this.callbacks.onError(packet.reason);
+        this.callbacks.onError(packet.reason,packet.deliverySequence);
         if (!this.authorized && (packet.reason.includes('код') || packet.reason.includes('занят'))) {
           if (packet.reason.includes('Доверие устройства истекло')) storeTrust(null);
           this.callbacks.onStatus('Не удалось войти: ' + packet.reason);

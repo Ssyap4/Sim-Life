@@ -1,4 +1,5 @@
 import {buildBathFixture,batchBathFixture,disposeBathMaterials} from './BathroomArt';
+import {fitWardrobe,fitSpaWardrobe,fitLakeWardrobe,outfitChoices} from './Wardrobe';
 import {buildRoomCeilings,ceilingAnchors} from './RenovationLights';
 import {coveringById} from '../shared/renovation';
 import {collectRenovation} from './RenovationArt';
@@ -576,6 +577,17 @@ export class World {
     adjustHeight(this.camera.position,this.controls.target,direction,seconds,this.controls.minPolarAngle);
     this.controls.update();
     protectCameraFloor(this.camera.position,this.controls.target);
+  }
+
+  setResidentLook(role:CharacterId,worn:string):void{
+    const actor=this.actors[role];
+    if(actor.root.userData.wornLook===worn)return;
+    actor.suspendBathPrivacy();
+    if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);
+    else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);
+    else fitWardrobe(actor.root,role,outfitChoices(worn));
+    actor.root.userData.wornLook=worn;
+    actor.syncBathPrivacy();
   }
 
   setFollowPlayer(enabled: boolean): void {
@@ -1939,7 +1951,8 @@ export class World {
           if (arrived === 2) {
             this.actors.vlad.faceTowards(this.actors.alina.root.position);
             this.actors.alina.faceTowards(this.actors.vlad.root.position);
-            const target = kind === 'highFive' ? new THREE.Vector3(0, 1.64, meeting(this.place, 'vlad').z - 0.16) : undefined;
+            const v=meeting(this.place,'vlad'),a=meeting(this.place,'alina');
+            const target = kind === 'highFive' ? new THREE.Vector3((v.x+a.x)/2,1.64,(v.z+a.z)/2-.16) : undefined;
             this.actors.vlad.playGesture(kind, target);
             this.actors.alina.playGesture(kind, target);
           }
@@ -3083,17 +3096,20 @@ export class World {
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
     const scaleChanged = !previous || previous.pixelRatio !== pixelRatio;
+    // Detail policy can change even when a device caps both tiers at the
+    // same physical pixel ratio. Keep scene LOD in sync before the fast exit.
+    this.camera.userData.compactLow=compact&&this.quality==='low';
     if (!sizeChanged && !scaleChanged && previous.compact === compact &&
         previous.band.top === band.top && previous.band.bottom === band.bottom) return;
     this.viewport = { width, height, pixelRatio, compact, band };
-    this.camera.userData.compactLow=compact&&this.quality==='low';
 
     if (sizeChanged) {
       this.camera.aspect = width / height;
       this.updateViewLens();
     }
-    if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
-    if (sizeChanged) this.renderer.setSize(width, height, false);
+    // Three.js setPixelRatio also resizes the canvas. Apply size and DPR
+    // atomically, preserving CSS sizing and avoiding two framebuffer resets.
+    if (sizeChanged||scaleChanged)this.renderer.setDrawingBufferSize(width,height,pixelRatio);
     if(this.manualCameraHeight)return;
     if (this.inspected) {
       this.showcase(this.inspected);
@@ -3102,6 +3118,9 @@ export class World {
     const current = this.defaultFrame;
     this.defaultFrame = this.homeFrame(compact, band);
     const nextFrame=this.neighborhoodView ? this.neighborCameraFrame() : this.defaultFrame;
+    // The automatic fit must not be clamped by a smaller manual zoom limit
+    // on narrow screens. Keep the existing limit whenever it already fits.
+    if(this.remote&&compact)this.controls.maxDistance=Math.max(this.controls.maxDistance,nextFrame.position.distanceTo(nextFrame.target)+.01);
     if (this.cameraMove) {
       this.cameraMove = nextFrame;
     } else if (this.neighborhoodView || !current ||
@@ -3429,7 +3448,7 @@ export class World {
     }
     const cat = this.pets.simba;
     for(const id of PET_IDS)this.pets[id].setGroomingHeld(this.place==='grooming'&&this.household?.world.groomVisit?.pet===id&&!!this.remote?.root.userData.groomAction);
-    const petTraffic = this.place === 'home' && dog.root.visible && cat.root.visible;
+    const petTraffic = this.place === 'home' && (dog.root.visible || cat.root.visible);
     if (petTraffic) {
       const people = (['vlad', 'alina'] as const).filter(role =>
         this.actors[role].root.visible && !this.sleepingOffline.has(role) &&
@@ -3438,6 +3457,13 @@ export class World {
         return { x: body.x, z: body.z };
       });
       const geometry = this.petGeometry;
+      // The remaining pet still needs human collision avoidance while its
+      // companion is walking, at the groomer or visiting the vet.
+      if(!dog.root.visible||!cat.root.visible){
+        dog.watchCompanion(cat.root.position,false);cat.watchCompanion(dog.root.position,false);
+        if(dog.root.visible)dog.update(dt,this.dogTravel,pace,{...geometry,blockers:people});
+        if(cat.root.visible)cat.update(dt,0,0,{...geometry,blockers:people});
+      }else{
       // A rare mutual acknowledgment, only if both are free and have a
       // clear line between them. Never invent social navigation or rewards.
       const petGap=Math.hypot(cat.root.position.x-dog.root.position.x,cat.root.position.z-dog.root.position.z);
@@ -3465,12 +3491,13 @@ export class World {
         dogPosition, catPosition, geometry.obstacles, geometry.floor);
       dog.root.position.set(dogPosition.x, 0, dogPosition.z);
       cat.root.position.set(catPosition.x, 0, catPosition.z);
+      }
     } else {
       if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
       if (cat.root.visible) cat.update(dt);
     }
     if(this.place==='grooming'&&this.household?.world.groomVisit){const id=this.household.world.groomVisit.pet,pet=this.pets[id],a=this.remote?.root.userData.groomAction as {action:GroomAction;started:number;clock:ActiveVisualClock;elapsed:number}|undefined;if(a){a.elapsed=advanceActiveVisualClock(a.clock,now,this.paused);const stage=groomingStage(a.action,a.elapsed),p=groomAnchor(stage);pet.root.position.set(p.x,p.y+(stage==='wash'?.022:.018),p.z);pet.root.rotation.y=Math.PI/2;pet.root.updateWorldMatrix(true,true);if(this.remote)this.remote.root.userData.groomTarget=stage==='paws'?pet.groomingPaw(new THREE.Vector3()):pet.coatContact(new THREE.Vector3(),Math.sin(a.elapsed*2.5));}else if(pet.root.position.y>.1){pet.stop();pet.syncGround(.8,.3);}}
-    if(this.place==='resort'&&this.household?.world.resort?.pets?.length){for(const id of PET_IDS){const pet=this.pets[id],manual=this.remote?.root.userData.resortPetAction,care=this.household.world.resort.petCare?.[id],kind=manual==='resortPetFeed'?'eat':manual==='resortPetRest'?'sleep':care?.kind,slot=Math.floor(clockMinutes(this.household.clock)/22)%3,mode=kind??'wander:'+slot;if(this.resortPetModes[id]===mode)continue;this.resortPetModes[id]=mode;pet.stop();const x=id==='verdell'?-13.6:-12.4,goals=id==='verdell'?[{x:-12.6,z:-3.7},{x:-10.3,z:2.6},{x:-11.5,z:4.7}]:[{x:-14.8,z:-4.3},{x:-11.3,z:-5.5},{x:-12.3,z:-3.5}],target=kind==='eat'?{x:x-.18,z:-4.15}:kind==='sleep'?{x,z:-5.17}:kind==='toilet'?{x:id==='verdell'?-16.6:-11.6,z:id==='verdell'?2.4:-4.7}:goals[slot];const blocks=this.currentObstacles().filter(b=>!(b.minX< -13&&b.maxX> -13&&b.minZ< -5&&b.maxZ> -5)),floor=floorFor('resort'),start=nearestClearPoint(pet.root.position,blocks,floor),goal=nearestClearPoint(target,blocks,floor),path=start&&goal&&findRoute(start,goal,blocks,floor);if(path)pet.followRoute(path.map(p=>new THREE.Vector3(p.x,0,p.z)),kind??'wander',kind==='eat'?Math.PI:undefined,undefined,undefined,kind==='sleep',kind==='sleep'?.275:undefined);}}
+    if(this.place==='resort'&&this.household?.world.resort?.pets?.length){for(const id of this.household.world.resort.pets){const pet=this.pets[id],manual=this.remote?.root.userData.resortPetAction,care=this.household.world.resort.petCare?.[id],kind=manual==='resortPetFeed'?'eat':manual==='resortPetRest'?'sleep':care?.kind,slot=Math.floor(clockMinutes(this.household.clock)/22)%3,mode=kind??'wander:'+slot;if(this.resortPetModes[id]===mode)continue;this.resortPetModes[id]=mode;pet.stop();const x=id==='verdell'?-13.6:-12.4,goals=id==='verdell'?[{x:-12.6,z:-3.7},{x:-10.3,z:2.6},{x:-11.5,z:4.7}]:[{x:-14.8,z:-4.3},{x:-11.3,z:-5.5},{x:-12.3,z:-3.5}],target=kind==='eat'?{x:x-.18,z:-4.15}:kind==='sleep'?{x,z:-5.17}:kind==='toilet'?{x:id==='verdell'?-16.6:-11.6,z:id==='verdell'?2.4:-4.7}:goals[slot];const blocks=this.currentObstacles().filter(b=>!(b.minX< -13&&b.maxX> -13&&b.minZ< -5&&b.maxZ> -5)),floor=floorFor('resort'),start=nearestClearPoint(pet.root.position,blocks,floor),goal=nearestClearPoint(target,blocks,floor),path=start&&goal&&findRoute(start,goal,blocks,floor);if(path)pet.followRoute(path.map(p=>new THREE.Vector3(p.x,0,p.z)),kind??'wander',kind==='eat'?Math.PI:undefined,undefined,undefined,kind==='sleep',kind==='sleep'?.275:undefined);}}
 
     if(this.cameraQA&&this.agilityAction&&!this.agilityWaiting&&this.agilityQAExit!==this.agilityAction){const end=agilityPath(this.agilityAction).at(-1)!;if(Math.hypot(dog.root.position.x-end.x,dog.root.position.z-end.z)<.10)this.agilityQAExit=this.agilityAction;}
     const manualCat=this.place==='home'?this.household?.pets.simba.routine?.manualToy:undefined;
@@ -3624,10 +3651,10 @@ export class World {
         this.canvas.dataset.cottageLampLevel=String((this.cottageLamps?.bedroom.intensity??0)/10);
         this.canvas.dataset.yardLamps=this.yard.night.visible?'on':'off';
       }
-      this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
+      this.yard.landscape.detail(this.camera,this.quality==='low');
     }
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,far:this.camera.far,fogFar:this.scene.fog instanceof THREE.Fog?this.scene.fog.far:null,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,entered:this.agilityAction!==undefined&&!this.agilityWaiting,exit:this.agilityQAExit,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},groomContactError:this.remote?.root.userData.groomContactError,groomAction:this.remote?.root.userData.groomAction?.action,groomStage:this.remote?.root.userData.groomAction?groomingStage(this.remote.root.userData.groomAction.action,this.remote.root.userData.groomAction.elapsed??0):undefined,pets:Object.fromEntries(PET_IDS.map(id=>[id,{visible:this.pets[id].root.visible,position:this.pets[id].root.position.toArray(),care:this.pets[id].resortCareQA()}])),resortMedia:this.remote?.root.userData.resortMedia?.id,actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA(),gamepadGrip:this.actors[r].gamepadGripError()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,far:this.camera.far,fogFar:this.scene.fog instanceof THREE.Fog?this.scene.fog.far:null,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,entered:this.agilityAction!==undefined&&!this.agilityWaiting,exit:this.agilityQAExit,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},groomContactError:this.remote?.root.userData.groomContactError,groomAction:this.remote?.root.userData.groomAction?.action,groomStage:this.remote?.root.userData.groomAction?groomingStage(this.remote.root.userData.groomAction.action,this.remote.root.userData.groomAction.elapsed??0):undefined,pets:Object.fromEntries(PET_IDS.map(id=>[id,{visible:this.pets[id].root.visible,position:this.pets[id].root.position.toArray(),care:this.pets[id].resortCareQA()}])),resortMedia:this.remote?.root.userData.resortMedia?.id,actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),bathPrivacy:this.actors[r].bathPrivacyQA(),drink:this.actors[r].drinkQA(),gamepadGrip:this.actors[r].gamepadGripError()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if(this.place==='home')this.renovationCeilings?.camera(this.camera.position,this.controls.target,this.renovationPreview);
     if(this.visualSeconds-this.lampStamp>.25||this.place!=='home'){
       this.lampStamp=this.visualSeconds;

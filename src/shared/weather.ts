@@ -24,18 +24,28 @@ function frontAt(clock:GameClock):WeatherKind{
  if(r<.12&&cloud>.24&&(frontClock.minute<540||frontClock.minute>=1080))return 'fog';
  return 'clear';
 }
-export function weatherAt(clock:GameClock){
+function calculateWeather(clock:GameClock){
  const minute=Math.max(0,gameMinutes(clock)),day=gameDate(clock.day),kind=frontAt(clock);
  const temp=Math.round(temperatureAt(clock)),season=day.month>=3&&day.month<=5?'spring':day.month>=6&&day.month<=8?'summer':day.month>=9&&day.month<=11?'autumn':'winter';
  // Cover survives a clear period; thaw is driven by the recent temperature,
  // not by whether a snow particle is currently visible.
- let snow=0;
- for(let i=12;i>=0;i--){
+ let snow=season==='winter'?1:0;
+ for(let i=12;season!=='winter'&&i>=0;i--){
   const c=clockAt(Math.max(0,minute-i*360)),t=temperatureAt(c);
   snow=Math.max(0,Math.min(1,snow+(frontAt(c)==='snow'?.26:0)-(t>1?Math.min(.34,t*.035):0)));
  }
- if(season==='winter')snow=1;
+
  const wind=kind==='storm'?12:kind==='rain'?5:kind==='snow'?4:kind==='fog'?1:2+Math.floor(hash(Math.floor(minute/360)+41)*4);
  return {kind,temp,season,snow:Math.round(snow*10)/10,wind,nextChangeAt:(Math.floor(minute/FRONT_MINUTES)+1)*FRONT_MINUTES};
+}
+/** The HUD, world, autonomy and server often ask for the same exact minute.
+ * Keep just one computed forecast and return an independent copy to callers.
+ */
+let forecastCache:{day:number;minute:number;value:ReturnType<typeof calculateWeather>}|undefined;
+export function weatherAt(clock:GameClock){
+ if(!forecastCache||forecastCache.day!==clock.day||forecastCache.minute!==clock.minute){
+  forecastCache={day:clock.day,minute:clock.minute,value:calculateWeather(clock)};
+ }
+ return {...forecastCache.value};
 }
 export function weatherTemperature(t:number){return (t>0?'+':'')+t+'°';}
