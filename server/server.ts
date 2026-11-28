@@ -123,7 +123,7 @@ const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
-  '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
+  '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2',
 };
 const sameCode = (a: string, b: string): boolean => {
   const supplied = Buffer.from(a), expected = Buffer.from(b);
@@ -1123,9 +1123,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       const stream=createReadStream(requested,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);return;
     }
     // Vite fingerprints these assets; cache them between visits and stream
-    // precompressed JS/CSS without spending CPU on compression per request.
+    // precompressed JS/CSS/GLB without spending CPU on compression per request.
     const hashed=/^assets[\\/][^\\/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/i.test(rel);
-    const compressible=hashed&&['.js','.css'].includes(extname(requested));
+    const compressible=hashed&&['.js','.css','.glb'].includes(extname(requested));
     const compressed=compressible&&existsSync(requested+'.gz')&&acceptsGzip(req.headers['accept-encoding']);
     const file=compressed?requested+'.gz':requested;
     const size=statSync(file).size;

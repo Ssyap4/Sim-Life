@@ -65,6 +65,8 @@ test('fingerprinted static assets negotiate gzip, retain bytes and keep HTML unc
   const dist=join(dir,'dist');mkdirSync(join(dist,'assets'),{recursive:true});
   const js=Buffer.from('console.log("SimOurHome");\n'.repeat(100));const packed=gzipSync(js);
   writeFileSync(join(dist,'assets','main-AbCd1234.js'),js);writeFileSync(join(dist,'assets','main-AbCd1234.js.gz'),packed);
+  const glb=Buffer.concat([Buffer.from('glTF'),Buffer.alloc(4096,7)]);const glbPacked=gzipSync(glb);
+  writeFileSync(join(dist,'assets','vlad-AbCd1234.glb'),glb);writeFileSync(join(dist,'assets','vlad-AbCd1234.glb.gz'),glbPacked);
   writeFileSync(join(dist,'index.html'),'<!doctype html>');
   const server=await startServer({port:0,host:'127.0.0.1',dataDir:join(dir,'data'),distDir:dist});
   try{
@@ -74,6 +76,10 @@ test('fingerprinted static assets negotiate gzip, retain bytes and keep HTML unc
     assert.deepEqual(gunzipSync(gzip.body),js);assert.equal(Number(gzip.headers['content-length']),packed.length);
     const identity=await raw(server.port,path,'gzip;q=0, *;q=1');assert.equal(identity.headers['content-encoding'],undefined);assert.deepEqual(identity.body,js);
     const head=await raw(server.port,path,'gzip','HEAD');assert.equal(head.body.length,0);assert.equal(Number(head.headers['content-length']),packed.length);
+    const model='/assets/vlad-AbCd1234.glb';const compressedModel=await raw(server.port,model,'gzip');
+    assert.equal(compressedModel.status,200);assert.equal(compressedModel.headers['content-type'],'model/gltf-binary');assert.equal(compressedModel.headers['content-encoding'],'gzip');assert.equal(compressedModel.headers.vary,'Accept-Encoding');assert.deepEqual(gunzipSync(compressedModel.body),glb);assert.equal(Number(compressedModel.headers['content-length']),glbPacked.length);
+    const plainModel=await raw(server.port,model,'identity');assert.equal(plainModel.headers['content-encoding'],undefined);assert.deepEqual(plainModel.body,glb);
+    const modelHead=await raw(server.port,model,'gzip','HEAD');assert.equal(modelHead.body.length,0);assert.equal(Number(modelHead.headers['content-length']),glbPacked.length);
     assert.equal((await raw(server.port,'/','gzip')).headers['cache-control'],'no-store');
     assert.equal((await raw(server.port,'/health','gzip')).headers['cache-control'],'no-store');
   }finally{await server.close();rmSync(dir,{recursive:true,force:true});}

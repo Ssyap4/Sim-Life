@@ -134,7 +134,7 @@ export class CarRideScene {
     if(key!==this.key){
       this.key=key;
       const w=weatherAt(clock),night=clock.minute<360||clock.minute>=1200,evening=!night&&(clock.minute>=1080||clock.minute<450);
-      this.weather=w.kind;this.snowy=w.snow>.4;this.rural=ride.from==='lake'||ride.to==='lake';
+      this.weather=w.kind;this.snowy=w.snow>.4;this.rural=['lake','resort'].includes(ride.from)||['lake','resort'].includes(ride.to);
       const cloudy=['overcast','rain','storm','fog','snow'].includes(w.kind);
       const sky=night?0x182b48:evening?0xc7a3a0:cloudy?0xa9bbc5:0xb3d9eb;
       this.scene.background=new THREE.Color(sky);this.scene.fog=new THREE.Fog(sky,w.kind==='fog'?9:24,w.kind==='fog'?41:110);
@@ -164,11 +164,11 @@ export class CarRideScene {
     for(const child of this.car.children)if(child.name==='travel-wheel')child.rotation.x=t*14/.43;
     const reduced=typeof matchMedia!=='undefined'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
     const angle=reduced?-.42:-.42-2.05*(.5-.5*Math.cos(p*Math.PI));
-    this.camera.aspect=Math.max(.35,aspect);
+    const nextAspect=Math.max(.35,aspect);if(this.camera.aspect!==nextAspect){this.camera.aspect=nextAspect;this.camera.updateProjectionMatrix();}
     // Horizontal FOV is much narrower in portrait; fit the entire SUV at every orbit angle.
     const distance=Math.max(9.8,6.65/(2*Math.tan(53*Math.PI/360)*Math.max(.35,aspect)));
     this.camera.position.set(1.7+Math.sin(angle)*distance,4.8+Math.sin(p*Math.PI)*.6,-Math.cos(angle)*distance);
-    this.camera.lookAt(1.7,1.05,.10);this.camera.updateProjectionMatrix();
+    this.camera.lookAt(1.7,1.05,.10);
     if(this.precipitation.visible){
       for(let i=0;i<150;i++){this.drops[3*i]=((i*73%137)/137-.5)*17;
         this.drops[3*i+1]=((i*.713-t*(this.weather==='snow'?.8:5))%7+7)%7;

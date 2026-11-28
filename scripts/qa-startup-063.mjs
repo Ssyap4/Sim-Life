@@ -4,9 +4,11 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import {startServer} from '../server/server.ts';
+import {initialState} from '../src/shared/protocol.ts';
+import {openServerFiles} from '../server/storage.ts';
 const out='/tmp/simourhome-063-startup';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'sim063-'));
-const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true});
+const s=initialState();s.money=100000;openServerFiles(dir).save(s);const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true});
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
 const errors=[],reports=[];
 try{

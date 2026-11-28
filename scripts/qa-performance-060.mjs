@@ -12,7 +12,7 @@ const out='/tmp/simourhome-060-performance';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'performance-060-'));let browser,server;
 const report=[];
 try{
- const s=initialState();s.autonomy={vlad:'off',alina:'off'};
+ const s=initialState();s.money=100000;s.autonomy={vlad:'off',alina:'off'};
  // Dedicated rendering fixture. This does not edit the live household.
  s.furnishing.placed=[
   {id:101,sku:'bed-aurora',finish:'sage',x:-6.97,z:-5.88,rotation:0},
@@ -82,7 +82,7 @@ try{
  // Warm the deterministic scene caches, then repeat identical scene transitions.
  const home=[];
  for(let cycle=1;cycle<=(process.env.SIM_STABILITY_AUDIT==='1'?4:2);cycle++){
-  for(const place of (process.env.SIM_STABILITY_AUDIT==='1'?['market','park','spa','lake','electronics','petshop']:['market','park','spa']))await go(place,place+'-'+cycle);
+  for(const place of (process.env.SIM_STABILITY_AUDIT==='1'?['market','park','spa','lake','electronics','petshop','resort','grooming','buildshop']:['market','park','spa']))await go(place,place+'-'+cycle);
   home.push(await go('home','home-'+cycle));
  }
  for(const visit of home.slice(1))assert.deepEqual(visit.models,home[0].models,'returning home retains furniture models');
@@ -99,10 +99,10 @@ try{
  // The 0.61 audit adds the remaining active destinations. These synthetic
  // snapshots isolate rendering/resource lifetimes, not server travel rules.
  if(process.env.SIM_LOCATION_AUDIT==='1'){
-  for(const place of ['market','park','cafe','petshop','electronics','clothing','lake','fitness','spa','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic']){
+  for(const place of ['market','park','cafe','petshop','electronics','clothing','lake','fitness','spa','clinic','barber','venue','industrial','education','work-it','work-detail','work-marketing','work-clinic','resort','grooming','buildshop']){
    await go(place,place+'-audit');
    await page.screenshot({path:join(out,place+'-audit.png')});
-    if(['market','park','lake','cafe','petshop','clothing','electronics','venue','fitness','spa','barber','clinic','industrial','education','work-it','work-detail','work-marketing','work-clinic'].includes(place)){
+    if(['market','park','lake','cafe','petshop','clothing','electronics','venue','fitness','spa','barber','clinic','industrial','education','work-it','work-detail','work-marketing','work-clinic','resort','grooming','buildshop'].includes(place)){
      for(const view of ['rear','fixture']){
       await canvas.evaluate((c,v)=>c.dataset.shopDetailView=v,view);
       await page.waitForTimeout(500);

@@ -1,0 +1,61 @@
+name: SimOurHome 0.71 technical polish
+on:
+  push:
+    branches: [feat/polish-071]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx tsx --test server/tests/stability-063.test.ts server/tests/weather039.test.ts server/tests/car-ride-055.test.ts server/tests/performance.test.ts server/tests/location-network.test.ts server/tests/resort-070.test.ts server/tests/grooming-070.test.ts server/tests/network.test.ts
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [startup, resources, locations, resort, grooming]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - if: matrix.scenario == 'startup'
+        run: node --import tsx scripts/qa-startup-063.mjs
+      - if: matrix.scenario == 'resources'
+        run: node --import tsx scripts/qa-performance-060.mjs
+        env:
+          SIM_STABILITY_AUDIT: '1'
+      - if: matrix.scenario == 'locations'
+        run: node --import tsx scripts/qa-performance-060.mjs
+        env:
+          SIM_LOCATION_AUDIT: '1'
+      - if: matrix.scenario == 'resort' || matrix.scenario == 'grooming'
+        run: node --import tsx scripts/qa-car-055.mjs "$MATRIX_SCENARIO"
+        env:
+          MATRIX_SCENARIO: ${{ matrix.scenario }}
+          SIM_ARTIFACT_ONLY: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: polish-071-${{ matrix.scenario }}
+          path: |
+            /tmp/simourhome-063-startup
+            /tmp/simourhome-060-performance
+            /tmp/simlife-car-055-*
+          retention-days: 7
