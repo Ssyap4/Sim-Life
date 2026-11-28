@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { frameTiming } from '../../src/game/FrameTiming';
+import { frameTiming,advanceActiveVisualClock } from '../../src/game/FrameTiming';
 import { CanvasGestureGate, type PointerContact } from '../../src/game/CanvasGestureGate';
 import { chooseGraphicsQuality } from '../../src/game/GraphicsCompatibility';
 
@@ -33,4 +33,16 @@ test('interrupted multi-touch cannot block the next intentional tap', () => {
   gate.reset();
   gate.down({...p,id:4,time:200});
   assert.equal(gate.up({...p,id:4,time:220}),true);
+});
+
+
+test('active gift choreography catches up after slow frames without advancing during pause',()=>{
+ const clock={elapsed:2,last:1000};
+ assert.equal(frameTiming(3500,false,false).dt,0);
+ assert.equal(advanceActiveVisualClock(clock,4500,false),5.5);
+ assert.equal(advanceActiveVisualClock(clock,9500,false),10.5);
+ assert.equal(advanceActiveVisualClock(clock,19500,true),10.5);
+ assert.equal(advanceActiveVisualClock(clock,20500,false),11.5);
+ assert.equal(advanceActiveVisualClock(clock,20000,false),11.5);
+ assert.equal(advanceActiveVisualClock(clock,Infinity,false),11.5);
 });

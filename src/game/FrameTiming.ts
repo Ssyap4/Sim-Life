@@ -7,3 +7,12 @@ export function frameTiming(elapsedMs: number, paused: boolean, hidden: boolean)
     qualitySample: interrupted || paused ? null : Math.min(frameMs, 150),
   };
 }
+
+/** Authoritative task choreography must advance independently of capped render dt. */
+export type ActiveVisualClock={elapsed:number;last:number};
+export function advanceActiveVisualClock(clock:ActiveVisualClock, now:number, paused:boolean):number {
+  if(!Number.isFinite(now)||now<clock.last)return clock.elapsed;
+  if(!paused)clock.elapsed+=(now-clock.last)/1000;
+  clock.last=now;
+  return clock.elapsed;
+}

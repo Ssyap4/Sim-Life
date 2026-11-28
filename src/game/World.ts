@@ -67,7 +67,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { adjustHeight, protectCameraFloor, HEIGHT_MAX_POLAR } from './CameraHeight';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
-import { frameTiming } from './FrameTiming';
+import { frameTiming,advanceActiveVisualClock,type ActiveVisualClock } from './FrameTiming';
 import { StableModelParts } from './StableModelParts';
 import { petStepPace } from './PetMotion';
 import { subtleHaptic } from '../mobileHaptics';
@@ -288,7 +288,7 @@ export class World {
   private socialSequence = 0;
   private badmintonStarted:number|null=null;
   private tennisStarted:number|null=null;
-  private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string; giftElapsed?:number }>();
+  private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string; giftClock?:ActiveVisualClock }>();
   private readonly dustArt = new DustArt(this.homeScene);
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly kitchenEffects = buildCookingStation(this.homeScene);
@@ -1235,7 +1235,7 @@ export class World {
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
-      if(home?.pair?.motion==='gift')pair.giftElapsed=Math.max(0,elapsedMs/1000);
+      if(home?.pair?.motion==='gift')pair.giftClock={elapsed:Math.max(0,elapsedMs/1000),last:performance.now()};
       if(home?.pair?.motion==='venue'&&isVenueGame(home.pair.item)&&home.consoleMatch&&this.remote)this.remote.root.userData.venuePlay={game:home.pair.item,match:home.consoleMatch,started:this.visualSeconds-elapsedMs/1000};
       else if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
       if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
@@ -1409,7 +1409,7 @@ export class World {
       }
       case 'highFive':
         actor.playGesture('highFive',actor.root.position.clone().lerp(partner.root.position,.5).setY(1.59));break;
-      case 'gift':actor.playGift(stage.action,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(1.06));actor.syncGiftElapsed(stage.giftElapsed??0);break;
+      case 'gift':actor.playGift(stage.action,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(1.06));actor.syncGiftElapsed(stage.giftClock?advanceActiveVisualClock(stage.giftClock,performance.now(),this.paused):0);break;
       case 'sofaMassage':actor.playPartnerGesture('sofaMassage',leads,undefined,partner);break;
       case 'hands':case 'slowDance':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
@@ -3028,6 +3028,8 @@ export class World {
 
   setPaused(value: boolean): void {
     if(value)stopUfcHighlight();
+    const now=performance.now();
+    for(const stage of this.pairStages.values())if(stage.giftClock)advanceActiveVisualClock(stage.giftClock,now,this.paused);
     this.paused = value;
     gameAudio.setPaused(value);
     this.lastFrame = performance.now();
@@ -3220,7 +3222,7 @@ export class World {
       }
       const careTime=this.careElapsed.get(id);
       if(careTime!==undefined){const elapsed=careTime+coffeeDt;this.careElapsed.set(id,elapsed);actor.syncCareElapsed(Math.max(0,elapsed-dt));}
-      const giftStage=this.pairStages.get(id);if(giftStage?.giftElapsed!==undefined){giftStage.giftElapsed+=coffeeDt;actor.syncGiftElapsed(Math.max(0,giftStage.giftElapsed-dt));}
+      const giftClock=this.pairStages.get(id)?.giftClock;if(giftClock){const elapsed=advanceActiveVisualClock(giftClock,now,this.paused);actor.syncGiftElapsed(Math.max(0,elapsed-dt));}
       const homeMotion=this.homeTasks.get(id);const timedRoute=homeMotion?.station==='workCoffee'||homeMotion?.pair?.motion==='gift'||!!homeMotion&&Object.hasOwn(BATH_FIXTURES,homeMotion.station)||this.bathingRole===id;
       const arrival=this.sanitaryArrivals.get(id);
       if(arrival?.activeAt!==undefined&&arrival.home===homeMotion&&now-arrival.activeAt>=750&&!this.paused){

@@ -16,7 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npx tsx --test server/tests/cozy-gifts-069.test.ts server/tests/creative-hobbies-056.test.ts server/tests/context-events-056.test.ts server/tests/relationships-046.test.ts server/tests/furnishing-placement.test.ts server/tests/furniture-catalog-behavior.test.ts server/tests/furniture-design-families.test.ts server/tests/speaker-mount-040.test.ts
+      - run: npx tsx --test server/tests/cozy-gifts-069.test.ts server/tests/creative-hobbies-056.test.ts server/tests/context-events-056.test.ts server/tests/relationships-046.test.ts server/tests/furnishing-placement.test.ts server/tests/furniture-catalog-behavior.test.ts server/tests/furniture-design-families.test.ts server/tests/speaker-mount-040.test.ts server/tests/polish-049.test.ts server/tests/animation053.test.ts
   mobile:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
