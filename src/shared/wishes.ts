@@ -1,3 +1,4 @@
+import {RESORT_MEDIA,resortAccess,resortService} from './resort';
 import {petAway} from './grooming';
 import {favoriteFood,favoriteBonusReady} from './foodTastes';
 import {recipeAvailability} from './recipeAvailability';
@@ -26,6 +27,7 @@ export type WishCommand =
   | {type:'study';material:string}
   | {type:'together';action:'sofaTalk'|'yardRest'|'musicTogether'|'nearTalk:careLook'}
   | {type:'local_activity';action:'dog';station:'park-dog'}
+  | {type:'local_activity';action:import('./resort').ResortAction;station:`resort-${string}`}
   | {type:'cook'|'eat';recipe:RecipeId}
   | {type:'eat_takeout';item:TakeoutId}
   | {type:'pet_action';pet:PetId;action:'pet'}
@@ -77,6 +79,11 @@ function foodWish(state:GameState,role:CharacterId):{command?:WishCommand;cta:st
 }
 export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const person=state.characters[role];
+  if(state.world.places[role]==='resort'||state.world.places[role]==='grooming'){
+    const wishes:Wish[]=[];if(!resortAccess(state,role))return wishes;const service=resortService(state),film=Object.keys(RESORT_MEDIA).find(id=>id.startsWith('resortFilm-')) as import('./resort').ResortAction|undefined;
+    const entries:[VitalNeed,string,WishCommand|undefined][]=[['bladder','В туалет',{type:'local_activity',station:'resort-toilet',action:'resortToilet'}],['hygiene','Принять душ',{type:'local_activity',station:'resort-shower',action:'resortShower'}],['energy','Поспать',{type:'local_activity',station:'resort-bed',action:'resortSleep'}],['comfort','Отдохнуть',{type:'local_activity',station:'resort-terrace',action:'resortRest'}],['fun','Посмотреть фильм',film?{type:'local_activity',station:'resort-media',action:film}:undefined],['hunger','Поесть на веранде',service?.served&&service.remaining.includes(role)?{type:'local_activity',station:'resort-terrace',action:service.meal==='breakfast'?'resortBreakfast':service.meal==='lunch'?'resortLunch':'resortDinner'}:undefined]];
+    for(const [need,cta,command] of entries.sort((a,b)=>person[a[0]]-person[b[0]])){if(person[need]<=50&&command&&wishAvailable(state,role,'need-'+need))wishes.push({id:'need-'+need,need,icon:emoji[need],title:titles[need],detail:NEED_INFO[need].label+' · '+Math.round(person[need])+'% · в коттедже',cta,command,urgency:person[need]<=25?'urgent':'wish'});if(wishes.length>=2)break;}return wishes;
+  }
   const sorted=[...needs].sort((a,b)=>person[a]-person[b]);
   const wishes:Wish[]=[];
   const make=(need:VitalNeed):Wish=>{

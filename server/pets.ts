@@ -189,7 +189,7 @@ export function runPetRoutines(state: GameState, minutes: number, now: number,
     pet.energy = drain(pet.energy, 5);
     pet.bladder = drain(pet.bladder, 7);
     if(id==='verdell')pet.cleanliness=drain(pet.cleanliness??100,state.world.dogWalker?5:pet.routine?.kind==='toy'?3:1.8);
-    if(state.world.resort?.pets?.includes(id)){delete pet.routine;if(pet.satiety<40)pet.satiety=clamp(pet.satiety+45);if(pet.energy<35)pet.energy=clamp(pet.energy+45);if(pet.bladder<35)pet.bladder=100;continue;}
+    if(state.world.resort?.pets?.includes(id)){delete pet.routine;const v=state.world.resort,care=v.petCare??={};const current=care[id];if(current&&now>=current.until){if(current.kind==='eat')pet.satiety=clamp(pet.satiety+45);else if(current.kind==='sleep')pet.energy=clamp(pet.energy+45);else pet.bladder=100;delete care[id];}if(!care[id]){const kind=pet.bladder<35?'toilet':pet.satiety<40?'eat':pet.energy<35?'sleep':undefined;if(kind)care[id]={kind,until:now+(kind==='sleep'?12:6)};}continue;}
     const station=feedingStation(state.furnishing,id);
     if(!occupied.has(id)&&!petAway(state,id))dispenseFeeder(state,id);
     const previous = pet.routine;

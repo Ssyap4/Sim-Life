@@ -915,7 +915,7 @@ const thoughts=createThoughtUI(document.querySelector<HTMLElement>('#thought-doc
   ()=>phone.openAutonomyHistory(),
   (role,command)=>{
     if(!active||!state||active!==role)return false;
-    if(command.type==='local_activity')return state.world.places[role]==='park'&&net.world({type:'approach',place:'park',station:command.station});
+    if(command.type==='local_activity'){const place=state.world.places[role];return (place==='park'&&command.station==='park-dog'||place==='resort'&&command.station.startsWith('resort-'))&&net.world({type:'approach',place,station:command.station});}
     if(state.world.places[role]!=='home')return false;
     if(command.type==='together')return net.social({type:'social_propose',action:command.action});
     if(command.type==='vanity_care')return net.entertainment(command);

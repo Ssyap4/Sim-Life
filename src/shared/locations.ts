@@ -194,6 +194,8 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('resort-bed','Кровать',-13,-11,2.8,2.8,{kind:'resort',facility:'bed'}),
     site('resort-media','Netflix и Nintendo',-7,-9,3.3,4.0,{kind:'resort',facility:'media'}),
     site('resort-bath','Раковина',-2,-12,1.3,.75,{kind:'resort',facility:'bath'}),
+    site('resort-toilet','Туалет коттеджа',1.25,-12.3,1.35,1.55,{kind:'resort',facility:'toilet'}),
+    site('resort-shower','Душ коттеджа',3.65,-12.3,1.65,1.65,{kind:'resort',facility:'shower'}),
     site('resort-kitchen','Кухня',-2.8,-10,2.8,1.2,{kind:'resort',facility:'kitchen'}),
     site('resort-terrace','Стол на веранде',-8,.4,2.8,3.0,{kind:'resort',facility:'terrace'}),
     site('resort-grill','Мангал',-13,.6,2.4,.85,{kind:'resort',facility:'grill'}),
@@ -379,6 +381,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
     if(station.action.facility==='venueBowling'||station.action.facility==='venueUfc')return {x:x+side*.65,z:station.approach.z};
     return {x,z:z+side*(station.depth/2+.63)};
   }
+  if(station.id==='grooming-care')return {x:1.75,z:station.approach.z+.20};
   if(station.action.kind==='resort')return {x:station.approach.x+(role==='vlad'?-.43:.43),z:station.approach.z};
   if(station.action.kind==='lake'&&['fire','pitch'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.43:.43),z:station.approach.z};
   if(station.action.kind==='spa'&&['spaPool','spaJacuzzi','spaSauna'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.44:.44),z:station.approach.z};
@@ -401,7 +404,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if(place==='grooming')obstacles.push({minX:2.35,maxX:4.85,minZ:-3.85,maxZ:-2.75});
-  if(place==='resort')obstacles.push({minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8},{minX:-15.95,maxX:-12.05,minZ:-2.34,maxZ:-1.78},{minX:-7.95,maxX:-4.05,minZ:-2.34,maxZ:-1.78},...([[-15,-12.1,.68,.65],[-11,-12.1,.68,.65],[-13,-13.6,2.8,.68],[-7,-12.9,2.4,.78],[-9.35,-12.65,.50,.50],[-2.2,-6.5,1.6,.86],[-.85,-13.28,.72,.70],[-1.6,11.65,.82,1.85],[1,11.65,.82,1.85],[3.6,11.65,.82,1.85]] as const).map(([x,z,w,d])=>({minX:x-w/2-.20,maxX:x+w/2+.20,minZ:z-d/2-.20,maxZ:z+d/2+.20})));
+  if(place==='resort')obstacles.push({minX:0,maxX:5.25,minZ:-14.2,maxZ:-13.65},{minX:4.85,maxX:5.3,minZ:-14,maxZ:-7.7},{minX:2.28,maxX:2.65,minZ:-14,maxZ:-11.0},{minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8},{minX:-15.95,maxX:-12.05,minZ:-2.34,maxZ:-1.78},{minX:-7.95,maxX:-4.05,minZ:-2.34,maxZ:-1.78},...([[-15,-12.1,.68,.65],[-11,-12.1,.68,.65],[-13,-13.6,2.8,.68],[-7,-12.9,2.4,.78],[-9.35,-12.65,.50,.50],[-2.2,-6.5,1.6,.86],[-.85,-13.28,.72,.70],[-1.6,11.65,.82,1.85],[1,11.65,.82,1.85],[3.6,11.65,.82,1.85]] as const).map(([x,z,w,d])=>({minX:x-w/2-.20,maxX:x+w/2+.20,minZ:z-d/2-.20,maxZ:z+d/2+.20})));
   if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})),...agilityObstacles(agilityPass));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
