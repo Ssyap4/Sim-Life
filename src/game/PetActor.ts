@@ -371,6 +371,7 @@ export class PetActor {
     this.perch=null;
   }
 
+  resortCareQA(){return {routine:this.routine,settled:this.settled,bedLift:this.bedLift,walking:this.route.length>0};}
   stop(): void {
     this.pendingDogBed=null;
     if(this.dogBedProgress>0)this.dogBedLeaving=true;else this.dogBed=null;

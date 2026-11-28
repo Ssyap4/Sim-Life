@@ -6,7 +6,7 @@ import {gameMinutes} from './life';
 export const RESORT_PASSES={night:{name:'Сутки',price:18900,minutes:1440},weekend:{name:'Двое суток',price:34900,minutes:2880}} as const;
 export type ResortPass=keyof typeof RESORT_PASSES;
 export const isResortPass=(p:unknown):p is ResortPass=>typeof p==='string'&&Object.hasOwn(RESORT_PASSES,p);
-export const RESORT_MEALS={breakfast:{name:'Завтрак · омлет, круассаны и кофе',start:480,end:660},lunch:{name:'Обед · суп, салат и горячее',start:780,end:960},dinner:{name:'Ужин · стейк, овощи и десерт',start:1140,end:1320}} as const;
+export const RESORT_MEALS={breakfast:{name:'Завтрак · омлет, круассаны и фрукты',start:480,end:660},lunch:{name:'Обед · суп, салат и горячее',start:780,end:960},dinner:{name:'Ужин · стейк, овощи и десерт',start:1140,end:1320}} as const;
 export type ResortMeal=keyof typeof RESORT_MEALS;
 export const RESORT_MEAL_DISHES:Record<ResortMeal,readonly [RecipeId,RecipeId,RecipeId]>={breakfast:['omelette','butterCroissant','fruitSalad'],lunch:['chickenSoup','salad','creamyChicken'],dinner:['grillSteak','grillVegetables','berryCheesecake']};
 export const RESORT_GRILL={pork:{name:'Шашлык из свинины',price:1350,dish:'grillChicken',hunger:90,color:0xa85d39},chicken:{name:'Шашлык из курицы',price:950,dish:'grillChicken',hunger:85,color:0xd9a05f},beef:{name:'Шашлык из говядины',price:1850,dish:'grillChicken',hunger:100,color:0x75402d},sausages:{name:'Купаты',price:850,dish:'grillChicken',hunger:80,color:0xc38b58},steak:{name:'Стейки на углях',price:2450,dish:'grillSteak',hunger:100,color:0x7f4331},vegetables:{name:'Овощи на гриле',price:590,dish:'grillVegetables',hunger:65,color:0x8eab57}} as const;
@@ -16,6 +16,9 @@ export const RESORT_DRINKS={beer:{name:'Пиво',price:450,alcohol:true,color:0
 export type ResortDrink=keyof typeof RESORT_DRINKS;
 export type ResortPetCare={kind:'eat'|'sleep'|'toilet';until:number};
 export type ResortVisit={pass:ResortPass;from:number;until:number;guests:CharacterId[];pets?:import('./pets').PetId[];petCare?:Partial<Record<import('./pets').PetId,ResortPetCare>>;eaten:Partial<Record<CharacterId,string[]>>;raw?:Partial<Record<ResortGrill,number>>;cooked?:Partial<Record<ResortGrill,number>>;bar?:Partial<Record<CharacterId,{day:number;alcohol:number}>>};
+export const RESORT_TREE_GROUPS=[[[ -18,-11],[-18,-6],[-18,1],[-18,6],[-18,13],[-10,15],[-4,15],[8,15],[16,14],[18,10],[18,-9],[16,-14],[8,-14],[6.9,-15.8]],[[7.8,-11.2],[10,-13],[12,-12],[15,-11],[17,-6],[19,4],[-18,-14],[-17,14],[7,15],[11,14],[15,12],[18,13]]] as const;
+export const RESORT_WATER_ACTIONS=['resortPool','resortLake','resortJacuzzi','resortShower'] as const;
+export function isResortWaterAction(a:unknown){return RESORT_WATER_ACTIONS.some(id=>id===a);}
 export const RESORT_FLOOR={minX:-20,maxX:20,minZ:-17,maxZ:17};
 const RESORT_BASE_ACTIONS={
  resortBreakfast:{name:'Позавтракать на веранде',facility:'terrace',seconds:40,meal:'breakfast'},

@@ -6,6 +6,7 @@ import {RECIPES,isHomeDrink,type RecipeId,type DrinkSeat} from './shared/food';
 import {recipeAvailability} from './shared/recipeAvailability';
 import {createNotifications} from './notificationsUI';
 import type {NoticeInput} from './shared/notices';
+import {isResortWaterAction} from './shared/resort';
 import {residentLook} from './shared/lake';
 import {CARE,careScore,careEffects,careRole,homeCare,bathCare,type CareId} from './shared/vanity';
 import {isNotebookDesk} from './shared/furniture';
@@ -129,6 +130,7 @@ interface TaskView {
   paired?: SocialIntent;
   spaStation?:string;
   lakeSwim?:boolean;
+  resortWater?:boolean;
   isCooking?:boolean;
   namedMedia?:boolean;
   agility?:import('./shared/dogAgility').DogAgilityAction;
@@ -727,7 +729,7 @@ function renderClock(): void {
 
 function syncResidentLook(role:CharacterId):void{
   if(!state||!world)return;
-  const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool||state.world.places[role]==='lake'&&tasks.get(role)?.lakeSwim;
+  const water=state.world.places[role]==='spa'&&state.world.spa?.[role]?.changed!==false||state.world.places[role]==='home'&&tasks.get(role)?.pool||state.world.places[role]==='lake'&&tasks.get(role)?.lakeSwim||state.world.places[role]==='resort'&&tasks.get(role)?.resortWater;
   const worn=residentLook(state,role,!!water);
   const actor=world.actors[role];
   if(actor.root.userData.wornLook!==worn){if(worn==='spa-visit')fitSpaWardrobe(actor.root,role);else if(worn==='lake-visit')fitLakeWardrobe(actor.root,role);else fitWardrobe(actor.root,role,outfitChoices(worn));actor.root.userData.wornLook=worn;}
@@ -1187,7 +1189,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      agility:command.type==='local_activity'&&isDogAgility(command.action)?command.action:undefined,lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook',namedMedia:command.type==='movie'&&!!command.selection, question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      agility:command.type==='local_activity'&&isDogAgility(command.action)?command.action:undefined,lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',resortWater:command.type==='local_activity'&&isResortWaterAction(command.action),soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook',namedMedia:command.type==='movie'&&!!command.selection, question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();

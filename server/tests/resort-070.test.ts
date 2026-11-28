@@ -1,3 +1,4 @@
+import {RESORT_TREE_GROUPS,isResortWaterAction} from '../../src/shared/resort';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {initialState} from '../../src/shared/protocol';
@@ -25,3 +26,5 @@ test('paired resort media uses one television, consent, two separate reachable s
 test('private cottage bathroom restores hygiene and bladder at the correct exclusive fixtures',()=>{let s=trip();s.characters.vlad.hygiene=10;s.characters.vlad.bladder=5;for(const [action,station,need] of [['resortShower','resort-shower','hygiene'],['resortToilet','resort-toilet','bladder']] as const){const st=stationById('resort',station)!;assert.equal(localActivity(s,'vlad',action,'resort-terrace').ok,false);Object.assign(s.characters.vlad,approachFor(st,'vlad'));const r=localActivity(s,'vlad',action,station);assert.ok(r.ok);s=r.state;assert.equal(s.characters.vlad[need],100);assert.ok(planTask({type:'local_activity',action,station})?.resource);}assert.equal(s.money,81100);});
 
 test('resort needs point to local cottage fixtures instead of unavailable home actions',()=>{const s=trip();s.characters.vlad.bladder=10;s.characters.vlad.hygiene=15;const wishes=wishesFor(s,'vlad');assert.ok(wishes.some(w=>w.command?.type==='local_activity'&&w.command.action==='resortToilet'));assert.ok(wishes.some(w=>w.command?.type==='local_activity'&&w.command.action==='resortShower'));assert.ok(wishes.every(w=>w.command?.type==='local_activity'));});
+
+test('resort trees stay outside cottage and bathroom clearance, water kit is temporary only for wet tasks',()=>{for(const [x,z] of RESORT_TREE_GROUPS.flat())assert.ok(x<=-17.5||x>=6.8||z>=-0.3||z<=-15.5, 'tree inside cottage: '+x+','+z);for(const action of ['resortPool','resortLake','resortJacuzzi','resortShower'])assert.ok(isResortWaterAction(action));for(const action of ['resortToilet','resortTeeth','resortRest','resortSleep'])assert.equal(isResortWaterAction(action),false);});
