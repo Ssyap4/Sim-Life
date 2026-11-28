@@ -4,7 +4,7 @@ import type {PlaceId} from './locations';
 export interface CarRide { from:PlaceId; to:PlaceId; startedAt:number; endsAt:number }
 export function rideDuration(from:PlaceId,to:PlaceId):number {
   const away=to==='home'?from:to;
-  return away==='lake'?10000:['fitness','clinic','spa','venue','barber','work-clinic','industrial'].includes(away)?8000:6000;
+  return away==='lake'||away==='resort'?10000:['fitness','clinic','spa','venue','barber','work-clinic','industrial'].includes(away)?8000:6000;
 }
 export function recordCarRide(before:GameState,after:GameState,roles:CharacterId[],now=Date.now()):void{
   const rides={...after.world.carRides};
@@ -16,7 +16,7 @@ export function recordCarRide(before:GameState,after:GameState,roles:CharacterId
 }
 export function isCarReturn(before:GameState,after:GameState,role:CharacterId):boolean{
   return after.world.places[role]==='home'&&before.world.places[role]!=='home'&&
-    (before.world.carDriver===role||['fitness','clinic','spa','venue','lake'].includes(before.world.places[role]));
+    (before.world.carDriver===role||['fitness','clinic','spa','venue','lake','resort'].includes(before.world.places[role]));
 }
 export function activeCarRide(state:GameState,role:CharacterId,now=Date.now()):CarRide|undefined{
   const ride=state.world.carRides?.[role];

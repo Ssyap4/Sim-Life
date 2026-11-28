@@ -67,6 +67,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { adjustHeight, protectCameraFloor, HEIGHT_MAX_POLAR } from './CameraHeight';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
+import {isResortAction,resortSwimFrame} from '../shared/resort';
 import { frameTiming,advanceActiveVisualClock,type ActiveVisualClock } from './FrameTiming';
 import { StableModelParts } from './StableModelParts';
 import { petStepPace } from './PetMotion';
@@ -412,7 +413,7 @@ export class World {
     // 0.18: allow pinch/pan to inspect neighbors and their wider gardens.
     this.controls.maxTargetRadius = 23;
     this.controls.minDistance = 10;
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake'||this.place==='resort')?88:51;
     this.controls.minPolarAngle = 0.24;
     this.controls.maxPolarAngle = 1.25;
     this.updatePanFeel();
@@ -510,7 +511,7 @@ export class World {
       const touch = event.pointerType === 'touch';
       gate.down(contact(event));
       if (event.isPrimary) {
-        this.controls.enablePan = touch || this.place==='home' || this.place==='district' || this.place==='park'||this.place==='lake';
+        this.controls.enablePan = touch || this.place==='home' || this.place==='district' || this.place==='park'||this.place==='lake'||this.place==='resort';
         this.controls.dampingFactor = TOUCH_CAMERA_DAMPING;
         this.updatePanFeel();
       }
@@ -664,7 +665,7 @@ export class World {
     this.updateViewLens();
     this.controls.minDistance = subject ? 1.10 : 10;
     // Keep the full transition in range before applying the inspection limit.
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake'||this.place==='resort')?88:51;
     this.controls.maxPolarAngle = subject ? 1.52 : 1.25;
     if (!subject) {
       this.followSubject = null;
@@ -825,7 +826,7 @@ export class World {
     this.neighborhoodView=false;
     this.followSubject=null;
     this.controls.minDistance=10;
-    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake')?88:51;
+    this.controls.maxDistance=this.place==='district'?96:this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake'||this.place==='resort')?88:51;
     this.controls.maxPolarAngle=1.25;
     this.defaultFrame=this.homeFrame(this.compactPortrait.matches,this.viewBand(false));
     this.cameraMove=this.defaultFrame;
@@ -1475,6 +1476,14 @@ export class World {
       // resident steering delay consume the dog's entire exercise timer.
       if(isDogAgility(command.action))this.playParkDog(command.action,role);
       const start = () => {
+        if(station.action.kind==='resort'&&isResortAction(command.action)){
+          const x=station.center.x,z=station.center.z,offset=role==='vlad'?-.8:.8;
+          if(command.action==='resortPool'||command.action==='resortLake'){const f=resortSwimFrame(0,role,command.action==='resortLake');actor.setFurniturePose('idle',new THREE.Vector3(f.x,f.y,f.z),f.yaw);actor.playDomesticActivity('spaSwim');}
+          else if(command.action==='resortJacuzzi'){actor.setSpaSeat(x+offset,z-.7,.45,0);}
+          else if(command.action==='resortSleep'){actor.setFurniturePose('sleep',new THREE.Vector3(x+offset,.70,z+.2),Math.PI);}
+          else if(command.action==='resortWash'){const p=new THREE.Vector3(x,1.06,z);actor.faceTowards(p);actor.playDomesticActivity('washHands',p);}
+          else {actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.13,z+1.12),Math.PI);if(command.action!=='resortRest'){const plate=this.showMeal(role,x+offset,.86,z,'chickenSoup');actor.playActivity('eat',plate,'chickenSoup',true);}}
+        }
         if(station.action.kind==='spa'){
  const a=station.action.facility,x=station.center.x,z=station.center.z,offset=role==='vlad'?-.44:.44;
  if(a==='spaLocker'){actor.faceTowards(new THREE.Vector3(x,0,z));actor.playDomesticActivity('tidy');}
@@ -2530,7 +2539,7 @@ export class World {
     else this.neighbors.group.removeFromParent();
     this.neighbors.group.visible=false;
     this.scene.background = new THREE.Color(0xc0c7ad);
-    this.scene.fog = place==='venue'||place==='spa'?null:place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='home'?125:place==='lake'?85:place==='fitness'?85:49, place==='home'?185:place==='lake'?115:place==='fitness'?115:75);
+    this.scene.fog = place==='venue'||place==='spa'?null:place === 'district' ? new THREE.Fog(0xc0c7ad, 125, 171) : new THREE.Fog(0xc0c7ad, place==='home'?125:place==='resort'?85:place==='lake'?85:place==='fitness'?85:49, place==='home'?185:place==='resort'?115:place==='lake'?115:place==='fitness'?115:75);
     if (this.remote) {
       this.scene.add(this.remote.root);
       for (const [id, group] of this.remote.stations) this.trackStation(this.remoteMeshes, id, group);
@@ -2559,10 +2568,10 @@ export class World {
     this.horizon.enter(this.scene,place);
     this.camera.far=place==='district'||place==='home'?180:110;
     this.camera.updateProjectionMatrix();
-    this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:place==='lake'?40:18;
-    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || place==='venue'||place==='spa'||place==='lake'|| isCareerPlace(place);
+    this.controls.maxTargetRadius = place === 'district' ? 110 : place==='home'?23:place==='resort'?42:place==='lake'?40:18;
+    this.controls.enablePan = place === 'home' || place==='district' || place === 'park' || place === 'industrial' || place === 'market' || place === 'education' || place==='venue'||place==='spa'||place==='lake'||place==='resort'|| isCareerPlace(place);
     this.frameSun(place === 'home');
-    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake')?88:51;
+    this.controls.maxDistance = this.place === 'district' ? (this.districtWide ? 132 : 96) : this.place==='home'?120:(this.place==='fitness'||this.place==='venue'||this.place==='lake'||this.place==='resort')?88:51;
     this.controls.minDistance = 10;
     this.controls.maxPolarAngle = 1.25;
     this.refreshViewport();
@@ -3016,6 +3025,7 @@ export class World {
       }
       return siteView;
     }
+    if(this.place==='resort'){const target=new THREE.Vector3(-3,.5,0);return {target,position:target.clone().add(new THREE.Vector3(18,30,36))};}
     if(this.place==='lake'){const p=this.household?.characters[this.localRole]??{x:-5,z:7};const target=new THREE.Vector3(p.x+2,.45,p.z-3);return {target,position:target.clone().add(new THREE.Vector3(-12,19,21))};}
     if(this.remote&&(this.place==='fitness'||this.place==='venue'))return portraitHomeFrame(this.camera.fov,this.camera.aspect,band,this.remote.horizontal,this.remote.vertical,[.12,1.12,1.0],88);
     if (this.remote && this.place === 'market')
@@ -3191,6 +3201,7 @@ export class World {
           actor.setTennisFrame(p.x,p.z,f.hit,target);
         }
       }
+      if(this.place==='resort'&&actor.audioMotion().activity==='spaSwim'){const f=resortSwimFrame(actor.audioMotion().activityTime,id,actor.root.position.x>6);actor.updateWaterAnchor(this.framePartPosition.set(f.x,f.y,f.z),f.yaw);}
       if(this.place==='lake'&&actor.audioMotion().activity==='spaSwim'){const f=lakeSwimFrame(actor.audioMotion().activityTime,id);actor.updateWaterAnchor(this.framePartPosition.set(f.x,f.y,f.z),f.yaw);}
       if(this.place==='spa'&&actor.audioMotion().activity==='spaSwim'&&this.remote?.root.userData.spaWaterUsers?.[id]==='spa-pool'){
         const s=stationById('spa','spa-pool')!,f=spaSwimFrame(actor.audioMotion().activityTime,id);

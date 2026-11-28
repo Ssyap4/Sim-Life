@@ -10,6 +10,7 @@ import {addLeisureDetail} from './LeisureDetail061';
 import {addWorkOutdoorDetail} from './WorkOutdoorDetail061';
 import {makeWater,updateWater} from './WaterArt';
 import {buildCampFire} from './LakeCampArt';
+import {buildResort,resortStation} from './ResortArt';
 import {buildLakeLandscape,lakeStation} from './LakeArt';
 import * as THREE from 'three';
 import {buildSpaWater} from './SpaWater';
@@ -568,6 +569,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const bulbs: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>[] = [];
   const outdoor = place === 'park';
   const floor = new THREE.Group();
+  let resortArt:ReturnType<typeof buildResort>|undefined;
   let lakeArt:ReturnType<typeof buildLakeLandscape>|undefined;
   let parkWater:THREE.ShaderMaterial|undefined;
   let animatePark: ((seconds:number)=>void)|undefined;
@@ -575,7 +577,10 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   root.add(floor);
   const resources = { textures, materials };
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
-  if(place==='lake'){
+  if(place==='resort'){
+    resortArt=buildResort(root,resources);animatePark=resortArt.animate;
+    const clerk=marketCashier(resources,{title:'Лазурный берег',color:0x527e83,shirt:0xf5ebda,animated:true});clerk.position.set(-14,0,9.2);root.add(clerk);
+  }else if(place==='lake'){
     lakeArt=buildLakeLandscape(root,resources);
     const clerk=marketCashier(resources,{title:'Прокат',color:0x527151,shirt:0xe9dfbd,animated:true});clerk.position.set(-9.05,.08,9.12);root.add(clerk);
     animatePark=(seconds)=>{lakeArt!.animate(seconds);for(const g of stations.values())g.userData.fire?.userData.animate(seconds);};
@@ -774,10 +779,11 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   }
   batchRigidParts(floor, place === 'market' || place === 'education' || Boolean(animateWork));
   for (const station of STATIONS[place]) {
-    const custom = place==='lake'?lakeStation(station,resources):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
+    const custom = place==='resort'?resortStation(station,resources):place==='lake'?lakeStation(station,resources):place === 'venue'&&station.action.kind==='venue' ? buildVenueStation(station,textures,materials) : place === 'fitness' ? fitnessStation(station,textures,materials) : place === 'market' ? marketStation(station, resources)
         : place === 'education' ? educationStation(station, resources)
           : isCareerPlace(place)&&station.action.kind==='career' ? careerStation(station,careerAt(place),resources) : null;
     const group = custom ?? buildStation(station, textures, materials);
+    if(place==='resort'&&station.id==='resort-exit')sign(group,'ЛАЗУРНЫЙ БЕРЕГ',2.72,.17,2.8,0xf5ebda,textures,materials);
     if(place==='lake'&&station.id==='lake-rental')sign(group,'КЕМПИНГ И РЫБАЛКА',2.45,1.66,4.7,0xf5ebda,textures,materials);
     if(place==='lake'&&station.id==='lake-exit')sign(group,'ЛЕСНОЕ ОЗЕРО',2.53,.17,2.7,0xf5ebda,textures,materials);
     if(station.action.kind==='venue')group.name=station.action.facility;
@@ -798,12 +804,12 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   };
   // Large locations formerly walked the whole scene graph twice for the same bounds.
   const vertical = corners(new THREE.Box3().setFromObject(root));
-  const horizontal = (place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?vertical:place === 'market' ? marketOutline
+  const horizontal = (place==='resort'||place==='lake'||place==='fitness'||place==='clinic'||place==='barber'||place==='electronics'||place==='spa'||place==='venue')?vertical:place === 'market' ? marketOutline
     : [...stations.values()].flatMap(station => corners(new THREE.Box3().setFromObject(station)));
   return {
     root, stations, horizontal, vertical,
     animate: animateWork ?? animatePark ?? animateCafe,
-    setNight(night: boolean) { lakeArt?.setNight(night);if(parkWater)parkWater.uniforms.night.value=night?1:0;for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
+    setNight(night: boolean) { resortArt?.setNight(night);lakeArt?.setNight(night);if(parkWater)parkWater.uniforms.night.value=night?1:0;for (const bulb of bulbs) bulb.material.emissiveIntensity = night ? 1.2 : .02; },
     dispose() {
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse(object => {

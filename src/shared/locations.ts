@@ -10,7 +10,9 @@ import { PARK_TREES, type CampKit, type CampRecipe, type ParkDogVisit } from './
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES, HOME_FLOOR, HOME_YARD } from './home';
 
+import {RESORT_FLOOR,type ResortFacility} from './resort';
 export const PLACES = {
+  resort:{name:'Лазурный берег',icon:'🏝️',detail:'Премиальный загородный отдых'},
   home: { name: 'Дом', icon: '⌂', detail: 'Дом и семейный участок' },
   district: {name:'Район',icon:'🏘️',detail:'Соседи, торговая улица и площадь'},
   industrial: {name:'Промышленная зона',icon:'🏭',detail:'Склады Ozon и Wildberries'},
@@ -43,7 +45,7 @@ export const ELECTRONICS_FLOOR={minX:-5.62,maxX:10.62,minZ:-4.62,maxZ:4.62};
 export const WORLD_FLOOR = { minX: -5.62, maxX: 5.62, minZ: -4.62, maxZ: 4.62 };
 export const PARK_FLOOR={minX:-7.62,maxX:12.62,minZ:-6.62,maxZ:6.62};
 export const INDUSTRIAL_FLOOR={minX:-9.12,maxX:9.12,minZ:-6.12,maxZ:6.62};
-export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='venue'?VENUE_FLOOR:place==='lake'?LAKE_FLOOR:place==='spa'?SPA_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
+export const floorFor = (place: PlaceId) => place === 'home' ? HOME_FLOOR : place==='district'?DISTRICT_WORLD_FLOOR:place==='park'?PARK_FLOOR:place==='industrial'?INDUSTRIAL_FLOOR:place==='venue'?VENUE_FLOOR:place==='resort'?RESORT_FLOOR:place==='lake'?LAKE_FLOOR:place==='spa'?SPA_FLOOR:place==='fitness'?FITNESS_FLOOR:place==='electronics'?ELECTRONICS_FLOOR:WORLD_FLOOR;
 export function isPlace(value: unknown): value is PlaceId {
   return typeof value === 'string' && Object.hasOwn(PLACES, value);
 }
@@ -62,6 +64,7 @@ export function meeting(place: PlaceId, role: CharacterId): Point {
 }
 
 type SiteAction =
+  | {kind:'resort';facility:ResortFacility}
   | {kind:'lake';facility:'rental'|'pitch'|'fish'|'fire'|'rest'|'toilet'|'wash'|'swim'|'dog'}
   | {kind:'venue';facility:import('./venue').VenueGame|'reception'}
   | {kind:'spa'; facility:import('./spa').SpaAction|'reception'}
@@ -182,6 +185,20 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('venue-uno','UNO',2.3,2.4,1.7,1.55,{kind:'venue',facility:'venueUno'}),
     site('venue-ufc','PS5 · UFC 6',6.9,-1.5,3.7,4.9,{kind:'venue',facility:'venueUfc'}),
     door('venue-exit','Выход','district',0,6.6,true),
+  ],
+  resort:[
+    site('resort-reception','Ресепшен',-14,10,3.0,1.1,{kind:'resort',facility:'reception'}),
+    site('resort-bed','Кровать',-13,-11,2.8,2.8,{kind:'resort',facility:'bed'}),
+    site('resort-media','Netflix и Nintendo',-7,-9,3.3,4.0,{kind:'resort',facility:'media'}),
+    site('resort-bath','Раковина',-2,-12,1.3,.75,{kind:'resort',facility:'bath'}),
+    site('resort-kitchen','Кухня',-2.8,-10,2.8,1.2,{kind:'resort',facility:'kitchen'}),
+    site('resort-terrace','Стол на веранде',-8,.4,2.8,3.0,{kind:'resort',facility:'terrace'}),
+    site('resort-grill','Мангал',-13,.6,2.4,.85,{kind:'resort',facility:'grill'}),
+    site('resort-bar','Бар',-15,5,3.0,1.1,{kind:'resort',facility:'bar'}),
+    site('resort-pool','Большой бассейн',1,6,9.8,5.8,{kind:'resort',facility:'pool'}),
+    site('resort-jacuzzi','Джакузи',-8,6,3.5,3.5,{kind:'resort',facility:'jacuzzi'}),
+    site('resort-lake','Лазурное озеро',12,1,14,12,{kind:'resort',facility:'lake'}),
+    door('resort-exit','Выезд','district',-14,16.5,true),
   ],
   lake:[
     site('lake-rental','Прокат и кемпинг',-10,9,5.0,3.0,{kind:'lake',facility:'rental'},{approach:{x:-10,z:11.2}}),
@@ -353,6 +370,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
     if(station.action.facility==='venueBowling'||station.action.facility==='venueUfc')return {x:x+side*.65,z:station.approach.z};
     return {x,z:z+side*(station.depth/2+.63)};
   }
+  if(station.action.kind==='resort')return {x:station.approach.x+(role==='vlad'?-.43:.43),z:station.approach.z};
   if(station.action.kind==='lake'&&['fire','pitch'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.43:.43),z:station.approach.z};
   if(station.action.kind==='spa'&&['spaPool','spaJacuzzi','spaSauna'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.44:.44),z:station.approach.z};
   if(station.action.kind==='fitness'&&['sauna','bar'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.42:.42),z:station.approach.z};
@@ -373,6 +391,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
+  if(place==='resort')obstacles.push({minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8});
   if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})),...agilityObstacles(agilityPass));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
@@ -447,14 +466,16 @@ export interface WorldState {
   fitness?:import('./fitness').FitnessState;
   spa?:import('./spa').SpaState;
   lake?:import('./lake').LakeState;
+  resort?:import('./resort').ResortVisit;
   fishing?:import('./lake').FishingStock;
 }
 export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./dogAgility').DogAgilityAction | import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./resort').ResortAction | import('./dogAgility').DogAgilityAction | import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
+  | import('./resort').ResortCommand
   | import('./venue').VenueCommand
   | import('./lake').LakeCommand
   | import('./spa').SpaCommand

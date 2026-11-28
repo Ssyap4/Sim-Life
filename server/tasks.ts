@@ -19,6 +19,7 @@ import {fitnessExercise,fitnessBarItem} from '../src/shared/fitness';
 import {stationById} from '../src/shared/locations';
 import { clockMinutes } from '../src/shared/locations';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
+import {RESORT_ACTIONS,isResortAction} from '../src/shared/resort';
 import { localActivity, localLabels } from './locations';
 import {isDogAgility} from '../src/shared/dogAgility';
 import { PICNIC_SECONDS, isCampRecipe, isParkDogAction } from '../src/shared/park';
@@ -131,6 +132,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
   if (command.type === 'local_activity') {
     if (typeof command.station !== 'string' || typeof command.action !== 'string' || !own(localLabels, command.action)) return null;
     const action = command.action as LocalActivity;
+    if(isResortAction(action)){const d=RESORT_ACTIONS[action],s=stationById('resort',command.station);if(s?.action.kind!=='resort'||s.action.facility!==d.facility)return null;return {command:{type:'local_activity',station:command.station,action},label:d.name,durationMs:d.seconds*1000,resource:action==='resortWash'?'resort-wash':null};}
     if(isLakeLeisureAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==LAKE_LEISURE[action].facility)return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_LEISURE[action].name,durationMs:LAKE_LEISURE[action].seconds*1000,resource:action.startsWith('lakeDog')?'lake-dog':null};}
     if(isLakeCareAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==LAKE_CARE[action].facility)return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_CARE[action].name,durationMs:LAKE_CARE[action].seconds*1000,resource:'lake-care:'+station.id};}
     if(isLakeRestAction(action)){const station=stationById('lake',command.station);if(station?.action.kind!=='lake'||station.action.facility!==(action==='lakeFireRest'?'fire':'pitch'))return null;return {command:{type:'local_activity',station:command.station,action},label:LAKE_REST[action].name,durationMs:LAKE_REST[action].seconds*1000,resource:null};}

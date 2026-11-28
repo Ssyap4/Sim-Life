@@ -1,5 +1,6 @@
 import {renovationLampSpots} from './shared/renovationPlacement';
 import {COVERINGS,ROOMS,coveringById,compatible,renovationQuote,installedRenovation,FIXTURE_LABELS,type RoomId,type SurfaceKind,type RenovationPreview} from './shared/renovation';
+import {RESORT_PASSES,RESORT_MEALS,RESORT_ACTIONS,resortAccess,resortMealKey,type ResortPass,type ResortAction} from './shared/resort';
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,LAKE_CARE,LAKE_LEISURE,lakeCanSwim,lakeNeedsFish,lakeCampFor,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {DOG_AGILITY,AGILITY_ACTIONS,agilityReady,agilityConfidence} from './shared/dogAgility';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
@@ -96,7 +97,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     if (send({ type: 'travel', place: destination, via, dog })) { close(); closeMap(); }
   }
   function go(destination:PlaceId,dog=false):boolean {
-    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&destination!=='home')return false;
+    if((state?.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&destination!=='home')return false;
     const target=location==='home'?stationById('home','home-gate'):
       location==='district'?stationById('district',destination==='home'?'district-gate':districtStation(destination)):
       STATIONS[location].find(site=>site.action.kind==='door'&&site.action.destination==='district');
@@ -120,12 +121,12 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const grid = element('div', 'world-map-grid');
     for (const [key, destination] of Object.entries(PLACES)) {
       const id = key as PlaceId;
-      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='spa'||id==='venue'||id==='lake')&&location!==id) continue;
+      if (isCareerPlace(id)||(id==='fitness'||id==='clinic'||id==='barber'||id==='spa'||id==='venue'||id==='lake'||id==='resort')&&location!==id) continue;
       const here=location===id;
-      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&id!=='home'));
+      const entry = button('', () => go(id), here || !!state.activeShifts[role] || Boolean(state.careers.residents[role].shift) || ((state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id!=='home'));
       entry.dataset.place = id;
       entry.append(element('strong', '', destination.icon + ' ' + destination.name),
-        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'))&&id==='home'?'Вернуться домой':destination.detail));
+        element('small', '', here ? 'Вы здесь' : (state.world.carDriver===role||(location==='fitness'||location==='clinic'||location==='barber'||location==='spa'||location==='venue'||location==='lake'||location==='resort'))&&id==='home'?'Вернуться домой':destination.detail));
       grid.append(entry);
     }
     map.append(grid);
@@ -284,6 +285,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         heading('Город');
         for(const destination of ['market','cafe','park','clothing','electronics','petshop','buildshop','industrial'] as const)options.append(destinationButton(destination));
         heading('Отдых');
+        for(const [id,p] of Object.entries(RESORT_PASSES))options.append(button('🏝️ Лазурный берег · '+p.name+' вдвоём · '+formatRub(p.price),()=>{if(send({type:'resort_trip',pass:id as ResortPass}))close();},place.money<p.price));
         const lake=button('🏕️ Лесное озеро ›',()=>{carPage='lake';draw();panel.scrollTop=0;});
         lake.dataset.carPage='lake';options.append(lake);
         options.append(button('🎳 PLAY ARENA вдвоём',()=>{if(send({type:'venue_trip'}))close();}));
@@ -306,6 +308,11 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       else {const g=VENUE_GAMES[id];options.append(element('small','',g.name+' · '+g.seconds+' сек. · '+formatRub(g.price)+' за двоих'));if(cafeSocial){options.append(button('Наблюдать · автоигра',()=>{if(cafeSocial(id))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));if(id==='venueBowling'||id==='venueHockey'||id==='venueBilliards'||id==='venueJenga')options.append(button(id==='venueBowling'?'🎳 Играть вручную · 5 фреймов':id==='venueHockey'?'🏒 Играть вручную · до 7 голов':id==='venueBilliards'?'🎱 Играть вручную · 9 шаров':'🧱 Играть вручную · башня',()=>{if(cafeSocial(id+'Manual'))close();},place.money<g.price||place.world.places[role==='vlad'?'alina':'vlad']!=='venue'));}}
       const manualHistory=id==='venueBowling'?place.bowlingHistory:id==='venueHockey'?place.hockeyHistory:id==='venueBilliards'?place.poolHistory:id==='venueJenga'?place.jengaHistory:undefined;
       if(manualHistory?.length){const h=manualHistory;options.append(element('strong','','Ручные партии · Влад '+h.filter(r=>r.vlad>r.alina).length+' : '+h.filter(r=>r.alina>r.vlad).length+' Алина'));for(const r of h.slice(0,5))options.append(element('small','','Влад '+r.vlad+' : '+r.alina+' Алина'));}
+    } else if(station.action.kind==='resort'){
+      const visit=place.world.resort,access=resortAccess(place,role),facility=station.action.facility;options.append(element('small','',access?'Аренда действует · питание включено':'Аренда завершена. Выезд через ворота.'));
+      if(facility==='terrace')for(const [id,m] of Object.entries(RESORT_MEALS))options.append(element('small','',m.name+' · '+Math.floor(m.start/60)+':00–'+Math.floor(m.end/60)+':00'+(resortMealKey(place,role,id as keyof typeof RESORT_MEALS)?' · готово к подаче':'')));
+      for(const [id,d] of Object.entries(RESORT_ACTIONS))if(d.facility===facility)options.append(button(d.name,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access||'meal' in d&&!resortMealKey(place,role,d.meal)));
+      if(facility==='reception'&&visit)options.append(element('small','','Выезд через '+Math.max(0,Math.ceil((visit.until-now)/60))+' игровых ч.'));
     } else if(station.action.kind==='lake'){
       const visit=place.world.lake?.[role],access=lakeAccess(place,role);
       options.append(element('small','',access?'Билет действует ещё '+Math.ceil((visit!.until-now)/60)+' ч.':'Билет закончился'));
