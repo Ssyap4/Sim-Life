@@ -54,7 +54,7 @@ const parkPaths = [
   {x:-2.68,z:0,w:1.35,d:8.1},{x:2.52,z:0,w:1.30,d:8.1},
 ] as const;
 const parkTrees=PARK_TREES;
-const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-5.05,3.05,1],[4.83,2.56,0],[-6.5,-3.8,2],[-6.6,1.2,0],[-4.8,5.15,1],[1.7,5.2,2],[5.5,-4.9,0],[7,-4.6,1],[10.6,-4.2,2],[11.45,1.15,0],[10.8,5.15,1],[6.2,5.1,2]] as const;
+const parkBeds = [[-4.90,-1.85,0],[4.85,-.78,2],[-5.05,3.05,1],[7.45,-.60,0],[-6.5,-3.8,2],[-6.6,1.2,0],[-4.8,5.15,1],[.85,4.95,2],[5.5,-4.9,0],[7,-4.6,1],[10.6,-4.2,2],[11.45,1.15,0],[10.8,5.15,1],[9.05,5.1,2]] as const;
 
 function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture[]; materials:THREE.Material[]}) {
   const area={x:2.5,z:0,w:21,d:14};
@@ -62,6 +62,7 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
     paintGround(ctx,area,[
     {x:-.08,z:-1.94,w:5.3,d:4.4,ink:[79,136,90],opacity:.54},
     {x:4.46,z:1.54,w:3.0,d:6.5,ink:[171,190,119],opacity:.67},
+    {x:4.9,z:4.15,w:5.95,d:2.55,ink:[120,151,108],opacity:.82},
     ...parkTrees.map(([x,z])=>({x,z,w:2.62,d:2.5,ink:[59,98,66] as [number,number,number],opacity:.58,border:true})),
     ],90713);
     const sx=ctx.canvas.width/area.w,sz=ctx.canvas.height/area.d;
@@ -100,6 +101,7 @@ function parkLandscaping(parent: THREE.Group, resources: {textures:THREE.Texture
   const tufts=[];
   for(let i=0;i<720;i++){
     const x=2.5+(random()-.5)*20.5,z=(random()-.5)*13.5;
+    if(AGILITY_ACTIONS.some(a=>Math.abs(x-DOG_AGILITY[a].x)<.66&&Math.abs(z-DOG_AGILITY[a].z)<1.24))continue;
     if((Math.abs(x-8.4)<2.4&&Math.abs(z-2.25)<2.6)||(Math.abs(x-8.45)<1.2&&Math.abs(z+2.4)<1.2)||(Math.abs(x+4.15)<1.15&&Math.abs(z-.98)<.85))continue;
     if (parkPaths.some(p=>Math.abs(x-p.x)<p.w/2+.18&&Math.abs(z-p.z)<p.d/2+.18)||
         (Math.abs(x+.08)<1.69&&Math.abs(z+1.94)<1.38)) continue;
@@ -745,7 +747,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     stations.set(station.id, group);
     root.add(group);
   }
-  if(place==='park'){const course=new THREE.Group();course.name='Verdell agility course';for(const action of AGILITY_ACTIONS){const d=DOG_AGILITY[action],g=new THREE.Group();g.position.set(d.x,0,d.z);g.name=action;course.add(g);shape(g,[1.15,.016,2.4],[0,.012,0],0x819d76,cube);if(action==='dogHurdle'){for(const x of [-.47,.47]){shape(g,[.10,.42,.12],[x,.21,0],0xe8c071);shape(g,[.22,.055,.40],[x,.027,0],0x4e8d86);}shape(g,[.90,.075,.075],[0,.20,0],0xd4a15b,cube);for(const x of [-.28,.0,.28])shape(g,[.10,.078,.079],[x,.20,0],0xf4ead8,cube);}else if(action==='dogTunnel'){const tube=new THREE.Mesh(new THREE.CylinderGeometry(.40,.40,1.26,20,1,true),finish(0x578f89,'fabric'));tube.rotation.x=Math.PI/2;tube.position.y=.36;g.add(tube);tube.material.side=THREE.DoubleSide;for(const z of [-.60,-.30,0,.30,.60])shape(g,[.40,.40,.10],[0,.36,z],z===0?0xe4bb73:0x79a9a0,torus);}else if(action==='dogSlalom'){for(const z of [-.70,-.23,.23,.70]){shape(g,[.07,.58,.07],[0,.29,z],0xe5bd73,drum);shape(g,[.075,.13,.075],[0,.37,z],0xf5ebd6,drum);shape(g,[.19,.045,.19],[0,.023,z],0x588f83,drum);}}else{shape(g,[.42,.09,.96],[0,.145,0],0xc7a779,cube);for(const z of [-.72,.72]){const ramp=shape(g,[.42,.065,.55],[0,.095,z],0xc7a779,cube);ramp.rotation.x=z>0?.30:-.30;}for(const z of [-.30,.30])shape(g,[.34,.12,.12],[0,.06,z],0x587d70,cube);for(let i=0;i<5;i++)shape(g,[.39,.012,.025],[0,.196,-.38+i*.19],0x765d45,cube);}batchRigidParts(g);}root.add(course);}
+  if(place==='park'){const course=new THREE.Group();course.name='Verdell agility course';for(const action of AGILITY_ACTIONS){const d=DOG_AGILITY[action],g=new THREE.Group();g.position.set(d.x,0,d.z);g.name=action;course.add(g);shape(g,[1.15,.016,2.4],[0,.012,0],0x819d76,cube);if(action==='dogHurdle'){for(const x of [-.47,.47]){shape(g,[.10,.42,.12],[x,.21,0],0xe8c071);shape(g,[.22,.055,.40],[x,.027,0],0x4e8d86);}shape(g,[.90,.075,.075],[0,.20,0],0xd4a15b,cube);for(const x of [-.28,.0,.28])shape(g,[.10,.078,.079],[x,.20,0],0xf4ead8,cube);}else if(action==='dogTunnel'){const tube=new THREE.Mesh(new THREE.CylinderGeometry(.40,.40,1.26,20,1,true),finish(0x578f89,'fabric'));tube.rotation.x=Math.PI/2;tube.position.y=.405;g.add(tube);tube.material.side=THREE.DoubleSide;for(const z of [-.60,-.30,0,.30,.60])shape(g,[.40,.40,.10],[0,.405,z],z===0?0xe4bb73:0x79a9a0,torus);}else if(action==='dogSlalom'){for(const z of [-.70,-.23,.23,.70]){shape(g,[.07,.58,.07],[0,.29,z],0xe5bd73,drum);shape(g,[.075,.13,.075],[0,.37,z],0xf5ebd6,drum);shape(g,[.19,.045,.19],[0,.023,z],0x588f83,drum);}}else{shape(g,[.42,.09,.96],[0,.145,0],0xc7a779,cube);for(const z of [-.72,.72]){const ramp=shape(g,[.42,.065,.56],[0,.065,z],0xc7a779,cube);ramp.rotation.x=z>0?.30:-.30;}for(const z of [-.30,.30])shape(g,[.34,.12,.12],[0,.06,z],0x587d70,cube);for(let i=0;i<5;i++)shape(g,[.39,.012,.025],[0,.196,-.38+i*.19],0x765d45,cube);}batchRigidParts(g);}root.add(course);}
   polishShopInterior(root,place,resources);
   addLocationFinish(root,place,resources);
   addShopDetail(root,place,resources);

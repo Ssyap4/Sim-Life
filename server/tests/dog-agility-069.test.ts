@@ -67,3 +67,22 @@ test('two actual clients alternate course attempts; busy and cancelled attempts 
  assert.equal(files.load().world.parkDog?.agility?.attempts,1);assert.equal(files.load().world.parkDog?.agility?.last?.owner,'alina');assert.equal(files.load().world.parkDog?.agility?.last?.helper,'vlad');assert.equal(files.load().world.parkDog?.agility?.last?.cue,own.quality);assert.equal(agilityCueQuality(.38),10);assert.equal(agilityCueQuality(.9),0);assert.equal(files.load().money,s.money);
  }finally{sockets.forEach(ws=>ws.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test('every obstacle exit can return to either walker or reach the next obstacle without crossing equipment',()=>{
+ const s=fixture(),floor=floorFor('park'),closed=placeObstacles('park'),home=s.pets.verdell.parkPosition!;
+ for(const a of AGILITY_ACTIONS){
+  const ends=agilityPath(a),exit=ends.at(-1)!;
+  assert.ok(pointIsClear(exit,closed,floor),a+' exit');assert.ok(findRoute(exit,home,closed,floor),a+' return');
+  for(const b of AGILITY_ACTIONS){const open=placeObstacles('park',undefined,b),entry=agilityPath(b)[0];assert.ok(findRoute(exit,entry,open,floor),a+' to '+b);}
+ }
+});
+import {PetActor} from '../../src/game/PetActor';
+import {Vector3} from 'three';
+test('the actual dog actor walks through each course and reaches the exit',()=>{
+ const dog=new PetActor('verdell');
+ for(const a of AGILITY_ACTIONS){
+  const path=agilityPath(a);dog.stop();dog.root.position.set(path[0].x,0,path[0].z);dog.followRoute(path.slice(1).map(p=>new Vector3(p.x,0,p.z)),'wander');dog.setAgility(a);
+  for(let f=0;f<180;f++)dog.update(1/30);
+  const end=path.at(-1)!;assert.ok(Math.hypot(dog.root.position.x-end.x,dog.root.position.z-end.z)<.03,a);
+ }
+});
