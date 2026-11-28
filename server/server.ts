@@ -87,7 +87,7 @@ export interface ServerOptions {
   host?: string;
   dataDir?: string;
   distDir?: string;
-  /** For fast deterministic integration tests; production defaults to real time. */
+  /** Deterministic integration test timing; slower timing requires an isolated localhost test server. */
   taskTimeScale?: number;
   socialTtlMs?: number;
   /** Localhost-only, separate-save convenience mode for private previews. */
@@ -148,6 +148,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   if(options.previewStartMoney!==undefined && (!previewNoCodes ||
     !Number.isSafeInteger(options.previewStartMoney) || options.previewStartMoney<0))
     throw new Error('Preview starting money requires a valid, isolated no-code test server');
+  const scale = options.taskTimeScale ?? 1;
+  const maxScale = previewNoCodes && host === '127.0.0.1' && port === 0 ? 3 : 1;
+  if (!Number.isFinite(scale) || scale <= 0 || scale > maxScale) throw new Error('Invalid task time scale');
   const files = openServerFiles(options.dataDir ?? resolve('server-data'));
   const devices = openDevices(files.dataDir);
   const album=openAlbum(files.dataDir);
@@ -211,8 +214,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const queuedTasks = new Map<CharacterId, QueuedEntry[]>();
   let nextQueueId = 0;
   let nextTaskId = 0;
-  const scale = options.taskTimeScale ?? 1;
-  if (!Number.isFinite(scale) || scale <= 0 || scale > 1) throw new Error('Invalid task time scale');
+
   const online = (): CharacterId[] => Array.from(active.keys());
   const sleepers = new Map<CharacterId, SleepMode>();
   const sleepWishes = new Map<CharacterId,Wish>();

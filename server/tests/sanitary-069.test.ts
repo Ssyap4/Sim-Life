@@ -101,3 +101,15 @@ test('a live dog bath reserves the installed tub; replacement is rejected before
  assert.equal(files.load().world.renovation?.fixtures?.bathtub,'bath-stone');
  }finally{sockets.forEach(w=>w.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('slow visual task timing is restricted to an isolated loopback test server',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sanitary-scale-069-'));
+ try{
+  await assert.rejects(startServer({port:0,host:'127.0.0.1',dataDir:dir,taskTimeScale:3}),/Invalid task time scale/);
+  await assert.rejects(startServer({port:3169,host:'0.0.0.0',dataDir:dir,testNoCodes:true,taskTimeScale:3}),/Invalid task time scale/);
+  await assert.rejects(startServer({port:0,host:'127.0.0.1',dataDir:dir,testNoCodes:true,taskTimeScale:4}),/Invalid task time scale/);
+  const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,testNoCodes:true,taskTimeScale:3});
+  await server.close();
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
