@@ -1,7 +1,5 @@
 import { TABLE_TENNIS_SECONDS } from './tableTennis';
 export const LEISURE = {
-  paintLandscape:{sku:'hobby-easel',label:'Нарисовать пейзаж',seconds:42,seated:false,paired:false,skill:'creativity',fun:32,mood:12,comfort:0,energy:-5},
-  paintStillLife:{sku:'hobby-easel',label:'Нарисовать натюрморт',seconds:46,seated:false,paired:false,skill:'creativity',fun:35,mood:13,comfort:0,energy:-5},
   buildCottage:{sku:'hobby-workbench',label:'Собрать миниатюрный домик',seconds:48,seated:false,paired:false,skill:'logic',fun:32,mood:12,comfort:0,energy:-6},
   buildCar:{sku:'hobby-workbench',label:'Собрать модель автомобиля',seconds:48,seated:false,paired:false,skill:'attention',fun:34,mood:12,comfort:0,energy:-6},
   boardGame:{sku:'leisure-board',label:'Играть в настольную игру',seconds:24,seated:true,paired:true,skill:'attention',fun:32,mood:10,comfort:5,energy:-2},

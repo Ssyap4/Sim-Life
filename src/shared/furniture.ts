@@ -42,7 +42,7 @@ export const FURNITURE_STYLES:Record<FurnitureStyle,string> = {
   designer:'Современный дизайнерский',
 };
 const STYLE_SKUS:Record<Exclude<FurnitureStyle,'scandi'>,ReadonlySet<string>> = {
-  cozy:new Set(['sofa-nord','sofa-arc','sofa-micro','chair-cloud','pouf-joy','bench-mori',
+  cozy:new Set(['sofa-cozy','lamp-table-linen','lamp-amber','sofa-nord','sofa-arc','sofa-micro','chair-cloud','pouf-joy','bench-mori',
     'bed-day','bed-storage','sideboard','table-family','chair-padded','table-haven','chair-mellow','chair-lounge','stool-petal',
     'lamp-sphere','lamp-tripod','rug-weave','rug-large','plant-ficus','plant-monstera']),
   industrial:new Set(['sofa-modular','daybed-iron','dresser-industrial','shelf-asym',
@@ -66,6 +66,7 @@ const product = (id:string,name:string,category:FurnitureCategory,shape:Furnitur
   ({id,name,category,shape,price,width,depth,height,emoji,description,...(walkable?{walkable:true}:{})});
 export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('sofa-luna','Диван «Луна»','seating','sofa',18900,2.05,.82,.76,'🛋️','Компактный двухместный диван, мягкие подушки.'),
+  product('sofa-cozy','Диван «Тихий вечер»','seating','sofa',36900,2.72,.98,.79,'🛋️','Мягкие декоративные подушки по краям и сложенный плед на подлокотнике.'),
   product('sofa-nord','Диван «Норд»','seating','sofa',32900,2.72,.98,.79,'🛋️','Широкий семейный диван с глубоким сиденьем.'),
   product('sofa-arc','Угловой диван «Арка»','seating','corner',58500,2.80,1.76,.78,'🛋️','Мягкий угловой диван с оттоманкой.'),
   product('sofa-micro','Мини-диван «Капля»','seating','sofa',11900,1.38,.75,.76,'🛋️','Для небольших комнат и уютных уголков.'),
@@ -114,6 +115,8 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product("desk-angle","Угловая станция «Контур»","tables","desk",37900,2.18,1.58,1.02,"💻","Г-образное рабочее место с правым крылом и креслом."),
 
   product('nightstand','Прикроватная тумба «Сон»','storage','nightstand',4900,.44,.40,.52,'🗄️','Маленькая тумба рядом с кроватью.'),
+  product('lamp-table-linen','Настольная лампа «Лён»','lighting','lamp',2490,.20,.20,.36,'💡','Небольшой тканевый абажур. Ставится на свободную поверхность стола, тумбы или комода.'),
+  product('lamp-amber','Светильник «Янтарь»','lighting','lamp',3990,.32,.32,.82,'💡','Компактный напольный фонарь для тёплого вечернего света.'),
   product('floor-lamp','Торшер «Тёплый свет»','lighting','lamp',7900,.39,.39,1.69,'💡','Напольный светильник с конусным плафоном.'),
   product('lamp-sphere','Светильник «Шар»','lighting','lamp',11500,.34,.34,1.48,'💡','Мягкий шарообразный плафон.'),
   product('lamp-tripod','Торшер «Тренога»','lighting','lamp',9300,.48,.48,1.73,'💡','Тонкие деревянные ножки, тканевый абажур.'),
@@ -154,7 +157,6 @@ export const FURNITURE_CATALOG: readonly FurnitureProduct[] = [
   product('rug-round','Ковёр «Солнце»','decor','rug',6900,1.64,1.64,.035,'🧶','Круглый ковёр с концентрическими полосами.',true),
   product('mirror-round','Зеркало «Луна»','decor','mirror',8500,1.05,.19,1.29,'🪞','Круглое зеркало на лаконичной напольной стойке.'),
   product('mirror-window','Зеркало «Окно»','decor','mirror',14500,1.01,.24,1.92,'🪞','Арочное зеркало с металлическими перемычками.'),
-  product('hobby-easel','Мольберт с набором красок','leisure','leisure',5900,1.02,.76,1.82,'🎨','Деревянный мольберт, холст, кисти и палитра. Рисование пейзажей и натюрмортов.'),
   product('hobby-workbench','Стол для миниатюр','leisure','leisure',8900,1.24,.74,1.12,'🧩','Рабочая поверхность, набор деталей и инструменты для сборки миниатюр.'),
   product('leisure-board','Набор настольных игр со столиком','leisure','leisure',1200,1.16,1.80,1.09,'🎲','Игровой столик с двумя сиденьями, кубиками и фишками.'),
   product('leisure-darts','Напольный дартс','leisure','leisure',2500,.85,.55,1.83,'🎯','Мишень на устойчивой стойке. Оставь свободное место для бросков.'),
@@ -285,7 +287,12 @@ export const FURNITURE_DELIVERY = {
   express:{fee:990,minutes:15,label:'Быстрая'},
 } as const;
 export type FurnitureShipping = keyof typeof FURNITURE_DELIVERY;
+export const LAMP_MODES=['auto','off','soft','warm'] as const;
+export type LampMode=typeof LAMP_MODES[number];
+export const isLamp=(sku:string)=>FURNITURE_BY_ID.get(sku)?.shape==='lamp';
+export const lampLevel=(mode:LampMode|undefined,night:number)=>mode==='off'?0:mode==='soft'?.45:mode==='warm'?1:night;
 export type FurnishingCommand =
+  | { type:'furniture_light'; id:number; mode:LampMode }
   | { type:'furniture_order'; sku:string; finish:FurnitureFinish; shipping:FurnitureShipping; quantity:number }
   | { type:'furniture_unbox'; id:number }
   | { type:'furniture_place'; id:number; x:number; z:number; rotation:Rotation }
@@ -316,7 +323,7 @@ export const isStaticFurnitureId=(id:unknown):id is StaticFurnitureId=>
 
 export interface FurnitureInstance { id:number; sku:string; finish:FurnitureFinish }
 export interface PlacedFurniture extends FurnitureInstance {
-  x:number;z:number;rotation:Rotation;mount?:SpeakerMount;
+  x:number;z:number;rotation:Rotation;mount?:SpeakerMount;lightMode?:LampMode;
 }
 export interface FurnitureOrder extends FurnitureInstance {
   readyAt:number; shipping:FurnitureShipping;
@@ -369,7 +376,7 @@ export function isValidFurnishing(raw:unknown):raw is FurnishingState {
       const placed=item as PlacedFurniture;
       return Number.isFinite(placed.x)&&Math.abs(placed.x)<=100&&
         Number.isFinite(placed.z)&&Math.abs(placed.z)<=100&&
-        [0,1,2,3].includes(placed.rotation)&&(!placed.mount||(isSurfaceDevice(placed.sku)&&typeof placed.mount.support==='string'&&placed.mount.support.length<80&&Number.isFinite(placed.mount.u)&&Number.isFinite(placed.mount.v)));
+        [0,1,2,3].includes(placed.rotation)&&(placed.lightMode===undefined||isLamp(placed.sku)&&LAMP_MODES.includes(placed.lightMode))&&(!placed.mount||(isSurfaceDevice(placed.sku)&&typeof placed.mount.support==='string'&&placed.mount.support.length<80&&Number.isFinite(placed.mount.u)&&Number.isFinite(placed.mount.v)));
     }
     return true;
   });

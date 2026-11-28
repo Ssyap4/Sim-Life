@@ -93,7 +93,7 @@ import { portraitHomeFrame, renderProfile } from './HomeFrame';
 import { buildFurniture, buildPersonalFurniture, buildSoftRugs } from './InteriorArt';
 import { buildFurnishingModel, createPlacementGhost } from './FurnishingArt';
 import {reconcileFurnitureModels,disposeFurnitureModel,preferredFurniture} from './FurnitureModels';
-import { FURNITURE_BY_ID, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
+import { FURNITURE_BY_ID, lampLevel, isStaticFurnitureId, type StaticFurnitureId, type FurnitureFinish, type PlacedFurniture, type Rotation } from '../shared/furniture';
 import { bedPose, selectSleepBed, type SleepBedId } from '../shared/bedSleep';
 import { canFurniturePerform, diningLocation, furnitureUseLocation,laptopWorkplace,laptopApproach } from '../shared/furnitureUse';
 import { buildCottageLights } from './CottageLights';
@@ -240,6 +240,9 @@ export class World {
   private graphicsStartedAt = performance.now();
   private smoothedFrameMs = 16.7;
   private lastQualityUpdate = performance.now();
+  private readonly ownedLampGlow=new THREE.PointLight(0xffc98d,0,5.2,2);
+  private lampNight=0;
+  private lampStamp=-1;
   private readonly roomGlow = new THREE.PointLight(0xffd5a5, 0, 14, 2);
   private cottageLamps?:ReturnType<typeof buildCottageLights>;
   private socialSequence = 0;
@@ -1092,9 +1095,9 @@ export class World {
           else if(['deskGames','vladOrder','vladStudy','alinaStudy','alinaConsult'].includes(command.action))
             actor.playDomesticActivity('games');
           else if(isLeisureAction(command.action)){
-            if(['paintLandscape','paintStillLife','buildCottage','buildCar'].includes(command.action)){
-              const model=this.furnishingModels.get(command.furnitureId),painting=command.action.startsWith('paint');
-              if(model){this.hobbyWorks.set(role,{id:command.furnitureId,action:command.action,start:this.visualSeconds});actor.faceTowards(model.localToWorld(new THREE.Vector3(0,0,0)));actor.playDomesticActivity(painting?'painting':'modeling',model.localToWorld(new THREE.Vector3(painting?0:.07,painting?1.31:1.04,painting?.155:.04)));}
+            if(['buildCottage','buildCar'].includes(command.action)){
+              const model=this.furnishingModels.get(command.furnitureId);
+              if(model){this.hobbyWorks.set(role,{id:command.furnitureId,action:command.action,start:this.visualSeconds});actor.faceTowards(model.localToWorld(new THREE.Vector3(0,0,0)));actor.playDomesticActivity('modeling',model.localToWorld(new THREE.Vector3(.07,1.04,.04)));}
             }
             else if(command.action==='boardGame'||command.action==='chessGame')actor.playDomesticActivity('chess');
             else if(command.action==='dartsGame')actor.playDomesticActivity('darts');
@@ -1927,6 +1930,7 @@ export class World {
     (this.scene.background as THREE.Color).copy(sky);
     if(this.scene.fog)this.scene.fog.color.copy(sky);
     const lampLevel=this.place==='home'?THREE.MathUtils.clamp(mix(begin.glow,end.glow)/1.36,0,1):0;
+    this.lampNight=lampLevel;
     this.roomGlow.intensity=lampLevel*12;
     this.roomGlow.visible=lampLevel>.04;
     this.cottageLamps?.setLevel(lampLevel);
@@ -1954,7 +1958,8 @@ export class World {
     // One inexpensive shadowless practical light for evening interiors.
     this.roomGlow.position.set(1.2, 2.65, -2.0);
     this.roomGlow.castShadow = false;
-    this.scene.add(this.roomGlow);
+    this.scene.add(this.roomGlow,this.ownedLampGlow);
+    this.ownedLampGlow.castShadow=false;
     // Broad daylight illuminates faces from the open side facing the home camera.
     const sun = this.sun;
     sun.position.set(-2.6, 9, 5.5);
@@ -3444,6 +3449,10 @@ export class World {
       }
       this.canvas.dataset.petMotionState=JSON.stringify({verdell:this.pets.verdell.performanceQA(),simba:this.pets.simba.performanceQA()});
     }
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('cozyQA')==='1'){
+      const model=this.furnishingModels.get(Number(this.canvas.dataset.cozyView));
+      if(model){const def=FURNITURE_BY_ID.get(model.userData.sku);const center=model.localToWorld(new THREE.Vector3(0,(def?.height??1)*.5,0));this.controls.target.copy(center);this.camera.position.copy(center).add(new THREE.Vector3(1.7,1.9,3.2));this.camera.lookAt(center);}
+    }
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('hobbyQA')==='1'){
       const id=Number(this.canvas.dataset.hobbyView),model=this.furnishingModels.get(id);
       if(model){const target=model.localToWorld(new THREE.Vector3(0,.95,.25));this.controls.target.copy(target);this.camera.position.copy(model.localToWorld(new THREE.Vector3(2.4,2.6,3.8)));this.camera.lookAt(target);}
@@ -3512,6 +3521,24 @@ export class World {
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,entered:this.agilityAction!==undefined&&!this.agilityWaiting,exit:this.agilityQAExit,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.visualSeconds-this.lampStamp>.25||this.place!=='home'){
+      this.lampStamp=this.visualSeconds;
+      this.ownedLampGlow.intensity=0;this.ownedLampGlow.userData.id=null;
+      if(this.place==='home'&&this.household){
+        let nearest=Infinity;
+        for(const p of this.household.furnishing.placed){
+          const def=FURNITURE_BY_ID.get(p.sku);
+          if(def?.shape!=='lamp'||p.lightMode==='off')continue;
+          const level=lampLevel(p.lightMode,this.lampNight);
+          if(level<=.04)continue;
+          const distance=Math.hypot(p.x-this.controls.target.x,p.z-this.controls.target.z);
+          if(distance>=nearest)continue;nearest=distance;
+          this.ownedLampGlow.position.set(p.x,(this.furnishingModels.get(p.id)?.position.y??0)+def.height*.80,p.z);
+          this.ownedLampGlow.intensity=level*9;this.ownedLampGlow.userData.id=p.id;
+        }
+      }
+    }
+    if(this.cameraQA)this.canvas.dataset.ownedLamp=JSON.stringify({id:this.ownedLampGlow.userData.id,level:this.ownedLampGlow.intensity/9});
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);
@@ -3527,8 +3554,8 @@ export class World {
       }
       for(const [id,model] of this.furnishingModels){
         const sku=model.userData.sku;
-        if(sku==='hobby-easel'||sku==='hobby-workbench'){
-          const keys=sku==='hobby-easel'?['paintLandscape','paintStillLife']:['buildCottage','buildCar'];
+        if(sku==='hobby-workbench'){
+          const keys=['buildCottage','buildCar'];
           const active=[...this.hobbyWorks.values()].find(w=>w.id===id);
           const previous=this.household?.familyLife?.displayWorks?.[String(id)];
           const elapsed=active?this.visualSeconds-active.start:Infinity;

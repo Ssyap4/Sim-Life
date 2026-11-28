@@ -71,6 +71,31 @@ import {migrateSpeakerMounts} from '../src/shared/speakerPlacement';
 import {validSpeakers} from '../src/shared/speaker';
 import {validVacuum} from '../src/shared/vacuum';
 import {validConsoleLibrary} from '../src/shared/consoleCatalog';
+// Retired content is stripped only on loading a persisted household, never on live commands.
+export function retirePainting(value:unknown):void {
+  if(!value||typeof value!=='object'||Array.isArray(value))return;
+  const s=value as Record<string,any>;
+  const furniture=s.furnishing;
+  if(furniture&&typeof furniture==='object'){
+    for(const key of ['orders','stored','placed']){
+      if(Array.isArray(furniture[key]))furniture[key]=furniture[key].filter((item:any)=>item?.sku!=='hobby-easel');
+    }
+  }
+  const life=s.familyLife;
+  if(life&&typeof life==='object'){
+    for(const role of ['vlad','alina']){
+      const hobbies=life.hobbies?.[role];
+      if(hobbies&&typeof hobbies==='object')delete hobbies.painting;
+    }
+    if(life.displayWorks&&typeof life.displayWorks==='object'){
+      for(const [id,work] of Object.entries(life.displayWorks))
+        if(work==='paintLandscape'||work==='paintStillLife')delete life.displayWorks[id];
+    }
+    if(life.event?.id==='creativeDay')delete life.event;
+    if(Array.isArray(life.eventHistory))life.eventHistory=life.eventHistory.filter((e:any)=>e?.id!=='creativeDay');
+  }
+}
+
 const isValidState = (value: unknown): value is GameState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<GameState>;
@@ -338,10 +363,12 @@ export function recoverHouseholdBackup(dataDir: string): {revision:number;quaran
   const original=readFileSync(primary);
   let current:unknown;
   try{current=JSON.parse(original.toString('utf8'));}catch{/* corrupt JSON */}
+  retirePainting(current);
   if(isValidState(current))throw new Error('Primary household is valid; refusing rollback');
   const bytes=readFileSync(backup);
   let restored:unknown;
   try{restored=JSON.parse(bytes.toString('utf8'));}catch{throw new Error('Invalid household backup JSON');}
+  retirePainting(restored);
   if(!isValidState(restored))throw new Error('Invalid household backup state');
   const suffix=randomBytes(8).toString('hex');
   const quarantine=join(dataDir,'household.corrupt-'+suffix+'.json');
@@ -384,6 +411,7 @@ export function openServerFiles(dataDir: string): ServerFiles {
     load(): GameState {
       if (!existsSync(statePath)) return initialState();
       const data: unknown = JSON.parse(readFileSync(statePath, 'utf8'));
+      retirePainting(data);
       if (!isValidState(data)) throw new Error('Saved household is invalid. Refusing to discard player progress.');
       const savedFurnishing = {...(data.furnishing ?? emptyFurnishing()),
         soldFixtures:data.furnishing?.soldFixtures ?? []};

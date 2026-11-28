@@ -4,6 +4,7 @@ import {
   activityItems, contextAvailable, eveningDishId, eveningDinnerAction, eveningMealName, needsItem, otherPerson, SOCIAL_ACTIVITIES, SOCIAL_BY_ID, SOCIAL_GROUPS, socialRestriction, socialText,
   type SocialActivity, type SocialCommand, type SocialGroup, type SocialOffer,
 } from './shared/socialLife';
+import {isGift,giftCount} from './shared/gifts';
 import { clockAt, clockLabel, gameMinutes } from './shared/life';
 import { names, type CharacterId, type GameState } from './shared/protocol';
 
@@ -50,7 +51,7 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
       tabs.append(tab);
     }
     const list=SOCIAL_ACTIVITIES.filter(a=>a.group===group&&a.object!=='unpack'&&!a.id.startsWith('nearTalk:')&&!a.id.startsWith('parkTalk:')&&!a.id.startsWith('picnicTalk:')&&
-      (!a.context||contextAvailable(a,state,role)))
+      (!a.context||contextAvailable(a,state,role))&&(!isGift(a.id)||giftCount(state,a.id)>0||a.id===expanded))
       .sort((a,b)=>Number(b.id===expanded)-Number(a.id===expanded)||contextOrder(a,state,role)-contextOrder(b,state,role));
     const cards=node('div','','social-cards');
     for(const a of list.slice(0,more?list.length:7)){
@@ -87,6 +88,7 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
       cards.append(card);
     }
     panel.replaceChildren(tabs,...(busy||!online?[node('p',busy??'Партнёр пока не в сети','social-reason')]:[]),cards);
+    if(group==='romance')panel.append(node('p','Подарки появляются здесь после получения доставки: телефон → Доставка → Подарки.','social-reason'));
     if(list.length>7)panel.append(button(more?'Свернуть список':'Ещё варианты',()=>{more=!more; render();}));
   }
   render();
@@ -160,6 +162,11 @@ export function renderRelationship(root:HTMLElement,state:GameState,role:Charact
   }
   if(current)pane.append(node('h3','Сейчас вместе'),node('p',current));
   if(offered)pane.append(button('Открыть приглашение',onOffer));
+  const readyGift=SOCIAL_ACTIVITIES.find(a=>isGift(a.id)&&giftCount(state,a.id)>0);
+  if(readyGift){
+    const giftButton=button('🎁 Вручить подарок',()=>suggest('romance',readyGift.id),!partnerOnline||!!current||offered);
+    giftButton.dataset.giftShortcut='';pane.append(giftButton);
+  }
   const available=SOCIAL_ACTIVITIES.filter(a=>!a.id.startsWith('nearTalk:')&&!['eveningPlan','evening','eveningTea'].includes(a.id)&&!socialRestriction(a,state,role))
     .sort((a,b)=>contextOrder(a,state,role)-contextOrder(b,state,role));
   const suggestions=node('div','','relationship-suggestions');

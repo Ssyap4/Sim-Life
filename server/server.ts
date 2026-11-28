@@ -1521,7 +1521,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         return;
       }
       if (typeof message.type==='string' && [
-        'furniture_order','furniture_unbox','furniture_place',
+        'furniture_order','furniture_unbox','furniture_place','furniture_light',
         'furniture_move','furniture_store','furniture_sell','furniture_sell_static',
       ].includes(message.type)) {
         // Editing the layout is independent of both residents' actions.

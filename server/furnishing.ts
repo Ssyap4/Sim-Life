@@ -10,7 +10,7 @@ import { currentPetEquipment } from '../src/shared/petFurniture';
 import { petNavigationGeometry } from '../src/game/PetNavigation';
 import { nearestClearPoint, pointIsClear, sampleWalk, segmentIsClear, type FloorRect, type WalkRoute } from '../src/game/navigation';
 import { FURNITURE_BY_ID, PURCHASABLE_FURNITURE, FURNITURE_DELIVERY, FURNITURE_FINISHES,
-  STATIC_FURNITURE, isStaticFurnitureId, furnitureFootprint, type PlacedFurniture,
+  STATIC_FURNITURE, isStaticFurnitureId, isLamp, LAMP_MODES, furnitureFootprint, type PlacedFurniture,
   type FurnishingCommand, type Rotation } from '../src/shared/furniture';
 import { checkFurniturePlacement } from '../src/shared/furnishingPlacement';
 import { addLedger } from '../src/shared/economy';
@@ -120,6 +120,11 @@ export function applyFurnishing(source:GameState,role:CharacterId,
   const order=home.orders.find(item=>item.id===command.id);
   const stored=home.stored.find(item=>item.id===command.id);
   const placed=home.placed.find(item=>item.id===command.id);
+  if(command.type==='furniture_light'){
+    if(!placed||!isLamp(placed.sku)||!LAMP_MODES.includes(command.mode))return fail('Недоступный светильник или режим света');
+    placed.lightMode=command.mode;next.revision++;
+    return {ok:true,state:next,message:'Освещение изменено'};
+  }
   if(command.type==='furniture_unbox') {
     if(!order)return fail('Этой посылки нет');
     if(order.readyAt>now)return fail('Посылка ещё в пути');

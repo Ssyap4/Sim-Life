@@ -32,9 +32,9 @@ export function createFamilyLifeUI(info:HTMLElement,send:(c:FamilyLifeCommand)=>
    for(const id of Object.keys(HOBBIES) as Hobby[]){
     const h=HOBBIES[id],p=f.hobbies[role][id],n=p?.sessions??0,level=HOBBY_LEVELS.filter(x=>n>=x).length;
     const c=card(h.icon+' '+h.name,h.hint);c.append(make('small',(level?h.milestones[level-1]:'Начало пути')+' · Занятий: '+n+' · Разновидностей: '+(p?.unique.length??0)));
-    if(id==='painting'||id==='modeling'){
+    if(id==='modeling'){
       const collection=make('div');collection.className='hobby-collection';
-      for(const [key,work] of Object.entries(HOBBY_RESULTS).filter(([k])=>id==='painting'?k.startsWith('paint'):k.startsWith('build'))){
+      for(const [key,work] of Object.entries(HOBBY_RESULTS)){
         const done=p?.unique.includes(key)??false;const tile=make('div');tile.className='hobby-work';tile.dataset.done=String(done);tile.append(make('strong',done?work.icon:'🔒'),make('span',work.title),make('small',done?'В коллекции':'Не завершено'));collection.append(tile);
       }c.append(collection);
     }

@@ -11,9 +11,9 @@ const accept=(s:ReturnType<typeof initialState>,id:LifeEvent)=>{
 };
 test('contextual eligibility uses actual weather, money, pets, equipment and paid work',()=>{
  const s=initialState();s.clock={day:3,minute:600};s.money=1000;s.pets.verdell.happiness=42;s.pets.simba.happiness=35;
- s.furnishing.placed.push({id:1,sku:'hobby-easel',finish:'oak',x:10.5,z:-6.4,rotation:0});
+ s.furnishing.placed.push({id:1,sku:'hobby-workbench',finish:'oak',x:10.5,z:-6.4,rotation:0});
  addLedger(s,'alina','income','work',3200,'Смена');
- const c=contextualEvents(s,['vlad','alina']);for(const id of ['dogAttention','catAttention','budgetDinner','workBonus','creativeDay','invitation'] as const)assert.ok(c.includes(id),id);
+ const c=contextualEvents(s,['vlad','alina']);for(const id of ['dogAttention','catAttention','budgetDinner','workBonus','modelingDay','invitation'] as const)assert.ok(c.includes(id),id);
  assert.ok(!contextualEvents(s,['vlad']).includes('workBonus'));
  s.world.places.vlad='market';s.world.places.alina='market';assert.deepEqual(contextualEvents(s,['vlad','alina']),['workBonus']);
  s.world.places.vlad=s.world.places.alina='home';
@@ -41,7 +41,7 @@ test('random eligible selection, cooldown, saved history, one shared bonus',()=>
  assert.equal(s.ledger.at(-1)?.category,'work');
 });
 test('creative and cooking event rewards only relevant completed activity',()=>{
- let s=accept(initialState(),'creativeDay');assert.equal(creditLifeEvent(s,'vlad',{type:'read_book',book:'master'}),'');
+ let s=accept(initialState(),'modelingDay');assert.equal(creditLifeEvent(s,'vlad',{type:'read_book',book:'master'}),'');
  assert.match(creditLifeEvent(s,'alina',{type:'furniture_use',action:'buildCar',furnitureId:2}),/выполнено/);
  s=accept(s,'budgetDinner');assert.match(creditLifeEvent(s,'vlad',{type:'cook',recipe:'omelette'}),/выполнено/);
 });

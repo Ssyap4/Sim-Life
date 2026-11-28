@@ -357,7 +357,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
           hideCatalog();
           callbacks.useBed(item.id);
         }));
-      if(isPlaced && 'rotation' in item && furnitureActionList(item).length)
+      if(isPlaced && 'rotation' in item && (info.shape==='lamp'||furnitureActionList(item).length))
         choices.append(button('✋ Использовать',()=>{
           hideCatalog();
           callbacks.useFurniture(item.id);

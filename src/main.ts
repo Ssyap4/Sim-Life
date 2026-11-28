@@ -1544,6 +1544,12 @@ function openPurchasedFurnitureActions(id:number):void{
   if(isSleepBed(item)){openPurchasedBedActions(id);return;}
   const info=FURNITURE_BY_ID.get(item.sku);
   if(!info)return;
+  if(info.shape==='lamp'){
+    furnishing.close();showActionMenu(info.emoji+' '+info.name);
+    const modes=[['auto','Автоматически вечером'],['off','Выключить'],['soft','Приглушённый свет'],['warm','Тёплый свет']] as const;
+    for(const [mode,label] of modes){const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=((item.lightMode??'auto')===mode?'✓ ':'')+label;b.dataset.lightMode=mode;b.onclick=()=>{if(net.furnishing({type:'furniture_light',id,mode}))actionsEl.hidden=true;};actionsEl.append(b);}
+    const edit=document.createElement('button');edit.type='button';edit.className='action-button';edit.textContent='Переместить или продать';edit.onclick=()=>{actionsEl.hidden=true;furnishing.selectPlaced(id);};actionsEl.append(edit);return;
+  }
   const supported=availableFurnitureActions(state,active,item);
   if(!supported.length){furnishing.selectPlaced(id);return;}
   furnishing.close();
@@ -1926,7 +1932,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
       if(model&&isSleepBed(model))openPurchasedBedActions(id);
       else if(model&&model.sku.startsWith('speaker-'))phone.openSpeaker(id);
       else if(model&&model.sku.startsWith('vacuum-'))phone.open('home');
-      else if(model&&furnitureActionList(model).length)openPurchasedFurnitureActions(id);
+      else if(model&&(FURNITURE_BY_ID.get(model.sku)?.shape==='lamp'||furnitureActionList(model).length))openPurchasedFurnitureActions(id);
       else furnishing.selectPlaced(id);
     });
     diagnostics?.ready(performance.now(), modelsReadyMs - modelsStartedMs,

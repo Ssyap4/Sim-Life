@@ -10,8 +10,8 @@ const dir=mkdtempSync(join(tmpdir(),'hobbies-056-')),out='/tmp/simlife-family-li
 mkdirSync(out,{recursive:true});let server,browser;
 try{
  const s=initialState();s.money=100000;s.autonomy={vlad:'off',alina:'off'};
- s.furnishing.placed=[{id:1,sku:'hobby-easel',finish:'oak',x:10.5,z:-6.4,rotation:0},{id:2,sku:'hobby-workbench',finish:'oak',x:13.7,z:-6.4,rotation:0}];s.furnishing.nextId=3;
- Object.assign(s.characters.vlad,{x:10.5,z:-5.68,pose:'idle'});
+ s.furnishing.placed=[{id:2,sku:'hobby-workbench',finish:'oak',x:13.7,z:-6.4,rotation:0}];s.furnishing.nextId=3;
+ Object.assign(s.characters.vlad,{x:13.7,z:-5.68,pose:'idle'});
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000}});
  browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});
@@ -23,7 +23,7 @@ try{
  await page.locator('.enter-button').waitFor({timeout:60000});await page.waitForFunction(()=>!document.querySelector('.enter-button')?.disabled,undefined,{timeout:70000});
  await page.locator('[data-role=vlad]').first().click();await page.locator('.enter-button').click();await page.locator('#auth').waitFor({state:'hidden',timeout:30000});
  const canvas=page.locator('#game-canvas');
- for(const [id,action,activity] of [[1,'paintLandscape','painting'],[2,'buildCar','modeling']]){
+ for(const [id,action,activity] of [[2,'buildCar','modeling']]){
   await canvas.evaluate((c,id)=>c.dataset.hobbyView=String(id),id);
   await page.evaluate(c=>window.__socket.send(JSON.stringify(c)),{type:'furniture_use',furnitureId:id,action});
   await page.waitForFunction(activity=>JSON.parse(document.querySelector('#game-canvas')?.dataset.yardQA||'{}').actors?.vlad?.activity===activity,activity,{timeout:45000});
@@ -33,5 +33,5 @@ try{
  }
  await page.locator('#phone-btn').click();await page.locator('[data-phone-app=hobbies]').click();
  await page.getByText('В коллекции',{exact:true}).first().waitFor();await shot('hobby-collection');
- assert.deepEqual(errors,[]);console.log('Both actual hobby tasks completed, animated, and persisted in personal collection');
+ assert.deepEqual(errors,[]);console.log('Remaining hobby task completed, animated, and persisted in personal collection');
 }finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

@@ -10,7 +10,6 @@ const containers=new Set<FurnitureShape>(['wardrobe','dresser','nightstand','sid
 function expected(item:FurnitureProduct){
  const shape=item.shape;
  if(item.id==='oasis-pool')return ['poolFloat','poolSwim'];
- if(item.id==='hobby-easel')return ['paintLandscape','paintStillLife'];
  if(item.id==='hobby-workbench')return ['buildCottage','buildCar'];
  if(shape==='leisure')return [leisureAction(item.id)!];
  if(shape==='bed'||shape==='daybed')return [] as string[];

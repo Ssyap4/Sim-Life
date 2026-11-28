@@ -75,7 +75,7 @@ export type SocialActivity = {
 export const BREAKFAST_RECIPES:readonly RecipeId[]=['omelette','toast','porridge','sandwich','pancakes','fruitSalad'];
 import {FAMILY_GIFTS,familyGift,isGift,giftCount} from './gifts';
 export {familyGift} from './gifts';
-const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:id==='giftSweets'?'Подарить коробку сладостей':'Подарить '+g.label.toLowerCase(),group:'romance',lines:['Хочу порадовать тебя: '+g.label+'. Подарок уже куплен и получен.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
+const giftActivities:SocialActivity[]=Object.entries(FAMILY_GIFTS).map(([id,g])=>({id,title:g.emoji+' Вручить: '+g.label,group:'romance',lines:['Это тебе. Хотелось порадовать тебя сегодня.'],replies:['Спасибо, очень приятно!','Какой приятный сюрприз!'],motion:'gift',seconds:20,memorable:true}));
 const objects: readonly SocialActivity[] = [
   {id:'holidayWish',title:'Поздравить с праздником',group:'romance',lines:['С праздником! Хочу, чтобы этот день запомнился нам обоим.','Давай пожелаем друг другу чего-нибудь хорошего.'],replies:['И тебя с праздником! Пусть будет ещё много таких дней.','Спасибо! Очень люблю такие моменты вдвоём.'],motion:'closeHug',seconds:14,context:'holiday'}, 
   {id:'sofaMassage',title:'Сделать массаж плеч',group:'care',lines:['Давай посидим рядом, я немного разомну тебе плечи.'],replies:['Да, хочется расслабиться.','Спасибо, мне это сейчас нужно.'],motion:'sofaMassage',seconds:40,object:'sofa',memorable:true},

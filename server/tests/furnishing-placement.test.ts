@@ -3,6 +3,8 @@ import test from 'node:test';
 import {initialState} from '../../src/shared/protocol';
 import {FURNITURE_BY_ID,FURNITURE_CATALOG,PURCHASABLE_FURNITURE} from '../../src/shared/furniture';
 import {checkFurniturePlacement,suggestFurnitureSnap} from '../../src/shared/furnishingPlacement';
+import {isSurfaceDevice} from '../../src/shared/consoleCatalog';
+import {speakerSurfaces} from '../../src/shared/speakerPlacement';
 import {applyFurnishing} from '../furnishing';
 import {placeObstacles} from '../../src/shared/locations';
 import {HOME_FLOOR} from '../../src/shared/home';
@@ -69,6 +71,11 @@ test('all catalog products fit in a valid room or yard somewhere (all four rotat
   const spots=[] as Array<{x:number;z:number}>;
   for(let x=10.4;x<15;x+=.58)for(let z=-6.95;z<4.65;z+=.6)spots.push({x,z});
   for(const product of FURNITURE_CATALOG){
+    if(isSurfaceDevice(product.id)){
+      const p=structuredClone(home);p.furnishing.placed.push({id:9,sku:'dresser-nora',finish:'oak',x:14,z:-6,rotation:0});p.furnishing.nextId=10;
+      assert.ok(speakerSurfaces(p.furnishing).some(x=>x.id==='item:9'));
+      assert.ok(checkFurniturePlacement(p,{id:1,sku:product.id,finish:'oak',x:14,z:-6,rotation:0}).valid,product.id);continue;
+    }
     let possible=false;
     for(const {x,z} of (product.id.startsWith('oasis-')?[{x:-9.95,z:8.1},{x:9.5,z:10.2},...spots]:spots)){
       if(possible)break;

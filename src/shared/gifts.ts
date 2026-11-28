@@ -1,5 +1,5 @@
 import type {GameState} from './protocol';
-export const FAMILY_GIFTS={giftFlowers:{price:850,label:'Букет цветов',emoji:'💐'},giftSweets:{price:450,label:'Коробка сладостей',emoji:'🎁'}} as const;
+export const FAMILY_GIFTS={giftFlowers:{price:850,label:'Букет цветов',emoji:'💐'},giftSweets:{price:450,label:'Коробка сладостей',emoji:'🍫'},giftRoses:{price:1790,label:'Букет роз',emoji:'🌹'},giftTulips:{price:1190,label:'Букет тюльпанов',emoji:'🌷'},giftDesserts:{price:890,label:'Набор десертов',emoji:'🍰'},giftBear:{price:1290,label:'Плюшевый мишка',emoji:'🧸'},giftCare:{price:1590,label:'Набор для домашнего ухода',emoji:'🛍️'},giftPerfume:{price:3490,label:'Парфюм',emoji:'💝'},giftBracelet:{price:2490,label:'Браслет',emoji:'✨'},giftCard:{price:190,label:'Открытка с пожеланием',emoji:'💌'}} as const;
 export type GiftId=keyof typeof FAMILY_GIFTS;
 export type GiftStock=Partial<Record<GiftId,number>>;
 export const GIFT_LIMIT=10;
