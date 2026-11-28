@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket, { type RawData } from 'ws';
 import { startServer } from '../server';
+import {openServerFiles} from '../storage';
 import type { CharacterId, ServerPacket } from '../../src/shared/protocol';
 
 function waitFor(socket: WebSocket, match: (packet: ServerPacket) => boolean): Promise<ServerPacket> {
@@ -143,4 +144,37 @@ test('Repeated reconnects preserve the other player and the latest shared househ
       assert.equal(a.socket.readyState,WebSocket.OPEN);
     }
   }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('071 graceful shutdown checkpoints time, rejects queued continuation and is idempotent',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim071-shutdown-'));
+ const files=openServerFiles(dir),seed=files.load();
+ seed.money=100000;seed.autonomy={vlad:'off',alina:'off'};files.save(seed);
+ let time=0;
+ const server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,lifeClock:{now:()=>time,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port);sockets.push(v);await login(v,'vlad',files.access.vlad);
+  const a=await connect(server.port);sockets.push(a);await login(a,'alina',files.access.alina);
+  const started=waitFor(v,p=>p.type==='task_started'&&p.role==='vlad');
+  v.send(JSON.stringify({type:'act',actionId:'bedMake'}));await started;
+  const queued=waitFor(v,p=>p.type==='task_queue'&&p.role==='vlad'&&p.tasks.length===1);
+  v.send(JSON.stringify({type:'act',actionId:'bedStretch'}));await queued;
+  time=4000;
+  const first=server.close(),second=server.close();
+  assert.equal(first,second);
+  await Promise.all([first,second]);
+  const saved=files.load();
+  assert.equal(saved.clock.minute,seed.clock.minute+2);
+  assert.equal(saved.money,100000);
+  assert.equal(server.httpServer.listening,false);
+  const restored=await startServer({port:0,host:'127.0.0.1',dataDir:dir,lifeClock:{now:()=>0,tickMs:600000}});
+  try{
+   const ws=await connect(restored.port);sockets.push(ws);
+   const ready=await login(ws,'vlad',files.access.vlad);
+   assert.equal(ready.type,'ready');
+   assert.equal(ready.state.clock.minute,saved.clock.minute);
+   assert.equal(ready.state.money,100000);
+  }finally{await restored.close();}
+ }finally{sockets.forEach(s=>s.terminate());await server.close();rmSync(dir,{recursive:true,force:true});}
 });

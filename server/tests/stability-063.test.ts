@@ -16,10 +16,10 @@ test('resume from cached page, reject stale sockets, bound authentication wait a
     static OPEN=1;static CONNECTING=0;
     readyState=0;onopen:(()=>void)|null=null;onclose:(()=>void)|null=null;
     onerror:(()=>void)|null=null;onmessage:((e:{data:string})=>void)|null=null;
-    sent:string[]=[];
+    sent:string[]=[];bufferedAmount=0;failSend=false;
     constructor(_url:string){sockets.push(this);}
     close(){this.readyState=3;}
-    send(data:string){this.sent.push(data);}
+    send(data:string){if(this.failSend)throw Error('send failed');this.sent.push(data);}
     open(){this.readyState=1;this.onopen?.();}
     packet(value:unknown){this.onmessage?.({data:JSON.stringify(value)});}
   }
@@ -49,6 +49,16 @@ test('resume from cached page, reject stale sockets, bound authentication wait a
     net.stop();net.wake();assert.equal(sockets.length,4);assert.equal(timers.size,0);
     net.login('alina','example-test-code');assert.equal(sockets.length,5);fire();
     assert.equal(sockets[4].readyState,3);assert.equal(timers.size,1);fire();assert.equal(sockets.length,6);
+    const sixth=sockets[5];sixth.open();sixth.packet({type:'ready',role:'alina',state:{},online:[]});
+    sixth.packet(null);sixth.packet({type:'ready',role:'alina',state:{},online:[]});
+    assert.equal(ready,3);
+    sixth.bufferedAmount=600000;
+    assert.equal(net.perform('bedMake'),false);assert.equal(net.isReady(),false);
+    assert.equal(sixth.sent.length,1);assert.equal(sixth.readyState,3);
+    fire();const seventh=sockets[6];seventh.open();seventh.packet({type:'ready',role:'alina',state:{},online:[]});
+    seventh.failSend=true;
+    assert.equal(net.perform('bedMake'),false);assert.equal(net.isReady(),false);
+    assert.equal(seventh.sent.length,1);
     net.stop();assert.equal(timers.size,0);
   }finally{net.stop();for(const [key,descriptor] of descriptors){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}}
 });

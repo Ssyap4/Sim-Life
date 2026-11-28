@@ -48,6 +48,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { resolve, extname, relative, isAbsolute } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
+import {broadcastPacket,sendSerialized} from './transport';
 import {
   ACTIONS, points, names, type CharacterId, type GameState, type ServerPacket,
 } from '../src/shared/protocol';
@@ -130,7 +131,7 @@ const sameCode = (a: string, b: string): boolean => {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 };
 const packet = (socket: WebSocket, value: ServerPacket): void => {
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+  if (socket.readyState === WebSocket.OPEN) sendSerialized(socket,JSON.stringify(value));
 };
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
@@ -183,6 +184,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   let pauseRequestedBy: CharacterId | null = null;
   let pauseVoteTimer: ReturnType<typeof setTimeout> | null = null;
   const active = new Map<CharacterId, WebSocket>();
+  let closing=false;
+  let closePromise:Promise<void>|undefined;
   let fitnessTripOffer:{from:CharacterId;expires:number;dog?:boolean;pets?:boolean;destination:'fitness'|'clinic'|'spa-pair'|'spa-package'|'venue'|`resort-${ResortPass}`|`lake-${LakePass}`}|undefined;
   const lastAction = new Map<CharacterId, number>();
   const lastIntent = new Map<CharacterId, number>();
@@ -251,7 +254,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     pauseRequestedBy,
   });
   const all = (event: ServerPacket): void => {
-    for (const socket of active.values()) packet(socket, event);
+    broadcastPacket(active.values(),event);
     // Defer until all completion bookkeeping and saves have finished.
     // This also works for homeSessions (including toilet -> hand washing).
     if(event.type==='task_ended' && (queuedTasks.get(event.role)?.length??0)>0)
@@ -1047,7 +1050,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     announceTime();
   }
   function startNextQueued(role: CharacterId): void {
-    if (isPaused) return;
+    if (isPaused||closing) return;
     if(running.has(role)||homeTasks.busy(role)||sleepers.has(role))return;
     const tasks=queuedTasks.get(role);
     if(!tasks?.length)return;
@@ -1156,6 +1159,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   }, 15000);
   heartbeat.unref();
   httpServer.on('upgrade', (req, socket, head) => {
+    if(closing){socket.destroy();return;}
     let url: URL;
     try { url = new URL(req.url ?? '', 'http://localhost'); }
     catch { socket.destroy(); return; }
@@ -1173,9 +1177,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     tracked.isAlive = true;
     socket.on('pong', () => { tracked.isAlive = true; });
     let role: CharacterId | null = null;
+    // An unauthenticated peer must not occupy a socket indefinitely.
+    const authDeadline=setTimeout(()=>socket.terminate(),15000);
+    authDeadline.unref();
     let invalidLogins = 0;
     let deviceToken: string | null = null;
     socket.on('message', (raw: RawData, isBinary: boolean) => {
+      if(closing)return;
       if (isBinary) { socket.close(1003, 'JSON only'); return; }
       let input: unknown;
       try { input = JSON.parse(raw.toString()); }
@@ -1210,6 +1218,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
           try { deviceToken = devices.issue(requested); }
           catch { packet(socket, { type: 'error', reason: 'Не удалось запомнить устройство. Войди без этой опции' }); return; }
         }
+        clearTimeout(authDeadline);
         role = requested;
         if (active.size === 0) lastLifeTick = lifeNow();
         else commitLife();
@@ -1873,6 +1882,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       packet(socket, { type: 'error', reason: 'Неизвестная команда' });
     });
     socket.on('close', () => {
+      clearTimeout(authDeadline);
       if (role && active.get(role) === socket) {
         clearQueue(role);
         walkingHome.delete(role);
@@ -1914,18 +1924,28 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
   return {
     httpServer, port: actualPort,
-    async close(): Promise<void> {
-      for (const task of running.values()){pauseTimers.clear(task.timer);if(task.spaTimer)pauseTimers.clear(task.spaTimer);}
-      pauseTimers.dispose();
-      clearPauseRequest();
-      running.clear();
-      homeTasks.dispose();
-      clearInterval(heartbeat);
-      clearInterval(clockSync);
-      clearInterval(lifeTicker);
-      for (const socket of wss.clients) socket.terminate();
-      await new Promise<void>((resolveClose) => wss.close(() => resolveClose()));
-      await new Promise<void>((resolveClose) => httpServer.close(() => resolveClose()));
+    close(): Promise<void> {
+      if(closePromise)return closePromise;
+      closing=true;
+      closePromise=(async()=>{
+        clearInterval(heartbeat);
+        clearInterval(clockSync);
+        clearInterval(lifeTicker);
+        // Persist elapsed whole minutes, then use normal disconnect cleanup
+        // while session and timer registries still exist.
+        commitLife();
+        const httpClosed=new Promise<void>(resolveClose=>httpServer.close(()=>resolveClose()));
+        for(const role of active.keys())clearQueue(role);
+        for(const socket of wss.clients)socket.terminate();
+        await new Promise<void>(resolveClose=>wss.close(()=>resolveClose()));
+        for(const task of running.values()){pauseTimers.clear(task.timer);if(task.spaTimer)pauseTimers.clear(task.spaTimer);}
+        running.clear();
+        homeTasks.dispose();
+        pauseTimers.dispose();
+        clearPauseRequest();
+        await httpClosed;
+      })();
+      return closePromise;
     },
   };
 }
