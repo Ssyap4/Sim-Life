@@ -496,6 +496,11 @@ export class Actor {
     this.callback = onArrive;
   }
 
+  /** The server has confirmed the route is finished. Recover a delayed visual client once, without replaying the arrival callback. */
+  reconcileTimedArrival(goal:THREE.Vector3,arrive:Arrival):void {
+    this.setPose('idle');this.root.position.copy(goal);arrive();
+  }
+
   private homeWorkStyle:import("../shared/jobs").JobId|undefined;
   setHomeWorkStyle(style:import("../shared/jobs").JobId){this.homeWorkStyle=style;}
   setPose(pose: Pose): void {

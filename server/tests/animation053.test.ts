@@ -58,3 +58,8 @@ test('gift handoff follows the authoritative active phase even on slow or replay
   for(const a of Object.values(actors)){a.clearProps();assert.equal(a.careQA().gift,null);}
  }
 });
+
+
+test('authoritative arrival restores a late sanitary route and never repeats the old callback',()=>{
+ for(const id of ['vlad','alina'] as const){const a=new Actor(id,[0,0]);let arrived=0;const goal=new Vector3(1,0,2);const callback=()=>{arrived++;a.playDomesticActivity('washHands',new Vector3(1,1.03,1.6));};a.walkPath([new Vector3(1,0,0),goal],callback);a.update(.001);assert.equal(arrived,0);a.reconcileTimedArrival(goal,callback);for(let i=0;i<20;i++)a.update(.05);assert.equal(arrived,1);assert.equal(a.root.position.distanceTo(goal),0);assert.equal(a.sanitaryQA().activity,'washHands');assert.ok(a.sanitaryQA().time>=.7);}
+});

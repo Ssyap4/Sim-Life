@@ -308,6 +308,7 @@ export class World {
   private inspected: CharacterId | PetId | null = null;
   private careReframe:CharacterId|null=null;
   private readonly careElapsed=new Map<CharacterId,number>();
+  private readonly sanitaryArrivals=new Map<CharacterId,{home:HomePresentation;goal:THREE.Vector3;arrive:()=>void;activeAt?:number}>();
   private yard!: ReturnType<typeof buildYard>;
   private readonly festiveTree=buildHolidayTree();
   private readonly festiveGarlands=buildHolidayGarlands();
@@ -1062,6 +1063,7 @@ export class World {
     const current = () => this.homeTasks.get(role) === home;
     const arrive = () => {
       if (!current()) return;
+      this.sanitaryArrivals.delete(role);
       if(home.food)actor.hideFoodContainer();
       if (station === 'classroom' || station === 'lab' || station === 'workshop') {
         const { x, z } = stationById('education', station)!.center;
@@ -1217,12 +1219,16 @@ export class World {
       };
       if (pickup) actor.walkPath(path.slice(0,pickup),reach);
       else reach();
-    } else actor.walkPath(path,arrive);
+    } else {
+      if(Object.hasOwn(BATH_FIXTURES,station)){const goal=path.at(-1)??new THREE.Vector3(route.from.x,0,route.from.z);this.sanitaryArrivals.set(role,{home,goal,arrive});}
+      actor.walkPath(path,arrive);
+    }
     return true;
   }
 
   activateHomeTask(role: CharacterId,elapsedMs=0): void {
     const home = this.homeTasks.get(role);
+    const arrival=this.sanitaryArrivals.get(role);if(arrival&&arrival.home===home)arrival.activeAt=performance.now()-Math.max(0,elapsedMs);
     if(home?.vanityCare||home?.station==='bathtub'){const elapsed=Math.max(0,elapsedMs/1000);this.careElapsed.set(role,elapsed);this.actors[role].syncCareElapsed(elapsed);}
     const pair=this.pairStages.get(role);
     if(pair) {
@@ -1425,7 +1431,7 @@ export class World {
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
-    this.homeTasks.delete(role);this.careElapsed.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
+    this.homeTasks.delete(role);this.sanitaryArrivals.delete(role);this.careElapsed.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
     this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
@@ -3214,7 +3220,15 @@ export class World {
       if(careTime!==undefined){const elapsed=careTime+coffeeDt;this.careElapsed.set(id,elapsed);actor.syncCareElapsed(Math.max(0,elapsed-dt));}
       const giftStage=this.pairStages.get(id);if(giftStage?.giftElapsed!==undefined){giftStage.giftElapsed+=coffeeDt;actor.syncGiftElapsed(Math.max(0,giftStage.giftElapsed-dt));}
       const homeMotion=this.homeTasks.get(id);const timedRoute=homeMotion?.station==='workCoffee'||homeMotion?.pair?.motion==='gift'||!!homeMotion&&Object.hasOwn(BATH_FIXTURES,homeMotion.station)||this.bathingRole===id;
-      actor.update(dt,this.steering[id],timedRoute?coffeeDt:dt);
+      const arrival=this.sanitaryArrivals.get(id);
+      if(arrival?.activeAt!==undefined&&arrival.home===homeMotion&&now-arrival.activeAt>=750&&!this.paused){
+        this.sanitaryArrivals.delete(id);actor.reconcileTimedArrival(arrival.goal,arrival.arrive);
+      }
+      // A long visible frame is not a suspended tab. Keep the short sanitary
+      // animation progressing even when software rendering exceeds a second.
+      const sanitaryActive=!!homeMotion&&Object.hasOwn(BATH_FIXTURES,homeMotion.station)&&!this.sanitaryArrivals.has(id);
+      const sanitaryDt=sanitaryActive&&!this.paused&&Number.isFinite(elapsedMs)&&elapsedMs>=0?Math.max(dt,Math.min(elapsedMs/1000,.20)):dt;
+      actor.update(sanitaryDt,this.steering[id],timedRoute?Math.max(coffeeDt,sanitaryDt):dt);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
       const elapsed = actor.eatingElapsed();
