@@ -13,3 +13,15 @@
 .renovation-product small{font-size:11px}
 #app .renovation-product button{font-size:12px;padding:6px;min-height:44px;white-space:nowrap}
 #app .location-panel.renovation-active{max-height:34dvh!important}
+.renovation-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.renovation-light-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+#app .renovation-light-modes button{min-width:0;padding:5px;font-size:12px}
+.renovation-light-modes [aria-pressed=true]{outline:2px solid #a87c48;outline-offset:-2px}
+.renovation-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+#app .renovation-tabs button{min-width:0;padding:5px;font-size:12px}
+#app .renovation-active .renovation-quote{grid-template-columns:24px minmax(0,1fr);padding:4px 6px;gap:4px}
+#app .renovation-active .renovation-quote .renovation-swatch{width:24px;height:24px}
+#app .renovation-active .renovation-quote small,#app .renovation-active .renovation-quote strong:last-child{display:none}
+#app .renovation-active .renovation-options{gap:4px}
+#app .renovation-active .renovation-options>small{font-size:11px;line-height:1.15}
+#app .location-panel.renovation-active{max-height:39dvh!important}

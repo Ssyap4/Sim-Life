@@ -1,3 +1,5 @@
+import {renovationLampSpots} from '../src/shared/renovationPlacement';
+import {FURNITURE_DELIVERY} from '../src/shared/furniture';
 import {coveringById,roomById,compatible,renovationQuote,validRenovation,initialRenovation} from '../src/shared/renovation';
 import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit,type AgilitySupport} from '../src/shared/dogAgility';
 import {recordCatch} from '../src/shared/personalCollections';
@@ -141,7 +143,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 }
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
-  'renovation_sample','renovation_install','pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'renovation_sample','renovation_install','renovation_light','renovation_lamp_order','pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -156,14 +158,30 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
   if(command.type==='renovation_sample'){
-    const p=coveringById(command.sku);if(!p||place!=='buildshop'||!['build-walls','build-floors'].some(id=>at(source,role,stationById('buildshop',id))&&id===(p.kind==='wall'?'build-walls':'build-floors')))return fail('Подойди к стенду нужного покрытия');
+    const p=coveringById(command.sku);if(!p||place!=='buildshop'||!at(source,role,stationById('buildshop',p.kind==='wall'?'build-walls':p.kind==='floor'?'build-floors':p.kind==='portable'?'build-portable':'build-light')))return fail('Подойди к стенду нужного покрытия');
     const next=structuredClone(source),r=next.world.renovation??=initialRenovation();
     if(r.samples.includes(p.id))return fail('Образец уже выбран');
     r.samples.push(p.id);return done(next,'Образец добавлен в домашнюю примерку');
   }
+  if(command.type==='renovation_light'){
+    const room=roomById(command.room),mode=command.mode;
+    if(place!=='home'||!room||!source.world.renovation?.surfaces[room.id]?.ceiling||typeof mode!=='string'||!['auto','off','soft','warm'].includes(mode))return fail('Сначала установи светильник');
+    const next=structuredClone(source);(next.world.renovation!.lights??={})[room.id]=mode as 'auto'|'off'|'soft'|'warm';return done(next,'Освещение комнаты изменено');
+  }
+  if(command.type==='renovation_lamp_order'){
+    const p=coveringById(command.sku),room=roomById(command.room);
+    if(place!=='home'||!p||p.kind!=='portable'||!room||!source.world.renovation?.samples.includes(p.id))return fail('Выбери лампу для примерки дома');
+    if(command.sequence!==source.world.sequence[role])return fail('Операция уже обработана');
+    if(!renovationLampSpots(source,room.id,p.id).some(s=>s.x===command.x&&s.z===command.z))return fail('Место примерки изменилось');
+    const q=renovationQuote(room.id,p);if(source.money<q.total)return fail('Недостаточно денег');
+    if(source.furnishing.nextId>=1000000)return fail('Не удалось выдать номер предмета');
+    const next=structuredClone(source);next.money-=q.total;next.world.sequence[role]++;
+    next.furnishing.orders.push({id:next.furnishing.nextId++,sku:p.id,finish:'oak',readyAt:clockMinutes(source.clock)+FURNITURE_DELIVERY.regular.minutes,shipping:'regular'});
+    addLedger(next,role,'expense','furniture',q.total,p.name+' · доставка из ДомСтроя');return done(next,'Лампа заказана · доставка через 45 игровых минут');
+  }
   if(command.type==='renovation_install'){
     const p=coveringById(command.sku),room=roomById(command.room),r=source.world.renovation;
-    if(place!=='home'||!p||!room||!r?.samples.includes(p.id)||!compatible(room.id,p))return fail('Выбери подходящий образец дома');
+    if(place!=='home'||!p||p.kind==='portable'||!room||!r?.samples.includes(p.id)||!compatible(room.id,p))return fail('Выбери подходящий образец дома');
     if(command.sequence!==source.world.sequence[role])return fail('Операция уже обработана');
     const previous=r.surfaces[room.id]?.[p.kind]??null;
     if(previous!==command.expected||previous===p.id)return fail('Отделка уже изменена, проверь примерку');

@@ -1,3 +1,5 @@
+import {FURNITURE_BY_ID} from '../shared/furniture';
+import {buildCeilingModel} from './RenovationLights';
 import {COVERINGS} from '../shared/renovation';
 import {coveringMaterial} from './RenovationArt';
 import {buildBathFixture} from './BathroomArt';
@@ -312,14 +314,19 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     sign(root,station.name,2.10,.30,1.63,C.paper,textures,materials);
   } else if(station.action.kind==='renovation-display'){
     const category=station.action.category;
+    const accent=category==='wall'?0x668779:category==='floor'?0xa87849:category==='lighting'||category==='portable'?0x9a7849:0x68828a;
     shape(root,[2.4,.15,1.05],[0,.075,0],0x57534c);shape(root,[2.4,1.8,.12],[0,1.05,-.46],0x88755e);
+    shape(root,[2.43,.17,.13],[0,2.025,-.43],accent);for(const x of [-1.17,1.17])shape(root,[.045,1.85,.13],[x,1.065,-.36],0xd4c4a8);
     if(category==='wall'||category==='floor'){
       const items=COVERINGS.filter(p=>p.kind===category);
       for(const [i,p] of items.entries()){
-        const col=i%5,row=Math.floor(i/5),m=new THREE.Mesh(cube,coveringMaterial(p));m.scale.set(.405,.41,.035);m.position.set((col-2)*.45,.42+row*.46,-.37);root.add(m);
+        const col=i%6,row=Math.floor(i/6),m=new THREE.Mesh(cube,coveringMaterial(p));m.scale.set(.34,.30,.035);m.position.set((col-2.5)*.37,.35+row*.32,-.37);root.add(m);shape(root,[.34,.028,.044],[(col-2.5)*.37,.19+row*.32,-.342],0xf3eadb);
       }
+    }else if(category==='portable'){
+      for(const [i,p] of COVERINGS.filter(p=>p.kind==='portable').entries()){const m=buildFurnishingModel(p.id,'oak');const def=FURNITURE_BY_ID.get(p.id)!;m.scale.setScalar(Math.min(.43,.50/def.height));m.position.set((i%4-1.5)*.51,.20+Math.floor(i/4)*.60,-.07);root.add(m);}
+      for(let i=0;i<3;i++)shape(root,[2.22,.045,.58],[0,.18+i*.60,-.12],0xe1d0b6);
     }else if(category==='lighting'){
-      for(const [i,sku] of ['lamp-amber','lamp-table-linen','lamp-arc'].entries()){const m=buildFurnishingModel(sku,'oak');m.scale.setScalar(.60);m.position.set((i-1)*.70,.15,.06);root.add(m);}
+      for(const [i,p] of COVERINGS.filter(p=>p.kind==='ceiling').entries()){const m=buildCeilingModel(p);m.scale.setScalar(.49);m.position.set((i%3-1)*.74,.65+Math.floor(i/3)*.65,-.13);materials.push(m.userData.glass);root.add(m);}
     }else{
       for(const [i,id] of (['toilet','basin','bathtub'] as const).entries()){const m=buildBathFixture(id);m.scale.setScalar(.40);m.position.set((i-1)*.75,.15,0);root.add(m);}
     }
@@ -671,7 +678,9 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0xb8a78d,cube);
     shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc8bcab,cube);
     shape(floor,[11.9,.29,.025],[0,.48,-4.94],0xa3733a,cube);
-    sign(floor,'ДОМСТРОЙ · РЕМОНТ',2.55,-4.88,4.2,C.paper,textures,materials);
+    shape(floor,[4.7,.50,.08],[0,2.37,-4.91],0x9d713e);sign(floor,'ДОМСТРОЙ · РЕМОНТ',2.37,-4.84,4.4,C.paper,textures,materials);
+    for(const x of [-5.0,5.0])shape(floor,[.06,.008,7.8],[x,.018,-.50],0xb58a52,cube);
+    for(const x of [-3.75,0,3.75])shape(floor,[1.15,.009,.08],[x,.019,-1.50],0xb58a52,cube);
     const cashier=marketCashier(resources,{title:'Консультант',color:0x9d713e,shirt:0xf2eee6,animated:true});cashier.position.set(3.65,0,.48);root.add(cashier);
     animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.13;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.055);};
   } else if (place === 'market') {

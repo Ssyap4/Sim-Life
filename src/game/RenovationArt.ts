@@ -14,6 +14,12 @@ export function coveringMaterial(p:Covering){
    const w=p.pattern==='slat'?32:64;for(let i=0;i<256/w;i++){for(let j=-1;j<3;j++){const h=p.pattern==='slat'?256:128,y=j*h+(i%2)*h/2;wood(i*w,y,w-1,h-1);}ctx.fillStyle='#422b2144';ctx.fillRect(i*w,0,p.pattern==='slat'?4:1,256);}
   }else if(p.pattern==='herringbone'){
    for(let j=-8;j<9;j++)for(let i=-5;i<6;i++){ctx.save();ctx.translate(i*64+(j%2)*32,j*32);ctx.rotate((i+j)%2?Math.PI/4:-Math.PI/4);wood(-11,-37,22,74);ctx.restore();}
+  }else if(p.pattern==='stripe'){
+   for(let x=0;x<256;x+=32){ctx.fillStyle=hex(x%64===0?.89:1.04);ctx.fillRect(x,0,13,256);ctx.fillStyle=hex(.95);ctx.fillRect(x+15,0,2,256);}
+  }else if(p.pattern==='botanical'){
+   for(let y=-20;y<270;y+=64)for(let x=-20;x<270;x+=64){ctx.save();ctx.translate(x+(y%128===44?32:0),y);ctx.rotate(.2);ctx.strokeStyle='#65795a88';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,40);ctx.quadraticCurveTo(16,14,0,-12);ctx.stroke();for(let i=0;i<5;i++){ctx.fillStyle=i%2?'#7d986777':'#476f5870';ctx.beginPath();ctx.ellipse(i%2?-6:8,30-i*9,4,10,i%2?-.7:.7,0,Math.PI*2);ctx.fill();}ctx.restore();}
+  }else if(p.pattern==='hex'){
+   for(let j=-1;j<7;j++)for(let i=-1;i<6;i++){const x=i*55+(j%2)*27.5,y=j*48;ctx.beginPath();for(let k=0;k<6;k++){const a=Math.PI/3*k+Math.PI/6;const xx=x+31*Math.cos(a),yy=y+31*Math.sin(a);if(k)ctx.lineTo(xx,yy);else ctx.moveTo(xx,yy);}ctx.closePath();ctx.fillStyle=hex(.94+rand()*.12);ctx.fill();ctx.strokeStyle='#625e5455';ctx.lineWidth=1.6;ctx.stroke();}
   }else if(p.pattern==='tile'||p.pattern==='stone'){
    for(let y=0;y<256;y+=128)for(let x=0;x<256;x+=128){ctx.fillStyle=hex(.92+rand()*.14);ctx.fillRect(x+1,y+1,126,126);if(p.pattern==='stone'){for(let i=0;i<8;i++){ctx.strokeStyle=i%2?'#48443f20':'#ffffff35';ctx.beginPath();const q=y+rand()*128;ctx.moveTo(x,q);ctx.bezierCurveTo(x+45,q-12,x+80,q+12,x+128,q-5);ctx.stroke();}}}
    ctx.strokeStyle='#61594d44';ctx.lineWidth=2;for(let i=0;i<=256;i+=128){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,256);ctx.moveTo(0,i);ctx.lineTo(256,i);ctx.stroke();}

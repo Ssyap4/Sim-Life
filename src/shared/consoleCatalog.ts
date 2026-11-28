@@ -6,7 +6,7 @@ export const CONSOLES={
 } as const;
 export type ConsoleSku=keyof typeof CONSOLES;
 export const isConsoleSku=(s:unknown):s is ConsoleSku=>typeof s==='string'&&Object.hasOwn(CONSOLES,s);
-export const isSurfaceDevice=(s:unknown)=>isSpeakerSku(s)||isConsoleSku(s)||s==='lamp-table-linen';
+export const isSurfaceDevice=(s:unknown)=>isSpeakerSku(s)||isConsoleSku(s)||['lamp-table-linen','lamp-table-globe','lamp-table-ceramic'].includes(String(s));
 export const CONSOLE_GAMES={
  ufc6:{name:'UFC 6',console:'console-ps5',price:6990,mode:'versus',seconds:120},
  mk1:{name:'Mortal Kombat 1',console:'console-ps5',price:3990,mode:'versus',seconds:90},

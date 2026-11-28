@@ -92,7 +92,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     const {orders,stored,placed}=state.furnishing;
     const ready=orders.filter(item=>item.readyAt<=callbacks.minute()).length;
     const starterCount=STATIC_FURNITURE_IDS.filter(id=>!state.furnishing.soldFixtures?.includes(id)).length;
-    const counts={catalog:PURCHASABLE_FURNITURE.length,delivery:orders.length,storage:stored.length,placed:placed.length+starterCount};
+    const counts={catalog:PURCHASABLE_FURNITURE.filter(p=>p.category!=='lighting').length,delivery:orders.length,storage:stored.length,placed:placed.length+starterCount};
     tabs.forEach(button=>{
       const t=button.dataset.tab as Tab;
       button.textContent=({catalog:'🛍️ Каталог',delivery:'📦 Доставка',storage:'🗄️ Склад',placed:'🏠 Установлено'}[t])+' · '+counts[t];
@@ -125,7 +125,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     searchInput.addEventListener('input',()=>{search=searchInput.value;renderCards(state);});
     const select=document.createElement('select');
     select.setAttribute('aria-label','Категория мебели');
-    for(const [id,label] of [['all','Все категории'],...Object.entries(FURNITURE_CATEGORIES).filter(([id])=>id!=='decor')]){
+    for(const [id,label] of [['all','Все категории'],...Object.entries(FURNITURE_CATEGORIES).filter(([id])=>id!=='decor'&&id!=='lighting')]){
       const option=document.createElement('option');option.value=id;option.textContent=label;
       select.append(option);
     }
@@ -141,7 +141,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
     filters.append(searchInput);
     const quick=node('div','furnish-catalog-quick','');
     const groupSelect=document.createElement('select');groupSelect.setAttribute('aria-label','Тип мебели');
-    for(const [id,label] of [['all','Все типы'],...Object.entries(FURNITURE_GROUP_LABELS)]){
+    for(const [id,label] of [['all','Все типы'],...Object.entries(FURNITURE_GROUP_LABELS).filter(([id])=>SORTED_FURNITURE_CATALOG.some(p=>p.category!=='decor'&&p.category!=='lighting'&&furnitureDisplayGroup(p)===id))]){
       const option=document.createElement('option');option.value=id;option.textContent=label;groupSelect.append(option);
     }
     groupSelect.value=groupFilter;
@@ -196,7 +196,7 @@ export function createFurnishingUI(root:HTMLElement,controls:HTMLElement,callbac
       }
     },{root:body,rootMargin:'220px'});
     const query=search.trim().toLocaleLowerCase('ru-RU');
-    const matching=SORTED_FURNITURE_CATALOG.filter(info=>info.category!=='decor'&&
+    const matching=SORTED_FURNITURE_CATALOG.filter(info=>info.category!=='decor'&&info.category!=='lighting'&&
       (category==='all'||category===info.category)&&
       (style==='all'||furnitureStyle(info.id)===style)&&
       (groupFilter==='all'||furnitureDisplayGroup(info)===groupFilter)&&

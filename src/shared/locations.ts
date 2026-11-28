@@ -260,6 +260,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('build-walls','Обои и отделка стен',-3.75,-2.65,2.4,1.05,{kind:'renovation-display',category:'wall'}),
     site('build-floors','Напольные покрытия',0,-2.65,2.4,1.05,{kind:'renovation-display',category:'floor'}),
     site('build-light','Освещение',3.75,-2.65,2.4,1.05,{kind:'renovation-display',category:'lighting'}),
+    site('build-portable','Лампы и торшеры',0,.85,2.4,1.05,{kind:'renovation-display',category:'portable'}),
     site('build-sanitary','Сантехника',-3.75,.85,2.4,1.05,{kind:'renovation-display',category:'sanitary'}),
     site('build-cash','Касса и заказ ремонта',3.65,1.45,1.75,.8,{kind:'renovation-checkout'}),
     door('build-exit','Выход на улицу','district',-1.6,4.60,true),
@@ -474,6 +475,8 @@ export type WorldCommand =
   | {type:'vacuum_buy';sku:import('./vacuumCatalog').VacuumSku}
   | import('./vacuum').VacuumCommand
   | {type:'renovation_sample';sku:string}
+  | {type:'renovation_light';room:import('./renovation').RoomId;mode:'auto'|'off'|'soft'|'warm'}
+  | {type:'renovation_lamp_order';sku:string;room:import('./renovation').RoomId;x:number;z:number;sequence:number}
   | {type:'renovation_install';sku:string;room:import('./renovation').RoomId;expected:string|null;sequence:number}
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }

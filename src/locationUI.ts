@@ -1,3 +1,4 @@
+import {renovationLampSpots} from './shared/renovationPlacement';
 import {COVERINGS,ROOMS,coveringById,compatible,renovationQuote,type RoomId,type SurfaceKind,type RenovationPreview} from './shared/renovation';
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,LAKE_CARE,LAKE_LEISURE,lakeCanSwim,lakeNeedsFish,lakeCampFor,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {DOG_AGILITY,AGILITY_ACTIONS,agilityReady,agilityConfidence} from './shared/dogAgility';
@@ -207,8 +208,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const reset=()=>{renovationPreview=undefined;renovationSku='';getWorld().previewRenovation();};
       room.onchange=()=>{renovationRoom=room.value as RoomId;reset();draw();};
       const tabs=element('div','renovation-tabs');
-      for(const [id,label] of [['wall','Стены'],['floor','Пол']] as const){const b=button(label,()=>{renovationKind=id;reset();draw();});b.dataset.renovationKind=id;b.setAttribute('aria-pressed',String(renovationKind===id));tabs.append(b);}
+      for(const [id,label] of [['wall','Стены'],['floor','Пол'],['ceiling','Люстры'],['portable','Лампы']] as const){const b=button(label,()=>{renovationKind=id;reset();draw();});b.dataset.renovationKind=id;b.setAttribute('aria-pressed',String(renovationKind===id));tabs.append(b);}
       if(!renovationPreview)options.append(room,tabs);
+      if(!renovationPreview&&renovationKind==='ceiling'&&r?.surfaces[renovationRoom]?.ceiling){const modes=element('div','renovation-light-modes');for(const [mode,label] of [['auto','Авто'],['off','Выкл'],['soft','Мягкий'],['warm','Тёплый']] as const){const b=button(label,()=>send({type:'renovation_light',room:renovationRoom,mode}));b.dataset.roomLight=mode;b.setAttribute('aria-pressed',String((r.lights?.[renovationRoom]??'auto')===mode));modes.append(b);}options.append(modes);}
       const products=(r?.samples??[]).map(coveringById).filter(p=>!!p&&p.kind===renovationKind&&compatible(renovationRoom,p));
       if(!products.length){options.append(element('small','','Нет подходящих образцов. Выбери бесплатные образцы в «ДомСтрое». Для мокрых зон нужна влагостойкая отделка.'));panel.append(options);return;}
       const pick=element('select');pick.dataset.renovationSku='';pick.setAttribute('aria-label','Покрытие');const placeholder=element('option','','Выбери покрытие');placeholder.value='';pick.append(placeholder);
@@ -219,23 +221,24 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
         const q=renovationQuote(renovationRoom,product),installed=r?.surfaces[renovationRoom]?.[renovationKind]??null;
         const quote=element('div','renovation-quote');
         const swatch=element('span','renovation-swatch');swatch.style.backgroundColor='#'+product.color.toString(16).padStart(6,'0');
-        quote.append(swatch,element('strong','',product.name),element('small','',q.area+' м² · материалы '+formatRub(q.materials)+' · монтаж '+formatRub(q.installation)),element('strong','','Итого '+formatRub(q.total)));options.append(quote);
+        quote.append(swatch,element('strong','',product.name),element('small','',(product.kind==='ceiling'||product.kind==='portable'?'Светильник ':q.area+' м² · материалы ')+formatRub(q.materials)+(product.kind==='portable'?' · доставка ':' · монтаж ')+formatRub(q.installation)),element('strong','','Итого '+formatRub(q.total)));options.append(quote);
         if(renovationPreview&&installed!==renovationExpected){renovationPreview=undefined;getWorld().previewRenovation();panel.classList.remove('renovation-active');options.prepend(room,tabs,pick);options.append(element('small','','Отделка изменена другим игроком. Примерь заново.'));}
-        if(!renovationPreview){const b=button('Примерить в доме · бесплатно',()=>{renovationExpected=installed;renovationPreview={room:renovationRoom,sku:product.id};getWorld().previewRenovation(renovationPreview);draw();},installed===product.id);b.dataset.renovationPreview='';options.append(b);}
+        if(!renovationPreview){const b=button('Примерить в доме · бесплатно',()=>{renovationExpected=installed;const spot=product.kind==='portable'?renovationLampSpots(place,renovationRoom,product.id)[0]:undefined;if(product.kind==='portable'&&!spot){const msg=element('small','','Нет свободного безопасного места для этой лампы. Выбери другую комнату.');options.append(msg);return;}renovationPreview={room:renovationRoom,sku:product.id,...(spot?{spot}:{})};getWorld().previewRenovation(renovationPreview);draw();},installed===product.id);b.dataset.renovationPreview='';options.append(b);}
         else{
           options.append(element('small','',ROOMS.find(r=>r.id===renovationRoom)!.name+' · примерка видна только тебе. Камеру можно вращать.'));
-          const b=button('Купить и установить · '+formatRub(q.total),()=>{transaction({type:'renovation_install',room:renovationRoom,sku:product.id,expected:renovationExpected,sequence:place.world.sequence[role]});},pending!==null||place.money<q.total);b.dataset.renovationInstall='';options.append(b);
+          if(product.kind==='portable'&&renovationPreview.spot){const spots=renovationLampSpots(place,renovationRoom,product.id),current=spots.findIndex(s=>s.x===renovationPreview?.spot?.x&&s.z===renovationPreview?.spot?.z);if(current<0){renovationPreview=undefined;getWorld().previewRenovation();draw();return;}options.append(element('small','',renovationPreview.spot.label+' · после доставки размести лампу через мебель'));if(spots.length>1){const next=button('Следующее свободное место',()=>{renovationPreview={room:renovationRoom,sku:product.id,spot:spots[(current+1)%spots.length]};getWorld().previewRenovation(renovationPreview);draw();});options.append(next);}}
+          const b=button((product.kind==='portable'?'Заказать с доставкой · ':'Купить и установить · ')+formatRub(q.total),()=>{if(product.kind==='portable'&&renovationPreview?.spot)transaction({type:'renovation_lamp_order',room:renovationRoom,sku:product.id,x:renovationPreview.spot.x,z:renovationPreview.spot.z,sequence:place.world.sequence[role]});else transaction({type:'renovation_install',room:renovationRoom,sku:product.id,expected:renovationExpected,sequence:place.world.sequence[role]});},pending!==null||place.money<q.total);b.dataset.renovationInstall='';options.append(b);
           const cancel=button('Отменить примерку',()=>{renovationPreview=undefined;getWorld().previewRenovation();draw();});cancel.dataset.renovationCancel='';options.append(cancel);
         }
       }
     }else if(station.action.kind==='renovation-display'){
       const category=station.action.category;
-      if(category==='lighting'||category==='sanitary')options.append(element('small','','Выставочные образцы. Продажа и домашняя примерка будут доступны после проверки новых моделей.'));
+      if(category==='sanitary')options.append(element('small','','Выставочные образцы. Продажа и домашняя примерка будут доступны после проверки новых моделей.'));
       else{
-        options.append(element('small','','Выбери бесплатные образцы. Дома в телефоне → Ремонт можно посмотреть покрытие в любой подходящей комнате до оплаты.'));
-        for(const p of COVERINGS.filter(p=>p.kind===category)){
+        options.append(element('small','','Выбери бесплатные образцы. Дома в телефоне → Ремонт можно примерить выбранный товар в подходящей комнате до оплаты.'));
+        for(const p of COVERINGS.filter(p=>p.kind===(category==='lighting'?'ceiling':category))){
           const row=element('div','renovation-product'),swatch=element('span','renovation-swatch');swatch.style.backgroundColor='#'+p.color.toString(16).padStart(6,'0');
-          const text=element('div','');text.append(element('strong','',p.name),element('small','',formatRub(p.price)+'/м²'+(p.wet?' · влагостойкое':'')));
+          const text=element('div','');text.append(element('strong','',p.name),element('small','',formatRub(p.price)+(p.kind==='ceiling'||p.kind==='portable'?'':'/м²')+(p.wet?' · влагостойкое':'')));
           const chosen=place.world.renovation?.samples.includes(p.id)??false;
           const b=button(chosen?'Выбран ✓':'В примерку',()=>send({type:'renovation_sample',sku:p.id}),chosen);b.dataset.renovationSample=p.id;
           row.append(swatch,text,b);options.append(row);
@@ -735,7 +738,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       const newCatch=location==='lake'&&next.world.lake?.[role]?.catch&&!state?.world.lake?.[role]?.catch;
       state = next;
       if(newCatch){current=STATIONS.lake.find(s=>s.action.kind==='lake'&&s.action.facility==='fish'&&Math.hypot(s.approach.x-next.characters[role].x,s.approach.z-next.characters[role].z)<1)??STATIONS.lake.find(s=>s.id==='lake-fish-1')!;panel.hidden=false;panel.dataset.station=current.id;}
-      if(current?.action.kind==='renovation-home'||current?.action.kind==='renovation-display'||current?.action.kind==='renovation-checkout'){const key=JSON.stringify([next.world.renovation,next.money,next.world.sequence[role],current.id]);if(key===renovationKey)return;renovationKey=key;}
+      if(current?.action.kind==='renovation-home'||current?.action.kind==='renovation-display'||current?.action.kind==='renovation-checkout'){const key=JSON.stringify([next.world.renovation,next.money,next.world.sequence[role],current.id,renovationPreview?.spot?[next.furnishing.placed,next.furnishing.soldFixtures]:null]);if(key===renovationKey)return;renovationKey=key;}
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },

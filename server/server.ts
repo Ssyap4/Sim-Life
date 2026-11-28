@@ -1524,6 +1524,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         'furniture_order','furniture_unbox','furniture_place','furniture_light',
         'furniture_move','furniture_store','furniture_sell','furniture_sell_static',
       ].includes(message.type)) {
+        if(message.type==='furniture_order'&&typeof message.sku==='string'&&FURNITURE_BY_ID.get(message.sku)?.category==='lighting'){packet(socket,{type:'error',reason:'Освещение продаётся в ДомСтрое'});return;}
         // Editing the layout is independent of both residents' actions.
         const moved=typeof message.id==='number'&&['furniture_move','furniture_store','furniture_sell'].includes(message.type)
           ?state.furnishing.placed.find(item=>item.id===message.id):undefined;

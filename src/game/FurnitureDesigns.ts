@@ -1066,7 +1066,17 @@ export function distinctiveFurniture(sku:string,finishId:FurnitureFinish):THREE.
   if(item.shape==='lamp'){
     const arc=s==='lamp-arc',factory=s==='lamp-industrial';
     const paper=s==='lamp-paper',duo=s==='lamp-double';
-    if(s==='lamp-table-linen'){
+    if(s==='lamp-table-globe'){
+      cyl(w*.43,.035,d*.43,0,.026,0,0xb18a52,'metal');line(0,.045,0,0,h*.53,0,.013,0xb18a52);
+      ball(w*.45,h*.31,d*.45,0,h*.65,0,0xf5ebd7,'ceramic');
+    }else if(s==='lamp-table-ceramic'){
+      ball(w*.36,h*.25,d*.36,0,h*.27,0,0xa9aba0,'ceramic');line(0,h*.30,0,0,h*.7,0,.012,D);
+      const shade=new THREE.Mesh(new THREE.CylinderGeometry(.68,1,1,16),finish(0xf1dfbc,'fabric'));shade.scale.set(w*.47,h*.43,d*.47);shade.position.y=h*.76;root.add(shade);
+    }else if(s==='lamp-lantern'){
+      cyl(w*.45,.055,d*.45,0,.052,0,D,'wood');for(const x of [-w*.33,w*.33])for(const z of [-d*.33,d*.33])line(x,.065,z,x,h*.92,z,.022,M);
+      for(const y of [h*.43,h*.69,h*.91])box(w*.78,.035,d*.78,0,y,0,M,'wood',true);
+      box(w*.60,h*.46,d*.60,0,h*.67,0,0xf3ddad,'ceramic',true);
+    }else if(s==='lamp-table-linen'){
       cyl(w*.42,.026,d*.42,0,.020,0,M,'wood');
       line(0,.026,0,0,h*.67,0,.012,D);
       const shade=new THREE.Mesh(new THREE.CylinderGeometry(.68,1,1,16),finish(0xf1dfbc,'fabric'));

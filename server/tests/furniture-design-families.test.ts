@@ -5,7 +5,7 @@ import { FURNITURE_CATALOG,FURNITURE_STYLES,furnitureStyle } from '../../src/sha
 import { buildFurnishingModel } from '../../src/game/FurnishingArt';
 
 test('the current catalogue has unique IDs, five style families and all eight categories',()=>{
-  assert.equal(FURNITURE_CATALOG.length,115);
+  assert.equal(FURNITURE_CATALOG.length,118);
   const ids=new Set(FURNITURE_CATALOG.map(item=>item.id));
   assert.equal(ids.size,FURNITURE_CATALOG.length);
   assert.equal(new Set(FURNITURE_CATALOG.map(item=>item.name)).size,FURNITURE_CATALOG.length);

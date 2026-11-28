@@ -1,3 +1,5 @@
+import {buildRoomCeilings,ceilingAnchors} from './RenovationLights';
+import {coveringById} from '../shared/renovation';
 import {collectRenovation} from './RenovationArt';
 import {roomById,type RenovationPreview} from '../shared/renovation';
 import {HOME_DRINK_COLORS} from '../shared/food';
@@ -168,15 +170,20 @@ export class World {
   private remoteMeshes: THREE.Object3D[] = [];
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private renovationPortable?:THREE.Group;
+  private renovationCeilings?:ReturnType<typeof buildRoomCeilings>;
+  private syncRenovationLights(){this.renovationCeilings?.apply(this.household?.world.renovation,this.renovationPreview,this.lampNight);this.cottageLamps?.setReplaced(id=>!!this.renovationCeilings?.has(id));}
   private renovationArt?:ReturnType<typeof collectRenovation>;
   private renovationPreview?:RenovationPreview;
   private renovationCamera?:{eye:THREE.Vector3;target:THREE.Vector3;min:number};
   previewRenovation(preview?:RenovationPreview){
     if(preview&&this.place!=='home')return;
     const old=this.renovationPreview;this.renovationPreview=preview;
-    if(preview&&old?.room!==preview.room){this.setFollowPlayer(false);this.inspected=null;const r=roomById(preview.room)!;this.renovationCamera??={eye:this.camera.position.clone(),target:this.controls.target.clone(),min:this.controls.minDistance};this.controls.minDistance=3.4;const x=(r.x1+r.x2)/2,z=(r.z1+r.z2)/2,span=Math.max(r.x2-r.x1,r.z2-r.z1);this.controls.target.set(x,.5,z);this.camera.position.set(x+span*.37,span*1.35,z+span*.82);this.camera.lookAt(this.controls.target);this.controls.update();}
+    if(this.renovationPortable){this.renovationPortable.removeFromParent();disposeFurnitureModel(this.renovationPortable);this.renovationPortable=undefined;}
+    if(preview?.spot){const m=buildFurnishingModel(preview.sku,'oak');m.position.set(preview.spot.x,preview.spot.y,preview.spot.z);m.traverse(o=>{if(o instanceof THREE.Mesh)o.raycast=()=>{};});this.homeScene.add(m);this.renovationPortable=m;}
+    if(preview&&(old?.room!==preview.room||old?.sku!==preview.sku||old?.spot!==preview.spot)){this.setFollowPlayer(false);this.inspected=null;const r=roomById(preview.room)!;this.renovationCamera??={eye:this.camera.position.clone(),target:this.controls.target.clone(),min:this.controls.minDistance};this.controls.minDistance=3.4;const x=(r.x1+r.x2)/2,z=(r.z1+r.z2)/2,span=Math.max(r.x2-r.x1,r.z2-r.z1);if(preview.spot){const p=preview.spot;this.controls.target.set(p.x,p.y+.6,p.z);this.camera.position.set(p.x+2.1,p.y+3.1,p.z+3.6);}else if(coveringById(preview.sku)?.kind==='ceiling'){const [cx,cz]=ceilingAnchors[preview.room];this.controls.target.set(cx,2.4,cz);this.camera.position.set(cx+2.1,4.7,cz+3.1);}else{this.controls.target.set(x,.5,z);this.camera.position.set(x+span*.43,span*1.57,z+span*.98);}this.camera.lookAt(this.controls.target);this.controls.update();}
     if(!preview&&this.renovationCamera){if(this.place==='home'){this.controls.minDistance=this.renovationCamera.min;this.camera.position.copy(this.renovationCamera.eye);this.controls.target.copy(this.renovationCamera.target);this.controls.update();}this.renovationCamera=undefined;}
-    this.renovationArt?.apply(this.household?.world.renovation,preview);
+    this.renovationArt?.apply(this.household?.world.renovation,preview);this.syncRenovationLights();
     if(this.cameraQA)this.canvas.dataset.renovationPreview=JSON.stringify(preview??null);
   }
   private roadScene?:CarRideScene;
@@ -1946,7 +1953,7 @@ export class World {
     this.lampNight=lampLevel;
     this.roomGlow.intensity=lampLevel*12;
     this.roomGlow.visible=lampLevel>.04;
-    this.cottageLamps?.setLevel(lampLevel);
+    this.cottageLamps?.setLevel(lampLevel);this.syncRenovationLights();
     if(this.yard?.night)this.yard.night.visible=this.place==='home'&&(hour>=1135||hour<375);
     const solarAngle=(hour-360)/720*Math.PI;
     this.sun.position.set(-2.6+Math.cos(solarAngle)*6,
@@ -2003,7 +2010,7 @@ export class World {
     this.entryLeaf = decorateHome(this.scene);
     this.kitchenCurtains=this.scene.getObjectByName('KitchenWindowCurtains') as THREE.Group;
     if(this.kitchenCurtains)this.register('kitchenWindow',this.kitchenCurtains,points.kitchenWindow);
-    this.cottageLamps=buildCottageLights(this.scene);
+    this.cottageLamps=buildCottageLights(this.scene);this.renovationCeilings=buildRoomCeilings(this.scene);
     buildHomeWing(this.scene);
     this.sideWalls=buildHomeSideWalls(this.scene);
     this.renovationArt=collectRenovation(this.scene);
@@ -2582,8 +2589,8 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
-    this.renovationArt?.apply(state.world.renovation,this.renovationPreview);
-    if(this.cameraQA)this.canvas.dataset.renovationInstalled=JSON.stringify(state.world.renovation?.surfaces??{});
+    this.renovationArt?.apply(state.world.renovation,this.renovationPreview);this.syncRenovationLights();
+    if(this.cameraQA){this.canvas.dataset.renovationInstalled=JSON.stringify(state.world.renovation?.surfaces??{});this.canvas.dataset.renovationModes=JSON.stringify(state.world.renovation?.lights??{});}
     // One delivered cup lives on the actual desk while that same order is active.
     const worker=(['vlad','alina'] as const).find(id=>state.activeShifts[id]?.homeDevice==='desktop'&&state.activeShifts[id]?.coffeeServed);
     if(worker&&!state.furnishing.soldFixtures?.includes('desk')){
@@ -3539,11 +3546,14 @@ export class World {
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
     if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,agility:this.agilityAction,waiting:!!this.agilityWaiting,entered:this.agilityAction!==undefined&&!this.agilityWaiting,exit:this.agilityQAExit,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.place==='home')this.renovationCeilings?.camera(this.camera.position,this.controls.target,this.renovationPreview);
     if(this.visualSeconds-this.lampStamp>.25||this.place!=='home'){
       this.lampStamp=this.visualSeconds;
       this.ownedLampGlow.intensity=0;this.ownedLampGlow.userData.id=null;
       if(this.place==='home'&&this.household){
         let nearest=Infinity;
+        if(this.renovationPreview?.spot){const p=this.renovationPreview.spot,def=FURNITURE_BY_ID.get(this.renovationPreview.sku)!;nearest=0;this.ownedLampGlow.position.set(p.x,p.y+def.height*.8,p.z);this.ownedLampGlow.intensity=9;this.ownedLampGlow.userData.id='preview';}
+        for(const [id,l] of this.renovationCeilings?.active??[]){if(l.level<=.04)continue;const distance=Math.hypot(l.x-this.controls.target.x,l.z-this.controls.target.z);if(distance>=nearest)continue;nearest=distance;this.ownedLampGlow.position.set(l.x,2.7,l.z);this.ownedLampGlow.intensity=l.level*9;this.ownedLampGlow.userData.id='ceiling:'+id;}
         for(const p of this.household.furnishing.placed){
           const def=FURNITURE_BY_ID.get(p.sku);
           if(def?.shape!=='lamp'||p.lightMode==='off')continue;
@@ -3556,6 +3566,7 @@ export class World {
         }
       }
     }
+    if(this.cameraQA)this.canvas.dataset.ceilingQA=JSON.stringify(Object.fromEntries(this.renovationCeilings?.active??[]));
     if(this.cameraQA)this.canvas.dataset.ownedLamp=JSON.stringify({id:this.ownedLampGlow.userData.id,level:this.ownedLampGlow.intensity/9});
     if (this.place === 'home') {
       if(this.household){

@@ -72,3 +72,53 @@ test('ten rooms have separate actual surface meshes and preview cannot mutate sh
  assert.ok(ROOMS.every(r=>COVERINGS.some(p=>p.kind==='floor'&&compatible(r.id,p))&&COVERINGS.some(p=>p.kind==='wall'&&compatible(r.id,p))));
  assert.equal(validRenovation({samples:[],surfaces:{bathroom:{floor:'floor-carpet-grey'}}}),false);
 });
+
+import {buildRoomCeilings,buildCeilingModel,ceilingAnchors} from '../../src/game/RenovationLights';
+import {buildCottageLights} from '../../src/game/CottageLights';
+import {renovationLampSpots} from '../../src/shared/renovationPlacement';
+import {FURNITURE_BY_ID,FURNITURE_CATALOG,FURNITURE_DELIVERY} from '../../src/shared/furniture';
+import {buildFurnishingModel} from '../../src/game/FurnishingArt';
+import {applyFurnishing} from '../furnishing';
+test('all six ceiling fixtures fit fixed overhead anchors, are isolated in preview, and preserve the stock lighting when cancelled',()=>{
+ const scene=new THREE.Scene(),stock=buildCottageLights(scene),ceilings=buildRoomCeilings(scene),state=initialRenovation();
+ const items=COVERINGS.filter(p=>p.kind==='ceiling');assert.equal(items.length,6);
+ for(const p of items){
+  const model=buildCeilingModel(p),b=new THREE.Box3().setFromObject(model);
+  assert.ok(b.max.y<=.46&&b.min.y>=-.15&&b.max.x-b.min.x<1.6&&b.max.z-b.min.z<1.6,p.id);
+  ceilings.apply(state,{room:'bedroom',sku:p.id},0);stock.setLevel(1);stock.setReplaced(ceilings.has);
+  assert.equal(ceilings.active.get('bedroom')?.level,1);assert.equal(stock.bedroom.intensity,0);
+  assert.deepEqual(state.surfaces,{});assert.equal(ceilings.root.children.length,2);
+  ceilings.camera(new THREE.Vector3(-6,8,2),new THREE.Vector3(-6,0,-4),{room:'bedroom',sku:p.id});assert.ok(ceilings.root.children[0].visible);
+  ceilings.apply(state,undefined,1);stock.setReplaced(ceilings.has);assert.equal(ceilings.root.children.length,0);assert.equal(stock.bedroom.intensity,10);
+ }
+ state.surfaces.bedroom={ceiling:'ceiling-ring'};state.lights={bedroom:'off'};ceilings.apply(state,undefined,1);assert.equal(ceilings.active.get('bedroom')?.level,0);
+ ceilings.camera(new THREE.Vector3(-6,8,2),new THREE.Vector3(-6,0,-4));assert.equal(ceilings.root.children[0].visible,false);
+ state.lights.bedroom='soft';ceilings.apply(state,undefined,0);assert.equal(ceilings.active.get('bedroom')?.level,.45);
+ for(const r of ROOMS){const [x,z]=ceilingAnchors[r.id];assert.ok(x>r.x1&&x<r.x2&&z>r.z1&&z<r.z2);}
+});
+test('ceiling selection, installation and four light modes are shared, affordable and validated',()=>{
+ let s=initialState();s.money=100000;s.world.places.vlad='buildshop';Object.assign(s.characters.vlad,approachFor(stationById('buildshop','build-light')!,'vlad'));
+ for(const p of COVERINGS.filter(p=>p.kind==='ceiling')){const r=applyWorld(s,'vlad',{type:'renovation_sample',sku:p.id});assert.ok(r.ok);s=r.state;}
+ s.world.places.vlad='home';const sku='ceiling-ring';assert.equal(applyWorld(s,'vlad',{type:'renovation_install',sku,room:'bathroom',expected:null,sequence:0}).ok,false);
+ let r=applyWorld(s,'vlad',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0});assert.ok(r.ok);s=r.state;
+ assert.equal(s.money,100000-renovationQuote('bedroom',coveringById(sku)!).total);
+ for(const mode of ['off','soft','warm','auto']){r=applyWorld(s,'alina',{type:'renovation_light',room:'bedroom',mode});assert.ok(r.ok);assert.equal(r.state.world.renovation?.lights?.bedroom,mode);assert.equal(r.state.money,s.money);assert.ok(validWorld(r.state.world));s=r.state;}
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_light',room:'living',mode:'warm'}).ok,false);
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_light',room:'bedroom',mode:['warm']}).ok,false);
+});
+test('all twelve portable lights are in DomStroy; preview finds safe floor or mounted positions, order charges once and enters normal delivery',()=>{
+ let s=initialState();s.money=150000;s.world.places.vlad='buildshop';Object.assign(s.characters.vlad,approachFor(stationById('buildshop','build-portable')!,'vlad'));
+ const lamps=COVERINGS.filter(p=>p.kind==='portable');assert.equal(lamps.length,12);assert.deepEqual(lamps.map(p=>p.id),FURNITURE_CATALOG.filter(p=>p.category==='lighting').map(p=>p.id));
+ for(const p of lamps){const r=applyWorld(s,'vlad',{type:'renovation_sample',sku:p.id});assert.ok(r.ok,p.id);s=r.state;const def=FURNITURE_BY_ID.get(p.id)!;const b=new THREE.Box3().setFromObject(buildFurnishingModel(p.id,'oak'));assert.ok(b.max.y<=def.height+.001,p.id);}
+ s.world.places.vlad='home';s.furnishing.placed.push({id:1,sku:'dresser-nora',finish:'oak',x:14,z:-6,rotation:0});s.furnishing.nextId=2;
+ for(const sku of ['lamp-table-linen','lamp-table-globe','lamp-table-ceramic','lamp-lantern','lamp-arc']){
+  const spots=renovationLampSpots(s,'wing1',sku);assert.ok(spots.length,sku);assert.ok(spots.every(p=>sku.startsWith('lamp-table-')?p.y>0:p.y===0));assert.equal(renovationLampSpots(s,'bathroom',sku).length,0);
+ }
+ const sku='lamp-table-globe',spot=renovationLampSpots(s,'wing1',sku)[0];
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_lamp_order',sku,room:'wing1',x:0,z:0,sequence:0}).ok,false);
+ const r=applyWorld(s,'vlad',{type:'renovation_lamp_order',sku,room:'wing1',x:spot.x,z:spot.z,sequence:0});assert.ok(r.ok);
+ assert.equal(r.state.money,s.money-FURNITURE_BY_ID.get(sku)!.price-FURNITURE_DELIVERY.regular.fee);assert.equal(r.state.furnishing.orders.length,1);assert.equal(s.furnishing.orders.length,0);
+ assert.equal(applyWorld(r.state,'vlad',{type:'renovation_lamp_order',sku,room:'wing1',x:spot.x,z:spot.z,sequence:0}).ok,false);
+ const order=r.state.furnishing.orders[0],unbox=applyFurnishing(r.state,'alina',{type:'furniture_unbox',id:order.id},order.readyAt);assert.ok(unbox.ok);
+ const placed=applyFurnishing(unbox.state,'alina',{type:'furniture_place',id:order.id,x:spot.x,z:spot.z,rotation:0},order.readyAt);assert.ok(placed.ok);assert.ok(placed.state.furnishing.placed.find(p=>p.id===order.id)?.mount);
+});
