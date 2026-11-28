@@ -1,3 +1,4 @@
+import {coveringById} from '../src/shared/renovation';
 import {isDogAgility,agilityCueQuality} from '../src/shared/dogAgility';
 import {autoPetAvailable,activityIdentity,rememberFull,rankFull,rankCareChoices,fullIdleChoices,type FullHistory} from '../src/shared/fullAutonomy';
 import {isLakeFishAction} from '../src/shared/lake';
@@ -1719,6 +1720,15 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       }
       if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
       if(message.type==='car_travel'&&message.place==='work-clinic'&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
+      if(message.type==='renovation_install'){
+        const fixture=coveringById(message.sku)?.fixture;
+        if(fixture){
+          const resource=fixture==='toilet'||fixture==='wcBasin'?'wc':fixture;
+          if(homeTasks.reserved(resource)||[...running.values()].some(t=>t.plan.resource===resource||t.plan.resource===fixture)){
+            packet(socket,{type:'error',reason:'Сантехника сейчас используется. Дождись окончания действия'});return;
+          }
+        }
+      }
       if (typeof message.type === 'string' && worldMessages.has(message.type)) {
         if(message.type==='travel'||message.type==='car_travel'||message.type==='walk')clearQueue(role);
         const interrupted = message.type==='walk'||message.type==='approach' ? walkingHome.get(role) : undefined;

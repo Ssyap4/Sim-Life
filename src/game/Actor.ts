@@ -385,6 +385,7 @@ export class Actor {
   private readonly parentRotation = new THREE.Quaternion();
   private readonly walkStep = new THREE.Vector3();
   bodyPosition(target: THREE.Vector3): THREE.Vector3 { return this.figure.getWorldPosition(target); }
+  sanitaryQA(){return {body:this.bodyPosition(new THREE.Vector3()).toArray(),root:this.root.position.toArray(),hands:this.rig.wrists.map(w=>w.getWorldPosition(new THREE.Vector3()).toArray()),head:this.rig.head.getWorldPosition(new THREE.Vector3()).toArray(),activity:this.activity,time:this.activityTime};}
 
   constructor(readonly id: CharacterId, start: [number, number], model?: CharacterModel) {
     this.root.position.set(start[0], 0, start[1]);

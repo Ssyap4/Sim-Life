@@ -1,3 +1,4 @@
+import {buildBathFixture,batchBathFixture,disposeBathMaterials} from './BathroomArt';
 import {buildRoomCeilings,ceilingAnchors} from './RenovationLights';
 import {coveringById} from '../shared/renovation';
 import {collectRenovation} from './RenovationArt';
@@ -170,6 +171,25 @@ export class World {
   private remoteMeshes: THREE.Object3D[] = [];
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private bathModels=new Map<BathFixture,{holder:THREE.Group;stock:THREE.Group;replacement?:THREE.Group;sku?:string}>();
+  private syncBathModels(){
+    const preview=this.renovationPreview,product=coveringById(preview?.sku),state=this.household?.world.renovation;
+    for(const [id,b] of this.bathModels){
+      const sku=product?.fixture===id?product.id:state?.fixtures?.[id];
+      if(b.sku===sku)continue;
+      if(b.replacement){
+        const old=new Set<THREE.Object3D>();b.replacement.traverse(o=>old.add(o));
+        for(let i=this.interactiveMeshes.length-1;i>=0;i--)if(old.has(this.interactiveMeshes[i]))this.interactiveMeshes.splice(i,1);
+        b.replacement.removeFromParent();disposeFurnitureModel(b.replacement);disposeBathMaterials(b.replacement);b.replacement=undefined;
+      }
+      b.sku=sku;b.stock.visible=!sku;
+      if(sku){const model=buildBathFixture(id,sku);batchBathFixture(model);polishFurniture(model,false);
+        model.traverse(o=>{if(o instanceof THREE.Mesh){o.userData.interactable=id;this.interactiveMeshes.push(o);}});
+        b.holder.add(model);b.replacement=model;
+      }
+    }
+    if(this.cameraQA)this.canvas.dataset.sanitaryModels=JSON.stringify(Object.fromEntries([...this.bathModels].map(([id,b])=>[id,b.sku??null])));
+  }
   private renovationPortable?:THREE.Group;
   private renovationCeilings?:ReturnType<typeof buildRoomCeilings>;
   private syncRenovationLights(){this.renovationCeilings?.apply(this.household?.world.renovation,this.renovationPreview,this.lampNight);this.cottageLamps?.setReplaced(id=>!!this.renovationCeilings?.has(id));}
@@ -181,9 +201,9 @@ export class World {
     const old=this.renovationPreview;this.renovationPreview=preview;
     if(this.renovationPortable){this.renovationPortable.removeFromParent();disposeFurnitureModel(this.renovationPortable);this.renovationPortable=undefined;}
     if(preview?.spot){const m=buildFurnishingModel(preview.sku,'oak');m.position.set(preview.spot.x,preview.spot.y,preview.spot.z);m.traverse(o=>{if(o instanceof THREE.Mesh)o.raycast=()=>{};});this.homeScene.add(m);this.renovationPortable=m;}
-    if(preview&&(old?.room!==preview.room||old?.sku!==preview.sku||old?.spot!==preview.spot)){this.setFollowPlayer(false);this.inspected=null;const r=roomById(preview.room)!;this.renovationCamera??={eye:this.camera.position.clone(),target:this.controls.target.clone(),min:this.controls.minDistance};this.controls.minDistance=3.4;const x=(r.x1+r.x2)/2,z=(r.z1+r.z2)/2,span=Math.max(r.x2-r.x1,r.z2-r.z1);if(preview.spot){const p=preview.spot;this.controls.target.set(p.x,p.y+.6,p.z);this.camera.position.set(p.x+2.1,p.y+3.1,p.z+3.6);}else if(coveringById(preview.sku)?.kind==='ceiling'){const [cx,cz]=ceilingAnchors[preview.room];this.controls.target.set(cx,2.4,cz);this.camera.position.set(cx+2.1,4.7,cz+3.1);}else{this.controls.target.set(x,.5,z);this.camera.position.set(x+span*.43,span*1.57,z+span*.98);}this.camera.lookAt(this.controls.target);this.controls.update();}
+    if(preview&&(old?.room!==preview.room||old?.sku!==preview.sku||old?.spot!==preview.spot)){this.setFollowPlayer(false);this.inspected=null;const r=roomById(preview.room)!;this.renovationCamera??={eye:this.camera.position.clone(),target:this.controls.target.clone(),min:this.controls.minDistance};this.controls.minDistance=3.4;const x=(r.x1+r.x2)/2,z=(r.z1+r.z2)/2,span=Math.max(r.x2-r.x1,r.z2-r.z1);if(preview.spot){const p=preview.spot;this.controls.target.set(p.x,p.y+.6,p.z);this.camera.position.set(p.x+2.1,p.y+3.1,p.z+3.6);}else if(coveringById(preview.sku)?.fixture){const id=coveringById(preview.sku)!.fixture!;const p=BATH_FIXTURES[id].center;this.controls.target.set(p.x,id==='shower'?1.0:.65,p.z);this.camera.position.set(p.x+(id==='toilet'||id==='wcBasin'?2.4:-2.6),3.8,p.z+3.1);}else if(coveringById(preview.sku)?.kind==='ceiling'){const [cx,cz]=ceilingAnchors[preview.room];this.controls.target.set(cx,2.76,cz);this.camera.position.set(cx+1.8,2.93,cz+3.4);}else{this.controls.target.set(x,.5,z);this.camera.position.set(x+span*.43,span*1.57,z+span*.98);}this.camera.lookAt(this.controls.target);this.controls.update();}
     if(!preview&&this.renovationCamera){if(this.place==='home'){this.controls.minDistance=this.renovationCamera.min;this.camera.position.copy(this.renovationCamera.eye);this.controls.target.copy(this.renovationCamera.target);this.controls.update();}this.renovationCamera=undefined;}
-    this.renovationArt?.apply(this.household?.world.renovation,preview);this.syncRenovationLights();
+    this.renovationArt?.apply(this.household?.world.renovation,preview);this.syncRenovationLights();this.syncBathModels();
     if(this.cameraQA)this.canvas.dataset.renovationPreview=JSON.stringify(preview??null);
   }
   private roadScene?:CarRideScene;
@@ -2033,7 +2053,7 @@ export class World {
       if(id==='desk')desktop=furniture;
       if(id==='coffeeMaker')this.coffeeModels=furniture;
       if(id==='tv')this.homeEffects.mountTv(furniture);
-      this.register(id, furniture, point);
+      if(Object.hasOwn(BATH_FIXTURES,id)){const holder=new THREE.Group();holder.name='Bath slot '+id;holder.add(furniture);this.bathModels.set(id as BathFixture,{holder,stock:furniture});this.register(id,holder,point);}else this.register(id, furniture, point);
     });
     this.computerScreens=new HomeComputerScreens(desktop!,this.extensions.stations.get(HOME_LAPTOP)!);
     this.computerScreens.hardwareGroup('desktop').traverse(part=>{if(part instanceof THREE.Mesh){part.userData.interactable='desk';this.interactiveMeshes.push(part);}});
@@ -2589,7 +2609,7 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
-    this.renovationArt?.apply(state.world.renovation,this.renovationPreview);this.syncRenovationLights();
+    this.renovationArt?.apply(state.world.renovation,this.renovationPreview);this.syncRenovationLights();this.syncBathModels();
     if(this.cameraQA){this.canvas.dataset.renovationInstalled=JSON.stringify(state.world.renovation?.surfaces??{});this.canvas.dataset.renovationModes=JSON.stringify(state.world.renovation?.lights??{});}
     // One delivered cup lives on the actual desk while that same order is active.
     const worker=(['vlad','alina'] as const).find(id=>state.activeShifts[id]?.homeDevice==='desktop'&&state.activeShifts[id]?.coffeeServed);
@@ -3512,6 +3532,7 @@ export class World {
       const view=v?views[this.place]?.[v]:undefined;
       if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}
     }
+    if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('sanitaryQA')==='1'){const slot=this.canvas.dataset.sanitaryFocus as BathFixture;if(Object.hasOwn(BATH_FIXTURES,slot)){const p=BATH_FIXTURES[slot].center;this.controls.target.set(p.x,slot==='shower'?1.0:.67,p.z);const x=slot==='toilet'||slot==='wcBasin'?2.4:-2.7;this.camera.position.set(p.x+x,3.55,p.z+3.0);this.camera.lookAt(this.controls.target);this.canvas.dataset.sanitaryMotion=JSON.stringify(Object.fromEntries((['vlad','alina'] as const).map(r=>[r,this.actors[r].sanitaryQA()])));}}
     if(this.cameraQA&&this.place==='home'&&this.canvas.dataset.catHandView==='wide'){const owner=this.household?.pets.simba.routine?.manualToy?.owner??'vlad',p=this.actors[owner].root.position,point=this.household?.pets.simba.routine?.manualToy?.point??p;const x=(p.x+point.x)/2,z=(p.z+point.z)/2;this.controls.target.set(x,.45,z);this.camera.position.set(x+2.3,3.8,z+4.4);this.camera.lookAt(this.controls.target);}
     if(this.cameraQA&&this.place==='park'&&new URLSearchParams(location.search).get('agilityQA')==='1'){const action=this.canvas.dataset.agilityView;if(action==='overview'){this.controls.target.set(4.9,.12,4.0);this.camera.position.set(4.9,13.4,1.3);this.camera.lookAt(this.controls.target);}else if(isDogAgility(action)){const d=DOG_AGILITY[action];this.controls.target.set(d.x,.28,d.z);this.camera.position.set(d.x+1.4,3.8,d.z-2.7);this.camera.lookAt(this.controls.target);}}
     if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){

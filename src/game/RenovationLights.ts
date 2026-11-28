@@ -6,7 +6,7 @@ export const ceilingAnchors:Record<RoomId,[number,number]>={bedroom:[-6.5,-3.95]
 export function buildCeilingModel(p:Covering){
  const root=new THREE.Group(),metal=finish(p.pattern==='globe'||p.pattern==='crystal'?0xb59360:0x454947,'metal');
  const glass=new THREE.MeshStandardMaterial({color:p.color,emissive:p.color,emissiveIntensity:.3,roughness:.65});
- const piece=(g:THREE.BufferGeometry,m:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{const a=new THREE.Mesh(g,m);a.position.set(x,y,z);a.scale.set(w,h,d);root.add(a);return a;};
+ const piece=(g:THREE.BufferGeometry,m:THREE.Material,x:number,y:number,z:number,w:number,h:number,d:number)=>{const a=new THREE.Mesh(g,m);a.position.set(x,y,z);a.scale.set(g===drum?w*.5:w,h,g===drum?d*.5:d);root.add(a);return a;};
  const sphere=p.pattern==='globe'||p.pattern==='crystal'?new THREE.SphereGeometry(.5,12,8):cube,ring=p.pattern==='ring'?new THREE.TorusGeometry(.36,.028,8,32):cube;
  piece(drum,metal,0,.39,0,.30,.055,.30);
  if(p.pattern==='flush'){piece(drum,metal,0,.31,0,.72,.10,.72);piece(drum,glass,0,.24,0,.65,.085,.65);}

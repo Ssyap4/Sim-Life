@@ -1,6 +1,6 @@
 import {renovationLampSpots} from '../src/shared/renovationPlacement';
 import {FURNITURE_DELIVERY} from '../src/shared/furniture';
-import {coveringById,roomById,compatible,renovationQuote,validRenovation,initialRenovation} from '../src/shared/renovation';
+import {coveringById,roomById,compatible,renovationQuote,validRenovation,initialRenovation,installedRenovation} from '../src/shared/renovation';
 import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit,type AgilitySupport} from '../src/shared/dogAgility';
 import {recordCatch} from '../src/shared/personalCollections';
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
@@ -158,7 +158,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
   if(command.type==='renovation_sample'){
-    const p=coveringById(command.sku);if(!p||place!=='buildshop'||!at(source,role,stationById('buildshop',p.kind==='wall'?'build-walls':p.kind==='floor'?'build-floors':p.kind==='portable'?'build-portable':'build-light')))return fail('Подойди к стенду нужного покрытия');
+    const p=coveringById(command.sku);if(!p||place!=='buildshop'||!at(source,role,stationById('buildshop',p.kind==='wall'?'build-walls':p.kind==='floor'?'build-floors':p.kind==='portable'?'build-portable':p.kind==='sanitary'?'build-sanitary':'build-light')))return fail('Подойди к стенду нужного покрытия');
     const next=structuredClone(source),r=next.world.renovation??=initialRenovation();
     if(r.samples.includes(p.id))return fail('Образец уже выбран');
     r.samples.push(p.id);return done(next,'Образец добавлен в домашнюю примерку');
@@ -183,10 +183,10 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     const p=coveringById(command.sku),room=roomById(command.room),r=source.world.renovation;
     if(place!=='home'||!p||p.kind==='portable'||!room||!r?.samples.includes(p.id)||!compatible(room.id,p))return fail('Выбери подходящий образец дома');
     if(command.sequence!==source.world.sequence[role])return fail('Операция уже обработана');
-    const previous=r.surfaces[room.id]?.[p.kind]??null;
+    const previous=installedRenovation(r,room.id,p);
     if(previous!==command.expected||previous===p.id)return fail('Отделка уже изменена, проверь примерку');
     const q=renovationQuote(room.id,p);if(source.money<q.total)return fail('Недостаточно денег на материалы и монтаж');
-    const next=structuredClone(source);(next.world.renovation!.surfaces[room.id]??={})[p.kind]=p.id;
+    const next=structuredClone(source);if(p.fixture)(next.world.renovation!.fixtures??={})[p.fixture]=p.id;else (next.world.renovation!.surfaces[room.id]??={})[p.kind]=p.id;
     next.money-=q.total;next.world.sequence[role]++;addLedger(next,role,'expense','furniture',q.total,'Ремонт · '+room.name+' · '+p.name);
     return done(next,'Ремонт завершён: '+room.name);
   }

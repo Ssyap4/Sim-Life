@@ -25,3 +25,4 @@
 #app .renovation-active .renovation-options{gap:4px}
 #app .renovation-active .renovation-options>small{font-size:11px;line-height:1.15}
 #app .location-panel.renovation-active{max-height:39dvh!important}
+.renovation-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}

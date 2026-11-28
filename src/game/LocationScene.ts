@@ -328,7 +328,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     }else if(category==='lighting'){
       for(const [i,p] of COVERINGS.filter(p=>p.kind==='ceiling').entries()){const m=buildCeilingModel(p);m.scale.setScalar(.49);m.position.set((i%3-1)*.74,.65+Math.floor(i/3)*.65,-.13);materials.push(m.userData.glass);root.add(m);}
     }else{
-      for(const [i,id] of (['toilet','basin','bathtub'] as const).entries()){const m=buildBathFixture(id);m.scale.setScalar(.40);m.position.set((i-1)*.75,.15,0);root.add(m);}
+      for(const [i,sku] of ['wc-float','basin-oak','bath-oval','shower-line','mini-round'].entries()){const p=COVERINGS.find(p=>p.id===sku)!;const m=buildBathFixture(p.fixture!,sku);materials.push(...m.userData.ownedMaterials);m.scale.setScalar(i===3?.30:.34);m.position.set((i%3-1)*.75,.15+Math.floor(i/3)*.95,-.10);root.add(m);}
+      shape(root,[2.22,.045,.58],[0,1.08,-.12],0xe1d0b6);
     }
     sign(root,station.name,2.15,.28,2.13,C.paper,textures,materials);
   } else if(station.action.kind==='electronics-display'){

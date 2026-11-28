@@ -1,9 +1,10 @@
 import {FURNITURE_CATALOG,FURNITURE_DELIVERY} from './furniture';
 import type {LampSpot} from './renovationPlacement';
+import type {BathFixture} from './home';
 import {HOUSE,HOUSE_WING,WEST_WALL,EAST_WALL,BEDROOM_END,WC_START,OFFICE_END} from './home';
 export const ROOM_IDS=['bedroom','spare','wc','kitchen','living','office','bathroom','wing1','wing2','wing3'] as const;
 export type RoomId=typeof ROOM_IDS[number];
-export type SurfaceKind='wall'|'floor'|'ceiling'|'portable';
+export type SurfaceKind='wall'|'floor'|'ceiling'|'portable'|'sanitary';
 export const ROOMS=[
  ['bedroom','Спальня',HOUSE.minX,WEST_WALL,HOUSE.minZ,BEDROOM_END],
  ['spare','Вторая комната',HOUSE.minX,WEST_WALL,BEDROOM_END,WC_START],
@@ -15,9 +16,35 @@ export const ROOMS=[
  ...(['wing1','wing2','wing3'] as const).map((id,i)=>[id,'Дополнительная '+(i+1),HOUSE_WING.minX,HOUSE_WING.maxX,[HOUSE_WING.minZ,...HOUSE_WING.crossWalls][i],[...HOUSE_WING.crossWalls,HOUSE_WING.maxZ][i]] as const)
 ].map(([id,name,x1,x2,z1,z2])=>({id,name,x1,x2,z1,z2})) as readonly {id:RoomId;name:string;x1:number;x2:number;z1:number;z2:number}[];
 type Pattern='linen'|'plain'|'plaster'|'slat'|'stone'|'tile'|'wood'|'herringbone'|'carpet'|'vinyl'|'stripe'|'botanical'|'hex'|'flush'|'ring'|'pendant'|'globe'|'rail'|'crystal';
-export type Covering={id:string;name:string;kind:SurfaceKind;pattern:Pattern;color:number;price:number;wet:boolean};
+export type Covering={id:string;name:string;kind:SurfaceKind;pattern:Pattern;color:number;price:number;wet:boolean;fixture?:BathFixture;design?:number};
 const c=(id:string,name:string,kind:SurfaceKind,pattern:Pattern,color:number,price:number,wet=false):Covering=>({id,name,kind,pattern,color,price,wet});
+const sanitary=(id:string,name:string,fixture:BathFixture,design:number,color:number,price:number):Covering=>({...c(id,name,'sanitary','plain',color,price,true),fixture,design});
+export const FIXTURE_ROOMS:Record<BathFixture,RoomId>={toilet:'wc',wcBasin:'wc',basin:'bathroom',shower:'bathroom',bathtub:'bathroom'};
+export const FIXTURE_LABELS:Record<BathFixture,string>={toilet:'Унитаз',wcBasin:'Компактная раковина',basin:'Раковина в ванной',shower:'Душевая',bathtub:'Ванна'};
+export const SANITARY=[
+ sanitary('wc-compact','Унитаз «Компакт»','toilet',1,0xf5f2e8,11900),
+ sanitary('wc-float','Унитаз «Флоат»','toilet',2,0xe5e5e0,21900),
+ sanitary('wc-onyx','Унитаз «Оникс»','toilet',3,0x41494b,27900),
+ sanitary('wc-classic','Унитаз «Классика»','toilet',4,0xf1e5d4,16900),
+ sanitary('shower-line','Душевая «Линия»','shower',1,0x353c3b,22900),
+ sanitary('shower-clear','Душевая «Кристалл»','shower',2,0xc0d5d6,32900),
+ sanitary('shower-stone','Душевая «Травертин»','shower',3,0xc9ae88,39900),
+ sanitary('shower-rain','Душевая «Дождь»','shower',4,0x718c8d,47900),
+ sanitary('bath-oval','Ванна «Овал»','bathtub',1,0xf4f0e9,28900),
+ sanitary('bath-oak','Ванна «Дуб»','bathtub',2,0xb08a62,36900),
+ sanitary('bath-stone','Ванна «Камень»','bathtub',3,0x929d9d,45900),
+ sanitary('bath-classic','Ванна «Ретро»','bathtub',4,0xf2e5d2,49900),
+ sanitary('basin-oak','Раковина «Дуб»','basin',1,0xb99163,16900),
+ sanitary('basin-float','Раковина «Воздух»','basin',2,0xe3e4de,22900),
+ sanitary('basin-stone','Раковина «Графит»','basin',3,0x555f60,26900),
+ sanitary('basin-round','Раковина «Луна»','basin',4,0xd4c0a3,24900),
+ sanitary('mini-oak','Мини-раковина «Дуб»','wcBasin',1,0xb99163,7900),
+ sanitary('mini-float','Мини-раковина «Воздух»','wcBasin',2,0xe3e4de,10900),
+ sanitary('mini-stone','Мини-раковина «Графит»','wcBasin',3,0x555f60,13900),
+ sanitary('mini-round','Мини-раковина «Луна»','wcBasin',4,0xd4c0a3,11900),
+] as const;
 export const COVERINGS=[
+ ...SANITARY,
  c('wall-linen-cream','Лён · сливочный','wall','linen',0xe8dbc4,390),
  c('wall-linen-sage','Лён · шалфей','wall','linen',0x9cae98,420),
  c('wall-linen-rose','Лён · пудра','wall','linen',0xd6aba8,420),
@@ -85,11 +112,12 @@ export const COVERINGS=[
 export const COVERING_BY_ID=new Map(COVERINGS.map(x=>[x.id,x]));
 export const roomById=(id:unknown)=>ROOMS.find(r=>r.id===id);
 export const coveringById=(id:unknown)=>typeof id==='string'?COVERING_BY_ID.get(id):undefined;
-export type RenovationState={surfaces:Partial<Record<RoomId,Partial<Record<SurfaceKind,string>>>>;samples:string[];lights?:Partial<Record<RoomId,'auto'|'off'|'soft'|'warm'>>};
+export type RenovationState={surfaces:Partial<Record<RoomId,Partial<Record<SurfaceKind,string>>>>;samples:string[];lights?:Partial<Record<RoomId,'auto'|'off'|'soft'|'warm'>>;fixtures?:Partial<Record<BathFixture,string>>};
 export const initialRenovation=():RenovationState=>({surfaces:{},samples:[]});
-export function compatible(room:RoomId,product:Covering){return !['bathroom','wc'].includes(room)||product.wet;}
+export function compatible(room:RoomId,product:Covering){return product.fixture?FIXTURE_ROOMS[product.fixture]===room:!['bathroom','wc'].includes(room)||product.wet;}
 export function renovationQuote(room:RoomId,product:Covering){
  const r=roomById(room)!;const w=r.x2-r.x1,d=r.z2-r.z1;
+ if(product.fixture){const installation=product.fixture==='shower'?4500:product.fixture==='bathtub'?3500:product.fixture==='toilet'?1800:1500;return {area:1,materials:product.price,installation,total:product.price+installation};}
  if(product.kind==='portable')return {area:1,materials:product.price,installation:FURNITURE_DELIVERY.regular.fee,total:product.price+FURNITURE_DELIVERY.regular.fee};
  if(product.kind==='ceiling')return {area:1,materials:product.price,installation:1200,total:product.price+1200};
  const area=Math.ceil(product.kind==='floor'?w*d:2*(w+d)*2.65*.88);
@@ -99,6 +127,7 @@ export function renovationQuote(room:RoomId,product:Covering){
 export function validRenovation(v:unknown):v is RenovationState{
  if(!v||typeof v!=='object'||Array.isArray(v))return false;
  const s=v as RenovationState;
- return (s.lights===undefined||!!s.lights&&typeof s.lights==='object'&&!Array.isArray(s.lights)&&Object.entries(s.lights).every(([r,m])=>!!roomById(r)&&['auto','off','soft','warm'].includes(m)))&&Array.isArray(s.samples)&&s.samples.length<=COVERINGS.length&&new Set(s.samples).size===s.samples.length&&s.samples.every(id=>!!coveringById(id))&&!!s.surfaces&&typeof s.surfaces==='object'&&!Array.isArray(s.surfaces)&&Object.entries(s.surfaces).every(([room,entries])=>!!roomById(room)&&!!entries&&typeof entries==='object'&&!Array.isArray(entries)&&Object.entries(entries).every(([kind,id])=>{const p=coveringById(id);return !!p&&p.kind!=='portable'&&p.kind===kind&&compatible(room as RoomId,p);}));
+ return (s.fixtures===undefined||!!s.fixtures&&typeof s.fixtures==='object'&&!Array.isArray(s.fixtures)&&Object.entries(s.fixtures).every(([slot,sku])=>coveringById(sku)?.fixture===slot))&&(s.lights===undefined||!!s.lights&&typeof s.lights==='object'&&!Array.isArray(s.lights)&&Object.entries(s.lights).every(([r,m])=>!!roomById(r)&&['auto','off','soft','warm'].includes(m)))&&Array.isArray(s.samples)&&s.samples.length<=COVERINGS.length&&new Set(s.samples).size===s.samples.length&&s.samples.every(id=>!!coveringById(id))&&!!s.surfaces&&typeof s.surfaces==='object'&&!Array.isArray(s.surfaces)&&Object.entries(s.surfaces).every(([room,entries])=>!!roomById(room)&&!!entries&&typeof entries==='object'&&!Array.isArray(entries)&&Object.entries(entries).every(([kind,id])=>{const p=coveringById(id);return !!p&&p.kind!=='portable'&&p.kind!=='sanitary'&&p.kind===kind&&compatible(room as RoomId,p);}));
 }
+export const installedRenovation=(s:RenovationState|undefined,room:RoomId,p:Covering)=>p.fixture?s?.fixtures?.[p.fixture]??null:s?.surfaces[room]?.[p.kind]??null;
 export type RenovationPreview={room:RoomId;sku:string;spot?:LampSpot};

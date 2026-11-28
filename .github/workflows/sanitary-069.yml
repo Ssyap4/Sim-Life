@@ -1,0 +1,45 @@
+name: SimOurHome 0.69 sanitary
+on:
+  push:
+    branches: [feat/pet-play-069]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/sanitary-069.test.ts server/tests/renovation-069.test.ts server/tests/dog-bath-035.test.ts server/tests/home-care-065.test.ts server/tests/care-motion-065.test.ts
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [toilet, shower, bathtub, basin, wcBasin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-sanitary-069.mjs
+        env:
+          QA_SLOT: ${{ matrix.slot }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanitary-${{ matrix.slot }}
+          path: /tmp/simourhome-069-sanitary-${{ matrix.slot }}
+          retention-days: 7
