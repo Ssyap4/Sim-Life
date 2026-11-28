@@ -63,3 +63,8 @@ test('gift handoff follows the authoritative active phase even on slow or replay
 test('authoritative arrival restores a late sanitary route and never repeats the old callback',()=>{
  for(const id of ['vlad','alina'] as const){const a=new Actor(id,[0,0]);let arrived=0;const goal=new Vector3(1,0,2);const callback=()=>{arrived++;a.playDomesticActivity('washHands',new Vector3(1,1.03,1.6));};a.walkPath([new Vector3(1,0,0),goal],callback);a.update(.001);assert.equal(arrived,0);a.reconcileTimedArrival(goal,callback);for(let i=0;i<20;i++)a.update(.05);assert.equal(arrived,1);assert.equal(a.root.position.distanceTo(goal),0);assert.equal(a.sanitaryQA().activity,'washHands');assert.ok(a.sanitaryQA().time>=.7);}
 });
+
+
+test('short sink animation catches up to active server time on a slow visible frame',()=>{
+ for(const id of ['vlad','alina'] as const){const a=new Actor(id,[0,0]);a.playDomesticActivity('washHands',new Vector3(0,1.03,-.35));a.syncSanitaryElapsed(2.4);a.update(.2);const q=a.sanitaryQA();assert.ok(q.time>=2.6-.0001);assert.equal(q.activity,'washHands');assert.ok(q.hands.flat().every(Number.isFinite));a.syncSanitaryElapsed(.1);assert.ok(a.sanitaryQA().time>=2.6-.0001);a.finishActivity();a.syncSanitaryElapsed(6);assert.equal(a.sanitaryQA().activity,null);}
+});

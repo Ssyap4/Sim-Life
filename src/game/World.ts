@@ -308,6 +308,7 @@ export class World {
   private inspected: CharacterId | PetId | null = null;
   private careReframe:CharacterId|null=null;
   private readonly careElapsed=new Map<CharacterId,number>();
+  private readonly sanitaryPhase=new Map<CharacterId,{elapsed:number;last:number}>();
   private readonly sanitaryArrivals=new Map<CharacterId,{home:HomePresentation;goal:THREE.Vector3;arrive:()=>void;activeAt?:number}>();
   private yard!: ReturnType<typeof buildYard>;
   private readonly festiveTree=buildHolidayTree();
@@ -1229,6 +1230,7 @@ export class World {
   activateHomeTask(role: CharacterId,elapsedMs=0): void {
     const home = this.homeTasks.get(role);
     const arrival=this.sanitaryArrivals.get(role);if(arrival&&arrival.home===home)arrival.activeAt=performance.now()-Math.max(0,elapsedMs);
+    if(home?.station==='wcBasin'||home?.station==='basin')this.sanitaryPhase.set(role,{elapsed:Math.max(0,elapsedMs/1000),last:performance.now()});
     if(home?.vanityCare||home?.station==='bathtub'){const elapsed=Math.max(0,elapsedMs/1000);this.careElapsed.set(role,elapsed);this.actors[role].syncCareElapsed(elapsed);}
     const pair=this.pairStages.get(role);
     if(pair) {
@@ -1431,7 +1433,7 @@ export class World {
   private clearHomeTask(role: CharacterId): boolean {
     const home = this.homeTasks.get(role);
     if (!home) return false;
-    this.homeTasks.delete(role);this.sanitaryArrivals.delete(role);this.careElapsed.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
+    this.homeTasks.delete(role);this.sanitaryArrivals.delete(role);this.sanitaryPhase.delete(role);this.careElapsed.delete(role);this.hobbyWorks.delete(role);this.mediaFoodArrived.delete(role);this.mediaFoodStarted.delete(role);
     this.poolMotions.delete(role);
     if(home.pair?.motion==='venue'&&this.remote){delete this.remote.root.userData.venuePlay;this.actors[role].setPose('idle');}
     this.pairStages.delete(role);
@@ -3228,6 +3230,8 @@ export class World {
       // animation progressing even when software rendering exceeds a second.
       const sanitaryActive=!!homeMotion&&Object.hasOwn(BATH_FIXTURES,homeMotion.station)&&!this.sanitaryArrivals.has(id);
       const sanitaryDt=sanitaryActive&&!this.paused&&Number.isFinite(elapsedMs)&&elapsedMs>=0?Math.max(dt,Math.min(elapsedMs/1000,.20)):dt;
+      const sanitaryPhase=this.sanitaryPhase.get(id);
+      if(sanitaryPhase){const elapsed=Math.max(0,(now-sanitaryPhase.last)/1000);sanitaryPhase.last=now;if(!this.paused)sanitaryPhase.elapsed+=elapsed;if(sanitaryActive&&!this.paused)actor.syncSanitaryElapsed(Math.max(0,sanitaryPhase.elapsed-sanitaryDt));}
       actor.update(sanitaryDt,this.steering[id],timedRoute?Math.max(coffeeDt,sanitaryDt):dt);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
