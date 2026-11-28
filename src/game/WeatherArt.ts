@@ -110,7 +110,7 @@ export class WeatherArt {
   enter(scene:THREE.Scene, place:PlaceId) {
     if(!this.particles)return;
     this.particles.batch.removeFromParent();
-    if(['park','industrial','district','home','lake'].includes(place)){
+    if(['park','industrial','district','home','lake','resort'].includes(place)){
       scene.add(this.particles.batch);
       this.particles.uniforms.home.value=Number(place==='home');
     }
@@ -121,14 +121,14 @@ export class WeatherArt {
       this.stormLight=undefined;
       if(scene.fog instanceof THREE.Fog){
         // Clear weather must not hide a distant home overview (camera max 88).
-        scene.fog.near=place==='home'?125:place==='district'?125:place==='lake'?85:place==='fitness'?85:49;
-        scene.fog.far=place==='home'?185:place==='district'?171:place==='lake'?115:place==='fitness'?115:75;
+        scene.fog.near=place==='resort'?145:place==='home'?125:place==='district'?125:place==='lake'?85:place==='fitness'?85:49;
+        scene.fog.far=place==='resort'?205:place==='home'?185:place==='district'?171:place==='lake'?115:place==='fitness'?115:75;
       }
       return;
     }
     const preset=skies[this.mode];
     // Distant mist follows daylight luminance, including the darkest hours.
-    const outdoors=['home','district','park','industrial','lake'].includes(place);
+    const outdoors=['home','district','park','industrial','lake','resort'].includes(place);
     if(!outdoors){this.stormLight=undefined;return;}
     const sky=scene.background as THREE.Color;
     const brightness=THREE.MathUtils.clamp(.26+sun.intensity*.34,.32,1);
@@ -138,8 +138,8 @@ export class WeatherArt {
       fog.color.copy(sky);
       // The home overview camera is much farther away than the park camera.
       // Weather must never erase the entire cutaway house at normal zoom.
-      fog.near=place==='home'?Math.max(110,preset.near):preset.near;
-      fog.far=place==='home'?Math.max(185,preset.far):preset.far;
+      fog.near=place==='resort'?Math.max(135,preset.near):place==='home'?Math.max(110,preset.near):preset.near;
+      fog.far=place==='resort'?Math.max(205,preset.far):place==='home'?Math.max(185,preset.far):preset.far;
     }
     sun.intensity*=preset.direct;
     this.stormLight=this.mode==='storm'&&!this.reducedMotion&&outdoors?sun:undefined;

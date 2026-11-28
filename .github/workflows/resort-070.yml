@@ -62,3 +62,24 @@ jobs:
           name: grooming-070-${{ matrix.pet }}
           path: /tmp/simourhome-070-grooming-${{ matrix.pet }}
           retention-days: 7
+
+  water-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-resort-water-070.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resort-water-070
+          path: /tmp/simourhome-070-water
+          retention-days: 7

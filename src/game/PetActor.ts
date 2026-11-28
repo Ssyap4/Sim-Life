@@ -39,6 +39,9 @@ export class PetActor {
   private readonly legAngles={hip:0,knee:0};
   private animatedToyIndex:number|undefined;
   private dogBedProgress=0;
+  private groomingHeld=false;
+  setGroomingHeld(active:boolean){if(active&&!this.groomingHeld){this.stop();this.idleGesture=null;this.idleTime=0;this.reaction=null;}this.groomingHeld=active;}
+  groomingPaw(target:THREE.Vector3){return this.simbaRig?this.simbaRig.groomingPaw(target):this.paws[2].localToWorld(target.set(0,-.12,.02));}
   private bathActive=false;
   private bathLift=0;
   private bathElapsed=0;
@@ -570,7 +573,7 @@ export class PetActor {
     }
     // Cosmetic personality gestures only when nothing meaningful is happening.
     // Server-owned routes, feeding, sleep, toilet and player interactions win.
-    const canIdle = !descending&&!dogDescending&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&!this.route.length &&
+    const canIdle = !this.groomingHeld&&!descending&&!dogDescending&&!this.bathActive&&!this.bathLift&&!this.parkRollTime&&!this.route.length &&
       (this.routine === null || this.routine === 'wander'||this.routine==='beg'||this.routine==='event') && !this.reaction && pace < .08;
     if (!canIdle) {this.companionActive=false;
       this.idleGesture = null;
@@ -611,7 +614,7 @@ export class PetActor {
         this.root.rotation.y+=delta*(1-Math.exp(-dt*5));
       }
     }
-    const turnAllowed=!descending&&!dogDescending&&!this.perchProgress&&!this.dogBedProgress&&!this.bathActive&&!this.parkRollTime&&this.napWeight<.1&&this.routine!=='sleep';
+    const turnAllowed=!this.groomingHeld&&!descending&&!dogDescending&&!this.perchProgress&&!this.dogBedProgress&&!this.bathActive&&!this.parkRollTime&&this.napWeight<.1&&this.routine!=='sleep';
     this.turnMotion=petTurnMotion(this.turnMotion,this.previousYaw??this.root.rotation.y,this.root.rotation.y,dt);
     this.previousYaw=this.root.rotation.y;
     const turn=turnAllowed?this.turnMotion:0;

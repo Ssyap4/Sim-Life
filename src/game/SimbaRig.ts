@@ -157,6 +157,7 @@ export class SimbaRig {
   }
   /** Rear ankle contact in world coordinates; used only when climbing the
    * scratching post to keep the hind paws planted on the real floor. */
+  groomingPaw(target:THREE.Vector3){return this.feet[2].paw.getWorldPosition(target);}
   hindContactHeight(): number {
     this.model.updateWorldMatrix(true,true);
     return Math.min(this.feet[1].paw.getWorldPosition(this.contactProbe).y,

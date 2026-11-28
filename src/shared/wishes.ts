@@ -1,3 +1,4 @@
+import {petAway} from './grooming';
 import {favoriteFood,favoriteBonusReady} from './foodTastes';
 import {recipeAvailability} from './recipeAvailability';
 import {isCatchRecipe} from './lake';
@@ -130,7 +131,7 @@ export function wishesFor(state:GameState,role:CharacterId):Wish[]{
   const add=(id:string,icon:string,title:string,detail:string,cta:string,command:WishCommand|undefined)=>{
     if(command&&wishAvailable(state,role,id))plans.push({id,icon,title,detail,cta,command,urgency:'calm'});
   };
-  if(!(pet==='verdell'&&state.world.dogWalker))add('companion-'+pet,'🐾',pet==='verdell'?'Побыть с Верделлом':'Приласкать Симбу',
+  if(state.world.places[role]==='home'&&!petAway(state,pet)&&!(pet==='verdell'&&state.world.dogWalker))add('companion-'+pet,'🐾',pet==='verdell'?'Побыть с Верделлом':'Приласкать Симбу',
     'Хочется уделить любимому питомцу немного внимания.','Погладить',{type:'pet_action',pet,action:'pet'});
   if(state.world.places[role]==='home'&&!socialRestriction(SOCIAL_BY_ID.get('sofaTalk')!,state,role))add('together-time','♡','Провести время вместе','Спокойно поговорить вдвоём на диване.','Предложить',{type:'together',action:'sofaTalk'});
   if(state.world.places[role]==='home'){

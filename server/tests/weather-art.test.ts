@@ -59,3 +59,9 @@ test('distance fog affects outdoor views and keeps the shop interior depth range
     assert.equal(scene.fog.far,place==='district'?33:75);
   }
 });
+
+test('Azure Shore overview retains visible terrain even in bad weather',()=>{
+ for(const mode of ['clear','rain','snow','storm','fog','overcast']){
+  const scene=new THREE.Scene();scene.background=new THREE.Color(0xffffff);scene.fog=new THREE.Fog(0xffffff,49,75);const weather=new WeatherArt('?weather='+mode,false,false);weather.enter(scene,'resort');weather.light(scene,'resort',new THREE.DirectionalLight(),new THREE.HemisphereLight());assert.ok(scene.fog.near>=135&&scene.fog.far>=205);if(['rain','snow','storm'].includes(mode))assert.equal(scene.children.length,1);
+ }
+});

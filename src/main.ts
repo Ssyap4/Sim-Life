@@ -1064,7 +1064,7 @@ const net = new LiveConnection({
     world.setActive(role);
     render(true);
     if(reconnecting){notifications.resolve('disconnect');notify('Связь восстановлена',{title:'Снова вместе',kind:'success',key:'reconnect'});}
-    else notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
+    else if(household.world.places[role]==='home')notify('🏡 С возвращением, ' + names[role] + '!',{title:'Вы дома'});
     const unread=unreadMessages(household,role);if(unread.length)notify('Непрочитанных: '+unread.length,{title:'Семейная переписка',target:'messages',key:'family-message'});
   },
   onAlbumImage(id,jpeg){phone.albumImage(id,jpeg);},
