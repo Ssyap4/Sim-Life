@@ -185,6 +185,9 @@ export class World {
   private parkDogUntil=0;
   private agilityOwner?:CharacterId;
   private agilityAction?:import('../shared/dogAgility').DogAgilityAction;
+  private agilityWaiting?:{entry:Point;releaseAt:number};
+  private agilityCueOwner?:CharacterId;
+  releaseAgility(role:CharacterId){this.agilityCueOwner=role;}
   private lakeDogMode="";
   private parkDogToiletStamp=0;
   private dogTrail: Point[] = [];
@@ -1670,7 +1673,7 @@ export class World {
   }
 
   private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
-  private endAgility(role:CharacterId){if(this.agilityOwner!==role)return;const action=this.agilityAction;this.agilityOwner=undefined;this.agilityAction=undefined;const dog=this.pets.verdell;dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;const walker=this.household?.world.dogWalker;if(this.place==='park'&&walker&&dog.root.visible){const blocks=placeObstacles('park',undefined,action),floor=floorFor('park'),start=nearestClearPoint(dog.root.position,blocks,floor),goal=nearestClearPoint(this.household?.pets.verdell.parkPosition??this.actors[walker].root.position,blocks,floor);const route=start&&goal&&findRoute(start,goal,blocks,floor);if(route?.length){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.parkDogUntil=this.visualSeconds+Math.min(16,route.reduce((n,p,i)=>n+Math.hypot(p.x-(route[i-1]?.x??start!.x),p.z-(route[i-1]?.z??start!.z)),0)/PET_SPEED.verdell+1);}}}
+  private endAgility(role:CharacterId){if(this.agilityOwner!==role){if(this.agilityCueOwner===role)this.agilityCueOwner=undefined;return;}const action=this.agilityAction;this.agilityOwner=undefined;this.agilityAction=undefined;this.agilityWaiting=undefined;this.agilityCueOwner=undefined;const dog=this.pets.verdell;dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;const walker=this.household?.world.dogWalker;if(this.place==='park'&&walker&&dog.root.visible){const blocks=placeObstacles('park',undefined,action),floor=floorFor('park'),start=nearestClearPoint(dog.root.position,blocks,floor),goal=nearestClearPoint(this.household?.pets.verdell.parkPosition??this.actors[walker].root.position,blocks,floor);const route=start&&goal&&findRoute(start,goal,blocks,floor);if(route?.length){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.parkDogUntil=this.visualSeconds+Math.min(16,route.reduce((n,p,i)=>n+Math.hypot(p.x-(route[i-1]?.x??start!.x),p.z-(route[i-1]?.z??start!.z)),0)/PET_SPEED.verdell+1);}}}
   finishTimedAction(role: CharacterId): void {
     this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
@@ -2287,7 +2290,7 @@ export class World {
     const goal=nearestClearPoint({x:owner.x-2.0,z:owner.z+1.3},obstacles,floor);if(!goal)return;
     this.parkDogUntil=this.visualSeconds+(isDogAgility(action)?23:action==='dogToilet'?6:15);
     this.dogTrail=[];this.lastDogPoint=null;
-    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route&&course.slice(1).every((p,i)=>segmentIsClear(course[i],p,obstacles,floor))){dog.followRoute([...route,...course.slice(1)].map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');dog.setAgility(action);this.agilityOwner=role;this.agilityAction=action;}return;}
+    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route&&course.slice(1).every((p,i)=>segmentIsClear(course[i],p,obstacles,floor))){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.agilityOwner=role;this.agilityAction=action;this.agilityWaiting={entry,releaseAt:this.visualSeconds+8};}return;}
     if(action==='dogRoll'){dog.parkRoll();return;}
     if(action==='dogToilet'){
       const route=findRoute(start,goal,obstacles,floor);if(route)dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'toilet');return;
@@ -2447,7 +2450,7 @@ export class World {
     this.sleepingOffline.clear();
     for (const pet of Object.values(this.pets)) pet.stop();
     this.dogTrail = [];
-    this.lastDogPoint = null;this.agilityOwner=undefined;this.agilityAction=undefined;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
+    this.lastDogPoint = null;this.agilityOwner=undefined;this.agilityAction=undefined;this.agilityWaiting=undefined;this.agilityCueOwner=undefined;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
     this.remote?.root.removeFromParent();
     this.remote?.dispose();
     this.remoteMeshes = [];
@@ -3254,6 +3257,7 @@ export class World {
         }
       }
     }
+    if(this.place==='park'&&this.agilityOwner&&this.agilityAction&&this.agilityWaiting&&dog.root.visible){const wait=this.agilityWaiting;if(Math.hypot(dog.root.position.x-wait.entry.x,dog.root.position.z-wait.entry.z)<.045&&(this.agilityCueOwner===this.agilityOwner||this.visualSeconds>=wait.releaseAt)){const action=this.agilityAction;this.agilityWaiting=undefined;dog.followRoute(agilityPath(action).slice(1).map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');dog.setAgility(action);}}
     if (walker && dog.root.visible && (this.place === 'park'||this.place==='district'||this.place==='lake') && !((this.place==='park'||this.place==='lake')&&this.parkDogUntil>this.visualSeconds) && !(this.place==='lake'&&this.lakeDogMode)) {
       const actor = this.actors[walker].root;
       const { x, z } = actor.position;
@@ -3355,6 +3359,8 @@ export class World {
       if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
       if (cat.root.visible) cat.update(dt);
     }
+    const manualCat=this.place==='home'?this.household?.pets.simba.routine?.manualToy:undefined;
+    for(const role of ['vlad','alina'] as const){const actor=this.actors[role];if(manualCat?.owner===role&&actor.root.visible){const p=this.framePartPosition,kind=cat.manualToyContact(p);if(kind){actor.manualCatToy(kind,p,segmentIsClear(actor.root.position,p,this.petGeometry.obstacles,this.petGeometry.floor));continue;}}actor.manualCatToy();}
     if (this.place === 'home') for (const [id, door] of this.extensions.doors) {
       const open = this.openDoors.get('vlad') === id || this.openDoors.get('alina') === id;
       door.rotation.y = THREE.MathUtils.damp(door.rotation.y, open ? -1.53 : 0, 11, dt);
@@ -3466,6 +3472,7 @@ export class World {
       const view=v?views[this.place]?.[v]:undefined;
       if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}
     }
+    if(this.cameraQA&&this.place==='home'&&this.canvas.dataset.catHandView==='wide'){const owner=this.household?.pets.simba.routine?.manualToy?.owner??'vlad',p=this.actors[owner].root.position,point=this.household?.pets.simba.routine?.manualToy?.point??p;const x=(p.x+point.x)/2,z=(p.z+point.z)/2;this.controls.target.set(x,.45,z);this.camera.position.set(x+2.3,3.8,z+4.4);this.camera.lookAt(this.controls.target);}
     if(this.cameraQA&&this.place==='park'&&new URLSearchParams(location.search).get('agilityQA')==='1'){const action=this.canvas.dataset.agilityView;if(action==='overview'){this.controls.target.set(4.9,.12,4.0);this.camera.position.set(5.1,7.9,10.2);this.camera.lookAt(this.controls.target);}else if(isDogAgility(action)){const d=DOG_AGILITY[action];this.controls.target.set(d.x,.28,d.z);this.camera.position.set(d.x+1.75,2.4,d.z+3.1);this.camera.lookAt(this.controls.target);}}
     if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){
       const view=this.place==='home'?{target:[3,.1,1],eye:[13,22,22]}:this.place==='district'?{target:[21.38,.1,21.05+DISTRICT_OFFSET_Z],eye:[26,8,29+DISTRICT_OFFSET_Z]}:this.place==='park'?{target:[1.6,.1,-.8],eye:[7.7,10.6,12]}:this.place==='electronics'?{target:[2.5,0,-.7],eye:[8.2,12,16]}:['market','cafe','petshop','clothing','education'].includes(this.place)?{target:[0,.1,-.5],eye:[6.5,11,14]}:undefined;
@@ -3498,7 +3505,7 @@ export class World {
       this.yard.landscape.detail(this.camera,this.quality==='low');
       this.yard.landscape.animate(this.visualSeconds,this.yardSnow,this.weather.visualKind==='storm'?2.4:this.weather.visualKind==='rain'?1.5:1);
     }
-    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
+    if(this.cameraQA){this.canvas.dataset.cameraPose=JSON.stringify({eye:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov,aspect:this.camera.aspect,quaternion:this.camera.quaternion.toArray(),follow:this.followingPlayer,pair:this.followingPair,place:this.place});this.canvas.dataset.yardQA=JSON.stringify({lakeDog:{mode:this.lakeDogMode,visible:this.pets.verdell.root.visible,position:this.pets.verdell.root.position.toArray(),gesture:this.pets.verdell.currentIdleGesture()},actors:Object.fromEntries((['vlad','alina'] as const).map(r=>[r,{look:this.actors[r].root.userData.wornLook,body:this.actors[r].bodyPosition(new THREE.Vector3()).toArray(),yaw:this.actors[r].root.rotation.y,pose:this.actors[r].audioMotion().pose,activity:this.actors[r].audioMotion().activity,spaWater:this.remote?.root.userData.spaWaterUsers?.[r],spaMassage:this.remote?.root.userData.spaMassages?.[r],spaShower:this.remote?.root.userData.spaShowers?.[r],station:this.homeTasks.get(r)?.station,hookah:this.actors[r].hookahQA(),coffee:this.actors[r].workCoffeeQA(),handheld:this.actors[r].handheldQA(),catToy:this.actors[r].catToyQA(),kitchen:this.actors[r].kitchenQA(),care:this.actors[r].careQA(),drink:this.actors[r].drinkQA()}])),workCoffeeDesk:!!this.workCoffeeCup?.visible,grass:this.yard.landscape.sectors.reduce((n,m)=>n+(m.visible?m.count:0),0)});}
     if (this.place === 'home') {
       if(this.household){
         const item=vacuumItem(this.household),v=item&&vacuumState(this.household,item);

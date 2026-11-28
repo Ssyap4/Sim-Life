@@ -128,7 +128,7 @@ export class PetActor {
     const dog = id === 'verdell';
     this.toys=homeToysFor(id);
     for(const toy of this.toys){
-      const model='id' in toy?createShopToy(toy.kind,toy.manual):createDogToy(toy.kind);
+      const model='id' in toy?createShopToy(toy.kind,toy.manual,true):createDogToy(toy.kind);
       model.visible=!('id' in toy);
       model.position.set(toy.x,.015,toy.z);
       this.homeToys.add(model);
@@ -163,6 +163,7 @@ export class PetActor {
       if(model)model.visible='manual' in toy&&toy.manual?i===this.toyIndex&&!!this.manualToyPoint&&owned.includes(toy.id):(!('id' in toy)||owned.includes(toy.id))&&pointIsClear(toy,obstacles,floor)&&pointIsClear(homeToyApproach(this.id,i),obstacles,floor);
     }
   }
+  manualToyContact(target:THREE.Vector3){if(!this.manualToyPoint||this.toyIndex===undefined)return;const toy=this.toys[this.toyIndex],model=this.homeToys.children[this.toyIndex];if(!('manual' in toy)||!toy.manual||!model?.visible)return;model.getWorldPosition(target);target.y+=toy.manual==='wand'?.20:toy.manual==='laser'?.015:.07;return toy.manual;}
   private animateHouseToys(weight:number,time:number):void{
     // Only the active prop and the one just released need transform writes.
     const active=weight>0||this.manualToyPoint?this.toyIndex:undefined;

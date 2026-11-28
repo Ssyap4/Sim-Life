@@ -87,15 +87,15 @@ export function createDogToy(kind:import('../shared/pets').DogToyKind):THREE.Gro
   return group;
 }
 
-export function createShopToy(kind:import('../shared/petToys').ShopToyKind,manual?:import('../shared/petToys').ManualCatToy):THREE.Group{
+export function createShopToy(kind:import('../shared/petToys').ShopToyKind,manual?:import('../shared/petToys').ManualCatToy,floorOnly=false):THREE.Group{
  const group=new THREE.Group();
  const part=(color:number,x:number,y:number,z:number,w:number,h:number,d:number,geo:THREE.BufferGeometry=orb,parent:THREE.Group=group)=>{
   const mesh=new THREE.Mesh(geo,finish(color,'fabric'));mesh.position.set(x,y,z);mesh.scale.set(w*.5,h*.5,d*.5);parent.add(mesh);return mesh;
  };
- if(manual==='laser'){const dot=part(0xf83232,0,.013,0,.075,.014,.075);dot.material=new THREE.MeshStandardMaterial({color:0xff3535,emissive:0xff3535,emissiveIntensity:1,roughness:1});return group;}
+ if(manual==='laser'){if(!floorOnly){const pointer=part(0x495663,0,.035,0,.055,.055,.19,softCube);pointer.material=finish(0x495663,'metal');part(0xdc3e3e,0,.036,.095,.023,.023,.015);return group;}const dot=part(0xf83232,0,.013,0,.075,.014,.075);dot.material=new THREE.MeshStandardMaterial({color:0xff3535,emissive:0xff3535,emissiveIntensity:1,roughness:1});return group;}
  if(manual==='bell'){part(0x67b0a7,0,.07,0,.14,.14,.14);part(0xe9c678,0,.07,.07,.045,.045,.02);return group;}
- if(manual==='string'){const m=createPetPlayToy('simba');m.visible=true;group.add(m);part(0xcbb998,0,.012,-.2,.018,.018,.38,softCube);return group;}
- if(manual==='wand'){const top=new THREE.Group();top.name='Feather stalk';top.position.y=.12;group.add(top);part(0x92734f,0,.02,-.25,.025,.025,.50,softCube);for(let i=0;i<5;i++){const f=part(i%2?0xf0b08b:0x79afab,(i-2)*.03,.15,0,.06,.22,.025,orb,top);f.rotation.z=(i-2)*.25;}return group;}
+ if(manual==='string'){const m=createPetPlayToy('simba');m.visible=true;group.add(m);if(!floorOnly)part(0xcbb998,0,.012,-.2,.018,.018,.38,softCube);return group;}
+ if(manual==='wand'){const top=new THREE.Group();top.name='Feather stalk';top.position.y=.12;group.add(top);if(!floorOnly)part(0x92734f,0,.02,-.25,.025,.025,.50,softCube);for(let i=0;i<5;i++){const f=part(i%2?0xf0b08b:0x79afab,(i-2)*.03,.15,0,.06,.22,.025,orb,top);f.rotation.z=(i-2)*.25;}return group;}
  if(kind==='bone'){
   part(0xeba76b,0,.055,0,.24,.09,.085);
   for(const side of [-1,1])for(const z of [-.041,.041])part(0xeba76b,side*.115,.055,z,.10,.10,.10);

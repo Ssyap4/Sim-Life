@@ -63,6 +63,30 @@ export class Actor {
   private readonly rightArm: THREE.Object3D;
   private readonly rig: CharacterRig;
   private readonly figureBase = new THREE.Vector3();
+  private catToyGrip?:THREE.Group;
+  private catToyLine?:THREE.Line;
+  private readonly catToyPalm=new THREE.Vector3();
+  private readonly catToyAim=new THREE.Vector3();
+  private readonly catToyTip=new THREE.Vector3();
+  private readonly catToyAxis=new THREE.Vector3(0,0,1);
+  private catToyKind?:import('../shared/petToys').ManualCatToy;
+  manualCatToy(kind?:import('../shared/petToys').ManualCatToy,target?:THREE.Vector3,lineClear=false){
+    const busy=this.isWalking()||this.pose!=='idle'||!!this.activity||!!this.gesture||!!this.partnerGesture;
+    if(!kind||!target||busy){if(this.catToyGrip)this.catToyGrip.visible=false;if(this.catToyLine)this.catToyLine.visible=false;return;}
+    this.faceTowards(target);
+    this.root.localToWorld(this.catToyAim.set(.24,1.02,.37));this.reach(1,this.catToyAim,1,.65);
+    this.handDirection.subVectors(target,this.catToyAim).normalize();this.aimHand(1,this.handDirection,1);
+    if(!this.catToyGrip){const g=this.catToyGrip=new THREE.Group();g.name='Manual cat toy grip';this.root.add(g);
+      for(const [name,r,length,color] of [['handle',.026,.13,0x405e60],['rod',.008,.43,0xc3a17d],['laser',.022,.115,0x495663],['reel',.036,.075,0xb48b62]] as const){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,length,10),finish(color,'metal'));m.name=name;m.rotation.x=Math.PI/2;m.position.z=name==='rod'?.26:0;g.add(m);}
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(9),3));this.catToyLine=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:0xbba885}));this.catToyLine.frustumCulled=false;this.root.add(this.catToyLine);
+    }
+    this.catToyKind=kind;const g=this.catToyGrip,line=this.catToyLine!;
+    this.rig.wrists[1].localToWorld(this.catToyPalm.set(0,-.055,0));g.position.copy(this.root.worldToLocal(this.catToyPalm));
+    this.catToyAim.copy(target);this.root.worldToLocal(this.catToyAim);this.catToyAim.sub(g.position).normalize();g.quaternion.setFromUnitVectors(this.catToyAxis,this.catToyAim);
+    g.visible=kind!=='bell';for(const part of g.children)part.visible=kind==='wand'?(part.name==='rod'||part.name==='handle'):kind==='laser'?part.name==='laser':part.name==='reel';
+    line.visible=lineClear&&(kind==='wand'||kind==='string');if(line.visible){g.localToWorld(this.catToyTip.set(0,0,kind==='wand'?.475:.045));this.root.worldToLocal(this.catToyTip);const end=this.root.worldToLocal(this.catToyAim.copy(target));const attr=line.geometry.getAttribute('position') as THREE.BufferAttribute;attr.setXYZ(0,this.catToyTip.x,this.catToyTip.y,this.catToyTip.z);attr.setXYZ(1,(this.catToyTip.x+end.x)/2,Math.max(.04,(this.catToyTip.y+end.y)/2-.12),(this.catToyTip.z+end.z)/2);attr.setXYZ(2,end.x,end.y,end.z);attr.needsUpdate=true;}
+  }
+  catToyQA(){return {kind:this.catToyGrip?.visible?this.catToyKind:undefined,held:!!this.catToyGrip?.visible,line:!!this.catToyLine?.visible};}
   private clock = 0;
   private gait = 0;
   private gaitBlend = 0;
