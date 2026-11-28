@@ -288,7 +288,7 @@ export class World {
   private socialSequence = 0;
   private badmintonStarted:number|null=null;
   private tennisStarted:number|null=null;
-  private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string }>();
+  private readonly pairStages = new Map<CharacterId,{ arrived:boolean; active:boolean; playing:boolean; action:string; giftElapsed?:number }>();
   private readonly dustArt = new DustArt(this.homeScene);
   private readonly homeEffects = new HomeEffects(this.homeScene);
   private readonly kitchenEffects = buildCookingStation(this.homeScene);
@@ -1227,6 +1227,7 @@ export class World {
     const pair=this.pairStages.get(role);
     if(pair) {
       pair.active=true;
+      if(home?.pair?.motion==='gift')pair.giftElapsed=Math.max(0,elapsedMs/1000);
       if(home?.pair?.motion==='venue'&&isVenueGame(home.pair.item)&&home.consoleMatch&&this.remote)this.remote.root.userData.venuePlay={game:home.pair.item,match:home.consoleMatch,started:this.visualSeconds-elapsedMs/1000};
       else if(home?.consoleGame)this.homeEffects.console(role,home.consoleGame,this.visualSeconds-elapsedMs/1000,home.consoleMatch);
       if(home?.pair?.item==='pingPong'&&this.tennisStarted===null)this.tennisStarted=this.visualSeconds-elapsedMs/1000;
@@ -1400,7 +1401,7 @@ export class World {
       }
       case 'highFive':
         actor.playGesture('highFive',actor.root.position.clone().lerp(partner.root.position,.5).setY(1.59));break;
-      case 'gift':actor.playGift(stage.action,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(1.06));break;
+      case 'gift':actor.playGift(stage.action,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(1.06));actor.syncGiftElapsed(stage.giftElapsed??0);break;
       case 'sofaMassage':actor.playPartnerGesture('sofaMassage',leads,undefined,partner);break;
       case 'hands':case 'slowDance':
         actor.playPartnerGesture(pair.motion,leads,actor.root.position.clone().lerp(partner.root.position,.5).setY(pair.motion==='hands'?.99:1.20));break;
@@ -3211,7 +3212,9 @@ export class World {
       }
       const careTime=this.careElapsed.get(id);
       if(careTime!==undefined){const elapsed=careTime+coffeeDt;this.careElapsed.set(id,elapsed);actor.syncCareElapsed(Math.max(0,elapsed-dt));}
-      actor.update(dt,this.steering[id],this.homeTasks.get(id)?.station==='workCoffee'?coffeeDt:dt);
+      const giftStage=this.pairStages.get(id);if(giftStage?.giftElapsed!==undefined){giftStage.giftElapsed+=coffeeDt;actor.syncGiftElapsed(Math.max(0,giftStage.giftElapsed-dt));}
+      const homeMotion=this.homeTasks.get(id);const timedRoute=homeMotion?.station==='workCoffee'||homeMotion?.pair?.motion==='gift'||!!homeMotion&&Object.hasOwn(BATH_FIXTURES,homeMotion.station)||this.bathingRole===id;
+      actor.update(dt,this.steering[id],timedRoute?coffeeDt:dt);
       // The ceramic plate stays while its food gets smaller with each bite.
       // Inventory is only consumed by the server after the timed task finishes.
       const elapsed = actor.eatingElapsed();
@@ -3495,6 +3498,7 @@ export class World {
       this.canvas.dataset.petMotionState=JSON.stringify({verdell:this.pets.verdell.performanceQA(),simba:this.pets.simba.performanceQA()});
     }
     if(this.cameraQA&&this.place==='home'&&new URLSearchParams(location.search).get('cozyQA')==='1'){
+      if(this.canvas.dataset.cozyGiftView==='1'){const p=this.actors.vlad.root.position.clone().lerp(this.actors.alina.root.position,.5);this.controls.target.set(p.x,1.05,p.z);this.camera.position.set(p.x+1.9,2.4,p.z+3.1);this.camera.lookAt(this.controls.target);}
       const model=this.furnishingModels.get(Number(this.canvas.dataset.cozyView));
       if(model){const def=FURNITURE_BY_ID.get(model.userData.sku);const center=model.localToWorld(new THREE.Vector3(0,(def?.height??1)*.5,0));this.controls.target.copy(center);this.camera.position.copy(center).add(new THREE.Vector3(1.7,1.9,3.2));this.camera.lookAt(center);}
     }

@@ -26,3 +26,5 @@
 #app .renovation-active .renovation-options>small{font-size:11px;line-height:1.15}
 #app .location-panel.renovation-active{max-height:39dvh!important}
 .renovation-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+#app .renovation-section-label{grid-column:1/-1;background:#e8e1d3;color:#4b463d;font-size:13px;border-radius:6px;padding:7px 8px;margin-top:4px}

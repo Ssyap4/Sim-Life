@@ -48,3 +48,13 @@ test('work hands alternate between actual keyboard and right-side mouse',()=>{
   assert.ok(mouse<.15,id+' mouse '+mouse);
  }
 });
+
+
+test('gift handoff follows the authoritative active phase even on slow or replayed frames',()=>{
+ for(const sender of ['vlad','alina'] as const){
+  const actors={vlad:new Actor('vlad',[0,0]),alina:new Actor('alina',[.8,0])};
+  for(const [role,a] of Object.entries(actors))a.playGift('giftBear',role===sender,new Vector3(.4,1.06,0));
+  for(const t of [0,2,9.95,10.05,15,19]){for(const a of Object.values(actors)){a.syncGiftElapsed(t);a.update(.001);}const other=sender==='vlad'?'alina':'vlad';assert.equal(actors[sender].careQA().gift?.visible,t<10);assert.equal(actors[other].careQA().gift?.visible,t>=10);}
+  for(const a of Object.values(actors)){a.clearProps();assert.equal(a.careQA().gift,null);}
+ }
+});

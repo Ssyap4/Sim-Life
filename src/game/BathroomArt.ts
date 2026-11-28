@@ -30,9 +30,9 @@ function toilet(root: THREE.Group,design=0,color=porcelain): void {
   else if(design===1||design===3)part(root,design===1?[.46,.38,.49]:[.23,.19,.245],[0,.20,.025],color,'ceramic',design===1?softCube:orb);
   else if(design===4){part(root,[.48,.31,.50],[0,.225,.07],color);part(root,[.52,.055,.55],[0,.037,.07],color);}
   else part(root, [.52, .37, .55], [0, .195, .07], color);
-  part(root, [.33, .16, .46], [0, .332, .19], porcelain, 'ceramic', orb);
-  part(root, [.325, .068, .405], [0, .462, .176], porcelain, 'ceramic', orb);
-  part(root, [.237, .016, .309], [0, .526, .19], 0xc9d9cb, 'ceramic', orb);
+  part(root, [.33, .16, .46], [0, .332, .19], design===3?0x434a4b:porcelain, 'ceramic', orb);
+  part(root, [.325, .068, .405], [0, .462, .176], design===3?0x555e60:porcelain, 'ceramic', orb);
+  part(root, [.237, .016, .309], [0, .526, .19], design===3?0x778484:0xc9d9cb, 'ceramic', orb);
   part(root, [.21, .012, .26], [0, .539, .21], glaze, 'ceramic', orb);
   if(design===2){part(root,[.48,.46,.17],[0,.54,-.34],color);part(root,[.21,.085,.025],[0,.80,-.24],chrome,'metal');}
   else{part(root, [design===1?.49:.60, design===3?.48:.61, .23], [0, design===3?.51:.571, -.34], color);

@@ -11,13 +11,14 @@ import {openServerFiles} from '../server/storage.ts';
 import {startServer} from '../server/server.ts';
 const slot=process.env.QA_SLOT??'bathtub';assert.ok(Object.hasOwn(BATH_FIXTURES,slot));
 const products=SANITARY.filter(p=>p.fixture===slot),room=FIXTURE_ROOMS[slot];
+const parking={toilet:{vlad:{x:-6,z:4.5},alina:{x:-5.5,z:3}},wcBasin:{vlad:{x:-6.5,z:4.5},alina:{x:-5,z:3.5}},shower:{vlad:{x:7,z:-.5},alina:{x:6.5,z:1.5}},bathtub:{vlad:{x:6,z:4.5},alina:{x:6,z:2.5}},basin:{vlad:{x:7.5,z:.5},alina:{x:6,z:2}}}[slot];
 const out='/tmp/simourhome-069-sanitary-'+slot;mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'sanitary-069-'));let browser,server;const pages={};
 const motion={toilet:['toiletUse','toilet'],shower:['bathShower','shower'],bathtub:['bathFoam','bath'],basin:['bathTeeth','teeth'],wcBasin:['wcWash','washHands']}[slot];
 try{
  const s=initialState();s.money=500000;s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};
  s.world.renovation={surfaces:{},samples:products.map(p=>p.id)};
- Object.assign(s.characters.vlad,BATH_FIXTURES[slot].approach,{pose:'idle'});
+ Object.assign(s.characters.vlad,BATH_FIXTURES[slot].approach,{pose:'idle'});Object.assign(s.characters.alina,parking.alina,{pose:'idle'});
  s.pets.verdell.position={...DOG_BATH_APPROACH};s.pets.verdell.cleanliness=33;delete s.pets.verdell.routine;
  const files=openServerFiles(dir);files.save(s);
  server=await startServer({port:0,host:'127.0.0.1',dataDir:dir,distDir:resolve('dist'),testNoCodes:true,taskTimeScale:1,lifeClock:{now:()=>0,tickMs:600000},autonomyTiming:{idleMs:99999999,careCooldownMs:99999999,leisureCooldownMs:99999999}});
@@ -35,7 +36,7 @@ try{
  const close=p=>panel(p).locator('.close-actions').tap();
  let previous=null,balance=s.money;const baselines={};
  async function runAction(p,role,sku,command,activity,label){
-  await focus(p,true);
+  await p.bringToFront();await focus(p,true);
   const before=await p.evaluate(()=>window.__qaPackets.length);
   await send(p,command);
   await snap(p,({before,role})=>window.__qaPackets.slice(before).some(m=>m.type==='task_started'&&m.role===role),{before,role},25000);
@@ -51,6 +52,9 @@ try{
   const ended=await p.evaluate(id=>window.__qaPackets.some(m=>m.type==='task_ended'&&m.taskId===id),id);if(!ended)await send(p,{type:'cancel_task',taskId:id});
   await snap(p,id=>window.__qaPackets.some(m=>m.type==='task_ended'&&m.taskId===id),id,20000);
   await snap(p,({role,activity})=>JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role]?.activity!==activity,{role,activity},20000);
+  // A finished resident stands at the fixture approach. Vacate it before the other resident uses it.
+  const goal=parking[role];await send(p,{type:'walk',place:'home',...goal});
+  await snap(p,({role,goal})=>{const q=JSON.parse(document.querySelector('#game-canvas').dataset.sanitaryMotion||'{}')[role];return q&&Math.hypot(q.root[0]-goal.x,q.root[2]-goal.z)<.25;},{role,goal},45000);
   await focus(p,false);
  }
  async function checkModel(sku){
@@ -77,5 +81,5 @@ try{
   await checkModel(product.id);
  }
  assert.deepEqual(errors,[]);console.log('SANITARY MOBILE OK',slot,products.length);
-}catch(e){for(const [role,p] of Object.entries(pages))await p.screenshot({path:join(out,'failure-'+role+'.jpg')}).catch(()=>{});throw e;}
+}catch(e){for(const [role,p] of Object.entries(pages)){const diagnostic=await p.evaluate(()=>({visibility:document.visibilityState,models:document.querySelector('#game-canvas')?.dataset.sanitaryModels,motion:document.querySelector('#game-canvas')?.dataset.sanitaryMotion,packets:window.__qaPackets.filter(m=>['task_started','task_active','task_ended','error','world_path'].includes(m.type)).slice(-10)})).catch(()=>null);console.log('SANITARY_FAILURE',role,JSON.stringify(diagnostic));await p.screenshot({path:join(out,'failure-'+role+'.jpg')}).catch(()=>{});}throw e;}
 finally{await browser?.close();await server?.close();rmSync(dir,{recursive:true,force:true});}

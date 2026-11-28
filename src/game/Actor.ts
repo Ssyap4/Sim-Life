@@ -164,7 +164,8 @@ export class Actor {
   private readonly careGoal=new THREE.Vector3();
   private readonly careDirection=new THREE.Vector3();
   drinkQA(){return {visible:this.teaCup.visible,cold:this.teaCup.getObjectByName('Cold glass')?.visible??false,liquid:(this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>)?.material.color.getHex()};}
-  careQA(){return {gift:this.vanityProp?.name.startsWith('Gift ')?{id:this.vanityProp.name.slice(5),visible:this.vanityProp.visible}:null,id:this.vanityKind??null,phase:this.vanityKind?careFrame(this.vanityKind,this.activityTime).phase:null,elapsed:this.activityTime,prop:this.vanityProp?.visible??false,children:this.vanityProp?.visible?this.vanityProp.children.filter(c=>c.visible).map(c=>c.name):[],error:this.careContactError,blend:this.vanityKind?careFrame(this.vanityKind,this.activityTime).blend:0};}
+  careQA(){return {gift:this.vanityProp?.name.startsWith('Gift ')?{id:this.vanityProp.name.slice(5),visible:this.vanityProp.visible,elapsed:this.partnerGesture?.time??0}:null,id:this.vanityKind??null,phase:this.vanityKind?careFrame(this.vanityKind,this.activityTime).phase:null,elapsed:this.activityTime,prop:this.vanityProp?.visible??false,children:this.vanityProp?.visible?this.vanityProp.children.filter(c=>c.visible).map(c=>c.name):[],error:this.careContactError,blend:this.vanityKind?careFrame(this.vanityKind,this.activityTime).blend:0};}
+  syncGiftElapsed(seconds:number){if(this.partnerGesture?.motion==='gift'&&Number.isFinite(seconds))this.partnerGesture.time=Math.max(0,seconds);}
   syncCareElapsed(seconds:number){if(this.vanityKind&&Number.isFinite(seconds))this.activityTime=Math.max(0,seconds);}
   bathBombSample(point:THREE.Vector3):number|null{
     if(this.activity!=='bath'||!this.vanityKind?.startsWith('bath')||this.vanityKind.startsWith('bathHair')||!this.vanityProp)return null;
