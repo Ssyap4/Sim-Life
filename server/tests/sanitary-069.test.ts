@@ -55,6 +55,14 @@ test('20 distinct sanitary meshes preserve the stock contact surfaces and physic
   assert.equal(shapes.size,5,slot);
  }
 });
+test('oak apron remains visible outside porcelain; retro feet clear the raised skirt',()=>{
+ const oak=buildBathFixture('bathtub','bath-oak'),retro=buildBathFixture('bathtub','bath-classic');
+ const sideRay=(root:THREE.Group,y:number,z:number)=>{root.updateMatrixWorld(true);const origin=root.localToWorld(new THREE.Vector3(-1.5,y,z));const dir=new THREE.Vector3(1,0,0).transformDirection(root.matrixWorld);return new THREE.Raycaster(origin,dir).intersectObject(root,true)[0];};
+ const hit=sideRay(oak,.32,0);assert.ok(hit);assert.ok(Math.abs(oak.worldToLocal(hit.point.clone()).x)>.67,'oak must cover the outer wall');
+ assert.equal(sideRay(retro,.12,0),undefined,'retro apron must leave underbody clearance');
+ assert.ok(sideRay(retro,.13,.72),'visible retro foot');
+ assert.ok(sideRay(retro,.30,0),'upper porcelain skirt remains');
+});
 test('all twenty models install in exactly their own slot and preserve tasks, routes, dog bath and persistence',()=>{
  let s=initialState();s.money=1000000;s.world.places.vlad='buildshop';Object.assign(s.characters.vlad,approachFor(stationById('buildshop','build-sanitary')!,'vlad'));
  for(const p of SANITARY){const r=applyWorld(s,'vlad',{type:'renovation_sample',sku:p.id});assert.ok(r.ok,p.id);s=r.state;}

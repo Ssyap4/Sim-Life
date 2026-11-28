@@ -112,12 +112,26 @@ function bathtub(root: THREE.Group,design=0,color=porcelain): void {
   const inside = new THREE.Path();
   roundedRectangle(inside, 1.00, 1.78, .26); // identical interior clearance, water and dog bath anchors
   shell.holes.push(inside);
-  const rim = new THREE.ExtrudeGeometry(shell, { depth: .55, bevelEnabled: true,
+  const rim = new THREE.ExtrudeGeometry(shell, { depth: design===4?.42:.55, bevelEnabled: true,
     bevelSize: .024, bevelThickness: .026, bevelSegments: 1, curveSegments: 4 });
   rim.rotateX(-Math.PI / 2);
-  part(root, [1, 1, 1], [0, .09, 0], design===3?color:porcelain, 'ceramic', rim);
-  if(design===2)for(const side of [-1,1])for(let i=0;i<9;i++)part(root,[.024,.36,.175],[side*.64,.30,(i-4)*.20],i%2?0x9c7655:color,'wood');
-  if(design===4)for(const x of [-.46,.46])for(const z of [-.72,.72])part(root,[.075,.06,.085],[x,.10,z],0xb39765,'metal',orb);
+  part(root, [1, 1, 1], [0, design===4?.22:.09, 0], design===3?color:design===4?0xf2e5d2:porcelain, 'ceramic', rim);
+  if(design===2){
+    // Full exterior apron sits just outside the original ceramic, never inside the bathing cavity.
+    const apron=new THREE.Shape();roundedRectangle(apron,1.35,2.19,.31);
+    const hollow=new THREE.Path();roundedRectangle(hollow,1.25,2.09,.27);apron.holes.push(hollow);
+    const geo=new THREE.ExtrudeGeometry(apron,{depth:.38,bevelEnabled:false,curveSegments:8});geo.rotateX(-Math.PI/2);
+    part(root,[1,1,1],[0,.13,0],color,'wood',geo);
+    for(const side of [-1,1]){
+      for(let i=0;i<9;i++)part(root,[.006,.36,.012],[side*.676,.32,(i-4)*.17],0x805a3b,'wood',cube);
+      for(const y of [.145,.497])part(root,[.009,.022,1.48],[side*.676,y,0],0x8c6949,'wood',cube);
+    }
+    for(const side of [-1,1])for(let i=-2;i<=2;i++)part(root,[.012,.36,.006],[i*.145,.32,side*1.096],0x805a3b,'wood',cube);
+  }
+  if(design===4)for(const x of [-.48,.48])for(const z of [-.72,.72]){
+    part(root,[.075,.091,.085],[x,.13,z],0xb39765,'metal',orb);
+    part(root,[.19,.035,.20],[x,.045,z],0x947347,'metal',softCube);
+  }
   const waterOutline = new THREE.Shape();
   roundedRectangle(waterOutline, 1.015, 1.795, .25);
   const water = new THREE.ShapeGeometry(waterOutline, 4);
