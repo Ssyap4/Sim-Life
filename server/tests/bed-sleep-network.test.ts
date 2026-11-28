@@ -155,3 +155,33 @@ test('server restart resumes a bought-bed sleep with its original half-energy go
     rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('bed actions do not disturb a sleeping partner or race another short bed action',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'sim-life-bed-conflict-071-'));
+ const files=openServerFiles(dir),state=files.load();state.money=100000;
+ state.autonomy={vlad:'off',alina:'off'};
+ state.characters.vlad.energy=30;state.characters.alina.energy=35;
+ files.save(state);
+ const server=await startServer({port:0,dataDir:dir,taskTimeScale:.18,lifeClock:{now:()=>0,tickMs:600000}});
+ const sockets:WebSocket[]=[];
+ try{
+  const v=await connect(server.port,'vlad',files.access.vlad);sockets.push(v);
+  const a=await connect(server.port,'alina',files.access.alina);sockets.push(a);
+  const started=next(v,p=>p.type==='task_started'&&p.role==='vlad');
+  v.send(JSON.stringify({type:'act',actionId:'bedMake'}));const task=await started;assert.equal(task.type,'task_started');
+  const denied=next(a,p=>p.type==='error');
+  a.send(JSON.stringify({type:'sleep_start',mode:'full'}));await denied;
+  assert.notEqual(files.load().characters.alina.pose,'sleep');
+  const clash=next(a,p=>p.type==='error');
+  a.send(JSON.stringify({type:'act',actionId:'bedMake'}));await clash;
+  const ended=next(v,p=>p.type==='task_ended'&&p.role==='vlad');
+  await ended;
+  const asleep=next(a,p=>p.type==='snapshot'&&p.state.characters.alina.pose==='sleep');
+  a.send(JSON.stringify({type:'sleep_start',mode:'full'}));await asleep;
+  const cannotMake=next(v,p=>p.type==='error');
+  v.send(JSON.stringify({type:'act',actionId:'bedMake'}));await cannotMake;
+  const together=next(v,p=>p.type==='snapshot'&&p.state.characters.vlad.pose==='sleep'&&p.state.characters.alina.pose==='sleep');
+  v.send(JSON.stringify({type:'sleep_start',mode:'full'}));await together;
+  assert.equal(files.load().money,100000);
+ }finally{for(const socket of sockets)socket.terminate();await server.close();rmSync(dir,{recursive:true,force:true});}
+});

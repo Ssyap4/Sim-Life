@@ -3083,17 +3083,20 @@ export class World {
     const previous = this.viewport;
     const sizeChanged = !previous || previous.width !== width || previous.height !== height;
     const scaleChanged = !previous || previous.pixelRatio !== pixelRatio;
+    // Detail policy can change even when a device caps both tiers at the
+    // same physical pixel ratio. Keep scene LOD in sync before the fast exit.
+    this.camera.userData.compactLow=compact&&this.quality==='low';
     if (!sizeChanged && !scaleChanged && previous.compact === compact &&
         previous.band.top === band.top && previous.band.bottom === band.bottom) return;
     this.viewport = { width, height, pixelRatio, compact, band };
-    this.camera.userData.compactLow=compact&&this.quality==='low';
 
     if (sizeChanged) {
       this.camera.aspect = width / height;
       this.updateViewLens();
     }
-    if (scaleChanged) this.renderer.setPixelRatio(pixelRatio);
-    if (sizeChanged) this.renderer.setSize(width, height, false);
+    // Three.js setPixelRatio also resizes the canvas. Apply size and DPR
+    // atomically, preserving CSS sizing and avoiding two framebuffer resets.
+    if (sizeChanged||scaleChanged)this.renderer.setDrawingBufferSize(width,height,pixelRatio);
     if(this.manualCameraHeight)return;
     if (this.inspected) {
       this.showcase(this.inspected);

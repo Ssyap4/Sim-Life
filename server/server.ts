@@ -567,7 +567,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         resident.bladder,resident.hunger,resident.hygiene);
       const emergency=urgentPhysicalNeed(state,role);
       if(resident.energy<=50&&energyMostUrgent&&(!emergency||emergency==='energy')){
-        const chosen=selectSleepBed(state,role);
+        const chosen=selectSleepBed(state,role,undefined,starterBedBusy(role));
         if(chosen.ok){
           stopLeisure(role);
           const next=structuredClone(state);
@@ -1008,6 +1008,9 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
   };
   /** Sleep is an authentic, long-running action: the next queued command
    * waits for recovery or explicit waking, just like other completed tasks. */
+  function starterBedBusy(role:CharacterId):boolean{
+    return [...running.entries()].some(([owner,task])=>owner!==role&&task.plan.resource==='bed')||homeTasks.reserved('bed');
+  }
   function startSleepRequest(role:CharacterId,socket:WebSocket,
       command:{mode:SleepMode;furnitureId?:number}):void {
     if(state.world.places[role]!=='home'||state.activeShifts[role]||state.careers.residents[role].shift||
@@ -1020,7 +1023,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       packet(socket,{type:'error',reason:'Энергия уже достигла выбранной отметки'});return;
     }
     const requestedBed=command.furnitureId;
-    const chosen=selectSleepBed(state,role,requestedBed);
+    const chosen=selectSleepBed(state,role,requestedBed,starterBedBusy(role));
     if(!chosen.ok){packet(socket,{type:'error',reason:chosen.reason});return;}
     closeStorage(role);
     stopLeisure(role);

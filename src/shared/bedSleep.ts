@@ -91,7 +91,7 @@ function approachForBed(state:GameState,role:CharacterId,item:PlacedFurniture):
   return result;
 }
 
-export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:number):
+export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:number,starterBusy=false):
   {ok:true; bed:BedDestination}|{ok:false;reason:string}{
   if(requestedId!==undefined&&(!Number.isSafeInteger(requestedId)||requestedId<1))
     return {ok:false,reason:'Неправильная кровать'};
@@ -102,12 +102,13 @@ export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:num
     ];
   if(available.length===0)return {ok:false,reason:'В доме нет установленной кровати. Купи и поставь новую.'};
   const other=role==='vlad'?'alina':'vlad';
-  let occupied=false;
+  let occupied=false,starterUnavailable=false;
   let catReason:string|undefined;
   let inaccessible=false;
   for(const id of available){
     const item=id==='starter'?null:state.furnishing.placed.find(entry=>entry.id===id);
     if(id!=='starter'&&(!item||!isSleepBed(item)))continue;
+    if(id==='starter'&&starterBusy){starterUnavailable=true;continue;}
     const capacity=item?bedCapacity(item):2;
     if(state.characters[other].pose==='sleep' &&
       (state.characters[other].sleepingOn??'starter')===id&&capacity===1){
@@ -123,6 +124,7 @@ export function selectSleepBed(state:GameState,role:CharacterId,requestedId?:num
     if(!approach){inaccessible=true;continue;}
     return {ok:true,bed:{id,approach,pose,capacity}};
   }
+  if(starterUnavailable&&!occupied&&!inaccessible&&!catReason)return {ok:false,reason:'Кровать сейчас используется вторым персонажем'};
   return {ok:false,reason:catReason??(occupied
     ?'Эта односпальная кровать уже занята. Выбери другую кровать.'
     :inaccessible?'К кровати нет безопасного прохода. Переставь её.'

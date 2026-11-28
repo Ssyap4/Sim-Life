@@ -26,9 +26,9 @@ import {SPA_PASSES} from '../../src/shared/spa';
 
 const roles=['vlad','alina'] as const;
 const pets=['verdell','simba'] as const;
-function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
+function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false,initialCash=10000){
   const dir=mkdtempSync(join(tmpdir(),'simourhome-long-play-'));
-  let state=initialState();
+  let state=initialState();state.money=initialCash;
   state.autonomy={vlad:'full',alina:'needs'};
   const stats={days,working,onePlayer,leisure,income:0,workMinutes:0,venueVisits:0,spaVisits:0,furnitureOrders:0,takeoutOrders:0,expenseByCategory:{} as Record<string,number>,criticalNeedTicks:0,expense:0,shifts:0,care:0,petCare:0,purchases:0,petPurchases:0,shared:0,mealsCooked:0,mealsEaten:0,reloads:0,failedCare:0,lowestCash:state.money,checkpoints:[] as object[]};
   let seed=123456;
@@ -226,7 +226,7 @@ function simulate(days:number,working:boolean,onePlayer:boolean,leisure=false){
         }
       }
     }
-    assert.equal(state.money,10000+stats.income-stats.expense);
+    assert.equal(state.money,initialCash+stats.income-stats.expense);
     assert.equal(new Set(state.billing.bills.map(b=>b.id)).size,state.billing.bills.length);
     assert.ok(stats.care>0);
     if(working){assert.ok(stats.shifts>0);assert.ok(stats.purchases>0);if(days>=30){assert.ok(stats.shifts>=days/3,'responsible scenario must actually sustain work');assert.ok(stats.petPurchases>0);assert.ok(stats.mealsEaten>0);assert.ok(stats.shared>0);}}
@@ -243,3 +243,5 @@ test('064 100 days: mixed online presence, recurring bills, jobs and persistence
 
 test('064 60 days: paid leisure, takeout, furniture and household economy',()=>simulate(60,true,false,true));
 test('064 leisure smoke: short spending policy',()=>simulate(2,true,false,true));
+
+test('071 60 days: clean 100000 RUB household, mixed presence, spending and reloads',()=>simulate(60,true,true,true,100000));
