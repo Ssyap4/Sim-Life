@@ -582,3 +582,6 @@
 #app .actions:has(.media-catalog) select{min-height:40px;border-radius:9px;padding:6px;background:#f5f2e9;border:1px solid #c5cec2;color:#233a34}
 #app .actions>.media-illustrated{max-height:160px;width:100%;aspect-ratio:16/9}
 @media(max-width:350px){.media-catalog-card{padding:5px}.media-catalog-card p{font-size:11px}}
+
+/* Tall menus must not compete with the resident thought bubble for touch input. */
+#app:has(#actions:not([hidden])) .thought-dock{visibility:hidden;pointer-events:none}
