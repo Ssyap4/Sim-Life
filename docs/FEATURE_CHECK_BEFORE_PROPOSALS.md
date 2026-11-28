@@ -33,3 +33,9 @@ Main deployment only by explicit owner approval. Deep careers remain deferred. U
 ## 0.68 verified additions (release 35558d9)
 - Named media library: 59 titles, films and series, title/genre search, individual favorites, watch-later and history, shared watch-together, seasons/episodes, persisted interrupted-view bookmarks, shared viewing and meals, original illustrated covers and simulated TV art. Do not propose these as new. Actual studio movies/posters are not included.
 - Five interactive two-player games (bowling, air hockey, billiards, home darts, Jenga) with manual input, server-authoritative results, history, rematch and automatic alternatives. Existing venue/home leisure retained. See RELEASE_068.md and PREVIEW_068_MEDIA_GAMES.md. 0.69 not approved.
+
+## 0.69 verified additions (released 0e1ffb7)
+- Four manually controlled cat toys with drag and owner contact; dog agility course with four obstacles, trainer cue and optional partner support. Do not propose these as new.
+- Painting removed by owner decision; miniature modeling and creativity skill retained. Earlier painting entries above are historical only. Do not restore painting.
+- Ten romantic gifts with delivery, consent, handoff and family history; cozy sofa and new lights. No unapproved photo frames, vases or clocks.
+- DomStroy 3D store, 94 products, ten home zones, surface/lighting/fixture renovation, free samples and private in-home preview, server-authoritative shared purchase; 20 interchangeable sanitary models preserve actions including Alina care and dog bath. See RELEASE_069.md for scope and known gaps. 0.69 is approved and deployed, overriding earlier approval status.

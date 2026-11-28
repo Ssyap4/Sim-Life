@@ -1,3 +1,9 @@
+# SimOurHome 0.69.0 - approved release, 28 November 2026
+
+Current production: functional 0e1ffb797ade71bf05dad19f84c741b86e801fbe, tag v0.69.0, port 3111. All 12 final cloud jobs passed. Released and verified with fresh 10000 RUB household, preserved access, verified media and rollback copy. See docs/RELEASE_069.md and docs/FEATURE_CHECK_BEFORE_PROPOSALS.md for current scope and gates. 0.70 not approved. Owner defers large-bundle optimization to final phase. Older handoff entries below are historical; latest release and owner decisions override them.
+
+---
+
 # SimOurHome 0.64.0 — approved Long Play release, 27 November 2026
 
 Owner explicitly approved production and moving to a new chat. Functional release a3a437e5a0158e4798edc5b962a841b82c8e506e; annotated tag v0.64.0 resolves to this commit. Main fast-forwarded from 2a5985a; package and lock version 0.64.0. Stage details: docs/PREVIEW_064_LONG_PLAY.md.
