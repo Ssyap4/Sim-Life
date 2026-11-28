@@ -3435,7 +3435,7 @@ export class World {
     }
     const cat = this.pets.simba;
     for(const id of PET_IDS)this.pets[id].setGroomingHeld(this.place==='grooming'&&this.household?.world.groomVisit?.pet===id&&!!this.remote?.root.userData.groomAction);
-    const petTraffic = this.place === 'home' && dog.root.visible && cat.root.visible;
+    const petTraffic = this.place === 'home' && (dog.root.visible || cat.root.visible);
     if (petTraffic) {
       const people = (['vlad', 'alina'] as const).filter(role =>
         this.actors[role].root.visible && !this.sleepingOffline.has(role) &&
@@ -3444,6 +3444,13 @@ export class World {
         return { x: body.x, z: body.z };
       });
       const geometry = this.petGeometry;
+      // The remaining pet still needs human collision avoidance while its
+      // companion is walking, at the groomer or visiting the vet.
+      if(!dog.root.visible||!cat.root.visible){
+        dog.watchCompanion(cat.root.position,false);cat.watchCompanion(dog.root.position,false);
+        if(dog.root.visible)dog.update(dt,this.dogTravel,pace,{...geometry,blockers:people});
+        if(cat.root.visible)cat.update(dt,0,0,{...geometry,blockers:people});
+      }else{
       // A rare mutual acknowledgment, only if both are free and have a
       // clear line between them. Never invent social navigation or rewards.
       const petGap=Math.hypot(cat.root.position.x-dog.root.position.x,cat.root.position.z-dog.root.position.z);
@@ -3471,12 +3478,13 @@ export class World {
         dogPosition, catPosition, geometry.obstacles, geometry.floor);
       dog.root.position.set(dogPosition.x, 0, dogPosition.z);
       cat.root.position.set(catPosition.x, 0, catPosition.z);
+      }
     } else {
       if (dog.root.visible) dog.update(dt, this.dogTravel, pace);
       if (cat.root.visible) cat.update(dt);
     }
     if(this.place==='grooming'&&this.household?.world.groomVisit){const id=this.household.world.groomVisit.pet,pet=this.pets[id],a=this.remote?.root.userData.groomAction as {action:GroomAction;started:number;clock:ActiveVisualClock;elapsed:number}|undefined;if(a){a.elapsed=advanceActiveVisualClock(a.clock,now,this.paused);const stage=groomingStage(a.action,a.elapsed),p=groomAnchor(stage);pet.root.position.set(p.x,p.y+(stage==='wash'?.022:.018),p.z);pet.root.rotation.y=Math.PI/2;pet.root.updateWorldMatrix(true,true);if(this.remote)this.remote.root.userData.groomTarget=stage==='paws'?pet.groomingPaw(new THREE.Vector3()):pet.coatContact(new THREE.Vector3(),Math.sin(a.elapsed*2.5));}else if(pet.root.position.y>.1){pet.stop();pet.syncGround(.8,.3);}}
-    if(this.place==='resort'&&this.household?.world.resort?.pets?.length){for(const id of PET_IDS){const pet=this.pets[id],manual=this.remote?.root.userData.resortPetAction,care=this.household.world.resort.petCare?.[id],kind=manual==='resortPetFeed'?'eat':manual==='resortPetRest'?'sleep':care?.kind,slot=Math.floor(clockMinutes(this.household.clock)/22)%3,mode=kind??'wander:'+slot;if(this.resortPetModes[id]===mode)continue;this.resortPetModes[id]=mode;pet.stop();const x=id==='verdell'?-13.6:-12.4,goals=id==='verdell'?[{x:-12.6,z:-3.7},{x:-10.3,z:2.6},{x:-11.5,z:4.7}]:[{x:-14.8,z:-4.3},{x:-11.3,z:-5.5},{x:-12.3,z:-3.5}],target=kind==='eat'?{x:x-.18,z:-4.15}:kind==='sleep'?{x,z:-5.17}:kind==='toilet'?{x:id==='verdell'?-16.6:-11.6,z:id==='verdell'?2.4:-4.7}:goals[slot];const blocks=this.currentObstacles().filter(b=>!(b.minX< -13&&b.maxX> -13&&b.minZ< -5&&b.maxZ> -5)),floor=floorFor('resort'),start=nearestClearPoint(pet.root.position,blocks,floor),goal=nearestClearPoint(target,blocks,floor),path=start&&goal&&findRoute(start,goal,blocks,floor);if(path)pet.followRoute(path.map(p=>new THREE.Vector3(p.x,0,p.z)),kind??'wander',kind==='eat'?Math.PI:undefined,undefined,undefined,kind==='sleep',kind==='sleep'?.275:undefined);}}
+    if(this.place==='resort'&&this.household?.world.resort?.pets?.length){for(const id of this.household.world.resort.pets){const pet=this.pets[id],manual=this.remote?.root.userData.resortPetAction,care=this.household.world.resort.petCare?.[id],kind=manual==='resortPetFeed'?'eat':manual==='resortPetRest'?'sleep':care?.kind,slot=Math.floor(clockMinutes(this.household.clock)/22)%3,mode=kind??'wander:'+slot;if(this.resortPetModes[id]===mode)continue;this.resortPetModes[id]=mode;pet.stop();const x=id==='verdell'?-13.6:-12.4,goals=id==='verdell'?[{x:-12.6,z:-3.7},{x:-10.3,z:2.6},{x:-11.5,z:4.7}]:[{x:-14.8,z:-4.3},{x:-11.3,z:-5.5},{x:-12.3,z:-3.5}],target=kind==='eat'?{x:x-.18,z:-4.15}:kind==='sleep'?{x,z:-5.17}:kind==='toilet'?{x:id==='verdell'?-16.6:-11.6,z:id==='verdell'?2.4:-4.7}:goals[slot];const blocks=this.currentObstacles().filter(b=>!(b.minX< -13&&b.maxX> -13&&b.minZ< -5&&b.maxZ> -5)),floor=floorFor('resort'),start=nearestClearPoint(pet.root.position,blocks,floor),goal=nearestClearPoint(target,blocks,floor),path=start&&goal&&findRoute(start,goal,blocks,floor);if(path)pet.followRoute(path.map(p=>new THREE.Vector3(p.x,0,p.z)),kind??'wander',kind==='eat'?Math.PI:undefined,undefined,undefined,kind==='sleep',kind==='sleep'?.275:undefined);}}
 
     if(this.cameraQA&&this.agilityAction&&!this.agilityWaiting&&this.agilityQAExit!==this.agilityAction){const end=agilityPath(this.agilityAction).at(-1)!;if(Math.hypot(dog.root.position.x-end.x,dog.root.position.z-end.z)<.10)this.agilityQAExit=this.agilityAction;}
     const manualCat=this.place==='home'?this.household?.pets.simba.routine?.manualToy:undefined;

@@ -12,7 +12,7 @@ const group=process.env.QA_GROUP??'all';const wants=name=>group==='all'||group==
 const out='/tmp/simourhome-065-care';mkdirSync(out,{recursive:true});
 const dir=mkdtempSync(join(tmpdir(),'care-mobile-065-'));let server,browser,page;
 try{
- let s=initialState();s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
+ let s=initialState();s.money=100000;s.clock.minute=780;s.autonomy={vlad:'off',alina:'off'};Object.assign(s.characters.alina,points.vanity);s.characters.alina.hygiene=95;
  for(const recipe of ['blackTeaCup','berrySmoothie','berryCheesecake']){s.meals[recipe]=1;addReadyFood(s,'meal',recipe,1,'table',undefined,'good');}
  if(wants('media')){for(const service of ['netflix','youtube']){const r=applyServiceCommand(s,'alina',{type:'service_connect',service});assert.ok(r.ok);s=r.state;}s.furnishing.nextId=2;s.furnishing.placed=[{id:1,sku:'sofa-micro',finish:'sage',x:-2.36,z:2.02,rotation:0}];}
  openServerFiles(dir).save(s);

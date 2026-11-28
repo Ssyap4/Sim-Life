@@ -1612,6 +1612,11 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       // A snack handed to a begging pet at the table is a side interaction:
       // keep the owner's 32-second meal running and charge the shared limit once.
       if(message.type==='pet_action'&&message.pet==='verdell'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
+      if(message.type==='pet_action'&&PET_IDS.some(id=>id===message.pet)&&
+        (['call','perch','fetch','mat','scratch','toy','bedTogether','leaveBed','treat'].includes(String(message.action))||isTrainingAction(message.action))&&
+        ([...running.entries()].some(([owner,t])=>owner!==role&&t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){
+        packet(socket,{type:'error',reason:'Питомец сейчас занят с другим хозяином'});return;
+      }
       if(message.type==='pet_action'&&message.action==='treat'&&PET_IDS.some(id=>id===message.pet)){
         const pet=message.pet as PetId,animal=state.pets[pet];
         const ownerEating=homeTasks.diners().has(role)||['eat','eat_takeout'].includes(running.get(role)?.plan.command.type??'');
@@ -1729,7 +1734,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         if(running.has(role)){queuedTasks.set(role,tagged.slice(1).map(plan=>({id:++nextQueueId,plan,label:plan.label})));publishQueue(role);}
         return;
       }
-      if(message.type==='dog_leash'&&[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.action==='bathe')){packet(socket,{type:'error',reason:'Верделл сейчас купается'});return;}
+      if(message.type==='dog_leash'&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='verdell')||homeTasks.reserved('pet:verdell'))){packet(socket,{type:'error',reason:'Верделл сейчас занят'});return;}
       if(message.type==='car_travel'&&(message.place==='work-clinic'||message.place==='grooming')&&(message.pet==='verdell'||message.pet==='simba')&&([...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet===message.pet)||homeTasks.reserved('pet:'+message.pet))){packet(socket,{type:'error',reason:'Питомец занят'});return;}
       if(message.type==='renovation_install'){
         const fixture=coveringById(message.sku)?.fixture;

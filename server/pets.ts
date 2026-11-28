@@ -440,6 +440,9 @@ export function applyPetAction(
   if (!training&&!['buyFood', 'feed', 'play', 'pet', 'brush', 'call', 'perch', 'fetch', 'mat', 'scratch','treat','fishTreat','toy','bathe','loadFeeder','bedTogether','leaveBed'].includes(action))
     return { ok: false, reason: 'Неизвестное действие питомца' };
   const id = pet as PetId;
+  // All of these actions target the home rig, not a remote activity station.
+  if(action!=='buyFood'&&(source.world.places[role]!=='home'||id==='verdell'&&source.world.dogWalker))
+    return {ok:false,reason:'Хозяин и питомец должны находиться дома'};
   if(petAway(source,id)&&action!=='buyFood')return {ok:false,reason:'Питомец сейчас не дома'};
   const kind = action as PetAction;
   const next = structuredClone(source);

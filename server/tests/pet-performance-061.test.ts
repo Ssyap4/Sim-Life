@@ -142,3 +142,13 @@ test('treat animation starts with lifted muzzle and later chews rather than faci
   assert.ok(p.jaw>0);
  }
 });
+test('071 stopping a pet clears its active companion gesture immediately',()=>{
+ const dog=new PetActor('verdell'),cat=new PetActor('simba');
+ for(const [pet,other] of [[dog,cat],[cat,dog]] as const){
+  pet.setAmbient({satiety:95,energy:95,happiness:95,bond:95,bowl:0,personNearby:false});
+  assert.equal(pet.canGreetCompanion(),true);
+  pet.greetCompanion(other.root.position);
+  assert.notEqual(pet.currentIdleGesture(),null);
+  pet.stop();assert.equal(pet.currentIdleGesture(),null);
+ }
+});

@@ -24,3 +24,11 @@ Owner approved a broad optimization and quality pass before the two deep careers
 - Local targeted results: 15 bed/cat tests, 19 autonomy/routine tests, 1 new auto-sleep network test, 15 graphics/performance/queue tests = 50 passing tests across four runs. Typecheck passed.
 - Extended cloud workflow with gameplay regression suite and accelerated 60-game-day transaction audit with a fresh 100000 RUB starting balance; existing old synthetic low-balance tests remain separate. This is completion-level simulation, not physical-device FPS or live 60-day play. Cloud results for this checkpoint are not yet established.
 - Main stays at bc8bf39; no production deployment or production save changes.
+
+## Checkpoint 4 - pet navigation and ownership conflicts
+- Home pet actions validate that the owner and pet are home, including direct dog commands while Verdell is on a walk. Remote location-specific pet care remains unchanged.
+- Other owner cannot redirect an animal or take Verdell on a leash while a timed care task reserves that pet. Existing joint play and emergency routines unchanged.
+- If only one pet is visible at home, it still uses human collision avoidance; invisible companion is not a collider. Companion greeting is cleared when the rig stops, including travel/routine resets. Resort visual routes are limited to actual visiting pets.
+- Local runs: 29 pet/navigation/grooming/cat-play tests, 24 follow-up pet performance and network tests (overlap with first run), 1 targeted leash network test; all passed. Typecheck passed.
+- Added cloud motion suite covering real rig hand contacts, seating, sleep, props, cosmetic care and pet gestures. Browser matrix extended with resort actions, both groomers, both seating profiles, body care; body care fixture uses clean 100000 RUB. No new browser visual verification or physical-device FPS claim at this checkpoint.
+- Previous cloud run status unavailable in this turn via the available Actions listing. Do not mark the 60-day audit or expanded browser matrix as passed without inspecting actual job results.

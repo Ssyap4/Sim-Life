@@ -30,11 +30,22 @@ jobs:
       - run: npm ci
       - run: node --import tsx --test --test-concurrency=2 server/tests/autonomy.test.ts server/tests/bed-sleep-network.test.ts server/tests/bed-sleep.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/living-family-058.test.ts server/tests/home-routines.test.ts server/tests/action-queue-019.test.ts server/tests/economy-plus.test.ts server/tests/billing.test.ts server/tests/time-speed.test.ts server/tests/recovery-064.test.ts server/tests/familyAutonomy038.test.ts server/tests/social.test.ts server/tests/androidGraphics-028.test.ts
       - run: node --import tsx --test --test-name-pattern='071 60 days' server/tests/long-play-064.test.ts
+  motion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node --import tsx --test --test-concurrency=2 server/tests/poses.test.ts server/tests/animation053.test.ts server/tests/pairContact053.test.ts server/tests/seating053.test.ts server/tests/handheld053.test.ts server/tests/workCoffee053.test.ts server/tests/care-motion-065.test.ts server/tests/naturalSleep038.test.ts server/tests/dog-bath-035.test.ts server/tests/motion-polish-0581.test.ts server/tests/pet-motion-049.test.ts server/tests/pet-performance-061.test.ts server/tests/pets.test.ts server/tests/petTraffic.test.ts server/tests/petCommands-028.test.ts server/tests/cat-play-069.test.ts server/tests/pet-toys-035.test.ts
   browser:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [startup, resources, locations, resort, grooming, notices]
+        scenario: [startup, resources, locations, resort, grooming, notices, resort-actions, groom-dog, groom-cat, seating-vlad, seating-alina, body-care]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -64,6 +75,20 @@ jobs:
           SIM_ARTIFACT_ONLY: '1'
       - if: matrix.scenario == 'notices'
         run: node --import tsx scripts/qa-notices-0592.mjs
+      - if: matrix.scenario == 'resort-actions'
+        run: node --import tsx scripts/qa-resort-070.mjs
+      - if: matrix.scenario == 'groom-dog'
+        run: node --import tsx scripts/qa-grooming-070.mjs verdell
+      - if: matrix.scenario == 'groom-cat'
+        run: node --import tsx scripts/qa-grooming-070.mjs simba
+      - if: matrix.scenario == 'seating-vlad'
+        run: node --import tsx scripts/qa-053-seating.mjs
+      - if: matrix.scenario == 'seating-alina'
+        run: node --import tsx scripts/qa-053-seating.mjs android
+      - if: matrix.scenario == 'body-care'
+        run: node --import tsx scripts/qa-home-care-065.mjs
+        env:
+          QA_GROUP: body
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -73,4 +98,8 @@ jobs:
             /tmp/simourhome-060-performance
             /tmp/simlife-car-055-*
             /tmp/simourhome-0592
+            /tmp/simourhome-070-resort
+            /tmp/simourhome-070-grooming-*
+            /tmp/simlife-053-seating-*
+            /tmp/simourhome-065-care
           retention-days: 7
