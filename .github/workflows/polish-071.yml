@@ -4,6 +4,9 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+concurrency:
+  group: polish-071-acceptance
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -34,7 +37,18 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: node --import tsx --test --test-concurrency=2 server/tests/autonomy.test.ts server/tests/bed-sleep-network.test.ts server/tests/bed-sleep.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/living-family-058.test.ts server/tests/home-routines.test.ts server/tests/action-queue-019.test.ts server/tests/economy-plus.test.ts server/tests/billing.test.ts server/tests/time-speed.test.ts server/tests/recovery-064.test.ts server/tests/familyAutonomy038.test.ts server/tests/social.test.ts server/tests/androidGraphics-028.test.ts
+      - run: node --import tsx --test --test-concurrency=2 server/tests/autonomy.test.ts server/tests/bed-sleep-network.test.ts server/tests/bed-sleep.test.ts server/tests/simbaOccupancy-028.test.ts server/tests/comfort-autonomy-029.test.ts server/tests/living-family-058.test.ts server/tests/home-routines.test.ts server/tests/action-queue-019.test.ts server/tests/economy-plus.test.ts server/tests/billing.test.ts server/tests/time-speed.test.ts server/tests/recovery-064.test.ts server/tests/storage.test.ts server/tests/familyAutonomy038.test.ts server/tests/social.test.ts server/tests/androidGraphics-028.test.ts
+  long-play:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
       - run: node --import tsx --test --test-name-pattern='071 60 days' server/tests/long-play-064.test.ts
   motion:
     if: github.event_name != 'pull_request' || github.head_ref == 'feat/polish-071'

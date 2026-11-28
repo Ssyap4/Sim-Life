@@ -57,7 +57,7 @@ try{
    await page.locator('#phone-btn').tap();await page.locator('#phone-overlay').waitFor({state:'visible'});
    await page.screenshot({path:join(out,'reconnected-'+width+'.png')});
    if(width===390){
-    await page.locator('#phone-overlay').getByText('Доставка',{exact:true}).click();
+    await page.locator('#phone-overlay [data-phone-app=delivery]').click();
     const market=page.locator('#market-overlay');
     await market.waitFor({state:'visible'});
     await market.locator('.market-adjust:not([disabled])').filter({hasText:/^\+$/}).first().click();
@@ -65,6 +65,7 @@ try{
     assert.equal(await order.isEnabled(),true);
     await page.evaluate(()=>window.__qaHoldDelivery=true);
     await order.click();assert.equal(await order.isDisabled(),true);
+    assert.ok(await page.evaluate(()=>!!window.__qaHeldDelivery),'test must actually intercept submitted request');
     await page.evaluate(()=>window.__qaSocket.send(JSON.stringify({type:'furniture_order',sku:'stool-cube',finish:'sage',shipping:'express',quantity:1})));
     await page.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='store_event'));
     assert.equal(await order.isDisabled(),true);

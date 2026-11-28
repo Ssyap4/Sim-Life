@@ -1,3 +1,5 @@
+import {emptyLibrary} from './mediaLibrary';
+import {emptyMessages} from './familyMessages';
 import {initialFamilyLife} from './familyLife';
 import { initialRelationship, type Relationship, type SocialCommand, type SocialIntent, type SocialOffer, type SocialPhase } from './socialLife';
 import { INITIAL_AUTONOMY, type AutonomyMode, type AutonomySettings } from './autonomy';
@@ -311,6 +313,8 @@ export function initialState(): GameState {
     readBooks: { vlad: [], alina: [] }, coffeeDaily: newCoffeeDaily(), education: initialEducation(), careers: initialCareers(),
     computerLibrary: initialComputerLibrary(), relationship: initialRelationship(), autonomy: { ...INITIAL_AUTONOMY }, dailyHistory: {}, personalCollections: {}, foodTastes: {},
     pets: structuredClone(INITIAL_PETS), petFood: { ...INITIAL_PET_FOOD }, petBowls: { ...INITIAL_PET_BOWLS },
+    dartsHistory: [], jengaHistory: [], poolHistory: [], hockeyHistory: [], bowlingHistory: [],
+    mediaLibrary: emptyLibrary(), familyAlbum: [], familyMessages: emptyMessages(),
     happiness: { vlad: initialHappiness(), alina: initialHappiness() },
     characters: {
       vlad: { hunger: 78, energy: 82, mood: 74, skill: 0, ...INITIAL_DAILY_NEEDS, ...spawn('home', 'vlad'), pose: 'idle' },
