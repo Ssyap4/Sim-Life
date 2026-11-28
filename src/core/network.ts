@@ -161,6 +161,7 @@ export class LiveConnection {
 
   yieldSimba(key:string):boolean {return this.sendAuthenticated({type:'simba_yield',key});}
 
+  catPlay(command:import('../shared/petToys').CatPlayCommand):boolean{return this.sendAuthenticated(command);}
   petAction(pet: PetId, action: PetAction): boolean {
     return this.sendAuthenticated({ type: 'pet_action', pet, action });
   }

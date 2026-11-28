@@ -585,3 +585,9 @@
 
 /* Tall menus must not compete with the resident thought bubble for touch input. */
 #app:has(#actions:not([hidden])) .thought-dock{visibility:hidden;pointer-events:none}
+
+.cat-play-controls{position:fixed;z-index:75;left:50%;transform:translateX(-50%);bottom:calc(67px + env(safe-area-inset-bottom));width:min(94vw,380px);padding:8px 10px;border:1px solid #aebdaf;border-radius:13px;background:#faf4e9f5;color:#2e4238;box-shadow:0 6px 20px #0003;display:grid;gap:6px;box-sizing:border-box}
+.cat-play-controls[hidden]{display:none}.cat-play-head{display:flex;align-items:center;justify-content:space-between;font-size:14px}.cat-play-head button{min-width:40px;min-height:36px;border:0;border-radius:8px;background:#e4e9df;color:#354b41;font-size:20px}
+.cat-play-controls select{width:100%;min-height:40px;border:1px solid #adbcaf;border-radius:8px;padding:5px 8px;background:#fff9ed;color:#2e4238}.cat-play-controls small{font-size:11px;line-height:1.25}
+.cat-play-pad{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cat-play-pad button{min-height:44px;background:#d8e6d9;color:#304e3c;border:1px solid #a7bba7;border-radius:9px;font-size:23px;touch-action:manipulation}.cat-play-pad button:disabled{opacity:.65}
+#app:has(#cat-play-controls:not([hidden])) .thought-dock{visibility:hidden;pointer-events:none}

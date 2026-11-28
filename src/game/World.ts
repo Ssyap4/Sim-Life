@@ -309,7 +309,7 @@ export class World {
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number, scope: string) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
-      dismissTap?: () => boolean; pondTap?: () => void }, simbaRig?: SimbaRig) {
+      dismissTap?: () => boolean; pondTap?: () => void; toyTap?: (x:number,z:number)=>boolean }, simbaRig?: SimbaRig) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 125, 171);
 
@@ -2755,7 +2755,7 @@ export class World {
       }
       const routineKey=routine.kind+':'+routine.startedAt+':'+routine.until+':' +
         (routine.perch?.key??'')+':'+(routine.goal?.x??'')+':'+(routine.goal?.z??'')+
-        ':'+(routine.equipment?.id??'')+
+        ':'+(routine.equipment?.id??'')+':'+(routine.manualToy?.owner??'')+':'+routine.target+
         (routine.kind==='eat'?':'+station.point.x+':'+station.point.z+':'+station.yaw:'');
       if (this.petRoutines.get(id) === routineKey) continue;
       this.petRoutines.set(id, routineKey);
@@ -2814,7 +2814,7 @@ export class World {
           point:routine.fetchPoint,
           pickupRemaining:Math.max(0,(routine.fetchPickupDistance??0)-distance),
         }:undefined,!!bed,supportHeight,scratchPoint,
-        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event,dogSite);
+        routine.startedAt,routine.kind==='toy'?routine.target:undefined,routine.training,routine.event,dogSite,routine.manualToy?.point);
     }
   }
 
@@ -2839,6 +2839,7 @@ export class World {
     const ndc=(px:number,py:number)=>new THREE.Vector2(
       ((px-bounds.left)/bounds.width)*2-1,
       -((py-bounds.top)/bounds.height)*2+1);
+    if(this.place==='home'&&!this.furnishingGhost&&this.navigation?.toyTap){this.raycaster.setFromCamera(ndc(clientX,clientY),this.camera);const target=this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);if(target&&this.navigation.toyTap(target.x,target.z)){this.touchPulse(clientX,clientY,'select');return;}}
     const visible=(entry:THREE.Intersection)=>{
       for(let part:THREE.Object3D|null=entry.object;part;part=part.parent)
         if(!part.visible)return false;

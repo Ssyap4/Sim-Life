@@ -46,6 +46,7 @@ export function settleLayout(state:GameState,added:PlacedFurniture|undefined,now
     const remaining=routine&&sampleWalk(routine.route,Math.max(0,now-routine.startedAt)*PET_SPEED[id]/GAME_MINUTES_PER_REAL_SECOND);
     const invalid=routine&&(routine.perch&&!currentCatPerch(state.furnishing,routine.perch)||
       routine.equipment&&!currentPetEquipment(state.furnishing,routine.equipment)||
+      routine.manualToy&&!pointIsClear(routine.manualToy.point,geometry.obstacles,geometry.floor)||
       routine.kind==='eat'&&(()=>{const goal=feedingStation(state.furnishing,id).goal;const prev=routine.route.path.at(-1)??routine.route.from;return Math.hypot(goal.x-prev.x,goal.z-prev.z)>.035;})()||
       remaining&&routeHitsLayout(remaining,petBlock));
     const pos=remaining?.from??pet.position;

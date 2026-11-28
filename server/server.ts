@@ -55,7 +55,7 @@ import {changeFoodFavorite} from '../src/shared/foodTastes';
 import { applyFoodAction } from './food';
 import { checkout } from './market';
 import { applyFurnishing,layoutBlock,routeHitsLayout,settleLayout } from './furnishing';
-import { applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
+import { applyCatPlay,applyPetAction, pausePetRoutine, petCarePoint, runPetRoutines } from './pets';
 import { leisureDurationMs, planLeisure, urgentHomeAction } from './home';
 import { autonomyCandidates, fullLeisureCandidates, urgentPhysicalNeed, AUTONOMY_MODES } from '../src/shared/autonomy';
 import { homeHabitCommands } from '../src/shared/personalityHabits';
@@ -1581,6 +1581,13 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role,pauseTimers.now());
         all({type:'store_event',role,message:result.message});
         return;
+      }
+      if(message.type==='cat_play'){
+        const now=pauseTimers.now();if(now-(lastAction.get(role)??0)<1500){packet(socket,{type:'error',reason:'Подожди немного перед движением игрушки'});return;}
+        if(running.has(role)||homeTasks.busy(role)||sleepers.has(role)||walkingHome.has(role)||state.activeShifts[role]||state.careers.residents[role].shift||homeTasks.reserved('pet:simba')||[...running.values()].some(t=>t.plan.command.type==='pet_action'&&t.plan.command.pet==='simba')){packet(socket,{type:'error',reason:'Хозяин или Симба сейчас занят'});return;}
+        commitLife();const result=applyCatPlay(state,role,message.toy,message.point??message.direction,liveGameTime());if(!result.ok){packet(socket,{type:'error',reason:result.reason});return;}
+        try{files.save(result.state);}catch{packet(socket,{type:'error',reason:'Не удалось сохранить игру с Симбой'});return;}
+        state=result.state;lastAction.set(role,now);lastIntent.set(role,now);all({type:'snapshot',state});return;
       }
       // A snack handed to a begging pet at the table is a side interaction:
       // keep the owner's 32-second meal running and charge the shared limit once.

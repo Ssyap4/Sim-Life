@@ -35,6 +35,7 @@ export interface PetRoutine {
   /** Installed real pet furniture; invalid after sale or repositioning. */
   dogBed?: {bed:import('./bedSleep').SleepBedId;joined:boolean};
   equipment?: import('./petFurniture').PetEquipmentRef;
+  manualToy?:{owner:'vlad'|'alina';point:FloorPoint};
   training?:import('./dogTraining').TrainingAttempt;
   event?:import('./petPreferences').PetEvent;
 }
@@ -143,7 +144,7 @@ export function petDestination(id: PetId, routine: Pick<PetRoutine, 'kind' | 'ta
   if (routine.kind === 'sleep') return routine.goal ?? pet.home;
   if (routine.kind === 'toilet') return pet.toilet;
   if (routine.kind === 'perch') return routine.perch?.approach ?? pet.home;
-  if(routine.kind==='toy')return homeToyApproach(id,routine.target);
+  if(routine.kind==='toy')return routine.goal??homeToyApproach(id,routine.target);
   if (routine.kind === 'come' || routine.kind === 'fetch' || routine.kind === 'scratch'||routine.kind==='beg'||routine.kind==='train'||routine.kind==='bath'||routine.kind==='event') return routine.goal ?? pet.home;
   return PET_ROAM[routine.target];
 }

@@ -20,6 +20,7 @@ export function renderPetChoices(
   selected: PetId | null,
   choose: (id: PetId) => void,
   send: (id: PetId, action: PetAction) => boolean,
+  manualPlay?:()=>void,
 ): void {
   const tabs = document.createElement('div');
   tabs.className = 'pet-tabs';
@@ -138,6 +139,7 @@ export function renderPetChoices(
     for(const c of DOG_COMMANDS){const skill=commandSkill(stats,c),b=document.createElement('button');b.type='button';b.className='food-action pet-action';b.disabled=!!stats.routine?.training||stats.energy<40||stats.satiety<45||stats.bladder<45;const name=document.createElement('strong');name.textContent=DOG_COMMAND_NAMES[c]+' · '+skill.xp+'%';const hint=document.createElement('small');hint.textContent=trainingLevel(skill.xp)+' · '+skill.successes+'/'+skill.attempts+' успешно';b.append(name,hint);b.addEventListener('click',()=>send(selected,('train-'+c) as DogTrainingAction));box.appendChild(b);}
     container.appendChild(box);
   }
+  if(selected==='simba'&&manualPlay){const b=document.createElement('button');b.type='button';b.className='food-action pet-action';b.dataset.catPlay='open';const name=document.createElement('strong');name.textContent='🎯 Играть с Симбой самостоятельно';const hint=document.createElement('small');hint.textContent=toys.some(t=>t.manual)?'Выбери игрушку и управляй ею на полу':'Удочка, мышка, лазер и мячик продаются в зоомагазине';b.append(name,hint);b.onclick=manualPlay;container.append(b);}
   const actions: Array<{ action: PetAction; icon: string; hint: string; disabled: boolean }> = [
     {
       action: 'feed', icon: '🥣',

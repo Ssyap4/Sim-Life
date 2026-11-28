@@ -18,7 +18,7 @@ import {pointIsClear} from '../../src/game/navigation';
 import {petNavigationGeometry,planPetRoute} from '../../src/game/PetNavigation';
 import {runPetRoutines} from '../pets';
 import {openServerFiles} from '../storage';
-test('six distinct store toys require payment at the pet shop and persist as species-specific purchases',()=>{
+test('ten distinct store toys require payment at the pet shop and persist as species-specific purchases',()=>{
  let s=initialState();s.money=100000;
  assert.equal(applyWorld(s,'vlad',{type:'pet_toy_buy',product:'dog-bone'}).ok,false);
  s.world.places.vlad='petshop';Object.assign(s.characters.vlad,approachFor(stationById('petshop','pet-cash')!,'vlad'));
@@ -28,11 +28,11 @@ test('six distinct store toys require payment at the pet shop and persist as spe
   assert.ok(toyOwned(s.pets[toy.pet],toy.id));assert.ok(validToyExtras(s.pets[toy.pet],toy.pet));
   assert.equal(applyWorld(s,'vlad',{type:'pet_toy_buy',product:toy.id}).ok,false);
  }
- assert.equal(s.pets.verdell.ownedToys?.length,3);assert.equal(s.pets.simba.ownedToys?.length,3);
+ assert.equal(s.pets.verdell.ownedToys?.length,3);assert.equal(s.pets.simba.ownedToys?.length,7);
  const dir=mkdtempSync(join(tmpdir(),'pet-toys-035-'));try{const f=openServerFiles(dir);f.save(s);assert.deepEqual(f.load().pets.simba.ownedToys,s.pets.simba.ownedToys);}finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('all six new toys are reachable, each can start and complete a real autonomous routine, preference is learned only after play',()=>{
- for(const toy of PET_TOYS){
+ for(const toy of PET_TOYS.filter(t=>!t.manual)){
   const s=initialState();grantStarterPetFurniture(s);
   const id=toy.pet,other=id==='simba'?'verdell':'simba',p=s.pets[id];p.ownedToys=[toy.id];p.happiness=50;
   const index=homeToysFor(id).findIndex(t=>'id' in t&&t.id===toy.id),goal=homeToyApproach(id,index);
@@ -64,7 +64,7 @@ test('every purchased toy moves or changes its mechanism during distinct real do
  const state=initialState();grantStarterPetFurniture(state);
  const geom=petNavigationGeometry(placeObstacles('home',state.furnishing),HOME_FLOOR);
  const signatures=new Set<string>();
- for(const toy of PET_TOYS){
+ for(const toy of PET_TOYS.filter(t=>!t.manual)){
   const actor=toy.pet==='simba'?cat:dog,index=homeToysFor(toy.pet).findIndex(t=>'id' in t&&t.id===toy.id);
   const model=actor.homeToys.children[index],goal=homeToyApproach(toy.pet,index);
   assert.equal(model.visible,false);

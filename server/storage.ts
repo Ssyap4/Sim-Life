@@ -225,7 +225,8 @@ const isValidState = (value: unknown): value is GameState => {
         (routine.kind!=='bath'||id==='verdell'&&routine.target===0&&point(routine.goal)) &&
         (routine.kind!=='beg'||routine.target<2&&point(routine.goal)) &&
         (routine.kind!=='scratch'||routine.equipment!==undefined) &&
-        (routine.kind!=='toy'||(()=>{const toy=homeToysFor(id)[routine.target];return !!toy&&(!('id' in toy)||toyOwned(pet,toy.id))&&point(routine.goal)&&Math.hypot(routine.goal!.x-homeToyApproach(id,routine.target).x,routine.goal!.z-homeToyApproach(id,routine.target).z)<.03;})()) &&
+        (routine.manualToy===undefined||routine.kind==='toy'&&id==='simba'&&!!routine.manualToy&&['vlad','alina'].includes(routine.manualToy.owner)&&point(routine.manualToy.point)) &&
+        (routine.kind!=='toy'||(()=>{const toy=homeToysFor(id)[routine.target];if(!toy||'id' in toy&&!toyOwned(pet,toy.id)||!point(routine.goal))return false;const manual='manual' in toy&&!!toy.manual;if(manual!==!!routine.manualToy)return false;const g=routine.manualToy?{x:routine.manualToy.point.x,z:routine.manualToy.point.z-.39}:homeToyApproach(id,routine.target);return Math.hypot(routine.goal!.x-g.x,routine.goal!.z-g.z)<.03;})()) &&
         (routine.kind!=='perch' || id==='simba' && routine.target===0 &&
           routine.perch && typeof routine.perch.key==='string' &&
           point(routine.perch.approach) && point(routine.perch.surface) &&

@@ -47,6 +47,7 @@ export class PetActor {
   private event:import('../shared/petPreferences').PetEvent|undefined;
   private training:import('../shared/dogTraining').TrainingAttempt|undefined;
   private toyIndex:number|undefined;
+  private manualToyPoint:FloorPoint|undefined;
   private readonly toys:ReturnType<typeof homeToysFor>;
   private readonly toyContact=new THREE.Vector3();
   private readonly body = new THREE.Group();
@@ -123,7 +124,7 @@ export class PetActor {
     const dog = id === 'verdell';
     this.toys=homeToysFor(id);
     for(const toy of this.toys){
-      const model='id' in toy?createShopToy(toy.kind):createDogToy(toy.kind);
+      const model='id' in toy?createShopToy(toy.kind,toy.manual):createDogToy(toy.kind);
       model.visible=!('id' in toy);
       model.position.set(toy.x,.015,toy.z);
       this.homeToys.add(model);
@@ -155,12 +156,12 @@ export class PetActor {
   setHomeToyAvailability(obstacles:readonly FloorRect[],floor:FloorRect,owned:readonly string[]=[]):void{
     for(let i=0;i<this.toys.length;i++){
       const model=this.homeToys.children[i],toy=this.toys[i];
-      if(model)model.visible=(!('id' in toy)||owned.includes(toy.id))&&pointIsClear(toy,obstacles,floor)&&pointIsClear(homeToyApproach(this.id,i),obstacles,floor);
+      if(model)model.visible='manual' in toy&&toy.manual?i===this.toyIndex&&!!this.manualToyPoint&&owned.includes(toy.id):(!('id' in toy)||owned.includes(toy.id))&&pointIsClear(toy,obstacles,floor)&&pointIsClear(homeToyApproach(this.id,i),obstacles,floor);
     }
   }
   private animateHouseToys(weight:number,time:number):void{
     // Only the active prop and the one just released need transform writes.
-    const active=weight>0?this.toyIndex:undefined;
+    const active=weight>0||this.manualToyPoint?this.toyIndex:undefined;
     if(active===undefined&&this.animatedToyIndex===undefined)return;
     const indices=new Set([this.animatedToyIndex,active]);
     this.animatedToyIndex=active;
@@ -168,7 +169,8 @@ export class PetActor {
       if(i===undefined)continue;
       const model=this.homeToys.children[i],toy=this.toys[i];
       if(!model)continue;
-      model.position.set(toy.x,.015,toy.z);
+      const point=i===this.toyIndex?this.manualToyPoint:undefined;model.position.set(point?.x??toy.x,.015,point?.z??toy.z);
+      if('manual' in toy&&toy.manual)model.visible=!!point;
       model.rotation.set(0,0,0);
       model.scale.setScalar(1);
       for(const child of model.children){if(child.name==='Puzzle lid'){child.position.z=0;child.rotation.x=0;}if(child.name==='Feather stalk')child.rotation.set(0,0,0);}
@@ -196,6 +198,10 @@ export class PetActor {
         model.scale.y=1-(toy.kind==='bone'?.10*hold*Math.max(0,Math.sin(time*13)):0);
       }else if(toy.kind==='puzzle'){
         const lids=model.children.filter(c=>c.name==='Puzzle lid');lids.forEach((lid,j)=>{lid.position.z=weight*.09*Math.max(0,Math.sin(time*2+j*Math.PI));lid.rotation.x=weight*.4*Math.max(0,Math.sin(time*2+j*Math.PI));});
+      }else if('manual' in toy&&toy.manual==='laser'){
+        model.position.x+=Math.sin(time*5)*weight*.055;model.position.z+=Math.cos(time*4)*weight*.035;
+      }else if('manual' in toy&&toy.manual==='bell'){
+        model.position.x+=weight*.16*phrase.displaced;model.rotation.z=-weight*phrase.displaced*2.7;
       }else if(toy.kind==='mouse'){
         const hit=phrase.displaced*weight;model.position.x+=hit*.11;model.position.z+=hit*.09;model.rotation.y=hit*.8;
       }else if(toy.kind==='spring'){
@@ -307,7 +313,7 @@ export class PetActor {
 
   followRoute(route: THREE.Vector3[], routine: PetRoutine['kind'], facing?: number,
     perch?:CatPerch,fetch?:{point:FloorPoint;pickupRemaining:number},onPetBed=false,supportHeight?:number,
-    scratchPost?:FloorPoint,restSeed=0,toyIndex?:number,training?:import('../shared/dogTraining').TrainingAttempt,event?:import('../shared/petPreferences').PetEvent,dogBed?:DogBedSite): void {
+    scratchPost?:FloorPoint,restSeed=0,toyIndex?:number,training?:import('../shared/dogTraining').TrainingAttempt,event?:import('../shared/petPreferences').PetEvent,dogBed?:DogBedSite,manualToyPoint?:FloorPoint): void {
     if(this.id==='verdell'){
       if(dogBed&&this.dogBed?.stairs===dogBed.stairs&&this.dogBed.bed===dogBed.bed){
         this.dogBedLeaving=false;this.pendingDogBed=null;
@@ -331,7 +337,7 @@ export class PetActor {
     this.onPetBed=onPetBed;
     this.petBedHeight=onPetBed?(supportHeight??0):0;
     this.scratchPost=scratchPost;
-    this.toyIndex=routine==='toy'?toyIndex:undefined;
+    this.toyIndex=routine==='toy'?toyIndex:undefined;this.manualToyPoint=routine==='toy'?manualToyPoint:undefined;if(this.manualToyPoint&&this.toyIndex!==undefined){const model=this.homeToys.children[this.toyIndex];if(model){model.visible=true;model.position.set(this.manualToyPoint.x,.015,this.manualToyPoint.z);}}
     this.parkStick=false;this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
@@ -365,7 +371,7 @@ export class PetActor {
     this.parkStick=false;this.fetchSpot=null;
     this.onPetBed=false;
     this.scratchPost=undefined;
-    this.toyIndex=undefined;
+    this.toyIndex=undefined;this.manualToyPoint=undefined;
     this.training=undefined;
     this.animateHouseToys(0,0);
     this.fetchTargetToy.visible=false;
@@ -652,7 +658,7 @@ export class PetActor {
       performance.headPitch-=.18*idleWeight;
     }
     const toy=this.toyIndex!==undefined?this.toys[this.toyIndex]:undefined;
-    const toyApproach=toy?homeToyApproach(this.id,this.toyIndex!):undefined;
+    const toyApproach=this.manualToyPoint?{x:this.manualToyPoint.x,z:this.manualToyPoint.z-.39}:toy?homeToyApproach(this.id,this.toyIndex!):undefined;
     const toyPlay=toy&&toyApproach&&this.routine==='toy'&&!this.route.length&&this.homeToys.children[this.toyIndex!]?.visible
       &&Math.hypot(this.root.position.x-toyApproach.x,this.root.position.z-toyApproach.z)<.22
       ?Math.min(1,this.settled*2):0;

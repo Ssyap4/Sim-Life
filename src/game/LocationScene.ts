@@ -278,7 +278,8 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
   } else if(kind==='pet-furniture-display'){
     shape(root,[2.35,.48,.95],[0,.24,0],0x669078);shape(root,[2.43,.08,1.01],[0,.52,0],0xf2e3c8);
     ['pet-bed-dog-nest','pet-house-igloo','pet-scratcher-palm','pet-bed-cat-shell','pet-house-loft','pet-bed-stairs'].forEach((id,i)=>{const m=buildFurnishingModel(id,i<3?'sage':'oak');m.scale.setScalar(.36);m.position.set((i%3-1)*.76,.565,i<3?.19:-.23);root.add(m);});
-    PET_TOYS.forEach((p,i)=>{const m=createShopToy(p.kind);m.scale.setScalar(.67);m.position.set((i-2.5)*.35,.57,.40);root.add(m);});
+    shape(root,[1.9,.05,.30],[0,.875,.40],0xd0b99a);for(const x of [-.89,.89])shape(root,[.035,.34,.035],[x,.70,.40],0x76937c);
+    PET_TOYS.forEach((p,i)=>{const m=createShopToy(p.kind,p.manual);m.scale.setScalar(.67);m.position.set((i%5-2)*.35,.57+Math.floor(i/5)*.34,.40);root.add(m);});
     for(const [i,p] of FEEDING_MODELS.filter(m=>m.pet==='verdell').entries()){const m=buildFurnishingModel(p.id,'ivory');m.scale.setScalar(.48);m.position.set((i-1.5)*.46,.57,-.42);root.add(m);}
     sign(root,'ДЛЯ ЖИВОТНЫХ',1.75,.36,2.06,C.paper,textures,materials);
   } else if(station.action.kind==='console-display'){

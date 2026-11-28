@@ -1,3 +1,4 @@
+import {catManualToys,type CatPlayCommand} from './shared/petToys';
 import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
 import {RECIPES,isHomeDrink,type RecipeId,type DrinkSeat} from './shared/food';
 import {recipeAvailability} from './shared/recipeAvailability';
@@ -194,6 +195,7 @@ app.innerHTML = `
   <div id="message" class="notice-stack" aria-live="polite"></div>
   <section id="notice-history" hidden aria-label="Журнал событий"><div class="notice-history-panel"><header class="notice-history-head"><strong>События дома</strong><button type="button" data-notice-close aria-label="Закрыть журнал">×</button></header><div class="notice-history-list"></div></div></section>
   <section id="social-invite" class="social-invite" hidden aria-label="Совместное приглашение" aria-live="polite"></section>
+  <section id="cat-play-controls" class="cat-play-controls" hidden aria-label="Игра с Симбой"></section>
   <section id="manual-table" class="manual-bowling manual-table" hidden></section>
   <section id="manual-pool" class="manual-bowling manual-pool" hidden aria-live="off"></section>
   <section id="manual-hockey" class="manual-bowling manual-hockey" hidden aria-live="off"></section>
@@ -1071,6 +1073,7 @@ const net = new LiveConnection({
       if(state&&active){const before=humanHealth(state,active).illness,after=humanHealth(household,active).illness;if(!before&&after)healthMessages.push('Недомогание · открой «Добрый доктор»');else if(before&&!after)healthMessages.push('Ты выздоровел(а)!');for(const id of PET_IDS){const old=petHealth(state,id).illness,next=petHealth(household,id).illness;if(!old&&next)healthMessages.push(PETS[id].name+' плохо себя чувствует');else if(old&&!next)healthMessages.push(PETS[id].name+' выздоровел');}}
       const incoming=active?unreadMessages(household,active).filter(x=>x.id>=(state?.familyMessages?.nextId??1)):[];
       state = household;
+      if(active&&household.world.places[active]!=='home')closeCatPlay();
       render();
       if(incoming.length&&!phone.messagingOpen()){const last=incoming.at(-1)!;notify(last.text.slice(0,100),{title:'Сообщение · '+names[last.from],target:'messages',key:'family-message:'+last.id});}
       if (last && !known) notify(last.title);
@@ -1113,6 +1116,7 @@ const net = new LiveConnection({
     world.setTimeOfDay(displayClock.read(performance.now()));
   },
   onDisconnect() {
+    closeCatPlay();
     bowlingUI.close();hockeyUI.close();poolUI.close();tableUI.close();
     photoSession++;photoPanel.hidden=true;phone.messageRejected();phone.albumError('Соединение прервано. Проверь сохранение после входа.');
     gameAudio.setPlaying(false);
@@ -1345,7 +1349,7 @@ const furnishing=createFurnishingUI(
   });
 
 function showActionMenu(title: string): void {
-  locationUI.closeMap();
+  closeCatPlay();locationUI.closeMap();
   const header = document.createElement('div');
   header.className = 'actions-head';
   const heading = document.createElement('strong');
@@ -1402,6 +1406,18 @@ function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:s
   showSocialMenu(actionsEl,state,active,online.includes(target),busy,command=>net.social(command),group,action);
 }
 
+let catPlaySender:((choice:{direction:import('./shared/petToys').CatDirection}|{point:{x:number;z:number}})=>void)|undefined;
+function closeCatPlay(){catPlaySender=undefined;const box=document.querySelector<HTMLElement>('#cat-play-controls');if(box)box.hidden=true;}
+function openCatPlay(){
+ if(!state||!active||!net.isReady()||state.world.places[active]!=='home')return notify('Играть с Симбой можно дома');
+ const toys=catManualToys(state.pets.simba);if(!toys.length)return notify('Купи интерактивную игрушку в зоомагазине');
+ const root=document.querySelector<HTMLElement>('#cat-play-controls')!;root.replaceChildren();let selected=toys[0].id;
+ const head=document.createElement('div');head.className='cat-play-head';const title=document.createElement('strong');title.textContent='🐈 Игра с Симбой';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть управление игрушкой');close.onclick=closeCatPlay;head.append(title,close);
+ const select=document.createElement('select');select.setAttribute('aria-label','Игрушка Симбы');for(const t of toys){const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;select.append(opt);}select.onchange=()=>{selected=select.value;};
+ const help=document.createElement('small');help.textContent='Коснись свободного пола рядом с хозяином или выбери стрелку.';
+ const pad=document.createElement('div');pad.className='cat-play-pad';let last=-Infinity;catPlaySender=choice=>{const now=performance.now();if(now-last<1600)return;const command:CatPlayCommand={type:'cat_play',toy:selected,...choice};if(net.catPlay(command)){last=now;help.textContent='Игрушка перемещается…';for(const child of pad.querySelectorAll('button'))child.disabled=true;setTimeout(()=>{if(!root.hidden){for(const child of pad.querySelectorAll('button'))child.disabled=false;help.textContent='Перемести игрушку снова или дай Симбе поймать её.';}},1600);}};for(const [d,label] of [['west','←'],['north','↑'],['south','↓'],['east','→']] as const){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.catDirection=d;b.setAttribute('aria-label','Игрушка '+label);b.onclick=()=>catPlaySender?.({direction:d});pad.append(b);}
+ root.append(head,select,help,pad);actionsEl.hidden=true;root.hidden=false;
+}
 function openPetActions(pet: PetId | null = null): void {
   locationUI.close();
   if (active && world.place === 'park' && pet === 'verdell') {
@@ -1422,7 +1438,7 @@ function openPetActions(pet: PetId | null = null): void {
         statusEl.textContent = 'Ухаживаем за питомцем…';
       }
       return sent;
-    });
+    },openCatPlay);
 }
 
 function openPetBowlActions(pet: PetId): void {
@@ -1885,6 +1901,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         return false;
       },
       pondTap() { notify('Пруд можно обойти по берегу'); },
+      toyTap(x,z){if(!catPlaySender||document.querySelector<HTMLElement>('#cat-play-controls')!.hidden)return false;catPlaySender({point:{x,z}});return true;},
       ground(x, z) {
         if (!active) return;
         locationUI.cancelRoute();

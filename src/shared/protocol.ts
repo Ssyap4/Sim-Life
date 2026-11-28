@@ -247,6 +247,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number; drinkSeat?:import('./food').DrinkSeat }
   | { type: 'social_offer'; kind: SocialKind }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
+  | import('./petToys').CatPlayCommand
   | { type: 'cancel_task'; taskId: number }
   | { type: 'cancel_queued_task'; queueId: number }
   | { type: 'clear_task_queue' }
