@@ -39,7 +39,7 @@ import { protectNeeds } from '../src/shared/happiness';
 import {dogBathPlan} from '../src/shared/dogBath';
 import {isTrainingAction} from '../src/shared/dogTraining';
 import { recordCarRide,isCarReturn } from '../src/shared/carRide';
-import {isResortPass,type ResortPass,RESORT_PASSES} from '../src/shared/resort';
+import {isResortPass,type ResortPass,RESORT_PASSES,RESORT_MEALS,resortService} from '../src/shared/resort';
 import { applyWorld, resortTogetherTrip, clinicTogetherTrip, lakeTogetherTrip, spaTogetherTrip, venueTogetherTrip, fitnessTogetherTrip, setDogParkPosition, worldMessages } from './locations';
 import { openDevices } from './devices';
 import { clockMinutes, stationById, approachFor,placeObstacles,floorFor } from '../src/shared/locations';
@@ -486,8 +486,10 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     if (next.completed.length||careerEnded) shiftVotes.clear();
     const arrived = state.world.deliveries.some(d => d.readyAt > clockMinutes(state.clock) &&
       d.readyAt <= clockMinutes(next.state.clock));
+    const oldService=resortService(state),newService=resortService(next.state);
     state = next.state;
     all({ type: 'snapshot', state });
+    if(newService?.served&&(!oldService?.served||oldService.key!==newService.key))for(const role of newService.remaining)all({type:'world_event',role,message:'Лазурный берег · '+RESORT_MEALS[newService.meal].name+' подан на веранду'});
     if(newFamilyEvent&&state.familyLife?.event)all({type:'billing_event',messages:['✨ '+LIFE_EVENTS[state.familyLife.event.id].title+' · Телефон → События']});
     if(newHolidays.length)all({type:'billing_event',messages:newHolidays.map(h=>'🎉 Сегодня: '+OCCASIONS[h.id].title+' · Телефон → Праздники')});
     for(const id of alarms){const speaker=state.furnishing.placed.find(p=>p.id===id);if(!speaker)continue;for(const role of online())if(state.world.places[role]==='home'&&Math.hypot(state.characters[role].x-speaker.x,state.characters[role].z-speaker.z)<=8){stopSleep(role);packet(active.get(role)!,{type:'world_event',role,message:'Будильник: пора вставать!'});}}

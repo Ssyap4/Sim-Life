@@ -46,7 +46,7 @@ import { storageCanFit } from '../src/shared/storageSpace';
 import {isGift,giftCount,pendingGifts,GIFT_LIMIT} from '../src/shared/gifts';
 import { marketProduct } from '../src/shared/market';
 
-import {RESORT_PASSES,RESORT_ACTIONS,isResortPass,isResortAction,validResort,resortAccess,resortMealKey,type ResortPass,type ResortMeal} from '../src/shared/resort';
+import {RESORT_PASSES,RESORT_ACTIONS,RESORT_LABELS,RESORT_GRILL,RESORT_DRINKS,isResortGrill,resortAlcoholCount,isResortPass,isResortAction,validResort,resortAccess,resortMealKey,type ResortPass,type ResortMeal} from '../src/shared/resort';
 import {weatherAt} from '../src/shared/weather';
 type Result = { ok: false; reason: string } |
   { ok: true; state: GameState; message: string; path?: Point[]; station?: string };
@@ -154,7 +154,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
   'renovation_sample','renovation_install','renovation_light','renovation_lamp_order','pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
-  'lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
+  'resort_buy_meat','lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
 
@@ -411,6 +411,9 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
     else return fail('Выбери оборудование');
     if(next.money<price)return fail('Недостаточно денег');
     next.money-=price;addLedger(next,role,'expense','services',price,'Прокат · '+label);return done(next,'Арендовано: '+label);
+  }
+  if(command.type==='resort_buy_meat'){
+    const item=command.item;if(!isResortGrill(item)||!resortAccess(source,role)||!at(source,role,stationById('resort','resort-bar')))return fail('Подойди к бару комплекса и выбери набор для мангала');const d=RESORT_GRILL[item],v=source.world.resort!;if((v.raw?.[item]??0)>=3)return fail('На кухне уже есть три набора');if(source.money<d.price)return fail('Недостаточно денег');const next=structuredClone(source),stock=next.world.resort!.raw??={};stock[item]=(stock[item]??0)+1;next.money-=d.price;addLedger(next,role,'expense','groceries',d.price,'Лазурный берег · '+d.name);return done(next,'Набор доставлен в холодильник коттеджа · 2 порции');
   }
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
@@ -756,7 +759,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
 }
 
 export const localLabels: Record<LocalActivity, string> = {
-  resortBreakfast:RESORT_ACTIONS.resortBreakfast.name,resortLunch:RESORT_ACTIONS.resortLunch.name,resortDinner:RESORT_ACTIONS.resortDinner.name,resortPool:RESORT_ACTIONS.resortPool.name,resortJacuzzi:RESORT_ACTIONS.resortJacuzzi.name,resortLake:RESORT_ACTIONS.resortLake.name,resortRest:RESORT_ACTIONS.resortRest.name,resortSleep:RESORT_ACTIONS.resortSleep.name,resortWash:RESORT_ACTIONS.resortWash.name,
+  ...RESORT_LABELS,
  spaLocker:SPA_ACTIVITIES.spaLocker.name,spaShower:SPA_ACTIVITIES.spaShower.name,spaPool:SPA_ACTIVITIES.spaPool.name,spaJacuzzi:SPA_ACTIVITIES.spaJacuzzi.name,spaSauna:SPA_ACTIVITIES.spaSauna.name,spaLounge:SPA_ACTIVITIES.spaLounge.name,spaMassage:SPA_ACTIVITIES.spaMassage.name,
   vetExam:VET_SERVICES.vetExam.name,vetTreatment:VET_SERVICES.vetTreatment.name,vetMedicine:VET_SERVICES.vetMedicine.name,
   barberFade:BARBER_SERVICES.barberFade.name,barberShave:BARBER_SERVICES.barberShave.name,barberStyle:BARBER_SERVICES.barberStyle.name,barberFace:BARBER_SERVICES.barberFace.name,barberFull:BARBER_SERVICES.barberFull.name,
@@ -781,9 +784,10 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   const station = stationById(place, id);
   if(isResortAction(action)){
     const d=RESORT_ACTIONS[action];if(!resortAccess(source,role)||station?.action.kind!=='resort'||station.action.facility!==d.facility||!at(source,role,station))return fail('Нужна действующая аренда и подход к месту отдыха');
-    const meal='meal' in d?d.meal as ResortMeal:undefined,key=meal?resortMealKey(source,role,meal):undefined;if(meal&&!key)return fail('Питание сейчас недоступно или уже получено');
+    const meal=d.meal as ResortMeal|undefined,key=meal?resortMealKey(source,role,meal):undefined;if(meal&&!key)return fail('Питание сейчас недоступно или уже получено');
     if(action==='resortLake'&&(weatherAt(source.clock).temp<20||source.characters[role].energy<20)||action==='resortPool'&&source.characters[role].energy<15)return fail('Для купания нужны тепло и силы');
-    const next=structuredClone(source),c=next.characters[role];c.pose='idle';if(key){(next.world.resort!.eaten[role]??=[]).push(key);c.hunger=100;c.mood=Math.min(100,c.mood+30);c.comfort=Math.min(100,c.comfort+25);}else if(action==='resortSleep'){c.energy=Math.min(100,c.energy+75);}else if(action==='resortWash'){c.hygiene=Math.min(100,c.hygiene+12);}else{c.fun=Math.min(100,c.fun+25);c.mood=Math.min(100,c.mood+20);c.comfort=Math.min(100,c.comfort+30);if(action==='resortLake'||action==='resortPool')c.energy=Math.max(0,c.energy-10);}
+    const visit=source.world.resort!;if(d.cook&&(!(visit.raw?.[d.cook])||(visit.cooked?.[d.cook]??0)>4))return fail('Нужен купленный набор и место для двух порций');if(d.eat&&!visit.cooked?.[d.eat])return fail('Сначала приготовьте шашлык');if(d.drink&&(source.money<RESORT_DRINKS[d.drink].price||RESORT_DRINKS[d.drink].alcohol&&resortAlcoholCount(source,role)>=3))return fail('Недостаточно денег или лимит алкогольных напитков на сегодня');
+    const next=structuredClone(source),c=next.characters[role],v=next.world.resort!;c.pose='idle';if(d.cook){v.raw![d.cook]!--;const stock=v.cooked??={};stock[d.cook]=(stock[d.cook]??0)+2;c.mood=Math.min(100,c.mood+8);practiceXP(next,role,'resort-grill','cooking','Шашлык на курорте',8,12);}else if(d.eat){v.cooked![d.eat]!--;c.hunger=Math.min(100,c.hunger+RESORT_GRILL[d.eat].hunger);c.mood=Math.min(100,c.mood+25);c.comfort=Math.min(100,c.comfort+20);}else if(d.drink){const drink=RESORT_DRINKS[d.drink];next.money-=drink.price;if(drink.price)addLedger(next,role,'expense','services',drink.price,'Бар · '+drink.name);if(drink.alcohol){(v.bar??={})[role]={day:next.clock.day,alcohol:resortAlcoholCount(source,role)+1};c.energy=Math.max(0,c.energy-5);}else if(d.drink==='coffee')c.energy=Math.min(100,c.energy+12);c.mood=Math.min(100,c.mood+(drink.alcohol?18:12));c.comfort=Math.min(100,c.comfort+10);}else if(key){(next.world.resort!.eaten[role]??=[]).push(key);c.hunger=100;c.mood=Math.min(100,c.mood+30);c.comfort=Math.min(100,c.comfort+25);}else if(action==='resortSleep'){c.energy=Math.min(100,c.energy+75);}else if(action==='resortWash'){c.hygiene=Math.min(100,c.hygiene+12);}else{c.fun=Math.min(100,c.fun+25);c.mood=Math.min(100,c.mood+20);c.comfort=Math.min(100,c.comfort+30);if(action==='resortLake'||action==='resortPool')c.energy=Math.max(0,c.energy-10);}
     return done(next,d.name+' · готово');
   }
   if(isLakeLeisureAction(action)){

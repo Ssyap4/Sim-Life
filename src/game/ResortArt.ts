@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import {cube,softCube,drum,batchRigidParts,finish,type XYZ} from './ArtKit';
 import {PlantBatch,growTree,growShrub,growFlowers} from './LandscapePlants';
+import {RESORT_MEAL_DISHES,RESORT_GRILL,type ResortGrill,type ResortMeal,resortService} from '../shared/resort';
+import {marketCashier} from './MarketArt';
+import {selectIndoorDish} from './MealArt';
 import {makeWater,updateWater} from './WaterArt';
 import type {Station} from '../shared/locations';
 type Resources={textures:THREE.Texture[];materials:THREE.Material[]};
@@ -41,11 +44,16 @@ export function buildResort(root:THREE.Group,r:Resources){
  const shore=b(g,[7,.14,6],[12,.01,1],0xdccda4,drum);shore.scale.set(7,.14,6);surface('pond',13.5,11.5,12,1,.10);
  for(let i=0;i<20;i++){const a=i*Math.PI/10;b(g,[.4,.23,.5],[12+7.0*Math.cos(a),.12,1+6.05*Math.sin(a)],i%2?0xbdb6a1:stone,softCube);}
  batchRigidParts(g,true);
- let night=0;return {animate:(t:number)=>water.forEach(m=>updateWater(m,t,night)),setNight:(n:boolean)=>{night=n?1:0;}};
+ const waiter=marketCashier(r,{title:'Официант',color:0x344c50,shirt:0xf8efdf,animated:true});waiter.visible=false;root.add(waiter);const tray=new THREE.Group();tray.position.set(0,.96,.36);waiter.add(tray);b(tray,[.58,.04,.35],[0,0,0],ink,softCube);for(const x of [-.15,.15]){b(tray,[.22,.025,.22],[x,.035,0],cream,drum);b(tray,[.18,.075,.18],[x,.075,0],stone,softCube);}batchRigidParts(tray,true);
+ const plates=new Map<string,THREE.Group>();for(const meal of Object.keys(RESORT_MEAL_DISHES) as ResortMeal[])for(const role of ['vlad','alina'] as const){const group=new THREE.Group();group.name='Served '+meal+' '+role;group.visible=false;group.position.set(-8+(role==='vlad'?-.80:.80),1.01,.4);for(let i=0;i<3;i++){const dish=new THREE.Group();dish.position.set(i===0?0:i===1?-.30:.30,0,i===0?.12:-.22);selectIndoorDish(dish,RESORT_MEAL_DISHES[meal][i]);group.add(dish);}root.add(group);plates.set(meal+role,group);}
+ const skewers=new Map<ResortGrill,THREE.Group>();for(const [id,d] of Object.entries(RESORT_GRILL)){const group=new THREE.Group();group.position.set(-13,1.10,.6);for(let i=0;i<4;i++){const x=-.48+i*.30;b(group,[.025,.025,.70],[x,0,0],stone);for(let j=0;j<4;j++){const z=-.21+j*.14;b(group,[.14,.085,.11],[x,.045,z],d.color,softCube);b(group,[.11,.008,.018],[x,.090,z],0x644331);}}batchRigidParts(group,true);group.visible=false;root.add(group);skewers.set(id as ResortGrill,group);}
+ let night=0,lastProgress=-1,from=0,lastKey='';return {animate:(t:number)=>{water.forEach(m=>updateWater(m,t,night));const service=root.userData.resortService as ReturnType<typeof resortService>;const key=service?.key??'';if(key!==lastKey){lastProgress=-1;lastKey=key;}if(service&&service.progress!==lastProgress){lastProgress=service.progress;from=t;}waiter.visible=!!service&&!service.served; if(waiter.visible&&service){const p=Math.min(.99,service.progress+Math.max(0,t-from)/12);const x=-14+4.4*p,z=3.25-1.10*p;waiter.position.set(x,.04+Math.abs(Math.sin(t*7))*.035,z);waiter.rotation.y=Math.PI/2+.24;const arms=waiter.userData.motion.arms as THREE.Group[];for(const arm of arms)arm.rotation.x=-.19;}
+ for(const [id,group] of plates)group.visible=!!service?.served&&service.remaining.some(role=>id===service.meal+role);const grilling=Object.values(root.userData.resortGrill??{});for(const [id,group] of skewers)group.visible=grilling.includes(id);},setNight:(n:boolean)=>{night=n?1:0;}};
 }
 export function resortStation(s:Station,r:Resources){
  const g=new THREE.Group(),b=kit();void r;g.position.set(s.center.x,0,s.center.z);g.name=s.name;
  const f=s.action.kind==='resort'?s.action.facility:'exit';
+ if(f==='bar'){b(g,[4.3,.14,3.8],[0,.06,0],stone);b(g,[4.4,.15,3.8],[0,2.65,-.8],oak);for(const x of [-2,2])b(g,[.15,2.65,.15],[x,1.32,-1.7],ink);for(let i=0;i<3;i++){b(g,[3.0,.07,.45],[0,1.20+i*.42,-1.55],oak);for(let j=0;j<8;j++){const x=-1.24+j*.35,y=1.38+i*.42;b(g,[.16,.27,.15],[x,y,-1.55],[0x54765d,0x805241,0x9d8b63,0x476879][(i+j)%4],drum);b(g,[.065,.085,.065],[x,y+.16,-1.55],ink,drum);}}}
  if(f==='reception'||f==='bar'){b(g,[s.width,.98,s.depth],[0,.49,0],oak);b(g,[s.width+.12,.09,s.depth+.12],[0,1.04,0],stone);for(let i=0;i<7;i++)b(g,[.12,.29,.12],[-.9+i*.30,1.23,-.12],[0x698a68,0x966b4c,0x4e7893][i%3],drum);}
  if(f==='bed'){b(g,[2.8,.38,2.65],[0,.28,0],oak,softCube);b(g,[2.66,.25,2.5],[0,.60,0],cream,softCube);b(g,[2.7,.14,1.82],[0,.80,.29],sage,softCube);for(const x of [-.65,.65])b(g,[.95,.18,.52],[x,.81,-.83],cream,softCube);b(g,[2.9,1.18,.15],[0,.74,-1.35],oak,softCube);}
  if(f==='media'){b(g,[3.3,.52,.62],[0,.26,-.8],oak);b(g,[3.02,1.65,.13],[0,1.55,-.77],0x19262d,softCube);b(g,[2.85,1.49,.02],[0,1.55,-.68],0x466678);b(g,[.45,.12,.20],[.85,.59,-.60],ink);for(const x of [.55,1.15])b(g,[.09,.12,.20],[x,.59,-.60],x<1?0x3e9bc6:0xc86154,softCube);b(g,[3.2,.35,1.02],[0,.29,1.1],cream,softCube);b(g,[3.2,.53,.26],[0,.67,1.58],sage,softCube);for(const x of [-1.4,1.4])b(g,[.33,.55,.95],[x,.52,1.1],cream,softCube);}

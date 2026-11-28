@@ -67,7 +67,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { steadyPanSpeed, TOUCH_CAMERA_DAMPING } from './CameraPan';
 import { adjustHeight, protectCameraFloor, HEIGHT_MAX_POLAR } from './CameraHeight';
 import { CanvasGestureGate, type PointerContact } from './CanvasGestureGate';
-import {isResortAction,resortSwimFrame} from '../shared/resort';
+import {RESORT_ACTIONS,RESORT_GRILL,RESORT_DRINKS,RESORT_MEAL_DISHES,resortService,isResortAction,resortSwimFrame} from '../shared/resort';
 import { frameTiming,advanceActiveVisualClock,type ActiveVisualClock } from './FrameTiming';
 import { StableModelParts } from './StableModelParts';
 import { petStepPace } from './PetMotion';
@@ -1482,7 +1482,9 @@ export class World {
           else if(command.action==='resortJacuzzi'){actor.setSpaSeat(x+offset,z-.7,.45,0);}
           else if(command.action==='resortSleep'){actor.setFurniturePose('sleep',new THREE.Vector3(x+offset,.70,z+.2),Math.PI);}
           else if(command.action==='resortWash'){const p=new THREE.Vector3(x,1.06,z);actor.faceTowards(p);actor.playDomesticActivity('washHands',p);}
-          else {actor.setFurniturePose('sit',new THREE.Vector3(x+offset,-.13,z+1.12),Math.PI);if(command.action!=='resortRest'){const plate=this.showMeal(role,x+offset,.86,z,'chickenSoup');actor.playActivity('eat',plate,'chickenSoup',true);}}
+          else {const d=RESORT_ACTIONS[command.action];if(d.cook){const p=new THREE.Vector3(x,1.08,z);actor.faceTowards(p);actor.playDomesticActivity('grill',p,RESORT_GRILL[d.cook].dish);if(this.remote)(this.remote.root.userData.resortGrill??={})[role]=d.cook;}
+          else if(d.drink){actor.faceTowards(new THREE.Vector3(x,1,z));actor.playResortDrink(RESORT_DRINKS[d.drink].color,d.drink==='coffee'||d.drink==='tea');}
+          else{actor.setFurniturePose('sit',new THREE.Vector3(x+offset,.02,z+1.12),Math.PI);const dish=d.meal?RESORT_MEAL_DISHES[d.meal][0]:d.eat?RESORT_GRILL[d.eat].dish:undefined;if(dish){const plate=this.showMeal(role,x+offset,1.01,z+.27,dish);actor.playActivity('eat',plate,dish,true);}}}
         }
         if(station.action.kind==='spa'){
  const a=station.action.facility,x=station.center.x,z=station.center.z,offset=role==='vlad'?-.44:.44;
@@ -1744,6 +1746,7 @@ export class World {
     this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
+    if(this.place==='resort'){this.actors[role].setPose('idle');if(this.remote?.root.userData.resortGrill)delete this.remote.root.userData.resortGrill[role];}
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
@@ -1770,6 +1773,7 @@ export class World {
     this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
+    if(this.place==='resort'){this.actors[role].setPose('idle');if(this.remote?.root.userData.resortGrill)delete this.remote.root.userData.resortGrill[role];}
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
     if(this.place==='barber'&&role==='vlad'){if(this.remote)delete this.remote.root.userData.barberAction;this.actors[role].setPose('idle');}
     this.computerScreens.endTask(role);
@@ -2666,6 +2670,7 @@ export class World {
     // House NPCs share the server clock, without persisting visual-only traffic.
     if (reset || Math.abs(minute - this.neighborMinute) > 1.25) this.neighborMinute = minute;
     if (changed) this.switchPlace(place);
+    if(place==='resort'&&this.remote)this.remote.root.userData.resortService=resortService(state);
     if(place==='lake'&&this.remote)syncLakeTents(this.remote.stations,state.world.lake,gameMinutes(state.clock));
     this.setTimeOfDay(gameMinutes(state.clock));
     for (const id of ['vlad', 'alina'] as const) {

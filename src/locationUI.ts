@@ -1,6 +1,6 @@
 import {renovationLampSpots} from './shared/renovationPlacement';
 import {COVERINGS,ROOMS,coveringById,compatible,renovationQuote,installedRenovation,FIXTURE_LABELS,type RoomId,type SurfaceKind,type RenovationPreview} from './shared/renovation';
-import {RESORT_PASSES,RESORT_MEALS,RESORT_ACTIONS,resortAccess,resortMealKey,type ResortPass,type ResortAction} from './shared/resort';
+import {RESORT_PASSES,RESORT_MEALS,RESORT_ACTIONS,RESORT_GRILL,RESORT_DRINKS,resortService,resortAlcoholCount,type ResortGrill,resortAccess,resortMealKey,type ResortPass,type ResortAction} from './shared/resort';
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,LAKE_CARE,LAKE_LEISURE,lakeCanSwim,lakeNeedsFish,lakeCampFor,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {DOG_AGILITY,AGILITY_ACTIONS,agilityReady,agilityConfidence} from './shared/dogAgility';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
@@ -311,7 +311,9 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     } else if(station.action.kind==='resort'){
       const visit=place.world.resort,access=resortAccess(place,role),facility=station.action.facility;options.append(element('small','',access?'Аренда действует · питание включено':'Аренда завершена. Выезд через ворота.'));
       if(facility==='terrace')for(const [id,m] of Object.entries(RESORT_MEALS))options.append(element('small','',m.name+' · '+Math.floor(m.start/60)+':00–'+Math.floor(m.end/60)+':00'+(resortMealKey(place,role,id as keyof typeof RESORT_MEALS)?' · готово к подаче':'')));
-      for(const [id,d] of Object.entries(RESORT_ACTIONS))if(d.facility===facility)options.append(button(d.name,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access||'meal' in d&&!resortMealKey(place,role,d.meal)));
+      if(facility==='terrace'){const service=resortService(place);if(service&&!service.served)options.append(element('small','','Официант несёт блюда на веранду'));}
+      if(facility==='bar'){options.append(element('strong','','Наборы для мангала · 2 порции'));for(const [id,d] of Object.entries(RESORT_GRILL))options.append(button(d.name+' · '+formatRub(d.price)+' · в запасе '+(visit?.raw?.[id as ResortGrill]??0),()=>{if(send({type:'resort_buy_meat',item:id as ResortGrill}))close();},!access||place.money<d.price||(visit?.raw?.[id as ResortGrill]??0)>=3));options.append(element('strong','','Карта напитков'));}
+      for(const [id,d] of Object.entries(RESORT_ACTIONS))if(d.facility===facility){const drink=d.drink?RESORT_DRINKS[d.drink]:undefined;const label=d.name+(d.cook?' · наборов '+(visit?.raw?.[d.cook]??0):d.eat?' · порций '+(visit?.cooked?.[d.eat]??0):drink?' · '+formatRub(drink.price):'');options.append(button(label,()=>{if(send({type:'local_activity',station:station.id,action:id as ResortAction}))close();},!access||!!d.meal&&!resortMealKey(place,role,d.meal)||!!d.cook&&(!(visit?.raw?.[d.cook])||(visit.cooked?.[d.cook]??0)>4)||!!d.eat&&!visit?.cooked?.[d.eat]||!!drink&&(place.money<drink.price||drink.alcohol&&resortAlcoholCount(place,role)>=3)));}
       if(facility==='reception'&&visit)options.append(element('small','','Выезд через '+Math.max(0,Math.ceil((visit.until-now)/60))+' игровых ч.'));
     } else if(station.action.kind==='lake'){
       const visit=place.world.lake?.[role],access=lakeAccess(place,role);

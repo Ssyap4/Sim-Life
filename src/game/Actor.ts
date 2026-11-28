@@ -93,6 +93,8 @@ export class Actor {
   private crouchBlend = 0;
   private readonly spoon = new THREE.Group();
   private readonly mealBite=new THREE.Mesh(orb,finish(0xc69b61,'ceramic'));
+  private resortDrinkTint:number|undefined;
+  playResortDrink(color:number,hot:boolean){this.playActivity('eat',undefined,hot?'blackTeaCup':'mintLemonade',true);this.resortDrinkTint=color;}
   private readonly teaCup = new THREE.Group();
   private readonly cupCenter = new THREE.Vector3();
   private readonly cupHandleOffset = new THREE.Vector3();
@@ -586,7 +588,7 @@ export class Actor {
     this.clearVenueProp();this.clearVanity();this.hideGamepad();
     this.carryingBook=false;this.closingBook=0;this.props.hideBook();
     this.props.phone.visible=false;
-    this.activity = kind;this.mealSlow=slow;
+    this.resortDrinkTint=undefined;this.activity = kind;this.mealSlow=slow;
     this.pan = pan?.clone();
     this.cookingRecipe = kind === 'cook' ? recipe as RecipeId : undefined;
     this.diningDish = kind === 'eat' ? recipe : undefined;
@@ -2281,7 +2283,7 @@ export class Actor {
     }
     if(!hookah)this.loungeSmoke.visible=false;
     this.teaCup.visible=drinking||pair?.motion==='teaTogether'||this.workCoffeeCarrying;
-    if(this.teaCup.visible){const liquid=this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;const recipe=this.carriedDrink??(drinking?this.diningDish as RecipeId:undefined),cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(recipe??'');this.teaCup.getObjectByName('Cold glass')!.visible=cold;this.teaCup.getObjectByName('Drink handle')!.visible=!cold;this.teaCup.getObjectByName('Drink vessel')!.visible=!cold;liquid.position.y=cold?.062:.0415;liquid.material.color.setHex(recipe?HOME_DRINK_COLORS[recipe]??0x9b6332:0x9b6332);}
+    if(this.teaCup.visible){const liquid=this.teaCup.getObjectByName('Drink liquid') as THREE.Mesh<THREE.CircleGeometry,THREE.MeshStandardMaterial>;const recipe=this.carriedDrink??(drinking?this.diningDish as RecipeId:undefined),cold=['bananaShake','berrySmoothie','orangeJuice','mintLemonade'].includes(recipe??'');this.teaCup.getObjectByName('Cold glass')!.visible=cold;this.teaCup.getObjectByName('Drink handle')!.visible=!cold;this.teaCup.getObjectByName('Drink vessel')!.visible=!cold;liquid.position.y=cold?.062:.0415;liquid.material.color.setHex(drinking&&this.resortDrinkTint!==undefined?this.resortDrinkTint:recipe?HOME_DRINK_COLORS[recipe]??0x9b6332:0x9b6332);}
     if(drinking){const phase=a%7,sip=THREE.MathUtils.smoothstep(phase,1.3,2.4)*(1-THREE.MathUtils.smoothstep(phase,3.8,5));this.bodyPosition(this.cupCenter).add(this.cupHandleOffset.set(.15,.80,.29).applyAxisAngle(up,this.root.rotation.y));const mouth=this.rig.head.localToWorld(this.cupGripDirection.set(.025,-.18,.19));this.gripCup(this.cupCenter.lerp(mouth,sip),1);}
     if(this.teaCup.visible&&pair){
       const phase=(pair.time+(pair.leads?0:2.4))%8;

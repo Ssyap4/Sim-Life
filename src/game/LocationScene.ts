@@ -579,7 +579,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
   const animateWork = isCareerPlace(place) ? buildCareerPlace(place,floor,root,resources) : undefined;
   if(place==='resort'){
     resortArt=buildResort(root,resources);animatePark=resortArt.animate;
-    const clerk=marketCashier(resources,{title:'Лазурный берег',color:0x527e83,shirt:0xf5ebda,animated:true});clerk.position.set(-14,0,9.2);root.add(clerk);
+    const clerk=marketCashier(resources,{title:'Лазурный берег',color:0x527e83,shirt:0xf5ebda,animated:true});clerk.position.set(-14,0,9.2);root.add(clerk);const bartender=marketCashier(resources,{title:'Бармен',color:0x614d43,shirt:0xf5ebda,animated:true});bartender.position.set(-15,.12,4.1);root.add(bartender);
   }else if(place==='lake'){
     lakeArt=buildLakeLandscape(root,resources);
     const clerk=marketCashier(resources,{title:'Прокат',color:0x527151,shirt:0xe9dfbd,animated:true});clerk.position.set(-9.05,.08,9.12);root.add(clerk);
