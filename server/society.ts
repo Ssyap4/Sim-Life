@@ -1,3 +1,4 @@
+import {resortMedia,resortAccess} from '../src/shared/resort';
 import {recordDailyCompletion} from '../src/shared/dailyRoutine';
 import {FAMILY_MEMORY_LIMIT} from '../src/shared/familyJournal';
 import {lakeTalkStation} from '../src/shared/socialLife';
@@ -140,6 +141,10 @@ export function pairScenes(state:GameState,from:CharacterId,command:SocialIntent
   const a=SOCIAL_BY_ID.get(command.action)!;
   const place=state.world.places[from],obstacles=placeObstacles(place,state.furnishing),floor=floorFor(place);
   const to=otherPerson(from),p=command.item;
+  if(a.object==='resortMedia'){
+    const d=resortMedia(a.id),station=stationById('resort','resort-media');if(!d?.paired||!station||!resortAccess(state,from)||!resortAccess(state,to))return null;const homes={} as Record<CharacterId,HomePresentation>,match=d.game?newConsoleMatch(true,from):undefined;
+    for(const role of ['vlad','alina'] as const){const route=planWalk(state.characters[role],approachFor(station,role),obstacles,floor);if(!route)return null;const x=station.center.x,z=station.center.z;homes[role]={route,station:'furniture',furnitureSeat:true,furniturePose:{x:x+(role==='vlad'?-.72:.72),y:-.14,z:z+1.12,yaw:Math.PI},consoleMatch:match,pair:{motion:'resortMedia',place,from,item:a.id,target:{x,z}}};}return homes;
+  }
   if(a.object==='venue'){
     if(place!=='venue'||!isVenueGame(a.id))return null;
     const d=VENUE_GAMES[a.id],station=stationById('venue',venueStation(a.id))!,match=command.manual?undefined:newConsoleMatch(true,from);
@@ -427,6 +432,7 @@ export function completeTogether(source:GameState,from:CharacterId,command:Socia
   };
   let rejected:EvaluatedTask|undefined;
   switch(a.object){
+    case 'resortMedia':{if(roles.length!==2||!resortMedia(a.id)?.paired)return fail('Нужны оба гостя');for(const role of roles)change(state,role,{fun:65,mood:20,comfort:15,social:35});break;}
     case 'venue':{
       if(!isVenueGame(a.id)||roles.length!==2||!remember)return fail('Нужны оба участника');
       const d=VENUE_GAMES[a.id],match=homes.vlad.consoleMatch;if((command.manual?!(a.id==='venueBowling'?bowling?.finished:a.id==='venueHockey'?hockey?.finished:a.id==='venueBilliards'?pool?.finished:a.id==='venueJenga'?table?.game==='jenga'&&table.finished:false):!match)||state.money<d.price)return fail('Партия недоступна');

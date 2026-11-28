@@ -299,12 +299,13 @@ test('Context prompts use actual milestones and have enough independently author
   assert.ok(new Set(lines).size>=230);
 });
 
-test('Routes stay walkable for both partners in the home, cafe, park and PLAY ARENA',()=>{
+test('Routes stay walkable for both partners in the home, cafe, park, PLAY ARENA and Azure Shore',()=>{
   const state=sample();state.dirtyDishes.table=2;state.world.tableBags=1;
   for(const a of SOCIAL_ACTIVITIES.filter(a=>a.object)){
-    const candidates=a.object==='lakeTalk'?['lake'] as const:a.object==='venue'?['venue'] as const:['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
+    const candidates=a.object==='resortMedia'?['resort'] as const:a.object==='lakeTalk'?['lake'] as const:a.object==='venue'?['venue'] as const:['parkRest','parkBadminton','parkSwing','parkTalk','picnic'].includes(a.object??'')?['park'] as const:(a.object==='cafeMeal'||a.object==='cafeTalk')?['cafe'] as const:a.object==='walk'?['park','home'] as const:['home'] as const;
     for(const place of candidates){
       for(const role of residents){state.world.places[role]=place;Object.assign(state.characters[role],spawn(place,role));}
+      if(a.object==='resortMedia')state.world.resort={pass:'night',from:0,until:1440,guests:['vlad','alina'],eaten:{}};
       if(a.object==='leisure'){state.furnishing.placed=[a.id==='poolSwimTogether'?{id:1,sku:'oasis-pool',finish:'oak',rotation:0,x:-9.95,z:8.1}:{id:1,sku:'leisure-chess',finish:'sage',rotation:0,x:10,z:8.6}];state.furnishing.nextId=2;}
       if(a.object==='lakeTalk'){state.world.lake={vlad:{pass:'night',until:999999,tent:'basic',pitch:'lake-pitch-1',fire:true},alina:{pass:'night',until:999999}};for(const role of residents)Object.assign(state.characters[role],approachFor(stationById('lake','lake-fire-1')!,role));}
       if(a.object==='parkTalk')for(const role of residents){const seat=stationById('park','park-swing')!;Object.assign(state.characters[role],approachFor(seat,role),{pose:'sit'});}
@@ -878,4 +879,12 @@ test('lake fire conversation sends a real offer and selected reply, rewards both
  assert.equal((await ended(v,'vlad',one.taskId)).outcome,'completed');assert.equal((await ended(a,'alina',two.taskId)).outcome,'completed');
  const saved=f.files.load();assert.ok(saved.relationship.memories.some(m=>m.action==='lakeTalk:trip'&&m.description===offer.replies[1]));for(const r of residents)assert.ok(saved.characters[r].social>10);
  }finally{await f.close();}
+});
+
+test('Azure Shore Nintendo real two-client consent uses one free synchronized session',async()=>{
+ const state=sample();state.money=81100;state.autonomy={vlad:'off',alina:'off'};state.world.resort={pass:'night',from:0,until:1440,guests:['vlad','alina'],eaten:{}};state.world.carDriver='vlad';const seat=stationById('resort','resort-media')!;
+ for(const role of residents){state.world.places[role]='resort';Object.assign(state.characters[role],approachFor(seat,role));state.characters[role].fun=10;}
+ const f=await meet({state,scale:.01,fixedClock:true});
+ try{const v=await f.connect('vlad'),a=await f.connect('alina');const offer=await propose(v,a,'resortGame-marioWonder');assert.equal(f.files.load().money,81100);await accept(v,a,offer.id);const vp=await started(v,'vlad'),ap=await started(a,'alina');assert.equal(vp.home?.pair?.motion,'resortMedia');assert.deepEqual(vp.home?.consoleMatch,ap.home?.consoleMatch);assert.notDeepEqual(vp.home?.furniturePose,ap.home?.furniturePose);assert.equal((await ended(v,'vlad',vp.taskId)).outcome,'completed');assert.equal((await ended(a,'alina',ap.taskId)).outcome,'completed');const saved=f.files.load();assert.equal(saved.money,81100);assert.ok(saved.characters.vlad.fun>10&&saved.characters.alina.fun>10);assert.ok(saved.relationship.memories.some(m=>m.action==='resortGame-marioWonder'));}
+ finally{await f.close();}
 });

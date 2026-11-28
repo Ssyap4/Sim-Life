@@ -391,7 +391,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
     minX: bounds.minX - .27, maxX: bounds.maxX + .27, minZ: bounds.minZ - .27, maxZ: bounds.maxZ + .27,
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
-  if(place==='resort')obstacles.push({minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8});
+  if(place==='resort')obstacles.push({minX:-16.25,maxX:-15.65,minZ:-14.2,maxZ:-1.7},{minX:-16.2,maxX:.2,minZ:-14.3,maxZ:-13.65},{minX:-.3,maxX:.2,minZ:-14.2,maxZ:-6.8},{minX:-10.3,maxX:-9.7,minZ:-14,maxZ:-9.25},{minX:-4.3,maxX:-3.7,minZ:-14,maxZ:-10.8},{minX:-15.95,maxX:-12.05,minZ:-2.34,maxZ:-1.78},{minX:-7.95,maxX:-4.05,minZ:-2.34,maxZ:-1.78},...([[-15,-12.1,.68,.65],[-11,-12.1,.68,.65],[-13,-13.6,2.8,.68],[-7,-12.9,2.4,.78],[-9.35,-12.65,.50,.50],[-2.2,-6.5,1.6,.86],[-.85,-13.28,.72,.70],[-1.6,11.65,.82,1.85],[1,11.65,.82,1.85],[3.6,11.65,.82,1.85]] as const).map(([x,z,w,d])=>({minX:x-w/2-.20,maxX:x+w/2+.20,minZ:z-d/2-.20,maxZ:z+d/2+.20})));
   if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
   if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})),...agilityObstacles(agilityPass));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});

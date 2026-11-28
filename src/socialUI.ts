@@ -50,7 +50,7 @@ export function showSocialMenu(root:HTMLElement,state:GameState,role:CharacterId
       tab.setAttribute('aria-current',group===id?'true':'false');
       tabs.append(tab);
     }
-    const list=SOCIAL_ACTIVITIES.filter(a=>a.group===group&&a.object!=='unpack'&&!a.id.startsWith('nearTalk:')&&!a.id.startsWith('parkTalk:')&&!a.id.startsWith('picnicTalk:')&&
+    const list=SOCIAL_ACTIVITIES.filter(a=>a.group===group&&a.object!=='resortMedia'&&a.object!=='unpack'&&!a.id.startsWith('nearTalk:')&&!a.id.startsWith('parkTalk:')&&!a.id.startsWith('picnicTalk:')&&
       (!a.context||contextAvailable(a,state,role))&&(!isGift(a.id)||giftCount(state,a.id)>0||a.id===expanded))
       .sort((a,b)=>Number(b.id===expanded)-Number(a.id===expanded)||contextOrder(a,state,role)-contextOrder(b,state,role));
     const cards=node('div','','social-cards');

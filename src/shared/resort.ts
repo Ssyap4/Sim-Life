@@ -1,4 +1,6 @@
 import type {CharacterId,GameState} from './protocol';
+import {CONSOLE_GAMES,consoleGames,type ConsoleGameId} from './consoleCatalog';
+import {MEDIA_CATALOG,type MediaSelection} from './mediaCatalog';
 import type {RecipeId} from './food';
 import {gameMinutes} from './life';
 export const RESORT_PASSES={night:{name:'Сутки',price:18900,minutes:1440},weekend:{name:'Двое суток',price:34900,minutes:2880}} as const;
@@ -26,9 +28,15 @@ const RESORT_BASE_ACTIONS={
  resortWash:{name:'Вымыть руки',facility:'bath',seconds:6},
 } as const;
 type GrillCookAction=`resortCook-${ResortGrill}`;type GrillEatAction=`resortEat-${ResortGrill}`;type DrinkAction=`resortDrink-${ResortDrink}`;
-export type ResortAction=keyof typeof RESORT_BASE_ACTIONS|GrillCookAction|GrillEatAction|DrinkAction;
-export type ResortActionDef={name:string;facility:'terrace'|'pool'|'jacuzzi'|'lake'|'bed'|'bath'|'grill'|'bar';seconds:number;meal?:ResortMeal;cook?:ResortGrill;eat?:ResortGrill;drink?:ResortDrink};
-export const RESORT_ACTIONS:Record<ResortAction,ResortActionDef>={...RESORT_BASE_ACTIONS,...Object.fromEntries(Object.entries(RESORT_GRILL).flatMap(([id,d])=>[[`resortCook-${id}`,{name:'Приготовить: '+d.name,facility:'grill',seconds:50,cook:id}],[`resortEat-${id}`,{name:'Съесть: '+d.name,facility:'terrace',seconds:40,eat:id}]])),...Object.fromEntries(Object.entries(RESORT_DRINKS).map(([id,d])=>[`resortDrink-${id}`,{name:d.name,facility:'bar',seconds:25,drink:id}]))} as Record<ResortAction,ResortActionDef>;
+export type ResortMediaId=`resortFilm-${string}`|`resortGame-${ConsoleGameId}`;
+export type ResortMedia={name:string;seconds:number;paired:boolean;solo:boolean;game?:ConsoleGameId;selection?:MediaSelection};
+const films=Array.from(new Set(MEDIA_CATALOG.filter(t=>!t.seasons).map(t=>t.genre))).flatMap(genre=>MEDIA_CATALOG.filter(t=>!t.seasons&&t.genre===genre).slice(0,2));
+const series=MEDIA_CATALOG.filter(t=>t.seasons).slice(0,4);
+export const RESORT_MEDIA=Object.fromEntries([...films,...series].map<[string,ResortMedia]>(t=>[`resortFilm-${t.id}`,{name:t.title+(t.seasons?' · С1 Э1':''),seconds:120,paired:true,solo:true,selection:{id:t.id,...(t.seasons?{season:1,episode:1}:{})}}]).concat(consoleGames('console-switch2').map<[string,ResortMedia]>(id=>[`resortGame-${id}`,{name:CONSOLE_GAMES[id].name,seconds:CONSOLE_GAMES[id].seconds,paired:CONSOLE_GAMES[id].mode!=='solo',solo:CONSOLE_GAMES[id].mode!=='coop',game:id}]))) as Record<ResortMediaId,ResortMedia>;
+export function resortMedia(id:unknown):ResortMedia|undefined{return typeof id==='string'&&Object.hasOwn(RESORT_MEDIA,id)?RESORT_MEDIA[id as ResortMediaId]:undefined;}
+export type ResortAction=ResortMediaId|keyof typeof RESORT_BASE_ACTIONS|GrillCookAction|GrillEatAction|DrinkAction;
+export type ResortActionDef={name:string;facility:'terrace'|'pool'|'jacuzzi'|'lake'|'bed'|'bath'|'grill'|'bar'|'media';seconds:number;meal?:ResortMeal;cook?:ResortGrill;eat?:ResortGrill;drink?:ResortDrink;media?:ResortMediaId};
+export const RESORT_ACTIONS:Record<ResortAction,ResortActionDef>={...RESORT_BASE_ACTIONS,...Object.fromEntries(Object.entries(RESORT_MEDIA).map(([id,d])=>[id,{name:d.name,facility:'media',seconds:d.seconds,media:id}])),...Object.fromEntries(Object.entries(RESORT_GRILL).flatMap(([id,d])=>[[`resortCook-${id}`,{name:'Приготовить: '+d.name,facility:'grill',seconds:50,cook:id}],[`resortEat-${id}`,{name:'Съесть: '+d.name,facility:'terrace',seconds:40,eat:id}]])),...Object.fromEntries(Object.entries(RESORT_DRINKS).map(([id,d])=>[`resortDrink-${id}`,{name:d.name,facility:'bar',seconds:25,drink:id}]))} as Record<ResortAction,ResortActionDef>;
 export const RESORT_LABELS=Object.fromEntries(Object.entries(RESORT_ACTIONS).map(([id,d])=>[id,d.name])) as Record<ResortAction,string>;
 export type ResortFacility=typeof RESORT_ACTIONS[ResortAction]['facility']|'reception'|'bar'|'grill'|'media'|'kitchen';
 export const isResortAction=(x:unknown):x is ResortAction=>typeof x==='string'&&Object.hasOwn(RESORT_ACTIONS,x);
