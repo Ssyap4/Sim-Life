@@ -1,3 +1,4 @@
+import {addRenovationFloors,addRenovationWall} from './RenovationArt';
 import * as THREE from 'three';
 import {paintedMap,cube,panel} from './ArtKit';
 import {HOUSE,HOUSE_WING,WEST_WALL,EAST_WALL,BEDROOM_END,WC_START,OFFICE_END} from '../shared/home';
@@ -75,7 +76,7 @@ export function cottageFloor(parent:THREE.Group,wing=false){
   const sx=ctx.canvas.width/w,sz=ctx.canvas.height/d;
   for(const [i,r] of (wing?wingRooms:cottageRooms).entries())floorPattern(ctx,r,(r.x1-b.minX)*sx,(r.z1-b.minZ)*sz,(r.x2-r.x1)*sx,(r.z2-r.z1)*sz,sx,sz,813+i*173);
  });
- const m=panel(parent,[(b.minX+b.maxX)/2,wing?.023:0,(b.minZ+b.maxZ)/2],[w,d],map,0xc5a47f);m.rotation.x=-Math.PI/2;return m;
+ const m=panel(parent,[(b.minX+b.maxX)/2,wing?.023:0,(b.minZ+b.maxZ)/2],[w,d],map,0xc5a47f);m.rotation.x=-Math.PI/2;addRenovationFloors(parent,wing);return m;
 }
 function timberMap(){
  const map=paintedMap('solid-timber-v062',512,256,ctx=>{
@@ -104,7 +105,7 @@ export function timberWall(parent:THREE.Group,size:[number,number,number],at:[nu
   const x=at[0]+pos.getX(i)*size[0],y=at[1]+pos.getY(i)*size[1],z=at[2]+pos.getZ(i)*size[2];
   uv.setXY(i,(Math.abs(n.getX(i))>.5?z:x)/3.8,Math.abs(n.getY(i))>.5?z/2.24:y/2.24);
  }
- const wall=new THREE.Mesh(geometry,timber);wall.scale.set(...size);wall.position.set(...at);wall.receiveShadow=true;parent.add(wall);return wall;
+ const wall=new THREE.Mesh(geometry,timber);wall.scale.set(...size);wall.position.set(...at);wall.receiveShadow=true;parent.add(wall);addRenovationWall(parent,size,at);return wall;
 }
 export function kitchenAccent(){
  return paintedMap('kitchen-accent-v062',512,128,ctx=>{

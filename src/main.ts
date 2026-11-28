@@ -1,3 +1,4 @@
+import './renovation.css';
 import {isDogAgility,DOG_AGILITY} from './shared/dogAgility';
 import {catManualToys,type CatPlayCommand} from './shared/petToys';
 import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
@@ -955,7 +956,7 @@ const phone = createPhone(document.querySelector<HTMLElement>('#phone-overlay')!
     if(!state||!active)return false;
     if(state.furnishing.soldFixtures?.includes('sofa')){const sofa=state.furnishing.placed.find(p=>furnitureActionList(p).includes('sofaScroll'));if(!sofa){notify('Поставь диван для отдыха');return false;}return net.furnitureUse({type:'furniture_use',furnitureId:sofa.id,action:'sofaScroll'});}
     return net.perform('sofaScroll');
-  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command),command=>net.album(command),()=>startPhotoMode(),()=>entertainmentMenu.catalog());
+  },room=>net.cleanRoom(room),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.world(command),command=>net.weekend(command),()=>{actionsEl.hidden=true;locationUI.openMap();},()=>net.world({type:'venue_trip'}),command=>net.familyLife(command),(kind,item,on)=>net.favoriteFood(kind,item,on),command=>net.familyMessage(command),command=>net.album(command),()=>startPhotoMode(),()=>entertainmentMenu.catalog(),()=>{actionsEl.hidden=true;furnishing.close();locationUI.openRenovation();});
 const photoPanel=document.createElement('div');photoPanel.className='photo-mode';photoPanel.hidden=true;
 const photoHint=document.createElement('span');photoHint.textContent='Выбери ракурс камеры';
 const photoShoot=document.createElement('button');photoShoot.type='button';photoShoot.textContent='📷 Снять';

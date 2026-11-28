@@ -1,0 +1,74 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {initialState} from '../../src/shared/protocol';
+import {ROOMS,COVERINGS,coveringById,renovationQuote,compatible,initialRenovation,validRenovation} from '../../src/shared/renovation';
+import {STATIONS,stationById,approachFor,doorwayArrival,placeObstacles,floorFor} from '../../src/shared/locations';
+import {applyWorld,validWorld} from '../locations';
+import {planWalk,findRoute,pointIsClear} from '../../src/game/navigation';
+import {decorateHome} from '../../src/game/HomeStyling';
+import {buildHomeWing} from '../../src/game/HomeWing';
+import {buildHomeSideWalls} from '../../src/game/HomeSideWalls';
+import {collectRenovation,coveringMaterial} from '../../src/game/RenovationArt';
+import {createLocation} from '../../src/game/LocationScene';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {openServerFiles} from '../storage';
+import {districtStation,districtArrival} from '../../src/shared/district';
+test('every shop department has a real route and exits to the car or district',()=>{
+ const s=initialState();s.money=100000;
+ Object.assign(s.characters.vlad,approachFor(stationById('home','family-car')!,'vlad'));
+ const trip=applyWorld(s,'vlad',{type:'car_travel',place:'buildshop'});assert.ok(trip.ok);assert.ok(validWorld(trip.state.world));
+ const obs=placeObstacles('buildshop'),floor=floorFor('buildshop'),arrive=doorwayArrival('buildshop','district','vlad');
+ assert.ok(pointIsClear(arrive,obs,floor));
+ for(const st of STATIONS.buildshop){
+  assert.ok(pointIsClear(st.approach,obs,floor),st.id);
+  assert.ok(planWalk(arrive,st.approach,obs,floor),st.id);
+ }
+ const exit=stationById('buildshop','build-exit')!;Object.assign(trip.state.characters.vlad,exit.approach);
+ const back=applyWorld(trip.state,'vlad',{type:'travel',place:'district',via:exit.id});assert.ok(back.ok);assert.equal(back.state.world.places.vlad,'home');assert.equal(back.state.world.carDriver,undefined);
+ const street=stationById('district',districtStation('buildshop'))!;assert.ok(street);
+ assert.ok(findRoute(districtArrival('home','vlad'),street.approach,placeObstacles('district'),floorFor('district')),'district walk to store');
+ const scene=createLocation('buildshop');assert.equal(scene.stations.size,STATIONS.buildshop.length);assert.ok(scene.root.children.length>5);scene.dispose();
+});
+test('samples are free, only the correct store stand grants them; quote/install is authoritative and stale or unaffordable attempts rejected',()=>{
+ let s=initialState();s.money=100000;
+ const sku='wall-linen-sage',floor='floor-tile-sand';
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_sample',sku}).ok,false);
+ s.world.places.vlad='buildshop';Object.assign(s.characters.vlad,approachFor(stationById('buildshop','build-walls')!,'vlad'));
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_sample',sku:floor}).ok,false);
+ let r=applyWorld(s,'vlad',{type:'renovation_sample',sku});assert.ok(r.ok);s=r.state;assert.equal(s.money,100000);assert.equal(s.ledger.length,0);
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_sample',sku}).ok,false);
+ Object.assign(s.characters.vlad,approachFor(stationById('buildshop','build-floors')!,'vlad'));
+ r=applyWorld(s,'vlad',{type:'renovation_sample',sku:floor});assert.ok(r.ok);s=r.state;
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0}).ok,false);
+ s.world.places.vlad='home';const before=s.money,quote=renovationQuote('bedroom',coveringById(sku)!);
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_install',sku,room:'bathroom',expected:null,sequence:0}).ok,false);
+ assert.equal(applyWorld(s,'vlad',{type:'renovation_install',sku:'unknown',room:'bedroom',expected:null,sequence:0}).ok,false);
+ assert.equal(applyWorld({...s,money:1},'vlad',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0}).ok,false);
+ r=applyWorld(s,'vlad',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0});assert.ok(r.ok);
+ assert.equal(r.state.money,before-quote.total);assert.equal(r.state.ledger.at(-1)?.amount,quote.total);assert.deepEqual(r.state.world.renovation?.surfaces,{bedroom:{wall:sku}});
+ assert.deepEqual(placeObstacles('home',r.state.furnishing),placeObstacles('home',s.furnishing));assert.equal(s.world.renovation?.surfaces.bedroom,undefined);
+ assert.equal(applyWorld(r.state,'vlad',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0}).ok,false);
+ assert.equal(applyWorld(r.state,'alina',{type:'renovation_install',sku,room:'bedroom',expected:null,sequence:0}).ok,false);
+ assert.ok(validWorld(r.state.world));
+ const dir=mkdtempSync(join(tmpdir(),'renovation-069-'));
+ try{const files=openServerFiles(dir);files.save(r.state);assert.deepEqual(files.load().world.renovation,r.state.world.renovation);}finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('ten rooms have separate actual surface meshes and preview cannot mutate shared state or original geometry',()=>{
+ const scene=new THREE.Scene();decorateHome(scene);buildHomeWing(scene);const sides=buildHomeSideWalls(scene);
+ const art=collectRenovation(scene),parts:THREE.Mesh[]=[];scene.traverse(o=>{if(o instanceof THREE.Mesh&&o.userData.renovation)parts.push(o);});
+ assert.equal(art.count,parts.length);
+ for(const room of ROOMS)for(const kind of ['wall','floor'] as const)assert.ok(parts.some(m=>m.userData.renovation.room===room.id&&m.userData.renovation.kind===kind),room.id+' '+kind);
+ const state=initialRenovation();art.apply(state);assert.equal(parts.filter(p=>p.visible).length,0);
+ art.apply(state,{room:'bedroom',sku:'wall-linen-sage'});
+ const visible=parts.filter(p=>p.visible);assert.ok(visible.length>1);assert.ok(visible.every(p=>p.userData.renovation.room==='bedroom'&&p.userData.renovation.kind==='wall'&&p.material===coveringMaterial(coveringById('wall-linen-sage')!)));
+ assert.deepEqual(state.surfaces,{});art.apply(state);assert.equal(parts.filter(p=>p.visible).length,0);
+ state.surfaces.bedroom={wall:'wall-linen-sage'};art.apply(state,{room:'living',sku:'floor-oak-light'});
+ assert.equal(parts.filter(p=>p.visible&&p.userData.renovation.kind==='floor').length,1);art.apply(state);assert.equal(parts.filter(p=>p.visible&&p.userData.renovation.kind==='floor').length,0);
+ assert.ok(sides.walls.every(w=>w.upper.children.some(o=>o.name==='Room finish wall faces')));
+ assert.equal(new Set(COVERINGS.map(p=>p.id)).size,COVERINGS.length);assert.equal(new Set(COVERINGS.map(p=>coveringMaterial(p))).size,COVERINGS.length);
+ assert.ok(ROOMS.every(r=>COVERINGS.some(p=>p.kind==='floor'&&compatible(r.id,p))&&COVERINGS.some(p=>p.kind==='wall'&&compatible(r.id,p))));
+ assert.equal(validRenovation({samples:[],surfaces:{bathroom:{floor:'floor-carpet-grey'}}}),false);
+});

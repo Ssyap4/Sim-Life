@@ -1,0 +1,39 @@
+name: SimOurHome 0.69 renovation
+on:
+  push:
+    branches: [feat/pet-play-069]
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx tsx --test server/tests/renovation-069.test.ts server/tests/home-side-walls-061.test.ts server/tests/separated-district-029.test.ts server/tests/locations.test.ts server/tests/car-ride-055.test.ts server/tests/dog-bath-035.test.ts
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: node --import tsx scripts/qa-renovation-069.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: renovation-069
+          path: /tmp/simourhome-069-renovation
+          retention-days: 7

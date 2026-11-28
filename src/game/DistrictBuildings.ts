@@ -146,7 +146,7 @@ export function buildDistrictFacade(site:DistrictSite,resources:LocationResource
     for(const x of [-w*.45,w*.45]) box(group,[.17,2.56,.38],[x,1.34,face+.11],0x456963);
     entrance(frame,1.68);
     for(const x of [-2.72,2.72]) {pots(group,x,face+.73,1); box(group,[.055,.51,.055],[x,.265,face+1.0],graphite);}
-  } else if(site.place==='petshop'){
+  } else if(site.place==='petshop'||site.place==='buildshop'){
     wall(frame,3.65,0xe3d9be,2.55);roofDeck(frame,3.65,site.color);
     box(group,[w+.15,.34,.65],[0,2.76,face+.18],site.color);
     for(const x of [-1.75,1.75]){pane(frame,x,1.42,1.62,1.87,'shelf');box(group,[1.65,.12,.25],[x,.43,face+.07],0x7b9d81);}
@@ -237,6 +237,7 @@ export function buildRoofBillboard(site:DistrictSite,resources:LocationResources
 
   // Eave/ridge heights match the actual roof shapes above (including gables).
   const rooflines={
+    buildshop:{eave:3.65,rise:.36,gable:false},
     petshop:{eave:3.65,rise:.36,gable:false},
     electronics:{eave:3.85,rise:.36,gable:false},
     clothing:{eave:3.65,rise:.36,gable:false},
@@ -254,6 +255,7 @@ export function buildRoofBillboard(site:DistrictSite,resources:LocationResources
   const centerY=bottom+height/2;
   const z=site.d/2-.23;
   const palette:Record<Exclude<DistrictSite['place'],'park'>,readonly [number,string,string]>={
+    buildshop:[0x976a35,'#976a35','#fff4d7'],
     petshop:[0x39664d,'#39664d','#fff4d7'],
     electronics:[0x28546f,'#28546f','#e6faff'],
     clothing:[0x675771,'#675771','#fff3e6'],

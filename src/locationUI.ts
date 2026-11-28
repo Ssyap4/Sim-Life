@@ -1,3 +1,4 @@
+import {COVERINGS,ROOMS,coveringById,compatible,renovationQuote,type RoomId,type SurfaceKind,type RenovationPreview} from './shared/renovation';
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,LAKE_CARE,LAKE_LEISURE,lakeCanSwim,lakeNeedsFish,lakeCampFor,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
 import {DOG_AGILITY,AGILITY_ACTIONS,agilityReady,agilityConfidence} from './shared/dogAgility';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
@@ -56,6 +57,8 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   openEducation: (room: string, exam?: boolean) => void,
   enterWork: (station:string) => boolean, openCareer: () => void, cafeSocial?: (action:string)=>boolean, startWarehouse?: (job:JobId)=>boolean,favorite?:TasteSubmit) {
   let state: GameState | null = null;
+  let renovationRoom:RoomId='living',renovationKind:SurfaceKind='floor',renovationSku='',renovationPreview:RenovationPreview|undefined,renovationKey='';
+  let renovationExpected:string|null=null;
   let role: CharacterId = 'vlad';
   let location: PlaceId = 'home';
   let current: Station | null = null;
@@ -75,6 +78,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
   const showCart = () => getWorld().setCart(list().reduce((count, line) => count + line.quantity, 0));
 
   function close() {
+    if(current?.action.kind==='renovation-home'){getWorld()?.previewRenovation();panel.classList.remove('renovation-panel','renovation-active');renovationPreview=undefined;renovationKey='';}
     if(current?.action.kind==='fitting'){getWorld()?.fittingCamera(null);panel.classList.remove('clothes-fitting-panel');document.querySelector('#app')?.classList.remove('fitting-open');}
     fittingLook=null;
     if (current?.action.kind === 'fridge' || current?.action.kind === 'cupboard') send({ type: 'close_storage' });
@@ -193,7 +197,54 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
     const kind = station.action.kind;
     const local = (label: string, action: LocalActivity) =>
       button(label, () => { if (send({ type: 'local_activity', station: station.id, action })) close(); });
-    if(kind==='car'){
+    if(kind==='renovation-home'){
+      panel.classList.add('renovation-panel');panel.classList.toggle('renovation-active',!!renovationPreview);
+      if(location!=='home'){options.append(element('p','','Для примерки и монтажа нужно вернуться домой.'));panel.append(options);return;}
+      const r=place.world.renovation;
+      options.classList.add('renovation-options');
+      const room=element('select');room.dataset.renovationRoom='';room.setAttribute('aria-label','Комната');
+      for(const entry of ROOMS){const o=element('option','',entry.name);o.value=entry.id;room.append(o);}room.value=renovationRoom;
+      const reset=()=>{renovationPreview=undefined;renovationSku='';getWorld().previewRenovation();};
+      room.onchange=()=>{renovationRoom=room.value as RoomId;reset();draw();};
+      const tabs=element('div','renovation-tabs');
+      for(const [id,label] of [['wall','Стены'],['floor','Пол']] as const){const b=button(label,()=>{renovationKind=id;reset();draw();});b.dataset.renovationKind=id;b.setAttribute('aria-pressed',String(renovationKind===id));tabs.append(b);}
+      if(!renovationPreview)options.append(room,tabs);
+      const products=(r?.samples??[]).map(coveringById).filter(p=>!!p&&p.kind===renovationKind&&compatible(renovationRoom,p));
+      if(!products.length){options.append(element('small','','Нет подходящих образцов. Выбери бесплатные образцы в «ДомСтрое». Для мокрых зон нужна влагостойкая отделка.'));panel.append(options);return;}
+      const pick=element('select');pick.dataset.renovationSku='';pick.setAttribute('aria-label','Покрытие');const placeholder=element('option','','Выбери покрытие');placeholder.value='';pick.append(placeholder);
+      for(const p of products){const o=element('option','',p!.name+(r?.surfaces[renovationRoom]?.[renovationKind]===p!.id?' · установлено':''));o.value=p!.id;pick.append(o);}
+      pick.value=renovationSku;pick.onchange=()=>{renovationSku=pick.value;renovationPreview=undefined;getWorld().previewRenovation();draw();};if(!renovationPreview)options.append(pick);
+      const product=coveringById(renovationSku);
+      if(product&&products.includes(product)){
+        const q=renovationQuote(renovationRoom,product),installed=r?.surfaces[renovationRoom]?.[renovationKind]??null;
+        const quote=element('div','renovation-quote');
+        const swatch=element('span','renovation-swatch');swatch.style.backgroundColor='#'+product.color.toString(16).padStart(6,'0');
+        quote.append(swatch,element('strong','',product.name),element('small','',q.area+' м² · материалы '+formatRub(q.materials)+' · монтаж '+formatRub(q.installation)),element('strong','','Итого '+formatRub(q.total)));options.append(quote);
+        if(renovationPreview&&installed!==renovationExpected){renovationPreview=undefined;getWorld().previewRenovation();panel.classList.remove('renovation-active');options.prepend(room,tabs,pick);options.append(element('small','','Отделка изменена другим игроком. Примерь заново.'));}
+        if(!renovationPreview){const b=button('Примерить в доме · бесплатно',()=>{renovationExpected=installed;renovationPreview={room:renovationRoom,sku:product.id};getWorld().previewRenovation(renovationPreview);draw();},installed===product.id);b.dataset.renovationPreview='';options.append(b);}
+        else{
+          options.append(element('small','',ROOMS.find(r=>r.id===renovationRoom)!.name+' · примерка видна только тебе. Камеру можно вращать.'));
+          const b=button('Купить и установить · '+formatRub(q.total),()=>{transaction({type:'renovation_install',room:renovationRoom,sku:product.id,expected:renovationExpected,sequence:place.world.sequence[role]});},pending!==null||place.money<q.total);b.dataset.renovationInstall='';options.append(b);
+          const cancel=button('Отменить примерку',()=>{renovationPreview=undefined;getWorld().previewRenovation();draw();});cancel.dataset.renovationCancel='';options.append(cancel);
+        }
+      }
+    }else if(station.action.kind==='renovation-display'){
+      const category=station.action.category;
+      if(category==='lighting'||category==='sanitary')options.append(element('small','','Выставочные образцы. Продажа и домашняя примерка будут доступны после проверки новых моделей.'));
+      else{
+        options.append(element('small','','Выбери бесплатные образцы. Дома в телефоне → Ремонт можно посмотреть покрытие в любой подходящей комнате до оплаты.'));
+        for(const p of COVERINGS.filter(p=>p.kind===category)){
+          const row=element('div','renovation-product'),swatch=element('span','renovation-swatch');swatch.style.backgroundColor='#'+p.color.toString(16).padStart(6,'0');
+          const text=element('div','');text.append(element('strong','',p.name),element('small','',formatRub(p.price)+'/м²'+(p.wet?' · влагостойкое':'')));
+          const chosen=place.world.renovation?.samples.includes(p.id)??false;
+          const b=button(chosen?'Выбран ✓':'В примерку',()=>send({type:'renovation_sample',sku:p.id}),chosen);b.dataset.renovationSample=p.id;
+          row.append(swatch,text,b);options.append(row);
+        }
+      }
+    }else if(kind==='renovation-checkout'){
+      options.append(element('strong','','Образцы в семейной примерке: '+(place.world.renovation?.samples.length??0)),element('small','','Материалы и монтаж оплачиваются только дома после предпросмотра. Телефон → Ремонт.'));
+      for(const id of place.world.renovation?.samples??[])options.append(element('small','',coveringById(id)?.name??''));
+    }else if(kind==='car'){
       options.classList.add('car-destination-options');
       if(place.world.carDriver){
         options.append(element('small','','Машина сейчас в поездке'));
@@ -226,7 +277,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
           if(send({type:'car_travel',place:destination}))close();
         });
         heading('Город');
-        for(const destination of ['market','cafe','park','clothing','electronics','petshop','industrial'] as const)options.append(destinationButton(destination));
+        for(const destination of ['market','cafe','park','clothing','electronics','petshop','buildshop','industrial'] as const)options.append(destinationButton(destination));
         heading('Отдых');
         const lake=button('🏕️ Лесное озеро ›',()=>{carPage='lake';draw();panel.scrollTop=0;});
         lake.dataset.carPage='lake';options.append(lake);
@@ -638,6 +689,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
 
   return {
     openMap, closeMap, close, go,
+    openRenovation(){close();closeMap();current={id:'renovation-home',name:'Ремонт · ДомСтрой',center:{x:0,z:0},approach:{x:0,z:0},width:0,depth:0,action:{kind:'renovation-home'}};panel.hidden=false;panel.dataset.station=current.id;draw();},
     cancelRoute() { entrance=null; },
     visit(station: Station) {
       if (station.action.kind === 'waypoint') { entrance=null; return; }
@@ -677,11 +729,13 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       }
       if (pending !== null && next.world.sequence[role] > pending) {
         if (current?.action.kind === 'checkout') { cart.clear(); showCart(); }
+        if(current?.action.kind==='renovation-home'){renovationPreview=undefined;getWorld().previewRenovation();}
         pending = null;
       }
       const newCatch=location==='lake'&&next.world.lake?.[role]?.catch&&!state?.world.lake?.[role]?.catch;
       state = next;
       if(newCatch){current=STATIONS.lake.find(s=>s.action.kind==='lake'&&s.action.facility==='fish'&&Math.hypot(s.approach.x-next.characters[role].x,s.approach.z-next.characters[role].z)<1)??STATIONS.lake.find(s=>s.id==='lake-fish-1')!;panel.hidden=false;panel.dataset.station=current.id;}
+      if(current?.action.kind==='renovation-home'||current?.action.kind==='renovation-display'||current?.action.kind==='renovation-checkout'){const key=JSON.stringify([next.world.renovation,next.money,next.world.sequence[role],current.id]);if(key===renovationKey)return;renovationKey=key;}
       draw();
     },
     reject() { entrance=null; pending = null; draw(); },

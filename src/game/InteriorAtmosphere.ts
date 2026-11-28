@@ -7,6 +7,7 @@ type Profile={w:number;d:number;x:number;z:number;y:number;warm:number;floor:num
 const profiles:Partial<Record<PlaceId,Profile>>={
  market:{w:12,d:10,x:0,z:0,y:.016,warm:0xfff0d7,floor:0x9ca99e,key:1.75,fill:1.42,lamps:[-3.8,0,3.8]},
  cafe:{w:12,d:10,x:0,z:0,y:.008,warm:0xffd4a3,floor:0xaf8e70,key:1.48,fill:1.33,lamps:[-3.8,0,3.8]},
+ buildshop:{w:12,d:10,x:0,z:0,y:.009,warm:0xffe6c6,floor:0xc2b7a3,key:1.73,fill:1.45,lamps:[-3.8,0,3.8]},
  petshop:{w:12,d:10,x:0,z:0,y:.009,warm:0xffebce,floor:0x9eae9c,key:1.65,fill:1.44,lamps:[-3.8,0,3.8]},
  clothing:{w:12,d:10,x:0,z:0,y:.009,warm:0xffe6da,floor:0xc2b0b4,key:1.68,fill:1.42,lamps:[-3.8,0,3.8]},
  electronics:{w:17,d:10,x:2.5,z:0,y:.013,warm:0xe9f3ff,floor:0xb1c3ce,key:1.82,fill:1.50,lamps:[-3,1,5,9]},

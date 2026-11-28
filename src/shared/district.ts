@@ -25,6 +25,7 @@ export const DISTRICT_SITES = [
   { place: 'education', x: -23.8, z: -6.98, w: 5.65, d: 5.1, turn: 1, name: 'Центр «Потенциал»', sign: 'ПОТЕНЦИАЛ', color: 0xc09058 },
   { place:'petshop',x:25.5,z:14.1,w:5.8,d:4.9,turn:-1,name:'Зоомагазин «Лапки»',sign:'ЛАПКИ',color:0x588e72 },
   { place:'electronics',x:25.5,z:7.2,w:5.8,d:4.9,turn:-1,name:'Магазин техники «Импульс»',sign:'ИМПУЛЬС',color:0x396d8c },
+  { place:'buildshop',x:25.5,z:28.2,w:5.8,d:4.9,turn:-1,name:'ДомСтрой',sign:'ДОМСТРОЙ',color:0xb18448 },
   { place: 'clothing', x: 25.5, z: .30, w: 5.8, d: 4.9, turn: -1, name: 'Магазин одежды «Стиль»', sign: 'СТИЛЬ', color: 0x776987 },
   { place: 'work-it', x: -23.8, z: -13, w: 4.95, d: 4.90, turn: 1, name: 'IT-офис «Север»', sign: 'СЕВЕР · IT', color: 0x517986 },
   { place: 'work-detail', x: -23.8, z: 14.05, w: 7.4, d: 4.9, turn: 1, name: 'Детейлинг «Линия блеска»', sign: 'ЛИНИЯ БЛЕСКА', color: 0x546569 },
@@ -56,6 +57,7 @@ export const DISTRICT_PATHS = [
   { x: 17.7, z: .30, w: 9.7, d: 1.9 },
   { x: 18.2,z:7.2,w:9.0,d:1.9 },
   { x: 19.1,z:14.1,w:7.4,d:1.9 },
+  { x: 19.1,z:28.2,w:7.4,d:1.9 },
   { x: -7.4, z: -.6, w: 20, d: 1.8 },
   { x: 13.35, z: -6.20, w: 2.2, d: 28.1 },
   { x: 15.6,z:19.5,w:1.7,d:23.0 },
@@ -84,8 +86,8 @@ export const DISTRICT_BEDS = [
   { x: -15.35, z: 10.35, w: 1.17, d: 1.70, scheme: 0 },
   { x: 15.03, z: 13.95, w: 1.54, d: 1.13, scheme: 1 },
   { x: 20.94, z: 23.60, w: 2.22, d: .76, scheme: 1 },
-  { x: 21.28, z: 28.50, w: 2.50, d: .93, scheme: 2 },
-  { x: 24.10, z: 29.18, w: 2.09, d: .95, scheme: 3 },
+  { x: 20.8, z: 25.55, w: 2.50, d: .93, scheme: 2 },
+  { x: 20.8, z: 30.40, w: 2.09, d: .95, scheme: 3 },
 ] as const;
 
 export const DISTRICT_TREES = [
@@ -99,7 +101,7 @@ export const DISTRICT_TREES = [
   [3.6,12.4,'linden',1.09],[-6.9,13.4,'birch',.83],[-1.7,5.1,'ornamental',.76],
   [-12.35,2.12,'maple',.91],[-13.7,-12.6,'birch',.89],[-10.4,-12.55,'ornamental',.8],
   [26,-16.7,'spruce',1.08],[26.5,-10.55,'spruce',.95],
-  [14.1,16.25,'birch',.88],[20.60,18.10,'linden',1.05],[23.76,23.62,'birch',.94],[26.9,26.2,'spruce',1.06],
+  [14.1,16.25,'birch',.88],[20.60,18.10,'linden',1.05],[23.76,23.62,'birch',.94],[19.3,31.0,'spruce',1.06],
   [11.35,25.05,'maple',.91],[8.5,19.4,'linden',1.08],[3.25,26.25,'birch',1.02],
   [-4.95,22.80,'ornamental',.9],[-9.97,28.3,'linden',.96],[-12.98,11.20,'linden',.86],
 ] as const;

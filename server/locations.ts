@@ -1,3 +1,4 @@
+import {coveringById,roomById,compatible,renovationQuote,validRenovation,initialRenovation} from '../src/shared/renovation';
 import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit,type AgilitySupport} from '../src/shared/dogAgility';
 import {recordCatch} from '../src/shared/personalCollections';
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
@@ -62,12 +63,13 @@ export function validWorld(value: unknown): value is WorldState {
     (w.tableBags === undefined || count(w.tableBags)) &&
     (w.dogWalker === null || w.dogWalker === 'vlad' || w.dogWalker === 'alina') &&
     (w.courierDepartAt===undefined||count(w.courierDepartAt)) &&
-    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','industrial','fitness','clinic','barber','spa','venue','lake','work-clinic'].includes(w.places![w.carDriver]))) &&
+    (w.carDriver===undefined||(ROLES.includes(w.carDriver)&&['market','cafe','park','clothing','electronics','petshop','buildshop','industrial','fitness','clinic','barber','spa','venue','lake','work-clinic'].includes(w.places![w.carDriver]))) &&
     (w.vetVisit===undefined?!(w.carDriver&&w.places![w.carDriver]==='work-clinic'):!!w.vetVisit&&ROLES.includes(w.vetVisit.owner)&&isHealthPet(w.vetVisit.pet)&&w.carDriver===w.vetVisit.owner&&w.places![w.vetVisit.owner]==='work-clinic'&&!(w.vetVisit.pet==='verdell'&&w.dogWalker)) &&
     (w.fishing===undefined||validFishing(w.fishing)) &&
     (w.lake===undefined?ROLES.every(r=>w.places![r]!=='lake'):validLake(w.lake)&&ROLES.every(r=>!!w.lake?.[r]===(w.places![r]==='lake'))) &&
     (w.spa===undefined?ROLES.every(r=>w.places![r]!=='spa'):validSpa(w.spa)&&ROLES.every(r=>!!w.spa?.[r]===(w.places![r]==='spa'))) &&
     (w.fitness===undefined||validFitness(w.fitness)) &&
+    (w.renovation===undefined||validRenovation(w.renovation)) &&
     (w.electronics===undefined||validElectronics(w.electronics)) &&
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
@@ -139,7 +141,7 @@ export function clinicTogetherTrip(source:GameState,driver:CharacterId):Result{
 }
 import {CONSOLES,CONSOLE_GAMES,isConsoleSku,isConsoleGame,consoleOwned,consoleInstalled,consoleLibrary} from '../src/shared/consoleCatalog';
 export const worldMessages = new Set(['barber_book','barber_cancel','console_buy','console_game_buy','vet_book','vet_cancel','vet_medicine','health_care','health_book','health_cancel','health_medicine','fitness_pass','fitness_book','fitness_cancel','speaker_buy','vacuum_buy','vacuum_control',
-  'pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
+  'renovation_sample','renovation_install','pet_food_buy','pet_toy_buy','pet_furniture_buy','electronics_buy','clothing_buy','clothing_wear','clothing_auto','clothing_context','travel', 'car_travel', 'walk', 'approach', 'store_pay', 'delivery_order', 'delivery_handoff', 'delivery_claim',
   'lake_buy_bait','lake_rent','lake_pitch','lake_fire','lake_catch','lake_dog_treat','camp_pack', 'picnic_buy', 'picnic_pack', 'picnic_unpack',
   'ready_food_move', 'ready_food_serve', 'ready_food_discard', 'cafe_order', 'cafe_pickup', 'cafe_seat', 'dog_leash',
 ]);
@@ -153,6 +155,23 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   const neighborAt = (location: typeof place) => neighborOnline && source.world.places[neighbor] === location &&
     !source.activeShifts[neighbor] ? source.characters[neighbor] : undefined;
 
+  if(command.type==='renovation_sample'){
+    const p=coveringById(command.sku);if(!p||place!=='buildshop'||!['build-walls','build-floors'].some(id=>at(source,role,stationById('buildshop',id))&&id===(p.kind==='wall'?'build-walls':'build-floors')))return fail('Подойди к стенду нужного покрытия');
+    const next=structuredClone(source),r=next.world.renovation??=initialRenovation();
+    if(r.samples.includes(p.id))return fail('Образец уже выбран');
+    r.samples.push(p.id);return done(next,'Образец добавлен в домашнюю примерку');
+  }
+  if(command.type==='renovation_install'){
+    const p=coveringById(command.sku),room=roomById(command.room),r=source.world.renovation;
+    if(place!=='home'||!p||!room||!r?.samples.includes(p.id)||!compatible(room.id,p))return fail('Выбери подходящий образец дома');
+    if(command.sequence!==source.world.sequence[role])return fail('Операция уже обработана');
+    const previous=r.surfaces[room.id]?.[p.kind]??null;
+    if(previous!==command.expected||previous===p.id)return fail('Отделка уже изменена, проверь примерку');
+    const q=renovationQuote(room.id,p);if(source.money<q.total)return fail('Недостаточно денег на материалы и монтаж');
+    const next=structuredClone(source);(next.world.renovation!.surfaces[room.id]??={})[p.kind]=p.id;
+    next.money-=q.total;next.world.sequence[role]++;addLedger(next,role,'expense','furniture',q.total,'Ремонт · '+room.name+' · '+p.name);
+    return done(next,'Ремонт завершён: '+room.name);
+  }
   if(command.type==='barber_book'||command.type==='barber_cancel'){if(role!=='vlad')return fail('Запись доступна Владу');const next=structuredClone(source);if(command.type==='barber_cancel')delete next.barberBooking;else{if(typeof command.at!=='number'||!barberSlots(clockMinutes(source.clock)).includes(command.at)||!isBarberAction(command.service))return fail('Выбери услугу и время');next.barberBooking={at:command.at,service:command.service};}return done(next,command.type==='barber_book'?'Запись в BRO сохранена':'Запись отменена');}
   if(command.type==='vet_book'||command.type==='vet_cancel'||command.type==='vet_medicine'){
     if(!isHealthPet(command.pet))return fail('Выбери питомца');
@@ -368,7 +387,7 @@ export function applyWorld(source: GameState, role: CharacterId, command: Record
   if(command.type==='car_travel'){
     if(place!=='home'||!at(source,role,stationById('home','family-car')))return fail('Сначала подойди к машине');
     if(source.world.carDriver)return fail('Машина сейчас в поездке');
-    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='barber'&&command.place!=='spa'&&command.place!=='lake'&&command.place!=='work-clinic')return fail('Выбери доступное место');
+    if(command.place!=='market'&&command.place!=='cafe'&&command.place!=='park'&&command.place!=='clothing'&&command.place!=='electronics'&&command.place!=='petshop'&&command.place!=='buildshop'&&command.place!=='industrial'&&command.place!=='fitness'&&command.place!=='clinic'&&command.place!=='barber'&&command.place!=='spa'&&command.place!=='lake'&&command.place!=='work-clinic')return fail('Выбери доступное место');
     if(command.place==='barber'&&role!=='vlad')return fail('BRO доступен Владу');
     if(command.place==='work-clinic'&&(!isHealthPet(command.pet)||command.pet==='verdell'&&source.world.dogWalker))return fail('Выбери свободного питомца для поездки');
     if(command.place!=='work-clinic'&&command.pet!==undefined)return fail('Питомца можно взять только в ветеринарку');

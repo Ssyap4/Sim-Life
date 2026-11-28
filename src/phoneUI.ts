@@ -48,7 +48,7 @@ import {FITNESS_PASSES,FITNESS_PROGRAMS,fitnessExercise,type FitnessProgramId,fi
 
 import {CONSOLES,CONSOLE_GAMES,consoleOwned,consoleInstalled,consoleGames,consoleLibrary,type ConsoleSku,type ConsoleCommand} from './shared/consoleCatalog';
 import {SPA_PASSES,SPA_ACTIVITIES,type SpaCommand} from './shared/spa';
-type App = 'media' | 'album' | 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
+type App = 'renovation' | 'media' | 'album' | 'messages' | 'holidays' | 'hobbies' | 'events' | 'weekends' | 'spa' | 'barber' | 'consoles' | 'health' | 'fitness' | 'speakers' | 'home' | 'audio' | 'feed' | 'furnishing' | 'delivery' | 'jobs' | 'calendar' | 'family' | 'pets' | 'education' | 'career' | 'relationship' | 'profiles' | 'autonomy' | BillingApp;
 const billingApps = new Set<App>(['finance','subscriptions','utilities','internet','mobile']);
 const apps: Record<App,[string,string]> = {
   media:['🎬','Медиатека'],
@@ -62,7 +62,7 @@ const apps: Record<App,[string,string]> = {
   health:['🏥','Добрый доктор'],
   fitness:['🏋️','PULSE Fitness'],
   speakers:['🔊','Умные колонки'],
-  home:['🏠','Чистота дома'],
+  home:['🏠','Чистота дома'],renovation:['🛠️','Ремонт'],
   feed:['📲','Лента'],
   audio:['🔊','Звук'],
   finance:['💳','Финансы'], subscriptions:['📺','Подписки'], internet:['🌐','Интернет'],
@@ -74,7 +74,7 @@ const apps: Record<App,[string,string]> = {
   autonomy:['🧠','Жизнь и привычки'],
 };
 const phoneGroups:readonly {label:string;ids:readonly App[]}[]=[
- {label:'Семья и дом',ids:['family','messages','album','profiles','relationship','pets','autonomy','home','furnishing','speakers']},
+ {label:'Семья и дом',ids:['family','messages','album','profiles','relationship','pets','autonomy','home','furnishing','renovation','speakers']},
  {label:'Планы и досуг',ids:['calendar','weekends','holidays','hobbies','events','media','consoles','feed']},
  {label:'Работа и развитие',ids:['career','jobs','education']},
  {label:'Магазины и услуги',ids:['delivery','fitness','health','barber','spa']},
@@ -92,7 +92,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   travelToCenter: () => boolean, sendCareer: (command: CareerCommand) => boolean, vote: (enabled: boolean) => boolean,
   social: {suggest:(group:SocialGroup,id?:string)=>void; moment:(id:FamilyMomentId)=>void; offer:()=>void; pending:()=>boolean; current:()=>string|undefined},
   openFurnishing:()=>void, setAutonomy:(mode:AutonomyMode)=>boolean,
-  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean,albumControl?:(command:AlbumCommand)=>boolean,photoCapture?:()=>void,openMedia?:()=>void) {
+  thoughts:ReturnType<typeof createThoughtUI>,openFeed?:()=>boolean,cleanRoom?:(room:DustRoomId)=>boolean,vacuumControl?:(command:VacuumCommand)=>boolean,speakerControl?:(command:SpeakerCommand)=>boolean,fitnessControl?:(command:FitnessCommand)=>boolean,healthControl?:(command:HealthCommand)=>boolean,consoleControl?:(command:ConsoleCommand)=>boolean,barberControl?:(command:BarberCommand)=>boolean,spaControl?:(command:SpaCommand)=>boolean,weekendControl?:(command:WeekendCommand)=>boolean,weekendMap?:()=>void,weekendVenue?:()=>boolean,familyLifeControl?:(command:FamilyLifeCommand)=>boolean,foodFavorite?:TasteSubmit,messageControl?:(command:MessageCommand)=>boolean,albumControl?:(command:AlbumCommand)=>boolean,photoCapture?:()=>void,openMedia?:()=>void,openRenovation?:()=>void) {
   root.innerHTML = `<section class="phone-case" role="dialog" aria-modal="true" aria-label="Игровой телефон">
     <header class="phone-header">
       <button type="button" data-phone-back aria-label="На главный экран телефона" hidden>‹</button>
@@ -484,6 +484,7 @@ export function createPhone(root: HTMLElement, delivery: HTMLElement, jobs: HTML
   }
 
   function show(next: App | null, educationView?: EducationView, room?: string, materialId?: string) {
+    if(next==='renovation'){close();openRenovation?.();return;}
     if(next==='media'){close();openMedia?.();return;}
     if(next==='furnishing'){close();openFurnishing();return;}
     const view=read();

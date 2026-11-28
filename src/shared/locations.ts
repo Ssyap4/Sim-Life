@@ -20,6 +20,7 @@ export const PLACES = {
   barber:{name:'Барбершоп BRO',icon:'💈',detail:'Стрижка, бритьё и профессиональный уход'},
   clinic:{name:'Добрый доктор',icon:'🏥',detail:'Терапевт, диагностика и аптека'},
   fitness:{name:'PULSE Fitness',icon:'🏋️',detail:'Кардио, силовые тренировки и сауна'},
+  buildshop:{name:'Строительный гипермаркет «ДомСтрой»',icon:'🛠️',detail:'Отделка, освещение и сантехника'},
   petshop:{name:'Зоомагазин «Лапки»',icon:'🐾',detail:'Корм, лежанки, домики и когтеточки'},
   electronics: {name:'Магазин техники «Импульс»',icon:'🔌',detail:'Компьютеры, ноутбуки, телевизоры, смартфоны и кофемашины'},
   clothing: { name: 'Магазин одежды «Стиль»', icon: '👕', detail: 'Одежда, примерочная и касса' },
@@ -74,6 +75,9 @@ type SiteAction =
   | {kind:'electronics-display';category:import('./electronics').ElectronicsKind}
   | {kind:'electronics-checkout'}
   | {kind:'pet-food-display';pet:import('./pets').PetId;form:'dry'|'wet'}
+  | {kind:'renovation-display';category:import('./renovation').SurfaceKind|'lighting'|'sanitary'}
+  | {kind:'renovation-checkout'}
+  | {kind:'renovation-home'}
   | {kind:'pet-checkout'}
   | {kind:'pet-furniture-display'}
   | { kind: 'wardrobe' | 'clothes-rack' | 'fitting' | 'clothes-checkout' }
@@ -252,6 +256,14 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('fitness-toilet-a','Женский туалет',13.1,3.05,2.1,1.8,{kind:'fitness',facility:'toilet-a'}),
     door('fitness-exit','Выход к машине','district',0,6.6,true),
   ],
+  buildshop:[
+    site('build-walls','Обои и отделка стен',-3.75,-2.65,2.4,1.05,{kind:'renovation-display',category:'wall'}),
+    site('build-floors','Напольные покрытия',0,-2.65,2.4,1.05,{kind:'renovation-display',category:'floor'}),
+    site('build-light','Освещение',3.75,-2.65,2.4,1.05,{kind:'renovation-display',category:'lighting'}),
+    site('build-sanitary','Сантехника',-3.75,.85,2.4,1.05,{kind:'renovation-display',category:'sanitary'}),
+    site('build-cash','Касса и заказ ремонта',3.65,1.45,1.75,.8,{kind:'renovation-checkout'}),
+    door('build-exit','Выход на улицу','district',-1.6,4.60,true),
+  ],
   petshop:[
     site('pet-dog-dry','Сухой корм для собак',-3.75,-2.65,2.35,.95,{kind:'pet-food-display',pet:'verdell',form:'dry'}),
     site('pet-cat-dry','Сухой корм для кошек',0,-2.65,2.35,.95,{kind:'pet-food-display',pet:'simba',form:'dry'}),
@@ -422,6 +434,7 @@ export interface WorldState {
   carDriver?:CharacterId;
   carRides?:Partial<Record<CharacterId,import('./carRide').CarRide>>;
   electronics?: import('./electronics').ElectronicsState;
+  renovation?: import('./renovation').RenovationState;
   wardrobe?: import('./previewWardrobe').OwnedWardrobe;
   cafe: Partial<Record<CharacterId, CafeOrder>>;
   dogWalker: CharacterId | null;
@@ -460,11 +473,13 @@ export type WorldCommand =
   | import('./speaker').SpeakerCommand
   | {type:'vacuum_buy';sku:import('./vacuumCatalog').VacuumSku}
   | import('./vacuum').VacuumCommand
+  | {type:'renovation_sample';sku:string}
+  | {type:'renovation_install';sku:string;room:import('./renovation').RoomId;expected:string|null;sequence:number}
   | {type:'electronics_buy';model:import('./electronics').ElectronicsId}
   | { type:'clothing_buy'|'clothing_wear'; look:string }
   | {type:'clothing_auto';enabled:boolean}
   | {type:'clothing_context';context:import('./previewWardrobe').OutfitContext;look:string|null}
-  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'industrial'|'fitness'|'clinic'|'barber'|'spa'|'lake'|'work-clinic';pass?:import('./lake').LakePass;dog?:boolean;pet?:import('./pets').PetId }
+  | { type: 'car_travel'; place:'market'|'cafe'|'park'|'clothing'|'electronics'|'petshop'|'buildshop'|'industrial'|'fitness'|'clinic'|'barber'|'spa'|'lake'|'work-clinic';pass?:import('./lake').LakePass;dog?:boolean;pet?:import('./pets').PetId }
   | { type: 'walk'; place: PlaceId; x: number; z: number }
   | { type: 'approach'; place: PlaceId; station: string }
   | { type: 'store_pay'; lines: BasketLine[]; sequence: number }

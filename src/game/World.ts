@@ -1,3 +1,5 @@
+import {collectRenovation} from './RenovationArt';
+import {roomById,type RenovationPreview} from '../shared/renovation';
 import {HOME_DRINK_COLORS} from '../shared/food';
 import {isHomeDrink} from '../shared/food';
 import {interiorLighting} from './InteriorAtmosphere';
@@ -166,6 +168,17 @@ export class World {
   private remoteMeshes: THREE.Object3D[] = [];
   private readonly openDoors = new Map<CharacterId, string>();
   private household: GameState | null = null;
+  private renovationArt?:ReturnType<typeof collectRenovation>;
+  private renovationPreview?:RenovationPreview;
+  private renovationCamera?:{eye:THREE.Vector3;target:THREE.Vector3;min:number};
+  previewRenovation(preview?:RenovationPreview){
+    if(preview&&this.place!=='home')return;
+    const old=this.renovationPreview;this.renovationPreview=preview;
+    if(preview&&old?.room!==preview.room){this.setFollowPlayer(false);this.inspected=null;const r=roomById(preview.room)!;this.renovationCamera??={eye:this.camera.position.clone(),target:this.controls.target.clone(),min:this.controls.minDistance};this.controls.minDistance=3.4;const x=(r.x1+r.x2)/2,z=(r.z1+r.z2)/2,span=Math.max(r.x2-r.x1,r.z2-r.z1);this.controls.target.set(x,.5,z);this.camera.position.set(x+span*.37,span*1.35,z+span*.82);this.camera.lookAt(this.controls.target);this.controls.update();}
+    if(!preview&&this.renovationCamera){if(this.place==='home'){this.controls.minDistance=this.renovationCamera.min;this.camera.position.copy(this.renovationCamera.eye);this.controls.target.copy(this.renovationCamera.target);this.controls.update();}this.renovationCamera=undefined;}
+    this.renovationArt?.apply(this.household?.world.renovation,preview);
+    if(this.cameraQA)this.canvas.dataset.renovationPreview=JSON.stringify(preview??null);
+  }
   private roadScene?:CarRideScene;
   private carRide?:CarRide;
   setCarRide(ride?:CarRide):void{this.carRide=ride;}
@@ -1993,6 +2006,7 @@ export class World {
     this.cottageLamps=buildCottageLights(this.scene);
     buildHomeWing(this.scene);
     this.sideWalls=buildHomeSideWalls(this.scene);
+    this.renovationArt=collectRenovation(this.scene);
     this.yard = buildYard(this.scene);
     this.homeScene.add(this.festiveTree,this.festiveGarlands.root);
     this.familyCar=buildFamilyCar();
@@ -2439,6 +2453,7 @@ export class World {
   private switchPlace(place: PlaceId): void {
     const switchStarted=performance.now();
     this.followingPair=false;
+    this.previewRenovation();
     this.fittingCamera(null);
     if(!this.inspected&&!this.cameraMove&&!this.neighborhoodView){
       this.savedCameras.set(this.place,{
@@ -2567,6 +2582,8 @@ export class World {
     const changed = place !== this.place;
     this.localRole = role;
     this.household = state;
+    this.renovationArt?.apply(state.world.renovation,this.renovationPreview);
+    if(this.cameraQA)this.canvas.dataset.renovationInstalled=JSON.stringify(state.world.renovation?.surfaces??{});
     // One delivered cup lives on the actual desk while that same order is active.
     const worker=(['vlad','alina'] as const).find(id=>state.activeShifts[id]?.homeDevice==='desktop'&&state.activeShifts[id]?.coffeeServed);
     if(worker&&!state.furnishing.soldFixtures?.includes('desk')){
@@ -2858,6 +2875,7 @@ export class World {
   }
 
   private pick(clientX: number, clientY: number, touch = false): void {
+    if(this.renovationPreview)return; // Free orbit/pinch, no accidental interactions during material trial.
     // Outside an open action menu, the first tap only dismisses the menu.
     // Never send an unexpected walk or open a different interaction behind it.
     if(this.navigation?.dismissTap?.())return;

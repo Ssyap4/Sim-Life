@@ -1,3 +1,6 @@
+import {COVERINGS} from '../shared/renovation';
+import {coveringMaterial} from './RenovationArt';
+import {buildBathFixture} from './BathroomArt';
 import {polishShopInterior} from './InteriorAtmosphere';
 import {addLocationFinish} from './LocationFinish061';
 import {addShopDetail} from './ShopDetail061';
@@ -307,6 +310,20 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
       sign(root,['Xiaomi','Roborock','Dreame'][i],.67,.48,.52,C.paper,textures,materials);root.children.at(-1)!.position.x=(i-1)*.70;
     });
     sign(root,station.name,2.10,.30,1.63,C.paper,textures,materials);
+  } else if(station.action.kind==='renovation-display'){
+    const category=station.action.category;
+    shape(root,[2.4,.15,1.05],[0,.075,0],0x57534c);shape(root,[2.4,1.8,.12],[0,1.05,-.46],0x88755e);
+    if(category==='wall'||category==='floor'){
+      const items=COVERINGS.filter(p=>p.kind===category);
+      for(const [i,p] of items.entries()){
+        const col=i%5,row=Math.floor(i/5),m=new THREE.Mesh(cube,coveringMaterial(p));m.scale.set(.405,.41,.035);m.position.set((col-2)*.45,.42+row*.46,-.37);root.add(m);
+      }
+    }else if(category==='lighting'){
+      for(const [i,sku] of ['lamp-amber','lamp-table-linen','lamp-arc'].entries()){const m=buildFurnishingModel(sku,'oak');m.scale.setScalar(.60);m.position.set((i-1)*.70,.15,.06);root.add(m);}
+    }else{
+      for(const [i,id] of (['toilet','basin','bathtub'] as const).entries()){const m=buildBathFixture(id);m.scale.setScalar(.40);m.position.set((i-1)*.75,.15,0);root.add(m);}
+    }
+    sign(root,station.name,2.15,.28,2.13,C.paper,textures,materials);
   } else if(station.action.kind==='electronics-display'){
     const category=station.action.category;
     shape(root,[2.35,.84,.95],[0,.42,0],0x405766);shape(root,[2.43,.08,1.01],[0,.88,0],0xe6edf1);
@@ -320,7 +337,7 @@ function buildStation(station: Station, textures: THREE.Texture[], materials: TH
     sign(root,station.name,2.10,.30,1.83,C.paper,textures,materials);
   } else if(kind==='pet-checkout'){
     shape(root,[1.75,.94,.80],[0,.47,0],0x588e72);shape(root,[1.82,.10,.85],[0,.99,0],0xf2e3c8);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);
-  } else if(kind==='electronics-checkout'){
+  } else if(kind==='renovation-checkout'||kind==='electronics-checkout'){
     shape(root,[1.75,.94,.80],[0,.47,0],0x456574);shape(root,[1.82,.10,.85],[0,.99,0],0xe0e9ee);shape(root,[.42,.27,.07],[-.4,1.18,-.12],0x263645);shape(root,[.33,.19,.02],[-.4,1.18,-.075],0x75a0b2);sign(root,'КАССА',.60,.45,1.30,C.paper,textures,materials);
   } else if(kind==='clothes-rack'){
     shape(root,[2.24,.08,.78],[0,.05,0],0x9f8069);
@@ -647,6 +664,16 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     shape(floor,[16.9,.49,.025],[2.5,.51,-4.895],0x536e80,cube);
     shape(floor,[4.15,.02,7.6],[8.2,.017,-.5],0xaebfce,cube);
     sign(floor,'ИГРОВОЙ ОТДЕЛ',2.5,-4.88,3.4,C.paper,textures,materials);floor.children.at(-1)!.position.x=8.15;
+  } else if(place==='buildshop'){
+    shape(floor,[12.3,.40,10.3],[0,-.23,0],0x575d5a,softCube,true);
+    shape(floor,[12,.06,10],[0,-.031,0],0xd0c8b7,cube);
+    for(let x=-5.5;x<6;x++)for(let z=-4.5;z<5;z++)shape(floor,[.98,.012,.98],[x,.003,z],Math.round(x+z)%2?0xc6beb0:0xd9d3c7,cube);
+    shape(floor,[12.15,2.85,.18],[0,1.42,-5.05],0xb8a78d,cube);
+    shape(floor,[.18,2.85,10.1],[-6.04,1.42,0],0xc8bcab,cube);
+    shape(floor,[11.9,.29,.025],[0,.48,-4.94],0xa3733a,cube);
+    sign(floor,'ДОМСТРОЙ · РЕМОНТ',2.55,-4.88,4.2,C.paper,textures,materials);
+    const cashier=marketCashier(resources,{title:'Консультант',color:0x9d713e,shirt:0xf2eee6,animated:true});cashier.position.set(3.65,0,.48);root.add(cashier);
+    animateCafe=(seconds)=>{const motion=cashier.userData.motion as {head:THREE.Group;arms:THREE.Group[]};motion.head.rotation.y=Math.sin(seconds*.48)*.13;motion.arms.forEach((a,i)=>a.rotation.x=Math.sin(seconds*.7+i)*.055);};
   } else if (place === 'market') {
     buildMarket(floor, resources);
     root.add(marketCashier(resources));
