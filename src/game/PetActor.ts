@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {agilityHeight,type DogAgilityAction} from '../shared/dogAgility';
 import type { SimbaRig } from './SimbaRig';
 import type {DogBedSite} from '../shared/dogBed';
 import type { CatPerch } from '../shared/CatPerches';
@@ -73,6 +74,8 @@ export class PetActor {
   private reactionOwner:'vlad'|'alina'|undefined;
   private ownerLook:FloorPoint|undefined;
   private parkRollTime=0;
+  private agility?:DogAgilityAction;
+  setAgility(action:DogAgilityAction){this.agility=action;}
   private parkStick=false;
   setParkStick():void{this.parkStick=true;}
   parkRoll():void{this.stop();this.parkRollTime=6;}
@@ -338,7 +341,7 @@ export class PetActor {
     this.petBedHeight=onPetBed?(supportHeight??0):0;
     this.scratchPost=scratchPost;
     this.toyIndex=routine==='toy'?toyIndex:undefined;this.manualToyPoint=routine==='toy'?manualToyPoint:undefined;if(this.manualToyPoint&&this.toyIndex!==undefined){const model=this.homeToys.children[this.toyIndex];if(model){model.visible=true;model.position.set(this.manualToyPoint.x,.015,this.manualToyPoint.z);}}
-    this.parkStick=false;this.fetchSpot=fetch?.point??null;
+    this.agility=undefined;this.parkStick=false;this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
     this.idleTime = 0;
@@ -368,7 +371,7 @@ export class PetActor {
     if(this.dogBedProgress>0)this.dogBedLeaving=true;else this.dogBed=null;
     this.releasePerch();
     this.route = [];
-    this.parkStick=false;this.fetchSpot=null;
+    this.agility=undefined;this.parkStick=false;this.fetchSpot=null;
     this.onPetBed=false;
     this.scratchPost=undefined;
     this.toyIndex=undefined;this.manualToyPoint=undefined;
@@ -948,6 +951,7 @@ export class PetActor {
       this.head.updateWorldMatrix(true,false);
       this.playToy.position.copy(this.root.worldToLocal(this.head.localToWorld(this.perchLocal.set(0,-.139,.365))));
     }
+    if(dog&&this.agility){const h=agilityHeight(this.agility,this.root.position);this.body.position.y+=h/this.root.scale.y;if(this.agility==='dogHurdle'&&h>.05){this.body.rotation.x-=.14*Math.sin(this.root.position.z*5);for(const paw of this.paws){paw.position.y+=h*.18;}}}
     this.animateHouseToys(toyPlay,toyBeat);
     if(this.simbaRig){
       const rest=Math.max(sleeping*.94,catNap,lookout*.60);

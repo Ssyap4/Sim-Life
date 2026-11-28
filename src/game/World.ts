@@ -37,6 +37,7 @@ import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
 import { tennisPlayer,tennisBall } from '../shared/tableTennis';
 import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
+import {isDogAgility,agilityPath} from '../shared/dogAgility';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
 import {floatBob,poolSwimFrame,poolEntryFrame,POOL_ENTRY_SECONDS,POOL_MOUNT_SECONDS} from '../shared/oasisPool';
@@ -182,6 +183,7 @@ export class World {
   private cartSize = 0;
   private dogTravel = 0;
   private parkDogUntil=0;
+  private agilityOwner?:CharacterId;
   private lakeDogMode="";
   private parkDogToiletStamp=0;
   private dogTrail: Point[] = [];
@@ -1661,7 +1663,9 @@ export class World {
   }
 
   private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
+  private endAgility(role:CharacterId){if(this.agilityOwner!==role)return;this.agilityOwner=undefined;this.pets.verdell.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;}
   finishTimedAction(role: CharacterId): void {
+    this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
@@ -1687,6 +1691,7 @@ export class World {
   }
 
   cancelTimedAction(role: CharacterId): void {
+    this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
     this.clearLakeFood(role);
     if(this.place==='spa'){this.actors[role].setPose('idle');if(this.remote?.root.userData.spaMassages)delete this.remote.root.userData.spaMassages[role];if(this.remote?.root.userData.spaShowers)delete this.remote.root.userData.spaShowers[role];if(this.remote?.root.userData.spaWaterUsers)delete this.remote.root.userData.spaWaterUsers[role];}
@@ -2273,8 +2278,9 @@ export class World {
     const start=nearestClearPoint(dog.root.position,obstacles,floor);if(!start)return;
     const owner=nearestClearPoint({x:actor.root.position.x-.55,z:actor.root.position.z+.35},obstacles,floor);if(!owner)return;
     const goal=nearestClearPoint({x:owner.x-2.0,z:owner.z+1.3},obstacles,floor);if(!goal)return;
-    this.parkDogUntil=this.visualSeconds+(action==='dogToilet'?6:15);
+    this.parkDogUntil=this.visualSeconds+(isDogAgility(action)?23:action==='dogToilet'?6:15);
     this.dogTrail=[];this.lastDogPoint=null;
+    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route){dog.followRoute([...route,...course.slice(1)].map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');dog.setAgility(action);this.agilityOwner=role;}return;}
     if(action==='dogRoll'){dog.parkRoll();return;}
     if(action==='dogToilet'){
       const route=findRoute(start,goal,obstacles,floor);if(route)dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'toilet');return;
@@ -2434,7 +2440,7 @@ export class World {
     this.sleepingOffline.clear();
     for (const pet of Object.values(this.pets)) pet.stop();
     this.dogTrail = [];
-    this.lastDogPoint = null;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
+    this.lastDogPoint = null;this.agilityOwner=undefined;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
     this.remote?.root.removeFromParent();
     this.remote?.dispose();
     this.remoteMeshes = [];

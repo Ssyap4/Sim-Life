@@ -10,8 +10,8 @@ export type CampRecipe=keyof typeof CAMP_RECIPES;
 export const isCampRecipe=(v:unknown):v is CampRecipe=>typeof v==='string'&&Object.hasOwn(CAMP_RECIPES,v);
 export const campIngredients=(r:CampRecipe)=>Object.entries(CAMP_RECIPES[r].ingredients) as [IngredientId,number][];
 export interface CampKit { fuel:number; recipes:Partial<Record<CampRecipe,number>> }
-export interface ParkDogVisit { minutes:number; toilets:number; toiletUntil?:number }
-export const PARK_DOG_ACTIONS=['dog','dogFetch','dogChase','dogRoll','dogToilet'] as const;
+export interface ParkDogVisit { agility?:import('./dogAgility').AgilityVisit;minutes:number; toilets:number; toiletUntil?:number }
+export const PARK_DOG_ACTIONS=['dog','dogFetch','dogChase','dogRoll','dogToilet','dogHurdle','dogTunnel','dogSlalom','dogBalance'] as const;
 export const isParkDogAction=(v:string)=> (PARK_DOG_ACTIONS as readonly string[]).includes(v);
 export const PARK_TREES=[
  [-7.2,-5.7,'spruce',.95],[-5.9,-5.8,'birch',.9],[-3.7,-5.9,'spruce',1.05],[-.8,-5.8,'linden',.9],[2,-5.8,'spruce',1.06],[5.1,-5.75,'birch',.92],[8,-5.9,'spruce',1.07],[11.6,-5.6,'spruce',.95],

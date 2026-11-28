@@ -21,6 +21,7 @@ import {buildVacuumModel} from './VacuumArt';
 import {VACUUM_MODELS,type VacuumSku} from '../shared/vacuumCatalog';
 import { buildElectronicsModel } from './ElectronicsArt';
 import { ELECTRONICS,electronicsFor } from '../shared/electronics';
+import {DOG_AGILITY,AGILITY_ACTIONS} from '../shared/dogAgility';
 import { PARK_TREES } from '../shared/park';
 import { buildFurnishingModel } from './FurnishingArt';
 import { batchRigidParts, colors as C, cube, drum, finish, orb, panel, plane, softCube, torus, type XYZ } from './ArtKit';
@@ -744,6 +745,7 @@ export function createLocation(place: Exclude<PlaceId, 'home'>) {
     stations.set(station.id, group);
     root.add(group);
   }
+  if(place==='park'){const course=new THREE.Group();course.name='Verdell agility course';for(const action of AGILITY_ACTIONS){const d=DOG_AGILITY[action],g=new THREE.Group();g.position.set(d.x,0,d.z);g.name=action;course.add(g);shape(g,[1.15,.016,2.4],[0,.012,0],0x819d76,cube);if(action==='dogHurdle'){for(const x of [-.47,.47]){shape(g,[.10,.42,.12],[x,.21,0],0xe8c071);shape(g,[.22,.055,.40],[x,.027,0],0x4e8d86);}shape(g,[.90,.075,.075],[0,.20,0],0xd4a15b,cube);for(const x of [-.28,.0,.28])shape(g,[.10,.078,.079],[x,.20,0],0xf4ead8,cube);}else if(action==='dogTunnel'){const tube=new THREE.Mesh(new THREE.CylinderGeometry(.40,.40,1.26,20,1,true),finish(0x578f89,'fabric'));tube.rotation.x=Math.PI/2;tube.position.y=.36;g.add(tube);tube.material.side=THREE.DoubleSide;for(const z of [-.60,-.30,0,.30,.60])shape(g,[.40,.40,.10],[0,.36,z],z===0?0xe4bb73:0x79a9a0,torus);}else if(action==='dogSlalom'){for(const z of [-.70,-.23,.23,.70]){shape(g,[.07,.58,.07],[0,.29,z],0xe5bd73,drum);shape(g,[.075,.13,.075],[0,.37,z],0xf5ebd6,drum);shape(g,[.19,.045,.19],[0,.023,z],0x588f83,drum);}}else{shape(g,[.42,.09,.96],[0,.145,0],0xc7a779,cube);for(const z of [-.72,.72]){const ramp=shape(g,[.42,.065,.55],[0,.095,z],0xc7a779,cube);ramp.rotation.x=z>0?.30:-.30;}for(const z of [-.30,.30])shape(g,[.34,.12,.12],[0,.06,z],0x587d70,cube);for(let i=0;i<5;i++)shape(g,[.39,.012,.025],[0,.196,-.38+i*.19],0x765d45,cube);}batchRigidParts(g);}root.add(course);}
   polishShopInterior(root,place,resources);
   addLocationFinish(root,place,resources);
   addShopDetail(root,place,resources);

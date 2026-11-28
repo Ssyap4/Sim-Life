@@ -1,3 +1,4 @@
+import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit} from '../src/shared/dogAgility';
 import {recordCatch} from '../src/shared/personalCollections';
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
@@ -71,7 +72,7 @@ export function validWorld(value: unknown): value is WorldState {
     (w.wardrobe===undefined||validWardrobe(w.wardrobe)) &&
     (w.picnic===undefined||validPicnicBasket(w.picnic)) &&
     (w.campLitUntil===undefined||count(w.campLitUntil)) &&
-    (w.parkDog===undefined||!!w.parkDog&&count(w.parkDog.minutes)&&count(w.parkDog.toilets)&&w.parkDog.toilets<=2&&(w.parkDog.toiletUntil===undefined||count(w.parkDog.toiletUntil))) &&
+    (w.parkDog===undefined||!!w.parkDog&&count(w.parkDog.minutes)&&count(w.parkDog.toilets)&&w.parkDog.toilets<=2&&(w.parkDog.agility===undefined||validAgilityVisit(w.parkDog.agility))&&(w.parkDog.toiletUntil===undefined||count(w.parkDog.toiletUntil))) &&
     (w.campKit===undefined||!!w.campKit&&Object.entries(w.campKit).every(([role,k])=>ROLES.includes(role as CharacterId)&&!!k&&count(k.fuel)&&k.fuel<=3&&!!k.recipes&&Object.entries(k.recipes).every(([id,n])=>isCampRecipe(id)&&count(n)&&n<=3))) &&
     Array.isArray(w.deliveries) && w.deliveries.length <= 12 &&
     new Set(w.deliveries.map(d => d?.id)).size === w.deliveries.length &&
@@ -721,6 +722,7 @@ export const localLabels: Record<LocalActivity, string> = {
   lakeCookSausages:'Колбаски на костре · готовим',lakeCookMarshmallow:'Маршмеллоу · готовим',lakeEatSausages:'Колбаски · едим',lakeEatMarshmallow:'Маршмеллоу · едим',
   swing:'Покачаться на качелях', badminton:'Играть в бадминтон', dogFetch:'Бросить палочку',dogChase:'Играть в догонялки',dogRoll:'Поваляться на траве',dogToilet:'Верделл в туалет',campIgnite:'Разжечь костёр',campPotato:CAMP_RECIPES.campPotato.name,campBread:CAMP_RECIPES.campBread.name,campSkewers:CAMP_RECIPES.campSkewers.name,campMarshmallow:CAMP_RECIPES.campMarshmallow.name, picnic: 'Поесть на пикнике',
   rest: 'Отдохнуть на скамье', exercise: 'Зарядка на свежем воздухе', dine: 'Посидеть за столиком',
+  dogHurdle:'Верделл · низкий барьер',dogTunnel:'Верделл · тоннель',dogSlalom:'Верделл · змейка',dogBalance:'Верделл · балансир',
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
 };
 
@@ -812,6 +814,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   }
   if (!station || (station.action.kind !== action && !(station.action.kind==='fitness'&&station.action.facility==='sauna'&&action==='fitnessSauna') && !(station.action.kind==='fitness'&&!!fitnessExercise(station.action.facility)&&action==='fitnessTrain') && !(station.action.kind==='fitness'&&(fitnessCareAction(station.action.facility)===action||station.action.facility==='bar'&&!!fitnessBarItem(action))) && !(station.action.kind==='dog'&&isParkDogAction(action)) && !(station.action.kind==='campfire'&&(action==='campIgnite'||isCampRecipe(action)))) || !at(source, role, station)) return fail('Сначала подойди к подходящему объекту');
   if (isParkDogAction(action) && (!source.world.dogWalker||source.world.places[source.world.dogWalker]!=='park')) return fail('Сначала возьми Верделла на прогулку');
+  if(isDogAgility(action)){const walker=source.world.dogWalker;if(place!=='park'||!walker||!station||Math.hypot(source.characters[walker].x-station.center.x,source.characters[walker].z-station.center.z)>4.5)return fail('Позови Верделла на площадку');if(!agilityReady(source.pets.verdell))return fail('Верделлу нужен отдых, еда или туалет');}
   if (action === 'unpack' && !source.world.tableBags) return fail('Нет покупок для распаковки');
   const bar=fitnessBarItem(action),care=station.action.kind==='fitness'?fitnessCareAction(station.action.facility):undefined;
   if(bar||care===action){
@@ -905,6 +908,9 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
     bump('fun', 13); bump('mood', 6); bump('energy', -4);
   } else if (isParkDogAction(action)) {
     const dog = next.pets.verdell;
+    if(isDogAgility(action)){
+      const visit=next.world.parkDog??={minutes:0,toilets:0};const stats=visit.agility??={attempts:0,independent:0};const independent=finishAgility(dog,stats,role,action);bump('fun',12);bump('mood',5);bump('energy',-2);return done(next,DOG_AGILITY[action].name+' · '+(independent?'Верделл справился сам!':'Прошёл с подсказкой хозяина')+' · тренировка команды');
+    }
     if(action==='dogToilet'){
       const visit=next.world.parkDog??={minutes:0,toilets:0};if(visit.toilets>=2)return fail('Верделл уже справил нужду дважды');
       dog.bladder=100;visit.toilets++;visit.toiletUntil=clockMinutes(next.clock)+3;

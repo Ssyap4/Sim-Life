@@ -1,4 +1,5 @@
 import {LAKE_PASSES,LAKE_TENTS,LAKE_RODS,LAKE_BAIT,LAKE_REST,LAKE_CARE,LAKE_LEISURE,lakeCanSwim,lakeNeedsFish,lakeCampFor,LAKE_FISH,FISH_ACTIONS,fishLabel,freshFish,type LakeFishAction,LAKE_MEALS,LAKE_MEAL_ACTIONS,type LakeMealAction,lakeAccess,type LakePass,type LakeTent,type LakeRod} from './shared/lake';
+import {DOG_AGILITY,AGILITY_ACTIONS,agilityReady,agilityConfidence} from './shared/dogAgility';
 import {PET_TOYS,toyProduct,toyOwned} from './shared/petToys';
 import { PURCHASABLE_FURNITURE } from './shared/furniture';
 import { PET_SHOP_FOOD,petFoodProduct,petFoodBenefit,FOOD_REACTIONS } from './shared/petShop';
@@ -629,6 +630,7 @@ export function createLocationUI(panel: HTMLElement, map: HTMLElement, getWorld:
       options.append(button(walker === role ? 'Отпустить Верделла домой' : 'Взять Верделла на прогулку',
         () => send({ type: 'dog_leash' }), !!walker && walker !== role));
       if (walker&&place.world.places[walker]==='park')options.append(local('Поиграть с Верделлом','dog'),local('Бросить палочку','dogFetch'),local('Играть в догонялки','dogChase'),local('Поваляться на траве','dogRoll'));if(walker&&(place.world.parkDog?.toilets??0)<2)options.append(local('Дать справить нужду','dogToilet'));
+      if(walker&&place.world.places[walker]==='park'){const stats=place.world.parkDog?.agility;options.append(element('strong','','🐾 Полоса препятствий'),element('small','',stats?'Самостоятельно: '+stats.independent+' из '+stats.attempts+' · '+(stats.last?DOG_AGILITY[stats.last.action].name+' — '+(stats.last.independent?'сам':'с подсказкой'):''):'Тренируй знакомые команды на четырёх препятствиях.'));for(const action of AGILITY_ACTIONS){const d=DOG_AGILITY[action];options.append(button(d.name+' · «'+d.cue+'»',()=>{if(send({type:'local_activity',station:station.id,action}))close();},!agilityReady(place.pets.verdell)),element('small','','Уверенность: '+agilityConfidence(place.pets.verdell,action)+'%'));}}
     }
     panel.append(options);
     panel.scrollTop = y;

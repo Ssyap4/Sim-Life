@@ -343,7 +343,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
   if(station.action.kind==='spa'&&['spaPool','spaJacuzzi','spaSauna'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.44:.44),z:station.approach.z};
   if(station.action.kind==='fitness'&&['sauna','bar'].includes(station.action.facility))return {x:station.approach.x+(role==='vlad'?-.42:.42),z:station.approach.z};
   if(station.action.kind==='badminton')return {x:station.center.x,z:station.center.z+(role==='vlad'?1:-1)*1.85};
-  if (station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
+  if (station.action.kind !== 'dog' && station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
 export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
@@ -438,7 +438,7 @@ export function initialWorld(): WorldState {
   return { districtLayout: 4, places: { vlad: 'home', alina: 'home' }, sequence: { vlad: 0, alina: 0 },
     bags: { vlad: 0, alina: 0 }, tableBags: 0, deliveries: [], cafe: {}, dogWalker: null };
 }
-export type LocalActivity = import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
+export type LocalActivity = import('./dogAgility').DogAgilityAction | import('./lake').LakeLeisureAction | import('./lake').LakeCareAction | import('./lake').LakeRestAction | import('./lake').LakeFishAction | import('./lake').LakeMealAction | import('./spa').SpaAction | import('./barber').BarberAction | import('./health').VetAction | import('./health').ClinicAction | import('./fitness').FitnessBarAction | 'fitnessLocker' | 'fitnessShower' | 'fitnessToilet' | 'fitnessSauna' | 'fitnessTrain' | 'rest' | 'badminton' | 'swing' | 'picnic' | 'exercise' | 'dine' | 'dog' | 'dogFetch' | 'dogChase' | 'dogRoll' | 'dogToilet' | 'campIgnite' | CampRecipe | 'unpack';
 export type WorldCommand =
   | import('./venue').VenueCommand
   | import('./lake').LakeCommand

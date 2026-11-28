@@ -20,6 +20,7 @@ import {stationById} from '../src/shared/locations';
 import { clockMinutes } from '../src/shared/locations';
 import { mediaAccessError, serviceAvailable, SERVICE_MESSAGES } from '../src/shared/services';
 import { localActivity, localLabels } from './locations';
+import {isDogAgility} from '../src/shared/dogAgility';
 import { PICNIC_SECONDS, isCampRecipe, isParkDogAction } from '../src/shared/park';
 import { LEISURE, isLeisureAction } from '../src/shared/leisure';
 import type { LocalActivity } from '../src/shared/locations';
@@ -146,7 +147,7 @@ export function planTask(command: Record<string, unknown>): TaskPlan | null {
     }
     if(fitnessBarItem(action)||['fitnessLocker','fitnessShower','fitnessToilet'].includes(action))return {command:{type:'local_activity',station:command.station,action},label:localLabels[action],durationMs:action==='fitnessShower'?38000:action==='fitnessMeal'?32000:action==='fitnessToilet'?5000:12000,resource:fitnessBarItem(action)?null:'fitness:'+command.station};
     return { command: { type: 'local_activity', station: command.station, action }, label: localLabels[action],
-      durationMs: action==='fitnessSauna'?40000:action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isParkDogAction(action)?16000:5800, resource: isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
+      durationMs: action==='fitnessSauna'?40000:action==='picnic'?PICNIC_SECONDS*1000:action==='dine'?MEAL_EAT_SECONDS*1000:action==='badminton'?45000:isCampRecipe(action)?35000:action==='campIgnite'?8000:action==='swing'?24000:isDogAgility(action)?24000:isParkDogAction(action)?16000:5800, resource: isParkDogAction(action)?'pet:verdell':action==='campIgnite'||isCampRecipe(action)?'park-fire':null };
   }
   if(command.type==='clean_room'){
     if(!isDustRoom(command.room))return null;
