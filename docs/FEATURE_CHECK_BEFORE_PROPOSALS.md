@@ -39,3 +39,7 @@ Main deployment only by explicit owner approval. Deep careers remain deferred. U
 - Painting removed by owner decision; miniature modeling and creativity skill retained. Earlier painting entries above are historical only. Do not restore painting.
 - Ten romantic gifts with delivery, consent, handoff and family history; cozy sofa and new lights. No unapproved photo frames, vases or clocks.
 - DomStroy 3D store, 94 products, ten home zones, surface/lighting/fixture renovation, free samples and private in-home preview, server-authoritative shared purchase; 20 interchangeable sanitary models preserve actions including Alina care and dog bath. See RELEASE_069.md for scope and known gaps. 0.69 is approved and deployed, overriding earlier approval status.
+
+## 0.70 verified additions (released fc57185)
+- Azure Shore premium 3D resort: joint rental, included meals and staff delivery, bar, grill, pool/jacuzzi/lake, cottage facilities, shared Netflix/Nintendo simulation, temporary wet-task outfit, local wishes, weather/night art. Optional two-pet stay with timed care, independent stock and last-guest return.
+- Пушистый люкс separate pet grooming salon, nine species-specific services, timed stages, actual tool contacts, stored grooming effect and payment. Do not propose these features as new. Limitations and deferred extensions documented in RELEASE_070.md. 0.70 is approved and deployed; no 0.71 approved.
