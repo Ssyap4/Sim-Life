@@ -1,4 +1,4 @@
-import {RESORT_TREE_GROUPS,isResortWaterAction} from '../../src/shared/resort';
+import {RESORT_TREE_GROUPS,RESORT_PATH_LIGHTS,isResortWaterAction} from '../../src/shared/resort';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {initialState} from '../../src/shared/protocol';
@@ -28,3 +28,5 @@ test('private cottage bathroom restores hygiene and bladder at the correct exclu
 test('resort needs point to local cottage fixtures instead of unavailable home actions',()=>{const s=trip();s.characters.vlad.bladder=10;s.characters.vlad.hygiene=15;const wishes=wishesFor(s,'vlad');assert.ok(wishes.some(w=>w.command?.type==='local_activity'&&w.command.action==='resortToilet'));assert.ok(wishes.some(w=>w.command?.type==='local_activity'&&w.command.action==='resortShower'));assert.ok(wishes.every(w=>w.command?.type==='local_activity'));});
 
 test('resort trees stay outside cottage and bathroom clearance, water kit is temporary only for wet tasks',()=>{for(const [x,z] of RESORT_TREE_GROUPS.flat())assert.ok(x<=-17.5||x>=6.8||z>=-0.3||z<=-15.5, 'tree inside cottage: '+x+','+z);for(const action of ['resortPool','resortLake','resortJacuzzi','resortShower'])assert.ok(isResortWaterAction(action));for(const action of ['resortToilet','resortTeeth','resortRest','resortSleep'])assert.equal(isResortWaterAction(action),false);});
+
+test('path lanterns never stand inside any swimming surface',()=>{for(const [x,z] of RESORT_PATH_LIGHTS){assert.ok(Math.abs(x+8)>1.95||Math.abs(z-6)>1.95);assert.ok(Math.abs(x-1)>5.1||Math.abs(z-6)>3.1);assert.ok(Math.hypot((x-12)/7.65,(z-1)/6.6)>1);}});

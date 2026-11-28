@@ -17,6 +17,7 @@ export type ResortDrink=keyof typeof RESORT_DRINKS;
 export type ResortPetCare={kind:'eat'|'sleep'|'toilet';until:number};
 export type ResortVisit={pass:ResortPass;from:number;until:number;guests:CharacterId[];pets?:import('./pets').PetId[];petCare?:Partial<Record<import('./pets').PetId,ResortPetCare>>;eaten:Partial<Record<CharacterId,string[]>>;raw?:Partial<Record<ResortGrill,number>>;cooked?:Partial<Record<ResortGrill,number>>;bar?:Partial<Record<CharacterId,{day:number;alcohol:number}>>};
 export const RESORT_TREE_GROUPS=[[[ -18,-11],[-18,-6],[-18,1],[-18,6],[-18,13],[-10,15],[-4,15],[8,15],[16,14],[18,10],[18,-9],[16,-14],[8,-14],[6.9,-15.8]],[[7.8,-11.2],[10,-13],[12,-12],[15,-11],[17,-6],[19,4],[-18,-14],[-17,14],[7,15],[11,14],[15,12],[18,13]]] as const;
+export const RESORT_PATH_LIGHTS=[[-13,5],[-5.25,4.35],[-2,11],[5,11],[9,12],[17,7],[6,-7]] as const;
 export const RESORT_WATER_ACTIONS=['resortPool','resortLake','resortJacuzzi','resortShower'] as const;
 export function isResortWaterAction(a:unknown){return RESORT_WATER_ACTIONS.some(id=>id===a);}
 export const RESORT_FLOOR={minX:-20,maxX:20,minZ:-17,maxZ:17};
