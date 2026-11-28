@@ -31,8 +31,9 @@ try{
   const {x,z}=DOG_AGILITY[action];
   await p.waitForFunction(action=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).lakeDog.agility===action,action,{timeout:5000});
   if(i===0){await p.locator('[data-agility-cue]').waitFor();await p.waitForFunction(()=>{const b=document.querySelector('[data-agility-cue]');return b&&!b.disabled&&b.classList.contains('cue-ready');},undefined,{timeout:12000});await p.locator('[data-agility-cue]').click();await a.locator('[data-agility-cue]').click();await a.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='agility_feedback'&&p.role==='alina'));await p.waitForFunction(()=>window.__qaPackets.some(p=>p.type==='agility_feedback'&&p.role==='vlad'));}
-  await p.waitForFunction(({x,z})=>{try{const pos=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).lakeDog.position;return Math.abs(pos[0]-x)<.48&&Math.abs(pos[2]-z)<.55;}catch{return false;}},{x,z},{timeout:19000});
+  await p.waitForFunction(({x,z,action})=>{try{const d=JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).lakeDog;return d.agility===action&&d.entered&&Math.abs(d.position[0]-x)<(action==='dogSlalom'?.36:.09)&&Math.abs(d.position[2]-z)<.30;}catch{return false;}},{x,z,action},{timeout:22000});
   await shot(p,action+'-'+(i%2?'320':'390'));
+  await Promise.all([v,a].map(client=>client.waitForFunction(action=>JSON.parse(document.querySelector('#game-canvas').dataset.yardQA).lakeDog.exit===action,action,{timeout:22000})));console.log('AGILITY exit verified both clients',action);
 console.log('AGILITY reached',action,await p.locator('#game-canvas').evaluate(c=>JSON.parse(c.dataset.yardQA).lakeDog));
   await p.waitForFunction(id=>window.__qaPackets.some(p=>p.type==='task_ended'&&p.taskId===id&&p.outcome==='completed'),taskId,{timeout:35000});
   assert.equal(files.load().world.parkDog.agility.attempts,i+1);
