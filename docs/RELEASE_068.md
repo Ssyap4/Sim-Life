@@ -1,0 +1,11 @@
+# SimOurHome 0.68.0 — approved media and manual games release
+
+Owner explicitly approved production deployment after final QA. Functional tag v0.68.0 = 35558d9835e021b21c30ca8aec8166f2f2bd7ca3. Main fast-forward ab64277 to 35558d9 and tag pushed successfully on 28 November 2026.
+
+59 named media titles (45 films, 14 series, 20 2026 releases), original illustrated art, simulated TV scenes, personal history and exact-episode bookmarks, shared list, shared consent, meal compatibility. Five manual two-player games: bowling, air hockey, billiards, home darts and Jenga, with automatic modes retained, authoritative outcomes and result history. See PREVIEW_068_MEDIA_GAMES.md for detailed scope and simplified rules.
+
+Final exact-commit cloud run 46085518520: focused and mobile both success, jobs 140794064013 and 140794064198. Reviewed final catalog at 390x844 and 320x568, resume and both hockey screenshots. Fixed thought bubble intercepting catalog close; transient event notification still briefly visible over resume menu header but mobile scenario passed. Previous local suites 61/61 and 77/77 (overlapping suites, not summed); final TypeScript/build and cloud checks passed. Physical device FPS/latency unmeasured; historical large chunk warning remains. No heavy local browser tests.
+
+Production D:/Sim-Life port3111 PID11096, protected access, health OK. Staged 68 exact preview dist files SHA256 checked; all 14 private media matched local caches. Old dist retained D:/Sim-Life-Backups/v068-predeploy-35558d9/old-dist. Only production household.json reset, fresh 10000 RUB/day1 minute480/both home/two starter furnishings/no stored furnishings verified. Access and trusted-device hashes unchanged. index-D_MVhrVT.js, main-BisrpFoq.js and main-CdNmuzfT.css HTTP200; all private media range206. Preview D:/Sim-Life-068 port3161 PID10284 remains healthy, no codes, unchanged test save. Do not reset again on ordinary restarts/docs.
+
+0.69 not approved. Audit real code, UI, commands, tests and docs before proposing. No laundry or favorite outfits, no new audio. Deferred flagship careers, savings, RU VPS and mobile packaging. No actual movie playback or official posters; manual games are 2D overlays with simplified physics/rules.

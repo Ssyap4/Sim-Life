@@ -28,3 +28,8 @@ Main deployment only by explicit owner approval. Deep careers remain deferred. U
 - Actual personal resident-to-resident messages with persisted history, read receipts, unread badges, drafts and offline recipient delivery.
 - Shared photo album with actual on-demand rendered world snapshots, captions, date/place, author-only deletion and separate bounded JPEG storage.
 - These are implemented, tested and deployed in production 0.67. See docs/RELEASE_067.md. Do not present these as new ideas.
+
+
+## 0.68 verified additions (release 35558d9)
+- Named media library: 59 titles, films and series, title/genre search, individual favorites, watch-later and history, shared watch-together, seasons/episodes, persisted interrupted-view bookmarks, shared viewing and meals, original illustrated covers and simulated TV art. Do not propose these as new. Actual studio movies/posters are not included.
+- Five interactive two-player games (bowling, air hockey, billiards, home darts, Jenga) with manual input, server-authoritative results, history, rematch and automatic alternatives. Existing venue/home leisure retained. See RELEASE_068.md and PREVIEW_068_MEDIA_GAMES.md. 0.69 not approved.
