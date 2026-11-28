@@ -228,7 +228,7 @@ export function entertainmentReward(command: Entertainment, together = false, bo
   return viewingReward(command,together,bonus,comfort);
 }
 
-export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false): EvaluatedTask {
+export function evaluateTask(state: GameState, role: CharacterId, command: TimedCommand, together = false, agility?:import('../src/shared/dogAgility').AgilitySupport): EvaluatedTask {
   if(command.type==='vanity_care'){if(!isCare(command.care)||!homeCare(command.care)||careRole(command.care)!==role||state.world.places[role]!=='home')return {ok:false,reason:'Эта процедура недоступна персонажу или вне дома'};const next=structuredClone(state);finishCare(next,command.care);if(bathCare(command.care)){const c=next.characters[role];c.hygiene=command.care.startsWith('bathHair')?Math.min(100,c.hygiene+35):100;c.comfort=Math.min(100,c.comfort+(command.care.startsWith('bathHair')?15:command.care==='bathRitual'?45:35));}next.revision++;return {ok:true,state:next,message:CARE[command.care].label+' · готово'};}
   if(command.type==='act'&&['bedSleep','bedNap','bedMake','bedStretch'].includes(command.actionId)){
     const pose=bedPose(state,role,'starter');
@@ -319,7 +319,7 @@ export function evaluateTask(state: GameState, role: CharacterId, command: Timed
   }
   const denial = taskAccessError(state, command);
   if (denial) return { ok: false, reason: denial };
-  if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station);
+  if (command.type === 'local_activity') return localActivity(state, role, command.action, command.station,agility);
   if (state.world.places[role] !== 'home') return { ok: false, reason: 'Это действие доступно дома' };
   if (command.type === 'pet_action' && command.pet === 'verdell' && state.world.dogWalker)
     return { ok: false, reason: 'Верделл сейчас в парке' };

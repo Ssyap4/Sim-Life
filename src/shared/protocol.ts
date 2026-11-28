@@ -247,6 +247,7 @@ export type ClientPacket = import('./workCoffee').WorkDrinkCommand | FurnishingC
   | { type: 'eat'; recipe: import('./food').RecipeId; furnitureId?:number; drinkSeat?:import('./food').DrinkSeat }
   | { type: 'social_offer'; kind: SocialKind }
   | { type: 'pet_action'; pet: import('./pets').PetId; action: import('./pets').PetAction }
+  | {type:'agility_cue';taskId:number}
   | import('./petToys').CatPlayCommand
   | { type: 'cancel_task'; taskId: number }
   | { type: 'cancel_queued_task'; queueId: number }
@@ -268,6 +269,7 @@ export type ServerPacket =
   | { type: 'home_leisure'; roles: CharacterId[]; activity: HomeLeisure | null; routes: Partial<Record<CharacterId, WalkRoute>> }
   | { type: 'device_token'; role: CharacterId; token: string }
   | { type: 'world_path'; role: CharacterId; place: PlaceId; path: Point[]; station?: string }
+  | {type:'agility_feedback';taskId:number;role:CharacterId;quality?:number}
   | { type: 'world_event'; role: CharacterId; message: string }
   | { type: 'delivery_arrived' }
   | { type: 'ready_food_spoiled'; message: string }

@@ -1,3 +1,4 @@
+import {isDogAgility,agilityCueQuality} from '../src/shared/dogAgility';
 import {autoPetAvailable,activityIdentity,rememberFull,rankFull,rankCareChoices,fullIdleChoices,type FullHistory} from '../src/shared/fullAutonomy';
 import {isLakeFishAction} from '../src/shared/lake';
 import {LAKE_PASSES,lakePass,type LakePass} from '../src/shared/lake';
@@ -200,7 +201,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
 
   const walkingHome = new Map<CharacterId, { route: WalkRoute; started: number; station?:string }>();
   const storageOpen = new Map<CharacterId, string>();
-  interface RunningTask { id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean; spaTimer?:ReturnType<typeof setTimeout>; talkSpot?:{x:number;z:number}; talkAt?:number }
+  interface RunningTask { agility?:{start:number;duration:number;cue?:number;helper?:CharacterId};id: number; role: CharacterId; plan: TaskPlan; timer: ReturnType<typeof setTimeout>; automatic: boolean; spaTimer?:ReturnType<typeof setTimeout>; talkSpot?:{x:number;z:number}; talkAt?:number }
   const running = new Map<CharacterId, RunningTask>();
   const pathLengthForTalk=(route:WalkRoute)=>route.path.reduce((sum,p,i)=>{const prev=route.path[i-1]??route.from;return sum+Math.hypot(p.x-prev.x,p.z-prev.z);},0);
   // Only the owner can enqueue. Each queue is per resident, in memory, and
@@ -917,7 +918,8 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
       running.delete(role);
       // Revalidate against the freshest household snapshot, so two simultaneous
       // players cannot create food, rewards or inventory from stale resources.
-      const result = evaluateTask(state, role, plan.command);
+      const support=current.agility?{cue:current.agility.cue,helper:current.agility.helper&&state.world.places[current.agility.helper]==='park'?current.agility.helper:undefined}:undefined;
+      const result = evaluateTask(state, role, plan.command,false,support);
       if (!result.ok) {
         if(plan.fitnessProgram)clearQueue(role);
         if(bath){pausePetRoutine(state,'verdell',liveGameTime());state.revision++;all({type:'snapshot',state});}
@@ -978,7 +980,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     else if(cmd.type==='local_activity'&&['dine','rest','swing'].includes(cmd.action))talkSpot=destination;
     const talkRoute=talkSpot&&planWalk(position,talkSpot,placeObstacles(place,state.furnishing),floorFor(place));
     const talkAt=talkRoute?pauseTimers.now()+1000*pathLengthForTalk(talkRoute)/HOME_WALK_SPEED+900:undefined;
-    running.set(role, { id, role, plan, timer, automatic, talkSpot:talkRoute?talkSpot:undefined,talkAt });
+    running.set(role, { id, role, plan, timer, automatic,agility:plan.command.type==='local_activity'&&isDogAgility(plan.command.action)?{start:pauseTimers.now(),duration:durationMs}:undefined,talkSpot:talkRoute?talkSpot:undefined,talkAt });
     if(cmd.type==='local_activity'&&isSpaAction(cmd.action)&&cmd.action!=='spaLocker'){
       const a:SpaAction=cmd.action,task=running.get(role)!,begin=pauseTimers.now()+gymTravelMs*scale,base=state.world.spa?.[role]?.progress?.[a]??0;
       const tick=()=>{
@@ -1581,6 +1583,14 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
         lastIntent.set(role,pauseTimers.now());
         all({type:'store_event',role,message:result.message});
         return;
+      }
+      if(message.type==='agility_cue'){
+        const task=[...running.values()].find(t=>t.id===message.taskId&&t.agility),a=task?.agility;
+        if(!task||!a||state.world.places[role]!=='park'||!state.world.dogWalker||state.world.places[state.world.dogWalker]!=='park'||Math.hypot(state.characters[role].x-3.82,state.characters[role].z-2.12)>3.5){packet(socket,{type:'error',reason:'Подойди к площадке Верделла'});return;}
+        if(role!==task.role&&(running.has(role)||homeTasks.busy(role)||sleepers.has(role)||walkingHome.has(role)||state.activeShifts[role]||state.careers.residents[role].shift)){packet(socket,{type:'error',reason:'Сначала закончи текущее дело'});return;}
+        const fraction=(pauseTimers.now()-a.start)/a.duration;if(fraction>=.9||fraction<.08){packet(socket,{type:'error',reason:'Команда доступна во время прохождения'});return;}
+        if(role===task.role){if(a.cue!==undefined)return;a.cue=agilityCueQuality(fraction);all({type:'agility_feedback',taskId:task.id,role,quality:a.cue});}
+        else{if(a.helper)return;a.helper=role;all({type:'agility_feedback',taskId:task.id,role});}return;
       }
       if(message.type==='cat_play'){
         const now=pauseTimers.now();if(now-(lastAction.get(role)??0)<1500){packet(socket,{type:'error',reason:'Подожди немного перед движением игрушки'});return;}

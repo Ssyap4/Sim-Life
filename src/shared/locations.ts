@@ -5,6 +5,7 @@ import { furnishingObstacles } from './furniture';
 import { CAREERS, CAREER_STATIONS, type CareerId, type WorkStation } from './careers';
 import type { CharacterId } from './protocol';
 import type { PicnicBasket } from './picnic';
+import {agilityObstacles,type DogAgilityAction} from './dogAgility';
 import { PARK_TREES, type CampKit, type CampRecipe, type ParkDogVisit } from './park';
 import type { BasketLine, MarketCategory } from './market';
 import { COUNTER, HOME_DECOR, KITCHEN_WORK, HOME_FURNITURE, HOME_PLACEMENTS, HOUSE_ENTRY, HOME_STRUCTURE_OBSTACLES, HOME_FLOOR, HOME_YARD } from './home';
@@ -308,7 +309,7 @@ export const STATIONS: Record<PlaceId, readonly Station[]> = {
     site('park-fire','Костровая поляна',8.45,-2.4,1.4,1.4,{kind:'campfire'},{approach:{x:8.45,z:-1.12}}),
     site('park-picnic', 'Место для пикника', -4.15, .98, 1.95, 1.28, { kind: 'picnic' }, { approach: {x:-4.15,z:2.15} }),
     site('park-path', 'Прогулочная дорожка', -2.68, -1.45, 0.67, 0.65, { kind: 'exercise' }, { blocks: false }),
-    site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false }),
+    site('park-dog', 'Площадка для Верделла', 3.82, 2.12, 0.78, 0.65, { kind: 'dog' }, { blocks: false, approach:{x:3.82,z:1.30} }),
     door('park-exit', 'Выход на улицу', 'district', -2.75, 4.60, true),
   ],
   education: [
@@ -346,7 +347,7 @@ export function approachFor(station: Station, role: CharacterId): Point {
   if (station.action.kind !== 'dog' && station.action.kind !== 'swing' && station.action.kind !== 'picnic' && station.action.kind !== 'dine' && station.action.kind !== 'rest') return station.approach;
   return { x: station.approach.x + (role === 'vlad' ? -0.40 : 0.40), z: station.approach.z };
 }
-export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState) {
+export function placeObstacles(place: PlaceId, furnishing?: import('./furniture').FurnishingState, agilityPass?:DogAgilityAction) {
   const obstacles = STATIONS[place].flatMap(({ blocks, center, width, depth }) => blocks ? [{
     minX: center.x - width / 2 - 0.26, maxX: center.x + width / 2 + 0.26,
     minZ: center.z - depth / 2 - 0.26, maxZ: center.z + depth / 2 + 0.26,
@@ -360,7 +361,7 @@ export function placeObstacles(place: PlaceId, furnishing?: import('./furniture'
   })));
   if (place === 'home' && furnishing) obstacles.push(...furnishingObstacles(furnishing));
   if(place==='lake')obstacles.push({minX:4.61,maxX:9.5,minZ:-13.7,maxZ:-4.05},{minX:4.61,maxX:9.5,minZ:-1.95,maxZ:13.7});
-  if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})));
+  if (place === 'park') obstacles.push({ minX: -1.8, maxX: 1.6, minZ: -3.32, maxZ: -0.58 },...PARK_TREES.map(([x,z])=>({minX:x-.37,maxX:x+.37,minZ:z-.37,maxZ:z+.37})),...agilityObstacles(agilityPass));
   if (place === 'cafe') obstacles.push({ minX: -2.57, maxX: 2.57, minZ: -4.62, maxZ: -3.7 },{minX:-2.54,maxX:-.16,minZ:-4.25,maxZ:-2.77});
   if(place==='district')obstacles.push(...DISTRICT_WORLD_OBSTACLES);
   if (place === 'market') obstacles.push(CASHIER_OBSTACLE);

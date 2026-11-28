@@ -49,6 +49,7 @@ export class PetActor {
   private training:import('../shared/dogTraining').TrainingAttempt|undefined;
   private toyIndex:number|undefined;
   private manualToyPoint:FloorPoint|undefined;
+  private manualToyVisual:FloorPoint|undefined;
   private readonly toys:ReturnType<typeof homeToysFor>;
   private readonly toyContact=new THREE.Vector3();
   private readonly body = new THREE.Group();
@@ -172,7 +173,7 @@ export class PetActor {
       if(i===undefined)continue;
       const model=this.homeToys.children[i],toy=this.toys[i];
       if(!model)continue;
-      const point=i===this.toyIndex?this.manualToyPoint:undefined;model.position.set(point?.x??toy.x,.015,point?.z??toy.z);
+      const point=i===this.toyIndex?this.manualToyVisual??this.manualToyPoint:undefined;model.position.set(point?.x??toy.x,.015,point?.z??toy.z);
       if('manual' in toy&&toy.manual)model.visible=!!point;
       model.rotation.set(0,0,0);
       model.scale.setScalar(1);
@@ -340,7 +341,7 @@ export class PetActor {
     this.onPetBed=onPetBed;
     this.petBedHeight=onPetBed?(supportHeight??0):0;
     this.scratchPost=scratchPost;
-    this.toyIndex=routine==='toy'?toyIndex:undefined;this.manualToyPoint=routine==='toy'?manualToyPoint:undefined;if(this.manualToyPoint&&this.toyIndex!==undefined){const model=this.homeToys.children[this.toyIndex];if(model){model.visible=true;model.position.set(this.manualToyPoint.x,.015,this.manualToyPoint.z);}}
+    const oldPoint=this.manualToyPoint,oldIndex=this.toyIndex;this.toyIndex=routine==='toy'?toyIndex:undefined;this.manualToyPoint=routine==='toy'?manualToyPoint:undefined;this.manualToyVisual=manualToyPoint&&oldPoint&&oldIndex===toyIndex&&Math.hypot(oldPoint.x-manualToyPoint.x,oldPoint.z-manualToyPoint.z)<.65?{...oldPoint}:manualToyPoint?{...manualToyPoint}:undefined;if(this.manualToyPoint&&this.toyIndex!==undefined){const model=this.homeToys.children[this.toyIndex];if(model){model.visible=true;const p=this.manualToyVisual??this.manualToyPoint;model.position.set(p.x,.015,p.z);}}
     this.agility=undefined;this.parkStick=false;this.fetchSpot=fetch?.point??null;
     this.fetchPickedUp=!!fetch&&fetch.pickupRemaining<.01;
     this.idleGesture = null;
@@ -374,7 +375,7 @@ export class PetActor {
     this.agility=undefined;this.parkStick=false;this.fetchSpot=null;
     this.onPetBed=false;
     this.scratchPost=undefined;
-    this.toyIndex=undefined;this.manualToyPoint=undefined;
+    this.toyIndex=undefined;this.manualToyPoint=undefined;this.manualToyVisual=undefined;
     this.training=undefined;
     this.animateHouseToys(0,0);
     this.fetchTargetToy.visible=false;
@@ -952,6 +953,7 @@ export class PetActor {
       this.playToy.position.copy(this.root.worldToLocal(this.head.localToWorld(this.perchLocal.set(0,-.139,.365))));
     }
     if(dog&&this.agility){const h=agilityHeight(this.agility,this.root.position);this.body.position.y+=h/this.root.scale.y;if(this.agility==='dogHurdle'&&h>.05){this.body.rotation.x-=.14*Math.sin(this.root.position.z*5);for(const paw of this.paws){paw.position.y+=h*.18;}}}
+    if(this.manualToyVisual&&this.manualToyPoint){const p=this.manualToyVisual,t=this.manualToyPoint,k=1-Math.exp(-dt*12);p.x+=(t.x-p.x)*k;p.z+=(t.z-p.z)*k;}
     this.animateHouseToys(toyPlay,toyBeat);
     if(this.simbaRig){
       const rest=Math.max(sleeping*.94,catNap,lookout*.60);

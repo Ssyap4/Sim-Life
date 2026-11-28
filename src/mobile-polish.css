@@ -591,3 +591,7 @@
 .cat-play-controls select{width:100%;min-height:40px;border:1px solid #adbcaf;border-radius:8px;padding:5px 8px;background:#fff9ed;color:#2e4238}.cat-play-controls small{font-size:11px;line-height:1.25}
 .cat-play-pad{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.cat-play-pad button{min-height:44px;background:#d8e6d9;color:#304e3c;border:1px solid #a7bba7;border-radius:9px;font-size:23px;touch-action:manipulation}.cat-play-pad button:disabled{opacity:.65}
 #app:has(#cat-play-controls:not([hidden])) .thought-dock{visibility:hidden;pointer-events:none}
+
+.cat-drag-mode{min-height:36px;border:1px solid #adbcaf;border-radius:8px;background:#eeeae0;color:#354b41;font-size:12px;touch-action:manipulation}.cat-drag-mode[aria-pressed=true]{background:#b7d7c6;border-color:#789f87}
+
+.agility-cue{min-height:36px;width:100%;touch-action:manipulation}.agility-cue.cue-ready{background:#b4d8bd;color:#244c34;border-color:#629a73}.agility-cue:disabled{opacity:.65}

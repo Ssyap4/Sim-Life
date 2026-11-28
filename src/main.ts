@@ -1,3 +1,4 @@
+import {isDogAgility,DOG_AGILITY} from './shared/dogAgility';
 import {catManualToys,type CatPlayCommand} from './shared/petToys';
 import {activeHomeWork,otherResident,workDrinkDenial} from './shared/workCoffee';
 import {RECIPES,isHomeDrink,type RecipeId,type DrinkSeat} from './shared/food';
@@ -129,6 +130,8 @@ interface TaskView {
   lakeSwim?:boolean;
   isCooking?:boolean;
   namedMedia?:boolean;
+  agility?:import('./shared/dogAgility').DogAgilityAction;
+  agilityFeedback?:Partial<Record<CharacterId,number>>;
   freeRest?:boolean;
   soloLounge?:boolean;
   pool?:boolean;
@@ -442,6 +445,7 @@ function drawTaskPanel(): void {
       }
       box.append(form);
     }
+    if(task.agility&&active&&state?.world.places[active]==='park'){const cue=document.createElement('button');cue.type='button';cue.className='task-focus agility-cue';cue.dataset.agilityCue='';cue.textContent=role===active?'🐾 '+DOG_AGILITY[task.agility].cue:'🐾 Поддержать Верделла';cue.onclick=()=>{if(net.agilityCue(task.taskId))cue.disabled=true;};box.append(cue);}
     if (role === active) {
       if(task.soloLounge&&task.since!==null&&world?.place==='home'||task.paired&&(world?.place==='home'||world?.place==='venue')||task.spaStation&&world?.place==='spa'){
         const focus=document.createElement('button');
@@ -517,6 +521,7 @@ function updateTaskProgress(): void {
     const card = taskPanelEl.querySelector<HTMLElement>('[data-role="' + role + '"]');
     if (!card) continue;
     const elapsed = task.since === null ? 0 : Math.min(taskNow() - task.since, task.durationMs);
+    const cue=card.querySelector<HTMLButtonElement>('[data-agility-cue]');if(cue&&active&&task.agility){const value=task.agilityFeedback?.[active],fraction=elapsed/task.durationMs;cue.disabled=value!==undefined||fraction<.08||fraction>=.9;cue.textContent=value!==undefined?(role===active?'✓ Команда · '+value+'/10':'✓ Поддержка принята'):role===active?(fraction>=.26&&fraction<=.50?'🐾 СЕЙЧАС · ':'🐾 ')+DOG_AGILITY[task.agility].cue:'🐾 Поддержать Верделла';cue.classList.toggle('cue-ready',value===undefined&&fraction>=.26&&fraction<=.50);}
     const finish=card.querySelector<HTMLButtonElement>('[data-social-finish]');
     if(finish)finish.disabled=task.freeRest?task.since===null:elapsed/task.durationMs<.72;
     if(task.freeRest){
@@ -1181,7 +1186,7 @@ const net = new LiveConnection({
   },
   onTaskStarted(role, taskId, label, durationMs, command, automatic, home, effects) {
     tasks.set(role, { taskId, label, durationMs, automatic, effects, since: home ? null : taskNow(),
-      lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook',namedMedia:command.type==='movie'&&!!command.selection, question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
+      agility:command.type==='local_activity'&&isDogAgility(command.action)?command.action:undefined,lakeSwim:command.type==='local_activity'&&command.action==='lakeSwim',soloLounge:command.type==='act'&&['yardLounge','yardHookahSolo'].includes(command.actionId),pool:['poolFloat','poolSwim'].includes(command.type==='furniture_use'?command.action:home?.pair?.item??''),freeRest:!automatic&&isFreeLeisureRest(command.type==='act'?command.actionId:command.type==='furniture_use'?command.action:command.type==='together'&&['yardRest','yardHookah'].includes(command.action)?command.action:home?.pair?.item),paired: command.type==='together'?command:undefined, spaStation:command.type==='local_activity'&&command.action.startsWith('spa')?command.station:undefined, isCooking:command.type==='cook',namedMedia:command.type==='movie'&&!!command.selection, question: home?.question, material: command.type === 'study' ? MATERIAL_BY_ID.get(command.material) : undefined });
     if(role===active&&command.type==='together'){actionsEl.hidden=true;phone.close();}
     if (role === active && command.type === 'study') phone.close();
     drawTaskPanel();
@@ -1218,6 +1223,7 @@ const net = new LiveConnection({
   onEducationNotice(message) { if (!computer.educationMessage(message) && !phone.educationMessage(message)) notify(message); },
   onNeedGain(role,label,effects) { feedback.show(role,label,effects); },
   onTvFoodDone(role,taskId){if(tasks.get(role)?.taskId===taskId)world.finishSofaFood(role);},
+  onAgilityFeedback(taskId,role,quality){const task=[...tasks.values()].find(t=>t.taskId===taskId);if(task){(task.agilityFeedback??={})[role]=quality??0;updateTaskProgress();}},
   onTableState(match){for(const id of ['manual-bowling','manual-hockey','manual-pool'])if(!document.querySelector<HTMLElement>('#'+id)!.hidden){bowlingUI.close();hockeyUI.close();poolUI.close();break;}tableUI.show(match);},
   onPoolState(match){if(!document.querySelector<HTMLElement>('#manual-table')!.hidden)tableUI.close();if(!document.querySelector<HTMLElement>('#manual-hockey')!.hidden)hockeyUI.close();if(!document.querySelector<HTMLElement>('#manual-bowling')!.hidden)bowlingUI.close();poolUI.show(match);},
   onHockeyState(match){if(!document.querySelector<HTMLElement>('#manual-table')!.hidden)tableUI.close();if(!document.querySelector<HTMLElement>('#manual-pool')!.hidden)poolUI.close();if(!document.querySelector<HTMLElement>('#manual-bowling')!.hidden)bowlingUI.close();hockeyUI.show(match);},
@@ -1406,17 +1412,19 @@ function openSocialActions(target:CharacterId,group:SocialGroup='talk',action?:s
   showSocialMenu(actionsEl,state,active,online.includes(target),busy,command=>net.social(command),group,action);
 }
 
+let catDragMode=false;
 let catPlaySender:((choice:{direction:import('./shared/petToys').CatDirection}|{point:{x:number;z:number}})=>void)|undefined;
-function closeCatPlay(){catPlaySender=undefined;const box=document.querySelector<HTMLElement>('#cat-play-controls');if(box)box.hidden=true;}
+function closeCatPlay(){catDragMode=false;catPlaySender=undefined;const box=document.querySelector<HTMLElement>('#cat-play-controls');if(box)box.hidden=true;}
 function openCatPlay(){
  if(!state||!active||!net.isReady()||state.world.places[active]!=='home')return notify('Играть с Симбой можно дома');
  const toys=catManualToys(state.pets.simba);if(!toys.length)return notify('Купи интерактивную игрушку в зоомагазине');
  const root=document.querySelector<HTMLElement>('#cat-play-controls')!;root.replaceChildren();let selected=toys[0].id;
  const head=document.createElement('div');head.className='cat-play-head';const title=document.createElement('strong');title.textContent='🐈 Игра с Симбой';const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть управление игрушкой');close.onclick=closeCatPlay;head.append(title,close);
  const select=document.createElement('select');select.setAttribute('aria-label','Игрушка Симбы');for(const t of toys){const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;select.append(opt);}select.onchange=()=>{selected=select.value;};
- const help=document.createElement('small');help.textContent='Коснись свободного пола рядом с хозяином или выбери стрелку.';
+ const help=document.createElement('small');help.textContent='Коснись пола рядом с хозяином или выбери стрелку.';
+ const drag=document.createElement('button');drag.type='button';drag.className='cat-drag-mode';drag.textContent='Перетаскивание: выкл.';drag.setAttribute('aria-pressed','false');drag.onclick=()=>{catDragMode=!catDragMode;drag.setAttribute('aria-pressed',String(catDragMode));drag.textContent=catDragMode?'Перетаскивание: вкл.':'Перетаскивание: выкл.';help.textContent=catDragMode?'Веди пальцем по полу. Для камеры выключи перетаскивание.':'Коснись пола рядом с хозяином или выбери стрелку.';};
  const pad=document.createElement('div');pad.className='cat-play-pad';let last=-Infinity;catPlaySender=choice=>{const now=performance.now();if(now-last<1600)return;const command:CatPlayCommand={type:'cat_play',toy:selected,...choice};if(net.catPlay(command)){last=now;help.textContent='Игрушка перемещается…';for(const child of pad.querySelectorAll('button'))child.disabled=true;setTimeout(()=>{if(!root.hidden){for(const child of pad.querySelectorAll('button'))child.disabled=false;help.textContent='Перемести игрушку снова или дай Симбе поймать её.';}},1600);}};for(const [d,label] of [['west','←'],['north','↑'],['south','↓'],['east','→']] as const){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.catDirection=d;b.setAttribute('aria-label','Игрушка '+label);b.onclick=()=>catPlaySender?.({direction:d});pad.append(b);}
- root.append(head,select,help,pad);actionsEl.hidden=true;root.hidden=false;
+ root.append(head,select,drag,help,pad);actionsEl.hidden=true;root.hidden=false;
 }
 function openPetActions(pet: PetId | null = null): void {
   locationUI.close();
@@ -1901,6 +1909,7 @@ async function initializeWorld(app: HTMLDivElement): Promise<void> {
         return false;
       },
       pondTap() { notify('Пруд можно обойти по берегу'); },
+      toyDragActive(){return catDragMode&&!!catPlaySender&&!document.querySelector<HTMLElement>('#cat-play-controls')!.hidden;},
       toyTap(x,z){if(!catPlaySender||document.querySelector<HTMLElement>('#cat-play-controls')!.hidden)return false;catPlaySender({point:{x,z}});return true;},
       ground(x, z) {
         if (!active) return;

@@ -31,6 +31,7 @@ try{
   await v.waitForFunction(id=>window.__qaPackets.some(p=>p.type==='snapshot'&&p.state.pets.simba.routine?.manualToy&&p.state.pets.simba.routine.target===id),s.pets.simba.ownedToys.indexOf(t)+3);
   await v.waitForTimeout(1900);await shot(v,t+'-390');await shot(a,t+'-320');
  }
+ await controls.getByRole('button',{name:'Перетаскивание: выкл.'}).click();assert.equal(await controls.locator('.cat-drag-mode').getAttribute('aria-pressed'),'true');await shot(v,'cat-drag-390');await controls.getByRole('button',{name:'Перетаскивание: вкл.'}).click();assert.equal(await controls.locator('.cat-drag-mode').getAttribute('aria-pressed'),'false');
  const final=files.load().pets.simba.routine;assert.ok(final?.manualToy);assert.equal(final.target,6);assert.equal(files.load().money,100000);assert.deepEqual(errors,[]);
  console.log('CAT PLAY 069 MOBILE OK');
 }catch(e){for(let i=0;i<pages.length;i++)await pages[i].screenshot({path:join(out,'failure-'+i+'.jpg')}).catch(()=>{});throw e;}

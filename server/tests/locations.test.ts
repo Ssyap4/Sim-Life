@@ -261,6 +261,7 @@ test('The decoration stays behind checkout and leaves the shopper approach open'
   market.dispose();
 });
 
+function expectedModernSave<T extends object>(legacy:T){return {dartsHistory:[],jengaHistory:[],poolHistory:[],hockeyHistory:[],bowlingHistory:[],mediaLibrary:{unfinished:{vlad:[],alina:[]},favorites:{vlad:[],alina:[]},watchLater:{vlad:[],alina:[]},together:[],history:{vlad:[],alina:[]}},familyAlbum:[],familyMessages:{nextId:1,items:[],read:{vlad:0,alina:0}},...legacy};}
 test('A 0.6 save relocates only residents standing on the new fountain or cashier', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sim-life-plaza-migration-'));
   try {
@@ -281,7 +282,7 @@ test('A 0.6 save relocates only residents standing on the new fountain or cashie
       legacy.characters[role].x = x;
       legacy.characters[role].z = z;
     }
-    assert.deepEqual(restored, legacy);
+    assert.deepEqual(restored, expectedModernSave(legacy));
     const edge = { x: .48, z: 10.22 };
     const expanded = send(travel(restored,'vlad','home'), 'vlad', { type: 'walk', place: 'home', ...edge });
     files.save(expanded);
@@ -536,7 +537,7 @@ test('Old saves acquire home locations without changing economy, jobs or pets', 
     writeFileSync(join(dir, 'household.json'), JSON.stringify(old));
     const recovered = openServerFiles(dir).load();
     const { world, ...payload } = recovered;
-    assert.deepEqual(payload, old);
+    assert.deepEqual(payload, expectedModernSave(old));
     assert.deepEqual(world.places, { vlad: 'home', alina: 'home' });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

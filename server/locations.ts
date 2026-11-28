@@ -1,4 +1,4 @@
-import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit} from '../src/shared/dogAgility';
+import {DOG_AGILITY,isDogAgility,agilityReady,finishAgility,validAgilityVisit,type AgilitySupport} from '../src/shared/dogAgility';
 import {recordCatch} from '../src/shared/personalCollections';
 import {treatsRemaining as lakeTreatsRemaining,PET_TREAT_REWARD as lakeTreatReward} from '../src/shared/pets';
 import {practiceXP} from './education';
@@ -726,7 +726,7 @@ export const localLabels: Record<LocalActivity, string> = {
   dog: 'Поиграть с Верделлом', unpack: 'Разобрать покупки',
 };
 
-export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string): Result {
+export function localActivity(source: GameState, role: CharacterId, action: LocalActivity, id: string, support:AgilitySupport={}): Result {
   const place = source.world.places[role];
   const station = stationById(place, id);
   if(isLakeLeisureAction(action)){
@@ -909,7 +909,7 @@ export function localActivity(source: GameState, role: CharacterId, action: Loca
   } else if (isParkDogAction(action)) {
     const dog = next.pets.verdell;
     if(isDogAgility(action)){
-      const visit=next.world.parkDog??={minutes:0,toilets:0};const stats=visit.agility??={attempts:0,independent:0};const independent=finishAgility(dog,stats,role,action);bump('fun',12);bump('mood',5);bump('energy',-2);return done(next,DOG_AGILITY[action].name+' · '+(independent?'Верделл справился сам!':'Прошёл с подсказкой хозяина')+' · тренировка команды');
+      const visit=next.world.parkDog??={minutes:0,toilets:0};const stats=visit.agility??={attempts:0,independent:0};const independent=finishAgility(dog,stats,role,action,support);if(support.helper&&next.world.places[support.helper]==='park'){const c=next.characters[support.helper];c.fun=Math.min(100,c.fun+5);c.mood=Math.min(100,c.mood+3);}bump('fun',12);bump('mood',5);bump('energy',-2);return done(next,DOG_AGILITY[action].name+' · '+(independent?'Верделл справился сам!':'Прошёл с подсказкой хозяина')+' · тренировка команды'+(support.helper?' · вместе':''));
     }
     if(action==='dogToilet'){
       const visit=next.world.parkDog??={minutes:0,toilets:0};if(visit.toilets>=2)return fail('Верделл уже справил нужду дважды');

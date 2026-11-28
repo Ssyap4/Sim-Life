@@ -39,6 +39,7 @@ export interface ConnectionCallbacks {
   onTaskActive(role: CharacterId, taskId: number, elapsedMs: number): void;
   onTaskQueue(role: CharacterId, tasks: QueuedTask[]): void;
   onNeedGain(role: CharacterId, label: string, effects: NeedEffects): void; onTvFoodDone(role:CharacterId,taskId:number):void;
+  onAgilityFeedback?(taskId:number,role:CharacterId,quality?:number):void;
   onTableState?(match:import('../shared/manualTableGames').TableMatch):void;
   onPoolState?(match:import('../shared/manualPool').PoolMatch):void;
   onHockeyState?(match:import('../shared/manualHockey').HockeyMatch):void;
@@ -161,6 +162,7 @@ export class LiveConnection {
 
   yieldSimba(key:string):boolean {return this.sendAuthenticated({type:'simba_yield',key});}
 
+  agilityCue(taskId:number):boolean{return this.sendAuthenticated({type:'agility_cue',taskId});}
   catPlay(command:import('../shared/petToys').CatPlayCommand):boolean{return this.sendAuthenticated(command);}
   petAction(pet: PetId, action: PetAction): boolean {
     return this.sendAuthenticated({ type: 'pet_action', pet, action });
@@ -303,6 +305,7 @@ export class LiveConnection {
         storeTrust({ role: packet.role, token: packet.token });
       } else if (packet.type === 'world_path' && this.authorized) {
         this.callbacks.onWorldPath(packet.role, packet.place, packet.path, packet.station);
+      } else if(packet.type==='agility_feedback'&&this.authorized){this.callbacks.onAgilityFeedback?.(packet.taskId,packet.role,packet.quality);
       } else if (packet.type === 'world_event' && this.authorized) {
         this.callbacks.onWorldEvent(packet.role, packet.message);
       } else if (packet.type === 'delivery_arrived' && this.authorized) {

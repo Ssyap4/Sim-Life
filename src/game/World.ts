@@ -37,7 +37,7 @@ import type { ComputerDevice } from '../shared/computer';
 import { GAME_BY_ID } from '../shared/computerGames';
 import { tennisPlayer,tennisBall } from '../shared/tableTennis';
 import { badmintonPlayer,badmintonShuttle } from '../shared/badminton';
-import {isDogAgility,agilityPath} from '../shared/dogAgility';
+import {DOG_AGILITY,isDogAgility,agilityPath} from '../shared/dogAgility';
 import { PICNIC_SECONDS,isCampRecipe,isParkDogAction,type CampRecipe } from '../shared/park';
 import { isLeisureAction } from '../shared/leisure';
 import {floatBob,poolSwimFrame,poolEntryFrame,POOL_ENTRY_SECONDS,POOL_MOUNT_SECONDS} from '../shared/oasisPool';
@@ -184,6 +184,7 @@ export class World {
   private dogTravel = 0;
   private parkDogUntil=0;
   private agilityOwner?:CharacterId;
+  private agilityAction?:import('../shared/dogAgility').DogAgilityAction;
   private lakeDogMode="";
   private parkDogToiletStamp=0;
   private dogTrail: Point[] = [];
@@ -311,7 +312,7 @@ export class World {
     characters: Partial<Record<CharacterId, CharacterModel>> = {},
     private readonly onRenderedFrame?: (nowMs: number, drawCalls: number, triangles: number, scope: string) => void,
     private readonly navigation?: { station(id: string): void; ground(x: number, z: number): void;
-      dismissTap?: () => boolean; pondTap?: () => void; toyTap?: (x:number,z:number)=>boolean }, simbaRig?: SimbaRig) {
+      dismissTap?: () => boolean; pondTap?: () => void; toyTap?: (x:number,z:number)=>boolean; toyDragActive?:()=>boolean }, simbaRig?: SimbaRig) {
     this.scene.background = new THREE.Color(0xc0c7ad);
     this.scene.fog = new THREE.Fog(0xc0c7ad, 125, 171);
 
@@ -452,7 +453,11 @@ export class World {
       primary: event.isPrimary, button: event.button, time: event.timeStamp,
     });
 
+    let toyPointer:number|null=null;
+    const toyPoint=(e:PointerEvent)=>{const b=this.canvas.getBoundingClientRect();this.raycaster.setFromCamera(new THREE.Vector2((e.clientX-b.left)/b.width*2-1,-((e.clientY-b.top)/b.height)*2+1),this.camera);const p=this.raycaster.ray.intersectPlane(new THREE.Plane(THREE.Object3D.DEFAULT_UP,0),this.vector);if(p)this.navigation?.toyTap?.(p.x,p.z);};
+    const releaseToy=(id:number)=>{if(toyPointer!==id)return false;toyPointer=null;if(this.canvas.hasPointerCapture(id))this.canvas.releasePointerCapture(id);return true;};
     this.canvas.addEventListener('pointerdown', event => {
+      if(this.place==='home'&&!this.furnishingGhost&&this.navigation?.toyDragActive?.()&&event.isPrimary&&event.button===0){toyPointer=event.pointerId;this.canvas.setPointerCapture(event.pointerId);toyPoint(event);event.stopImmediatePropagation();event.preventDefault();return;}
       const touch = event.pointerType === 'touch';
       gate.down(contact(event));
       if (event.isPrimary) {
@@ -466,6 +471,7 @@ export class World {
     // stopPropagation on a bubble listener was too late: small finger tremors
     // already panned the camera while the touch still counted as a tap.
     this.canvas.addEventListener('pointermove', event => {
+      if(toyPointer===event.pointerId){if(this.navigation?.toyDragActive?.())toyPoint(event);event.stopImmediatePropagation();event.preventDefault();return;}
       const motion = gate.move(contact(event));
       if (motion.holdTap) {
         event.stopPropagation();
@@ -482,6 +488,7 @@ export class World {
     }, { capture: true });
 
     this.canvas.addEventListener('pointerup', event => {
+      if(toyPointer===event.pointerId){if(this.navigation?.toyDragActive?.())toyPoint(event);releaseToy(event.pointerId);event.stopImmediatePropagation();event.preventDefault();return;}
       const picked = gate.up(contact(event));
       if (picked) {
         // Let OrbitControls finish releasing capture before opening an item
@@ -492,7 +499,7 @@ export class World {
       }
     }, { capture: true });
 
-    const cancel = (event: PointerEvent) => gate.cancel(event.pointerId);
+    const cancel = (event: PointerEvent) => {releaseToy(event.pointerId);gate.cancel(event.pointerId);};
     this.canvas.addEventListener('pointercancel', cancel, { capture: true });
     this.canvas.addEventListener('wheel', () => {
       if (this.followingPlayer || this.followingPair) this.setFollowPlayer(false);
@@ -1458,7 +1465,7 @@ export class World {
         if (command.action === 'exercise') actor.playDomesticActivity('stretch');
         if (command.action === 'unpack') actor.playDomesticActivity('tidy');
         if(isParkDogAction(command.action)){
-          actor.faceTowards(this.pets.verdell.root.position);
+          actor.faceTowards(isDogAgility(command.action)?new THREE.Vector3(DOG_AGILITY[command.action].x,0,DOG_AGILITY[command.action].z):this.pets.verdell.root.position);
           if(command.action!=='dogToilet')actor.playPetActivity('play');
           this.playParkDog(command.action,role);
         }
@@ -1663,7 +1670,7 @@ export class World {
   }
 
   private clearLakeFood(role:CharacterId){if(this.place==='lake'&&this.remote)for(const g of this.remote.stations.values()){const f=g.userData.fire;if(f?.userData.cookRole===role){delete f.userData.cookRole;f.userData.setFood();}}}
-  private endAgility(role:CharacterId){if(this.agilityOwner!==role)return;this.agilityOwner=undefined;this.pets.verdell.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;}
+  private endAgility(role:CharacterId){if(this.agilityOwner!==role)return;const action=this.agilityAction;this.agilityOwner=undefined;this.agilityAction=undefined;const dog=this.pets.verdell;dog.stop();this.parkDogUntil=0;this.dogTrail=[];this.lastDogPoint=null;const walker=this.household?.world.dogWalker;if(this.place==='park'&&walker&&dog.root.visible){const blocks=placeObstacles('park',undefined,action),floor=floorFor('park'),start=nearestClearPoint(dog.root.position,blocks,floor),goal=nearestClearPoint(this.household?.pets.verdell.parkPosition??this.actors[walker].root.position,blocks,floor);const route=start&&goal&&findRoute(start,goal,blocks,floor);if(route?.length){dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');this.parkDogUntil=this.visualSeconds+Math.min(16,route.reduce((n,p,i)=>n+Math.hypot(p.x-(route[i-1]?.x??start!.x),p.z-(route[i-1]?.z??start!.z)),0)/PET_SPEED.verdell+1);}}}
   finishTimedAction(role: CharacterId): void {
     this.endAgility(role);
     for(const id of PET_IDS)this.pets[id].endOwnerReaction(role);
@@ -2274,13 +2281,13 @@ export class World {
 
   parkConversation():void{if(this.place==='park')for(const role of ['vlad','alina'] as const)this.actors[role].parkConversation();}
   private playParkDog(action:string,role:CharacterId):void{
-    const dog=this.pets.verdell,actor=this.actors[role],obstacles=this.currentObstacles(),floor=floorFor(this.place);
+    const dog=this.pets.verdell,actor=this.actors[role],obstacles=this.place==='park'&&isDogAgility(action)?placeObstacles('park',undefined,action):this.currentObstacles(),floor=floorFor(this.place);
     const start=nearestClearPoint(dog.root.position,obstacles,floor);if(!start)return;
     const owner=nearestClearPoint({x:actor.root.position.x-.55,z:actor.root.position.z+.35},obstacles,floor);if(!owner)return;
     const goal=nearestClearPoint({x:owner.x-2.0,z:owner.z+1.3},obstacles,floor);if(!goal)return;
     this.parkDogUntil=this.visualSeconds+(isDogAgility(action)?23:action==='dogToilet'?6:15);
     this.dogTrail=[];this.lastDogPoint=null;
-    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route){dog.followRoute([...route,...course.slice(1)].map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');dog.setAgility(action);this.agilityOwner=role;}return;}
+    if(isDogAgility(action)){const course=agilityPath(action),entry=course[0],route=findRoute(start,entry,obstacles,floor);if(route&&course.slice(1).every((p,i)=>segmentIsClear(course[i],p,obstacles,floor))){dog.followRoute([...route,...course.slice(1)].map(p=>new THREE.Vector3(p.x,0,p.z)),'wander');dog.setAgility(action);this.agilityOwner=role;this.agilityAction=action;}return;}
     if(action==='dogRoll'){dog.parkRoll();return;}
     if(action==='dogToilet'){
       const route=findRoute(start,goal,obstacles,floor);if(route)dog.followRoute(route.map(p=>new THREE.Vector3(p.x,0,p.z)),'toilet');return;
@@ -2440,7 +2447,7 @@ export class World {
     this.sleepingOffline.clear();
     for (const pet of Object.values(this.pets)) pet.stop();
     this.dogTrail = [];
-    this.lastDogPoint = null;this.agilityOwner=undefined;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
+    this.lastDogPoint = null;this.agilityOwner=undefined;this.agilityAction=undefined;this.parkDogUntil=0;this.parkDogToiletStamp=0;this.lakeDogMode='';
     this.remote?.root.removeFromParent();
     this.remote?.dispose();
     this.remoteMeshes = [];
@@ -3459,6 +3466,7 @@ export class World {
       const view=v?views[this.place]?.[v]:undefined;
       if(view){this.controls.target.set(...view.target);this.camera.position.set(...view.eye);this.camera.lookAt(this.controls.target);}
     }
+    if(this.cameraQA&&this.place==='park'&&new URLSearchParams(location.search).get('agilityQA')==='1'){const action=this.canvas.dataset.agilityView;if(action==='overview'){this.controls.target.set(4.9,.12,4.0);this.camera.position.set(5.1,7.9,10.2);this.camera.lookAt(this.controls.target);}else if(isDogAgility(action)){const d=DOG_AGILITY[action];this.controls.target.set(d.x,.28,d.z);this.camera.position.set(d.x+1.75,2.4,d.z+3.1);this.camera.lookAt(this.controls.target);}}
     if(this.cameraQA&&new URLSearchParams(location.search).get('worldArtQA')==='1'){
       const view=this.place==='home'?{target:[3,.1,1],eye:[13,22,22]}:this.place==='district'?{target:[21.38,.1,21.05+DISTRICT_OFFSET_Z],eye:[26,8,29+DISTRICT_OFFSET_Z]}:this.place==='park'?{target:[1.6,.1,-.8],eye:[7.7,10.6,12]}:this.place==='electronics'?{target:[2.5,0,-.7],eye:[8.2,12,16]}:['market','cafe','petshop','clothing','education'].includes(this.place)?{target:[0,.1,-.5],eye:[6.5,11,14]}:undefined;
       if(view){this.controls.target.set(...view.target as [number,number,number]);this.camera.position.set(...view.eye as [number,number,number]);this.camera.lookAt(this.controls.target);}
